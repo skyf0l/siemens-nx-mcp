@@ -20,8 +20,14 @@ class AssemblyDocumentationMixin:
                 "BendTables",
                 "TableSections",
                 "Tables",
+                "Centerlines",
+                "DraftingSurfaceFinishSymbol",
+                "Welds",
             ]:
-                values.extend(getattr(annotations, name, []))
+                try:
+                    values.extend(getattr(annotations, name, None) or [])
+                except Exception:  # A collection this NX build cannot enumerate.
+                    continue
         values.extend(getattr(getattr(part, "DraftingManager", None), "TitleBlocks", []))
         return list({int(obj.Tag): obj for obj in values}.values())
 

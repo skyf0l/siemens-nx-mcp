@@ -1,0 +1,22 @@
+{
+  "nx_sketch_point_dimension": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 modern solver, XY sketch (acceptance/live/sketch_constraints.json): horizontal line-end to line-start driven 20->25 mm, vertical measured-and-fixed 5 mm (value=None), line start-to-end distance driven 26.93->30 mm, arc center to line mid measured 61.27 mm; geometry read back within 1e-6 and expression value equal; duplicate dimension on the same point pair -> NX_SKETCH_CONFLICT (nx_code 910023), contradicting vertical 7 mm -> OverConstrained, NX_SKETCH_CONFLICT, rolled back with geometry unchanged. Arc start/end points measured only in a probe (10 mm chord)."
+  },
+  "nx_sketch_curve_dimension": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406: angle between two lines driven 56.44->60 deg (line directions read back 60.000000), parallel_distance between parallel lines driven 20->15 mm and later edited to 18 through the dimension expression (line moved to y=18, midpoint-constrained circle followed), perpendicular_distance line to arc center driven 10->12 mm. Non-parallel lines rejected before NX. nx_set_expression itself could not be used on NX 2406 (shared _expression_record bug); the edit was verified with Expressions.EditExpression."
+  },
+  "nx_sketch_midpoint": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406: circle center to the midpoint of a line (midpoint + point-on-curve, 2 constraints, residuals 0, center followed a later expression edit of the line position); on_curve=false line end to the bisector of a half arc (equidistance residual 0, 1 constraint). Full-circle target rejected. NX's native midpoint constraint alone means equidistant from the ends only."
+  },
+  "nx_sketch_point_on_curve": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406: line start onto the extension of another line (residual 0) and line end onto a full circle (residual 3.6e-15); created constraint returned, no existing constraint removed."
+  }
+}

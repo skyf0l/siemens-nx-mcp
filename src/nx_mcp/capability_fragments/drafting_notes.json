@@ -1,0 +1,27 @@
+{
+  "nx_add_note": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406, mm part and A3 mm sheet at scale 1: 3-line Note at origin [250,270] and 1-line Label with a filled-arrow leader to the top planar face in a Top base view; text and origins read back exactly, leader reopened through the native builder and confirmed attached to that face in that view (anchor [140,183.75], clear of the hole); IDs listed by nx_list_annotations and moved by nx_edit_annotation ([250,275]); PDF shows both notes."
+  },
+  "nx_add_center_mark": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 Top base view: one call with two circular edges (diameter-20 hole, R8 blend arc) made two CenterMarks at sheet [120,190] and [162,207], each verified against UF_VIEW_map_model_to_drawing of the arc center and its native associativity; after the blend radius changed 8 -> 12 the blend mark followed to [158,203]. Visible in exported PDF."
+  },
+  "nx_add_centerline": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406: kind=3d on the hole's cylindrical face in a projected side view -> Centerline3d on the projected axis (x=120); kind=2d between two parallel linear top edges (y=0, y=50) in the Top view -> Centerline2d on the mid-line y=190 (origin [128,190]); both checked against the projected axis/mid-line and associativity; 3d on a face whose axis points out of the view is rejected with NX_UNSUPPORTED_ARGUMENT and rolled back. Visible in PDF."
+  },
+  "nx_add_surface_finish": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 DraftingSurfaceFinishSymbol: material_removal_required Ra 3.2 (leader to planar face, Top view), basic Ra 0.8 (leader to blend face, side view), material_removal_prohibited Ra 12.5 (leader to linear edge, side view); symbol type, 'Ra <value>' text in field a2, origin and leader attachment read back from the native builder. Readable in exported PDF."
+  },
+  "nx_add_weld_symbol": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 LineWeld with leader in a Top view: fillet 5 both sides (leader to R8 blend arc), v_butt 4 other side and square_butt 3 arrow side (leaders to linear edges); per-side symbol/size, origin and leader attachment read back from the native builder (unused side reads None/empty). Readable in exported PDF. Weld standard is the part's native default."
+  }
+}

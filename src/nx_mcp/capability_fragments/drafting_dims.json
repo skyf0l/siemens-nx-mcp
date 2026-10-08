@@ -1,0 +1,22 @@
+{
+  "nx_add_radial_dimension": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Live NX 2406 (acceptance/live/drafting_dims.json): native RadialDimensionBuilder on a 12 mm through-hole edge in a top base view of a third-angle A3 sheet; kind=radius -> RadiusDimension 6.0, kind=diameter -> DiameterDimension 12.0, both verified against the edge radius and read back by nx_list_dimensions (not retained); placed at the requested sheet origins in the exported PDF. A straight edge is rejected with NX_OBJECT_TYPE_MISMATCH and rolled back."
+  },
+  "nx_add_angular_dimension": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Live NX 2406: native AngularDimensionBuilder -> MinorAngularDimension. Slanted edge vs back edge in the top view: 116.565 deg (supplement of the 63.435 deg view angle atan(20/10)); 3 mm symmetric chamfer edge vs top-face edge in the third-angle right projected view: 135 deg (supplement of 45 deg). Values verified against the projected edge angle; NX chooses the quadrant from the text origin. Visual placement checked in the exported PDF."
+  },
+  "nx_add_ordinate_dimensions": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Live NX 2406 via UF_DRF ordinate origin + margin + ordinate dimension (OrdinateDimensionBuilder does not commit dimensions on 2406). Origin at the end vertex (0,0,0) of an edge in the top view; horizontal: hole center 20.0, slanted-edge start 60.0 (HorizontalOrdinateDimension); vertical: hole center 20.0, back-edge start 40.0 (VerticalOrdinateDimension); all equal the model coordinates, share the new ordinate origin and sit on the default margins (15 mm above / left of the view) in the exported PDF."
+  },
+  "nx_create_drawing_sheet": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Live NX 2406: A3 mm sheets with projection third_angle and first_angle read back from DrawingSheet.ProjectionAngle; nx_add_projection_view placed right of a top base view looks from +X on the third-angle sheet and from -X on the first-angle sheet (view matrices), bottom view on the third-angle sheet looks from -Y (front). Template 'A3' (UGII_BASE_DIR/DRAFTING/templates/Drawing-A3-Size2D-template.prt) creates an A3 sheet with the Siemens border and title block, renamed to the requested name, scale 2 and first_angle applied, with warnings that the template's static projection symbol (third angle) and title-block scale text are unchanged. Unknown template names return NX_NOT_FOUND. Inch templates/workspace template paths are not live-tested."
+  }
+}

@@ -1420,7 +1420,8 @@ class EngineeringMixin:
                 self._engineering_collector([target], "Body").GetRules(), False
             )
             b.Plane.Value = datum
-            b.DeleteSourceBody = False
+            if hasattr(b, "DeleteSourceBody"):  # Absent in NX 2406; the source is kept anyway.
+                b.DeleteSourceBody = False
             result = b.CommitFeature()
         finally:
             b.Destroy()

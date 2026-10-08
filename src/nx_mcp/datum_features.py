@@ -60,6 +60,11 @@ def parallel(a, b, tol=1e-6):
     return _norm(_cross(a, b)) <= tol
 
 
+def same_direction(a, b, tol=1e-6):
+    """True when unit vectors a and b are parallel and point the same way."""
+    return parallel(a, b, tol) and _dot(a, b) > 0
+
+
 def on_plane(point, origin, normal, tol):
     return abs(_dot(_sub(point, origin), normal)) <= tol
 
@@ -141,6 +146,9 @@ class DatumFeaturesMixin:
                     "NX_INVALID_ARGUMENT", "offset needs a planar reference and a finite distance"
                 )
             target, ref_origin, ref_normal = self._df_planar_target(reference)
+            # NX offsets along the reference normal; a negative value (or flip) goes the
+            # other way. Plane.SetFlip only reverses the result normal, so it is not used.
+            signed = -float(distance) if flip else float(distance)
             geometry, plane_method = [target], "Distance"
         elif method == "point_normal":
             if origin is None or normal is None:
@@ -167,8 +175,7 @@ class DatumFeaturesMixin:
             plane.SetMethod(getattr(self.nxopen.PlaneTypes.MethodType, plane_method))
             plane.SetGeometry(geometry)
             if method == "offset":
-                plane.Expression.RightHandSide = repr(float(distance))
-            plane.SetFlip(bool(flip))
+                plane.Expression.RightHandSide = repr(signed)
             plane.Evaluate()
             feature = self._df_commit(builder)
         finally:
@@ -177,16 +184,16 @@ class DatumFeaturesMixin:
         self._df_name(feature, name)
         actual_origin, actual_normal = _xyz(datum.Origin), unit_normal(_xyz(datum.Normal))
         if method == "offset":
-            gap = abs(_dot(_sub(actual_origin, ref_origin), ref_normal))
-            ok = parallel(actual_normal, ref_normal) and abs(
-                gap - abs(float(distance))
-            ) <= _tolerance(actual_origin, ref_origin)
+            gap = _dot(_sub(actual_origin, ref_origin), ref_normal)
+            ok = same_direction(actual_normal, ref_normal) and abs(gap - signed) <= _tolerance(
+                actual_origin, ref_origin, [signed] * 3
+            )
         elif method == "point_normal":
-            ok = parallel(actual_normal, n) and on_plane(
+            ok = same_direction(actual_normal, n) and on_plane(
                 o, actual_origin, actual_normal, _tolerance(o, actual_origin)
             )
         else:
-            ok = parallel(actual_normal, n) and all(
+            ok = same_direction(actual_normal, n) and all(
                 on_plane(p, actual_origin, actual_normal, _tolerance(p, actual_origin)) for p in pts
             )
         self._df_verify(
@@ -232,8 +239,8 @@ class DatumFeaturesMixin:
                 builder.Vector = self._df_direction(d, o)
             else:
                 builder.Type = types.TwoPoints
-                builder.StartPoint = self._df_point(o)
-                builder.EndPoint = self._df_point(e)
+                builder.Point1 = self._df_point(o)
+                builder.Point2 = self._df_point(e)
             feature = self._df_commit(builder)
         finally:
             builder.Destroy()
@@ -242,7 +249,7 @@ class DatumFeaturesMixin:
         actual_origin, actual_direction = _xyz(axis.Origin), unit_normal(_xyz(axis.Direction))
         on_line = _norm(_cross(_sub(actual_origin, o), d)) <= _tolerance(actual_origin, o)
         self._df_verify(
-            parallel(actual_direction, d) and on_line,
+            same_direction(actual_direction, d) and on_line,
             "NX datum axis differs from the request",
             origin=actual_origin,
             direction=actual_direction,
@@ -329,18 +336,29 @@ class DatumFeaturesMixin:
             x = unit_normal(x_direction, "x_direction")
             if abs(_dot(x, normal)) > 1e-6:
                 raise NXToolError("NX_INVALID_ARGUMENT", "x_direction must lie in the plane")
-        update = self.nxopen.SmartObject.UpdateOption.WithinModeling
-        plane = part.Planes.CreatePlane(
-            self.nxopen.Point3d(*origin), self.nxopen.Vector3d(*normal), update
-        )
-        plane.SetMethod(self.nxopen.PlaneTypes.MethodType.Coincident)
-        plane.SetGeometry([obj])
-        plane.Evaluate()
-        builder = part.Sketches.CreateSketchInPlaceBuilder2(self.nxopen.Sketch.Null)
+        nxopen = self.nxopen
+        builder = part.Sketches.CreateSketchInPlaceBuilder2(nxopen.Sketch.Null)
         try:
-            builder.PlaneReference = plane
-            if x is not None:
+            if x is None:
+                # Selecting the face/plane directly keeps the sketch associative; NX picks
+                # the horizontal axis and projects the absolute origin onto the plane.
+                builder.PlaneOption = nxopen.Sketch.PlaneOption.Inferred
+                builder.PlaneOrFace.Value = obj
+            else:
+                # NX 2406 ignores AxisReference in Inferred mode. A coincident smart plane
+                # with an explicit axis and origin stays associative to the target.
+                update = nxopen.SmartObject.UpdateOption.WithinModeling
+                plane = part.Planes.CreatePlane(
+                    nxopen.Point3d(*origin), nxopen.Vector3d(*normal), update
+                )
+                plane.SetMethod(nxopen.PlaneTypes.MethodType.Coincident)
+                plane.SetGeometry([obj])
+                plane.Evaluate()
+                builder.PlaneOption = nxopen.Sketch.PlaneOption.NewPlane
+                builder.PlaneReference = plane
                 builder.AxisReference = self._df_direction(x, origin)
+                builder.OriginOption = nxopen.OriginMethod.SpecifyPoint
+                builder.SketchOrigin = self._df_point(origin)
             sketch = builder.Commit()
         finally:
             builder.Destroy()
@@ -381,6 +399,7 @@ class DatumFeaturesMixin:
             raise NXToolError(
                 "NX_INVALID_ARGUMENT", "Give either a datum axis ID or axis_origin + axis_direction"
             )
+        datum = None
         if axis is not None:
             datum = self._resolve(axis, {"datum"})
             if not hasattr(datum, "Direction"):
@@ -408,13 +427,21 @@ class DatumFeaturesMixin:
                 NXOpen.GeometricUtilities.PatternDefinition.PatternEnum.Circular
             )
             definition = builder.PatternService.CircularDefinition
-            definition.RotationAxis = part.Axes.CreateAxis(
-                self._df_point(o),
-                self._df_direction(d, o),
-                self.nxopen.SmartObject.UpdateOption.WithinModeling,
-            )
-            definition.AngularSpacing.NCopies.RightHandSide = str(count)
-            definition.AngularSpacing.PitchAngle.RightHandSide = repr(float(angle))
+            update = self.nxopen.SmartObject.UpdateOption.WithinModeling
+            if datum is not None:
+                # Direction derived from the datum axis keeps the pattern associative to it.
+                direction = part.Directions.CreateDirection(
+                    datum, self.nxopen.Sense.Forward, update
+                )
+                definition.RotationAxis = part.Axes.CreateAxis(self._df_point(o), direction, update)
+            else:
+                definition.RotationAxis = part.Axes.CreateAxis(
+                    self._df_point(o), self._df_direction(d, o), update
+                )
+            spacing = definition.AngularSpacing
+            spacing.SpaceType = NXOpen.GeometricUtilities.PatternSpacing.SpacingType.Offset
+            spacing.NCopies.RightHandSide = str(count)
+            spacing.PitchAngle.RightHandSide = repr(float(angle))
             definition.RadialSpacing.NCopies.RightHandSide = "1"
             feature = builder.CommitFeature()
         finally:

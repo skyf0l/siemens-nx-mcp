@@ -1,0 +1,7 @@
+{
+  "nx_hole_feature": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Native HolePackage (Hole command) on planar block faces of a 60x40x20 mm part (acceptance/live/holes.json): 2 simple 6x10 holes removed 599.4645 mm3 (analytic incl. 118 deg tip 599.4645); counterbore 11x4 + 6x12 removed 623.3163 (analytic 623.3163); countersink 12x90 + 6x12 removed 469.3783 (analytic 469.3783); 2 threaded M8 x 1.25 (Metric Coarse, tap drill 6.8 x 15, thread 12) removed 1138.9660 (analytic 1138.9660) with native thread expressions major 8 / minor 6.619 / pitch 1.25 / angle 60; through-all 5 mm on the +X face removed 1178.0972 (pi*6.25*60) along -X; through-all M6 full-length thread on the -Y face removed 785.3982 along +Y. Builder read-back, origins and drill directions verified per call; nx_recognize_holes found all 9 bores (8 coaxial groups). Off-plane, outside-face and non-catalog tap-drill requests were rejected with NX_INVALID_ARGUMENT, mutation_outcome rolled_back, volume unchanged, nx_model_health healthy. Not verified: inch parts, non-axis-aligned faces, Custom radial engagement."
+  }
+}

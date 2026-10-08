@@ -952,7 +952,11 @@ class HardenedExecutor(
             if hasattr(c, "StartPoint"):
                 row.update(start=xyz(c.StartPoint), end=xyz(c.EndPoint))
             if hasattr(c, "CenterPoint"):
-                row.update(center=xyz(c.CenterPoint), radius=c.Radius)
+                row["center"] = xyz(c.CenterPoint)
+                if hasattr(c, "Radius"):  # Arcs and circles.
+                    row["radius"] = c.Radius
+                elif hasattr(c, "MajorRadius"):  # Ellipses have no single radius.
+                    row.update(major_radius=c.MajorRadius, minor_radius=c.MinorRadius)
             geometry.append(row)
         return {
             "object": self._reference(sketch, "sketch", part, "Sketch"),

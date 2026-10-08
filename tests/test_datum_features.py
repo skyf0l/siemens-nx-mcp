@@ -4,6 +4,7 @@ Native behaviour is validated live on NX (see CLAUDE.md, live development loop);
 these tests cover the geometry checks, argument validation and public schemas.
 """
 
+import json
 import math
 from pathlib import Path
 
@@ -11,7 +12,13 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.datum_features import on_plane, orthonormal_frame, parallel, plane_through
+from nx_mcp.datum_features import (
+    on_plane,
+    orthonormal_frame,
+    parallel,
+    plane_through,
+    same_direction,
+)
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -42,6 +49,13 @@ def test_geometry_predicates():
     assert orthonormal_frame([s, s, 0], [-s, s, 0])[2] == pytest.approx([0, 0, 1])
     with pytest.raises(NXToolError, match="orthonormal"):
         orthonormal_frame([1, 0, 0], [1, 0, 0])
+
+
+def test_same_direction_rejects_reversed_normals_and_axes():
+    # Live NX: Plane.SetFlip reverses only the normal, so the sense is verified too.
+    assert same_direction([0, 0, 1], [0, 0, 1])
+    assert not same_direction([0, 0, 1], [0, 0, -1])
+    assert not same_direction([1, 0, 0], [0, 1, 0])
 
 
 @pytest.mark.parametrize(
@@ -76,6 +90,36 @@ def test_geometry_predicates():
             "orthonormal",
         ),
         ("nx_datum_point", {"position": [0, math.inf, 0]}, "finite"),
+        ("nx_datum_point", {"position": [0, 0]}, "three numbers"),
+        ("nx_datum_axis", {"method": "sideways"}, "method must be"),
+        (
+            "nx_datum_axis",
+            {"method": "point_direction", "origin": [0, 0, 0], "direction": [0, 0, 0]},
+            "nonzero",
+        ),
+        (
+            "nx_circular_pattern",
+            {
+                "features": ["f"],
+                "count": 4,
+                "angle": 0,
+                "axis_origin": [0, 0, 0],
+                "axis_direction": [0, 0, 1],
+            },
+            "positive pitch",
+        ),
+        (
+            "nx_circular_pattern",
+            {
+                "features": ["f"],
+                "count": 4,
+                "angle": 90,
+                "axis": "a",
+                "axis_origin": [0, 0, 0],
+                "axis_direction": [0, 0, 1],
+            },
+            "either a datum axis",
+        ),
         (
             "nx_circular_pattern",
             {
@@ -132,3 +176,29 @@ async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path
     assert tools["nx_create_sketch_on"].inputSchema["required"] == ["target"]
     for name in NEW_TOOLS:
         assert MANIFEST["tools"][name]["status"] in {"experimental", "tested"}
+
+
+def test_live_acceptance_script_uses_public_tools_only(tmp_path: Path):
+    root = Path(__file__).resolve().parents[1]
+    steps = json.loads((root / "acceptance" / "live" / "modeling.json").read_text("utf-8"))
+    assert steps[0]["tool"] == "nx_create_part"
+    used = {step["tool"] for step in steps}
+    assert used >= NEW_TOOLS
+    fragment = json.loads(
+        (root / "src" / "nx_mcp" / "capability_fragments" / "modeling.json").read_text("utf-8")
+    )
+    assert set(fragment) == NEW_TOOLS
+    for entry in fragment.values():
+        assert entry["status"] == "tested"
+        assert entry["evidence_type"] == "real_NX_v2406_scoped"
+        assert entry["scope"]
+
+
+@pytest.mark.asyncio
+async def test_live_acceptance_tools_exist_on_the_agent_surface(tmp_path: Path):
+    root = Path(__file__).resolve().parents[1]
+    steps = json.loads((root / "acceptance" / "live" / "modeling.json").read_text("utf-8"))
+    server = create_server(object(), Workspace(tmp_path))
+    async with create_connected_server_and_client_session(server) as client:
+        names = {t.name for t in (await client.list_tools()).tools}
+    assert {step["tool"] for step in steps} <= names

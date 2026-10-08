@@ -1,0 +1,47 @@
+{
+  "nx_sketch_polygon": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Inscribed hexagon R20 (side 20 read back) extruded 10 -> 10392.305 mm^3; circumscribed square R10 rot 45 -> 20x20, extruded 10 -> 4000.0. Lines joined by coincident constraints."
+  },
+  "nx_sketch_ellipse": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Full 20x10 ellipse rot 30: center/radii/rotation exact, perimeter 96.884482; extruded 10 -> 6283.355 (analytic 6283.185, NX body tolerance). Half ellipse 10x5 0-180 deg: ends (+-10,y), length 24.2211. Note: shared nx_sketch_info fails on sketches containing ellipses."
+  },
+  "nx_sketch_fillet": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Native Sketch.Fillet with trim on line/line corners: R5 on 40x30 rectangle -> arc center (85,5), lines trimmed to 35/25; R14.9 ok; R100 rejected (NX would extend inputs) with rollback. Filleted+chamfered rectangle extruded 10 -> 11826.350 exact. Line/arc: R2 between a line and an R10 arc -> center (28.168,2), tangent to both (12.0 from the arc center)."
+  },
+  "nx_sketch_chamfer": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Lines only. Symmetric 4 and asymmetric 4/6 at a rectangle corner: ends exactly 4 along curve1 and 6 along curve2 (auto-swap when NX assigns Distance1 to the other line); extruded profile volume 11826.350 exact."
+  },
+  "nx_sketch_offset": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Associative offset of a closed hexagon R10 by 2 (auto=outward, vertex radius 12.3094, every output 2.0 from input) and of a single +x line by 3 with side left (y=-57) and right (y=-63)."
+  },
+  "nx_sketch_mirror": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Associative mirror of 6 hexagon lines about an owned sketch line x=60; every output endpoint is the exact reflection of an input. Also a line + 2 arcs mirrored about a datum axis (Y axis) -> exact reflections."
+  },
+  "nx_sketch_construction": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Line toggled construction -> active -> construction, read back via Curve.IsReference each time; extrude of the sketch ignores the construction line (volume unchanged)."
+  },
+  "nx_sketch_project": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Associative projection of one block edge into a parallel sketch 20 above: line (140,-10)-(160,-10); unchanged after block height edit 10->15. Edges and curves of the work part."
+  },
+  "nx_sketch_intersection": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "Associative intersection of a block top face with an XZ sketch at y=0: line (140,10)-(160,10); follows the block extrude edit 10->15 to z=15."
+  }
+}

@@ -313,7 +313,10 @@ def test_nonassociative_copy_result_is_rejected(eng):
 @pytest.mark.parametrize("plane", ["XY", "XZ", "YZ"])
 def test_mirror_preserves_original_and_uses_origin_plane(eng, plane):
     result = eng.e._mirror_body(eng.ref(eng.body), plane)
-    assert result["body_count"] == 1 and eng.builders[-1].DeleteSourceBody is False
+    # NX 2406's builder has no DeleteSourceBody (it never deletes the source);
+    # where the member exists it must be set to keep the source.
+    assert result["body_count"] == 1
+    assert getattr(eng.builders[-1], "DeleteSourceBody", False) is False
     assert eng.part.Datums.CreateFixedDatumPlane.call_args.args[0].X == 0
     with pytest.raises(NXToolError):
         eng.e._mirror_body(eng.ref(eng.body), "custom")

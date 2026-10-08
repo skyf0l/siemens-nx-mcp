@@ -1,0 +1,32 @@
+{
+  "nx_datum_plane": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 live (acceptance/live/modeling.json), mm part, 40x20x10 block: offset 15 from top face -> origin z=25 normal +Z; offset 4 flip=true and offset -4 -> z=6 normal +Z; offset 5 from bottom face -> z=-5 normal -Z (outward); offset 5 from a datum plane -> z=30; point_normal (5,5,5)/+X; three_points (0,0,0),(40,0,10),(0,20,0) -> normal (-0.2425,0,0.9701). Offset expression edit 15->20 moved the plane (associative). Datum creation leaves volume 8000. Collinear points rejected with no model change."
+  },
+  "nx_datum_axis": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 live: point_direction (20,10,0)/+Z and two_points (0,0,0)->(40,20,10) give exact line and sense (returned origin is a point on the line; NX extends the axis). Creates FIXED_DATUM_AXIS features. The +Z axis drove a 6 x 60 deg nx_circular_pattern with exact volume."
+  },
+  "nx_datum_csys": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 live: CSYS at (10,5,10) rotated 30 deg about Z; read-back origin and x/y/z axes equal the request within 1e-6; name applied to the feature."
+  },
+  "nx_datum_point": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 live: point feature at (12.5,-3,7.25), read-back coordinates exact; name applied."
+  },
+  "nx_create_sketch_on": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 live: on the block top face (frame origin (0,0,10), x=+X, normal +Z) and on a datum plane at z=25 without x_direction (origin (0,0,25)) and with x_direction +Y (origin (20,10,25), x=+Y, y=-X). Circles drawn with nx_sketch_primitive and extruded: r3 x5 boss unite +141.3717 mm3, r2 post from the datum plane down into the block +188.4956 mm3, x_direction sketch body bounding box 34.5..37.5 x 8.5..11.5 x 25..28 as predicted. Sketches followed face/plane edits (associative). Out-of-plane x_direction rejected with no model change."
+  },
+  "nx_circular_pattern": {
+    "status": "tested",
+    "evidence_type": "real_NX_v2406_scoped",
+    "scope": "NX 2406 live: extrude-unite boss seed (r1.5 x4) 6 x 60 deg about a datum axis -> volume +5 x 28.2743 exactly (8358.1416 -> 8499.5132); extrude-subtract hole seed (r1 x4) 6 x 60 deg about axis_origin (7,10,0)/axis_direction +Z -> volume -5 x 12.5664 exactly (8486.9469 -> 8424.1150). count 7 x 60 deg rejected, volume unchanged; model health clean."
+  }
+}

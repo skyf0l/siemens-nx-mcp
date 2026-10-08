@@ -21,6 +21,12 @@ def page(items, offset=0, limit=50):
     }
 
 
+def _expression_list(exp, method):
+    """Expressions returned by an optional NXOpen dependency query, [] if absent."""
+    query = getattr(exp, method, None)
+    return list(query()) if query is not None else []
+
+
 def finite(value, name, positive=False):
     if (
         isinstance(value, bool)
@@ -83,15 +89,20 @@ class AuthoringMixin:
             "editable": not (
                 exp.IsNoEdit or exp.IsRightHandSideLockedFromEdit or exp.IsInterpartExpression
             ),
+            # NX 2406 lacks GetExpressionParents; dependents are still available.
             "parents": [
                 self._reference(e, "expression", part, "Expression")
-                for e in exp.GetExpressionParents()
+                for e in _expression_list(exp, "GetExpressionParents")
             ],
             "dependents": [
                 self._reference(e, "expression", part, "Expression")
-                for e in exp.GetReferencingExpressions()
+                for e in _expression_list(exp, "GetReferencingExpressions")
             ],
-            "dependency_scope": "stored immediate expression dependencies; conditional branches may be incomplete",
+            "dependency_scope": (
+                "stored immediate expression dependencies; conditional branches may be incomplete"
+                if hasattr(exp, "GetExpressionParents")
+                else "parents unavailable in this NX version; dependents are immediate referencing expressions"
+            ),
         }
 
     def _list_expressions(self, name_contains=None, offset=0, limit=50):
