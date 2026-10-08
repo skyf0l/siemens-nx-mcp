@@ -137,7 +137,7 @@ async def test_package_dependency_manifest_and_no_overwrite(tmp_path):
 async def test_mcp_paths_are_validated_before_bridge_dispatch(tmp_path):
     bridge = AsyncMock()
     bridge.call.return_value = {"status": "success"}
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True)
+    server = create_server(bridge, Workspace(tmp_path))
     result = await server.call_tool("nx_import_geometry", {"path": "../secret.step"})
     assert result.isError and result.structuredContent["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
     bridge.call.assert_not_called()
@@ -171,7 +171,7 @@ async def test_inline_capture_delivery_checks_committed_artifact(tmp_path, kind,
     }
     bridge = AsyncMock()
     bridge.call.return_value = result
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True)
+    server = create_server(bridge, Workspace(tmp_path))
     response = await server.call_tool(method, {"path": "capture.png"})
     images = [v for v in response.content if v.type == "image"]
     if kind == "valid":
@@ -204,7 +204,7 @@ def test_folder_discovery_creation_and_safe_retry(tmp_path):
 async def test_folder_tools_are_exposed_and_absolute_part_paths_are_forwarded(tmp_path):
     bridge = AsyncMock()
     bridge.call.return_value = {"path": str(tmp_path / "projects" / "base.prt")}
-    server = create_server(bridge=bridge, workspace=Workspace(tmp_path), enable_experimental=True)
+    server = create_server(bridge=bridge, workspace=Workspace(tmp_path))
     info = await server.call_tool("nx_workspace_info", {})
     assert info.structuredContent["root"] == str(tmp_path)
     created = await server.call_tool("nx_create_directory", {"path": "projects/parts"})
@@ -226,7 +226,7 @@ async def test_inline_image_metadata_paging_and_output_contract(tmp_path):
     for name in ["a.txt", "b.txt", "c.txt"]:
         (tmp_path / name).write_text("artifact")
     bridge = AsyncMock()
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True)
+    server = create_server(bridge, Workspace(tmp_path))
     tools = {t.name: t for t in await server.list_tools()}
     schema = tools["nx_download_file"].inputSchema["properties"]
     assert schema["length"]["maximum"] == 262144 and schema["offset"]["minimum"] == 0
@@ -260,7 +260,7 @@ async def test_inline_image_metadata_paging_and_output_contract(tmp_path):
 async def test_missing_directory_and_boolean_operand_contract(tmp_path):
     bridge = AsyncMock()
     bridge.call.return_value = {"status": "success"}
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True)
+    server = create_server(bridge, Workspace(tmp_path))
     missing = await server.call_tool("nx_workspace_list", {"path": "missing"})
     assert missing.isError and missing.structuredContent["code"] == "NX_DIRECTORY_NOT_FOUND"
     tools = {t.name: t for t in await server.list_tools()}

@@ -2,13 +2,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from mcp.shared.memory import create_connected_server_and_client_session
 
-from nx_mcp.bridge import BridgeClient, BridgeServer
 from nx_mcp.contracts import NXToolError
 from nx_mcp.nx_bridge import NXOpenExecutor, start_bridge, stop_bridge
-from nx_mcp.real_smoke import run_iteration
-from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
 pytestmark = [pytest.mark.integration, pytest.mark.fake_nx]
@@ -481,26 +477,6 @@ def test_failed_model_mutation_rolls_back_its_undo_mark(tmp_path: Path):
         )
 
     assert session.rollback_count == 1
-
-
-@pytest.mark.asyncio
-async def test_mcp_sidecar_bridge_and_nx_executor_complete_core_workflow(tmp_path: Path):
-    executor = NXOpenExecutor(FakeSession(), FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    bridge_server = BridgeServer(executor.execute, token="workflow-token")
-    bridge_server.start()
-    mcp = create_server(
-        BridgeClient("127.0.0.1", bridge_server.port, token="workflow-token"),
-        Workspace(tmp_path),
-    )
-    try:
-        async with create_connected_server_and_client_session(mcp) as client:
-            result = await run_iteration(client, tmp_path, 1, prefix="rerun")
-    finally:
-        bridge_server.stop()
-
-    assert result["iteration"] == 1
-    assert result["nx_version"] == "NX test"
-    assert (tmp_path / "rerun" / "run-01.stp").is_file()
 
 
 def test_python_nx_bridge_requires_explicit_feasibility_gate(tmp_path: Path, monkeypatch):

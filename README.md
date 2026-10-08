@@ -13,17 +13,19 @@ historical and does not establish cross-version compatibility for these addition
 See the [capability matrix](docs/capability-matrix.md) for per-tool evidence and
 limits. “Tested” applies to the recorded fixtures, not every option of a builder.
 
-## Choose a tool profile
+## Choose a tool surface
 
-| Profile | Exposure | Configuration |
+All 189 tools are always available. `NX_MCP_SURFACE` only chooses how they are
+presented to the MCP client:
+
+| Surface | What the client sees | Configuration |
 | --- | --- | --- |
-| Default | 16 original core tools | No experimental opt-in |
-| Integration | 189 tools | `NX_MCP_ENABLE_EXPERIMENTAL=1` |
-| Agent | 13 entry points; discover/invoke integration tools on demand | Integration opt-in plus `NX_MCP_SURFACE=agent` |
+| Full (default) | All 189 tools listed directly | nothing, or `NX_MCP_SURFACE=full` |
+| Agent | 13 entry points; discover/invoke the 189 tools on demand | `NX_MCP_SURFACE=agent` |
 
-The legacy environment flag enables the integration profile; it is **not** a
-per-tool test status. Use `nx_capabilities` for that distinction. Journal execution
-requires a separate `NX_MCP_ENABLE_JOURNAL=1` and is disabled by default.
+`NX_MCP_WORKSPACE` is required. Per-tool native test status is reported by
+`nx_capabilities`. There is no arbitrary journal execution tool; every operation
+goes through a typed tool.
 
 ## Start graphical NX
 
@@ -35,15 +37,15 @@ python -m pip install -e ".[dev]"
 
 1. Set `NX_MCP_WORKSPACE` in the NX environment to a dedicated CAD directory,
    such as `D:\NX_MCP_WORKSPACE`.
-2. In graphical NX, play `examples/start_nx_interactive.py`. The journal returns;
-   a retained Win32 timer dispatches queued calls on the NX UI thread.
+2. In graphical NX, play `examples/start_nx_interactive_2606.py`. The journal returns;
+   a retained Win32 timer dispatches queued calls on the NX UI thread. On NX 2406,
+   play `examples/start_nx_interactive_2406.py` instead; that journal stays resident
+   (see [graphical lifecycle](INTERACTIVE-NX.md)).
 3. Start the sidecar using the same workspace and the graphical descriptor:
 
 ```powershell
 $env:NX_MCP_WORKSPACE = 'D:\NX_MCP_WORKSPACE'
 $env:NX_MCP_BRIDGE_DESCRIPTOR = Join-Path $env:LOCALAPPDATA 'nx-mcp\interactive-bridge.json'
-$env:NX_MCP_ENABLE_EXPERIMENTAL = '1'
-$env:NX_MCP_ENABLE_JOURNAL = '0'
 $env:NX_MCP_SURFACE = 'agent'
 python -m nx_mcp.server
 ```
@@ -99,7 +101,7 @@ python -m pytest -q -p no:cacheprovider -m "not real_nx" --basetemp .pytest-tmp
 
 Hosted CI checks supported OS/Python combinations, sidecar types and branch
 coverage. Fake NX tests cover API boundaries; they do not establish geometry
-correctness. Native runners under `examples/validate_*.py` use disposable fixtures
+correctness. Native runners under `acceptance/validate_*.py` use disposable fixtures
 and document their environment variables. See [native validation](docs/real-nx-validation.md)
 and [release acceptance](docs/real-nx-validation.md).
 

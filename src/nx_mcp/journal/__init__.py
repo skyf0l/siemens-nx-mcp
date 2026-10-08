@@ -1,1 +1,0 @@
-"""NX MCP journal subsystem."""

@@ -265,6 +265,37 @@ class MainThreadDispatcher:
             except Empty:
                 return processed
 
+    def waiting(self) -> list[_PendingBridgeCall]:
+        """Queued calls that have not started or expired, oldest first."""
+        with self._calls.mutex:
+            return [pending for pending in self._calls.queue if not pending.cancelled]
+
+    def drain_where(self, accept: Callable[[_PendingBridgeCall], bool]) -> int:
+        """Execute the oldest queued call that ``accept`` allows; leave the rest queued."""
+        with self._calls.mutex:
+            pending = next((p for p in self._calls.queue if accept(p)), None)
+            if pending is None:
+                return 0
+            self._calls.queue.remove(pending)
+        self._execute(pending)
+        return 1
+
+    def reject_where(self, reject: Callable[[_PendingBridgeCall], bool], error: NXToolError) -> int:
+        """Complete matching queued calls with ``error`` without executing them."""
+        with self._calls.mutex:
+            rejected = [p for p in self._calls.queue if reject(p)]
+            for pending in rejected:
+                self._calls.queue.remove(pending)
+        for pending in rejected:
+            pending.error = NXToolError(
+                error.code,
+                error.message,
+                retryable=error.retryable,
+                details={**error.details, "mutation_outcome": "not_started"},
+            )
+            pending.complete.set()
+        return len(rejected)
+
     def stop(self) -> None:
         with self._lock:
             self._stopped = True
@@ -448,6 +479,13 @@ class ObjectRegistry:
         self._objects[reference.id] = _ObjectEntry(value=value, reference=reference)
         self._identities[identity_key] = reference.id
         return reference
+
+    def display_name(self, object_id: str) -> str | None:
+        """Registered name (or kind) of a live ID, without touching NXOpen."""
+        entry = self._objects.get(object_id)
+        if entry is None:
+            return None
+        return entry.reference.name or entry.reference.kind
 
     def resolve(
         self,

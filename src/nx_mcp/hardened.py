@@ -38,7 +38,7 @@ from nx_mcp.recovery import OperationStore, timestamp
 from nx_mcp.reference_geometry import ReferenceGeometryMixin
 from nx_mcp.release_engineering import ReleaseEngineeringMixin
 from nx_mcp.review_tools import ReviewToolsMixin
-from nx_mcp.runtime import NXToolError
+from nx_mcp.runtime import NXToolError, api_error
 from nx_mcp.sheet_metal import SheetMetalMixin
 from nx_mcp.thread_standards import ThreadStandardsMixin
 from nx_mcp.visual_tools import VisualToolsMixin
@@ -338,27 +338,17 @@ class HardenedExecutor(
 
     def execute(self, method, params):
         params = dict(params)
+        params.pop("intent", None)  # Agent's note for the NX panel; not a handler argument.
         supplied_id = params.pop("operation_id", None) if method != "nx_operation_status" else None
         mutable = method not in READ_ONLY
         op_id = supplied_id or ("op_" + uuid.uuid4().hex)
         handler = self._handlers.get(method)
         if handler is None:
-            if not self.enable_experimental:
-                raise NXToolError("NX_TOOL_NOT_FOUND", method)
-            from nx_mcp.experimental import execute_legacy, load_legacy_handlers
-
-            legacy = load_legacy_handlers().get(method)
-            if legacy is None:
-                raise NXToolError("NX_TOOL_NOT_FOUND", method)
-            inspect.signature(legacy).bind(**params)
-
-            def handler(**p):
-                return execute_legacy(method, p, self.workspace, enable_journal=self.enable_journal)
-        else:
-            try:
-                inspect.signature(handler).bind(**params)
-            except TypeError as e:
-                raise NXToolError("NX_INVALID_ARGUMENT", str(e)) from e
+            raise NXToolError("NX_TOOL_NOT_FOUND", method)
+        try:
+            inspect.signature(handler).bind(**params)
+        except TypeError as e:
+            raise NXToolError("NX_INVALID_ARGUMENT", str(e)) from e
         record = None
         mark = None
         part = self._work_part(required=False)
@@ -517,13 +507,7 @@ class HardenedExecutor(
                     )
             elif mutable and (method in NON_MODEL or method == "nx_import_geometry"):
                 outcome = "unknown"
-            err = (
-                error
-                if isinstance(error, NXToolError)
-                else NXToolError(
-                    "NX_API_ERROR", str(error), nx_code=getattr(error, "ErrorCode", None)
-                )
-            )
+            err = error if isinstance(error, NXToolError) else api_error(error)
             if mark is None:
                 # Inspections may create temporary native geometry. Preserve a
                 # handler's explicit cleanup outcome when no outer rollback ran.
@@ -1449,13 +1433,7 @@ class HardenedExecutor(
                         )
                 except Exception as cleanup:
                     cleanup_errors.append(str(cleanup))
-                err = (
-                    error
-                    if isinstance(error, NXToolError)
-                    else NXToolError(
-                        "NX_API_ERROR", str(error), nx_code=getattr(error, "ErrorCode", None)
-                    )
-                )
+                err = error if isinstance(error, NXToolError) else api_error(error)
                 err.details.update(
                     mutation_outcome="partial"
                     if cleanup_errors

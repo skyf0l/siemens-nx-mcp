@@ -147,7 +147,7 @@ def main():
             log = args.output / (Path(script).stem + ".log")
             with log.open("w") as stream:
                 result = subprocess.run(
-                    [sys.executable, str(source / "examples" / script)],
+                    [sys.executable, str(source / "acceptance" / script)],
                     env={
                         **os.environ,
                         "NX_VALIDATION_OUTPUT": str(output.absolute()),

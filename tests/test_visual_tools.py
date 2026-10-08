@@ -57,7 +57,7 @@ async def test_visual_tools_publish_enums_and_native_capture_description(tmp_pat
     from nx_mcp.server import create_server
     from nx_mcp.workspace import Workspace
 
-    server = create_server(SimpleNamespace(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(SimpleNamespace(), Workspace(tmp_path))
     tools = {t.name: t for t in await server.list_tools()}
     assert len(tools) == 189
     assert tools["nx_set_visibility"].inputSchema["properties"]["mode"]["enum"] == [

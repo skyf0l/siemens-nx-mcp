@@ -17,14 +17,35 @@ python -m nx_mcp.real_smoke --workspace D:\NX_MCP_WORKSPACE --iterations 20
 
 ## Production path
 
-- `server.py`: sidecar entry point; explicitly exposes the certified surface.
+- `server.py`: sidecar entry point; always exposes every tool and requires
+  `NX_MCP_WORKSPACE`.
 - `certified.py`: typed FastMCP tools and workspace validation.
 - `bridge.py`: authenticated loopback protocol, descriptor client, and object IDs.
 - `nx_bridge.py`: live NX command executor and manual bridge lifecycle.
 - `contracts.py`: Pydantic input/output and error contracts.
 
-Modules under `tools/` are 0.1 legacy source. Default production startup must
-not import them; `experimental.py` may load them only behind explicit flags.
+All 189 tools are always registered: `certified.py` defines the core schemas and
+`integration_server.py` with the `*_server.py` modules defines the rest, then
+re-registers every tool behind one uniform proxy. `NX_MCP_SURFACE=agent` only
+changes the presentation (13 discover/invoke entry points). Every public tool
+needs a typed definition and a handler in `HardenedExecutor`; there is no untyped
+fallback and no arbitrary journal-execution tool.
+
+`examples/` holds only NX launchers (`start_nx_interactive_2606.py`,
+`start_nx_interactive_2406.py` for NX releases that tear down the journal
+interpreter, and the batch `start_nx_bridge.py`). Live NX acceptance suites live
+in `acceptance/`.
+
+## Live NX development loop
+
+With `examples/start_nx_interactive_dev.py` playing in NX (development machine
+only), edit code, then `python scripts/dev_reload.py --wait-agent` reloads the
+NX-side host from disk (exit 1 prints the import traceback). Drive the new
+tool through a fresh `python -m nx_mcp.server` stdio client with
+`NX_MCP_BRIDGE_DESCRIPTOR=%LOCALAPPDATA%\nx-mcp\interactive-bridge.json`, on
+disposable parts under `<workspace>/smoke/`; check results with measurements,
+`nx_model_health` and `nx_screenshot`. The engineer's open parts stay loaded:
+never modify, save or close parts you did not create.
 
 ## Conventions
 

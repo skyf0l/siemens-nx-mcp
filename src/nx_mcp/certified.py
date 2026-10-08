@@ -49,10 +49,7 @@ CERTIFIED_TOOL_NAMES = {
 
 def create_certified_server(
     bridge: BridgeCaller,
-    workspace: Workspace | None = None,
-    *,
-    enable_experimental: bool = False,
-    enable_journal: bool = False,
+    workspace: Workspace,
 ) -> FastMCP:
     mcp = FastMCP(
         "nx-mcp",
@@ -66,16 +63,6 @@ def create_certified_server(
             raise MCPToolError(json.dumps(error.as_dict(), ensure_ascii=False)) from error
 
     def resolve_path(path: str) -> str:
-        if workspace is None:
-            raise MCPToolError(
-                json.dumps(
-                    NXToolError(
-                        "NX_WORKSPACE_NOT_CONFIGURED",
-                        "NX_MCP_WORKSPACE must be configured before file operations are used.",
-                    ).as_dict(),
-                    ensure_ascii=False,
-                )
-            )
         try:
             return str(workspace.resolve(path))
         except WorkspaceViolation as error:
@@ -191,20 +178,8 @@ def create_certified_server(
         """Fit the active modeling view."""
         return OperationResult(**await call("nx_fit_view", {}))
 
-    if enable_experimental:
-        from nx_mcp.experimental import add_experimental_tools
+    from nx_mcp.integration_server import configure
 
-        add_experimental_tools(
-            mcp,
-            call,
-            CERTIFIED_TOOL_NAMES,
-            workspace,
-            enable_journal=enable_journal,
-        )
-
-    if enable_experimental:
-        from nx_mcp.integration_server import configure
-
-        configure(mcp, bridge, workspace)
+    configure(mcp, bridge, workspace)
 
     return mcp

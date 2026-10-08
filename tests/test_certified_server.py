@@ -32,14 +32,16 @@ class RecordingBridge:
 
 
 @pytest.mark.asyncio
-async def test_default_server_lists_only_certified_tools():
+async def test_server_always_lists_every_tool_and_no_code_execution_tools():
     server = create_server(StubBridge())
 
     async with create_connected_server_and_client_session(server) as client:
-        response = await client.list_tools()
+        names = {tool.name for tool in (await client.list_tools()).tools}
 
-    assert {tool.name for tool in response.tools} == CERTIFIED_TOOL_NAMES
-    assert len(response.tools) == 16
+    assert len(names) == 189
+    assert names > CERTIFIED_TOOL_NAMES
+    assert {"nx_blend", "nx_measure_distance"} <= names
+    assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 
 @pytest.mark.asyncio
@@ -52,6 +54,8 @@ async def test_status_returns_structured_content():
     assert result.isError is False
     assert result.structuredContent == {
         "status": "success",
+        "warnings": [],
+        "units": None,
         "connected": True,
         "nx_version": "NX test",
         "bridge_protocol": 1,
@@ -75,12 +79,11 @@ async def test_create_part_resolves_path_inside_workspace(tmp_path: Path):
         )
 
     assert result.isError is False
-    assert bridge.calls == [
-        (
-            "nx_create_part",
-            {"path": str(tmp_path / "parts" / "bracket.prt"), "units": "mm"},
-        )
-    ]
+    [(method, params)] = bridge.calls
+    assert method == "nx_create_part"
+    assert params["path"] == str(tmp_path / "parts" / "bracket.prt")
+    assert params["units"] == "mm"
+    assert params["operation_id"].startswith("op_")
 
 
 @pytest.mark.asyncio
@@ -112,7 +115,7 @@ async def test_bridge_error_preserves_machine_readable_code():
 
 
 @pytest.mark.asyncio
-async def test_certified_tools_publish_strict_input_and_output_schemas():
+async def test_tools_publish_strict_input_and_output_schemas():
     server = create_server(StubBridge())
 
     async with create_connected_server_and_client_session(server) as client:
@@ -124,33 +127,9 @@ async def test_certified_tools_publish_strict_input_and_output_schemas():
         "XZ",
         "YZ",
     ]
-    assert tools["nx_extrude"].inputSchema["properties"]["distance"]["exclusiveMinimum"] == 0
+    assert "distance" in tools["nx_extrude"].inputSchema["properties"]
+    assert all(tool.inputSchema.get("additionalProperties") is False for tool in tools.values())
     assert all(tool.outputSchema is not None for tool in tools.values())
-
-
-@pytest.mark.asyncio
-async def test_experimental_tools_require_explicit_opt_in_and_keep_journals_disabled():
-    server = create_server(StubBridge(), enable_experimental=True)
-
-    async with create_connected_server_and_client_session(server) as client:
-        names = {tool.name for tool in (await client.list_tools()).tools}
-
-    assert names > CERTIFIED_TOOL_NAMES
-    assert "nx_blend" in names
-    assert "nx_measure_distance" in names
-    assert "nx_run_journal" not in names
-    assert "nx_record_start" not in names
-    assert "nx_record_stop" not in names
-
-
-@pytest.mark.asyncio
-async def test_journal_tools_require_their_own_explicit_opt_in():
-    server = create_server(StubBridge(), enable_experimental=True, enable_journal=True)
-
-    async with create_connected_server_and_client_session(server) as client:
-        names = {tool.name for tool in (await client.list_tools()).tools}
-
-    assert {"nx_run_journal", "nx_record_start", "nx_record_stop"} <= names
 
 
 @pytest.mark.asyncio
@@ -159,7 +138,6 @@ async def test_experimental_file_tools_still_enforce_workspace_boundary(tmp_path
     server = create_server(
         bridge,
         Workspace(tmp_path),
-        enable_experimental=True,
     )
 
     async with create_connected_server_and_client_session(server) as client:

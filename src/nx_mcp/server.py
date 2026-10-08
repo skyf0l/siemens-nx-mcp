@@ -21,28 +21,19 @@ def create_server(
     bridge: BridgeCaller | None = None,
     workspace: Workspace | None = None,
     *,
-    enable_experimental: bool | None = None,
-    enable_journal: bool | None = None,
     surface: str | None = None,
 ) -> FastMCP:
-    """Create the certified v0.2 MCP server."""
+    """Create the MCP server with every tool registered."""
     if workspace is None and (workspace_root := os.environ.get("NX_MCP_WORKSPACE")):
         workspace = Workspace(Path(workspace_root))
-    if enable_experimental is None:
-        enable_experimental = os.environ.get("NX_MCP_ENABLE_EXPERIMENTAL") == "1"
-    if enable_journal is None:
-        enable_journal = os.environ.get("NX_MCP_ENABLE_JOURNAL") == "1"
+    if workspace is None:
+        raise ValueError(
+            "Set NX_MCP_WORKSPACE to the CAD workspace directory shared with the NX bridge"
+        )
     surface = surface or os.environ.get("NX_MCP_SURFACE", "full")
     if surface not in {"full", "agent"}:
         raise ValueError("NX_MCP_SURFACE must be full or agent")
-    if surface == "agent" and (not enable_experimental or workspace is None):
-        raise ValueError("Agent surface requires experimental integration and workspace")
-    server = create_certified_server(
-        bridge or DescriptorBridgeClient(),
-        workspace,
-        enable_experimental=enable_experimental,
-        enable_journal=enable_experimental and enable_journal,
-    )
+    server = create_certified_server(bridge or DescriptorBridgeClient(), workspace)
 
     if surface == "agent":
         from nx_mcp.agent_surface import configure

@@ -46,7 +46,6 @@ def executor(tmp_path):
         SimpleNamespace(Session=SimpleNamespace(MarkVisibility=SimpleNamespace(Visible=1))),
         "test",
         Workspace(tmp_path),
-        enable_experimental=True,
     )
 
     def mutate(value=1, fail=False):
@@ -183,7 +182,7 @@ async def test_uniform_structured_success_failure_and_schema(tmp_path):
                 raise NXToolError("NX_UNSUPPORTED_EDIT", "unsupported edit")
             return {"status": "success", "method": method, "params": params}
 
-    server = create_server(Caller(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(Caller(), Workspace(tmp_path))
     tools = await server.list_tools()
     pattern = next(t for t in tools if t.name == "nx_pattern")
     assert pattern.inputSchema["properties"]["pattern_type"]["const"] == "linear"
@@ -208,7 +207,6 @@ def test_reference_namespace_rejects_previous_session(executor, tmp_path):
         SimpleNamespace(Session=SimpleNamespace(MarkVisibility=SimpleNamespace(Visible=1))),
         "test",
         Workspace(tmp_path / "other"),
-        enable_experimental=True,
     )
     with pytest.raises(NXToolError) as error:
         another.objects.resolve(first.id)

@@ -52,7 +52,7 @@ jobs:
       - name: Verify NX embedded runtime
         shell: pwsh
         run: |
-          & $env:NX_RUN_JOURNAL -nx (Join-Path $PWD 'examples\nx_runtime_probe.py')
+          & $env:NX_RUN_JOURNAL -nx (Join-Path $PWD 'scripts\nx_runtime_probe.py')
           if ($LASTEXITCODE -ne 0) {
             throw "NX runtime probe failed with exit code $LASTEXITCODE."
           }

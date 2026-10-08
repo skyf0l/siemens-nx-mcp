@@ -46,7 +46,7 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
         "warnings": [],
         "units": "mm",
     }
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as client:
         tools = (await client.list_tools()).tools
         assert len(tools) == 13
@@ -79,9 +79,7 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
 @pytest.mark.asyncio
 async def test_artifact_metadata_resource_and_reserved_path(tmp_path):
     (tmp_path / "test.txt").write_bytes(b"binary bytes")
-    server = create_server(
-        AsyncMock(), Workspace(tmp_path), enable_experimental=True, surface="agent"
-    )
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as client:
         result = await client.call_tool("nx_download_file", {"path": "test.txt"})
         assert not result.isError and "data_base64" not in result.structuredContent
@@ -104,7 +102,7 @@ async def test_failed_mutation_retains_outcome_and_operation_id(tmp_path):
         "operation_id": "test_operation",
         "mutation_outcome": "rolled_back",
     }
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
     result = await server.call_tool(
         "nx_invoke",
         {
@@ -129,7 +127,7 @@ async def test_compact_success_replay_receipt_and_full_snapshot(tmp_path):
         "bodies": [ref] * 25,
         "changes": {"created": [ref] * 25, "modified": None, "deleted": []},
     }
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
     result = await server.call_tool(
         "nx_invoke",
         {
@@ -164,7 +162,7 @@ async def test_storage_failure_does_not_relabel_committed_mutation(tmp_path, mon
         "mutation_outcome": "committed",
         "operation_id": "operation_123",
     }
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
 
     def fail(*args):
         raise OSError("full disk")
@@ -182,9 +180,7 @@ async def test_storage_failure_does_not_relabel_committed_mutation(tmp_path, mon
 
 @pytest.mark.asyncio
 async def test_discovery_paging_and_argument_errors(tmp_path):
-    server = create_server(
-        AsyncMock(), Workspace(tmp_path), enable_experimental=True, surface="agent"
-    )
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
     for args in [{"limit": 21}, {"offset": -1}, {"domain": "wrong"}]:
         assert (await server.call_tool("nx_discover_tools", args)).isError
     result = await server.call_tool(
@@ -196,11 +192,12 @@ async def test_discovery_paging_and_argument_errors(tmp_path):
     assert (await server.call_tool("missing", {})).isError
 
 
-def test_profile_validation(tmp_path):
-    with pytest.raises(ValueError):
-        create_server(surface="typo")
-    with pytest.raises(ValueError):
-        create_server(surface="agent", enable_experimental=False)
+def test_profile_validation(tmp_path, monkeypatch):
+    with pytest.raises(ValueError, match="NX_MCP_SURFACE"):
+        create_server(AsyncMock(), Workspace(tmp_path), surface="typo")
+    monkeypatch.delenv("NX_MCP_WORKSPACE")
+    with pytest.raises(ValueError, match="NX_MCP_WORKSPACE"):
+        create_server(AsyncMock(), surface="agent")
 
 
 def test_dual_http_profiles(tmp_path, monkeypatch):
@@ -208,7 +205,6 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
 
     from nx_mcp.http_surface import create_app
 
-    monkeypatch.setenv("NX_MCP_ENABLE_EXPERIMENTAL", "1")
     app = create_app(AsyncMock(), Workspace(tmp_path))
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         for path, count in [("/mcp", 189), ("/agent/mcp", 13)]:
@@ -225,9 +221,7 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
 async def test_resource_traversal_and_size_limit(tmp_path):
     from mcp.server.fastmcp.exceptions import ResourceError
 
-    server = create_server(
-        AsyncMock(), Workspace(tmp_path), enable_experimental=True, surface="agent"
-    )
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
     (tmp_path / ".nx-mcp").mkdir()
     (tmp_path / ".nx-mcp" / "secret").write_text("secret")
     large = tmp_path / "large.bin"
@@ -245,7 +239,7 @@ async def test_resource_traversal_and_size_limit(tmp_path):
 @pytest.mark.asyncio
 async def test_gateway_rejects_ignored_top_level_arguments(tmp_path):
     bridge = AsyncMock()
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
     result = await server.call_tool(
         "nx_invoke",
         {

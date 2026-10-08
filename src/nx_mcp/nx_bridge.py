@@ -19,7 +19,7 @@ from nx_mcp.bridge import (
     ObjectRegistry,
     default_descriptor_path,
 )
-from nx_mcp.runtime import NXToolError, ObjectKind
+from nx_mcp.runtime import NXToolError, ObjectKind, api_error
 from nx_mcp.workspace import Workspace
 
 
@@ -46,16 +46,11 @@ class NXOpenExecutor:
         nxopen: Any,
         nx_version: str,
         workspace: Workspace,
-        *,
-        enable_experimental: bool = False,
-        enable_journal: bool = False,
     ) -> None:
         self.session = session
         self.nxopen = nxopen
         self.nx_version = nx_version
         self.workspace = workspace
-        self.enable_experimental = enable_experimental
-        self.enable_journal = enable_experimental and enable_journal
         self.objects = ObjectRegistry()
         self._undo_marks: list[Any] = []
         self._handlers: dict[str, Callable[..., dict[str, Any]]] = {
@@ -91,17 +86,9 @@ class NXOpenExecutor:
         }
 
     def execute(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        params = {k: v for k, v in params.items() if k != "intent"}
         handler = self._handlers.get(method)
         if handler is None:
-            if self.enable_experimental:
-                from nx_mcp.experimental import execute_legacy
-
-                return execute_legacy(
-                    method,
-                    params,
-                    self.workspace,
-                    enable_journal=self.enable_journal,
-                )
             raise NXToolError("NX_TOOL_NOT_FOUND", f"Unsupported bridge command: {method}")
         undo_mark = None
         try:
@@ -121,11 +108,7 @@ class NXOpenExecutor:
         except Exception as error:
             if undo_mark is not None:
                 self._rollback(undo_mark, error)
-            raise NXToolError(
-                "NX_API_ERROR",
-                str(error),
-                nx_code=getattr(error, "ErrorCode", None),
-            ) from error
+            raise api_error(error) from error
 
     def _rollback(self, undo_mark: Any, original_error: Exception) -> None:
         try:
@@ -1009,8 +992,6 @@ def start_bridge(
         NXOpen,
         _detect_nx_version(session),
         Workspace(workspace_root),
-        enable_experimental=os.environ.get("NX_MCP_ENABLE_EXPERIMENTAL") == "1",
-        enable_journal=os.environ.get("NX_MCP_ENABLE_JOURNAL") == "1",
     )
     token = secrets.token_hex(32)
     dispatcher = MainThreadDispatcher(executor.execute)

@@ -1,6 +1,6 @@
 # Integration tool contracts
 
-Use on-demand schemas for exact argument types and the [capability matrix](capability-matrix.md) for tested scope. The integration profile remains opt-in. This reference consolidates modeling, file and display semantics.
+Use on-demand schemas for exact argument types and the [capability matrix](capability-matrix.md) for tested scope. This reference consolidates modeling, file and display semantics.
 
 ## Project folders and explicit file paths
 
@@ -221,7 +221,7 @@ explode layouts, trace lines, animation, BOMs or balloons.
 
 ### Verification
 
-`examples/validate_exploded_views.py` exercises the public MCP surface against
+`acceptance/validate_exploded_views.py` exercises the public MCP surface against
 native NX, using an isolated nested assembly and restoring the original saved
 session. It covers rotated parents, child absolute placement and reset, safe
 retry, 3D capture, assembled/exploded/projected drawing views, update propagation,

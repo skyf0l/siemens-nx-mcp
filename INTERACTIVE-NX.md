@@ -1,8 +1,80 @@
 # Interactive NX MCP, v2606
 
-Play `examples/start_nx_interactive.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window shows activity and provides Pause, Resume, and Stop. Long native operations can temporarily block NX; pause/stop take effect between calls.
+Play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window says who has control (window title and first line) and has one toggle, **Give control to agent** / **Take control back**, plus **Stop bridge**. Long native operations can temporarily block NX; taking control back and stopping take effect between calls (the toggle then reads **Take control back after this step**).
 
-Agent mode locks NX model editing with `UI.LockAccess`. Pause releases it for manual work. Pausing invalidates agent references and checkpoints: manual changes have no operation receipt and must not be undone by a later agent rollback. Reacquire references after resuming. Closing the control panel stops the bridge and unlocks NX, leaving the application and parts open.
+## NX 2406 and other releases without a persistent journal interpreter
+
+On NX 2406 the journal's interpreter is torn down when the journal returns: the
+descriptor is written but nothing listens and no tick runs. Play
+`examples/start_nx_interactive_2406.py` instead. The journal stays resident,
+pumps NX's messages between calls, ticks the host from its own interpreter (no
+Win32 timer), and imports the NXOpen namespaces the tools use. It starts in
+manual mode; click **Give control to agent** on the panel. Stop from the
+panel or the stop file; the journal then returns. Startup failures are written
+to `<workspace>/.nx-mcp/resident-error.txt`. This path is field-reported on
+2406, not part of the certified 2606 matrix.
+
+Agent mode locks NX model editing with `UI.LockAccess`. **Take control back** releases it for manual work and invalidates agent references and checkpoints: manual changes have no operation receipt and must not be undone by a later agent rollback. Reacquire references after giving control to the agent again. If an NX dialog is open, the handover is refused and the panel says to close it first. Closing the control panel stops the bridge and unlocks NX, leaving the application and parts open.
+
+## When the agent needs control
+
+While you have control, agent requests are held, not refused. The panel title
+becomes **NX MCP — Agent is waiting**, the NX taskbar button flashes (focus is
+never taken), and the panel shows what the agent wants in plain words, built
+from the request's real arguments and the objects' NX names, for example
+`▶ Agent wants to: Extrude "profile" 10 mm (+2 more)`. If the agent added a note
+(`nx_invoke(..., intent="Add the 10 mm mounting boss")`), it is shown below,
+quoted and labelled as the agent's note. You then choose:
+
+- **Give control to agent**: the waiting requests run in order.
+- **Not now**: they fail with `NX_UI_DECLINED`; the agent is told to ask in chat.
+- No answer within 60 s: they fail with `NX_UI_PAUSED` and nothing ran.
+
+Status reads and handing control back never wait. The agent cannot take control
+itself: `nx_ui_control(mode="agent")` is a request like any other. Giving control
+still invalidates references taken before your manual work, so a waiting request
+that points at geometry you have since edited fails safely as stale.
+
+## Development loop (never for production work)
+
+`examples/start_nx_interactive_dev.py` is the 2406 resident host for a
+development machine. Played once, it gives the agent control without a click
+and reloads the whole NX-side MCP code from disk when
+`<workspace>/.nx-mcp/dev-restart` appears: it stops the host, drops every
+`nx_mcp` module from memory and starts a fresh host (about two seconds; open
+parts stay open, object IDs reset). `python scripts/dev_reload.py --wait-agent`
+creates the file and waits; it exits 1 and prints the traceback if the new code
+does not load, and the loop keeps NX responsive until the next reload. The
+panel title reads **NX MCP DEV**. Taking control back is kept across reloads.
+It ends on Stop bridge, the `ui-stop` file or `dev-exit`. Changes to
+`devloop.py` or `winpump.py` themselves need a new Play.
+
+## What the agent is doing
+
+While the agent works, the panel shows the step in plain words with the agent's
+note and its start time (`Started 14:32:05 · NX may freeze until this step
+finishes`). The panel cannot repaint during a native call, so it shows a start
+time, not a running counter. When the agent is idle but holds control, it shows
+`Idle since 14:32`, so you know it is safe to take control back.
+
+Below that, **Recent agent activity** lists the last four entries:
+
+```
+✓  14:32:05  Extrude "profile" 10 mm → EXTRUDE(2)  7.0 s
+·  14:32:09  3 read-only or view steps (model unchanged)
+✗  14:32:20  Drill hole Ø6.6 mm × 12 mm deep — rolled back, model unchanged (…)
+⚠  14:32:31  Blend 2 edges R3 mm — partly applied, check the model
+```
+
+Failures always state what happened to the model; a long summary is shortened
+before the model state is. Read-only and view-only steps are grouped into one
+line. When you take control back, the panel recaps the agent's session
+(`Agent's last session: 6 changes, 1 failed (14:31–14:33)`).
+
+Every step, including each read-only one, is appended to
+`<workspace>/.nx-mcp/activity.log` with its tool name and the agent's note.
+**Open log** opens it in your default text editor. The log rotates to
+`activity.log.1` above 5 MB.
 
 `nx_screenshot` uses `Part.Views.CreateImageExportBuilder` and returns a PNG artifact plus MCP image content. It captures the displayed CAD viewport, never the desktop. White/transparent/original backgrounds and shaded/shaded-with-edges/static-wireframe styles are exposed. Width and height are advisory: the installed graphics driver can use the actual device size, so both requested and actual resolution are returned. These are viewport renderings, not photorealistic ray tracing. Images above 8 MiB use chunked artifact download. `nx_view_info` reports the display-part view axes, NX view origin, absolute origin, scale, and style.
 

@@ -5,8 +5,7 @@ agent profile lists 13 tools: eight core tools plus `nx_discover_tools`, `nx_inv
 `nx_result`, `nx_inspect` and `nx_result_cleanup`. All 189 underlying tools remain available, subject to their
 existing capability status and native prerequisites.
 
-For stdio, set `NX_MCP_SURFACE=agent`, `NX_MCP_ENABLE_EXPERIMENTAL=1` and
-`NX_MCP_WORKSPACE`. The dual HTTP entrypoint `python -m nx_mcp.http_surface` serves
+For stdio, set `NX_MCP_SURFACE=agent` and `NX_MCP_WORKSPACE`. The dual HTTP entrypoint `python -m nx_mcp.http_surface` serves
 full compatibility at `/mcp` and the agent profile at `/agent/mcp` on port 8765.
 Both use the same bridge and serial NX main-thread queue. They must not be used
 to issue concurrent mutations. The host must restrict network access as before.
@@ -19,6 +18,9 @@ to issue concurrent mutations. The host must restrict network access as before.
 2. `nx_invoke(tool="nx_extrude", arguments={"sketch_id":"...","distance":5,
    "operation_id":"extrude_unique_001"})` validates the original schema and
    calls the existing implementation. Unsupported fields still fail before NX.
+   An optional `intent` (at most 120 characters, e.g. "Add the 10 mm mounting
+   boss") is shown to the engineer in the NX MCP panel when they must approve
+   control; it is never passed to the tool.
 3. Compact results retain opaque references, owner-part identity, occurrence
    paths, units, all warnings, mutation outcome and change counts. Long arrays
    contain at most twenty entries with explicit `omitted` metadata. Repeated
@@ -131,8 +133,9 @@ claim. Projection benchmarks remain separately labeled.
 
 Spaced discovery queries now match all words, ranking tool-name matches first.
 For example, `create part` finds `nx_create_part`. Set
-`include_output_schema=false` with `include_schema=true` when only the input
-contract and guidance are needed; the compatibility default still includes both.
+`include_output_schema=true` with `include_schema=true` when the output contract
+is also needed; by default only the input contract and guidance are returned,
+which roughly halves each schema lookup.
 
 Compact projection preserves complete backend pages and their count/cursor.
 An explicitly requested 100-row page is not truncated again to twenty. Default

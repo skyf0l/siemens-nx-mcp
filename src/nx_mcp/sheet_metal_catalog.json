@@ -483,7 +483,7 @@
       ]
     },
     "example_evidence": {
-      "source": "examples/validate_sheet_metal.py",
+      "source": "acceptance/validate_sheet_metal.py",
       "validation": "native_fixture",
       "scope": "100 x 80 x 2 mm XY tab; edge nearest [50,0,0]; 20 mm Inside-length flange at 90 degrees. Numeric values are fixture millimeters."
     },

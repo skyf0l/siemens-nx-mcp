@@ -69,7 +69,7 @@ async def test_mcp_points_cross_bridge_as_json_objects(tmp_path):
             json.dumps(params)
             return {"status": "success"}
 
-    server = create_server(Bridge(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(Bridge(), Workspace(tmp_path))
     result = await server.call_tool(
         "nx_sketch_rectangle",
         {"sketch_id": "sketch-test", "corner1": {"x": 0, "y": 0}, "corner2": {"x": 10, "y": 10}},
@@ -96,7 +96,7 @@ async def test_capture_returns_inline_image_and_rejects_changed_artifact(tmp_pat
                 "model_preview": True,
             }
 
-    server = create_server(Bridge(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(Bridge(), Workspace(tmp_path))
     result = await server.call_tool("nx_screenshot", {})
     assert not result.isError and result.structuredContent["model_preview"]
     assert len([item for item in result.content if item.type == "image"]) == 1
@@ -189,3 +189,51 @@ async def test_interactive_transport_services_health_during_blocked_request():
     finally:
         release.set()
         server.stop()
+
+
+def test_resident_loop_ticks_without_timer_until_stopped(monkeypatch):
+    from nx_mcp import interactive
+
+    class Host:
+        stopped = False
+        last_error = None
+        ticks = 0
+
+        def tick(self):
+            self.ticks += 1
+            self.stopped = self.ticks == 3
+
+    host = Host()
+    calls = []
+
+    def fake_start(workspace, descriptor, resident=False):
+        calls.append(resident)
+        interactive._host = host
+
+    monkeypatch.setattr(interactive, "_host", None)
+    monkeypatch.setattr(interactive, "start", fake_start)
+    monkeypatch.setattr(interactive, "import_nxopen_namespaces", lambda: ["NXOpen.X (gone)"])
+    pumps = []
+    assert interactive.run_resident("w", "d", interval=0, pump=lambda: pumps.append(1)) is host
+    assert calls == [True] and host.ticks == 3 and len(pumps) == 3
+    assert "NXOpen.X" in host.last_error
+
+
+def test_namespace_import_reports_missing():
+    from nx_mcp.interactive import import_nxopen_namespaces
+
+    assert import_nxopen_namespaces(("json", "nx_mcp_no_such_module")) == [
+        "nx_mcp_no_such_module (No module named 'nx_mcp_no_such_module')"
+    ]
+
+
+def test_api_error_carries_traceback():
+    from nx_mcp.runtime import api_error
+
+    try:
+        import nx_mcp_no_such_module  # noqa: F401
+    except ImportError as exc:
+        err = api_error(exc)
+    assert err.code == "NX_API_ERROR"
+    assert err.details["exception_type"] == "ModuleNotFoundError"
+    assert "nx_mcp_no_such_module" in err.details["traceback"]

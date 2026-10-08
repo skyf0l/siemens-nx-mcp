@@ -55,9 +55,9 @@ async def test_agent_ux_client_forwards_tool_name_arguments(tmp_path):
     )
 
 
-def test_native_examples_accept_runner_profile_count():
+def test_native_suites_accept_runner_profile_count():
     """An added tool must not strand unrelated native suites on an old literal."""
-    examples = Path(__file__).resolve().parents[1] / "examples"
+    suites = Path(__file__).resolve().parents[1] / "acceptance"
     for name in [
         "advanced_tools",
         "authoring_tools",
@@ -67,6 +67,6 @@ def test_native_examples_accept_runner_profile_count():
         "sheet_metal",
         "visual_tools",
     ]:
-        source = (examples / f"validate_{name}.py").read_text()
+        source = (suites / f"validate_{name}.py").read_text()
         assert 'os.environ.get("NX_EXPECTED_TOOL_COUNT", "189")' in source
         assert "== 179" not in source

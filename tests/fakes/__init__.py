@@ -319,9 +319,7 @@ def rig(tmp_path, monkeypatch):
         Part(session, __import__("pathlib").Path(path)),
         NS(Dispose=Mock()),
     )
-    e = HardenedExecutor(
-        session, nx, "v2606 fake seam", Workspace(tmp_path), enable_experimental=True
-    )
+    e = HardenedExecutor(session, nx, "v2606 fake seam", Workspace(tmp_path))
 
     def ref(obj, kind="body"):
         return e._reference(obj, kind, part, kind)["id"]

@@ -9,6 +9,7 @@ import json
 import os
 import struct
 import uuid
+from contextvars import ContextVar
 from typing import Annotated, Literal
 
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
@@ -26,6 +27,10 @@ from nx_mcp.output_schemas import output_schema
 from nx_mcp.recovery import OperationStore
 from nx_mcp.runtime import NXToolError
 from nx_mcp.workspace import WorkspaceViolation
+
+# The agent's short note on why it makes a call (set by nx_invoke). It travels to
+# the NX control panel with the bridge request and is never a handler argument.
+REQUEST_INTENT: ContextVar[str | None] = ContextVar("nx_mcp_request_intent", default=None)
 
 
 def nx_list_open_parts(
@@ -72,6 +77,45 @@ def nx_list_datums():
 
 def nx_set_datum_visibility(visible: bool = False):
     """Show/hide all owned datums and coordinate systems in the work/display part. Returns restore_id for nx_restore_display. To exclude component prototype datums from drawings, assign a body-only reference set instead. Changes can persist when saved."""
+
+
+# Public schemas for tools whose NX handlers live in hardened.py,
+# legacy_repairs.py and nx_bridge.py. Descriptions come from DESCRIPTIONS
+# where one exists.
+def nx_delete_feature(name: str):
+    """Delete a feature."""
+
+
+def nx_get_feature_info(name: str):
+    """Return name, type, timestamp, and expressions for a feature."""
+
+
+def nx_measure_angle(obj1: str, obj2: str):
+    """Measure the angle between two objects."""
+
+
+def nx_measure_distance(obj1: str, obj2: str):
+    """Measure the distance between two objects."""
+
+
+def nx_reposition_component(
+    component: str,
+    dx: float = 0.0,
+    dy: float = 0.0,
+    dz: float = 0.0,
+    rx: float = 0.0,
+    ry: float = 0.0,
+    rz: float = 0.0,
+):
+    """Reposition a component by translation and rotation offsets."""
+
+
+def nx_save_as(path: str):
+    """Save the current work part to a new file."""
+
+
+def nx_set_view(orientation: str):
+    """Set the view to a named orientation."""
 
 
 def nx_boolean(
@@ -288,7 +332,7 @@ def nx_list_topology(
 
 
 def nx_measure_volume(body: str | None = None, scope: Literal["auto", "part", "assembly"] = "auto"):
-    pass
+    """Measure the volume of a body or all bodies."""
 
 
 def nx_package_assembly(path: str):
@@ -492,7 +536,7 @@ DESCRIPTIONS = {
     "nx_section_view": "Create or edit a native single-plane section in visible NX. origin is in display-part units; normal is normalized in display-part coordinates. Solids are unchanged. Specify section ID to edit an existing active section. NX v2606 retains dot(point-origin, normal) <= 0; reversing normal reverses the retained side. Returns actual plane geometry.",
     "nx_section_control": "Enable, disable or delete the specified native section. Disabling turns off clipping when that section is active. Deletion removes the section object, not model solids.",
     "nx_sketch_diagnostics": "Evaluate native solver status and remaining DOF for the entire sketch; enumerate persistent constraints and their curve links. Temporarily activates an inactive sketch and restores the prior state. Rejects another active sketch. Temporarily evaluates the entire sketch and restores the work-region state. Does not infer a minimal conflict set or automatically constrain geometry.",
-    "nx_ui_control": "Inspect UI activity without queueing behind native work, or switch control modes. Agent mode reserves NX input even when idle. Status is a timestamped snapshot, not proof that a native call is responsive. Manual handoff invalidates references/checkpoints. Pause/stop cannot interrupt a native call. Finish NX dialogs before resuming.",
+    "nx_ui_control": "Inspect UI activity without queueing behind native work, or switch control modes. While the engineer has control, mode=agent (like any other request) is shown in the NX MCP panel and waits up to 60 s for them to click 'Give control to agent'; NX_UI_DECLINED means they chose 'Not now', so ask in chat before retrying. mode=manual hands control back at once. Agent mode reserves NX input even when idle. Status is a timestamped snapshot, not proof that a native call is responsive. Manual handoff invalidates references/checkpoints. Taking control back cannot interrupt a native call.",
     "nx_view_info": "Return the displayed model view, camera matrix, scale, rendering style, and interactive state.",
     "nx_screenshot": "Export the actual interactive NX viewport as PNG and return an inline MCP image. Advisory 128–4096 pixel dimensions (NX can use the actual device size; response reports both), background, shaded/wireframe style and fit. No desktop capture. Paths are workspace-relative; omit for a unique capture path.",
     "nx_check_interference": "Check native solid interference between two body/component references, including nested occurrence geometry. Return penetration/contact/clear, closest points and pairwise interference volumes in mm^3. Temporary solids are rolled back.",
@@ -635,8 +679,6 @@ def envelope(payload, error=False):
 
 
 def configure(mcp, bridge, workspace):
-    if workspace is None:
-        return
     existing = dict(mcp._tool_manager._tools)
     definitions = {
         name: obj
@@ -712,6 +754,8 @@ def configure(mcp, bridge, workspace):
                                     op["params"]["part_path"] = str(
                                         workspace.resolve(op["params"]["part_path"])
                                     )
+                        if intent := REQUEST_INTENT.get():
+                            params["intent"] = intent
                         result = await bridge.call(method, params)
                     response = envelope(result, error=result.get("status") == "error")
                     if (

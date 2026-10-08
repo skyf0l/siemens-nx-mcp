@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -79,3 +80,21 @@ class NXToolError(Exception):
         if self.details:
             result["details"] = self.details
         return result
+
+
+def api_error(error: BaseException) -> NXToolError:
+    """Wrap an unexpected exception as NX_API_ERROR, keeping where it was raised.
+
+    The short traceback tail makes environment faults (a missing module or an
+    unimported NXOpen namespace) distinguishable from genuine NX API failures.
+    """
+    frames = traceback.format_exception(type(error), error, error.__traceback__)
+    return NXToolError(
+        "NX_API_ERROR",
+        str(error),
+        nx_code=getattr(error, "ErrorCode", None),
+        details={
+            "exception_type": type(error).__name__,
+            "traceback": "".join(frames[-6:])[-4000:],
+        },
+    )

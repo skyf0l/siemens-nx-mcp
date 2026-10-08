@@ -39,7 +39,6 @@ addopts = ["-ra", "--strict-markers"]
 markers = [
     "integration: exercises an MCP or bridge boundary without a live NX session",
     "fake_nx: exercises a fake NXOpen implementation and is not real-NX validation",
-    "legacy: covers opt-in 0.1 legacy tools outside the certified default surface",
     "real_nx: requires a dedicated Windows runner with Siemens NX and a started bridge",
 ]
 

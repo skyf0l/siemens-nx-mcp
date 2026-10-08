@@ -15,7 +15,7 @@ from nx_mcp.workspace import Workspace
 async def test_guidance_examples_match_real_input_schemas(tmp_path):
     from nx_mcp.agent_guidance import GUIDANCE
 
-    server = create_server(AsyncMock(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(AsyncMock(), Workspace(tmp_path))
     for name, (_, _, example) in GUIDANCE.items():
         tool = server._tool_manager.get_tool(name)
         assert tool is not None
@@ -78,7 +78,7 @@ async def test_filtered_snapshot_pages_reuse_single_native_read(tmp_path):
     ]
     bridge = AsyncMock()
     bridge.call.return_value = {"objects": refs, "units": "mm"}
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
     first = await server.call_tool(
         "nx_inspect", {"tool": "nx_list_features", "name_contains": "bolt", "limit": 10}
     )
@@ -127,7 +127,7 @@ async def test_annotation_capture_collects_all_pages_and_preserves_frame(tmp_pat
             "next_offset": None,
         },
     ]
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True, surface="agent")
+    server = create_server(bridge, Workspace(tmp_path), surface="agent")
     response = await server.call_tool(
         "nx_inspect", {"tool": "nx_list_annotations", "name_contains": "second"}
     )
@@ -141,9 +141,7 @@ async def test_annotation_capture_collects_all_pages_and_preserves_frame(tmp_pat
 async def test_cleanup_tool_defaults_to_preview(tmp_path):
     store = ResultStore(tmp_path)
     key = store.put({"large": "x" * 100})
-    server = create_server(
-        AsyncMock(), Workspace(tmp_path), enable_experimental=True, surface="agent"
-    )
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
     response = await server.call_tool("nx_result_cleanup", {"max_bytes": 1})
     assert response.structuredContent["selected_count"] == 1
     assert store.get(key)
@@ -173,9 +171,7 @@ def test_next_action_does_not_repeat_the_current_inspection():
 
 @pytest.mark.asyncio
 async def test_spaced_discovery_and_optional_output_schema(tmp_path):
-    server = create_server(
-        AsyncMock(), Workspace(tmp_path), enable_experimental=True, surface="agent"
-    )
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
     result = await server.call_tool(
         "nx_discover_tools",
         {"query": "create part", "include_schema": True, "include_output_schema": False},
@@ -185,5 +181,10 @@ async def test_spaced_discovery_and_optional_output_schema(tmp_path):
     assert "inputSchema" in rows[0] and "outputSchema" not in rows[0]
     result = await server.call_tool(
         "nx_discover_tools", {"query": "nx_create_part", "include_schema": True}
+    )
+    assert "outputSchema" not in result.structuredContent["tools"][0]
+    result = await server.call_tool(
+        "nx_discover_tools",
+        {"query": "nx_create_part", "include_schema": True, "include_output_schema": True},
     )
     assert "outputSchema" in result.structuredContent["tools"][0]

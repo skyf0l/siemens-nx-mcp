@@ -15,6 +15,7 @@ from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
 from pydantic import Field
 
 from nx_mcp.agent_guidance import guidance, next_actions
+from nx_mcp.integration_server import REQUEST_INTENT
 from nx_mcp.result_retention import LOCK, maintain, settings
 
 CORE = {
@@ -195,11 +196,11 @@ def configure(mcp, workspace):
         query: str = "",
         domain: str | None = None,
         include_schema: bool = False,
-        include_output_schema: bool = True,
+        include_output_schema: bool = False,
         offset: Annotated[int, Field(ge=0)] = 0,
         limit: Annotated[int, Field(ge=1, le=20)] = 10,
     ) -> CallToolResult:
-        """Discover task tools by name/description or domain. Domains: modeling, sketch, assembly, drawing, manufacturing, inspection, display, files. Spaced queries match all words, with tool-name matches ranked first. Request exact-name schema before nx_invoke; include_output_schema=false omits the repeated full output contract; results are paged. Discovery does not mutate NX or the session's catalog."""
+        """Discover task tools by name/description or domain. Domains: modeling, sketch, assembly, drawing, manufacturing, inspection, display, files. Spaced queries match all words, with tool-name matches ranked first. Request exact-name schema before nx_invoke; output schemas are omitted unless include_output_schema=true; results are paged. Discovery does not mutate NX or the session's catalog."""
         if offset < 0 or not 1 <= limit <= 20:
             raise ValueError("offset >= 0; limit 1..20")
         if domain is not None and domain not in {*DOMAINS, "modeling"}:
@@ -250,13 +251,20 @@ def configure(mcp, workspace):
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
     async def nx_invoke(
-        tool: str, arguments: dict[str, Any], detail: Literal["compact", "full"] = "compact"
+        tool: str,
+        arguments: dict[str, Any],
+        detail: Literal["compact", "full"] = "compact",
+        intent: Annotated[str | None, Field(max_length=120)] = None,
     ) -> CallToolResult:
-        """Call a discovered NX tool using its exact input schema. Mutations execute serially on the NX thread. Supply operation_id inside arguments and reuse it after transport failure; nx_operation_status is authoritative. Compact returns result_id for detail expansion. Full preserves the original response. This gateway may mutate NX; inspect the discovered tool semantics first."""
+        """Call a discovered NX tool using its exact input schema. Mutations execute serially on the NX thread. Supply operation_id inside arguments and reuse it after transport failure; nx_operation_status is authoritative. Compact returns result_id for detail expansion. Full preserves the original response. This gateway may mutate NX; inspect the discovered tool semantics first. intent is an optional short note in the engineer's terms on why you make this call (e.g. "Add the 10 mm mounting boss"); the NX MCP panel shows it, labelled as your note, when the engineer must approve control."""
         if tool not in registry:
             raise ValueError("Unknown tool; use nx_discover_tools")
         params = {**DEFAULTS.get(tool, {}), **arguments} if detail == "compact" else arguments
-        return present(await original_call(tool, params), detail, tool)
+        token = REQUEST_INTENT.set(" ".join(intent.split()) if intent else None)
+        try:
+            return present(await original_call(tool, params), detail, tool)
+        finally:
+            REQUEST_INTENT.reset(token)
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def nx_result(

@@ -84,7 +84,7 @@ def test_geometry_cardinality_units_and_closest_points():
 @pytest.mark.asyncio
 async def test_fresh_mcp_client_accepts_artifacts_and_structured_errors(tmp_path):
     (tmp_path / "test.txt").write_text("hello")
-    server = create_server(AsyncMock(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(AsyncMock(), Workspace(tmp_path))
     async with create_connected_server_and_client_session(server) as client:
         for args in [{"delivery": "metadata"}, {"length": 2}, {"offset": 5}]:
             result = await client.call_tool("nx_download_file", {"path": "test.txt", **args})
@@ -103,7 +103,7 @@ async def test_fresh_mcp_client_accepts_artifacts_and_structured_errors(tmp_path
 
 @pytest.mark.asyncio
 async def test_new_inspection_tools_publish_actionable_docstrings(tmp_path):
-    server = create_server(AsyncMock(), Workspace(tmp_path), enable_experimental=True)
+    server = create_server(AsyncMock(), Workspace(tmp_path))
     tools = {t.name: t for t in await server.list_tools()}
     expected = {
         "nx_flat_pattern_orientation_edges": "x_axis_edge",

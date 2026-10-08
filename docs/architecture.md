@@ -32,21 +32,21 @@ workspace on both sides of the process boundary.
 
 ## Profiles and graphical hosting
 
-The default exposes the original 16 tools. `NX_MCP_ENABLE_EXPERIMENTAL=1`
-enables the extended integration; it does not classify every tool as untested.
-The capability manifest separates native, sidecar-only and experimental evidence.
-Journal execution retains a separate opt-in. The optional agent profile discovers
+All 189 tools are always registered; `NX_MCP_SURFACE` only selects the full
+listing or the compact agent entry points. The capability manifest separates
+native, sidecar-only and experimental evidence.
+There is no arbitrary journal-execution tool. The optional agent profile discovers
 and invokes registered tools; it does not bypass their validation or permissions.
 
 The batch runner calls `pump_bridge()` on the journal main thread. The graphical
 runner retains a Win32 timer callback and returns from the journal. The callback
-executes one queued operation at a time on the NX UI thread. Pause releases input
+executes one queued operation at a time on the NX UI thread. Taking control back releases input
 for manual editing and invalidates references/checkpoints; resume requires fresh
 inspection. Agent mode intentionally disables the NX main window even while idle; use
-`nx_ui_control(mode="manual")` or **Pause / manual** to navigate or edit. This
+`nx_ui_control(mode="manual")` or the panel's **Take control back** toggle to navigate or edit. This
 handoff invalidates object references and checkpoints. The panel distinguishes
 reserved idle, active operation and manual mode, paints before native execution,
-and reports the last operation duration. Its window is owned by NX so the Pause
+and reports the last operation duration. Its window is owned by NX so the toggle
 control stays above NX without being globally topmost. It does not continuously repaint an
 unchanged label.
 
@@ -58,7 +58,7 @@ worker thread calls NXOpen. A native call holding the Python GIL can still delay
 this endpoint. `.nx-mcp/ui-state.json` records the last sample before/after work
 and approximately once a second while idle for external diagnosis.
 
-A long native call can block the UI and the panel. Pause and Stop take effect
+A long native call can block the UI and the panel. Taking control back and Stop take effect
 after it returns; they cannot abort a native builder. Cooperative batch cancellation
 is checked between child operations, not during a native builder call.
 

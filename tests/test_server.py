@@ -36,7 +36,7 @@ class RecordingBridge:
         return self.response
 
 
-def test_server_lists_only_certified_tools_without_legacy_or_nx_imports():
+def test_server_lists_every_tool_without_nx_imports(tmp_path):
     script = textwrap.dedent(
         """
         import asyncio
@@ -48,27 +48,13 @@ def test_server_lists_only_certified_tools_without_legacy_or_nx_imports():
         async def main():
             server = create_server()
             tools = await server.list_tools()
-            forbidden = [
-                name
-                for name in (
-                    "NXOpen",
-                    "nx_mcp.experimental",
-                    "nx_mcp.nx_session",
-                    "nx_mcp.response",
-                    "nx_mcp.tools",
-                    "nx_mcp.tools.registry",
-                )
-                if name in sys.modules
-            ]
+            forbidden = [name for name in ("NXOpen",) if name in sys.modules]
             print(json.dumps({"tools": [tool.name for tool in tools], "forbidden": forbidden}))
 
         asyncio.run(main())
         """
     )
-    environment = os.environ | {
-        "NX_MCP_ENABLE_EXPERIMENTAL": "0",
-        "NX_MCP_ENABLE_JOURNAL": "0",
-    }
+    environment = os.environ | {"NX_MCP_WORKSPACE": str(tmp_path)}
 
     result = subprocess.run(
         [sys.executable, "-c", script],
@@ -80,7 +66,7 @@ def test_server_lists_only_certified_tools_without_legacy_or_nx_imports():
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert set(payload["tools"]) == CERTIFIED_TOOL_NAMES
+    assert len(payload["tools"]) == 189 and set(payload["tools"]) > CERTIFIED_TOOL_NAMES
     assert payload["forbidden"] == []
 
 
@@ -103,36 +89,25 @@ async def test_server_reads_workspace_from_environment(
         )
 
     assert result.isError is False
-    assert bridge.calls == [
-        (
-            "nx_create_part",
-            {"path": str(tmp_path / "parts" / "bracket.prt"), "units": "mm"},
-        )
-    ]
+    [(method, params)] = bridge.calls
+    assert method == "nx_create_part"
+    assert params["path"] == str(tmp_path / "parts" / "bracket.prt")
 
 
 @pytest.mark.asyncio
-async def test_server_reads_experimental_and_journal_opt_ins_from_environment(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setenv("NX_MCP_ENABLE_EXPERIMENTAL", "1")
+async def test_removed_profile_flags_have_no_effect(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("NX_MCP_ENABLE_EXPERIMENTAL", "0")
     monkeypatch.setenv("NX_MCP_ENABLE_JOURNAL", "1")
     server = create_server(StubBridge())
 
     async with create_connected_server_and_client_session(server) as client:
         names = {tool.name for tool in (await client.list_tools()).tools}
 
-    assert {"nx_blend", "nx_run_journal", "nx_record_start", "nx_record_stop"} <= names
+    assert len(names) == 189 and names > CERTIFIED_TOOL_NAMES
+    assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 
-@pytest.mark.asyncio
-async def test_server_keeps_journal_tools_disabled_without_experimental_opt_in(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setenv("NX_MCP_ENABLE_JOURNAL", "1")
-    server = create_server(StubBridge())
-
-    async with create_connected_server_and_client_session(server) as client:
-        names = {tool.name for tool in (await client.list_tools()).tools}
-
-    assert names == CERTIFIED_TOOL_NAMES
+def test_server_requires_a_workspace(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("NX_MCP_WORKSPACE")
+    with pytest.raises(ValueError, match="NX_MCP_WORKSPACE"):
+        create_server(StubBridge())

@@ -842,7 +842,7 @@ async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path):
     from nx_mcp.workspace import Workspace
 
     bridge = NS(call=AsyncMock(return_value={"status": "success"}))
-    server = create_server(bridge, Workspace(tmp_path), enable_experimental=True)
+    server = create_server(bridge, Workspace(tmp_path))
     tools = {t.name: t for t in await server.list_tools()}
     variants = tools["nx_edit_sketch"].inputSchema["properties"]["operations"]["items"]["oneOf"]
     assert {v["properties"]["action"]["const"] for v in variants} == {

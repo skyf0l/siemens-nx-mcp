@@ -30,7 +30,7 @@ The upstream baseline was scoped to that build. The fork adds separately recorde
   examples load the checkout's `src` directory and require only NX's standard
   Python library, not `mcp` or `pydantic`.
 - Before starting the bridge, set `NX_MCP_PROBE_OUTPUT` to a JSON file inside
-  the disposable workspace and run `examples/nx_runtime_probe.py` as an NX
+  the disposable workspace and run `scripts/nx_runtime_probe.py` as an NX
   journal. It must report `"bridge_import_error": null`.
 - Enable `NX_MCP_ALLOW_UNVERIFIED_PYTHON_BRIDGE=1` only during feasibility.
 
@@ -102,8 +102,12 @@ presence, a mock test or an unrelated native fixture.
 ## Running integration suites
 
 Use isolated fixtures and a configured public MCP endpoint. Native scripts live
-under `examples/validate_*.py`; each documents its endpoint/output variables.
-`scripts/validate_native_release.py` coordinates the release suites. Run mutations
+under `acceptance/validate_*.py`; each documents its endpoint/output variables.
+`scripts/validate_native_release.py` coordinates the release suites (hard geometry,
+release engineering, documentation/manufacturing, annotation recovery, freeform,
+sheet metal). The other suites (advanced, authoring, engineering, exploded views,
+project folders, remaining tools, transport recovery, visual) are run by hand
+when their tools change. Run mutations
 serially and preserve the original loaded parts, modified flags and work/display
 selection. After failures, record outcomes and restore the session before retrying.
 
@@ -118,7 +122,7 @@ on the release candidate instead of relabeling earlier evidence.
 The dev19 closeout reproduced three failures in dev18: typed-reference angle
 lookup, the missing sketch constraint enum, and feature deletion through
 `FeatureCollection.ToArray`. The replacement handlers use live references and
-supported native editing/update paths. `examples/validate_remaining_tools.py`
+supported native editing/update paths. `acceptance/validate_remaining_tools.py`
 checks perpendicular-line angles, horizontal constraints, inventories, rename,
 nested Save As, extrusion deletion, view selection, relative-placement replay,
 explosion deletion and downloaded assembly ZIP contents. Save As references are

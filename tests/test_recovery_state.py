@@ -193,10 +193,7 @@ def test_lookup_ambiguity_ownership_and_kind_guards(rig, tmp_path):
 def test_guard_failures_never_create_undo_marks(rig):
     with pytest.raises(NXToolError):
         rig.e.execute("nx_checkpoint", {"unexpected": 1})
-    with pytest.raises(NXToolError):
-        rig.e.execute("nx_no_such_tool", {})
-    rig.e.enable_experimental = False
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXToolError, match="NX_TOOL_NOT_FOUND|nx_no_such_tool"):
         rig.e.execute("nx_no_such_tool", {})
     assert not rig.session.marks
 
