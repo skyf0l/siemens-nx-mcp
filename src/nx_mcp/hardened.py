@@ -23,11 +23,18 @@ from nx_mcp.assembly_documentation import AssemblyDocumentationMixin
 from nx_mcp.authoring import AuthoringMixin
 from nx_mcp.authoring_server import NON_MODEL as AUTHORING_NON_MODEL
 from nx_mcp.authoring_server import READ_ONLY as AUTHORING_READ_ONLY
+from nx_mcp.body_ops import BodyOpsMixin
+from nx_mcp.datum_features import DatumFeaturesMixin
 from nx_mcp.documentation_editing import DocumentationEditingMixin
+from nx_mcp.drafting_dims import DraftingDimsMixin
+from nx_mcp.drafting_notes import DraftingNotesMixin
 from nx_mcp.drawing_preferences import DrawingPreferencesMixin
 from nx_mcp.engineering import EngineeringMixin
 from nx_mcp.exploded_views import ExplodedViewsMixin
+from nx_mcp.feature_groups import server_modules as feature_group_modules
+from nx_mcp.feature_tree import FeatureTreeMixin
 from nx_mcp.freeform import FreeformMixin
+from nx_mcp.holes import HolesMixin
 from nx_mcp.inspection import InspectionMixin
 from nx_mcp.inventory import compact_reference, page
 from nx_mcp.legacy_repairs import LegacyRepairsMixin
@@ -40,6 +47,8 @@ from nx_mcp.release_engineering import ReleaseEngineeringMixin
 from nx_mcp.review_tools import ReviewToolsMixin
 from nx_mcp.runtime import NXToolError, api_error
 from nx_mcp.sheet_metal import SheetMetalMixin
+from nx_mcp.sketch_constraints import SketchConstraintsMixin
+from nx_mcp.sketch_curves import SketchCurvesMixin
 from nx_mcp.thread_standards import ThreadStandardsMixin
 from nx_mcp.visual_tools import VisualToolsMixin
 
@@ -151,9 +160,27 @@ NON_MODEL.update(
     | assembly_documentation_server.NON_MODEL
     | documentation_editing_server.NON_MODEL
 )
+for _group in feature_group_modules():
+    READ_ONLY.update(_group.READ_ONLY)
+    NON_MODEL.update(_group.NON_MODEL)
+
+
+def _not_implemented(name):
+    def handler(**_params):
+        raise NXToolError("NX_NOT_IMPLEMENTED", f"{name} has a schema but no handler yet")
+
+    return handler
 
 
 class HardenedExecutor(
+    DatumFeaturesMixin,
+    SketchCurvesMixin,
+    SketchConstraintsMixin,
+    HolesMixin,
+    FeatureTreeMixin,
+    BodyOpsMixin,
+    DraftingDimsMixin,
+    DraftingNotesMixin,
     LegacyRepairsMixin,
     PlanarDxfMixin,
     DrawingPreferencesMixin,
@@ -189,6 +216,12 @@ class HardenedExecutor(
             for name in vars(module):
                 if name.startswith("nx_"):
                     self._handlers[name] = getattr(self, "_" + name[3:])
+        for module in feature_group_modules():
+            for name in vars(module):
+                if name.startswith("nx_"):
+                    # A schema without its handler yet must not stop the host from
+                    # starting; test_feature_groups requires every handler to exist.
+                    self._handlers[name] = getattr(self, "_" + name[3:], _not_implemented(name))
         for name, fn in vars(documentation_editing_server).items():
             if name.startswith("nx_") and inspect.isfunction(fn):
                 self._handlers[name] = getattr(self, "_" + name[3:])
@@ -1722,9 +1755,10 @@ class HardenedExecutor(
         }
 
     def _capabilities(self, tool=None, prefix=None):
-        import json
 
-        manifest = json.loads(Path(__file__).with_name("capability_manifest.json").read_text())
+        from nx_mcp.manifest import load_manifest
+
+        manifest = load_manifest()
         part = self._work_part(required=False)
         manifest.update(
             session_id=self.session_id,

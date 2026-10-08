@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
+from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.agent_surface import ResultStore, compact
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -207,7 +208,7 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
 
     app = create_app(AsyncMock(), Workspace(tmp_path))
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
-        for path, count in [("/mcp", 189), ("/agent/mcp", 13)]:
+        for path, count in [("/mcp", len(MANIFEST["tools"])), ("/agent/mcp", 13)]:
             response = client.post(
                 path,
                 headers={"Accept": "application/json, text/event-stream"},

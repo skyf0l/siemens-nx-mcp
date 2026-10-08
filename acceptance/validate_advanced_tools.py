@@ -11,6 +11,15 @@ from pathlib import Path
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+# The public tool count is the manifest's: one source of truth.
+EXPECTED_TOOL_COUNT = len(
+    json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "capability_manifest.json"
+        ).read_text(encoding="utf-8")
+    )["tools"]
+)
+
 
 async def run(call, root):
     out = {"groups": []}
@@ -306,7 +315,7 @@ async def main():
     ):
         await client.initialize()
         tools = {t.name: t for t in (await client.list_tools()).tools}
-        assert len(tools) == int(os.environ.get("NX_EXPECTED_TOOL_COUNT", "189"))
+        assert len(tools) == int(os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT)))
         assert tools["nx_resolve_geometry"].annotations.readOnlyHint
 
         async def call(method, **params):

@@ -17,6 +17,15 @@ from pathlib import Path
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+# The public tool count is the manifest's: one source of truth.
+EXPECTED_TOOL_COUNT = len(
+    json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "capability_manifest.json"
+        ).read_text(encoding="utf-8")
+    )["tools"]
+)
+
 
 async def main():
     output = Path(os.environ.get("NX_VALIDATION_OUTPUT", "freeform-manufacturing-results"))
@@ -138,7 +147,7 @@ async def main():
         original_display = next(p for p in before if p["display"])
         try:
             assert len((await client.list_tools()).tools) == int(
-                os.environ.get("NX_EXPECTED_TOOL_COUNT", "189")
+                os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT))
             )
             await new("spline")
             token = "spline-" + uuid.uuid4().hex

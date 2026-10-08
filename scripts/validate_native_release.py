@@ -18,6 +18,15 @@ from pathlib import Path
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+# The public tool count is the manifest's: one source of truth.
+EXPECTED_TOOL_COUNT = len(
+    json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "capability_manifest.json"
+        ).read_text(encoding="utf-8")
+    )["tools"]
+)
+
 SUITES = [
     ("hard_geometry", "validate_hard_geometry.py", "hard-geometry-validation.json"),
     (
@@ -116,7 +125,7 @@ async def snapshot():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--expected-tool-count", type=int, default=189)
+    parser.add_argument("--expected-tool-count", type=int, default=EXPECTED_TOOL_COUNT)
     args = parser.parse_args()
     if args.output.exists():
         raise RuntimeError(

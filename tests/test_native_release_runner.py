@@ -68,5 +68,6 @@ def test_native_suites_accept_runner_profile_count():
         "visual_tools",
     ]:
         source = (suites / f"validate_{name}.py").read_text()
-        assert 'os.environ.get("NX_EXPECTED_TOOL_COUNT", "189")' in source
+        assert 'os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT))' in source
+        assert "capability_manifest.json" in source
         assert "== 179" not in source

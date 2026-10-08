@@ -23,6 +23,7 @@ from nx_mcp import (
     manufacturing_server,
     sheet_metal_server,
 )
+from nx_mcp.feature_groups import server_modules as feature_group_modules
 from nx_mcp.output_schemas import output_schema
 from nx_mcp.recovery import OperationStore
 from nx_mcp.runtime import NXToolError
@@ -609,6 +610,8 @@ READ_ONLY.update(
     | assembly_documentation_server.READ_ONLY
     | documentation_editing_server.READ_ONLY
 )
+for _group in feature_group_modules():
+    READ_ONLY.update(_group.READ_ONLY)
 DESCRIPTIONS.update(
     {
         name: obj.__doc__ or name
@@ -695,6 +698,7 @@ def configure(mcp, bridge, workspace):
                 **vars(manufacturing_server),
                 **vars(assembly_documentation_server),
                 **vars(documentation_editing_server),
+                **{k: v for m in feature_group_modules() for k, v in vars(m).items()},
             }.items()
             if name.startswith("nx_") and inspect.isfunction(obj)
         }

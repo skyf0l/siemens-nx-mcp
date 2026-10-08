@@ -1,9 +1,8 @@
 """Conservative task guidance, with unknown effects explicit rather than guessed."""
 
-import json
-from pathlib import Path
+from nx_mcp.manifest import load_manifest
 
-MANIFEST = json.loads(Path(__file__).with_name("capability_manifest.json").read_text())
+MANIFEST = load_manifest()
 
 # Reviewed contracts; omitted tools retain their descriptions and unknown effects.
 GUIDANCE = {

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
+from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.certified import CERTIFIED_TOOL_NAMES
 from nx_mcp.server import create_server
 
@@ -66,7 +67,10 @@ def test_server_lists_every_tool_without_nx_imports(tmp_path):
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert len(payload["tools"]) == 189 and set(payload["tools"]) > CERTIFIED_TOOL_NAMES
+    assert (
+        len(payload["tools"]) == len(MANIFEST["tools"])
+        and set(payload["tools"]) > CERTIFIED_TOOL_NAMES
+    )
     assert payload["forbidden"] == []
 
 
@@ -103,7 +107,7 @@ async def test_removed_profile_flags_have_no_effect(monkeypatch: pytest.MonkeyPa
     async with create_connected_server_and_client_session(server) as client:
         names = {tool.name for tool in (await client.list_tools()).tools}
 
-    assert len(names) == 189 and names > CERTIFIED_TOOL_NAMES
+    assert names == set(MANIFEST["tools"]) and names > CERTIFIED_TOOL_NAMES
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 

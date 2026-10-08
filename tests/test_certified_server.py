@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
+from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.certified import CERTIFIED_TOOL_NAMES
 from nx_mcp.contracts import NXToolError
 from nx_mcp.server import create_server
@@ -38,7 +39,7 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
     async with create_connected_server_and_client_session(server) as client:
         names = {tool.name for tool in (await client.list_tools()).tools}
 
-    assert len(names) == 189
+    assert names == set(MANIFEST["tools"])  # Manifest lists exactly the public tools.
     assert names > CERTIFIED_TOOL_NAMES
     assert {"nx_blend", "nx_measure_distance"} <= names
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names

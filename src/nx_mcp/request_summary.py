@@ -109,6 +109,17 @@ def _batch(p, c, summarize_one):
     return f"{first}{more}"
 
 
+def _datum_plane(p, c):
+    method = p.get("method")
+    if method == "offset":
+        return (
+            f"Create a datum plane {c.length(p.get('distance'))} from {c.obj(p.get('reference'))}"
+        )
+    if method == "three_points":
+        return "Create a datum plane through three points"
+    return "Create a datum plane through a point"
+
+
 def _control(p, c):
     mode = p.get("mode", "status")
     return "Take control of NX" if mode == "agent" else humanize("nx_ui_control")
@@ -172,7 +183,44 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     "nx_screenshot": lambda p, c: "Capture a screenshot",
     "nx_render_view": lambda p, c: "Render the view to an image",
     "nx_ui_control": _control,
+    "nx_datum_plane": _datum_plane,
+    "nx_datum_axis": lambda p, c: (
+        "Create a datum axis"
+        + (" through two points" if p.get("method") == "two_points" else " along a direction")
+    ),
+    "nx_datum_csys": lambda p, c: "Create a datum coordinate system",
+    "nx_datum_point": lambda p, c: (
+        "Create a point at " + ", ".join(_number(v) for v in (p.get("position") or []))
+    ),
+    "nx_create_sketch_on": lambda p, c: (
+        f'Create sketch "{p["name"]}" on {c.obj(p.get("target"))}'
+        if p.get("name")
+        else f"Create a sketch on {c.obj(p.get('target'))}"
+    ),
+    "nx_circular_pattern": lambda p, c: (
+        f"Circular pattern of {c.count(p.get('features'), 'feature')}: "
+        f"{_number(p.get('count'))} × {_number(p.get('angle'))}°"
+    ),
 }
+
+
+def _group_templates():
+    """SUMMARIES contributed by feature-group schema modules."""
+    global _GROUP_TEMPLATES
+    if _GROUP_TEMPLATES is None:
+        templates = {}
+        try:
+            from nx_mcp.feature_groups import server_modules
+
+            for module in server_modules():
+                templates.update(getattr(module, "SUMMARIES", {}))
+        except Exception:
+            pass  # A broken group module must not break the panel.
+        _GROUP_TEMPLATES = templates
+    return _GROUP_TEMPLATES
+
+
+_GROUP_TEMPLATES = None
 
 
 def summarize(
@@ -190,7 +238,7 @@ def summarize(
         try:
             if name == "nx_batch":
                 return _batch(arguments, context, one)
-            template = _TEMPLATES.get(name)
+            template = _TEMPLATES.get(name) or _group_templates().get(name)
             return template(arguments, context) if template else humanize(name)
         except Exception:
             return humanize(name)

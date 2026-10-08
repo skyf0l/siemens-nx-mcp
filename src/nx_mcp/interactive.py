@@ -773,6 +773,31 @@ class InteractiveHost:
             # A summary is a courtesy; it must never stop a request from waiting.
             return humanize(method)
 
+    def _dev_python(self, code):
+        """Run a Python snippet on the NX UI thread (development launcher only).
+
+        Names: NXOpen, session, part (work part), executor, resolve(id). Set
+        `result` to return a value; print() output is returned as stdout.
+        """
+        import contextlib
+        import io
+
+        namespace = {
+            "NXOpen": self.nx,
+            "session": self.session,
+            "part": self.session.Parts.Work,
+            "executor": self.executor,
+            "resolve": lambda ref: self.executor._resolve(ref),
+        }
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exec(compile(code, "<nx_dev_python>", "exec"), namespace)  # noqa: S102 - dev only
+        return {
+            "status": "success",
+            "stdout": output.getvalue()[-20000:],
+            "result": repr(namespace.get("result"))[:20000],
+        }
+
     def _open_log(self):
         log = self.activity.log_path
         if log is None or not log.exists():
@@ -843,6 +868,10 @@ def start(workspace, descriptor_path, resident=False, *, agent_control=None, dev
     if agent_control is not None:
         candidate.auto_start = agent_control
     candidate.dev = dev
+    if dev:
+        # Development launcher only: lets development agents inspect NXOpen
+        # APIs inside NX. Never registered by the production launchers.
+        candidate.executor._handlers["nx_dev_python"] = candidate._dev_python
     _host = candidate
     return _host.status()
 

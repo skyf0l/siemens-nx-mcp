@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.runtime import NXToolError
 from nx_mcp.visual_tools import VisualToolsMixin, unit_normal
 
@@ -59,7 +60,7 @@ async def test_visual_tools_publish_enums_and_native_capture_description(tmp_pat
 
     server = create_server(SimpleNamespace(), Workspace(tmp_path))
     tools = {t.name: t for t in await server.list_tools()}
-    assert len(tools) == 189
+    assert len(tools) == len(MANIFEST["tools"])
     assert tools["nx_set_visibility"].inputSchema["properties"]["mode"]["enum"] == [
         "show",
         "hide",

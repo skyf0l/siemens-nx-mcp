@@ -21,6 +21,15 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
+# The public tool count is the manifest's: one source of truth.
+EXPECTED_TOOL_COUNT = len(
+    json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "capability_manifest.json"
+        ).read_text(encoding="utf-8")
+    )["tools"]
+)
+
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -224,7 +233,7 @@ def main():
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--install-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--expected-tool-count", type=int, default=189)
+    parser.add_argument("--expected-tool-count", type=int, default=EXPECTED_TOOL_COUNT)
     parser.add_argument("--expected-nx-version", default="v2606")
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--resume", action="store_true")

@@ -947,6 +947,36 @@
       "status": "tested",
       "evidence_type": "local_contract_tests",
       "scope": "Immutable bounded bridge snapshots, JSON-pointer pagination, result cardinality and committed-outcome preservation on storage failure; 2032-object response fixture."
+    },
+    "nx_datum_plane": {
+      "status": "experimental",
+      "evidence_type": "local_contract_tests",
+      "scope": "New; awaiting native validation."
+    },
+    "nx_datum_axis": {
+      "status": "experimental",
+      "evidence_type": "local_contract_tests",
+      "scope": "New; awaiting native validation."
+    },
+    "nx_datum_csys": {
+      "status": "experimental",
+      "evidence_type": "local_contract_tests",
+      "scope": "New; awaiting native validation."
+    },
+    "nx_datum_point": {
+      "status": "experimental",
+      "evidence_type": "local_contract_tests",
+      "scope": "New; awaiting native validation."
+    },
+    "nx_create_sketch_on": {
+      "status": "experimental",
+      "evidence_type": "local_contract_tests",
+      "scope": "New; awaiting native validation."
+    },
+    "nx_circular_pattern": {
+      "status": "experimental",
+      "evidence_type": "local_contract_tests",
+      "scope": "New; awaiting native validation."
     }
   },
   "limitations": [
