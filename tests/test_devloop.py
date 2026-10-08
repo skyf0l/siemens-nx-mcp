@@ -1,6 +1,7 @@
 """Development journal loop: reload from disk, keep control choice, survive bad code."""
 
 import json
+from types import SimpleNamespace
 
 from nx_mcp.devloop import run_dev
 
@@ -149,6 +150,7 @@ def test_start_options_set_agent_control_and_dev_title(monkeypatch):
     def init(self, *args):
         self.mode, self.auto_start, self.stopped = "manual", False, False
         self.status = lambda: {}
+        self.executor = SimpleNamespace(_handlers={})
 
     monkeypatch.setattr(interactive, "_host", None)
     monkeypatch.setattr(interactive.InteractiveHost, "__init__", init)
@@ -159,3 +161,7 @@ def test_start_options_set_agent_control_and_dev_title(monkeypatch):
     host.waiting_count = 0
     host.panel_text = lambda: ""
     assert host.panel_state()[1] == "NX MCP DEV — You have control"
+    assert "nx_dev_python" in host.executor._handlers  # Dev launcher only.
+    host.stopped = True
+    interactive.start("w", "d", True)
+    assert "nx_dev_python" not in interactive._host.executor._handlers
