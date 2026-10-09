@@ -211,3 +211,29 @@ def test_reference_namespace_rejects_previous_session(executor, tmp_path):
     with pytest.raises(NXToolError) as error:
         another.objects.resolve(first.id)
     assert error.value.code == "NX_OBJECT_STALE"
+
+
+def test_new_feature_inheriting_a_rolled_back_error_is_updated_once(executor):
+    # NX 2406 attaches a rolled-back feature's error to the next feature created
+    # under the same name; one update of that new feature drops the stale message.
+    class Feature:
+        def __init__(self, tag, errors):
+            self.Tag, self.errors = tag, errors
+
+        def GetFeatureErrorMessages(self):
+            return self.errors
+
+    old, clean, inherited = Feature(1, ["old error"]), Feature(2, []), Feature(3, ["stale"])
+    logged = []
+
+    def do_update(mark):
+        for feature in logged:
+            feature.errors = []
+        return 0
+
+    executor.session.UpdateManager = SimpleNamespace(LogForUpdate=logged.append, DoUpdate=do_update)
+    executor._active_mark = 7
+    part = SimpleNamespace(Features=[old, clean, inherited])
+    executor._drop_inherited_feature_errors(part, {("feature", 1): {}})
+    assert logged == [inherited]
+    assert old.errors == ["old error"] and inherited.errors == []

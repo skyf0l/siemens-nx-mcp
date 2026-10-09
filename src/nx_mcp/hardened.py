@@ -492,6 +492,8 @@ class HardenedExecutor(
                     "units", self._units() if self._work_part(required=False) else None
                 )
             if mark is not None:
+                if part and have_before:
+                    self._drop_inherited_feature_errors(part, before)
                 after = self._snapshot(part) if part else {}
                 result["changes"] = {
                     "created": [v for k, v in after.items() if k not in before],
@@ -1854,6 +1856,29 @@ class HardenedExecutor(
         if clear is not None:
             with contextlib.suppress(Exception):
                 clear()
+
+    def _drop_inherited_feature_errors(self, part, before):
+        """Update new features that report errors once, dropping inherited messages.
+
+        NX 2406 keeps the error of a rolled-back feature and attaches it to the next
+        feature created under the same name (for example CHAMFER(3)), although that
+        feature built fine; model health then reports an error that does not exist.
+        Updating the feature drops the stale message; a real error remains.
+        """
+        manager = getattr(self.session, "UpdateManager", None)
+        if not hasattr(manager, "LogForUpdate"):
+            return
+        with contextlib.suppress(Exception):
+            new = [
+                f
+                for f in part.Features
+                if ("feature", int(f.Tag)) not in before
+                and list(getattr(f, "GetFeatureErrorMessages", list)())
+            ]
+            if new:
+                for feature in new:
+                    manager.LogForUpdate(feature)
+                manager.DoUpdate(self._active_mark)
 
     def _snapshot(self, part):
         groups = [
