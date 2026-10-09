@@ -6,6 +6,9 @@ from nx_mcp.authoring import finite
 from nx_mcp.runtime import NXToolError
 from nx_mcp.visual_tools import unit_normal
 
+# Native NX error code: "The requested license feature is not available."
+LICENSE_UNAVAILABLE = 949895
+
 
 def points3(values, minimum=1, maximum=1000):
     if not isinstance(values, list) or not minimum <= len(values) <= maximum:
@@ -31,10 +34,22 @@ class FreeformMixin:
         obj = self._engineering_owned(feature, "feature") if feature else None
         return factory(obj)
 
-    def _freeform_commit(self, builder):
-        if not builder.Validate():
-            raise NXToolError("NX_INVALID_GEOMETRY", "NX rejected the feature inputs")
-        feature = builder.CommitFeature()
+    def _freeform_commit(self, builder, native_error=None):
+        """Commit a builder; with native_error, NX's own refusal becomes that stable code."""
+        try:
+            if not builder.Validate():
+                raise NXToolError("NX_INVALID_GEOMETRY", "NX rejected the feature inputs")
+            feature = builder.CommitFeature()
+        except NXToolError:
+            raise
+        except Exception as error:
+            if native_error is None:
+                raise
+            raise NXToolError(
+                native_error,
+                "NX rejected the feature inputs: " + str(error),
+                nx_code=getattr(error, "ErrorCode", None),
+            ) from error
         result = self._engineering_result(feature)
         result["feature_type"] = feature.FeatureType
         return result
@@ -49,6 +64,11 @@ class FreeformMixin:
             raise NXToolError(
                 "NX_INVALID_ARGUMENT", "Need more points than degree and a supported method"
             )
+        if feature is not None and not isinstance(
+            self._engineering_owned(feature, "feature"), F.StudioSpline
+        ):
+            # NX 2406 hits a memory access violation editing another feature type.
+            raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "feature must be a Studio Spline feature")
         b = self._freeform_builder("CreateStudioSplineBuilderEx", feature)
         try:
             b.IsAssociative = True
@@ -65,7 +85,7 @@ class FreeformMixin:
                 c = manager.CreateGeometricConstraintData()
                 c.Point = self._work_part().Points.CreatePoint(self.nxopen.Point3d(*coords))
                 manager.Append(c)
-            result = self._freeform_commit(b)
+            result = self._freeform_commit(b, "NX_INVALID_GEOMETRY")
             spline = b.Curve
             result["curve"] = self._reference(spline, "curve", self._work_part(), "Spline")
             result["degree"] = spline.Order - 1
@@ -110,7 +130,7 @@ class FreeformMixin:
             for items, target in [(primary, b.PrimaryCurvesList), (cross, b.CrossCurvesList)]:
                 for refs in items:
                     target.Append(self._curve_section(refs))
-            return self._freeform_commit(b)
+            return self._freeform_commit(b, "NX_INVALID_GEOMETRY")
         finally:
             b.Destroy()
 
@@ -121,7 +141,15 @@ class FreeformMixin:
         if continuity not in {"G0", "G1", "G2"}:
             raise NXToolError("NX_INVALID_ARGUMENT", "continuity must be G0, G1, or G2")
         edges = [self._engineering_owned(r, "edge") for r in (first, second)]
-        b = self._freeform_builder("CreateBridgeSurfaceBuilder")
+        try:
+            b = self._freeform_builder("CreateBridgeSurfaceBuilder")
+        except Exception as error:
+            # Bridge Surface needs a Studio freeform license that some seats lack
+            # (seen on NX 2406); Through Curves with end-face continuity is the
+            # equivalent native construction available with basic freeform.
+            if getattr(error, "ErrorCode", None) != LICENSE_UNAVAILABLE:
+                raise
+            return self._bridge_through_curves(edges, continuity, reverse_second)
         try:
             b.FirstEndObjectType = F.BridgeSurfaceBuilder.EndObjectType.Edge
             b.SecondEndObjectType = F.BridgeSurfaceBuilder.EndObjectType.Edge
@@ -134,7 +162,78 @@ class FreeformMixin:
             b.IsSecondEdgeReversed = reverse_second
             b.IsFirstEdgeLimitEndToEnd = True
             b.IsSecondEdgeLimitEndToEnd = True
-            return self._freeform_commit(b)
+            result = self._freeform_commit(b, "NX_INVALID_GEOMETRY")
+            result["construction"] = "bridge_surface"
+            return result
+        finally:
+            b.Destroy()
+
+    def _bridge_through_curves(self, edges, continuity, reverse_second):
+        import math
+
+        import NXOpen.Features as F
+        import NXOpen.GeometricUtilities as G
+
+        from nx_mcp.hardened import xyz
+
+        faces = [list(edge.GetFaces()) for edge in edges]
+        if continuity != "G0" and any(len(f) != 1 for f in faces):
+            raise NXToolError(
+                "NX_AMBIGUOUS_GEOMETRY",
+                "G1/G2 bridging needs sheet boundary edges with exactly one adjacent face",
+            )
+        part = self._work_part()
+        b = self._freeform_builder("CreateThroughCurvesBuilder")
+        try:
+            b.BodyPreference = F.ThroughCurvesBuilder.BodyPreferenceTypes.Sheet
+            b.PositionTolerance = 0.001
+            # The help point picks each section's start. The second edge starts at
+            # its end nearest the first edge's start (an untwisted bridge);
+            # reverse_second starts it at the other end.
+            first_start = edges[0].GetVertices()[0]
+            ends = sorted(
+                edges[1].GetVertices(),
+                key=lambda v: math.dist(xyz(v), xyz(first_start)),
+            )
+            starts = [first_start, ends[1] if reverse_second else ends[0]]
+            sections = []
+            for edge, vertex in zip(edges, starts, strict=True):
+                section = part.Sections.CreateSection(0.001, 0.001, 0.5)
+                section.SetAllowedEntityTypes(self.nxopen.Section.AllowTypes.OnlyCurves)
+                section.AddToSection(
+                    [part.ScRuleFactory.CreateRuleEdgeDumb([edge])],
+                    edge,
+                    None,
+                    None,
+                    vertex,
+                    self.nxopen.Section.Mode.Create,
+                    False,
+                )
+                b.SectionsList.Append(section)
+                sections.append(section)
+            b.Alignment.SetSections(sections)
+            for constraint, adjacent in [
+                (b.FirstSectionContinuity, faces[0]),
+                (b.LastSectionContinuity, faces[1]),
+            ]:
+                constraint.ContinuityType = getattr(G.Continuity.ContinuityTypes, continuity)
+                if continuity != "G0":
+                    constraint.ConstraintFaces.ReplaceRules(
+                        [part.ScRuleFactory.CreateRuleFaceDumb(adjacent)], False
+                    )
+            try:
+                result = self._freeform_commit(b)
+            except NXToolError:
+                raise
+            except Exception as error:
+                raise NXToolError(
+                    "NX_INVALID_GEOMETRY",
+                    "NX could not bridge these edges: " + str(error),
+                    nx_code=getattr(error, "ErrorCode", None),
+                    suggestion="Check the edges face each other; toggle reverse_second if the bridge would twist.",
+                ) from error
+            result["construction"] = "through_curves"
+            return result
         finally:
             b.Destroy()
 
@@ -160,7 +259,7 @@ class FreeformMixin:
                 collector.ReplaceRules(
                     [self._work_part().ScRuleFactory.CreateRuleBodyDumb(bodies)], False
                 )
-            result = self._freeform_commit(b)
+            result = self._freeform_commit(b, "NX_INCOMPLETE_SEW")
             unsewn = b.GetUnsewnBodies()
             if unsewn:
                 raise NXToolError(
@@ -244,8 +343,10 @@ class FreeformMixin:
                 b.Type = F.DeleteFaceBuilder.SelectTypes.Face
                 b.FaceCollector.ReplaceRules([rule], False)
                 b.Heal = True
-                b.AllowPartialDelete = False
-            result = self._freeform_commit(b)
+                # NX 2406 has no partial-delete option; it never deletes partially.
+                if hasattr(b, "AllowPartialDelete"):
+                    b.AllowPartialDelete = False
+            result = self._freeform_commit(b, "NX_FACE_EDIT_FAILED")
             health = self._model_health()
             if not health["healthy"]:
                 raise NXToolError(
@@ -463,6 +564,6 @@ class FreeformMixin:
             b.OutputExactGeometry = True
             p = self._work_part().Points.CreatePoint(self.nxopen.Point3d(*point))
             b.Regions.Append(self._work_part().CreateRegionPoint(p, target))
-            return self._freeform_commit(b)
+            return self._freeform_commit(b, "NX_INVALID_GEOMETRY")
         finally:
             b.Destroy()

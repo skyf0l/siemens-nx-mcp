@@ -74,7 +74,7 @@ The release includes native-probe, public-MCP and local-test evidence separately
 
 ### Presentation and inspection artifacts
 
-`nx_set_camera` sets absolute camera rotation, view-space origin and scale. Rotation is a row-major orthonormal 3×3 matrix whose columns are NX view axes. Work and display parts must match.
+`nx_set_camera` sets absolute camera rotation, NX view origin and scale. Rotation is a row-major orthonormal 3×3 matrix whose columns are NX view axes. The origin is NX's native view origin (as `nx_view_info` reports it): the negated view-space coordinates of the point at the viewport center. Work and display parts must match.
 
 `nx_save_presentation` writes a new workspace JSON containing camera, active single-plane section, loaded geometry visibility, and explicit colors/transparency including per-face overrides. `nx_restore_presentation` resolves all saved journal locators before mutation. The owner part must match. Missing geometry rejects restoration; across revisions, verify journal identifiers still refer to intended entities. Datum visibility, materials and inherited-override semantics are outside this format. Display restoration may mark a part modified; it does not save the part.
 

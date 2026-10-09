@@ -118,8 +118,9 @@ async def test_package_dependency_manifest_and_no_overwrite(tmp_path):
         assert len(manifest["files"]) == 2 and manifest["components"]["count"] == 2
         assert z.read("prototype.prt") == b"prototype"
     before = (tmp_path / "assembly.zip").read_bytes()
-    with pytest.raises(FileExistsError):
+    with pytest.raises(NXToolError, match="already exists") as error:
         await package_assembly(bridge, Workspace(tmp_path), "assembly.zip")
+    assert error.value.code == "NX_FILE_EXISTS"
     assert (tmp_path / "assembly.zip").read_bytes() == before
     assert not list((tmp_path / ".nx-mcp").glob("package-*"))
     part["modified"] = True

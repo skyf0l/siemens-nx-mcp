@@ -189,3 +189,56 @@ def test_automatic_bend_table_rebuild_and_opt_out(ff):
     assert ff.e._refresh_annotations()["updated_count"] == 0
     builder.Commit.assert_not_called()
     builder.Destroy.assert_called_once()
+
+
+def test_bend_table_reports_column_names_for_integer_enums(ff, monkeypatch):
+    """NX 2406 enum members stringify as integers ("0"), not "ColumnType.BendID"."""
+    import sys
+
+    class Member(int):
+        def __str__(self):
+            return str(int(self))
+
+    columns = NS(
+        BendID=Member(0),
+        BendName=Member(1),
+        BendRadius=Member(2),
+        BendAngle=Member(3),
+        BendDirection=Member(4),
+        IncludedAngle=Member(5),
+    )
+    module = NS(BendTableSettingsBuilder=NS(ColumnType=columns))
+    monkeypatch.setitem(sys.modules, "NXOpen.Annotations", module)
+    ff.nx.Annotations = module
+    ff.nx.Point3d = lambda *p: p
+    view = MagicMock()
+    ff.e._drawing_object = lambda ref, kind: view
+    table = MagicMock()
+    builder = MagicMock()
+    builder.Validate.return_value = True
+    builder.Commit.return_value = table
+    order = [columns.BendAngle, columns.BendID, columns.IncludedAngle]
+    builder.Style.BendTable.GetColumnOrder.return_value = order
+    ff.part.Annotations = NS(BendTables=NS(CreateBendTableBuilder=lambda existing: builder))
+    ff.e._table_cells = lambda obj: [["90", "1", "90"]]
+    ff.e._reference = lambda obj, kind, part, label: {"id": "ref", "kind": kind}
+    ff.e._update_model = Mock()
+    result = ff.e._bend_table("view", [20, 270], columns=["BendAngle", "BendID"])
+    assert result["columns"] == ["BendAngle", "BendID", "IncludedAngle"]
+    builder.Destroy.assert_called_once()
+
+
+def test_second_parts_list_is_refused_before_nx_when_site_allows_one(ff):
+    sheet = NS(OwningPart=ff.e._work_part(), Open=Mock())
+    ff.e._drawing_object = lambda *_: sheet
+    ff.e._walk_components = lambda _: [(NS(), ["c"])]
+    from tests.fakes import Object
+
+    ff.e._work_part().Annotations = NS(PartsLists=[Object("PL")])
+    ff.e.session.GetEnvironmentVariableValue = lambda name: "1"
+    with pytest.raises(NXToolError) as error:
+        ff.e._create_parts_list("sheet", [25, 270])
+    assert error.value.code == "NX_PARTS_LIST_EXISTS"
+    assert error.value.details["mutation_outcome"] == "not_started"
+    sheet.Open.assert_not_called()
+    ff.uf.Plist.Create.assert_not_called()

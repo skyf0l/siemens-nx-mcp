@@ -45,6 +45,16 @@ class ReleaseEngineeringMixin:
                 "Hidden-line processing is disabled: occluded edges may be drawn as visible. "
                 "To hide them use hidden_lines=true, self_hidden=true, hidden_font=0."
             )
+        if (
+            obj.HasUserAttribute(
+                "NX_MCP_DRAWING_CONSTRUCTION_V1", self.nxopen.NXObject.AttributeType.String, -1
+            )
+            and obj.GetStringAttribute("NX_MCP_DRAWING_CONSTRUCTION_V1") == "partial"
+        ):
+            warnings.append(
+                "Datums and coordinate systems remain visible in this view: this NX does not "
+                "erase them per view (model curves are erased)."
+            )
         return {
             "object": self._reference(obj, "drawing_view", self._work_part(), "View"),
             "drawing": self._reference(sheet, "drawing_sheet", self._work_part(), "Sheet"),
@@ -145,8 +155,23 @@ class ReleaseEngineeringMixin:
         obj = self.nxopen.TaggedObjectManager.GetTaggedObject(tag)
         self._work_part().DraftingViews.UpdateViews([obj])
         ref = self._reference(obj, "drawing_view", self._work_part(), "Section view")
+        try:
+            # NX creates the section at its own aligned spot; MoveView then places it.
+            placed = self._edit_drawing_view(ref["id"], scale=scale, position=point)
+        except NXToolError as error:
+            if error.code != "NX_VERIFICATION_FAILED":
+                raise
+            raise NXToolError(
+                "NX_VERIFICATION_FAILED",
+                "NX did not place the section view at the requested sheet position",
+                details={
+                    "requested": point,
+                    "actual": self._drawing_view_info(ref["id"])["position"],
+                    "parent_position": self._drawing_view_info(parent_view)["position"],
+                },
+            ) from error
         return {
-            **self._edit_drawing_view(ref["id"], scale=scale),
+            **placed,
             "created": [ref],
             "parent": parent_view,
             "association": "native simple section anchored to edge",

@@ -59,3 +59,41 @@ def test_duplicate_reference_set_is_rejected_before_creation(rig):
 def test_invalid_reference_set_name_never_resolves_members(rig, name):
     with pytest.raises(NXToolError):
         rig.e._create_reference_set(name, ["unresolved"])
+
+
+class SeededReferenceSet(Object):
+    """NX 2406 seeds a new assembly reference set with every existing component."""
+
+    def __init__(self, seeded):
+        super().__init__("")
+        self.members = list(seeded)
+
+    def SetName(self, name):
+        self.Name = name
+
+    def SetAddComponentsAutomatically(self, value, recursive):
+        self.auto = value
+
+    def GetAddComponentsAutomatically(self):
+        return self.auto
+
+    def AskAllDirectMembers(self):
+        return list(self.members)
+
+    def RemoveObjectsFromReferenceSet(self, values):
+        self.members = [m for m in self.members if m not in values]
+
+    def AddObjectsToReferenceSet(self, values):
+        self.members += [v for v in values if v not in self.members]
+
+
+def test_reference_set_keeps_only_requested_members_when_nx_seeds_components(rig):
+    body, other = Body(), Body()
+    rig.part.Bodies.extend([body, other])
+    created = SeededReferenceSet([other])
+    rig.part.GetAllReferenceSets = lambda: []
+    rig.part.CreateReferenceSet = lambda: created
+    rig.e._active_mark = None
+    result = rig.e._create_reference_set("SOLIDS", [rig.ref(body)])
+    assert created.members == [body]
+    assert result["member_count"] == 1 and result["add_components_automatically"] is False

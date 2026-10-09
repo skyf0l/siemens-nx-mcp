@@ -206,7 +206,16 @@ class AuthoringMixin:
                     else b.PatternService.RectangularDefinition.XSpacing.PitchDistance
                 )
             )
-            self._work_part().Expressions.EditExpression(target, exp.Name)
+            try:
+                self._work_part().Expressions.EditExpression(target, exp.Name)
+            except Exception as error:
+                # NX 2406 raises "Dimension error" (3270081) for e.g. an angle on a length.
+                raise NXToolError(
+                    "NX_INVALID_ARGUMENT",
+                    f"NX rejected binding {parameter} to {exp.Name}: {error}",
+                    nx_code=getattr(error, "ErrorCode", None),
+                    suggestion="Bind an expression whose units match the parameter dimension",
+                ) from error
             b.CommitFeature()
         finally:
             b.Destroy()

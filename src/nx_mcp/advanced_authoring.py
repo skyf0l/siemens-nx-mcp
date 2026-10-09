@@ -145,7 +145,7 @@ class AdvancedAuthoringMixin:
                 "native_type": "NXOpen.Assemblies.ComponentPattern",
                 "pattern_type": "linear"
                 if linear
-                else enum_name(service.PatternType, service.PatternEnum),
+                else str(enum_name(service.PatternType, service.PatternEnum)).lower(),
                 "associative": bool(builder.Associative),
             }
             if linear:
@@ -329,15 +329,24 @@ class AdvancedAuthoringMixin:
                 raise NXToolError(
                     "NX_UNSUPPORTED_EDIT", "Only rectangular and circular patterns are supported"
                 )
-            b.Commit()
+            committed = b.Commit()
         finally:
             b.Destroy()
+        # NX recreates the pattern (new tag, old one deleted) for structural edits
+        # such as turning off the second direction; read back what Commit returned.
+        replaced = committed is not None and int(committed.Tag) != int(obj.Tag)
+        if committed is not None:
+            obj = committed
         self._update_model()
         result = self._component_pattern_record(obj)
         if result["total_instances"] != expected:
             raise NXToolError(
                 "NX_PATTERN_VERIFICATION_FAILED", "Native member count differs; rolling back"
             )
+        if replaced:
+            result["warnings"] = [
+                "NX recreated the pattern for this edit; the previous pattern ID is stale, use the returned ID"
+            ]
         return result
 
     def _feature_parameters(self, feature):

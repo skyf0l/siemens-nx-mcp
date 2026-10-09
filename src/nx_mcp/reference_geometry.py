@@ -86,8 +86,18 @@ class ReferenceGeometryMixin:
         result = part.CreateReferenceSet()
         result.SetName(name)
         result.SetAddComponentsAutomatically(False, False)
+        # In an assembly NX (2406) seeds a new set with every existing component;
+        # the flag above only affects later additions. Keep exactly the request.
+        wanted = {int(x.Tag) for x in values}
+        seeded = [x for x in result.AskAllDirectMembers() if int(x.Tag) not in wanted]
+        if seeded:
+            result.RemoveObjectsFromReferenceSet(seeded)
         result.AddObjectsToReferenceSet(values)
         self._update_model()
+        if {int(x.Tag) for x in result.AskAllDirectMembers()} != wanted:
+            raise NXToolError(
+                "NX_VERIFICATION_FAILED", "Reference-set members differ from the request"
+            )
         return self._reference_set_record(result)
 
     def _set_component_reference_set(self, components, name):

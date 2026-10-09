@@ -187,7 +187,7 @@ def test_section_native_associativity_and_explicit_scale(drawing):
     f = drawing
     f.nx.UF.Drf = NS(Object=lambda: NS(), AssocType=NS(ARC_CENTER=2, END_POINT=1))
     f.nx.TaggedObjectManager = NS(GetTaggedObject=lambda _: f.view)
-    f.e._edit_drawing_view = lambda *a, **k: {"scale": k["scale"]}
+    f.e._edit_drawing_view = lambda *a, **k: {"scale": k["scale"], "position": [100.0, 100.0]}
     face_ref = f.ref(f.body.GetEdges()[0], "edge")
     for assoc, expected, modifier in [("start", 1, 1), ("end", 1, 2), ("arc_center", 2, 0)]:
         result = f.e._add_section_drawing_view(
@@ -198,6 +198,29 @@ def test_section_native_associativity_and_explicit_scale(drawing):
         assert (arg.ObjectAssocType, arg.ObjectAssocModifier) == (expected, modifier)
     with pytest.raises(NXToolError, match="cut_association"):
         f.e._add_section_drawing_view("v", face_ref, [100, 100], [1, 0, 0], [0, 1, 0], 2, "bad")
+
+
+def test_section_refuses_a_position_nx_aligns_elsewhere(drawing):
+    """A section view NX leaves elsewhere is reported and rolled back."""
+    f = drawing
+    f.nx.UF.Drf = NS(Object=lambda: NS(), AssocType=NS(ARC_CENTER=2, END_POINT=1))
+    f.nx.TaggedObjectManager = NS(GetTaggedObject=lambda _: f.view)
+
+    def misplaced(*a, **k):
+        assert k["position"] == [330.0, 40.0]
+        raise NXToolError("NX_VERIFICATION_FAILED", "alignment")
+
+    f.e._edit_drawing_view = misplaced
+    f.e._drawing_view_info = lambda ref: {
+        "position": [330.0, 180.0] if ref != "v" else [105.0, 180.0]
+    }
+    edge = f.ref(f.body.GetEdges()[0], "edge")
+    with pytest.raises(NXToolError) as error:
+        f.e._add_section_drawing_view("v", edge, [330, 40], [0, 1, 0], [1, 0, 0], 1.5)
+    assert error.value.code == "NX_VERIFICATION_FAILED"
+    assert error.value.details["actual"] == [330.0, 180.0]
+    assert error.value.details["parent_position"] == [105.0, 180.0]
+    assert error.value.details["requested"] == [330.0, 40.0]
 
 
 def test_detail_refresh_requires_surviving_parent(drawing):

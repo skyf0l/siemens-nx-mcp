@@ -20,6 +20,7 @@ class AnnotationUpdatesMixin:
             raise NXToolError("NX_INVALID_ARGUMENT", "Supply unique native bend-table columns")
         existing = self._engineering_owned(table, "annotation") if table else None
         part = self._work_part()
+        column_type = A.BendTableSettingsBuilder.ColumnType
         b = part.Annotations.BendTables.CreateBendTableBuilder(existing)
         try:
             b.FlatPatternView.Value = target
@@ -41,7 +42,18 @@ class AnnotationUpdatesMixin:
             return {
                 "table": ref,
                 "rows": self._table_cells(obj),
-                "columns": [str(x).split(".")[-1] for x in b.Style.BendTable.GetColumnOrder()],
+                "columns": [
+                    # NX 2406 enum members stringify as integers; match the member.
+                    next(
+                        (
+                            n
+                            for n in dir(column_type)
+                            if not n.startswith("_") and getattr(column_type, n) == x
+                        ),
+                        str(x).split(".")[-1],
+                    )
+                    for x in b.Style.BendTable.GetColumnOrder()
+                ],
                 "created": [] if existing else [ref],
                 "modified": [ref] if existing else [],
                 "automatic_update": b.Style.BendTable.AutomaticUpdate,

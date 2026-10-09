@@ -222,6 +222,30 @@ def test_native_pattern_creation_readback_edit_and_cleanup(patterned):
     assert r.pattern_builder.Destroy.call_count == 5
 
 
+def test_pattern_edit_reads_back_the_pattern_nx_recreated(patterned):
+    # NX 2406 deletes and recreates a pattern when an edit turns its second
+    # direction off; the old object is dead, so read back what Commit returned.
+    r = patterned
+    old = r.pattern
+    reference = r.ref(old, "component_pattern")
+    recreated = Object("recreated")
+    recreated.GetComponentsToPattern = old.GetComponentsToPattern
+    recreated.GetAllPatternMembers = old.GetAllPatternMembers
+    r.pattern_builder.Commit.return_value = recreated
+    builders = []
+    original = r.part.ComponentAssembly.CreateComponentPatternBuilder
+
+    def create(target):
+        builders.append(target)
+        return original(target)
+
+    r.part.ComponentAssembly.CreateComponentPatternBuilder = create
+    result = r.e._edit_component_pattern(reference, count=4)
+    assert builders == [old, recreated]
+    assert result["object"]["id"] != reference
+    assert "stale" in result["warnings"][0]
+
+
 def test_pattern_failure_count_and_unsupported_edits(patterned):
     r = patterned
     with pytest.raises(NXToolError, match="count differs"):

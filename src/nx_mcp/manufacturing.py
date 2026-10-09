@@ -5,6 +5,9 @@ from __future__ import annotations
 from nx_mcp.authoring import finite
 from nx_mcp.runtime import NXToolError
 
+# Principal radii at or beyond this many part units mean a straight (flat) direction.
+FLAT_RADIUS = 1e8
+
 
 class ManufacturingMixin:
     def _thread(
@@ -107,6 +110,10 @@ class ManufacturingMixin:
             )
         point = points3([position])[0]
         existing = self._engineering_owned(annotation, "annotation") if annotation else None
+        import NXOpen.Annotations as A
+
+        if existing is not None and not isinstance(existing, A.Datum):
+            raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "annotation must be a PMI datum ID")
         b = self._work_part().Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder(existing)
         try:
             b.Letter = letter
@@ -162,9 +169,24 @@ class ManufacturingMixin:
         refs = [self._engineering_owned(r, "annotation") for r in (datums or [])]
         if characteristic in {"Straightness", "Flatness", "Circularity", "Cylindricity"} and refs:
             raise NXToolError("NX_INVALID_ARGUMENT", "Form tolerances do not take datum references")
+        if any(not isinstance(obj, A.Datum) for obj in refs):
+            raise NXToolError(
+                "NX_OBJECT_TYPE_MISMATCH", "datums must be PMI datum feature symbol IDs"
+            )
         letters = []
         for obj in refs:
-            reader = self._work_part().Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder(obj)
+            try:
+                reader = self._work_part().Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder(
+                    obj
+                )
+            except self.nxopen.NXException as error:
+                # NX 2406 without the PMI datum license refuses this builder (948801).
+                raise NXToolError(
+                    "NX_UNAVAILABLE_ON_VERSION",
+                    "This NX cannot open PMI datum feature symbols (license); "
+                    "datum references are unavailable",
+                    details={"nx_code": getattr(error, "ErrorCode", None)},
+                ) from error
             try:
                 letters.append(reader.Letter)
             finally:
@@ -199,6 +221,8 @@ class ManufacturingMixin:
                 "These form-tolerance modifier combinations are not supported",
             )
         existing = self._engineering_owned(annotation, "annotation") if annotation else None
+        if existing is not None and not isinstance(existing, A.Fcf):
+            raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "annotation must be a PMI FCF ID")
         b = self._work_part().Annotations.CreatePmiFeatureControlFrameBuilder(existing)
         try:
             b.Characteristic = getattr(
@@ -259,7 +283,19 @@ class ManufacturingMixin:
         if obj is None:
             raise NXToolError("NX_VERIFICATION_FAILED", "NX returned no PMI object")
         ref = self._reference(obj, "annotation", self._work_part(), "PMI")
+        actual = [
+            float(v)
+            for v in (obj.AnnotationOrigin.X, obj.AnnotationOrigin.Y, obj.AnnotationOrigin.Z)
+        ]
+        warnings = (
+            ["NX placed the annotation on its annotation plane; position is the read-back origin"]
+            if max(abs(a - b) for a, b in zip(actual, position, strict=True)) > 1e-6
+            else []
+        )
         return {
+            "position": actual,
+            "requested_position": list(position),
+            "warnings": warnings,
             "annotation": ref,
             "created": [] if existing else [ref],
             "modified": [ref] if existing else [],
@@ -312,13 +348,17 @@ class ManufacturingMixin:
         reports = []
         for face, uv, data in samples:
             point, _, _, _, _, normal, radii = data
-            curvature = [0.0 if abs(r) > 1e25 else 1 / r if abs(r) > 1e-12 else None for r in radii]
+            # NX reports a straight direction as a huge radius: about 1e30 on v2606,
+            # 1e10 inch (3.937e8 mm) on v2406. Any radius past 1e8 part units is flat.
+            curvature = [
+                0.0 if abs(r) >= FLAT_RADIUS else 1 / r if abs(r) > 1e-12 else None for r in radii
+            ]
             record = {
                 "face": self._reference(face, "face", self._work_part(), "Face"),
                 "uv": uv,
                 "point": list(point),
                 "normal": list(normal),
-                "principal_radii": [None if abs(r) > 1e25 else r for r in radii],
+                "principal_radii": [None if abs(r) >= FLAT_RADIUS else r for r in radii],
                 "principal_curvatures": curvature,
             }
             if direction is not None:

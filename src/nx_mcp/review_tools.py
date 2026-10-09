@@ -176,10 +176,20 @@ class ReviewToolsMixin:
 
     def _restore_presentation(self, path):
         file = self.workspace.ensure_inside(path)
+        if not file.is_file():
+            raise NXToolError("NX_NOT_FOUND", "Presentation file not found: " + str(path))
         if file.stat().st_size > 8 * 1024 * 1024:
             raise NXToolError("NX_OBJECT_LIMIT", "Presentation exceeds 8 MiB")
-        data = json.loads(file.read_text(encoding="utf-8"))
-        if data.get("format") != "nx-mcp-presentation" or data.get("version") != 1:
+        try:
+            data = json.loads(file.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise NXToolError("NX_INVALID_ARGUMENT", "Presentation is not valid JSON") from exc
+        if (
+            not isinstance(data, dict)
+            or data.get("format") != "nx-mcp-presentation"
+            or data.get("version") != 1
+            or not {"part_path", "camera", "display", "section", "sectioning_enabled"} <= set(data)
+        ):
             raise NXToolError("NX_INVALID_ARGUMENT", "Unsupported presentation format")
         if data["part_path"].casefold() != self._visual_part().FullPath.casefold():
             raise NXToolError(
@@ -432,12 +442,22 @@ class ReviewToolsMixin:
                     visit(v)
 
         for op in operations:
-            if set(op) != {"method", "params"} or op["method"] not in allowed:
+            if (
+                not isinstance(op, dict)
+                or set(op) != {"method", "params"}
+                or op["method"] not in allowed
+                or not isinstance(op["params"], dict)
+            ):
                 raise NXToolError(
                     "NX_INVALID_ARGUMENT",
                     "Preview supports expression, parameter, feature, sketch and placement edits only",
                 )
-            inspect.signature(self._handlers[op["method"]]).bind(**op["params"])
+            try:
+                inspect.signature(self._handlers[op["method"]]).bind(**op["params"])
+            except TypeError as exc:
+                raise NXToolError(
+                    "NX_INVALID_ARGUMENT", f"{op['method']} parameters: {exc}"
+                ) from exc
             visit(op["params"])
         return locators
 

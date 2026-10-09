@@ -768,3 +768,35 @@ def test_advanced_flange_does_not_claim_reference_modes_are_verified(sm):
     assert "unverified" in result["parameters_schema"]["properties"]["type"]["description"]
     assert result["parameters_schema"]["required"] == ["edges"]
     assert "type" not in result["example_parameters"]
+
+
+@pytest.mark.parametrize("uf_opens", [True, False])
+def test_flat_pattern_view_reopens_sheet_ignored_by_open(sm, monkeypatch, uf_opens):
+    """NX 2406 Sheet Metal: after ExitDraftingApplication, Sheet.Open() leaves no
+    current sheet and the base-view builder commits a null view."""
+    sheet = Object("Flat")
+    sheet.Open = Mock()
+    sheets = NS(CurrentDrawingSheet=None)
+    part = NS(DrawingSheets=sheets)
+
+    def open_drawing(tag):
+        assert tag == sheet.Tag
+        if uf_opens:
+            sheets.CurrentDrawingSheet = sheet
+
+    uf = NS(Draw=NS(OpenDrawing=Mock(side_effect=open_drawing)))
+    module = NS(UFSession=NS(GetUFSession=lambda: uf))
+    monkeypatch.setitem(sys.modules, "NXOpen.UF", module)
+    sm.nx.UF = module
+    if uf_opens:
+        sm.e._sm_open_sheet(part, sheet)
+    else:
+        with pytest.raises(NXToolError) as error:
+            sm.e._sm_open_sheet(part, sheet)
+        assert error.value.code == "NX_DRAWING_CONTEXT"
+    sheet.Open.assert_called_once()
+    uf.Draw.OpenDrawing.assert_called_once()
+    uf.Draw.OpenDrawing.reset_mock()
+    sheets.CurrentDrawingSheet = sheet
+    sm.e._sm_open_sheet(part, sheet)
+    uf.Draw.OpenDrawing.assert_not_called()

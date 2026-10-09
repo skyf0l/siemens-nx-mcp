@@ -517,6 +517,7 @@ class VisualToolsMixin:
                 "warnings": [
                     "Persistent constraints are enumerated; inferred solver relations are not individual persistent constraints.",
                     "NX overall status does not identify a minimal conflicting constraint set.",
+                    "remaining_degrees_of_freedom is NX's native GetStatus indicator; NX 2406 reports the number of curves that are not fully constrained, not scalar DOF. Use solver_status for the constraint state.",
                 ],
             }
         finally:

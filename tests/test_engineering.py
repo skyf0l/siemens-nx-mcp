@@ -878,3 +878,55 @@ def test_render_cleanup_failure_still_restores_style_and_removes_artifact(render
     assert exc.value.details["mutation_outcome"] == "partial"
     assert r.view.RenderingStyle == "original" and not path.exists()
     r.lights.Destroy.assert_called_once()
+
+
+@pytest.mark.parametrize("solves", [True, False])
+def test_sketch_angle_solves_active_sketch_and_verifies_geometry(solves):
+    """NX 2406: Update() leaves an active sketch unsolved; LocalUpdate() drives it."""
+    import math
+
+    from nx_mcp.engineering import EngineeringMixin
+
+    class Line:
+        def __init__(self, end):
+            self.StartPoint, self.EndPoint = point(0, 0, 0), point(*end)
+
+    one, two = Line((10, 0, 0)), Line((5, 5, 0))
+
+    def local_update():
+        if solves:
+            r = math.hypot(5, 5)
+            two.EndPoint = point(r * math.cos(math.radians(60)), r * math.sin(math.radians(60)), 0)
+
+    sketch = NS(LocalUpdate=Mock(side_effect=local_update), Update=Mock())
+    expression = NS(value=60)
+    constraint = NS(AssociatedExpression=expression)
+    sketch.CreateDimension = Mock(return_value=constraint)
+    ex = NS(
+        _engineering_owned=lambda ref, kind: sketch,
+        _owned_curve=lambda s, ref: {"a": one, "b": two}[ref],
+        nxopen=NS(
+            Line=Line,
+            Sketch=NS(
+                DimensionGeometry=NS,
+                ConstraintType=NS(AngularDim=1),
+                DimensionOption=NS(CreateAsDriving=1),
+            ),
+        ),
+        _editing_sketch=lambda s: contextlib.nullcontext(),
+        _sketch_local_point=lambda s, o: o,
+        _work_part=lambda: NS(Expressions=NS(EditExpression=Mock())),
+        _check_sketch_result=lambda ref: {"solver_status": "UnderConstrained"},
+        _reference=lambda obj, kind, part, label: {"kind": kind},
+        _expression_record=lambda e: {"value": e.value},
+        _line_angle_residual=EngineeringMixin._line_angle_residual,
+    )
+    if solves:
+        result = EngineeringMixin._sketch_angle(ex, "s", "a", "b", 60, [4, 2])
+        assert result["residual_degrees"] < 1e-9
+    else:
+        with pytest.raises(NXToolError) as error:
+            EngineeringMixin._sketch_angle(ex, "s", "a", "b", 60, [4, 2])
+        assert error.value.code == "NX_CONSTRAINT_UNSATISFIED"
+    sketch.LocalUpdate.assert_called_once()
+    assert EngineeringMixin._line_angle_residual(one, Line((-5, 5, 0)), 45) < 1e-9

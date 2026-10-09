@@ -99,6 +99,23 @@ class AssemblyDocumentationMixin:
             raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Drawing must belong to work part")
         if not self._walk_components(self._work_part()):
             raise NXToolError("NX_NO_COMPONENTS", "A parts list requires an assembly")
+        existing = list(self._work_part().Annotations.PartsLists)
+        single = getattr(self.session, "GetEnvironmentVariableValue", lambda _: "")(
+            "UGII_UPDATE_ALL_ID_SYMBOLS_WITH_PLIST"
+        )
+        if existing and str(single or "").strip().upper() not in {"", "0", "OFF", "NO", "FALSE"}:
+            # NX refuses a second parts list while this site variable is on.
+            raise NXToolError(
+                "NX_PARTS_LIST_EXISTS",
+                "This NX allows one parts list per part (UGII_UPDATE_ALL_ID_SYMBOLS_WITH_PLIST "
+                "is on); edit the existing parts list instead",
+                details={
+                    "parts_list": self._reference(
+                        existing[0], "annotation", self._work_part(), "Parts list"
+                    ),
+                    "mutation_outcome": "not_started",
+                },
+            )
         sheet.Open()
         uf = U.UFSession.GetUFSession()
         prefs = uf.Plist.AskDefaultPrefs()

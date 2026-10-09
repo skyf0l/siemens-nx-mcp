@@ -13,7 +13,7 @@ from nx_mcp.animation import interpolate_rotation
 from nx_mcp.freeform import points3
 from nx_mcp.hardened import IDENTITY, READ_ONLY
 from nx_mcp.runtime import NXToolError
-from tests.fakes import Body, Face, Feature, Object, point
+from tests.fakes import Body, Edge, Face, Feature, Object, point
 
 
 @pytest.fixture
@@ -42,6 +42,7 @@ def ff(rig, monkeypatch):
     r.nx.Section = NS(AllowTypes=NS(OnlyCurves=1), Mode=NS(Create=1))
     f = NS(
         StudioSplineBuilderEx=NS(Types=NS(ThroughPoints=1, ByPoles=2)),
+        StudioSpline=Feature,
         ThroughCurveMeshBuilder=NS(BodyPreferenceTypes=NS(Sheet=1)),
         BridgeSurfaceBuilder=NS(EndObjectType=NS(Edge=1)),
         SewBuilder=NS(Types=NS(Sheet=1), BodyPreferenceTypes=NS(Solid=2, Sheet=1)),
@@ -134,6 +135,15 @@ def test_spline_edit_replaces_constraints_and_returns_curve(ff, method):
 def test_spline_rejects_invalid_parameters_before_builder(ff, kwargs):
     with pytest.raises(NXToolError):
         ff.e._spline([[0, 0, 0], [1, 0, 1], [2, 1, 2], [3, 0, 4]], **kwargs)
+    ff.e._freeform_builder.assert_not_called()
+
+
+def test_spline_edit_refuses_other_feature_types_before_builder(ff):
+    # Passing an extrude to the Studio Spline builder crashes NX 2406 natively.
+    sys.modules["NXOpen.Features"].StudioSpline = type("StudioSpline", (Feature,), {})
+    with pytest.raises(NXToolError) as error:
+        ff.e._spline([[0, 0, 0], [1, 1, 1]], degree=1, feature=ff.ref(ff.feature, "feature"))
+    assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"
     ff.e._freeform_builder.assert_not_called()
 
 
@@ -259,6 +269,58 @@ def test_shape_operator_is_parameterization_invariant():
         shape_operator([0, 0, 0], [1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0])
 
 
+def test_v2406_flat_direction_radius_reads_as_zero_curvature(ff):
+    # NX 2406 reports a cylinder's straight direction as 1e10 inch (3.937e8 mm).
+    ff.uf.Modeling.AskFaceUvMinmax.return_value = [0.0, 1.0, 0.0, 1.0]
+    ff.uf.Modeling.AskFaceProps.return_value = (
+        [1.0, 0.0, 0.0],
+        None,
+        None,
+        None,
+        None,
+        [1.0, 0.0, 0.0],
+        [1.0, 393700786.4015748],
+    )
+    ff.uf.Modeling.AskPointContainment.return_value = 1
+    sample = ff.e._face_analysis([ff.ref(ff.faces[0], "face")], samples_per_axis=1)["samples"][0]
+    assert sample["principal_radii"] == [1.0, None]
+    assert sample["principal_curvatures"] == [1.0, 0.0]
+
+
+class _NativeRefusal(Exception):
+    ErrorCode = 670946
+
+
+@pytest.mark.parametrize(
+    "tool,code",
+    [
+        ("mesh", "NX_INVALID_GEOMETRY"),
+        ("trim", "NX_INVALID_GEOMETRY"),
+        ("sew", "NX_INCOMPLETE_SEW"),
+    ],
+)
+def test_native_refusal_of_bad_inputs_is_a_stable_code(ff, tool, code):
+    curve = Object("curve")
+    curve.IsOccurrence, curve.OwningPart = False, ff.part
+    ref = ff.ref(curve, "curve")
+    other = Body("other")
+    other.OwningPart = ff.part
+    ff.part.Bodies.append(other)
+    ff.part.CreateRegionPoint = Mock(return_value=Object())
+    ff.b.CommitFeature.side_effect = _NativeRefusal("Strings do not intersect within tolerance.")
+    with pytest.raises(NXToolError) as error:
+        if tool == "mesh":
+            ff.e._surface_mesh([[ref], [ref]], [[ref], [ref]])
+        elif tool == "trim":
+            ff.body.IsSolidBody = False
+            ff.e._trim_sheet(ff.ref(ff.body, "body"), [ref], [0, 0, 0])
+        else:
+            ff.e._sew(ff.ref(ff.body, "body"), [ff.ref(other, "body")])
+    assert error.value.code == code and error.value.nx_code == 670946
+    assert "do not intersect" in error.value.message
+    ff.b.Destroy.assert_called_once()
+
+
 def test_sew_rejects_partial_or_sheet_fallback(ff):
     other = Body("other")
     other.OwningPart = ff.part
@@ -305,6 +367,66 @@ def test_bridge_explicit_continuity_and_reverse(ff):
         ff.e._bridge_surface("x", "y", continuity="C9")
 
 
+def test_heal_works_without_partial_delete_option(ff):
+    # NX 2406 DeleteFaceBuilder has no AllowPartialDelete; heal must not touch it.
+    del ff.b.AllowPartialDelete
+    result = ff.e._edit_faces([ff.ref(ff.faces[0], "face")], "heal")
+    assert result["body_count"] == 1 and ff.b.Heal is True
+    assert not hasattr(ff.b, "AllowPartialDelete")
+
+
+def _bridge_edges(ff):
+    first, second = ff.body.GetEdges()[0], Edge("second")
+    second.IsOccurrence, second.OwningPart = False, ff.part
+    ff.body.edges.append(second)
+    first.GetFaces = lambda: [ff.faces[0]]
+    second.GetFaces = lambda: [ff.faces[1]]
+    first.GetVertices = lambda: (point(20, 0, 0), point(20, 10, 0))
+    second.GetVertices = lambda: (point(30, 10, 5), point(30, 0, 5))
+    return ff.ref(first, "edge"), ff.ref(second, "edge")
+
+
+class _LicenseError(Exception):
+    ErrorCode = 949895
+
+
+@pytest.mark.parametrize("reverse,start", [(False, (30, 0, 5)), (True, (30, 10, 5))])
+def test_bridge_without_studio_license_uses_through_curves(ff, reverse, start):
+    first, second = _bridge_edges(ff)
+    sys.modules["NXOpen.Features"].ThroughCurvesBuilder = NS(BodyPreferenceTypes=NS(Sheet=1))
+    ff.e._freeform_builder = Mock(side_effect=[_LicenseError("no license"), ff.b])
+    result = ff.e._bridge_surface(first, second, continuity="G1", reverse_second=reverse)
+    assert result["construction"] == "through_curves" and result["body_count"] == 1
+    assert ff.e._freeform_builder.call_args_list[1].args == ("CreateThroughCurvesBuilder",)
+    helps = [
+        c.args[4] for c in ff.part.Sections.CreateSection.return_value.AddToSection.call_args_list
+    ]
+    # The second section starts at the end facing the first edge's start unless reversed.
+    assert [(p.X, p.Y, p.Z) for p in helps] == [(20, 0, 0), start]
+    for end in [ff.b.FirstSectionContinuity, ff.b.LastSectionContinuity]:
+        assert end.ContinuityType == 1
+        end.ConstraintFaces.ReplaceRules.assert_called_once()
+    ff.b.Destroy.assert_called_once()
+
+
+def test_bridge_fallback_failure_is_stable_and_other_errors_propagate(ff):
+    first, second = _bridge_edges(ff)
+    sys.modules["NXOpen.Features"].ThroughCurvesBuilder = NS(BodyPreferenceTypes=NS(Sheet=1))
+
+    class Twisted(Exception):
+        ErrorCode = 670929
+
+    ff.b.CommitFeature.side_effect = Twisted("Cannot create B-surface by through curves.")
+    ff.e._freeform_builder = Mock(side_effect=[_LicenseError("no license"), ff.b])
+    with pytest.raises(NXToolError) as error:
+        ff.e._bridge_surface(first, second, reverse_second=True)
+    assert error.value.code == "NX_INVALID_GEOMETRY" and error.value.nx_code == 670929
+    ff.b.Destroy.assert_called_once()
+    ff.e._freeform_builder = Mock(side_effect=RuntimeError("other"))
+    with pytest.raises(RuntimeError):
+        ff.e._bridge_surface(first, second)
+
+
 def test_curve_analysis_keeps_singular_samples(ff):
     edge = ff.body.GetEdges()[0]
     ff.nx.Edge = type(edge)
@@ -320,13 +442,25 @@ def test_curve_analysis_keeps_singular_samples(ff):
         ff.e._curve_analysis("x", samples=1)
 
 
-def test_pmi_association_and_existing_edit(ff, monkeypatch):
-    datum = Object("datum")
+class _Datum(Object):
+    pass
+
+
+class _Fcf(Object):
+    pass
+
+
+def _pmi_rig(ff, monkeypatch):
+    from tests.fakes import point
+
+    datum = _Datum("datum")
     datum.OwningPart = ff.part
     datum.IsOccurrence = False
-    fcf = Object("fcf")
+    datum.AnnotationOrigin = point(10, 10, 0)
+    fcf = _Fcf("fcf")
     fcf.OwningPart = ff.part
     fcf.IsOccurrence = False
+    fcf.AnnotationOrigin = point(10, 10, 0)
     ff.part.Annotations = MagicMock()
     db, fb = MagicMock(), MagicMock()
     db.Letter = "A"
@@ -357,8 +491,14 @@ def test_pmi_association_and_existing_edit(ff, monkeypatch):
             )
         ),
     )
+    a.Datum, a.Fcf = _Datum, _Fcf
     monkeypatch.setitem(sys.modules, "NXOpen.Annotations", a)
     ff.nx.Annotations = a
+    return datum, fcf, db, fb
+
+
+def test_pmi_association_and_existing_edit(ff, monkeypatch):
+    datum, fcf, db, fb = _pmi_rig(ff, monkeypatch)
     face = ff.ref(ff.faces[0], "face")
     result = ff.e._pmi_datum([face], "A", [10, 10, 0])
     assert result["geometry_associated"]
@@ -375,6 +515,35 @@ def test_pmi_association_and_existing_edit(ff, monkeypatch):
     db.Validate.return_value = False
     with pytest.raises(NXToolError):
         ff.e._pmi_datum([face], "B", [0, 0, 0])
+
+
+def test_pmi_fcf_refuses_wrong_kinds_unlicensed_datums_and_reports_plane(ff, monkeypatch):
+    """NX 2406 regressions: raw TypeErrors, PMI datum license, projected origin."""
+    datum, fcf, db, fb = _pmi_rig(ff, monkeypatch)
+    face = ff.ref(ff.faces[0], "face")
+    note = Object("note")
+    note.OwningPart, note.IsOccurrence = ff.part, False
+    note_id = ff.ref(note, "annotation")
+    for kwargs in [{"datums": [note_id]}, {"annotation": note_id}]:
+        with pytest.raises(NXToolError) as error:
+            ff.e._pmi_fcf([face], "Position", 0.1, [10, 10, 5], **kwargs)
+        assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"
+    fb.Commit.assert_not_called()
+
+    class LicenseError(Exception):
+        ErrorCode = 948801
+
+    ff.nx.NXException = LicenseError
+    ff.part.Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder.side_effect = LicenseError()
+    with pytest.raises(NXToolError) as error:
+        ff.e._pmi_fcf([face], "Position", 0.1, [10, 10, 5], datums=[ff.ref(datum, "annotation")])
+    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION"
+    assert error.value.details["nx_code"] == 948801
+    fb.Commit.assert_not_called()
+    result = ff.e._pmi_fcf([face], "Flatness", 0.1, [10, 10, 5])
+    assert result["position"] == [10.0, 10.0, 0.0]
+    assert result["requested_position"] == [10.0, 10.0, 5.0]
+    assert result["warnings"]
 
 
 def test_animation_renders_absolute_poses_and_restores_after_failure(ff, tmp_path):

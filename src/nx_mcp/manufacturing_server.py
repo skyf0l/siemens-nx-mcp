@@ -62,7 +62,7 @@ def nx_pmi_fcf(
     tangent_plane: bool = False,
     free_state: bool = False,
 ):
-    """Create/edit a native single-frame geometry-associated GD&T PMI feature-control frame. Select work-part faces, a positive tolerance in part units, [x,y,z] annotation position and up to three ordered existing datum annotation IDs. Form tolerances reject datum references. Supports explicit tolerance/datum material modifiers, zone shape, projected height, tangent-plane and free-state flags. Omitted modifiers reset to none on editing. Does not claim a complete standards compliance check. annotation edits an existing FCF ID."""
+    """Create/edit a native single-frame geometry-associated GD&T PMI feature-control frame. Select work-part faces, a positive tolerance in part units, [x,y,z] annotation position and up to three ordered existing datum annotation IDs. Form tolerances reject datum references. Supports explicit tolerance/datum material modifiers, zone shape, projected height, tangent-plane and free-state flags. Omitted modifiers reset to none on editing. Does not claim a complete standards compliance check. annotation edits an existing FCF ID. NX places the frame on its annotation plane: the response returns the read-back position and requested_position. datums need PMI datum feature symbols; on an NX without the PMI datum license (seen on NX 2406) datums are refused with NX_UNAVAILABLE_ON_VERSION."""
 
 
 def nx_face_analysis(

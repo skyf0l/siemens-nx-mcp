@@ -103,7 +103,7 @@ def nx_edit_drawing_view(
     scale: float | None = None,
     style: ViewStyle | None = None,
 ):
-    """Assign absolute drawing-view position [x,y] in sheet units and/or positive model-to-sheet scale. Native aligned views may constrain movement; verifies readback and rolls back mismatches. Updates the view, retaining its native associations. style sets native hidden/visible/smooth (tangent) edges and rendering with readback. hidden_lines and self_hidden are native hidden-line processing toggles, not visibility switches: false can draw occluded edges as visible. To hide obscured edges use hidden_lines=true, self_hidden=true, hidden_font=0. Fonts: 0 invisible, 1 solid, 2 dashed; widths are named thin/normal/thick or native width names 1..9. Default new base views use dashed hidden edges and exclude model curves/datums through per-view erasures. construction_geometry excludes sheet-owned section/detail curves and restores or erases model objects in this view without changing model visibility. Centerline visibility is read-only: the NX v2606 builder did not persist its setter in native tests."""
+    """Assign absolute drawing-view position [x,y] in sheet units and/or positive model-to-sheet scale. Native aligned views may constrain movement; verifies readback and rolls back mismatches. Updates the view, retaining its native associations. style sets native hidden/visible/smooth (tangent) edges and rendering with readback. hidden_lines and self_hidden are native hidden-line processing toggles, not visibility switches: false can draw occluded edges as visible. To hide obscured edges use hidden_lines=true, self_hidden=true, hidden_font=0. Fonts: 0 invisible, 1 solid, 2 dashed; widths are named thin/normal/thick or native width names 1..9. Default new base views use dashed hidden edges and exclude model curves/datums through per-view erasures. construction_geometry excludes sheet-owned section/detail curves and restores or erases model objects in this view without changing model visibility; erasure is read back, and NX 2406 cannot erase datums/coordinate systems per view, so construction_geometry=false fails there with NX_UNAVAILABLE_ON_VERSION when the part has datums. Centerline visibility is read-only: the NX v2606 builder did not persist its setter in native tests."""
 
 
 def nx_add_section_drawing_view(
@@ -115,7 +115,7 @@ def nx_add_section_drawing_view(
     scale: float = 1.0,
     cut_association: Literal["start", "end", "arc_center"] = "start",
 ):
-    """Create a native simple section drawing view anchored to an owned model edge endpoint (start/end) or arc_center for circular edges. Step and arrow are three-component [x,y,0] vectors perpendicular in the sheet XY plane. position is [x,y] in sheet units. Positive scale is model-to-sheet. Creates a native section line and cut view; requires drafting license."""
+    """Create a native simple section drawing view anchored to an owned model edge endpoint (start/end) or arc_center for circular edges. Step and arrow are three-component [x,y,0] vectors perpendicular in the sheet XY plane. position is [x,y] in sheet units; the view is moved there and its position read back (NX_VERIFICATION_FAILED and rollback on mismatch). Positive scale is model-to-sheet. Creates a native section line and cut view; requires drafting license."""
 
 
 def nx_add_detail_drawing_view(
@@ -137,7 +137,7 @@ def nx_drawing_table(
 
 
 def nx_geometry_anchor(object: str):
-    """Capture a persistent native handle for an owned body/face/edge in a saved part. Anchor survives save/reopen while the native entity survives. Store the returned anchor rather than session-scoped object IDs. Occurrence geometry must be anchored in its prototype work part."""
+    """Capture a persistent native handle for an owned body/face/edge of the work part (the part needs a file path; save it before closing or the anchor cannot outlive the session). Anchor survives model edits and save/reopen while the native entity survives. Store the returned anchor rather than session-scoped object IDs. Occurrence geometry must be anchored in its prototype work part."""
 
 
 def nx_resolve_geometry_anchor(anchor: dict):

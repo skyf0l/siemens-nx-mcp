@@ -28,7 +28,7 @@ def nx_bridge_surface(
     continuity: Literal["G0", "G1", "G2"] = "G0",
     reverse_second: bool = False,
 ):
-    """Bridge two work-part sheet edges with an associative native surface. G0 means position, G1 tangent and G2 curvature continuity against adjacent surfaces. Uses full edge ranges; reverse_second changes edge parameter alignment. Requested continuity is a builder constraint, not an independent quality certification."""
+    """Bridge two work-part sheet edges with an associative native surface. G0 means position, G1 tangent and G2 curvature continuity against adjacent surfaces. Uses full edge ranges; reverse_second changes edge parameter alignment. Requested continuity is a builder constraint, not an independent quality certification. Without the Studio Bridge Surface license (e.g. basic NX 2406 seats) it builds the equivalent Through Curves sheet with G0/G1/G2 constraints to the edges' adjacent faces; the second edge then starts at its end nearest the first edge's start, reverse_second flips it, and a twisting bridge fails with NX_INVALID_GEOMETRY. construction in the result says which was used."""
 
 
 def nx_sew(target: str, tools: list[str], tolerance: float = 0.001, solid: bool = False):

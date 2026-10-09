@@ -309,15 +309,32 @@ class EngineeringMixin:
             clone, "Initialise", "AddAssembly", "SetNaming", "PerformClone", "Terminate"
         )
         created = False
+        # Native clone (and reopening the copy) load components with the session
+        # load options. NX 2406 here used search directories that did not contain
+        # the workspace, so clone treated every component as a lost RETAIN part and
+        # SetNaming failed (720103). Load as saved for this operation, then restore.
+        load_options = getattr(self.session.Parts, "LoadOptions", None)
+        load_method = getattr(load_options, "ComponentLoadMethod", None)
+        as_saved = getattr(getattr(self.nxopen, "LoadOptions", None), "LoadMethod", None)
         try:
             destination.mkdir(parents=True, exist_ok=False)
             created = True
             for p in mapping.values():
                 p.parent.mkdir(parents=True, exist_ok=True)
+            if load_method is not None and as_saved is not None:
+                load_options.ComponentLoadMethod = as_saved.AsSaved
             clone.Initialise(clone.OperationClass.CLONE_OPERATION)
             try:
                 clone.SetDefAction(clone.Action.CLONE)
-                clone.AddAssembly(str(Path(part.FullPath).resolve()))
+                loaded = clone.AddAssembly(str(Path(part.FullPath).resolve()))
+                status = loaded[0] if isinstance(loaded, tuple) else loaded
+                if getattr(status, "Failed", False) is True:
+                    raise NXToolError(
+                        "NX_UNLOADED_COMPONENT",
+                        "Native clone could not load project parts: "
+                        + ", ".join(map(str, getattr(status, "FileNames", []))),
+                        nx_code=next(iter(getattr(status, "Statuses", []) or []), None),
+                    )
                 for source, target in mapping.items():
                     clone.SetNaming(str(source), clone.NamingTechnique.USER_NAME, str(target))
                 clone.PerformClone(clone.InitNamingFailures())
@@ -385,6 +402,9 @@ class EngineeringMixin:
             if created:
                 shutil.rmtree(destination)
             raise
+        finally:
+            if load_method is not None and as_saved is not None:
+                load_options.ComponentLoadMethod = load_method
 
     def _mass_properties(self, body=None, scope="auto"):
         import NXOpen.UF
@@ -739,15 +759,39 @@ class EngineeringMixin:
             )
             exp = constraint.AssociatedExpression
             self._work_part().Expressions.EditExpression(exp, str(value))
+            if hasattr(sketch, "LocalUpdate"):
+                # NX 2406: Update() alone leaves an active sketch unsolved until finish.
+                sketch.LocalUpdate()
             sketch.Update()
+            residual = self._line_angle_residual(one, two, value)
+            if residual > 1e-6:
+                raise NXToolError(
+                    "NX_CONSTRAINT_UNSATISFIED",
+                    "Native angular dimension did not drive the sketch lines",
+                    details={"residual_degrees": residual},
+                )
             diagnostics = self._check_sketch_result(sketch_id)
         return {
             "constraint": self._reference(
                 constraint, "constraint", self._work_part(), "Angular dimension"
             ),
             "expression": self._expression_record(exp),
+            "residual_degrees": residual,
             "diagnostics": diagnostics,
         }
+
+    @staticmethod
+    def _line_angle_residual(one, two, value):
+        """Degrees between the lines' undirected angle (or its supplement) and value."""
+        from nx_mcp.hardened import dot, xyz
+
+        u, v = [
+            [e - s for e, s in zip(xyz(c.EndPoint), xyz(c.StartPoint), strict=True)]
+            for c in (one, two)
+        ]
+        cosine = dot(u, v) / (dot(u, u) * dot(v, v)) ** 0.5
+        theta = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+        return min(abs(theta - value), abs(180 - theta - value))
 
     def _sketch_tangent(self, sketch_id, curve1, curve2):
         from nx_mcp.hardened import cross, dot, xyz

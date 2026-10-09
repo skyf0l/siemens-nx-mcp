@@ -1,0 +1,131 @@
+{
+  "nx_list_drawings": {
+    "verdict": "pass",
+    "evidence": "d1.prt sheet Service 420x297 mm, scale [2,1], 3..8 views listed with IDs; active flag and modeling_active follow nx_activate_drawing; inch A4 sheet reads 11.692913 x 8.267717 in, units in.",
+    "fixes": []
+  },
+  "nx_activate_drawing": {
+    "verdict": "pass",
+    "evidence": "drawing=null -> modeling_active true and sheet inactive; drawing=<sheet id> and drawing='Service' (name) reopen it; view ID -> NX_OBJECT_TYPE_MISMATCH; unknown name -> NX_NOT_FOUND.",
+    "fixes": []
+  },
+  "nx_drawing_view_info": {
+    "verdict": "pass",
+    "evidence": "Base view scale 2 then 1.5 read back, position [105,180], bounds [61.15,151.15,148.85,208.85] inside_sheet; detail scale 3/4, section scale 1/1.5; inch sheet view bounds [2.75,2.75,7.25,5.25] in at scale 2; sheet ID -> NX_OBJECT_TYPE_MISMATCH. Now warns when NX left datums visible (construction_geometry null).",
+    "fixes": [
+      "src/nx_mcp/release_engineering.py: warning when construction erasure is only partial on this NX"
+    ]
+  },
+  "nx_edit_drawing_view": {
+    "verdict": "pass",
+    "evidence": "scale 1.5 + position [105,180] read back; move to [120,190] and back; detail scale 4 (bounds 70.4 mm); every style key round-trips (rendering fully_shaded/partially_shaded/wireframe, hidden/visible/smooth fonts, widths thin/4/5/6, hidden_lines/self_hidden false gives the warning); inch view scale 2 at [5,5] in. Rejected: no edit, scale 0/-2, 3-element position, hidden_font 9, centerlines -> stable codes, volume 7248.6726 unchanged. construction_geometry=false: NX 2406 records no view-dependent erase for datums, CSYS or sketch curves (UF AskVdeData 0; only bodies erase; visible in a captured image), so the option is now refused with NX_UNAVAILABLE_ON_VERSION and rolled back when the part has datums; construction_geometry=true works.",
+    "fixes": [
+      "src/nx_mcp/drawing_preferences.py: read the erase back via UF View.AskVdeData; strict refusal for nx_edit_drawing_view, 'partial' marker for new views, readback null when partial",
+      "src/nx_mcp/documentation_editing_server.py: description states the 2406 limit",
+      "tests/test_assembly_loading.py: test_datums_nx_does_not_erase_are_reported_or_refused"
+    ]
+  },
+  "nx_add_detail_drawing_view": {
+    "verdict": "pass",
+    "evidence": "center [25,15,5] r8 scale 3 at [230,180] (bounds 52.8 mm, DETAIL A label in image); center [0,0,5] r6 default scale 2 at [330,100] (bounds 26.4 mm); inch part r0.3 in scale 4 at [9,5] in (bounds 2.64 in); boundaries survive later parent edits. Rejected: 2D center, radius -1, sheet as parent.",
+    "fixes": []
+  },
+  "nx_add_section_drawing_view": {
+    "verdict": "pass",
+    "evidence": "arc_center on the hole edge -> SectionView at [105,90] scale 1 with hatch (captured image); start (scale 1.5 at [330,180]) and end (at [250,40] and [250,180]) on a linear edge, all read back exactly. Bug: NX 2406 created the view at its own spot ([330,180] for a [330,40] request, [253.75,180] for [250,180]) and the tool returned success; it now moves the view to the requested point and verifies (NX_VERIFICATION_FAILED and rollback otherwise). Rejected: non-perpendicular or out-of-plane step/arrow, face as cut_object, bad cut_association.",
+    "fixes": [
+      "src/nx_mcp/release_engineering.py: MoveView to the requested position after CreateSimpleSxview, verified; error carries requested/actual/parent positions",
+      "src/nx_mcp/documentation_editing_server.py: description",
+      "tests/test_release_engineering.py: test_section_refuses_a_position_nx_aligns_elsewhere"
+    ]
+  },
+  "nx_drawing_table": {
+    "verdict": "pass",
+    "evidence": "revision 2 rows -> 3 rows -> shrink to 2 rows with widths [25,80], row_height 9, moved to [30,280]; title block 3 -> 4 rows (native TitleBlock, REG1-R2 read back); new 1x1 revision table; evaluated cells read back; tables visible in captured image. Rejected: ragged rows, 21 columns, negative width, kind bom, view as table, title_block on a revision table (NX_OBJECT_OWNER_MISMATCH), column-count change (NX_UNSUPPORTED_EDIT).",
+    "fixes": []
+  },
+  "nx_dimension_format": {
+    "verdict": "pass",
+    "evidence": "Horizontal dimension 50 mm: 1 dp, tolerance +-0.1, NotSet, trailing_zeros false, Millimeters, Comma, 2 associativities; reads back every later edit; view ID -> NX_OBJECT_TYPE_MISMATCH.",
+    "fixes": []
+  },
+  "nx_edit_dimension_format": {
+    "verdict": "pass",
+    "evidence": "bilateral +0.05/-0.02 2 dp (image: 50,00 +0,05 -0,02); tolerance types none/symmetric/limits/basic/reference/bilateral read back NotSet/BilateralOneLine/LimitTwoLines/Basic/Reference/BilateralTwoLines; units in/m/um/mm; separator period/comma; 0 and 3 dp; computed value stays 50.0 with 2 associations. Rejected: no property, 9 dp, units ft, NaN.",
+    "fixes": []
+  },
+  "nx_list_annotations": {
+    "verdict": "pass",
+    "evidence": "Lists Notes, TableSection (table_kind), TitleBlock, CenterMark, IdSymbol, PartsList, BendTable rows ['1','75,00','3,00'], PmiNote/PmiLabel text, Fcf text and positions; offset 2/limit 3 paging; limit 201 and offset -1 -> NX_INVALID_ARGUMENT.",
+    "fixes": []
+  },
+  "nx_edit_annotation": {
+    "verdict": "pass",
+    "evidence": "balloon moved to [300,150,0] and renamed 'Service callout' (read back); section-letter note moved to [40,220,0]; revision table moved to [300,250,0]; balloon and parts-list delete (cascade removes its balloons); center mark move refused NX_UNSUPPORTED_EDIT (actual [105,180,0]) and rolled back. Rejected: delete+name, no edit, blank name, view ID, stale ID (NX_OBJECT_STALE).",
+    "fixes": []
+  },
+  "nx_refresh_annotations": {
+    "verdict": "pass",
+    "evidence": "Sheet-metal part with an automatic bend table: angle 90->75->60 via nx_set_expression and 60->45 via a manual NXOpen edit; table rows follow ('75,00','60,00','45,00'), refresh rebuilds the automatic table without error and returns updated_count 0; on d1 it refreshes the managed detail boundaries (bounds unchanged, volume unchanged). Managed sheet-metal PMI cannot be created on this install (see nx_sheet_metal_annotation).",
+    "fixes": []
+  },
+  "nx_create_parts_list": {
+    "verdict": "pass",
+    "evidence": "asm (PLATE_A/B = c1, BAR/BAR2 = c2, SUB = rd_sub containing c1): leaves -> [C1 3, C2 2]; top_level -> [C1 2, C2 2, RD_SUB 1]; all -> [C1 3, C2 2, RD_SUB 1]; native columns PC NO/PART NAME/QTY, automatic_update true. Bug: a second parts list returned raw NX_API_ERROR 1175188 (site variable UGII_UPDATE_ALL_ID_SYMBOLS_WITH_PLIST=1 allows one per part); now NX_PARTS_LIST_EXISTS before any NX change. Rejected: 3-element position, bad scope, view as drawing, non-assembly part (NX_NO_COMPONENTS).",
+    "fixes": [
+      "src/nx_mcp/assembly_documentation.py: refuse a second parts list when NX allows only one",
+      "tests/test_documentation_editing.py: test_second_parts_list_is_refused_before_nx_when_site_allows_one"
+    ]
+  },
+  "nx_parts_list_info": {
+    "verdict": "pass",
+    "evidence": "Rows and columns match create and edits (width 65, titles, field <W$=@$PART_NAME>, protected flag); rows auto-update C2 qty 1 -> 2 after adding BAR2; balloon ID -> NX_OBJECT_TYPE_MISMATCH.",
+    "fixes": []
+  },
+  "nx_parts_list_column": {
+    "verdict": "pass",
+    "evidence": "edit index 1 title COMPONENT width 65; append PART width 45 (4 columns); remove index 3 (3 columns); edit index 2 protected=true width 30; append protected column. Rejected: remove with title, index 9, empty edit, append with index, append without field, width -5, 1100-char title -> NX_INVALID_ARGUMENT, table unchanged.",
+    "fixes": []
+  },
+  "nx_update_parts_list": {
+    "verdict": "pass",
+    "evidence": "After adding BAR2 and SUB: rows [C1 3, C2 2, RD_SUB 1] for the all-scope list; balloon ID -> NX_OBJECT_TYPE_MISMATCH.",
+    "fixes": []
+  },
+  "nx_parts_list_balloons": {
+    "verdict": "pass",
+    "evidence": "Assembly top view: 2 balloons (1, 2) on C1/C2 (captured image), positions [143,149.11] and [237,178.89]; repeat call creates 0. Needed a fix: assembly base views failed on 2406 with 'Error number: 1' because UF AskViewDependentStatus rejects prototype datums/CSYS. Rejected: sheet as view, balloon as parts list.",
+    "fixes": [
+      "src/nx_mcp/drawing_preferences.py: query view dependency only for prototype curves (2406 error 1 on datums/CSYS)",
+      "tests/test_assembly_loading.py: test_construction_hiding_skips_view_status_for_prototype_datums"
+    ]
+  },
+  "nx_pmi_datum": {
+    "verdict": "disabled",
+    "evidence": "Validation works (letter 'a'/'ABCD', 2D position, empty faces -> NX_INVALID_ARGUMENT) but every create fails and rolls back.",
+    "reason": "This NX 2406 has no PMI datum license: Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder raises 'License Error, The check out of a feature failed because its token feature does not exist' (nx_code 948801) on every call, even with no target; the drafting datum builder and the PMI FCF builder open fine.",
+    "fixes": [
+      "src/nx_mcp/manufacturing.py: annotation must be a PMI datum (NX_OBJECT_TYPE_MISMATCH instead of a raw TypeError)"
+    ]
+  },
+  "nx_pmi_fcf": {
+    "verdict": "pass",
+    "evidence": "All 15 characteristics committed on d1 faces (symbol codes <&1>..<&20>); Position MMC diameter projected 5 -> '<O>0.1<P>5.0<M>'; LMC -> '<E>', RFS -> '<S>'; Cylindricity spherical_diameter 'S<O>0.01'; Perpendicularity square + tangent_plane + free_state '<&T><&F>'; edit by annotation ID; volume 7248.6726 unchanged. Fixed: NX puts the frame on its annotation plane (z 5 -> 0) silently -> now returns read-back position, requested_position and a warning; non-datum datums ID or non-FCF annotation gave raw TypeError -> NX_OBJECT_TYPE_MISMATCH; datum references need PMI datum symbols, unlicensed here -> datums refused with NX_UNAVAILABLE_ON_VERSION. Rejected: tolerance -1, form tolerance + MMC, unknown characteristic.",
+    "fixes": [
+      "src/nx_mcp/manufacturing.py: type checks, license refusal when reading datum letters, origin read-back with warning",
+      "src/nx_mcp/manufacturing_server.py: description",
+      "tests/test_freeform_manufacturing.py: test_pmi_fcf_refuses_wrong_kinds_unlicensed_datums_and_reports_plane"
+    ]
+  },
+  "nx_sheet_metal_annotation": {
+    "verdict": "disabled",
+    "evidence": "rd_sheet1.prt: sheet-metal tab + 90 deg flange, nx_sheet_metal_info thickness 2.0, bend R3 / 90 deg / K 0.33; both kinds fail and roll back (references preserved).",
+    "reason": "This NX 2406 has no Sheet Metal PMI license: setting SheetMetalPMIBuilder.PMIType (Body or Bend) raises 'License Error, The check out of a feature failed because its token feature does not exist' (nx_code 948801) on every call.",
+    "fixes": []
+  },
+  "nx_export_planar_dxf": {
+    "verdict": "pass",
+    "evidence": "Top face: 4 LINE + 1 CIRCLE r4 (50x30); bottom face, y-flipped frame, layer CUT: circle at (25,-15); side face frame origin [50,0,0] axes [0,1,0]/[0,0,1]: 30x5; sketch default and rotated frame -> (0,-50)..(30,0); layers {hole edge: HOLES} -> CIRCLE on HOLES; inch part 2x1 in -> 50.8x25.4 mm (source_units inch). Rejected: cylinder (NX_NON_PLANAR), existing file, .txt, path outside workspace, one axis, non-orthonormal axes, off-plane basis or origin, bad layer name, foreign layer key; no model change.",
+    "fixes": []
+  }
+}

@@ -90,7 +90,7 @@ def nx_pattern_components(component: str, direction: list[float], spacing: float
 
 
 def nx_set_camera(rotation: list[list[float]], origin: list[float], scale: float):
-    """Set absolute NX viewport camera. rotation is right-handed orthonormal row-major 3x3 with columns NX view axes; origin is the view-space point centered in the viewport; scale is positive absolute NX scale. Work and display part must match. Returns actual camera."""
+    """Set absolute NX viewport camera. rotation is right-handed orthonormal row-major 3x3 whose columns are the NX view axes (screen right, screen up, toward the viewer) in display-part coordinates. origin is NX's native view origin, the same value nx_view_info returns: the negated view-space coordinates of the point shown at the viewport center, so to center display-part point P use origin = -(P.x_axis, P.y_axis, P.z_axis). scale is positive absolute NX scale. Work and display part must match. Returns actual camera."""
 
 
 def nx_save_presentation(path: str):
@@ -412,7 +412,7 @@ def nx_mate_component(
     references: list[str] | None = None,
     offset: float = 0.0,
 ):
-    """Create a native assembly mate using two occurrence face/edge references [moving,target]. Touch uses opposite alignment; align uses same alignment; nonzero offset creates a distance. Orient is parallel, center is concentric, align_angle uses offset in degrees. Other lengths use work-part units. Prefer nx_assembly_constraint for explicit constraint semantics."""
+    """Create a native assembly mate using two occurrence face/edge references [moving,target]. Touch uses opposite alignment; align uses same alignment; nonzero offset creates a distance. Orient is parallel, center is concentric between circular edges, align_angle uses offset in degrees. The solver may move either component; fix the target first to keep it in place. Other lengths use work-part units. Prefer nx_assembly_constraint for explicit constraint semantics."""
 
 
 def nx_mirror_body(body: str, plane: Literal["XY", "XZ", "YZ"]):

@@ -630,6 +630,23 @@ def test_presentation_preflight_leaves_display_unchanged(author, fault):
     assert r.body.Color == 13
 
 
+@pytest.mark.parametrize(
+    "content,code",
+    [
+        (None, "NX_NOT_FOUND"),
+        ("{not json", "NX_INVALID_ARGUMENT"),
+        ("[1, 2]", "NX_INVALID_ARGUMENT"),
+    ],
+)
+def test_presentation_file_problems_are_stable_errors(author, content, code):
+    p = author.e.workspace.root / "broken.json"
+    if content is not None:
+        p.write_text(content)
+    with pytest.raises(NXToolError) as error:
+        author.e.execute("nx_restore_presentation", {"path": str(p)})
+    assert error.value.code == code
+
+
 def test_camera_validation_and_readback(author):
     e = author.e
     with pytest.raises(NXToolError):
@@ -761,6 +778,22 @@ def test_preview_rolls_back_parameters_and_accepts_exact_plan(author):
         "nx_finish_preview",
         {"preview_id": r1["preview_id"], "action": "accept", "operation_id": "accept-once"},
     )["replayed"]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        {"method": "nx_set_expression", "params": {"expression": "height"}},
+        {"method": "nx_set_expression", "params": {"expression": "height", "bogus": 1}},
+        {"method": "nx_set_expression", "params": ["height", "20"]},
+        "nx_set_expression",
+    ],
+)
+def test_preview_rejects_malformed_operations_before_nx(author, operation):
+    with pytest.raises(NXToolError) as error:
+        author.e.execute("nx_preview_change", {"operations": [operation], "capture": False})
+    assert error.value.code == "NX_INVALID_ARGUMENT"
+    assert author.expression.RightHandSide == "10"
 
 
 def test_preview_failure_rolls_back_prior_edits(author):

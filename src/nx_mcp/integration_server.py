@@ -536,7 +536,7 @@ DESCRIPTIONS = {
     "nx_list_sections": "Inspect native dynamic sections and the active view clipping toggle in the display/work part.",
     "nx_section_view": "Create or edit a native single-plane section in visible NX. origin is in display-part units; normal is normalized in display-part coordinates. Solids are unchanged. Specify section ID to edit an existing active section. NX v2606 retains dot(point-origin, normal) <= 0; reversing normal reverses the retained side. Returns actual plane geometry.",
     "nx_section_control": "Enable, disable or delete the specified native section. Disabling turns off clipping when that section is active. Deletion removes the section object, not model solids.",
-    "nx_sketch_diagnostics": "Evaluate native solver status and remaining DOF for the entire sketch; enumerate persistent constraints and their curve links. Temporarily activates an inactive sketch and restores the prior state. Rejects another active sketch. Temporarily evaluates the entire sketch and restores the work-region state. Does not infer a minimal conflict set or automatically constrain geometry.",
+    "nx_sketch_diagnostics": "Evaluate native solver status and NX's remaining-DOF indicator (0 when fully constrained; NX 2406 counts curves not fully constrained, not scalar DOF) for the entire sketch; enumerate persistent constraints and their curve links. Temporarily activates an inactive sketch and restores the prior state. Rejects another active sketch. Temporarily evaluates the entire sketch and restores the work-region state. Does not infer a minimal conflict set or automatically constrain geometry.",
     "nx_ui_control": "Inspect UI activity without queueing behind native work, or switch control modes. While the engineer has control, mode=agent (like any other request) is shown in the NX MCP panel and waits up to 60 s for them to click 'Give control to agent'; NX_UI_DECLINED means they chose 'Not now', so ask in chat before retrying. mode=manual hands control back at once. Agent mode reserves NX input even when idle. Status is a timestamped snapshot, not proof that a native call is responsive. Manual handoff invalidates references/checkpoints. Taking control back cannot interrupt a native call.",
     "nx_view_info": "Return the displayed model view, camera matrix, scale, rendering style, and interactive state.",
     "nx_screenshot": "Export the actual interactive NX viewport as PNG and return an inline MCP image. Advisory 128–4096 pixel dimensions (NX can use the actual device size; response reports both), background, shaded/wireframe style and fit. No desktop capture. Paths are workspace-relative; omit for a unique capture path.",
@@ -1092,6 +1092,8 @@ async def package_assembly(bridge, workspace, path):
     destination = workspace.resolve(path)
     if destination.suffix.lower() != ".zip":
         raise NXToolError("NX_INVALID_ARGUMENT", "Package path must end with .zip")
+    if destination.exists():
+        raise NXToolError("NX_FILE_EXISTS", "Package path already exists; choose a new .zip path")
     opened = await bridge.call("nx_list_open_parts", {})
     active = next(p for p in opened["parts"] if p["work"])
     components = await bridge.call("nx_list_components", {})
@@ -1126,7 +1128,12 @@ async def package_assembly(bridge, workspace, path):
                     {"assembly": active, "components": components, "files": manifest}, indent=2
                 ),
             )
-        os.link(temp, destination)
+        try:
+            os.link(temp, destination)  # Never overwrites a concurrently created file.
+        except FileExistsError as error:
+            raise NXToolError(
+                "NX_FILE_EXISTS", "Package path already exists; choose a new .zip path"
+            ) from error
     finally:
         temp.unlink(missing_ok=True)
     return {

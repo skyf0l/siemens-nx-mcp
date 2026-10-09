@@ -168,7 +168,7 @@ class DrawingPreferencesMixin:
         result["modified"] = [result["object"]]
         return result
 
-    def _drawing_construction_visibility(self, view, visible):
+    def _drawing_construction_visibility(self, view, visible, strict=False):
         import NXOpen.UF as U
 
         part = self._work_part()
@@ -183,10 +183,15 @@ class DrawingPreferencesMixin:
             prototype = component.Prototype
             if not hasattr(prototype, "Curves"):
                 continue
+            # Datums and coordinate systems are always model objects; NX 2406 rejects
+            # AskViewDependentStatus on them (error 1), so only curves are queried.
             for value in (
                 list(prototype.Curves) + list(prototype.Datums) + list(prototype.CoordinateSystems)
             ):
-                if uf_view.AskViewDependentStatus(value.Tag)[0]:
+                if (
+                    isinstance(value, self.nxopen.Curve)
+                    and uf_view.AskViewDependentStatus(value.Tag)[0]
+                ):
                     continue
                 occurrence = component.FindOccurrence(value)
                 if occurrence is not None:
@@ -201,6 +206,29 @@ class DrawingPreferencesMixin:
                 view.DependentDisplay.RemoveErasureOnObjectAndSubobjects(values, False)
             else:
                 view.DependentDisplay.Erase(values)
+                # NX 2406 accepts Erase on datums and coordinate systems but records
+                # no view-dependent edit, so they stay visible. Read the edits back.
+                kept = [
+                    v
+                    for v in values
+                    if not any(
+                        e is not None and int(e.ViewTag) == int(view.Tag)
+                        for e in uf_view.AskVdeData(v.Tag)[1]
+                    )
+                ]
+                if kept:
+                    if strict:
+                        raise NXToolError(
+                            "NX_UNAVAILABLE_ON_VERSION",
+                            "This NX does not erase datums/coordinate systems in drawing views; "
+                            "construction_geometry=false cannot hide them (rolled back)",
+                            details={
+                                "not_erased": len(kept),
+                                "native_types": sorted({type(v).__name__ for v in kept}),
+                            },
+                        )
+                    view.SetAttribute("NX_MCP_DRAWING_CONSTRUCTION_V1", "partial")
+                    return len(values) - len(kept)
         view.SetAttribute("NX_MCP_DRAWING_CONSTRUCTION_V1", "show" if visible else "hide")
         return len(values)
 
@@ -220,7 +248,7 @@ class DrawingPreferencesMixin:
             if updates:
                 for key, value in updates.items():
                     if key == "construction_geometry":
-                        self._drawing_construction_visibility(obj, value)
+                        self._drawing_construction_visibility(obj, value, strict=True)
                         continue
                     if key not in STYLE_PROPERTIES:
                         raise NXToolError(
@@ -259,11 +287,13 @@ class DrawingPreferencesMixin:
         finally:
             b.Destroy()
         attribute = "NX_MCP_DRAWING_CONSTRUCTION_V1"
-        result["construction_geometry"] = (
-            obj.GetStringAttribute(attribute) == "show"
+        state = (
+            obj.GetStringAttribute(attribute)
             if obj.HasUserAttribute(attribute, self.nxopen.NXObject.AttributeType.String, -1)
             else None
         )
+        # "partial": model curves are erased but NX kept datums/CSYS visible.
+        result["construction_geometry"] = None if state in (None, "partial") else state == "show"
         if updates:
             self._update_model()
             self._work_part().DraftingViews.UpdateViews([obj])

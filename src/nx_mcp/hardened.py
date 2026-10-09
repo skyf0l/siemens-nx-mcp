@@ -933,6 +933,12 @@ class HardenedExecutor(
             raise NXToolError(
                 "NX_SKETCH_NOT_ACTIVE", "Activate the owning sketch before adding geometry"
             )
+        ends = [float(p[k]) for p in (start, end) for k in ("x", "y")]
+        if not all(math.isfinite(v) for v in ends):
+            raise NXToolError("NX_INVALID_ARGUMENT", "Line endpoints must be finite")
+        if math.hypot(ends[2] - ends[0], ends[3] - ends[1]) <= 1e-9:
+            # NX 2406 creates a zero-length line silently; refuse the degenerate curve.
+            raise NXToolError("NX_INVALID_ARGUMENT", "Line endpoints must differ")
         curve = part.Curves.CreateLine(
             self._point_on_sketch(sketch, start), self._point_on_sketch(sketch, end)
         )
@@ -1008,6 +1014,8 @@ class HardenedExecutor(
             "feature": self._reference(f, "feature", part, "Feature"),
             "name": self._name(f, "Feature"),
             "type": f.FeatureType,
+            # Position in the feature history (native Feature.Timestamp).
+            "timestamp": None if getattr(f, "Timestamp", None) is None else int(f.Timestamp),
             "expressions": [
                 {"name": e.Name, "formula": e.RightHandSide, "value": e.Value}
                 for e in f.GetExpressions()
@@ -1257,11 +1265,26 @@ class HardenedExecutor(
         if not name or len(name) > 132:
             raise NXToolError("NX_INVALID_ARGUMENT", "Name must contain 1–132 characters")
         value = self._resolve(object_id)
+        entry = self.objects._objects.get(object_id)
+        if entry is not None:
+            kind, part_id = entry.reference.kind, entry.reference.part_id
+        else:  # A unique feature/body/sketch/section/component name, not an opaque ID.
+            part = self._work_part()
+            pools = (
+                ("feature", part.Features),
+                ("body", part.Bodies),
+                ("sketch", part.Sketches),
+                ("section", part.DynamicSections),
+            )
+            kind = next(
+                (k for k, pool in pools if any(int(v.Tag) == int(value.Tag) for v in pool)),
+                "component",
+            )
+            part_id = self._part_id(part)
         value.SetName(name)
-        ref = self.objects._objects[object_id].reference
-        self.objects.invalidate_part(ref.part_id)
+        self.objects.invalidate_part(part_id)
         return {
-            "object": self._reference(value, ref.kind, self._work_part(), name),
+            "object": self._reference(value, kind, self._work_part(), name),
             "message": "Renamed; references refreshed",
         }
 

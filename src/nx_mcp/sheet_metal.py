@@ -1019,6 +1019,23 @@ class SheetMetalMixin:
         finally:
             temporary.unlink(missing_ok=True)
 
+    def _sm_open_sheet(self, part, sheet):
+        """Make the sheet current; base-view builders commit a null view otherwise."""
+
+        def current():
+            value = part.DrawingSheets.CurrentDrawingSheet
+            return value is not None and int(value.Tag) == int(sheet.Tag)
+
+        sheet.Open()
+        if not current():
+            # NX 2406 Sheet Metal: after ExitDraftingApplication the sheet stays the
+            # work view, but Open() no longer makes it current. The UF call does.
+            import NXOpen.UF
+
+            NXOpen.UF.UFSession.GetUFSession().Draw.OpenDrawing(sheet.Tag)
+        if not current():
+            raise NXToolError("NX_DRAWING_CONTEXT", "NX could not open the drawing sheet")
+
     def _add_flat_pattern_view(self, drawing, flat_pattern, position=None):
         part = self._work_part()
         feature = self._sm_reference(flat_pattern, "feature")
@@ -1036,7 +1053,7 @@ class SheetMetalMixin:
             model_view = part.ModelingViews.FindObject(definition.FlatPatternViewName)
         finally:
             definition.Destroy()
-        sheet.Open()
+        self._sm_open_sheet(part, sheet)
         builder = part.DraftingViews.CreateBaseViewBuilder(None)
         try:
             builder.SelectModelView.SelectedView = model_view

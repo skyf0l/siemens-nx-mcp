@@ -1,0 +1,158 @@
+{
+  "nx_spline": {
+    "verdict": "pass",
+    "evidence": "Degrees 1..7 through_points: end points read back exactly (deg 7 end [35, 2.627946, 3.5]); poles: degree 3, poles read back exactly, mid [15,0,0]; periodic=True -> periodic, start==end within 4e-16; same operation_id replay returns the same feature; edit via feature replaced points (end [30,0,15]), health true. Rejects with model unchanged (10 features): degree 8, points<=degree, 2D points, 1 point, bogus method (schema), stale id. Editing an EXTRUDE feature hit a native 'memory access violation' (nx_code 11); now NX_OBJECT_TYPE_MISMATCH before the builder.",
+    "fixes": [
+      "src/nx_mcp/freeform.py: _spline refuses a non-Studio-Spline feature; native commit refusals -> NX_INVALID_GEOMETRY",
+      "tests/test_freeform_manufacturing.py: test_spline_edit_refuses_other_feature_types_before_builder"
+    ]
+  },
+  "nx_bridge_surface": {
+    "verdict": "pass",
+    "evidence": "BridgeSurfaceBuilder needs a Studio freeform license this 2406 seat lacks (NXException 949895; bundle NX91110 has nx_freeform_1, not studio_free_form). Fixed with a Through Curves fallback with end-face continuity. Sheets z=0 (x0..20) and z=5 (x30..50): bridge bbox [20,0,0]-[30,10,5]; nx_surface_continuity bridge vs sheet edges at both ends: G0 -> normal angle 26.565 deg (=atan 0.5), G1 -> angle 0 / curvature diff 0.24, G2 -> angle 0 / curvature diff <=1.8e-16; gap 0; health true. reverse_second=True (twisting) -> NX_INVALID_GEOMETRY (nx_code 670929), rolled back.",
+    "fixes": [
+      "src/nx_mcp/freeform.py: license-missing fallback _bridge_through_curves (second edge starts at its end nearest the first edge start, reverse_second flips, twist -> NX_INVALID_GEOMETRY); result.construction",
+      "src/nx_mcp/freeform_server.py: description documents the fallback",
+      "tests/test_freeform_manufacturing.py: test_bridge_without_studio_license_uses_through_curves, test_bridge_fallback_failure_is_stable_and_other_errors_propagate"
+    ]
+  },
+  "nx_sew": {
+    "verdict": "pass",
+    "evidence": "Two 20x10 meshes sewn -> 1 sheet 40x10x0, thicken 2 -> volume 800.000; tolerance 0.01 -> 1 body 20x10; six quad sheets with solid=True -> 1 solid, volume 1000.000. Rejects with model unchanged (16 features, 3 bodies): target in tools, tolerance 0, non-touching sheet (was raw NX_API_ERROR 4635012, now NX_INCOMPLETE_SEW with nx_code), solid=True on open sheets -> NX_INCOMPLETE_SEW.",
+    "fixes": [
+      "src/nx_mcp/freeform.py: native sew refusal -> NX_INCOMPLETE_SEW (nx_code kept)",
+      "tests/test_freeform_manufacturing.py: test_native_refusal_of_bad_inputs_is_a_stable_code[sew]"
+    ]
+  },
+  "nx_trim_sheet": {
+    "verdict": "pass",
+    "evidence": "20x10 sheet trimmed at x=10: keep -> bbox [0,0,0]-[10,10,0]; keep=False -> [10,0,0]-[20,10,0]. Rejects with model unchanged: boundary missing the sheet (was raw NX_API_ERROR 671228, now NX_INVALID_GEOMETRY), 2D region point, body as boundary (NX_OBJECT_TYPE_MISMATCH), solid target (NX_NOT_SHEET).",
+    "fixes": [
+      "src/nx_mcp/freeform.py: native trim refusal -> NX_INVALID_GEOMETRY",
+      "tests/test_freeform_manufacturing.py: test_native_refusal_of_bad_inputs_is_a_stable_code[trim]"
+    ]
+  },
+  "nx_surface_mesh": {
+    "verdict": "pass",
+    "evidence": "2x2 flat network -> sheet 20x10x0 (default and tolerance 0.01), THRU_CURVE_MESH; 3 curved primaries x 2 cross -> z max 2.044; curved mesh feeds the G2 test. Rejects with model unchanged (7 features, 0 bodies): 1 section, tolerance -1, duplicate curve, non-intersecting network (was raw NX_API_ERROR 670946, now NX_INVALID_GEOMETRY).",
+    "fixes": [
+      "src/nx_mcp/freeform.py: native mesh refusal -> NX_INVALID_GEOMETRY",
+      "tests/test_freeform_manufacturing.py: test_native_refusal_of_bad_inputs_is_a_stable_code[mesh]"
+    ]
+  },
+  "nx_edit_faces": {
+    "verdict": "pass",
+    "evidence": "Block 20x10x5 (1000): move top +z 2 -> 1400, offset 1 -> 1600, replace with top of a 10-high block -> 2000; move -z 1 -> 800, direction +z distance -1 -> 600, offset -1 -> 400, side face along [1,1,0] by 5*sqrt2 -> 500 (bbox 25x10x2). heal (delete-heal): d2 hole 984.292 -> 1000.000; two holes plus counterbore floor 946.593 -> 1000.000. heal was broken on 2406 (DeleteFaceBuilder has no AllowPartialDelete). Impossible heal of a top face -> NX_FACE_EDIT_FAILED (nx_code 671147), model unchanged. 10 argument-combination/kind/duplicate rejects -> NX_INVALID_ARGUMENT / NX_OBJECT_TYPE_MISMATCH, model unchanged.",
+    "fixes": [
+      "src/nx_mcp/freeform.py: heal sets AllowPartialDelete only when the builder has it (absent on NX 2406)",
+      "tests/test_freeform_manufacturing.py: test_heal_works_without_partial_delete_option"
+    ]
+  },
+  "nx_face_analysis": {
+    "verdict": "pass",
+    "evidence": "Top face, pull +z: 9 samples signed draft 90.000; side face -> 0 'below_minimum' (minimum 3); pull [0,0,2] normalized; face with hole skips 1/9. Cylinder r1: curvatures [1.0, 0.0]. NX 2406 reports a straight direction as radius 3.937e8 (1e10 in), which leaked as radius 393700786 / curvature 2.5e-9; now radius null / curvature 0 (plane: [null,null] / [0,0]). Rejects: minimum_draft without pull, 90 deg, zero pull, samples 0/21, body id, empty list.",
+    "fixes": [
+      "src/nx_mcp/manufacturing.py: FLAT_RADIUS=1e8 reads NX 2406 flat-direction radii as straight",
+      "tests/test_freeform_manufacturing.py: test_v2406_flat_direction_radius_reads_as_zero_curvature"
+    ]
+  },
+  "nx_curve_analysis": {
+    "verdict": "pass",
+    "evidence": "Arc r5: curvature 0.2, radius 5 at 3 samples, points (5,0,0),(0,5,0),(-5,0,0); line spline: curvature 0, radius null, tangent [1,0,0]; 1000 samples OK; spline end points exact for degrees 1..7 and pole read-back. Rejects: samples 1/1001 (NX_INVALID_ARGUMENT), 2.5 (schema), sketch id and solid edge (NX_OBJECT_TYPE_MISMATCH).",
+    "fixes": []
+  },
+  "nx_surface_continuity": {
+    "verdict": "pass",
+    "evidence": "Coplanar meshes: G0/G1/G2 true, gap 0, 200 samples per edge (400 records), still true at 1e-9 tolerances; tangent-but-curved pair: G0/G1 true, G2 false (curvature diff 0.02514); 10 mm gap: G0 false, maximum gap 10.000; bridge G0/G1/G2 checks as listed for nx_bridge_surface. Rejects: samples 1/201, tolerance 0, body id (NX_OBJECT_TYPE_MISMATCH), solid edge with two faces.",
+    "fixes": []
+  },
+  "nx_wall_thickness": {
+    "verdict": "pass",
+    "evidence": "Block 20x10x5 with d2 hole: top face 9/9 measured 5.000; all faces 61/61 measured, min 4.000 (hole to y walls), max 20.000; x-face sample 9.000 (to the hole); hole face 4 samples 4.000. Rejects: sheet (NX_NOT_SOLID), face of another body (NX_OBJECT_OWNER_MISMATCH), tolerance 0, samples 0, face id as body.",
+    "fixes": []
+  },
+  "nx_display_info": {
+    "verdict": "pass",
+    "evidence": "Body expands to body + 6 faces (count 7), color 129, transparency 0; count_only a+b -> 14 with objects []; feature id expands to 7; face/curve/sketch records; after nx_set_display red/40 -> color 186, face transparency 40 (screenshot red, translucent). Rejects: empty list, unknown id. The schema layer coerces count_only='yes' to true (pydantic lax mode).",
+    "fixes": []
+  },
+  "nx_finish_preview": {
+    "verdict": "pass",
+    "evidence": "accept reapplied p1=12 -> volume 2400; second accept -> NX_PREVIEW_STALE; discard -> geometry_changed false, volume unchanged; intervening nx_set_expression then accept -> NX_PREVIEW_STALE, volume stays 1200; two-op preview accepted -> 1600 with 2 results; bogus id -> NX_PREVIEW_STALE; bad action -> schema error.",
+    "fixes": []
+  },
+  "nx_list_sections": {
+    "verdict": "pass",
+    "evidence": "New part: 0 sections, toggle off; after nx_section_view: 1 section origin [10,5,0], normal [1,0,0], active, cap, clip; after edit: origin [0,0,3], normal [0,0,1], cap false; disable -> view_sectioning_enabled false; delete -> count 0 (NX leaves the view toggle on; screenshot shows the full model).",
+    "fixes": []
+  },
+  "nx_preview_change": {
+    "verdict": "pass",
+    "evidence": "Block 20x10x5, p1 5 -> 12: before 1000, after 2400, model rolled back to 1000, camera unchanged, capture PNG 12066 bytes; capture=false -> null; two-op preview after 1600 with model unchanged. Rejects with volume unchanged: empty list, unsupported method, extra key, 26 ops, unknown expression (NX_NOT_FOUND), bad formula (NX_INVALID_FORMULA); a missing parameter was raw NX_API_ERROR (TypeError), now NX_INVALID_ARGUMENT.",
+    "fixes": [
+      "src/nx_mcp/review_tools.py: _preview_plan rejects malformed operations/params with NX_INVALID_ARGUMENT",
+      "tests/test_authoring_review.py: test_preview_rejects_malformed_operations_before_nx"
+    ]
+  },
+  "nx_restore_display": {
+    "verdict": "pass",
+    "evidence": "hide b -> restore -> b shown; out-of-order restore -> NX_RESTORE_ORDER; isolate -> restore; curve hide/show restored in reverse order (restoring show hides it again); whole sequence returns display_info identical to before; red/40 restore -> original color 129 / transparency 0; datum hide/show restored in order; reused or bogus id -> NX_DISPLAY_SNAPSHOT_STALE.",
+    "fixes": []
+  },
+  "nx_section_control": {
+    "verdict": "pass",
+    "evidence": "disable -> view_sectioning_enabled false (screenshot: uncut block), enable -> true, delete -> count 0, volume 2000 unchanged; deleted id -> NX_OBJECT_STALE; body id -> NX_OBJECT_TYPE_MISMATCH; bad action -> schema error.",
+    "fixes": []
+  },
+  "nx_section_view": {
+    "verdict": "pass",
+    "evidence": "Create origin [10,5,0], normal [2,0,0] -> normalized [1,0,0], retained negative side; second create without id -> NX_SECTION_EXISTS; edit by id to z=3, normal +z, cap false (screenshot: block cut at z=3, open top, curve clipped); volume unchanged 2000. Rejects: zero normal, 2D origin, blank name, body id as section.",
+    "fixes": []
+  },
+  "nx_set_datum_visibility": {
+    "verdict": "pass",
+    "evidence": "23 owned datums (planes, axes, csys incl. sketch csys): visible=false -> all blanked (screenshot: datum plane gone), visible=true -> all shown; restore_ids restore in reverse order (hidden, then shown). The schema coerces visible='no' to false.",
+    "fixes": []
+  },
+  "nx_set_visibility": {
+    "verdict": "pass",
+    "evidence": "hide b -> blanked (screenshot: only b's sketch remains); isolate a -> a shown, b blanked, curve untouched (warning given); curve hide/show; feature target hides its body. Rejects: face (NX_OBJECT_TYPE_MISMATCH), isolate of a curve, bad mode (schema).",
+    "fixes": []
+  },
+  "nx_view_info": {
+    "verdict": "pass",
+    "evidence": "Isometric fit: Trimetric view, orthonormal rotation (error 2.2e-16), scale 1.566, shaded_with_edges, interactive true; read-back equals nx_set_camera input exactly (rotation, origin, scale).",
+    "fixes": []
+  },
+  "nx_set_camera": {
+    "verdict": "pass",
+    "evidence": "Top (identity), origin [-20,-5,0], scale 3 -> screenshot centered on (20,5); front rows [[1,0,0],[0,0,-1],[0,1,0]] -> +Z up, centered on (20,0,5); read-back exact. The description said origin is the centered view-space point; NX uses its negation (origin [20,5,0] centered (-20,-5)), so the description was corrected. Rejects with view unchanged: left-handed, non-orthonormal, 2x3, 2D origin, scale 0 and -2.",
+    "fixes": [
+      "src/nx_mcp/authoring_server.py: nx_set_camera description states NX origin semantics (negated view-space center) and axis meaning",
+      "docs/tools.md: same correction"
+    ]
+  },
+  "nx_save_presentation": {
+    "verdict": "pass",
+    "evidence": "Saved blue body + yellow/30 top face + hidden b + x-section + front camera: 5582-byte JSON, 14 objects, sha256 returned. Rejects: existing path, .txt, path outside workspace (NX_PATH_OUTSIDE_WORKSPACE).",
+    "fixes": []
+  },
+  "nx_restore_presentation": {
+    "verdict": "pass",
+    "evidence": "After recoloring green, showing b, disabling the section and changing the camera: restore -> 14 objects, display_info identical, camera identical, section [10,5,0]/[1,0,0] active and enabled (screenshot matches the saved state). Other part active -> NX_OBJECT_OWNER_MISMATCH; outside workspace -> NX_PATH_OUTSIDE_WORKSPACE; missing file was raw NX_API_ERROR (WinError 2), now NX_NOT_FOUND; directory -> NX_NOT_FOUND.",
+    "fixes": [
+      "src/nx_mcp/review_tools.py: missing file -> NX_NOT_FOUND, invalid JSON or shape -> NX_INVALID_ARGUMENT",
+      "tests/test_authoring_review.py: test_presentation_file_problems_are_stable_errors"
+    ]
+  },
+  "nx_highlight_objects": {
+    "verdict": "pass",
+    "evidence": "Body + face + edge + curve highlighted (count 4; screenshot orange highlight); a second call replaces the set (clear afterwards reports 1); display_info unchanged. Rejects: empty list, unknown id.",
+    "fixes": []
+  },
+  "nx_clear_highlights": {
+    "verdict": "pass",
+    "evidence": "Clears only MCP highlights: 1 after a replace, then 0; screenshot back to normal colors; display_info unchanged.",
+    "fixes": []
+  }
+}
