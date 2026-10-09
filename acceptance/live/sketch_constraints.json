@@ -388,7 +388,7 @@
    "expression": "$dp.expression.name",
    "formula": "18"
   },
-  "intent": "Drive L2 to 18 mm from L1; the circle center follows the midpoint. (the sketch is still active: the curves follow when the sketch is finished)"
+  "intent": "Drive L2 to 18 mm from L1; the curves move when the sketch is finished"
  },
  {
   "tool": "nx_finish_sketch",
