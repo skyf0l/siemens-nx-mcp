@@ -1,8 +1,7 @@
 """Render evidence-scoped capability documentation without importing NX or the server.
 
-Two sources: the catalogue tools (``nx_mcp.core.catalogue``, stdlib only) with the
-acceptance runner's evidence in ``src/nx_mcp/evidence/*.json``, and the legacy tools
-that remain in the capability manifest until their domain migrates.
+The source is the catalogue (``nx_mcp.core.catalogue``, stdlib only) with the
+acceptance runner's evidence in ``src/nx_mcp/evidence/*.json``.
 """
 
 from __future__ import annotations
@@ -10,13 +9,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import runpy
 import sys
 from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GROUPS = ("Native-tested", "Contract/sidecar-tested", "Experimental", "Unavailable")
+GROUPS = ("Native-tested", "Experimental")
 
 
 def load_catalogue() -> list[dict]:
@@ -60,30 +58,6 @@ def catalogue_scope(row: dict) -> str:
     return "; ".join(parts) or "no acceptance evidence: hidden and refused in production"
 
 
-def load_manifest() -> dict:
-    """The full manifest (base plus capability_fragments) via nx_mcp.manifest, by path."""
-    return runpy.run_path(str(ROOT / "src/nx_mcp/manifest.py"))["load_manifest"]()
-
-
-def classification(entry: dict) -> str:
-    """Fail closed: a tested status alone never establishes native evidence."""
-    status = entry.get("status")
-    evidence = entry.get("evidence_type", "")
-    if status == "unavailable":
-        return "Unavailable"
-    if status != "tested":
-        return "Experimental"
-    if isinstance(evidence, str) and evidence.startswith("real_NX_"):
-        return "Native-tested"
-    if evidence in {
-        "local_contract_test",
-        "local_contract_tests",
-        "live_sidecar_and_contract_tests",
-    }:
-        return "Contract/sidecar-tested"
-    return "Experimental"
-
-
 def cell(value: object) -> str:
     return (
         str(value)
@@ -96,39 +70,22 @@ def cell(value: object) -> str:
     )
 
 
-def render(manifest: dict, catalogue: list[dict] | None = None) -> str:
-    catalogue = list(catalogue or [])
-    names = {row["name"] for row in catalogue}
-    legacy = {k: v for k, v in manifest["tools"].items() if k not in names}
-    canonical = json.dumps(
-        {"manifest": manifest, "catalogue": catalogue}, sort_keys=True, separators=(",", ":")
-    ).encode()
-    tools = legacy
-    counts = Counter(classification(entry) for entry in tools.values())
-    counts.update(catalogue_classification(row) for row in catalogue)
+def render(catalogue: list[dict]) -> str:
+    canonical = json.dumps({"catalogue": catalogue}, sort_keys=True, separators=(",", ":")).encode()
+    counts = Counter(catalogue_classification(row) for row in catalogue)
     lines = [
         "# Capability evidence matrix",
         "",
         "Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in "
-        "`src/nx_mcp/evidence/`, and for the remaining legacy tools from "
-        "`src/nx_mcp/capability_manifest.json` plus "
-        "`src/nx_mcp/capability_fragments/` (`nx_mcp.manifest.load_manifest()`); "
-        "do not edit this table by hand.",
+        "`src/nx_mcp/evidence/`; do not edit this table by hand.",
         "Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.",
         "",
-        f"Manifest revision: **{cell(manifest['revision'])}**. NX: **{cell(manifest['nx_version'])}**. "
-        f"Bridge protocol: **{cell(manifest['bridge_protocol'])}**.",
-        f"Canonical SHA-256 (manifest and catalogue evidence): `{hashlib.sha256(canonical).hexdigest()}`.",
+        f"Canonical SHA-256 (catalogue evidence): `{hashlib.sha256(canonical).hexdigest()}`.",
         "",
         "These labels report recorded evidence, not certification or independent verification of its claims. "
         "A catalogue tool is Native-tested when the acceptance runner recorded machine-checked "
-        "scenario evidence for an NX build (listed per variant); without it the tool is "
-        "Experimental, hidden from discovery and refused in production. "
-        "A legacy tool is Native-tested with manifest status `tested` and an evidence type beginning `real_NX_`; "
-        "only the stated scope and NX version are covered. Contract/sidecar-tested does not establish "
-        "native CAD correctness. Experimental includes untested entries and tested entries without a "
-        "recognized evidence type. Unavailable capabilities are explicitly recorded by the manifest; "
-        "absence from this matrix is not proof of availability or unavailability.",
+        "scenario evidence for an NX build (listed per variant); only that scope and build are "
+        "covered. Without it the tool is Experimental, hidden from discovery and refused in production.",
         "",
         "| Tool classification | Count |",
         "| --- | ---: |",
@@ -154,60 +111,20 @@ def render(manifest: dict, catalogue: list[dict] | None = None) -> str:
         lines.append("| " + " | ".join(cell(value) for value in values) + " |")
     if not catalogue:
         lines.append("| none | | | | |")
-    lines.extend(
-        [
-            "",
-            "## Legacy tools",
-            "",
-            "| Tool | Classification | Manifest status | Evidence type | Tested scope / caveat |",
-            "| --- | --- | --- | --- | --- |",
-        ]
-    )
-    for name, entry in sorted(tools.items()):
-        values = [
-            name,
-            classification(entry),
-            entry.get("status", "missing"),
-            entry.get("evidence_type", "not recorded"),
-            entry.get("scope", "not recorded"),
-        ]
-        lines.append("| " + " | ".join(cell(value) for value in values) + " |")
-    lines.extend(
-        [
-            "",
-            "## Explicitly unavailable capabilities",
-            "",
-            "These are capability names, separate from the tool counts above.",
-            "",
-        ]
-    )
-    lines.extend(f"- {cell(name)}" for name in sorted(manifest.get("unavailable", [])))
-    if not manifest.get("unavailable"):
-        lines.append("None recorded.")
-    lines.extend(["", "## Manifest limitations", ""])
-    lines.extend(f"- {cell(value)}" for value in manifest.get("limitations", []))
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--manifest",
-        type=Path,
-        help="render this single manifest file instead of the full load_manifest() view",
-    )
     parser.add_argument("--output", type=Path, default=ROOT / "docs/capability-matrix.md")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    manifest = (
-        json.loads(args.manifest.read_text(encoding="utf-8")) if args.manifest else load_manifest()
-    )
-    result = render(manifest, None if args.manifest else load_catalogue())
+    result = render(load_catalogue())
     if args.check:
         if not args.output.exists() or args.output.read_text(encoding="utf-8") != result:
             print(f"Capability matrix is stale: {args.output}; regenerate with this script.")
             return 1
-        print("Capability matrix matches the catalogue evidence and the manifest.")
+        print("Capability matrix matches the catalogue evidence.")
         return 0
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(result, encoding="utf-8", newline="\n")

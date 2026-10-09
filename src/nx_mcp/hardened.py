@@ -9,24 +9,15 @@ import contextlib
 import inspect
 import uuid
 
-from nx_mcp import (
-    assembly_documentation_server,
-    documentation_editing_server,
-    freeform_server,
-    manufacturing_server,
-    side_effects,
-)
+from nx_mcp import side_effects
 from nx_mcp.advanced_authoring import AdvancedAuthoringMixin
 from nx_mcp.annotation_updates import AnnotationUpdatesMixin
 from nx_mcp.assembly_documentation import AssemblyDocumentationMixin
 from nx_mcp.authoring import AuthoringMixin
-from nx_mcp.authoring_server import NON_MODEL as AUTHORING_NON_MODEL
-from nx_mcp.authoring_server import READ_ONLY as AUTHORING_READ_ONLY
 from nx_mcp.datum_features import DatumFeaturesMixin
 from nx_mcp.drawing_preferences import DrawingPreferencesMixin
 from nx_mcp.engineering import EngineeringMixin
 from nx_mcp.exploded_views import ExplodedViewsMixin
-from nx_mcp.feature_groups import server_modules as feature_group_modules
 from nx_mcp.freeform import FreeformMixin
 from nx_mcp.host import dispatch
 from nx_mcp.inspection import InspectionMixin
@@ -58,32 +49,6 @@ READ_ONLY: set[str] = set()
 NON_MODEL: set[str] = set()
 
 
-READ_ONLY.update(
-    AUTHORING_READ_ONLY
-    | freeform_server.READ_ONLY
-    | manufacturing_server.READ_ONLY
-    | assembly_documentation_server.READ_ONLY
-    | documentation_editing_server.READ_ONLY
-)
-NON_MODEL.update(
-    AUTHORING_NON_MODEL
-    | freeform_server.NON_MODEL
-    | manufacturing_server.NON_MODEL
-    | assembly_documentation_server.NON_MODEL
-    | documentation_editing_server.NON_MODEL
-)
-for _group in feature_group_modules():
-    READ_ONLY.update(_group.READ_ONLY)
-    NON_MODEL.update(_group.NON_MODEL)
-
-
-def _not_implemented(name):
-    def handler(**_params):
-        raise NXToolError("NX_NOT_IMPLEMENTED", f"{name} has a schema but no handler yet")
-
-    return handler
-
-
 class HardenedExecutor(
     DatumFeaturesMixin,
     DrawingPreferencesMixin,
@@ -112,19 +77,6 @@ class HardenedExecutor(
         self.store = OperationStore(self.workspace.root)
         self.store.recover(self.session_id)
         self._current_operation = None
-        for module in [freeform_server, manufacturing_server, assembly_documentation_server]:
-            for name in vars(module):
-                if name.startswith("nx_"):
-                    self._handlers[name] = getattr(self, "_" + name[3:])
-        for module in feature_group_modules():
-            for name in vars(module):
-                if name.startswith("nx_"):
-                    # A schema without its handler yet must not stop the host from
-                    # starting; test_feature_groups requires every handler to exist.
-                    self._handlers[name] = getattr(self, "_" + name[3:], _not_implemented(name))
-        for name, fn in vars(documentation_editing_server).items():
-            if name.startswith("nx_") and inspect.isfunction(fn):
-                self._handlers[name] = getattr(self, "_" + name[3:])
 
     @property
     def session(self):
@@ -183,7 +135,6 @@ class HardenedExecutor(
         handler = self._handlers.get(method)
         if handler is None:
             raise NXToolError("NX_TOOL_NOT_FOUND", method)
-        self._check_version_gate(method)
         try:
             inspect.signature(handler).bind(**params)
         except TypeError as e:
@@ -600,7 +551,6 @@ class HardenedExecutor(
         handler = self._handlers.get(method)
         if handler is None:
             raise NXToolError("NX_TOOL_NOT_FOUND", method)
-        self._check_version_gate(method)
         if not isinstance(params, dict):
             raise NXToolError("NX_INVALID_ARGUMENT", f"{method} parameters must be an object")
         try:
@@ -611,20 +561,6 @@ class HardenedExecutor(
 
     def _call_child(self, method, params):
         return self._child_handler(method, params)(**params)
-
-    def _check_version_gate(self, method):
-        """Refuse a tool disabled for this NX version before it can touch NX."""
-        from nx_mcp.manifest import load_manifest, unavailable_reason
-
-        if getattr(self, "_manifest_tools", None) is None:
-            self._manifest_tools = load_manifest()["tools"]
-        reason = unavailable_reason(self._manifest_tools.get(method, {}), self.nx_version)
-        if reason:
-            raise NXToolError(
-                "NX_UNAVAILABLE_ON_VERSION",
-                f"{method} is not available on NX {self.nx_version}: {reason}",
-                details={"nx_version": self.nx_version, "tool": method},
-            )
 
     def _drop_inherited_feature_errors(self, part, before):
         """Update new features that report errors once, dropping inherited messages.

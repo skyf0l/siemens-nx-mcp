@@ -11,7 +11,7 @@ from nx_mcp.bridge import (
     MainThreadDispatcher,
     default_descriptor_path,
 )
-from nx_mcp.contracts import NXToolError
+from nx_mcp.runtime import NXToolError
 
 pytestmark = pytest.mark.integration
 

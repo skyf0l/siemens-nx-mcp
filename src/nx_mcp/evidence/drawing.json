@@ -173,7 +173,7 @@
   "nx_export_drawing": {
     "v2406": {
       "checks": 29,
-      "recorded": "2026-10-09T14:15:14Z",
+      "recorded": "2026-10-09T16:57:53Z",
       "scenario": "acceptance/drawing/export_drawing.json",
       "scenario_sha256": "1b01be6b48506ecadbb8a320550a5b6ddc9b4dbd50bf5a7fb7f8161986ea871c",
       "source_sha256": "011d3ee84d9a1a5af49549d658c33ecabd11305ff0b9148cc1f06c7864d199a0",

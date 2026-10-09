@@ -1,17 +1,14 @@
-"""The MCP surface generated from the catalogue, with the legacy tools alongside.
+"""The MCP surface generated from the catalogue.
 
-``install(mcp, bridge, workspace, profile)`` runs after the legacy tools are
-registered on ``mcp`` (``certified.create_certified_server``) and replaces its
-``tools/list`` and ``tools/call`` handlers:
+``install(mcp, bridge, workspace, profile)`` replaces the ``tools/list`` and
+``tools/call`` handlers of the FastMCP server:
 
 - ``agent`` (default): the four gateways plus the core tools of tool-surface
   2.1 that exist in the catalogue;
-- ``full``: the gateways, every catalogue tool and every legacy tool.
+- ``full``: the gateways and every catalogue tool.
 
 Catalogue tools are listed from their specs (schema, docstring, MCP annotations
-from ``effect``) and dispatched through :class:`CatalogueProxy`. Legacy tools stay
-callable and discoverable in both profiles until their domain migrates. A
-catalogue or gateway name that collides with a legacy name stops the sidecar.
+from ``effect``) and dispatched through :class:`CatalogueProxy`.
 """
 
 from __future__ import annotations
@@ -22,12 +19,10 @@ from typing import Any
 from mcp.types import CallToolResult, Tool, ToolAnnotations
 from pydantic import ValidationError
 
-from nx_mcp import agent_surface
 from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import CatalogueError
 from nx_mcp.core.errors import NXError
-from nx_mcp.integration_server import REQUEST_INTENT
-from nx_mcp.sidecar import gateways, legacy, schema
+from nx_mcp.sidecar import artifacts, gateways, schema
 from nx_mcp.sidecar.proxy import CatalogueProxy, failure, result
 
 PROFILES = ("agent", "full")
@@ -53,15 +48,15 @@ AGENT_INSTRUCTIONS = (
     "nx_get_tool_schemas (1-10 names; 'tool#variant' for one variant), then call nx_invoke, or "
     "nx_invoke_read for read-only tools. Results carry ok, mutation_outcome and data, or error "
     "{category, code, retry, hint, field}. Put operation_id inside arguments for mutations you "
-    "may retry; after an unknown outcome query nx_get_operation before retrying. Rows marked "
-    "legacy are older tools with the previous result shape. Compact results keep result_id; "
+    "may retry; after an unknown outcome query nx_get_operation before retrying. "
+    "Compact results keep result_id; "
     "expand the omitted fields with nx_get_result. Never paste base64 file content into the conversation."
 )
-FULL_NOTE = (
-    " Catalogue tools return {ok, mutation_outcome, data | error}; legacy tools keep their "
-    "status-based results until migrated. nx_find_tools searches both. Every changing "
-    "catalogue tool takes operation_id (reuse it to retry safely) and intent (why, in the "
-    "engineer's terms; shown in the NX panel)."
+FULL_INSTRUCTIONS = (
+    "Siemens NX integration. Runtime support varies by NX version; no general certification "
+    "is claimed. Tools return {ok, mutation_outcome, data | error}. Every changing tool takes "
+    "operation_id (reuse it to retry safely) and intent (why, in the engineer's terms; shown "
+    "in the NX panel). File paths are workspace-relative or absolute inside the workspace."
 )
 
 
@@ -83,18 +78,12 @@ class Surface:
             raise ValueError("NX_MCP_SURFACE must be full or agent")
         self.mcp = mcp
         self.profile = profile
-        self.legacy_call = mcp.call_tool  # the uniform legacy proxy
-        self.legacy_list = mcp.list_tools
-        self.helpers = agent_surface.install(mcp, workspace)
         self.specs = dict(catalogue.load())
-        self.legacy = legacy.registry(mcp)
-        clashes = sorted((set(self.specs) | set(gateways.NAMES)) & set(self.legacy))
+        clashes = sorted(set(self.specs) & set(gateways.NAMES))
         if clashes:
-            raise CatalogueError(
-                "catalogue or gateway names collide with legacy tools (delete the legacy "
-                "tool in the migrating change): " + ", ".join(clashes)
-            )
-        self.proxy = CatalogueProxy(bridge, workspace, self.helpers.store, build=build)
+            raise CatalogueError("catalogue tools collide with gateways: " + ", ".join(clashes))
+        store = artifacts.install(mcp, workspace)
+        self.proxy = CatalogueProxy(bridge, workspace, store, build=build)
         self.entries = [
             gateways.Entry(
                 s.name,
@@ -105,16 +94,6 @@ class Surface:
                 keywords=s.keywords,
             )
             for s in self.specs.values()
-        ] + [
-            gateways.Entry(
-                t.name,
-                effect=t.effect,
-                domain=t.domain,
-                label="",
-                description=t.description,
-                legacy=True,
-            )
-            for t in self.legacy.values()
         ]
 
     # -- listing ---------------------------------------------------------------
@@ -147,20 +126,13 @@ class Surface:
         else:
             listed = sorted(self.specs.values(), key=lambda s: s.name)
         tools += [self.catalogue_tool(s) for s in listed if self.proxy.visible(s)]
-        if self.profile == "full":
-            tools += await self.legacy_list()
         return tools
-
-    def added_names(self) -> set[str]:
-        """Names this surface adds to the legacy manifest tools."""
-        return {*gateways.NAMES, *self.specs}
 
     # -- dispatch --------------------------------------------------------------
 
     def known(self) -> set[str]:
         return {
             *(s for s, spec in self.specs.items() if self.proxy.visible(spec)),
-            *self.legacy,
             *gateways.NAMES,
         }
 
@@ -176,20 +148,8 @@ class Surface:
         spec = self.specs.get(name)
         if spec is not None and self.proxy.visible(spec):
             return await self.proxy.call(spec, arguments, intent=intent, detail=detail)
-        tool = self.legacy.get(name)
-        if tool is None:
-            error = gateways.unknown_tool(name, self.known(), field=None if direct else "/tool")
-            return result(failure(str(name), error, "not_started"))
-        if direct and self.profile == "full":
-            return await self.legacy_call(name, arguments)
-        params = {**agent_surface.DEFAULTS.get(name, {}), **arguments}
-        if detail == "full":
-            params = arguments
-        token = REQUEST_INTENT.set(" ".join(intent.split()) if intent else None)
-        try:
-            return self.helpers.present(await self.legacy_call(name, params), detail, name)
-        finally:
-            REQUEST_INTENT.reset(token)
+        error = gateways.unknown_tool(name, self.known(), field=None if direct else "/tool")
+        return result(failure(str(name), error, "not_started"))
 
     async def _gateway(self, name, arguments) -> CallToolResult:
         try:
@@ -236,22 +196,22 @@ class Surface:
         spec = self.specs.get(name)
         if spec is not None and self.proxy.visible(spec):
             return spec.effect
-        tool = self.legacy.get(name)
-        return tool.effect if tool is not None else None
+        return None
 
     # -- gateways --------------------------------------------------------------
 
     def _visible_entries(self):
-        return [e for e in self.entries if e.legacy or self.proxy.visible(self.specs[e.name])]
+        return [e for e in self.entries if self.proxy.visible(self.specs[e.name])]
 
     def row(self, entry) -> dict[str, Any]:
-        row: dict[str, Any] = {"name": entry.name, "summary": entry.summary, "effect": entry.effect}
-        if entry.legacy:
-            row["legacy"] = True  # The legacy domain is a guess; filter by it, not shown.
-        else:
-            row["domain"] = entry.domain
-            if not self.proxy.tested(self.specs[entry.name]):
-                row["tested"] = False
+        row: dict[str, Any] = {
+            "name": entry.name,
+            "summary": entry.summary,
+            "effect": entry.effect,
+            "domain": entry.domain,
+        }
+        if not self.proxy.tested(self.specs[entry.name]):
+            row["tested"] = False
         return row
 
     def _find(self, request) -> CallToolResult:
@@ -310,24 +270,7 @@ class Surface:
             if include_output:
                 out["output_schema"] = schema.output_schema(spec)
             return out
-        tool = self.legacy.get(base)
-        if tool is None or variant:
-            return None
-        out = {
-            "name": name,
-            "description": tool.description,
-            "effect": tool.effect,
-            "input_schema": tool.input_schema,
-            "legacy": True,
-        }
-        reviewed = agent_surface_guidance(tool.tool)
-        if reviewed:
-            out.update(reviewed)
-        if agent_surface.DEFAULTS.get(name):
-            out["compact_defaults"] = agent_surface.DEFAULTS[name]
-        if include_output and tool.output_schema:
-            out["output_schema"] = tool.output_schema
-        return out
+        return None
 
     def _schemas(self, request) -> CallToolResult:
         tools, missing = [], []
@@ -363,19 +306,6 @@ class Surface:
         )
 
 
-def agent_surface_guidance(tool) -> dict[str, Any]:
-    """Reviewed prerequisites and a minimal example of a legacy tool, if any."""
-    from nx_mcp.agent_guidance import GUIDANCE
-
-    reviewed = GUIDANCE.get(tool.name)
-    if not reviewed:
-        return {}
-    out: dict[str, Any] = {"prerequisites": reviewed[0]}
-    if reviewed[2]:
-        out["example"] = reviewed[2]
-    return out
-
-
 def profile_from_env(surface: str | None) -> str:
     profile = surface or os.environ.get("NX_MCP_SURFACE") or "agent"
     if profile not in PROFILES:
@@ -390,9 +320,6 @@ def install(mcp, bridge, workspace, profile: str, *, build=None) -> Surface:
     mcp.list_tools = surface.list_tools
     mcp._mcp_server.call_tool(validate_input=False)(surface.call_tool)
     mcp._mcp_server.list_tools()(surface.list_tools)
-    if profile == "agent":
-        mcp._mcp_server.instructions = AGENT_INSTRUCTIONS
-    else:
-        mcp._mcp_server.instructions = (mcp._mcp_server.instructions or "") + FULL_NOTE
+    mcp._mcp_server.instructions = AGENT_INSTRUCTIONS if profile == "agent" else FULL_INSTRUCTIONS
     mcp.nx_surface = surface
     return surface

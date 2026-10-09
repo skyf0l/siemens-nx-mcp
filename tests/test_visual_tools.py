@@ -2,7 +2,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.runtime import NXToolError
 from nx_mcp.visual_tools import unit_normal
 
@@ -21,8 +20,6 @@ async def test_display_tools_are_catalogue_tools_and_legacy_ones_are_gone(tmp_pa
 
     server = create_server(SimpleNamespace(), Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
-    legacy = set(tools) - server.nx_surface.added_names()
-    assert len(legacy) == len(MANIFEST["tools"])
     assert tools["nx_set_visibility"].inputSchema["properties"]["mode"]["enum"] == [
         "show",
         "hide",

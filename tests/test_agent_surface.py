@@ -5,31 +5,12 @@ from unittest.mock import AsyncMock
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.agent_surface import ResultStore, compact
 from nx_mcp.core import catalogue
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
+from nx_mcp.sidecar.artifacts import ResultStore
 from nx_mcp.sidecar.server import CORE_TOOLS
 from nx_mcp.workspace import Workspace
-
-
-def test_projection_preserves_identity_warnings_and_marks_truncation():
-    omitted = {}
-    ref = {
-        "id": "opaque",
-        "kind": "component",
-        "part_id": "owner",
-        "occurrence_path": "root/child",
-        "journal_id": "long",
-    }
-    value = compact(
-        {"objects": [ref] * 25, "warnings": ["w"] * 30, "data_base64": "secret"}, omitted=omitted
-    )
-    assert len(value["objects"]) == 20 and len(value["warnings"]) == 30
-    assert value["objects"][0]["occurrence_path"] == "root/child"
-    assert "journal_id" not in value["objects"][0]
-    assert "data_base64" not in value and omitted["/objects"]["total_count"] == 25
 
 
 def test_snapshot_persistence_and_path_rejection(tmp_path):
@@ -119,7 +100,7 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
         extra = len(gateways.NAMES) + len(readable)
         core = [n for n in CORE_TOOLS if n in {s.name for s in readable}]
         agent = len(gateways.NAMES) + len(core)
-        for path, count in [("/mcp", len(MANIFEST["tools"]) + extra), ("/agent/mcp", agent)]:
+        for path, count in [("/mcp", extra), ("/agent/mcp", agent)]:
             response = client.post(
                 path,
                 headers={"Accept": "application/json, text/event-stream"},
@@ -161,25 +142,3 @@ async def test_gateway_rejects_ignored_top_level_arguments(tmp_path):
         },
     )
     assert result.isError and not bridge.call.called
-
-
-def test_benchmark_uses_shared_projection_and_exposes_usage_limitations():
-    import runpy
-    from pathlib import Path
-    from types import SimpleNamespace
-
-    script = runpy.run_path(
-        str(Path(__file__).resolve().parents[1] / "scripts/benchmark_agent_surface.py")
-    )
-    encoding = SimpleNamespace(name="test", encode=lambda value, **kwargs: list(value))
-    result = script["benchmark"](
-        [
-            {"state": "submitted"},
-            {"state": "response", "result": {"status": "success", "data_base64": "x" * 10000}},
-        ],
-        encoding,
-    )
-    assert result["recorded_calls"] == 1 and result["binary_transfer_calls"] == 1
-    assert result["compact_response_tokens"] < result["full_response_tokens"]
-    assert result["provider_input_tokens"] == "unavailable"
-    assert result["model_calls"] == 0

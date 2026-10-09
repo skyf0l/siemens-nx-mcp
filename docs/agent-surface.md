@@ -73,22 +73,6 @@ responses are available through `nx_invoke(detail="full")` for such clients;
 compact text excludes binary data. Snapshot detail can contain original binary
 fields: do not request these into model context.
 
-## Measuring efficiency
-
-Install the `benchmark` extra and run `scripts/benchmark_agent_surface.py` on an
-operations JSONL transcript. It measures exact tokens under the named tokenizer,
-not character estimates. Full and compact projections use the same recorded
-native tasks. Reports explicitly exclude duplicate transport text, image tokens,
-discovery and extra expansion calls. They are **not an autonomous-agent A/B
-benchmark or a provider bill**. Optional observed usage JSON can be attached;
-missing provider input/cache/output usage remains `unavailable`.
-
-For a real agent comparison, run the same exploded drawing, sheet-metal tray and
-imported-part edit tasks with fresh sessions on each profile. Record every
-model's provider input/cached/output usage, discovery calls, expansions, retries,
-artifact handling, and native task assertions. Sum all workers and repairs.
-Do not claim total token savings from response projection alone.
-
 ## Reviewed discovery and task receipts (dev18)
 
 Exact-schema discovery also returns prerequisites, supported object kinds and a

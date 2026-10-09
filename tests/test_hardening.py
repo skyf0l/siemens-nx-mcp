@@ -169,31 +169,13 @@ def test_new_feature_inheriting_a_rolled_back_error_is_updated_once(executor):
     assert old.errors == ["old error"] and inherited.errors == []
 
 
-def test_tool_disabled_for_this_nx_version_is_refused_before_nx(executor):
-    executor.nx_version = "v2406"
-    executor._manifest_tools = {"nx_test_mutate": {"unavailable_on": {"v2406": "API missing"}}}
-    with pytest.raises(NXToolError) as error:
-        executor.execute("nx_test_mutate", {"value": 1})
-    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION"
-    assert "API missing" in error.value.message
-    assert executor.session.values == [] and not executor.session.marks
-    executor.nx_version = "v2606"
-    assert executor.execute("nx_test_mutate", {"value": 1})["values"] == [1]
+def test_native_license_failures_get_a_stable_code():
+    from nx_mcp.runtime import api_error
 
+    class NXException(Exception):
+        ErrorCode = 948801
 
-def test_capabilities_report_version_disabled_tools_as_unavailable():
-    from nx_mcp.manifest import scope_to_version
-
-    manifest = {
-        "tools": {
-            "a": {"status": "tested", "verified_versions": ["v2406"], "unavailable_on": {}},
-            "b": {
-                "status": "tested",
-                "verified_versions": ["v2606"],
-                "unavailable_on": {"v2406": "x"},
-            },
-        }
-    }
-    tools = scope_to_version(manifest, "v2406")["tools"]
-    assert tools["a"]["status"] == "tested"
-    assert tools["b"]["status"] == "unavailable" and "x" in tools["b"]["scope"]
+    error = api_error(NXException("License Error"))
+    assert error.code == "NX_LICENSE_UNAVAILABLE" and error.nx_code == 948801
+    NXException.ErrorCode = 1
+    assert api_error(NXException("other")).code == "NX_API_ERROR"

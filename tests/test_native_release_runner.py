@@ -71,24 +71,26 @@ def expected_tool_count(script: Path) -> int:
     return namespace["EXPECTED_TOOL_COUNT"]
 
 
-def registered_tool_count(tmp_path) -> int:
+def registered_tool_count(tmp_path, monkeypatch) -> int:
+    import asyncio
     from unittest.mock import AsyncMock
 
     from nx_mcp.server import create_server
     from nx_mcp.workspace import Workspace
 
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # every catalogue tool is listed
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
-    return len(server._tool_manager._tools)
+    return len(asyncio.run(server.list_tools()))
 
 
-def test_native_suites_accept_runner_profile_count(tmp_path):
-    """Every release script expects exactly the tools the server registers.
+def test_native_suites_accept_runner_profile_count(tmp_path, monkeypatch):
+    """Every release script expects exactly the tools the full profile lists.
 
-    The count includes capability_fragments (load_manifest), not only
-    capability_manifest.json, and an added tool must not strand a suite on a literal.
+    The count comes from the catalogue (scripts/public_tool_count.py), so an added
+    tool must not strand a suite on a literal.
     """
     root = Path(__file__).resolve().parents[1]
-    registered = registered_tool_count(tmp_path)
+    registered = registered_tool_count(tmp_path, monkeypatch)
     scripts = [root / "scripts/accept_release.py", root / "scripts/validate_native_release.py"]
     scripts += [
         root / "acceptance" / f"validate_{name}.py"

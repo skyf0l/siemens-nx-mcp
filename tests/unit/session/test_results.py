@@ -4,9 +4,9 @@ import os
 import time
 from unittest.mock import AsyncMock
 
-from nx_mcp.agent_surface import ResultStore
 from nx_mcp.domains.session import results as rs
 from nx_mcp.result_transport import bound_result
+from nx_mcp.sidecar.artifacts import ResultStore
 from nx_mcp.sidecar.proxy import CatalogueProxy
 from nx_mcp.workspace import Workspace
 from tests.unit.parts_files.support import side

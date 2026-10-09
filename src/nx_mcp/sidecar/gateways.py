@@ -2,8 +2,8 @@
 
 - ``nx_find_tools``: ranked search. Every query word must match after simple
   stemming and synonym expansion; a word matching the name outranks keywords,
-  which outrank the label/summary, which outrank the description. Legacy tools
-  are listed below catalogue tools and marked ``legacy``; an exact name wins.
+  which outrank the label/summary, which outrank the description; an exact name
+  wins.
 - ``nx_get_tool_schemas``: input schema, example, prerequisites and evidence for
   1-10 tools or variants (``nx_create_datum_plane#offset``).
 - ``nx_invoke``: call any tool; ``intent`` is shown in the NX panel.
@@ -19,7 +19,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from nx_mcp.core.catalogue import DOMAINS, EFFECTS, first_sentence
+from nx_mcp.core.catalogue import DOMAINS, EFFECTS
 from nx_mcp.core.errors import NXError
 from nx_mcp.sidecar import schema
 
@@ -62,14 +62,13 @@ def words(text: str) -> list[str]:
 
 
 class Entry:
-    """One searchable tool: a catalogue spec or a legacy pseudo-spec."""
+    """One searchable catalogue tool."""
 
-    def __init__(self, name, *, effect, domain, label, description, keywords=(), legacy=False):
+    def __init__(self, name, *, effect, domain, label, description, keywords=()):
         self.name = name
         self.effect = effect
         self.domain = domain
-        self.legacy = legacy
-        self.summary = _clip(first_sentence(description) if legacy else label, SUMMARY_CHARS)
+        self.summary = _clip(label, SUMMARY_CHARS)
         self.description = description
         self.fields = {
             "name": set(words(name.removeprefix("nx_"))),
@@ -112,11 +111,11 @@ def search(entries, query: str, domain=None, effect=None) -> list:
         if (domain and entry.domain != domain) or (effect and entry.effect != effect):
             continue
         if entry.name == exact:
-            ranked.append(((0, 0, 0), entry))
+            ranked.append(((0, 0), entry))
             continue
         score = entry.score(query_words)
         if score is not None:
-            ranked.append(((1, int(entry.legacy), -score), entry))
+            ranked.append(((1, -score), entry))
     ranked.sort(key=lambda item: (item[0], item[1].name))
     return [entry for _, entry in ranked]
 
@@ -194,7 +193,7 @@ MODELS = {
 DESCRIPTIONS = {
     "nx_find_tools": (
         "Search NX tools by task words; every word must match (synonyms count: fillet finds "
-        "blend). Rows: name, summary, effect, domain; legacy rows are older tools. Then fetch "
+        "blend). Rows: name, summary, effect, domain. Then fetch "
         "schemas with nx_get_tool_schemas and call nx_invoke."
     ),
     "nx_get_tool_schemas": (

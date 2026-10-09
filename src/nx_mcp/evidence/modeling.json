@@ -97,7 +97,7 @@
   "nx_create_extrude": {
     "v2406": {
       "checks": 36,
-      "recorded": "2026-10-09T15:33:03Z",
+      "recorded": "2026-10-09T16:57:15Z",
       "scenario": "acceptance/modeling/extrude.json",
       "scenario_sha256": "21d745d96dbba12f7fd42526786fbcd87206809898a6011530550de5f1e9d516",
       "source_sha256": "9cd568b922c3717ea8658d6b1cf285b85fc5eb84428ccb83338a8963be6baade",

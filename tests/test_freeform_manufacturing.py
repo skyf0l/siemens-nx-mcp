@@ -1,6 +1,5 @@
 """Boundary/cleanup regressions; native geometry evidence is kept separately."""
 
-import inspect
 import math
 import sys
 from types import SimpleNamespace as NS
@@ -8,8 +7,6 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from nx_mcp import assembly_documentation_server, freeform_server, manufacturing_server
-from nx_mcp.hardened import READ_ONLY
 from nx_mcp.legacy_kit import points3
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Face, Feature, Object, point
@@ -64,18 +61,6 @@ def ff(rig, monkeypatch):
     r.e._model_health = Mock(return_value={"healthy": True, "issues": []})
     r.ref = lambda o, kind: r.e._reference(o, kind, r.part, kind)["id"]
     return r
-
-
-def test_new_contracts_match_native_handlers(rig):
-    for module in [freeform_server, manufacturing_server, assembly_documentation_server]:
-        for name, function in vars(module).items():
-            if name.startswith("nx_") and inspect.isfunction(function):
-                assert name in rig.e._handlers
-                assert (
-                    inspect.signature(function).parameters.keys()
-                    == inspect.signature(rig.e._handlers[name]).parameters.keys()
-                )
-        assert module.READ_ONLY <= READ_ONLY
 
 
 @pytest.mark.parametrize("value", [[], [[0, 1]], [[0, 0, math.inf]], [[True, 0, 0]], "points"])

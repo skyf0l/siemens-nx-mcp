@@ -15,7 +15,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-benchmark = ["tiktoken>=0.12,<1"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
@@ -90,7 +89,5 @@ ignore_missing_imports = true
 
 [tool.setuptools.package-data]
 nx_mcp = [
-    "capability_manifest.json",
-    "capability_fragments/*.json",
     "evidence/*.json",
 ]

@@ -1,19 +1,16 @@
 # Capability evidence matrix
 
-Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`, and for the remaining legacy tools from `src/nx_mcp/capability_manifest.json` plus `src/nx_mcp/capability_fragments/` (`nx_mcp.manifest.load_manifest()`); do not edit this table by hand.
+Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Manifest revision: **2606-manufacturing-r1**. NX: **v2606**. Bridge protocol: **1**.
-Canonical SHA-256 (manifest and catalogue evidence): `453a010ebbadee53163affca4eb03c0ad22a298c73f84c20c0d4b2a21fbcec06`.
+Canonical SHA-256 (catalogue evidence): `defe77037e47c873306dbd715fdefb9ff68d21f53a9c353c5647c2bbb8fc8745`.
 
-These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); without it the tool is Experimental, hidden from discovery and refused in production. A legacy tool is Native-tested with manifest status `tested` and an evidence type beginning `real_NX_`; only the stated scope and NX version are covered. Contract/sidecar-tested does not establish native CAD correctness. Experimental includes untested entries and tested entries without a recognized evidence type. Unavailable capabilities are explicitly recorded by the manifest; absence from this matrix is not proof of availability or unavailability.
+These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
 | Native-tested | 147 |
-| Contract/sidecar-tested | 0 |
 | Experimental | 1 |
-| Unavailable | 0 |
 
 ## Catalogue tools
 
@@ -167,31 +164,3 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_update_assembly | Native-tested | assembly | model | v2406: tested; 19 checks in acceptance/assembly/update_assembly.json |
 | nx_update_model | Native-tested | modeling | model | v2406: tested; 7 checks in acceptance/modeling/update_model.json |
 | nx_upload_file | Native-tested | parts_files | file | v2406: tested; 28 checks in acceptance/parts_files/upload_file.json |
-
-## Legacy tools
-
-| Tool | Classification | Manifest status | Evidence type | Tested scope / caveat |
-| --- | --- | --- | --- | --- |
-
-## Explicitly unavailable capabilities
-
-These are capability names, separate from the tool counts above.
-
-- batch_model_viewport_image
-- union_of_all_pairwise_interference_volumes
-
-## Manifest limitations
-
-- No general certification
-- Native save expires undo marks
-- Checkpoint recovery does not survive NX process restart
-- Exact bounds require axis-aligned WCS
-- Assembly import can conflict with loaded STEP prototype names
-- Modified-object tracking is explicit-only; null means not comprehensive
-- Batch structural preflight is not a geometric dry run
-- Cooperative cancellation happens between operations only
-- Absolute placement currently supports immediate children
-- MCP desktop clients must refresh tool schemas after deployment
-- CLIFF vendor STEP conversion still returns no bodies with NX v2606 translators; logs and rolled-back new-part outcome are returned. No vendor-geometry repair is claimed.
-- Adam Tech vendor geometry has two self-intersecting faces (875315); health diagnostics resolve faces and error text. Native healing failed on a disposable copy and was rolled back.
-- Drawing centerline visibility is inspectable but not writable: the tested native setter did not persist.

@@ -11,20 +11,19 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from nx_mcp.bridge import DescriptorBridgeClient
-from nx_mcp.certified import BridgeCaller, create_certified_server
 from nx_mcp.workspace import Workspace
 
 logger = logging.getLogger("nx_mcp")
 
 
 def create_server(
-    bridge: BridgeCaller | None = None,
+    bridge=None,
     workspace: Workspace | None = None,
     *,
     surface: str | None = None,
     build=None,
 ) -> FastMCP:
-    """Create the MCP server: catalogue tools, gateways and the legacy tools.
+    """Create the MCP server: the gateways and the catalogue tools.
 
     ``surface`` (or ``NX_MCP_SURFACE``) selects the profile, ``agent`` by default.
     ``build`` overrides the NX build read from the bridge descriptor (tests).
@@ -39,7 +38,7 @@ def create_server(
         )
     profile = profile_from_env(surface)
     bridge = bridge or DescriptorBridgeClient()
-    server = create_certified_server(bridge, workspace)
+    server = FastMCP("nx-mcp")
     install(server, bridge, workspace, profile, build=build)
     return server
 

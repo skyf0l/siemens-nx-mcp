@@ -1,9 +1,7 @@
 """Token budgets of the listings (tool-surface 2.2, architecture.md 6), at 3.8 chars/token.
 
 The caps are on what an agent reads: the ``tools/list`` payload of each profile, one
-``nx_find_tools`` page and ``nx_get_tool_schemas`` per tool. During migration the
-``full`` listing still carries the legacy tools, so its cap applies to the catalogue
-part and the legacy part may only shrink (architecture.md section 4, F3 notes).
+``nx_find_tools`` page and ``nx_get_tool_schemas`` per tool.
 """
 
 import json
@@ -25,7 +23,6 @@ AGENT_LISTING = 15_000
 # The earlier 110,000 left the call keys out. The full profile is opt-in, for clients
 # that index tools and load schemas on demand; the default agent profile keeps 15,000.
 FULL_CATALOGUE = 125_000
-LEGACY_TODAY = 218_951  # tool-surface 2.2: the legacy full listing before F3
 FIND_PAGE = 1_400
 SCHEMA_PER_TOOL = 900
 MEDIAN_DEFINITION = 700
@@ -66,15 +63,11 @@ async def test_agent_profile_listing_fits_its_budget(tmp_path, every_tool_tested
     assert size <= AGENT_LISTING
 
 
-async def test_full_listing_catalogue_part_and_legacy_part(tmp_path, every_tool_tested):
-    server = make(tmp_path, "full")
-    tools = await server.list_tools()
-    added = server.nx_surface.added_names()
-    catalogue_part = sum(definition(t) for t in tools if t.name in added)
-    legacy_part = sum(definition(t) for t in tools if t.name not in added)
-    print(f"full listing: catalogue {catalogue_part}, legacy {legacy_part} chars")
-    assert catalogue_part <= FULL_CATALOGUE
-    assert legacy_part <= LEGACY_TODAY
+async def test_full_listing_fits_its_budget(tmp_path, every_tool_tested):
+    tools = await make(tmp_path, "full").list_tools()
+    size = sum(definition(t) for t in tools)
+    print(f"full listing: {size} chars")
+    assert size <= FULL_CATALOGUE
 
 
 def own_definition(spec) -> int:

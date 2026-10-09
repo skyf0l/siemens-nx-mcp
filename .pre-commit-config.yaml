@@ -33,11 +33,11 @@ repos:
   - repo: local
     hooks:
       - id: capability-matrix
-        name: capability matrix matches catalogue evidence and manifest
+        name: capability matrix matches catalogue evidence
         entry: python scripts/generate_capability_matrix.py --check
         language: system
         pass_filenames: false
-        files: ^(src/nx_mcp/capability_manifest\.json|src/nx_mcp/capability_fragments/.*\.json|src/nx_mcp/manifest\.py|src/nx_mcp/evidence/.*\.json|src/nx_mcp/domains/.*\.py|scripts/generate_capability_matrix\.py|docs/capability-matrix\.md)$
+        files: ^(src/nx_mcp/evidence/.*\.json|src/nx_mcp/domains/.*\.py|scripts/generate_capability_matrix\.py|docs/capability-matrix\.md)$
       - id: pytest
         name: pytest (non-real-NX)
         entry: python -m pytest -q -p no:cacheprovider -m "not real_nx"

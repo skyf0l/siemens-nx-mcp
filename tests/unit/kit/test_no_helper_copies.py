@@ -38,9 +38,6 @@ ALLOWLIST = {
         "authoring.py",
         "page",
     ): "legacy page shape {items,total,...}; kit.result.page replaces it per domain",
-    ("request_summary.py", "_number"): "panel text formatter, not a validator",
-    ("request_summary.py", "_tolerance"): "panel text formatter, not a tolerance",
-    ("request_summary.py", "_scale"): "panel text formatter, not vector scaling",
 }
 
 

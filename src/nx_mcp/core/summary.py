@@ -11,6 +11,7 @@ from __future__ import annotations
 import string
 import typing
 from collections.abc import Callable, Mapping
+from pathlib import Path
 
 from nx_mcp.core.types import PathArg, Quantity, RefKind, format_quantity, parse_quantity
 from nx_mcp.core.validate import is_union, unwrap
@@ -74,6 +75,24 @@ class _Say:
         if isinstance(value, (int, float)):
             return _number(value)
         return str(value)
+
+
+def humanize(method: str) -> str:
+    """Panel line of a call without a catalogue spec: nx_list_objects -> List objects."""
+    words = method.removeprefix("nx_").replace("_", " ").strip()
+    return words[:1].upper() + words[1:] if words else method
+
+
+def relative_path(root: Path) -> Callable[[str], str]:
+    """Show workspace paths relative to the workspace root, others unchanged."""
+
+    def show(path: str) -> str:
+        try:
+            return Path(path).resolve().relative_to(root.resolve()).as_posix()
+        except (ValueError, OSError):
+            return path
+
+    return show
 
 
 def _clip(text: str) -> str:

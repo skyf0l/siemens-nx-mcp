@@ -1511,28 +1511,17 @@ class InteractiveHost:
         self.waiting_intent = None
 
     def _summarize(self, method, params):
-        from nx_mcp.request_summary import humanize, relative_path, summarize
+        from nx_mcp.core.summary import humanize, relative_path
 
-        try:
-            units = self.executor._units()
-        except Exception:
-            units = None
         try:
             from nx_mcp.host.dispatch import render_summary
 
             line = render_summary(self.executor, method, params, path_of=relative_path(self.root))
             if line is not None:
                 return line
-            return summarize(
-                method,
-                params,
-                name_of=self.executor.objects.display_name,
-                path_of=relative_path(self.root),
-                units=units,
-            )
         except Exception:
-            # A summary is a courtesy; it must never stop a request from waiting.
-            return humanize(method)
+            pass  # A summary is a courtesy; it must never stop a request from waiting.
+        return humanize(method)
 
     def _nx_application_ready(self):
         """True once NX runs an application with at least one part loaded."""

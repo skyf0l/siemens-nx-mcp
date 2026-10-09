@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from nx_mcp.contracts import NXToolError
 from nx_mcp.nx_bridge import NXOpenExecutor, start_bridge, stop_bridge
+from nx_mcp.runtime import NXToolError
 from nx_mcp.workspace import Workspace
 
 pytestmark = [pytest.mark.integration, pytest.mark.fake_nx]

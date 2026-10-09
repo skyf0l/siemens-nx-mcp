@@ -21,14 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
-# The public tool count is the full manifest's (capability_manifest.json plus
-# capability_fragments), via this checkout's nx_mcp.manifest.load_manifest() loaded
-# by path so the installed package under test is not shadowed: one source of truth.
-EXPECTED_TOOL_COUNT = len(
-    runpy.run_path(str(Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "manifest.py"))[
-        "load_manifest"
-    ]()["tools"]
-)
+# The public tool count: what the full profile lists in development mode, from this
+# checkout's catalogue (scripts/public_tool_count.py, loaded by path): one source of truth.
+EXPECTED_TOOL_COUNT = runpy.run_path(
+    str(Path(__file__).resolve().parents[1] / "scripts" / "public_tool_count.py")
+)["count"]()
 
 
 def now():

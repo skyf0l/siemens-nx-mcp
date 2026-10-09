@@ -1,14 +1,12 @@
 """Sidecar error codes must tell an agent whether a call may have run in NX."""
 
 import asyncio
-import types
 from unittest.mock import AsyncMock
 
 import pytest
 
 from nx_mcp import bridge as bridge_module
 from nx_mcp.bridge import CLIENT_TIMEOUT, DISPATCHER_TIMEOUT, BridgeClient, MainThreadDispatcher
-from nx_mcp.integration_server import tool_definitions
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -114,21 +112,3 @@ async def test_agent_invoke_unknown_tool_is_tool_not_found(tmp_path):
     error = payload(await server.call_tool("nx_no_such_tool_at_all", {}))
     assert error["error"]["code"] == "NX_UNKNOWN_TOOL"
     bridge.call.assert_not_called()
-
-
-# ---- 6. one schema per tool ----
-def test_duplicate_tool_definitions_are_rejected(tmp_path):
-    def nx_twice():
-        pass
-
-    def nx_twice_again():
-        pass
-
-    first = types.ModuleType("first")
-    second = types.ModuleType("second")
-    first.nx_twice, second.nx_twice = nx_twice, nx_twice_again
-    with pytest.raises(RuntimeError, match="nx_twice is defined twice"):
-        tool_definitions([first, second])
-    # A re-export of the same function is one definition.
-    second.nx_twice = nx_twice
-    assert tool_definitions([first, second]) == {"nx_twice": nx_twice}

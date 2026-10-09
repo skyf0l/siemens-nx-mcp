@@ -3,10 +3,10 @@ from pathlib import Path
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.certified import CERTIFIED_TOOL_NAMES
-from nx_mcp.contracts import NXToolError
+from nx_mcp.core import catalogue
+from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
+from nx_mcp.sidecar import gateways
 from nx_mcp.workspace import Workspace
 
 pytestmark = pytest.mark.integration
@@ -39,9 +39,7 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
     async with create_connected_server_and_client_session(server) as client:
         names = {tool.name for tool in (await client.list_tools()).tools}
 
-    names -= server.nx_surface.added_names()  # Gateways, catalogue and helper tools.
-    assert names == set(MANIFEST["tools"]) == set()  # every legacy tool is migrated
-    assert not CERTIFIED_TOOL_NAMES
+    assert names <= {*gateways.NAMES, *catalogue.load()}  # only gateways and catalogue tools
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 
@@ -115,8 +113,6 @@ async def test_tools_publish_strict_input_and_output_schemas(monkeypatch):
     assert {"principal", "on", "path"} <= {k for b in placement["anyOf"] for k in b["properties"]}
     assert tools["nx_create_extrude"].inputSchema["required"] == ["sketch", "end"]
     assert all(tool.inputSchema.get("additionalProperties") is False for tool in tools.values())
-    legacy = set(tools) - server.nx_surface.added_names()
-    assert all(tools[name].outputSchema is not None for name in legacy)
 
 
 @pytest.mark.asyncio

@@ -6,28 +6,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from nx_mcp.bridge import MainThreadDispatcher, ObjectRegistry
-from nx_mcp.request_summary import MAX_LENGTH, humanize, relative_path, summarize
+from nx_mcp.core.summary import humanize, relative_path
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
-NAMES = {
-    "obj_sketch": "profile",
-    "obj_edge": "EDGE_1",
-    "obj_arc": "ARC_2",
-    "obj_face": "FACE_7",
-    "obj_bolt": "BOLT M8",
-    "obj_front": "FRONT@1",
-    "obj_flat": "FLAT@2",
-    "obj_sheet": "SHT1",
-    "obj_flange": "SB_FLANGE(4)",
-    "obj_extrude": "EXTRUDE(2)",
-}
 BODIES = {"kind": "body"}
-
-
-def describe(method, params, **kwargs):
-    return summarize(method, params, name_of=NAMES.get, units="mm", **kwargs)
 
 
 def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
@@ -37,10 +21,9 @@ def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
     assert show(r"Z:\elsewhere\a.prt") == r"Z:\elsewhere\a.prt"
 
 
-def test_summaries_never_raise_and_stay_short():
-    assert describe("nx_list_objects", "not a dict") == "List objects"
-    assert len(describe("nx_" + "x" * 300, {})) == MAX_LENGTH
+def test_calls_without_a_spec_are_humanized():
     assert humanize("nx_measure_distance") == "Measure distance"
+    assert humanize("nx_") == "nx_"
 
 
 def test_registry_display_name_never_touches_nx():

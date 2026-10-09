@@ -1,4 +1,4 @@
-"""Generated MCP surface: profiles, gateways, catalogue proxy and legacy coexistence."""
+"""Generated MCP surface: profiles, gateways and catalogue proxy."""
 
 import json
 from unittest.mock import AsyncMock
@@ -73,7 +73,7 @@ async def test_agent_profile_lists_gateways_and_existing_core_tools(tmp_path, te
 
 async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_path, monkeypatch):
     """Derived from the real evidence files and catalogue: the full profile lists the
-    gateways, every catalogue tool tested on the build, every legacy tool and helper."""
+    gateways and every catalogue tool tested on the build."""
     monkeypatch.delenv("NX_MCP_DEV", raising=False)
     evidence.reload()
     full = server(tmp_path, surface="full")
@@ -81,9 +81,8 @@ async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_pa
     tested = {n for n, s in catalogue.load().items() if evidence.visible(s, "v2406")}
     untested = set(catalogue.load()) - tested
     assert "nx_create_datum_plane" in tested  # the real evidence is loaded
-    assert set(gateways.NAMES) | tested <= set(tools)
+    assert set(gateways.NAMES) | tested == set(tools)
     assert not untested & set(tools)  # decision 11: untested tools are hidden
-    assert not full.nx_surface.legacy  # every legacy tool is migrated
     assert not {"nx_result", "nx_inspect", "nx_result_cleanup", "nx_read_result"} & set(tools)
     datum = tools["nx_create_datum_plane"]
     assert datum.annotations.readOnlyHint is False and datum.annotations.destructiveHint is True
@@ -112,10 +111,9 @@ async def test_find_ranks_by_name_keywords_and_synonyms(tmp_path, tested):
         "effect": "read",
         "domain": "inspection",
     }
-    assert not any(r.get("legacy") for r in rows)
     rows = body(await agent.call_tool("nx_find_tools", {"query": "fillet"}))["data"]["tools"]
     names = [r["name"] for r in rows]
-    assert names[0] == "nx_create_blend"  # synonym fillet -> blend, catalogue above legacy
+    assert names[0] == "nx_create_blend"  # synonym fillet -> blend
     exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_list_objects"}))["data"]
     assert exact["tools"][0]["name"] == "nx_list_objects"
     none = body(await agent.call_tool("nx_find_tools", {"query": "fillet zebra"}))
@@ -158,7 +156,7 @@ async def test_untested_variant_is_refused_before_nx(tmp_path, tested):
     assert not bridge.call.called
 
 
-async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
+async def test_schemas_for_tools_and_variants(tmp_path, tested):
     agent = server(tmp_path)
     data = body(
         await agent.call_tool(
