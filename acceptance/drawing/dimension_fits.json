@@ -1,0 +1,792 @@
+{
+ "covers": {
+  "nx_edit_dimension": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25.0,
+     25.0,
+     20.0
+    ],
+    "limit": 1,
+    "radius": 8.0
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60.0,
+     25.0,
+     20.0
+    ],
+    "limit": 1,
+    "radius": 5.0
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     75.0,
+     45.0,
+     20.0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35.0,
+     50.0,
+     20.0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40.0,
+     0,
+     20.0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "FITS",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     150,
+     150
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "d16",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "diameter",
+    "first": "$h1.data.items.0.id",
+    "origin": [
+     100,
+     220
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "d10",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "diameter",
+    "first": "$h2.data.items.0.id",
+    "origin": [
+     230,
+     220
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "l50",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "linear",
+    "first": "$front.data.items.0.id",
+    "second": "$back.data.items.0.id",
+    "orientation": "vertical",
+    "origin": [
+     240,
+     150
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "l70",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "linear",
+    "first": "$back.data.items.0.id",
+    "orientation": "horizontal"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "ang",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "angle",
+    "first": "$ch.data.items.0.id",
+    "second": "$back.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.tolerance.type": "fit",
+    "data.tolerance.hole": "H7",
+    "data.tolerance.display": "symbol",
+    "data.tolerance.upper": {
+     "close": 0.018,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.limits.hole": {
+     "close": [
+      16.0,
+      16.018
+     ],
+     "tol": 1e-09
+    },
+    "data.value": {
+     "close": 16,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "shaft": "g6",
+     "display": "deviations"
+    }
+   },
+   "expect": {
+    "data.tolerance.shaft": "g6",
+    "data.tolerance.display": "deviations",
+    "data.tolerance.shaft_upper": {
+     "close": -0.006,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.017,
+     "tol": 1e-09
+    },
+    "data.tolerance.limits.shaft": {
+     "close": [
+      15.983,
+      15.994
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7",
+     "shaft": "g6",
+     "display": "symbol_and_deviations"
+    }
+   },
+   "expect": {
+    "data.tolerance.hole": "H7",
+    "data.tolerance.shaft": "g6",
+    "data.tolerance.display": "symbol_and_deviations",
+    "data.tolerance.upper": {
+     "close": 0.018,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": -0.006,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.017,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d10.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "K7",
+     "display": "symbol_and_limits"
+    },
+    "format": {
+     "decimals": 3
+    }
+   },
+   "expect": {
+    "data.tolerance.hole": "K7",
+    "data.tolerance.display": "symbol_and_limits",
+    "data.format.decimals": 3,
+    "data.tolerance.upper": {
+     "close": 0.005,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.01,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d10.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "F8",
+     "shaft": "h7"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": 0.035,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.013,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.015,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d10.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "JS7",
+     "shaft": "js6"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": 0.0075,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.0075,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.0045,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.0045,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l50.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H8",
+     "shaft": "e8"
+    }
+   },
+   "expect": {
+    "data.value": {
+     "close": 50,
+     "tol": 1e-09
+    },
+    "data.tolerance.upper": {
+     "close": 0.039,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": -0.05,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.089,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l50.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "N7",
+     "shaft": "m6"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": -0.008,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.033,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.025,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": 0.009,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l50.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "M7",
+     "shaft": "n6"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.025,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.033,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": 0.017,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l50.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "P7",
+     "shaft": "d9"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": -0.017,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.042,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": -0.08,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.142,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l70.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7",
+     "shaft": "k6"
+    }
+   },
+   "expect": {
+    "data.value": {
+     "close": 70,
+     "tol": 1e-09
+    },
+    "data.tolerance.upper": {
+     "close": 0.03,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.021,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": 0.002,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l70.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "G7",
+     "shaft": "p6"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": 0.04,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.01,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.051,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": 0.032,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l70.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "E9",
+     "shaft": "f7"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": 0.134,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.06,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": -0.03,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.06,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l70.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "D10",
+     "shaft": "k8"
+    }
+   },
+   "expect": {
+    "data.tolerance.upper": {
+     "close": 0.22,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.1,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": 0.046,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": 0.0,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$l70.data.dimension.id",
+    "tolerance": {
+     "type": "bilateral",
+     "upper": 0.05,
+     "lower": -0.02
+    }
+   },
+   "expect": {
+    "data.tolerance.type": "bilateral",
+    "data.tolerance.upper": {
+     "close": 0.05,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.02,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "Z7"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/hole",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "K9"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/hole",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H12"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/hole",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "shaft": "r6"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/shaft",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "h7"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/tolerance/hole",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/tolerance/hole",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7",
+     "upper": 0.1
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/tolerance/upper",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "bilateral",
+     "hole": "H7"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/tolerance/hole",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$ang.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/type",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7"
+    },
+    "format": {
+     "units": "in"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/type",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

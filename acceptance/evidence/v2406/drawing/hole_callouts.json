@@ -1,0 +1,304 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/hole_callouts.json",
+  "scenario_sha256": "509fd2973f9fcffb4b801242b92e5a2a453c6d484756d00cd0865fd57e6d9317",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_dimension": [
+      "hole_callout"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "b4e1edae933bf54959c61877214266ba6862d732",
+  "sources": {
+    "nx_create_drawing_dimension": "a7e8bcf83ae75f3218e15ef5dbcf3be6245cd0a2d6b622d8de5f6935ab621df3"
+  },
+  "run_id": "20261010-013051-3e9aec",
+  "owner": "wb_holes",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-013051-3e9aec\\drawing_hole_callouts_3e9aec.prt",
+  "started": "2026-10-09T21:30:55Z",
+  "finished": "2026-10-09T21:31:00Z",
+  "passed": true,
+  "checks": 34,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.89,
+      "result_sha256": "6fce449eccf7d212be087909904b69cae6181eba6f808e2d728476b120c81a20"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "f7c6e6cdb8077e50f5781f4f3663e5bbbb5f23b588ddc5ade5fb2e3691d9bd65"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "1da52f485424e89a6b558d7dafd9fff39c0d33a6a6be822493ed60ea40953e47"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "605f664f5e5683e60d2b84f1431e7008de27c8efc0ed1f609211c1dd61a4a33a"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "512b9e0026c8ddaf75751d209e1089a3edca27a41f683b1661a52580d0433c43"
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "c91987cac864cf70e4bcb444c6348c085b18b60a9e2aba40349598f96f0535a2"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.157,
+      "result_sha256": "afb51fe2d72ef14244d8e754b5e7d5b97c25672ee5eaec522983579155bee3ec"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "72d2281bd1ceeb1350a46cd39d18fc00c7f37e444bf03929dc8bac22f280446c"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.141,
+      "result_sha256": "892a58fa58d33cde1bb9db1572da428e1f7e7fd53dc72ea8f183fbe469318c87"
+    },
+    {
+      "index": 10,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "7dd6a6e53049ef6f4f680e096cf98861f8c2a3aec1b1ece8265926551f1e430b"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.157,
+      "result_sha256": "ed5615de722a0259e241b784926cb398f080630016937515ca564ee5d553e5fb"
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "9160bc8539928637cf2ae80a9ec823a1638917097e1e8188170ff0ecafb94886"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.204,
+      "result_sha256": "497c7080a57c407f2345916d07d2ae4d673c2d3b6582194c267d0372495f91dd"
+    },
+    {
+      "index": 14,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "56a3df50e7e6616ba4e4e8fa17d7e794f3b6b5323924ae5e6f555dbd2d3c77ee"
+    },
+    {
+      "index": 15,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.375,
+      "result_sha256": "88e7ee68d34ba4cc8c77dff4ec916e0a923353f482bf6dc25f7fcf2575d881d5"
+    },
+    {
+      "index": 16,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.14,
+      "result_sha256": "f0a91d529ca7206b3b4ede31c0b5434d3081c3e58ca2de91015012657a59548e"
+    },
+    {
+      "index": 17,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 9,
+      "seconds": 0.188,
+      "result_sha256": "6c0bcf42472bf27d53b4d215fc845908f87fca0efc71210263d16cd3465dadd9"
+    },
+    {
+      "index": 18,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "34a270942a2e5bf32f2cdbf198c3ca8197209ed99f7c2e1666988a8077f8ff46"
+    },
+    {
+      "index": 19,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.25,
+      "result_sha256": "412c3f907866e755ddc989f8e452306b467163d53a4e8cdf93f60fabdb4cda24"
+    },
+    {
+      "index": 20,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.234,
+      "result_sha256": "84755d013b30ee9ba21ab251172c040241088db113fd0fd3bd7105a1a7d9ab60"
+    },
+    {
+      "index": 21,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.422,
+      "result_sha256": "0f6ec3f345e227c320be8d931b371a413ac6f06696c7651724dd6f23755a6d0a"
+    },
+    {
+      "index": 22,
+      "call": "nx_get_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.078,
+      "result_sha256": "a115c9c23994fa17ade471f58136cfb897595af0299af8ac72ea434419e2dcf3"
+    },
+    {
+      "index": 23,
+      "call": "nx_get_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.032,
+      "result_sha256": "2a99e5b07b7664c0624f3c0d5367bab7431b0efdb42cf450f2ee20821b0c95aa"
+    },
+    {
+      "index": 24,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.328,
+      "result_sha256": "a857996dfc2834e71b4347bf9357821e5b698917d368e3d60e927b65c8493622"
+    },
+    {
+      "index": 25,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.062,
+      "result_sha256": "1045e70f4ce821a74cc704a0fd7ff367ae9110c7a1b4628677fd8ba5f5fdfa69"
+    },
+    {
+      "index": 26,
+      "call": "nx_get_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.078,
+      "result_sha256": "19a5def245d4430ddbf3d1e13653a0f2e544ea8d56714a2b1bf890acd8b69a7b"
+    },
+    {
+      "index": 27,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.032,
+      "result_sha256": "be34b50f4cc48e5db7c414aa70fbed3f94104a65d78c7d550c0e31048f2a0481"
+    },
+    {
+      "index": 28,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.047,
+      "result_sha256": "bae14ac8379a4b83eac34aa79cd8ccf161ab9e7bc72cc684dbb0264cfa51692c"
+    },
+    {
+      "index": 29,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.031,
+      "result_sha256": "45be56141e60fc246ff2e0c8dcc4fc0250c831bc0b436eda421e1d3a9fd976b4"
+    },
+    {
+      "index": 30,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.047,
+      "result_sha256": "2b59107ad6cf663c055c8f113230c848905857e5fef94aba93d5438ee8df7d14"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-013051-3e9aec/drawing_hole_callouts_3e9aec.prt"
+    ],
+    "failed": []
+  }
+}

@@ -10,6 +10,7 @@ helpers directly.
 from __future__ import annotations
 
 import itertools
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -235,7 +236,9 @@ class FakeNX:
 
     def __init__(self, units="mm", root=None):
         self.session = Session()
-        self.part = Part(self.session, Path(root or "work") / "work.prt", units)
+        # A fake save writes the file: keep it out of the repository working tree.
+        root = Path(root) if root else Path(tempfile.mkdtemp(prefix="nx_mcp_fake_"))
+        self.part = Part(self.session, root / "work.prt", units)
         self.builders: list[FakeBuilder] = []
         self.hooks = {}
         self.missing = {}

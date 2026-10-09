@@ -193,7 +193,7 @@ def table_tag(tx, obj):
     block), or None for other objects."""
     name = type(obj).__name__
     lists = {int(p.Tag) for p in tx.part.Annotations.PartsLists}
-    if name in ("PartsList", "BendTable") or int(obj.Tag) in lists:
+    if name in ("PartsList", "BendTable", "HoleTable") or int(obj.Tag) in lists:
         return obj.Tag
     if name == "TitleBlock":
         handle = attribute(tx, obj, NATIVE_TABLE)
@@ -204,13 +204,16 @@ def table_tag(tx, obj):
 
 
 def table_kind(tx, obj):
-    """``parts_list``, ``bend``, ``title_block``, ``revision``, ``table`` or None."""
+    """``parts_list``, ``bend``, ``hole``, ``title_block``, ``revision``, ``table`` or
+    None."""
     name = type(obj).__name__
     tags = {int(p.Tag) for p in tx.part.Annotations.PartsLists}
     if int(obj.Tag) in tags:
         return "parts_list"
     if name == "BendTable":
         return "bend"
+    if name == "HoleTable":
+        return "hole"
     managed = attribute(tx, obj, TABLE_KIND)
     if managed in ("title_block", "revision"):
         return managed

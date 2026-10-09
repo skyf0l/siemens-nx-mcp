@@ -327,7 +327,7 @@ class Part(Object):
         from pathlib import Path
 
         Path(self.FullPath).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.FullPath).write_bytes(b"native part fixture")
+        Path(self.FullPath).write_bytes(b"native part fixture\n")
         self.IsModified = False
         self.session.marks.clear()
         return NS(Dispose=Mock(), NumberUnsavedParts=0, NumberUnsavedObjects=0)

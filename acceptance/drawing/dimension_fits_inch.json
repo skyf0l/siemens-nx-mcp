@@ -1,0 +1,193 @@
+{
+ "covers": {
+  "nx_edit_dimension": []
+ },
+ "fixture": "fixtures/drawing_block_in.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0.984251968503937,
+     0.984251968503937,
+     0.7874015748031495
+    ],
+    "limit": 1,
+    "radius": 0.31496062992125984
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     2.3622047244094486,
+     0.984251968503937,
+     0.7874015748031495
+    ],
+    "limit": 1,
+    "radius": 0.19685039370078738
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     2.952755905511811,
+     1.7716535433070866,
+     0.7874015748031495
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     1.3779527559055118,
+     1.968503937007874,
+     0.7874015748031495
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     1.574803149606299,
+     0,
+     0.7874015748031495
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "FITS",
+    "size": "a4",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "d16",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "diameter",
+    "first": "$h1.data.items.0.id",
+    "origin": [
+     5,
+     6.5
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7"
+    }
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/tolerance/type",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d16.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7",
+     "shaft": "g6",
+     "display": "symbol_and_deviations"
+    },
+    "format": {
+     "units": "mm"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.units": "in",
+    "data.format.units": "mm",
+    "data.value": {
+     "close": 0.6299212598425197,
+     "tol": 1e-09
+    },
+    "data.tolerance.hole": "H7",
+    "data.tolerance.shaft": "g6",
+    "data.tolerance.upper": {
+     "close": 0.0007086614173228346,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": 0.0,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_upper": {
+     "close": -0.00023622047244094488,
+     "tol": 1e-09
+    },
+    "data.tolerance.shaft_lower": {
+     "close": -0.0006692913385826772,
+     "tol": 1e-09
+    },
+    "data.tolerance.limits.hole": {
+     "close": [
+      0.6299212598425197,
+      0.6306299212598425
+     ],
+     "tol": 1e-09
+    }
+   }
+  }
+ ]
+}

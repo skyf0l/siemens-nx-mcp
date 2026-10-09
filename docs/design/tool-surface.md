@@ -314,7 +314,7 @@ the catalogue test, which fails above budget.
 
 | Item | Today | Target |
 |---|---|---|
-| Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | 152 x about 750 characters plus the call keys (`operation_id`, `intent`: 87 characters on each of about 111 changing tools), capped at 125,000 characters, about 33K tokens. The first cap, 110,000, left the call keys out; the full profile is opt-in for clients that load schemas on demand, the default `agent` profile stays at 15K |
+| Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | At most 880 characters per listed tool on average, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included: 157 tools averaged 798.5 (125,371 characters, about 33K tokens) on 2026-10-10. A mean rather than a total, so adding tools does not move the cap; the per-tool caps (1,200, 2,500 for unions, median 700) still bound each definition. The earlier fixed totals (110,000, then 125,000) are retired; the full profile is opt-in for clients that load schemas on demand, the default `agent` profile stays at 15K |
 | `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, about 15K characters, about 4K tokens |
 | One discovery call (10 rows) | full descriptions, 1-3K tokens | name + summary + effect rows, about 300 tokens |
 | Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call, about 200 tokens per tool |

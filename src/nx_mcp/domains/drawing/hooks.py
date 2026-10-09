@@ -56,8 +56,8 @@ def refresh_detail_views(tx, objects):
 
 @refresher("drawing_table")
 def refresh_tables(tx, objects):
-    """Update parts lists, rebuild automatic bend tables and re-evaluate title blocks
-    (attribute links); the changed ones."""
+    """Update parts lists and hole tables, rebuild automatic bend tables and re-evaluate
+    title blocks (attribute links); the changed ones."""
     part = tx.part
     out = []
     for plist in _wanted(objects, part.Annotations.PartsLists):
@@ -77,6 +77,11 @@ def refresh_tables(tx, objects):
             rebuilt = b.commit()
         if rebuilt is not None and (cells(tx, rebuilt.Tag) != before or objects is not None):
             out.append(tx.ref(rebuilt, "drawing_table"))
+    for table in _wanted(objects, getattr(part.Annotations, "HoleTables", None) or []):
+        before = cells(tx, table.Tag)
+        table.Update()
+        if cells(tx, table.Tag) != before or objects is not None:
+            out.append(tx.ref(table, "drawing_table"))
     blocks = getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None) or []
     for block in _wanted(objects, blocks):
         before = [c["value"] for c in title_blocks.read(tx, block)]
@@ -203,6 +208,7 @@ def list_tables(tx, owner, owner_kind):
     found = [
         *part.Annotations.PartsLists,
         *part.Annotations.BendTables,
+        *(getattr(part.Annotations, "HoleTables", None) or []),
         *part.Annotations.TableSections,
         *part.DraftingManager.TitleBlocks,
     ]

@@ -408,12 +408,12 @@ Create center marks on circular edges, an axis line on a cylindrical or conical 
 
 **Create drawing dimension** · effect `model` · NX 2406: tested (all variants); 23 checks in `acceptance/drawing/inch_units.json`
 
-Create an associative dimension on edges in a drawing view, checked against the model. Linear: one edge or two edges' start points; ordinate: objects from a datum point.
+Create an associative dimension on edges in a drawing view, checked against the model. Linear: one edge or two edges' start points; ordinate: objects from a datum point; chamfer: chamfer edge then reference edge; baseline/chain: objects in a row.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `view` | string | required | Ref: drawing_view |
-| `kind` | `linear` \| `radius` \| `diameter` \| `angle` \| `ordinate` | required |  |
+| `kind` | `linear` \| `radius` \| `diameter` \| `angle` \| `ordinate` \| `chamfer` \| `thickness` \| `arc_length` \| `baseline` \| `chain` \| `hole_callout` | required |  |
 | `first` | Text | optional | Ref: edge |
 | `second` | Text | optional | Ref: edge |
 | `orientation` | `aligned` \| `horizontal` \| `vertical` | `"aligned"` |  |
@@ -424,6 +424,7 @@ Create an associative dimension on edges in a drawing view, checked against the 
 | `object_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |
 | `direction` | `horizontal` \| `vertical` | `"horizontal"` |  |
 | `margin` | number or string | optional | Sheet units, or '10 mm' |
+| `hole` | string | optional | Ref: feature |
 
 ### `nx_create_drawing_sheet`
 
@@ -463,11 +464,11 @@ Place a surface-finish or weld symbol with a leader to an edge or face shown in 
 
 **Create drawing table** · effect `model` · NX 2406: tested (all variants); 53 checks in `acceptance/drawing/title_block.json`
 
-Place a parts list, a bend table, a title block or a revision table. Parts lists need an assembly, bend tables a flat-pattern view; title blocks and revisions take rows and widths.
+Place a parts list, bend, title block, revision or hole table. Parts lists need an assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title blocks and revisions take rows and widths.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` | required |  |
+| `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` \| `hole` | required |  |
 | `position` | array[2] of number | required | [x, y] on the sheet, sheet units |
 | `sheet` | string | optional | Ref: drawing_sheet |
 | `view` | string | optional | Ref: drawing_view |
@@ -477,6 +478,8 @@ Place a parts list, a bend table, a title block or a revision table. Parts lists
 | `rows` | array[1-100] of array[1-20] of string | optional |  |
 | `widths` | array[1-20] of number or string | optional |  |
 | `row_height` | number or string | optional | Sheet units, or '10 mm' |
+| `origin` | string | optional | Ref: edge |
+| `origin_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |
 
 ### `nx_create_drawing_view`
 
@@ -549,13 +552,13 @@ Move or rename an annotation, dimension or table. position is [x, y] on the shee
 
 **Edit dimension** · effect `model` · NX 2406: tested; 30 checks in `acceptance/drawing/edit_dimension.json`
 
-Change a dimension's format or tolerance, or rebind it to 1-2 edges.
+Change a dimension's format or tolerance, or rebind it to 1-2 edges. Fit: ISO 286 hole/shaft class (H7, g6); limits are checked.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `dimension` | string | required | Ref: dimension |
 | `format` | object {decimals, trailing_zeros, units, decimal_separator} | optional |  |
-| `tolerance` | object {type, upper, lower, decimals} | optional |  |
+| `tolerance` | object {type, upper, lower, decimals, hole, shaft, display} | optional |  |
 | `edges` | array[1-2] of string | optional |  |
 
 ### `nx_edit_drawing_table`
@@ -567,7 +570,7 @@ Edit a drawing table of the given kind, or move it. Title blocks and revisions t
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `table` | string | required | Ref: drawing_table |
-| `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` | required |  |
+| `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` \| `hole` | required |  |
 | `rows` | array[1-100] of array[1-20] of string | optional |  |
 | `widths` | array[1-20] of SheetLength | optional |  |
 | `row_height` | SheetLength | optional | Sheet units, or '10 mm' |

@@ -22,7 +22,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Items, RefTo, SheetLength, SheetPoint, Text
-from nx_mcp.domains.drawing import title_blocks
+from nx_mcp.domains.drawing import hole_callouts, title_blocks
 from nx_mcp.domains.drawing.common import (
     NATIVE_TABLE,
     TABLE_KIND,
@@ -58,6 +58,8 @@ class TableInfo(TypedDict, total=False):
     columns: list[dict]
     automatic: bool
     cells: list[title_blocks.CellInfo]
+    holes: list[dict]
+    units: str
 
 
 # ---- reading --------------------------------------------------------------------------------
@@ -158,6 +160,10 @@ def table_info(tx, obj, kind=None):
         out["automatic"] = bool(tx.uf.Plist.AskPrefs(obj.Tag).AutoUpdate)
     elif kind == "bend":
         out["columns"], out["automatic"] = _bend_columns(tx, obj)
+    if kind == "hole":  # X/Y in the sheet's units
+        out["holes"] = hole_callouts.parse_hole_table(out.get("rows") or [])
+        if sheet is not None:
+            out["units"] = sh.units
     elif tag is not None:
         tab = tx.uf.Tabnot
         out["columns"] = [
@@ -176,6 +182,7 @@ def _summary(a, say):
     return {
         "parts_list": f"Parts list on {where}",
         "bend": f"Bend table for {where}",
+        "hole": f"Hole table for {where}",
         "title_block": f"Title block on {where}",
         "revision": f"Revision table on {where}",
     }.get(kind, "Drawing table")
@@ -185,7 +192,7 @@ def _summary(a, say):
     effect="model",
     label="Create drawing table",
     summary=_summary,
-    keywords=("parts list", "bom", "bend table", "title block", "revision table"),
+    keywords=("parts list", "bom", "bend table", "title block", "revision table", "hole table"),
     requires=("work_part", "no_active_sketch"),
     variants="kind",
     cost="heavy",
@@ -195,7 +202,7 @@ def _summary(a, say):
 def nx_create_drawing_table(
     tx: Tx,
     *,
-    kind: Literal["parts_list", "bend", "title_block", "revision"],
+    kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
     position: SheetPoint,
     sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
     view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
@@ -205,10 +212,15 @@ def nx_create_drawing_table(
     rows: Rows | None = None,
     widths: Widths | None = None,
     row_height: SheetLength | None = None,
+    origin: RefTo("edge") | None = None,  # type: ignore[valid-type]
+    origin_point: Literal["auto", "start", "end", "center"] = "auto",
 ) -> TableInfo:
-    """Place a parts list, a bend table, a title block or a revision table. Parts lists need an
-    assembly, bend tables a flat-pattern view; title blocks and revisions take rows and
-    widths."""
+    """Place a parts list, bend, title block, revision or hole table. Parts lists need an
+    assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title
+    blocks and revisions take rows and widths."""
+    if kind == "hole":
+        args.need(view=view, origin=origin)
+        return hole_callouts.create_table(tx, view, position, origin, origin_point, table_info)
     if kind == "bend":
         args.need(view=view)
         if columns:
@@ -378,6 +390,7 @@ ColumnEdit.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-define
         "bend": "Edit bend table {table}",
         "title_block": "Edit title block {table}",
         "revision": "Edit revision table {table}",
+        "hole": "Edit hole table {table}",
     },
     variants="kind",
     keywords=(
@@ -398,7 +411,7 @@ def nx_edit_drawing_table(
     tx: Tx,
     *,
     table: RefTo("drawing_table"),  # type: ignore[valid-type]
-    kind: Literal["parts_list", "bend", "title_block", "revision"],
+    kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
     rows: Rows | None = None,
     widths: Widths | None = None,
     row_height: SheetLength | None = None,
@@ -430,6 +443,7 @@ def nx_edit_drawing_table(
         allowed = {
             "parts_list": {"columns", "position"},
             "bend": {"bend_columns", "automatic", "position"},
+            "hole": {"position"},
             "title_block": {"rows", "widths", "row_height", "position", "cells"},
         }.get(kind, {"rows", "widths", "row_height", "position"})
         given = {

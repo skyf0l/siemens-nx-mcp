@@ -1,0 +1,577 @@
+{
+ "covers": {
+  "nx_create_drawing_table": [
+   "hole"
+  ],
+  "nx_edit_drawing_table": [
+   "hole"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       80,
+       50
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      10,
+      10,
+      20
+     ],
+     [
+      70,
+      10,
+      20
+     ],
+     [
+      10,
+      40,
+      20
+     ],
+     [
+      70,
+      40,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      25,
+      25,
+      20
+     ]
+    ],
+    "form": "counterbore",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 12
+    },
+    "counterbore": {
+     "diameter": 11,
+     "depth": 4
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "save": "h3",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      40,
+      25,
+      20
+     ]
+    ],
+    "form": "countersink",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 12
+    },
+    "countersink": {
+     "diameter": 12,
+     "angle": 90
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "save": "h4",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      55,
+      25,
+      20
+     ]
+    ],
+    "form": "threaded",
+    "diameter": 6.8,
+    "depth": {
+     "type": "distance",
+     "value": 15
+    },
+    "thread": {
+     "standard": "Metric Coarse",
+     "size": "M8 x 1.25",
+     "depth": 12
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "v",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     150,
+     180
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "corner",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     0,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "t",
+   "args": {
+    "kind": "hole",
+    "view": "$v.data.view.id",
+    "position": [
+     30,
+     120
+    ],
+    "origin": "$corner.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.kind": "hole",
+    "data.units": "mm",
+    "data.holes": {
+     "count": 7
+    },
+    "data.position": {
+     "close": [
+      30,
+      120
+     ],
+     "tol": 1e-06
+    },
+    "data.holes.0": {
+     "equals": {
+      "label": "3",
+      "position": [
+       10.0,
+       10.0
+      ],
+      "size": "Blind Hole Ø6.00 T10.00"
+     }
+    },
+    "data.holes.1.position": {
+     "close": [
+      10,
+      40
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.2.position": {
+     "close": [
+      25,
+      25
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.2.size": {
+     "contains": "Counterbore"
+    },
+    "data.holes.3.position": {
+     "close": [
+      40,
+      25
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.3.size": {
+     "contains": "Countersink"
+    },
+    "data.holes.4.position": {
+     "close": [
+      55,
+      25
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.4.size": {
+     "contains": "M8_x_1.25"
+    },
+    "data.holes.5.position": {
+     "close": [
+      70,
+      10
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.6.position": {
+     "close": [
+      70,
+      40
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$t.data.table.id",
+    "kind": "hole",
+    "position": [
+     30,
+     140
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      30,
+      140
+     ],
+     "tol": 1e-06
+    },
+    "data.holes": {
+     "count": 7
+    }
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "setup": true,
+   "save": "gf",
+   "args": {
+    "feature": "$h1.data.feature.id"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "setup": true,
+   "args": {
+    "feature": "$h1.data.feature.id",
+    "parameters": [
+     {
+      "name": "$gf.data.parameters.0.expression.name",
+      "value": 7
+     },
+     {
+      "name": "$gf.data.parameters.1.expression.name",
+      "value": 9
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {
+    "objects": [
+     "$t.data.table.id"
+    ]
+   },
+   "expect": {
+    "data.refreshed": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$t.data.table.id"
+   },
+   "expect": {
+    "data.kind": "hole",
+    "data.holes": {
+     "count": 7
+    },
+    "data.holes.0.size": "Blind Hole Ø7.00 T9.00",
+    "data.holes.0.position": {
+     "close": [
+      10,
+      10
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.2.size": {
+     "contains": "Counterbore"
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "shi",
+   "args": {
+    "name": "SHT2",
+    "size": "a4",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "vi",
+   "args": {
+    "type": "base",
+    "sheet": "$shi.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     4,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "corner",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     0,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "ti",
+   "args": {
+    "kind": "hole",
+    "view": "$vi.data.view.id",
+    "position": [
+     0.5,
+     3.5
+    ],
+    "origin": "$corner.data.items.0.id",
+    "origin_point": "start"
+   },
+   "expect": {
+    "data.units": "in",
+    "data.holes": {
+     "count": 7
+    },
+    "data.position": {
+     "close": [
+      0.5,
+      3.5
+     ],
+     "tol": 1e-06
+    },
+    "data.holes.0.position": {
+     "close": [
+      0.39,
+      0.39
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.1.position": {
+     "close": [
+      0.39,
+      1.57
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.4.position": {
+     "close": [
+      2.17,
+      0.98
+     ],
+     "tol": 1e-09
+    },
+    "data.holes.6.position": {
+     "close": [
+      2.76,
+      1.57
+     ],
+     "tol": 1e-09
+    },
+    "units.sheet_length": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "hole",
+    "view": "$v.data.view.id",
+    "position": [
+     30,
+     120
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}
