@@ -491,6 +491,19 @@
   }
  },
  {
+  "tool": "nx_edit_annotation",
+  "args": {
+   "annotation": "$cm.annotations.0.annotation.id",
+   "position": [
+    100,
+    100,
+    0
+   ]
+  },
+  "expect_error": true,
+  "intent": "Associative center mark stays on its circle: NX_UNSUPPORTED_EDIT, rolled back"
+ },
+ {
   "tool": "nx_list_annotations",
   "args": {},
   "mutation": false

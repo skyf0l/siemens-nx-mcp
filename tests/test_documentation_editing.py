@@ -103,6 +103,34 @@ def test_annotation_conflicting_edits_are_rejected(ff):
     ff.e._update_model.assert_not_called()
 
 
+def test_annotation_move_is_read_back(ff):
+    # An associative center mark accepts a new origin, but NX keeps it on its circle.
+    class Pinned:
+        def __init__(self, point):
+            self.point = point
+
+        @property
+        def AnnotationOrigin(self):
+            return self.point
+
+        @AnnotationOrigin.setter
+        def AnnotationOrigin(self, _):
+            pass
+
+    ff.e._resolve = lambda *_: Pinned(ff.nx.Point3d(120, 190, 0))
+    with pytest.raises(NXToolError) as error:
+        ff.e._edit_annotation("annotation", position=[100, 100, 0])
+    assert error.value.code == "NX_UNSUPPORTED_EDIT"
+    assert error.value.details["actual"] == [120, 190, 0]
+
+    class Free:
+        AnnotationOrigin = ff.nx.Point3d(0, 0, 0)
+
+    ff.e._resolve = lambda *_: Free()
+    ff.e._reference = lambda *_: "ref"
+    assert ff.e._edit_annotation("annotation", position=[100, 100, 0])["position"] == [100, 100, 0]
+
+
 def test_managed_pmi_refresh_and_missing_source(ff):
     obj = Mock()
     obj.HasUserAttribute.return_value = True

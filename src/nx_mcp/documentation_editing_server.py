@@ -29,7 +29,7 @@ def nx_edit_annotation(
     name: str | None = None,
     delete: bool = False,
 ):
-    """Move or rename a native annotation (including associative balloons), or delete it explicitly. Position is [x,y,z] in the existing sheet/work-part frame; use z=0 for drawing-sheet annotations. Preserves callout text and native associations; does not convert balloons to plain text. Delete cannot be combined with other changes."""
+    """Move or rename a native annotation (including associative balloons), or delete it explicitly. Position is [x,y,z] in the existing sheet/work-part frame; use z=0 for drawing-sheet annotations. The position is read back: annotations NX keeps on their geometry (center marks, centerlines) are refused with NX_UNSUPPORTED_EDIT and rolled back. Preserves callout text and native associations; does not convert balloons to plain text. Delete cannot be combined with other changes."""
 
 
 def nx_parts_list_column(

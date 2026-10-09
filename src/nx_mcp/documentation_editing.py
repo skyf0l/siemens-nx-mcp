@@ -89,6 +89,7 @@ class DocumentationEditingMixin:
 
     def _edit_annotation(self, annotation, position=None, name=None, delete=False):
         from nx_mcp.freeform import points3
+        from nx_mcp.hardened import xyz
 
         obj = self._resolve(annotation, {"annotation", "traceline"})
         if delete and (position is not None or name is not None):
@@ -111,6 +112,17 @@ class DocumentationEditingMixin:
         if name is not None:
             obj.SetName(name)
         self._update_model()
+        if point is not None:
+            actual = xyz(obj.AnnotationOrigin)
+            if max(abs(a - b) for a, b in zip(actual, point)) > 1e-6 * max(1.0, *map(abs, point)):
+                # Associative annotations (center marks, centerlines) stay where their
+                # geometry puts them: NX accepts the origin and keeps the old position.
+                raise NXToolError(
+                    "NX_UNSUPPORTED_EDIT",
+                    "NX keeps this annotation where its associated geometry places it",
+                    details={"requested": point, "actual": actual},
+                )
+            point = actual
         return {
             "modified": [
                 self._reference(
