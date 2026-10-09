@@ -242,20 +242,21 @@ def test_highlighting_only_includes_penetration_unless_contact_requested(rig):
     rig.e._check_interference = lambda *_: {
         "pairs": [{"classification": "contact", "objects": refs}]
     }
-    assert rig.e._highlight_collisions("a", "b")["highlighted_count"] == 0
-    assert rig.e._highlight_collisions("a", "b", True)["highlighted_count"] == 2
+    ida, idb = (r["id"] for r in refs)  # IDs are validated before NX is touched
+    assert rig.e._highlight_collisions(ida, idb)["highlighted_count"] == 0
+    assert rig.e._highlight_collisions(ida, idb, True)["highlighted_count"] == 2
     assert a.highlighted and b.highlighted
     assert rig.e._clear_highlights()["cleared_count"] == 2 and not a.highlighted
     b.Highlight = Mock(side_effect=RuntimeError("deleted"))
     with pytest.raises(RuntimeError):
-        rig.e._highlight_collisions("a", "b", True)
+        rig.e._highlight_collisions(ida, idb, True)
     assert not a.highlighted
     b.Unhighlight = Mock(side_effect=RuntimeError("deleted"))
     rig.e._highlighted_objects = [b]
     assert rig.e._clear_highlights()["cleared_count"] == 0
     rig.session.IsBatch = True
     with pytest.raises(NXToolError):
-        rig.e._highlight_collisions("a", "b")
+        rig.e._highlight_collisions(ida, idb)
     with pytest.raises(NXToolError):
         rig.e._section_view([0, 0, 0], [0, 0, 1])
     assert enum_name(999, NS(A=1)) == "unknown_999"

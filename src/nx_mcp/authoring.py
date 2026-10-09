@@ -66,6 +66,50 @@ class AuthoringMixin:
         if count:
             raise NXToolError("NX_UPDATE_FAILED", str(count) + " native update errors")
 
+    def _solve_active_sketch(self, expressions):
+        """Solve an active sketch after its dimension expressions were edited.
+
+        NX 2406: a model update leaves the active sketch unsolved (the expression
+        changes, the curves do not) until the sketch is finished. LocalUpdate
+        solves it now; each edited driving dimension must then measure its value.
+        """
+        sketch = self.session.ActiveSketch
+        if not sketch:
+            return
+        tags, pending = set(), list(expressions)
+        while pending and len(tags) < 10000:  # edited expressions and all that use them
+            exp = pending.pop()
+            if int(exp.Tag) not in tags:
+                tags.add(int(exp.Tag))
+                pending.extend(_expression_list(exp, "GetReferencingExpressions"))
+        dimensions = [
+            c
+            for c in sketch.GetAllConstraintsOfType(
+                self.nxopen.Sketch.ConstraintClass.Dimension,
+                self.nxopen.Sketch.ConstraintType.NoCon,
+            )
+            if getattr(c, "AssociatedExpression", None) is not None
+            and int(c.AssociatedExpression.Tag) in tags
+        ]
+        if not dimensions:
+            return
+        if hasattr(sketch, "LocalUpdate"):
+            sketch.LocalUpdate()
+        sketch.Update()
+        for constraint in dimensions:
+            value = float(constraint.AssociatedExpression.Value)
+            measured = float(constraint.AssociatedDimension.ComputedSize)
+            if abs(measured - value) > 1e-6 * max(1.0, abs(value)):
+                raise NXToolError(
+                    "NX_SKETCH_CONFLICT",
+                    "NX could not solve the active sketch to the new dimension value; rolling back",
+                    details={
+                        "expression": constraint.AssociatedExpression.Name,
+                        "requested": value,
+                        "measured": measured,
+                    },
+                )
+
     def _error_list(self, errors):
         if errors is None:
             return
@@ -172,6 +216,8 @@ class AuthoringMixin:
                 )
             _native_formula(lambda: part.Expressions.EditExpression(exp, formula))
         self._update_model()
+        if not create:
+            self._solve_active_sketch([exp])
         row = self._expression_record(exp)
         return {
             "expression": row,

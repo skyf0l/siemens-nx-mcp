@@ -590,7 +590,7 @@ class DraftingDimsMixin:
         # Templates carry their own scale and projection angle: apply the request explicitly.
         angle = getattr(D.DrawingSheet.ProjectionAngleType, PROJECTIONS[projection] + "Angle")
         sheet.SetParameters(sheet.Height, sheet.Length, scale, 1.0, sheet.Units, angle)
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         actual_units = self._sheet_units(sheet)
         mm = 25.4 if actual_units == "in" else 1.0
         dims_mm = [float(sheet.Length) * mm, float(sheet.Height) * mm]

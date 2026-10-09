@@ -6,6 +6,23 @@ import uuid
 from nx_mcp.authoring import finite
 from nx_mcp.runtime import NXToolError
 
+CONSTRUCTION_WARNING = (
+    "Datums or coordinate systems remain visible in this view: this NX does not erase them "
+    "per view, and they share a layer with model bodies (datums on layers of their own are "
+    "hidden in the view). Move them to a separate layer."
+)
+
+
+def drawing_work_view(part):
+    """True when NX shows a drawing sheet as the work view (no modeling view)."""
+    try:
+        _ = part.ModelingViews.WorkView
+    except AttributeError:
+        return False
+    except Exception:  # NX: "The view is not a model view"
+        return True
+    return False
+
 
 def sheet_point(value):
     if not isinstance(value, (list, tuple)) or len(value) != 2:
@@ -29,6 +46,49 @@ class ReleaseEngineeringMixin:
             raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Select a view on one work-part sheet")
         return matches[0]
 
+    def _open_drawing_sheet(self, sheet, part=None):
+        """Make sheet the current drawing sheet and verify it.
+
+        NX 2406 (seen in Sheet Metal) can keep a sheet as the work view while
+        CurrentDrawingSheet is None; Sheet.Open() then returns without making it
+        current, and drafting builders commit null views ("Null tag not allowed").
+        UF Draw.OpenDrawing re-opens it in that state.
+        """
+        sheets = getattr(part or self._work_part(), "DrawingSheets", None)
+        if not hasattr(sheets, "CurrentDrawingSheet"):  # NXOpen always reports it
+            sheet.Open()
+            return sheet
+
+        def current():
+            value = sheets.CurrentDrawingSheet
+            return value is not None and int(value.Tag) == int(sheet.Tag)
+
+        sheet.Open()
+        if current():
+            return sheet
+        import NXOpen.UF
+
+        NXOpen.UF.UFSession.GetUFSession().Draw.OpenDrawing(sheet.Tag)
+        if not current():
+            raise NXToolError(
+                "NX_DRAWING_CONTEXT",
+                f"NX could not make drawing sheet {sheet.Name!r} the current sheet",
+            )
+        return sheet
+
+    def _close_drawing_sheets(self, part):
+        """Leave the drawing display and verify the modeling work view is back."""
+        part.Drafting.ExitDraftingApplication()
+        if part.DrawingSheets.CurrentDrawingSheet is None and not drawing_work_view(part):
+            return
+        import NXOpen.UF
+
+        # NX 2406 can keep the sheet as work view after ExitDraftingApplication.
+        # UF display state 1 is the modeling display (2 shows the drawing).
+        NXOpen.UF.UFSession.GetUFSession().Draw.SetDisplayState(1)
+        if part.DrawingSheets.CurrentDrawingSheet is not None or drawing_work_view(part):
+            raise NXToolError("NX_DRAWING_CONTEXT", "NX did not return to the modeling view")
+
     def _drawing_view_info(self, view):
         import NXOpen.UF as U
 
@@ -51,10 +111,7 @@ class ReleaseEngineeringMixin:
             )
             and obj.GetStringAttribute("NX_MCP_DRAWING_CONSTRUCTION_V1") == "partial"
         ):
-            warnings.append(
-                "Datums and coordinate systems remain visible in this view: this NX does not "
-                "erase them per view (model curves are erased)."
-            )
+            warnings.append(CONSTRUCTION_WARNING)
         return {
             "object": self._reference(obj, "drawing_view", self._work_part(), "View"),
             "drawing": self._reference(sheet, "drawing_sheet", self._work_part(), "Sheet"),
@@ -82,7 +139,7 @@ class ReleaseEngineeringMixin:
         point = sheet_point(position) if position is not None else None
         scale = finite(scale, "scale", True) if scale is not None else None
         obj = self._drawing_object(view, "drawing_view")
-        self._view_sheet(obj).Open()
+        self._open_drawing_sheet(self._view_sheet(obj))
         uf = U.UFSession.GetUFSession().Draw
         self._require_api(uf, "SetViewScale", "MoveView")
         if scale is not None:
@@ -135,7 +192,7 @@ class ReleaseEngineeringMixin:
         sheet = self._view_sheet(parent)
         uf = U.UFSession.GetUFSession().Draw
         self._require_api(uf, "CreateSimpleSxview")
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         cut = U.Drf.Object()
         cut.ObjectTag = edge.Tag
         cut.ObjectViewTag = parent.Tag
@@ -188,7 +245,7 @@ class ReleaseEngineeringMixin:
         scale = finite(scale, "scale", True)
         parent = self._drawing_object(parent_view, "drawing_view")
         sheet = self._view_sheet(parent)
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         part = self._work_part()
         self._require_api(part.DraftingViews, "CreateDetailViewBuilder")
         b = part.DraftingViews.CreateDetailViewBuilder(None)
@@ -374,7 +431,7 @@ class ReleaseEngineeringMixin:
         if sheet_guid is None:
             sheet_guid = uuid.uuid4().hex
             sheet.SetAttribute(guid_attr, sheet_guid)
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         if section is None:
             b = part.Annotations.TableSections.CreateTableSectionBuilder(None)
             try:
@@ -502,7 +559,7 @@ class ReleaseEngineeringMixin:
         if views:
             with self._drawing_save_context(part, force_display=True):
                 for sheet in part.DrawingSheets:
-                    sheet.Open()
+                    self._open_drawing_sheet(sheet)
                     owned_views = list(sheet.GetDraftingViews())
                     if owned_views:
                         part.DraftingViews.UpdateViews(owned_views)
@@ -593,7 +650,7 @@ class ReleaseEngineeringMixin:
             return
         with self._drawing_save_context(part, force_display=True):
             for sheet, view in managed:
-                sheet.Open()
+                self._open_drawing_sheet(sheet)
                 record = json.loads(view.GetStringAttribute("NX_MCP_DETAIL_V1"))
                 tag = int(U.UFSession.GetUFSession().Tag.AskTagOfHandle(record["parent"]))
                 parent = next((v for v in sheet.GetDraftingViews() if int(v.Tag) == tag), None)

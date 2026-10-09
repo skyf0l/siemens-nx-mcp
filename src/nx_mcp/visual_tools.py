@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import uuid
 
+from nx_mcp import side_effects
 from nx_mcp.runtime import NXToolError
 
 
@@ -26,6 +27,7 @@ def unit_normal(value, argument="normal"):
 
 
 class VisualToolsMixin:
+    @side_effects.lookup
     def _visual_part(self):
         part = self._work_part()
         if part != self.session.Parts.Display:
@@ -310,9 +312,12 @@ class VisualToolsMixin:
         return {"cleared_count": cleared, "scope": "MCP-owned highlights only"}
 
     def _highlight_collisions(self, obj1, obj2, include_contact=False):
-        self._visual_part()
-        if self.session.IsBatch:
-            raise NXToolError("NX_VIEWPORT_UNAVAILABLE", "Highlighting requires interactive NX")
+        with side_effects.read_only():  # A failure here leaves mutation_outcome not_started.
+            self._visual_part()
+            if self.session.IsBatch:
+                raise NXToolError("NX_VIEWPORT_UNAVAILABLE", "Highlighting requires interactive NX")
+            self._geometry(obj1)
+            self._geometry(obj2)
         result = self._check_interference(obj1, obj2)
         pairs = [
             p
@@ -436,6 +441,9 @@ class VisualToolsMixin:
         target = self._resolve(section, {"section"})
         if action == "delete":
             part.DynamicSections.DeleteSections(False, [target])
+            # NX 2406 keeps the view's sectioning flag on with no section left.
+            if not list(part.DynamicSections) or not view.ActiveDynamicSection:
+                view.DisplaySectioningToggle = False
         elif action == "enable":
             view.ActiveDynamicSection = target
             view.DisplaySectioningToggle = True

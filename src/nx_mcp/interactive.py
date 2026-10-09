@@ -629,7 +629,9 @@ class InteractiveHost:
             self.completed += 1
             part = self.session.Parts.Display
             sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
-            if part and method not in READ_ONLY and sheet is None:
+            from nx_mcp.release_engineering import drawing_work_view
+
+            if part and method not in READ_ONLY and sheet is None and not drawing_work_view(part):
                 try:
                     part.ModelingViews.WorkView.UpdateDisplay()
                 except Exception as exc:

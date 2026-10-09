@@ -1,0 +1,59 @@
+{
+  "nx_screenshot": {
+    "verdict": "pass",
+    "evidence": "Drawing sheet displayed (fd_sm4 'Flat', fd_pl3 'D3', fd_sm7 'SM5'): was NX_API_ERROR 'The view is not a model view'; now capture_kind nx_drawing_sheet, drawing ref, view_name 'Flat@0', PNG 1362x673 opened and shows border, flat view and bend table; fit=true and style=current work, other styles warn. Expanded member view (no current sheet, work view 'Top@1'): PNG exported with drawing null and a warning to call nx_activate_drawing. Modeling view unchanged: capture_kind nx_model_viewport with camera.",
+    "fixes": [
+      "src/nx_mcp/inspection.py: _capture_drawing_sheet exports the displayed sheet; shared _commit_image_export/_read_capture",
+      "src/nx_mcp/integration_server.py: description states drawing-sheet behaviour",
+      "src/nx_mcp/interactive.py: skip the post-call model-view refresh while a drawing is the work view (no bogus 'View refresh' warning)",
+      "tests/test_drawing_context_2406.py: test_screenshot_exports_the_displayed_drawing_sheet"
+    ]
+  },
+  "nx_activate_drawing": {
+    "verdict": "pass",
+    "evidence": "SM part fd_sm7 and plain part fd_pl5: null -> modeling_active true and model screenshot; sheet id/name -> active true after every PDF export; expanded member view state -> list reports modeling_active false (was true).",
+    "fixes": [
+      "src/nx_mcp/release_engineering.py: shared _open_drawing_sheet (Open, verify CurrentDrawingSheet, UF Draw.OpenDrawing fallback, else NX_DRAWING_CONTEXT) and _close_drawing_sheets (ExitDraftingApplication, verify a model work view, UF SetDisplayState(1) fallback)",
+      "src/nx_mcp/documentation_editing.py: activate uses both helpers; modeling_active false while a member view is expanded",
+      "tests/test_drawing_context_2406.py: activate/close/expanded tests"
+    ]
+  },
+  "nx_export_drawing_pdf": {
+    "verdict": "pass",
+    "evidence": "fd_sm7 (Sheet Metal) and fd_pl5: export with sheet current -> list active true; export from modeling -> modeling_active true, model screenshot OK; following nx_add_projection_view / nx_add_flat_pattern_view succeed and leave the sheet current. PDFs v1_a..c, v3_a..c, p4 produced and read.",
+    "fixes": [
+      "src/nx_mcp/engineering.py + exploded_views.py: sheets opened and the prior sheet/modeling view restored through the verified helpers",
+      "tests/test_drawing_context_2406.py: test_pdf_export_leaves_the_previous_sheet_current"
+    ]
+  },
+  "nx_add_base_view": {
+    "verdict": "pass",
+    "evidence": "Template datum CSYS (layer 61) no longer drawn: fd_pl3 front/top/isometric/projected views, PNG p3_sheet/p4_hidden and PDF p4.pdf show only the body; view_info construction_geometry false, no warning; global layer 61 state unchanged (Selectable), model view still shows the CSYS. Datums on the body layer (fd_pl1 user datum plane/CSYS on layer 1) stay visible: base view returns the warning.",
+    "fixes": [
+      "src/nx_mcp/drawing_preferences.py: _hide_construction_layers hides, per view (Layers.SetObjectsVisibilityOnLayer), layers holding only construction geometry; visible_in_view reads back DraftingView.AskVisibleObjects",
+      "src/nx_mcp/engineering.py: sheet opened through the helper; warning when datums stay visible",
+      "tests/test_drawing_context_2406.py: construction layer tests"
+    ]
+  },
+  "nx_edit_drawing_view": {
+    "verdict": "pass",
+    "evidence": "fd_pl3 top view: construction_geometry true -> CSYS drawn (p4_shown.png), false -> gone (p4_hidden.png), layer attribute restored/recorded. fd_pl1 (datums on body layer 1): false -> NX_UNAVAILABLE_ON_VERSION details layers [1], not_erased 8, rolled back.",
+    "fixes": ["src/nx_mcp/documentation_editing_server.py: description of the 2406 layer behaviour"]
+  },
+  "nx_add_projection_view": {
+    "verdict": "pass",
+    "evidence": "Sheet opened before the builder (works from modeling and from an expanded member view). Under a 2:1 parent the projected view was 1:1 on 2406; now scale 2.0 (bounds 28.7 x 72.7 = 8/30 mm x2 + 12.7). Center off the sheet (left 150 from x=110) -> NX_INVALID_ARGUMENT before NX (was raw 'The view is not located on the drawing'), views unchanged.",
+    "fixes": [
+      "src/nx_mcp/engineering.py: open sheet, ViewStyleProjected.Scale=True (inherit parent scale), off-sheet pre-check",
+      "tests/test_drawing_context_2406.py: projection tests"
+    ]
+  },
+  "nx_sheet_metal_feature": {
+    "verdict": "pass",
+    "evidence": "flat_pattern while a drawing sheet was displayed failed with raw NX_API_ERROR 'Cannot create feature' (fd_sm6); now the drawing is left for the commit and the sheet reopened: flat pattern created, list active true, flat view added, model health OK.",
+    "fixes": [
+      "src/nx_mcp/sheet_metal.py: _sm_leave_drawing around the Flat Pattern commit; _sm_open_sheet delegates to the shared helper",
+      "tests/test_drawing_context_2406.py: test_flat_pattern_leaves_the_displayed_drawing_and_returns_its_sheet"
+    ]
+  }
+}

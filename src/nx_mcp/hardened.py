@@ -17,6 +17,7 @@ from nx_mcp import (
     freeform_server,
     manufacturing_server,
     sheet_metal_server,
+    side_effects,
 )
 from nx_mcp.advanced_authoring import AdvancedAuthoringMixin
 from nx_mcp.annotation_updates import AnnotationUpdatesMixin
@@ -340,6 +341,16 @@ class HardenedExecutor(
             }
         )
 
+    @property
+    def session(self):
+        # Every NX object a handler can change starts here (side_effects.py).
+        side_effects.touch()
+        return self._nx_session
+
+    @session.setter
+    def session(self, value):
+        self._nx_session = value
+
     def _part_id(self, part):
         tag = int(part.Tag)
         if tag not in self._part_generations:
@@ -437,6 +448,7 @@ class HardenedExecutor(
         have_before = False  # An empty part has an empty, but real, snapshot.
         previous = self._current_operation
         self._current_operation = op_id
+        observer = side_effects.SideEffectObserver().start()
         try:
             if method == "nx_restore_display":
                 self._validate_display_restore(params["restore_id"])
@@ -558,7 +570,9 @@ class HardenedExecutor(
                         details={"operation_error": str(error)},
                     )
             elif mutable and (method in NON_MODEL or method == "nx_import_geometry"):
-                outcome = "unknown"
+                # No undo mark: "not_started" only when the observer proves that
+                # nothing NX, file or process related ran before the failure.
+                outcome = "unknown" if observer.touched else "not_started"
             err = error if isinstance(error, NXToolError) else api_error(error)
             if mark is None:
                 # Inspections may create temporary native geometry. Preserve a
@@ -577,6 +591,7 @@ class HardenedExecutor(
                 self.store.put(record)
             raise err from error
         finally:
+            observer.stop()
             self._current_operation = previous
         if mutable and method != "nx_preview_change":
             self._review_epoch = getattr(self, "_review_epoch", 0) + 1
@@ -592,6 +607,7 @@ class HardenedExecutor(
             self.store.put(record)
         return result
 
+    @side_effects.lookup
     def _resolve(self, ref, kinds=None, part=None):
         part = part or self._work_part()
         if ref.startswith("obj_"):

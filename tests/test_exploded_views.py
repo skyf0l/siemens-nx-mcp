@@ -483,7 +483,9 @@ def assembly_drawing(explosions):
     sheet = Object("Sheet")
     sheet.OwningPart = r.part
     sheet.GetScale = lambda: (2.0, 1.0)
-    sheet.Open = Mock()
+    sheet.Open = Mock(
+        side_effect=lambda: setattr(r.part.DrawingSheets, "CurrentDrawingSheet", sheet)
+    )
     r.part.DrawingSheets.append(sheet)
     r.sheetref = r.ref(sheet, "drawing_sheet")
     r.builder = NS(

@@ -654,6 +654,7 @@ class SheetMetalMixin:
         self._require_api(manager, spec["factory"])
         import NXOpen.Features.SheetMetal as SM
 
+        reopen = self._sm_leave_drawing() if operation == "flat_pattern" else None
         b = getattr(manager, spec["factory"])(original)
         try:
             if original is None and hasattr(b, "SetApplicationContext"):
@@ -686,6 +687,23 @@ class SheetMetalMixin:
             return result
         finally:
             b.Destroy()
+            if reopen is not None:
+                self._open_drawing_sheet(reopen)
+
+    def _sm_leave_drawing(self):
+        """Show the model for a Flat Pattern commit; return the sheet to reopen afterwards.
+
+        NX 2406 refuses the Flat Pattern commit ("Cannot create feature") while a
+        drawing sheet is displayed.
+        """
+        from nx_mcp.release_engineering import drawing_work_view
+
+        part = self._work_part()
+        sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
+        if sheet is None and not drawing_work_view(part):
+            return None
+        self._close_drawing_sheets(part)
+        return sheet
 
     def _sheet_metal_info(self, body=None, offset=0, limit=50):
         import NXOpen.Features.SheetMetal as SM
@@ -1021,20 +1039,7 @@ class SheetMetalMixin:
 
     def _sm_open_sheet(self, part, sheet):
         """Make the sheet current; base-view builders commit a null view otherwise."""
-
-        def current():
-            value = part.DrawingSheets.CurrentDrawingSheet
-            return value is not None and int(value.Tag) == int(sheet.Tag)
-
-        sheet.Open()
-        if not current():
-            # NX 2406 Sheet Metal: after ExitDraftingApplication the sheet stays the
-            # work view, but Open() no longer makes it current. The UF call does.
-            import NXOpen.UF
-
-            NXOpen.UF.UFSession.GetUFSession().Draw.OpenDrawing(sheet.Tag)
-        if not current():
-            raise NXToolError("NX_DRAWING_CONTEXT", "NX could not open the drawing sheet")
+        self._open_drawing_sheet(sheet, part)
 
     def _add_flat_pattern_view(self, drawing, flat_pattern, position=None):
         part = self._work_part()

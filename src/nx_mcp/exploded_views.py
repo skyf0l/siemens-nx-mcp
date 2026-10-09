@@ -27,14 +27,14 @@ class ExplodedViewsMixin:
         try:
             if changed_part:
                 self._activate_part(self._reference(part, "part", part, "Part")["id"], True, True)
-            (original_sheet or sheets[0]).Open()
+            self._open_drawing_sheet(original_sheet or sheets[0], part)
             yield
         finally:
             try:
                 if original_sheet is None:
-                    part.Drafting.ExitDraftingApplication()
+                    self._close_drawing_sheets(part)
                 elif part.DrawingSheets.CurrentDrawingSheet != original_sheet:
-                    original_sheet.Open()
+                    self._open_drawing_sheet(original_sheet, part)
                 if changed_part:
                     if display:
                         self._activate_part(
@@ -370,7 +370,7 @@ class ExplodedViewsMixin:
                 raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Model view must belong to work part")
         else:
             if list(part.DrawingSheets):
-                part.Drafting.ExitDraftingApplication()
+                self._close_drawing_sheets(part)
             view = part.ModelingViews.WorkView
         if ex is not None:
             self._refresh_explosion_traces(ex)
@@ -437,7 +437,7 @@ class ExplodedViewsMixin:
             raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Drawing sheet must belong to work part")
         uf = self._explosion_uf()
         self._require_api(uf, "SetViewExplosion", "AskViewExplosion")
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         builder = part.DraftingViews.CreateBaseViewBuilder(None)
         try:
             self._configure_base_view(builder, sheet)

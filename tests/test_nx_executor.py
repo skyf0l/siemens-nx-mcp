@@ -242,6 +242,9 @@ class FakeParts:
         self.Work = part
         self.Display = part
 
+    def __iter__(self):
+        return iter([self.Work])
+
     def FileNew(self):
         self.last_file_new = FakeFileNew(self)
         return self.last_file_new

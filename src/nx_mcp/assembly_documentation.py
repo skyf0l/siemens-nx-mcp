@@ -116,7 +116,7 @@ class AssemblyDocumentationMixin:
                     "mutation_outcome": "not_started",
                 },
             )
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         uf = U.UFSession.GetUFSession()
         prefs = uf.Plist.AskDefaultPrefs()
         prefs.AutoUpdate = True

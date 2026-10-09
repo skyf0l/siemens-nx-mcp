@@ -1519,7 +1519,7 @@ class EngineeringMixin:
             sheet = b.Commit()
         finally:
             b.Destroy()
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         sheet.SetParameters(
             sheet.Height, sheet.Length, scale, 1.0, sheet.Units, sheet.ProjectionAngle
         )
@@ -1576,7 +1576,7 @@ class EngineeringMixin:
             raise NXToolError(
                 "NX_INVALID_ARGUMENT", "position must be two sheet coordinates in sheet units"
             )
-        sheet.Open()
+        self._open_drawing_sheet(sheet)
         b = part.DraftingViews.CreateBaseViewBuilder(None)
         try:
             self._configure_base_view(b, sheet)
@@ -1587,6 +1587,17 @@ class EngineeringMixin:
             b.Destroy()
         self._drawing_construction_visibility(result, False)
         self._place_drawing_view(result, sheet, point)
+        from nx_mcp.release_engineering import CONSTRUCTION_WARNING
+
+        try:  # "partial": NX 2406 kept datums that share a layer with bodies
+            partial = (
+                result.HasUserAttribute(
+                    "NX_MCP_DRAWING_CONSTRUCTION_V1", self.nxopen.NXObject.AttributeType.String, -1
+                )
+                and result.GetStringAttribute("NX_MCP_DRAWING_CONSTRUCTION_V1") == "partial"
+            )
+        except AttributeError:  # simulated views without attributes
+            partial = False
         return {
             "object": self._reference(result, "drawing_view", part, "Base view"),
             "view_name": result.Name,
@@ -1594,6 +1605,7 @@ class EngineeringMixin:
             "body": self._reference(target, "body", part, "Body"),
             "orientation": view,
             **self._drawing_coordinates(sheet, point),
+            "warnings": [CONSTRUCTION_WARNING] if partial else [],
         }
 
     def _export_drawing_pdf(self, path):
@@ -1620,7 +1632,7 @@ class EngineeringMixin:
             if views:
                 self._work_part().DraftingViews.UpdateViews(views)
             for sheet in sheets:
-                sheet.Open()
+                self._open_drawing_sheet(sheet)
             b = self._work_part().PlotManager.CreatePrintPdfbuilder()
             try:
                 b.Filename = str(file)
@@ -1671,10 +1683,24 @@ class EngineeringMixin:
         dx, dy = offsets[direction]
         sheet = self._view_sheet(view)
         target = [center.X + dx * spacing, center.Y + dy * spacing]
+        size = [getattr(sheet, "Length", None), getattr(sheet, "Height", None)]
+        if None not in size and not all(0 <= t <= s for t, s in zip(target, size, strict=True)):
+            # NX raises "The view is not located on the drawing" after committing.
+            raise NXToolError(
+                "NX_INVALID_ARGUMENT",
+                "The projected view center would lie outside the sheet; "
+                "reduce spacing or choose another direction",
+                details={"center": target, "sheet_size": size},
+            )
         point = self._sheet_point3d(sheet, target)
+        self._open_drawing_sheet(sheet)
         b = self._work_part().DraftingViews.CreateProjectedViewBuilder(None)
         try:
             b.Parent.View.Value = view
+            projected = getattr(getattr(b, "Style", None), "ViewStyleProjected", None)
+            if projected is not None:
+                # Inherit the parent's scale: NX 2406 defaults this off (projected views at 1:1).
+                projected.Scale = True
             b.Placement.AlignmentMethod = (
                 b.Placement.Method.Horizontal if dx else b.Placement.Method.Vertical
             )

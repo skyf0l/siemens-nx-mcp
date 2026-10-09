@@ -60,8 +60,6 @@ class InspectionMixin:
         style="shaded_with_edges",
         fit=False,
     ):
-        import NXOpen.Gateway
-
         if self.session.IsBatch:
             raise NXToolError(
                 "NX_VIEWPORT_UNAVAILABLE",
@@ -93,6 +91,13 @@ class InspectionMixin:
         part = self.session.Parts.Display
         if not part:
             raise NXToolError("NX_NO_DISPLAY_PART", "Open a display part first")
+        from nx_mcp.release_engineering import drawing_work_view
+
+        sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
+        if sheet is not None or drawing_work_view(part):
+            return self._capture_drawing_sheet(
+                part, sheet, file, width, height, background, style, fit
+            )
         view = part.ModelingViews.WorkView
         old_style = view.RenderingStyle
         builder = None
@@ -109,31 +114,14 @@ class InspectionMixin:
             view.UpdateDisplay()
             camera = self._view_info()
             builder = part.Views.CreateImageExportBuilder()
-            builder.FileName = str(file)
-            builder.FileFormat = NXOpen.Gateway.ImageExportBuilder.FileFormats.Png
-            builder.RegionMode = False
-            builder.DeviceWidth = width
-            builder.DeviceHeight = height
-            backgrounds = NXOpen.Gateway.ImageExportBuilder.BackgroundOptions
-            builder.BackgroundOption = {
-                "white": backgrounds.CustomColor,
-                "original": backgrounds.Original,
-                "transparent": backgrounds.Transparent,
-            }[background]
-            if background == "white":
-                builder.SetCustomBackgroundColor([1.0, 1.0, 1.0])
-            builder.EnhanceEdges = True
-            builder.Commit()
+            self._commit_image_export(builder, file, width, height, background)
         finally:
             try:
                 if builder:
                     builder.Destroy()
             finally:
                 view.RenderingStyle = old_style
-        data = file.read_bytes()
-        if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
-            raise NXToolError("NX_CAPTURE_FAILED", "NX did not produce a valid PNG")
-        resolution = list(struct.unpack(">II", data[16:24]))
+        data, resolution = self._read_capture(file)
         return {
             "path": str(file),
             "artifact_path": str(file.relative_to(self.workspace.root)),
@@ -151,6 +139,75 @@ class InspectionMixin:
                 if resolution == [width, height]
                 else ["NX returned a different resolution than requested"]
             ),
+        }
+
+    @staticmethod
+    def _commit_image_export(builder, file, width, height, background):
+        import NXOpen.Gateway
+
+        builder.FileName = str(file)
+        builder.FileFormat = NXOpen.Gateway.ImageExportBuilder.FileFormats.Png
+        builder.RegionMode = False
+        builder.DeviceWidth = width
+        builder.DeviceHeight = height
+        backgrounds = NXOpen.Gateway.ImageExportBuilder.BackgroundOptions
+        builder.BackgroundOption = {
+            "white": backgrounds.CustomColor,
+            "original": backgrounds.Original,
+            "transparent": backgrounds.Transparent,
+        }[background]
+        if background == "white":
+            builder.SetCustomBackgroundColor([1.0, 1.0, 1.0])
+        builder.EnhanceEdges = True
+        builder.Commit()
+
+    @staticmethod
+    def _read_capture(file):
+        data = file.read_bytes()
+        if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+            raise NXToolError("NX_CAPTURE_FAILED", "NX did not produce a valid PNG")
+        return data, list(struct.unpack(">II", data[16:24]))
+
+    def _capture_drawing_sheet(self, part, sheet, file, width, height, background, style, fit):
+        """Export the displayed drawing sheet; NX has no model view while a sheet is shown."""
+        warnings = []
+        if style != "current":
+            warnings.append(
+                "style applies to model views; the drawing sheet was exported as displayed"
+            )
+        view = part.Views.WorkView
+        if fit:
+            view.Fit()
+        builder = part.Views.CreateImageExportBuilder()
+        try:
+            self._commit_image_export(builder, file, width, height, background)
+        finally:
+            builder.Destroy()
+        data, resolution = self._read_capture(file)
+        if resolution != [width, height]:
+            warnings.append("NX returned a different resolution than requested")
+        if sheet is None:
+            warnings.append(
+                "NX shows a drawing sheet that is not its current sheet; "
+                "call nx_activate_drawing to make it current"
+            )
+        return {
+            "path": str(file),
+            "artifact_path": str(file.relative_to(self.workspace.root)),
+            "capture_kind": "nx_drawing_sheet",
+            "model_preview": False,
+            "drawing": (
+                self._reference(sheet, "drawing_sheet", part, "Drawing sheet") if sheet else None
+            ),
+            "view_name": view.Name,
+            "resolution": resolution,
+            "requested_resolution": [width, height],
+            "camera": None,
+            "background": background,
+            "rendering": "NX drawing sheet rasterization",
+            "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "warnings": warnings,
         }
 
     def _interference_pair(self, a, b):

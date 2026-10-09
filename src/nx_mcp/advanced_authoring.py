@@ -388,6 +388,7 @@ class AdvancedAuthoringMixin:
         for exp, formula in prepared:
             self._work_part().Expressions.EditExpression(exp, formula)
         self._update_model()
+        self._solve_active_sketch([exp for exp, _ in prepared])
         return self._feature_parameters(feature)
 
     @contextlib.contextmanager

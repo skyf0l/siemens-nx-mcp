@@ -436,11 +436,11 @@ def nx_add_base_view(
     scope: Literal["body", "assembly"] = "body",
     explosion: str | None = None,
 ):
-    """Add a native base view to a drawing sheet. scope=body requires body and a single-body part. scope=assembly requires no body, uses current component reference sets/suppression, and optionally associates a typed explosion from the same work part. Omitted explosion explicitly uses assembled positions. position=[x,y] uses sheet units, default [100,100]. Return typed view reference; open the target sheet."""
+    """Add a native base view to a drawing sheet. scope=body requires body and a single-body part. scope=assembly requires no body, uses current component reference sets/suppression, and optionally associates a typed explosion from the same work part. Omitted explosion explicitly uses assembled positions. position=[x,y] uses sheet units, default [100,100]. Model curves, datums and coordinate systems are kept out of the view without changing model display: per-view erasure, and on NX 2406 (which ignores per-view erasure of datums) the layers holding only construction geometry are hidden in this view (view-dependent layer visibility); datums sharing a layer with bodies stay visible and nx_drawing_view_info warns. Return typed view reference; the target sheet is left open and current."""
 
 
 def nx_export_drawing_pdf(path: str):
-    """Export all work-part drawing sheets to a new workspace PDF using native NX plotting. Temporarily display sheets to refresh their presentation, then restore the prior work/display part and drawing/modeling view. Full sheet scale, metric dimensions and searchable text. Returns actual path, sheet names/count, size and checksum. Reject missing drawings and existing files."""
+    """Export all work-part drawing sheets to a new workspace PDF using native NX plotting. Temporarily display sheets to refresh their presentation, then restore the prior work/display part and drawing/modeling view (the previously current sheet is verified current again, or the modeling view is verified back). Full sheet scale, metric dimensions and searchable text. Returns actual path, sheet names/count, size and checksum. Reject missing drawings and existing files."""
 
 
 def nx_add_projection_view(

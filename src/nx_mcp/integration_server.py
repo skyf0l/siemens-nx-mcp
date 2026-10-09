@@ -522,7 +522,7 @@ DESCRIPTIONS = {
     "nx_workspace_list": "List a workspace directory with prefix filtering and pagination (offset>=0, limit=1..1000, default 100). Returns entries/count for this page, total_count and next_offset. File entries include size/SHA-256. Use nx_download_file(delivery='metadata') to inspect one file.",
     "nx_workspace_info": "Discover the NX host workspace root and path rules. Paths refer to the NX machine, not the MCP client's filesystem. No session-wide current directory is changed.",
     "nx_create_directory": "Create a directory and missing parents inside the NX workspace. Accepts workspace-relative or in-workspace absolute host paths. Idempotent: an existing directory succeeds; an existing file fails. Returns actual path and created status.",
-    "nx_create_part": "Create a new NX part at an explicit workspace-relative or absolute in-workspace NX-host path, e.g. projects/controller/parts/base.prt. Missing parent folders are created. Units: mm or inch. Use unique part basenames for simultaneously loaded NX parts.",
+    "nx_create_part": "Create a new NX part at an explicit workspace-relative or absolute in-workspace NX-host path, e.g. projects/controller/parts/base.prt. Missing parent folders are created. Units: mm or inch. Use unique part basenames for simultaneously loaded NX parts: an existing file gives NX_FILE_EXISTS and a basename already loaded from another folder gives NX_NAME_CONFLICT (details.loaded_part_path), both before anything is created.",
     "nx_delete_feature": "Delete a work-part feature by typed ID or unambiguous name using native update/undo. Dependent geometry may be deleted; inspect changes.deleted and reacquire topology afterward.",
     "nx_measure_angle": "Measure 0..180 degrees between typed work-part line, straight-edge or planar-face references. Uses line start/end, edge vertex order or outward face normals. Curved entities and component occurrences are unsupported; directions are not an oriented dihedral angle.",
     "nx_sketch_constraint": "Apply a constraint to owned curve IDs in one sketch. Types: horizontal, vertical, fix/fixed, parallel, perpendicular, equal_length, equal_radius, concentric, tangent, coincident, distance/length, radius, diameter, angle. Only dimensions require value in part units or degrees. Coincident means start-to-start; use nx_sketch_relation for explicit endpoints. Midpoint is not supported.",
@@ -539,7 +539,7 @@ DESCRIPTIONS = {
     "nx_sketch_diagnostics": "Evaluate native solver status and NX's remaining-DOF indicator (0 when fully constrained; NX 2406 counts curves not fully constrained, not scalar DOF) for the entire sketch; enumerate persistent constraints and their curve links. Temporarily activates an inactive sketch and restores the prior state. Rejects another active sketch. Temporarily evaluates the entire sketch and restores the work-region state. Does not infer a minimal conflict set or automatically constrain geometry.",
     "nx_ui_control": "Inspect UI activity without queueing behind native work, or switch control modes. While the engineer has control, mode=agent (like any other request) is shown in the NX MCP panel and waits up to 60 s for them to click 'Give control to agent'; NX_UI_DECLINED means they chose 'Not now', so ask in chat before retrying. mode=manual hands control back at once. Agent mode reserves NX input even when idle. Status is a timestamped snapshot, not proof that a native call is responsive. Manual handoff invalidates references/checkpoints. Taking control back cannot interrupt a native call.",
     "nx_view_info": "Return the displayed model view, camera matrix, scale, rendering style, and interactive state.",
-    "nx_screenshot": "Export the actual interactive NX viewport as PNG and return an inline MCP image. Advisory 128–4096 pixel dimensions (NX can use the actual device size; response reports both), background, shaded/wireframe style and fit. No desktop capture. Paths are workspace-relative; omit for a unique capture path.",
+    "nx_screenshot": "Export the actual interactive NX viewport as PNG and return an inline MCP image. Advisory 128–4096 pixel dimensions (NX can use the actual device size; response reports both), background, shaded/wireframe style and fit. When a drawing sheet is displayed, exports the sheet as displayed (capture_kind nx_drawing_sheet, drawing reference, camera null; style does not apply, fit fits the sheet). No desktop capture. Paths are workspace-relative; omit for a unique capture path.",
     "nx_check_interference": "Check native solid interference between two body/component references, including nested occurrence geometry. Return penetration/contact/clear, closest points and pairwise interference volumes in mm^3. Temporary solids are rolled back.",
     "nx_check_clearance": "Check distinct solid body occurrences in selected groups or the full assembly. minimum_clearance uses part units. Conservative bounds prune clear pairs; reported distances and interference use native geometry. Pair limits are preflighted. Volumes are pairwise, not union volume.",
     "nx_create_sketch": "Create an active sketch with explicit part-space origin and orthonormal basis. XY: X,Y,+Z; XZ: X,Z,-Y; YZ: Y,Z,+X. Curve coordinates use the returned local basis. Lengths in work-part units.",
@@ -728,6 +728,9 @@ def configure(mcp, bridge, workspace):
 
         def factory(method, signature):
             async def proxy(**kwargs):
+                # Errors before the request leaves the sidecar (argument binding,
+                # workspace path checks) provably did not start the operation.
+                forwarded = False
                 try:
                     bound = signature.bind(**kwargs)
                     bound.apply_defaults()
@@ -742,8 +745,10 @@ def configure(mcp, bridge, workspace):
                             "op_" + uuid.uuid4().hex
                         )
                     if method == "nx_package_assembly":
+                        forwarded = True
                         result = await package_assembly(bridge, workspace, params["path"])
                     elif method in SIDE:
+                        forwarded = True
                         result = artifact_call(method, params, workspace)
                     else:
                         if (path_key := PATHS.get(method)) and params.get(path_key) is not None:
@@ -766,6 +771,7 @@ def configure(mcp, bridge, workspace):
                                     )
                         if intent := REQUEST_INTENT.get():
                             params["intent"] = intent
+                        forwarded = True
                         result = await bridge.call(method, params)
                     response = envelope(result, error=result.get("status") == "error")
                     if (
@@ -807,7 +813,9 @@ def configure(mcp, bridge, workspace):
                     )
                     if "params" in locals() and params.get("operation_id"):
                         error.details.setdefault("operation_id", params["operation_id"])
-                        error.details.setdefault("mutation_outcome", "unknown")
+                        error.details.setdefault(
+                            "mutation_outcome", "unknown" if forwarded else "not_started"
+                        )
                     return envelope(error.as_dict(), True)
 
             proxy.__name__ = method

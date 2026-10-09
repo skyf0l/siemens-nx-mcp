@@ -2,12 +2,18 @@
   "nx_sketch_point_dimension": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406 modern solver, XY sketch (acceptance/live/sketch_constraints.json): horizontal line-end to line-start driven 20->25 mm, vertical measured-and-fixed 5 mm (value=None), line start-to-end distance driven 26.93->30 mm, arc center to line mid measured 61.27 mm; geometry read back within 1e-6 and expression value equal; duplicate dimension on the same point pair -> NX_SKETCH_CONFLICT (nx_code 910023), contradicting vertical 7 mm -> OverConstrained, NX_SKETCH_CONFLICT, rolled back with geometry unchanged. Arc start/end points measured only in a probe (10 mm chord). Independent verification (verify_b): XZ sketch line start to arc mid measured 60.8276, arc chord horizontal 17.32->20, line mid vertical 17.5->12, circle centre to line end 44.72->35; inch part horizontal 1.5 in; 9 invalid inputs (line centre, circle start, same point, value 0/-5, zero size measured, other-sketch curve NX_OBJECT_OWNER_MISMATCH, wrong kinds) rejected with geometry unchanged."
+    "scope": "NX 2406 modern solver, XY sketch (acceptance/live/sketch_constraints.json): horizontal line-end to line-start driven 20->25 mm, vertical measured-and-fixed 5 mm (value=None), line start-to-end distance driven 26.93->30 mm, arc center to line mid measured 61.27 mm; geometry read back within 1e-6 and expression value equal; duplicate dimension on the same point pair -> NX_SKETCH_CONFLICT (nx_code 910023), contradicting vertical 7 mm -> OverConstrained, NX_SKETCH_CONFLICT, rolled back with geometry unchanged. Arc start/end points measured only in a probe (10 mm chord). Independent verification (verify_b): XZ sketch line start to arc mid measured 60.8276, arc chord horizontal 17.32->20, line mid vertical 17.5->12, circle centre to line end 44.72->35; inch part horizontal 1.5 in; 9 invalid inputs (line centre, circle start, same point, value 0/-5, zero size measured, other-sketch curve NX_OBJECT_OWNER_MISMATCH, wrong kinds) rejected with geometry unchanged.",
+    "verified_versions": [
+      "v2406"
+    ]
   },
   "nx_sketch_curve_dimension": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406: angle between two lines driven 56.44->60 deg (line directions read back 60.000000), parallel_distance between parallel lines driven 20->15 mm and later edited to 18 through the dimension expression (line moved to y=18, midpoint-constrained circle followed), perpendicular_distance line to arc center driven 10->12 mm. Non-parallel lines rejected before NX. Independent verification (verify_b): XZ sketch angle measured 26.5651 and driven to 135 (obtuse), perpendicular_distance to a line end 63.25->50, arc start 0->8, line mid 25->40; inch part parallel 0.75 in, perpendicular 0.4 in; nx_set_expression on the dimension expression works on NX 2406 (curves follow once the sketch is finished). 9 invalid inputs rejected, sketch unchanged."
+    "scope": "NX 2406: angle between two lines driven 56.44->60 deg (line directions read back 60.000000), parallel_distance between parallel lines driven 20->15 mm and later edited to 18 through the dimension expression (line moved to y=18, midpoint-constrained circle followed), perpendicular_distance line to arc center driven 10->12 mm. Non-parallel lines rejected before NX. Independent verification (verify_b): XZ sketch angle measured 26.5651 and driven to 135 (obtuse), perpendicular_distance to a line end 63.25->50, arc start 0->8, line mid 25->40; inch part parallel 0.75 in, perpendicular 0.4 in; nx_set_expression on the dimension expression works on NX 2406 and now solves an active sketch immediately (fix_core). 9 invalid inputs rejected, sketch unchanged.",
+    "verified_versions": [
+      "v2406"
+    ]
   },
   "nx_sketch_midpoint": {
     "status": "tested",

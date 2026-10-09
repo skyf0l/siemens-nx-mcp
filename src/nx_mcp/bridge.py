@@ -17,6 +17,7 @@ from threading import Event, Lock, Thread
 from typing import Any
 from uuid import uuid4
 
+from nx_mcp import side_effects
 from nx_mcp.runtime import NXToolError, ObjectKind, ObjectRef
 
 BRIDGE_PROTOCOL_VERSION = 1
@@ -516,6 +517,7 @@ class ObjectRegistry:
                 "NX_OBJECT_STALE",
                 "Object reference belongs to a different work part",
             )
+        side_effects.touch()  # The caller now holds a live NX object.
         return entry.value
 
     def invalidate_part(self, part_id: str) -> None:

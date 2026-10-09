@@ -170,6 +170,38 @@ class NXOpenExecutor:
         if units not in {"mm", "inch"}:
             raise NXToolError("NX_INVALID_ARGUMENT", "units must be 'mm' or 'inch'")
         destination = self.workspace.ensure_inside(path)
+        if destination.exists():
+            raise NXToolError(
+                "NX_FILE_EXISTS",
+                "A file already exists at this path; open it or choose a new path",
+                details={"path": str(destination), "mutation_outcome": "not_started"},
+            )
+        # NX names a part by its file basename: a loaded part with the same basename
+        # (any folder, saved or not) makes FileNew fail with "File already exists".
+        clash = next(
+            (
+                p
+                for p in self.session.Parts
+                if Path(str(p.FullPath)).stem.casefold() == destination.stem.casefold()
+            ),
+            None,
+        )
+        if clash is not None:
+            loaded = str(clash.FullPath)
+            same = Path(loaded).resolve() == destination
+            raise NXToolError(
+                "NX_FILE_EXISTS" if same else "NX_NAME_CONFLICT",
+                (
+                    "This part is already loaded (not saved yet); use nx_open_part"
+                    if same
+                    else "A loaded part already uses this basename; choose another file name"
+                ),
+                details={
+                    "path": str(destination),
+                    "loaded_part_path": loaded,
+                    "mutation_outcome": "not_started",
+                },
+            )
         destination.parent.mkdir(parents=True, exist_ok=True)
         builder = self.session.Parts.FileNew()
         try:

@@ -1,6 +1,7 @@
 """Native drawing/annotation editing; NXOpen calls remain on the NX thread."""
 
 from nx_mcp.authoring import finite, page
+from nx_mcp.release_engineering import drawing_work_view
 from nx_mcp.runtime import NXToolError
 
 
@@ -27,15 +28,16 @@ class DocumentationEditingMixin:
             ],
             "units": "per_sheet",
             "coordinate_frame": "drawing_sheet",
-            "modeling_active": current is None,
+            # An expanded member view shows the drawing without a current sheet.
+            "modeling_active": current is None and not drawing_work_view(part),
         }
 
     def _activate_drawing(self, drawing=None):
         part = self._explosion_context()
         if drawing is None:
-            part.Drafting.ExitDraftingApplication()
+            self._close_drawing_sheets(part)
         else:
-            self._drawing_object(drawing, "drawing_sheet").Open()
+            self._open_drawing_sheet(self._drawing_object(drawing, "drawing_sheet"), part)
         return self._list_drawings()
 
     def _list_annotations(self, offset=0, limit=100):

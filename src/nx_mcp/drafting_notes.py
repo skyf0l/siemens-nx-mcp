@@ -170,14 +170,14 @@ class DraftingNotesMixin:
             return current
         target = self._drawing_object(sheet, "drawing_sheet")
         if part.DrawingSheets.CurrentDrawingSheet != target:
-            target.Open()
+            self._open_drawing_sheet(target)
         return target
 
     def _dn_view(self, view):
         target = self._drawing_object(view, "drawing_view")
         sheet = self._view_sheet(target)
         if self._work_part().DrawingSheets.CurrentDrawingSheet != sheet:
-            sheet.Open()
+            self._open_drawing_sheet(sheet)
         return target, sheet
 
     def _dn_geometry(self, reference, kinds):
