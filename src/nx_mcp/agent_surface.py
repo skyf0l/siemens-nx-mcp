@@ -34,7 +34,15 @@ DOMAINS = {
     "drawing": ("drawing", "balloon", "bom", "pmi", "annotation"),
     "manufacturing": ("sheet_metal", "flat_pattern", "thread", "draft_analysis", "thickness"),
     "inspection": ("measure", "bounding", "interference", "collision", "topology", "diagnostic"),
-    "display": ("view", "display", "visibility", "section", "render", "screenshot", "datum"),
+    "display": (
+        "view",
+        "display",
+        "visibility",
+        "section",
+        "render",
+        "screenshot",
+        "datum_visibility",
+    ),
     "files": (
         "part",
         "workspace",
