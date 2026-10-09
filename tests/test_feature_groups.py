@@ -47,3 +47,19 @@ def test_capabilities_report_evidence_for_the_running_nx_version():
         scope_to_version(load_manifest(), "v2606")["tools"]["nx_bridge_surface"]["status"]
         == "tested"
     )
+
+
+def test_capability_fragments_ship_as_package_data():
+    # The wheel only carries listed data files; a missing fragment silently drops its tools.
+    import fnmatch
+    from pathlib import Path
+
+    tomllib = pytest.importorskip("tomllib")  # Python 3.11+
+    root = Path(__file__).resolve().parents[1]
+    patterns = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["tool"][
+        "setuptools"
+    ]["package-data"]["nx_mcp"]
+    package = root / "src" / "nx_mcp"
+    for fragment in (package / "capability_fragments").glob("*.json"):
+        name = fragment.relative_to(package).as_posix()
+        assert any(fnmatch.fnmatch(name, p) for p in patterns), name
