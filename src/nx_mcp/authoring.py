@@ -21,6 +21,21 @@ def page(items, offset=0, limit=50):
     }
 
 
+def _native_formula(call):
+    """Run an NX expression create/edit; NX rejects bad formulas with a native error."""
+    try:
+        return call()
+    except NXToolError:
+        raise
+    except Exception as error:
+        raise NXToolError(
+            "NX_INVALID_FORMULA",
+            f"NX rejected the formula: {error}",
+            nx_code=getattr(error, "ErrorCode", None),
+            suggestion="Use NX expression syntax with existing expression names and units",
+        ) from error
+
+
 def _expression_list(exp, method):
     """Expressions returned by an optional NXOpen dependency query, [] if absent."""
     query = getattr(exp, method, None)
@@ -140,7 +155,9 @@ class AuthoringMixin:
                     "NX_INVALID_ARGUMENT", "units must be mm, inch, deg, rad or unitless"
                 )
             unit = part.UnitCollection.FindObject(unit_names[units]) if unit_names[units] else None
-            exp = part.Expressions.CreateNumberExpression(expression + "=" + formula, unit)
+            exp = _native_formula(
+                lambda: part.Expressions.CreateNumberExpression(expression + "=" + formula, unit)
+            )
         else:
             if units != "unitless":
                 raise NXToolError(
@@ -153,7 +170,7 @@ class AuthoringMixin:
                     "NX_EXPRESSION_READ_ONLY",
                     "Only editable, local Number expressions are supported",
                 )
-            part.Expressions.EditExpression(exp, formula)
+            _native_formula(lambda: part.Expressions.EditExpression(exp, formula))
         self._update_model()
         row = self._expression_record(exp)
         return {

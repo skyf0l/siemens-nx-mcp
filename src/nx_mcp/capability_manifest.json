@@ -6,7 +6,10 @@
     "nx_rollback": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Explicit checkpoint rollback; stale references rejected afterward"
+      "scope": "Explicit checkpoint rollback; stale references rejected afterward",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_export_drawing_pdf": {
       "status": "tested",
@@ -16,27 +19,42 @@
     "nx_finish_sketch": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Principal/custom sketch completion and subsequent extrusion"
+      "scope": "Principal/custom sketch completion and subsequent extrusion",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_chamfer": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native single-edge symmetric-offset chamfer on a cube; explicit edge collector and tolerance."
+      "scope": "Native single-edge symmetric-offset chamfer on a cube; explicit edge collector and tolerance.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_mirror_body": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native body mirror about YZ origin plane; doubled total volume and reflected bounding box."
+      "scope": "Native body mirror about YZ origin plane; doubled total volume and reflected bounding box.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_create_part": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Fresh millimeter parts in isolated NX test workspace"
+      "scope": "Fresh millimeter parts in isolated NX test workspace",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_activate_part": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Used by loaded-part opening; work/display activation; modified flags preserved"
+      "scope": "Used by loaded-part opening; work/display activation; modified flags preserved",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_add_projection_view": {
       "status": "tested",
@@ -51,27 +69,42 @@
     "nx_edit_feature": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Extrusion distance 46.25 and native linear-pattern count/pitch; unsupported edit unchanged"
+      "scope": "Extrusion distance 46.25 and native linear-pattern count/pitch; unsupported edit unchanged",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sketch_info": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native XY sketch with two perpendicular lines; frame and owned curve readback. Principal/custom-frame geometry also covered by the sketch creation fixtures."
+      "scope": "Native XY sketch with two perpendicular lines; frame and owned curve readback. Principal/custom-frame geometry also covered by the sketch creation fixtures.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_hole": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native cylindrical subtraction with numeric coordinates, target body and direction; not a threaded/drill-tip HolePackage feature."
+      "scope": "Native cylindrical subtraction with numeric coordinates, target body and direction; not a threaded/drill-tip HolePackage feature.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_close_part": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Blocks closing prototypes referenced by other loaded assemblies before saving. Native edited-child guard passed; close parents first. Reports all parts actually closed and invalidates their references."
+      "scope": "Blocks closing prototypes referenced by other loaded assemblies before saving. Native edited-child guard passed; close parents first. Reports all parts actually closed and invalidates their references.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_measure_volume": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Part and nested assembly sum, returned in mm^3; no union/mass claim Inch-part 0.5 cubic inch volume independently checked as 8193.532 mm3 using explicit native AnalysisUnit."
+      "scope": "Part and nested assembly sum, returned in mm^3; no union/mass claim Inch-part 0.5 cubic inch volume independently checked as 8193.532 mm3 using explicit native AnalysisUnit.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_batch": {
       "status": "tested",
@@ -81,7 +114,10 @@
     "nx_undo": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Undo after read-only inspection; save boundary explicitly inspected"
+      "scope": "Undo after read-only inspection; save boundary explicitly inspected",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_status": {
       "status": "tested",
@@ -91,12 +127,18 @@
     "nx_sketch_line": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Principal-plane profile coordinates checked against resultant solids"
+      "scope": "Principal-plane profile coordinates checked against resultant solids",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_export_step": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Solid/assembly exports verified by import counts, volumes, exact bounds and transforms"
+      "scope": "Solid/assembly exports verified by import counts, volumes, exact bounds and transforms",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_import_geometry": {
       "status": "tested",
@@ -111,12 +153,18 @@
     "nx_revolve": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "XY rectangular profile around global Y, boolean none, case-insensitive name lookup"
+      "scope": "XY rectangular profile around global Y, boolean none, case-insensitive name lookup",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_list_open_parts": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Loaded names, paths, IDs, work/display status and modified flags"
+      "scope": "Loaded names, paths, IDs, work/display status and modified flags",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_rename_object": {
       "status": "tested",
@@ -131,7 +179,10 @@
     "nx_measure_distance": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Body/body, face/face, nested component/body occurrences; closest points and units"
+      "scope": "Body/body, face/face, nested component/body occurrences; closest points and units",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_mate_component": {
       "status": "tested",
@@ -151,27 +202,42 @@
     "nx_add_component": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Initial placement, typed references and nested source assembly"
+      "scope": "Initial placement, typed references and nested source assembly",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sketch_arc": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Full circles on XY, XZ and YZ; resulting solid dimensions and volumes checked"
+      "scope": "Full circles on XY, XZ and YZ; resulting solid dimensions and volumes checked",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_open_part": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Open or activate saved workspace paths. Explicit load_components=true recovers unloaded prototypes on an already loaded parent without closing it; native occurrence pose and 1000 mm3 solid retained."
+      "scope": "Open or activate saved workspace paths. Explicit load_components=true recovers unloaded prototypes on an already loaded parent without closing it; native occurrence pose and 1000 mm3 solid retained.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_measure_angle": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native perpendicular sketch lines measure 90 degrees using typed references. Straight-edge and planar-face paths use native geometry; broader pair variants are not separately kernel-tested."
+      "scope": "Native perpendicular sketch lines measure 90 degrees using typed references. Straight-edge and planar-face paths use native geometry; broader pair variants are not separately kernel-tested.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_delete_feature": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native extrusion deletion after Save As with a reacquired feature ID; resulting body count zero. Dependency cascades beyond this fixture are not independently tested."
+      "scope": "Native extrusion deletion after Save As with a reacquired feature ID; resulting body count zero. Dependency cascades beyond this fixture are not independently tested.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_reposition_component": {
       "status": "tested",
@@ -186,37 +252,58 @@
     "nx_checkpoint": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "In-session model checkpoint and available-state inspection"
+      "scope": "In-session model checkpoint and available-state inspection",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_screenshot": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_interactive",
-      "scope": "Native viewport PNG, white/transparent backgrounds, shaded/shaded-with-edges; requested dimensions advisory; actual device resolution returned"
+      "scope": "Native viewport PNG, white/transparent backgrounds, shaded/shaded-with-edges; requested dimensions advisory; actual device resolution returned",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_list_bodies": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native work-part inventory reports one extruded body and zero after feature deletion."
+      "scope": "Native work-part inventory reports one extruded body and zero after feature deletion.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_save_part": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Saves only the work part, preserving drawing-preview context. A native 73-loaded-part fixture verified the saved path and file hash, unchanged unrelated files/flags, and an edited child remaining unsaved. Native save errors and unexpected changes return a partial-outcome receipt. Activate and save each component explicitly."
+      "scope": "Saves only the work part, preserving drawing-preview context. A native 73-loaded-part fixture verified the saved path and file hash, unchanged unrelated files/flags, and an edited child remaining unsaved. Native save errors and unexpected changes return a partial-outcome receipt. Activate and save each component explicitly.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_set_view": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native Top, Back and Isometric selection on a solid fixture. Other canned views follow the same API but are not individually verified."
+      "scope": "Native Top, Back and Isometric selection on a solid fixture. Other canned views follow the same API but are not individually verified.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_boolean": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Overlapping1000mm3 cubes: unite1500, subtract500, intersect500mm3 verified analytically."
+      "scope": "Overlapping1000mm3 cubes: unite1500, subtract500, intersect500mm3 verified analytically.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_list_topology": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Face and edge enumeration; face references used in actual distance query Native face-restricted boundary enumeration and bidirectional adjacency used for flat-pattern orientation."
+      "scope": "Face and edge enumeration; face references used in actual distance query Native face-restricted boundary enumeration and bidirectional adjacency used for flat-pattern orientation.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_download_file": {
       "status": "tested",
@@ -226,7 +313,10 @@
     "nx_extrude": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native offset/symmetric/arbitrary-direction extrusion, through-all subtraction and up-to-face solids; analytic volume and bounds checked."
+      "scope": "Native offset/symmetric/arbitrary-direction extrusion, through-all subtraction and up-to-face solids; analytic volume and bounds checked.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_list_sketches": {
       "status": "tested",
@@ -236,12 +326,18 @@
     "nx_list_features": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native sketch/extrusion inventory and reacquisition of a renamed feature following Save As."
+      "scope": "Native sketch/extrusion inventory and reacquisition of a renamed feature following Save As.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_pattern": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Native Pattern Feature; 16 total at 16.5 pitch, width 261.5; edit to 3 at 20 pitch"
+      "scope": "Native Pattern Feature; 16 total at 16.5 pitch, width 261.5; edit to 3 at 20 pitch",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_get_feature_info": {
       "status": "tested",
@@ -256,12 +352,18 @@
     "nx_sweep": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native square sketch swept along a straight guide sketch; boolean variants use existing boolean operation."
+      "scope": "Native square sketch swept along a straight guide sketch; boolean variants use existing boolean operation.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_fit_view": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native fit on a displayed solid fixture in graphical NX; framing quality remains view-dependent."
+      "scope": "Native fit on a displayed solid fixture in graphical NX; framing quality remains view-dependent.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_capabilities": {
       "status": "tested",
@@ -271,7 +373,10 @@
     "nx_blend": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native single-edge radius1 blend on a cube; installed AddChainset API and cleanup verified."
+      "scope": "Native single-edge radius1 blend on a cube; installed AddChainset API and cleanup verified.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_cancel_operation": {
       "status": "tested",
@@ -281,7 +386,10 @@
     "nx_create_sketch": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "XY, XZ, YZ and an offset arbitrary orthonormal basis; actual frames and curve coordinates checked"
+      "scope": "XY, XZ, YZ and an offset arbitrary orthonormal basis; actual frames and curve coordinates checked",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_checkpoint_state": {
       "status": "tested",
@@ -296,17 +404,26 @@
     "nx_get_bounding_box": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Part and two-level assembly; conservative and exact with axis-aligned WCS"
+      "scope": "Part and two-level assembly; conservative and exact with axis-aligned WCS",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_save_as": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native metric solid saved into a nested folder; work-part filename changes and references are reacquired before deletion. Original saved prototype loads into the test assembly."
+      "scope": "Native metric solid saved into a nested folder; work-part filename changes and references are reacquired before deletion. Original saved prototype loads into the test assembly.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_list_components": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Native loaded and unloaded prototype inventory retains occurrence references, paths and transforms with explicit load_state. Unknown source paths are nullable; unloaded subassemblies can hide descendants. No implicit loading."
+      "scope": "Native loaded and unloaded prototype inventory retains occurrence references, paths and transforms with explicit load_state. Unknown source paths are nullable; unloaded subassemblies can hide descendants. No implicit loading.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_create_drawing": {
       "status": "tested",
@@ -316,7 +433,10 @@
     "nx_sketch_constraint": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native horizontal constraint on an owned sketch line through the supported sketch editor. Other routed relations/dimensions retain their dedicated-tool scopes; midpoint is explicitly unsupported."
+      "scope": "Native horizontal constraint on an owned sketch line through the supported sketch editor. Other routed relations/dimensions retain their dedicated-tool scopes; midpoint is explicitly unsupported.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_ui_control": {
       "status": "tested",
@@ -331,7 +451,10 @@
     "nx_check_interference": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_interactive",
-      "scope": "10 mm cubes: 500 mm^3 overlap, touching and 2 mm gap; rotated nested occurrence overlap; cleanup preserves saved flags and checkpoint"
+      "scope": "10 mm cubes: 500 mm^3 overlap, touching and 2 mm gap; rotated nested occurrence overlap; cleanup preserves saved flags and checkpoint",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_check_clearance": {
       "status": "tested",
@@ -346,7 +469,10 @@
     "nx_set_display": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_public_MCP",
-      "scope": "Named color and transparency; face attribute restoration; nested occurrence override leaves shared prototypes unchanged"
+      "scope": "Named color and transparency; face attribute restoration; nested occurrence override leaves shared prototypes unchanged",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_set_visibility": {
       "status": "tested",
@@ -401,12 +527,18 @@
     "nx_list_expressions": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams"
+      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_set_expression": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams"
+      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_bind_parameter": {
       "status": "tested",
@@ -416,7 +548,10 @@
     "nx_model_health": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams"
+      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_rebuild_model": {
       "status": "tested",
@@ -426,7 +561,10 @@
     "nx_edit_sketch": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams"
+      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_component_action": {
       "status": "tested",
@@ -481,7 +619,10 @@
     "nx_recognize_holes": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped_and_local_boundary_tests",
-      "scope": "Annular solid: inner cylinder identified as bore, outer cylinder excluded; axis/radius/full circumference read-back. Coaxial grouping and partial-face reporting covered locally; no manufacturing feature inference."
+      "scope": "Annular solid: inner cylinder identified as bore, outer cylinder excluded; axis/radius/full circumference read-back. Coaxial grouping and partial-face reporting covered locally; no manufacturing feature inference.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_native_component_pattern": {
       "status": "tested",
@@ -501,7 +642,10 @@
     "nx_sketch_dimension": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped_and_local_boundary_tests",
-      "scope": "Line length (XZ), horizontal/vertical distances and arc radius/diameter creation; associated expression edit. Reference mismatch guard covered locally."
+      "scope": "Line length (XZ), horizontal/vertical distances and arc radius/diameter creation; associated expression edit. Reference mismatch guard covered locally.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sketch_relation": {
       "status": "tested",
@@ -516,37 +660,58 @@
     "nx_feature_parameters": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped_and_local_boundary_tests",
-      "scope": "Native extrusion-owned expression enumeration; other feature kinds depend on exposed GetExpressions results."
+      "scope": "Native extrusion-owned expression enumeration; other feature kinds depend on exposed GetExpressions results.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_set_feature_parameters": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped_and_local_boundary_tests",
-      "scope": "Native extrusion-owned Number formula edit and resulting bounds; preflight/rollback boundary tests. No blanket verification of other feature kinds."
+      "scope": "Native extrusion-owned Number formula edit and resulting bounds; preflight/rollback boundary tests. No blanket verification of other feature kinds.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_shell": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native open-box shell: inward 1 mm thickness on 10 mm cube gives 424 mm3. Outward configuration separately checked locally."
+      "scope": "Native open-box shell: inward 1 mm thickness on 10 mm cube gives 424 mm3. Outward configuration separately checked locally.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_loft": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native solid loft between square sections with analytic volume; sheet configuration has local contract coverage."
+      "scope": "Native solid loft between square sections with analytic volume; sheet configuration has local contract coverage.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_draft": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native 5 degree face draft with analytic volume and explicit angle/distance tolerances."
+      "scope": "Native 5 degree face draft with analytic volume and explicit angle/distance tolerances.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_transform_bodies": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Associative body extraction plus native MoveObject; copy preserves source; absolute transform replacement verified by bounds."
+      "scope": "Associative body extraction plus native MoveObject; copy preserves source; absolute transform replacement verified by bounds.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sketch_primitive": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Circle, horizontal slot and rounded rectangle: native curves and extruded analytic volumes."
+      "scope": "Circle, horizontal slot and rounded rectangle: native curves and extruded analytic volumes.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sketch_angle": {
       "status": "tested",
@@ -586,7 +751,10 @@
     "nx_mass_properties": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native solid mass, volume, center of gravity and centroidal inertia; 2700kg/m3 test cube matches analytic results. Nested rotated/translated two-body assembly: mass0.0054kg and CoG[0.005,0.035,0.035]m verified."
+      "scope": "Native solid mass, volume, center of gravity and centroidal inertia; 2700kg/m3 test cube matches analytic results. Nested rotated/translated two-body assembly: mass0.0054kg and CoG[0.005,0.035,0.035]m verified.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_copy_project": {
       "status": "tested",
@@ -596,12 +764,18 @@
     "nx_render_view": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native Studio image capture, exact 800x600 and 640x480 PNGs; preset2/custom RGB tested; native viewport image visually reviewed."
+      "scope": "Native Studio image capture, exact 800x600 and 640x480 PNGs; preset2/custom RGB tested; native viewport image visually reviewed.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_assembly_constraint": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native fix and face-distance constraints; actual separation measured. Other exposed relation types retain narrower validation."
+      "scope": "Native fix and face-distance constraints; actual separation measured. Other exposed relation types retain narrower validation.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_edit_assembly_constraint": {
       "status": "tested",
@@ -716,7 +890,10 @@
     "nx_thicken": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native 2 mm sheet thickening with independently checked 400 mm^3 solid volume."
+      "scope": "Native 2 mm sheet thickening with independently checked 400 mm^3 solid volume.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_edit_faces": {
       "status": "tested",
@@ -741,7 +918,10 @@
     "nx_thread": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native manual symbolic and detailed internal/external thread creation with explicit start face and cylinder diameter. Standards-table fit classes not exposed."
+      "scope": "Native manual symbolic and detailed internal/external thread creation with explicit start face and cylinder diameter. Standards-table fit classes not exposed.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_pmi_datum": {
       "status": "tested",
@@ -836,7 +1016,10 @@
     "nx_standard_thread": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native Metric Coarse M6 x 1.0 internal/external symbolic/detailed threads; pitch and material-removal verification. Detailed Metric Fine M6x0.75 and Inch UNC 1/4-20, right and left handed."
+      "scope": "Native Metric Coarse M6 x 1.0 internal/external symbolic/detailed threads; pitch and material-removal verification. Detailed Metric Fine M6x0.75 and Inch UNC 1/4-20, right and left handed.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_edit_explosion_trace": {
       "status": "tested",

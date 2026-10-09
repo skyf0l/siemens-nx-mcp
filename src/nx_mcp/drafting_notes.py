@@ -136,7 +136,6 @@ def close2(a, b, tol=1e-3):
 
 
 class DraftingNotesMixin:
-    # ---- listing ---------------------------------------------------------
     # ---- helpers ---------------------------------------------------------
     def _dn_sheet(self, sheet):
         part = self._work_part()

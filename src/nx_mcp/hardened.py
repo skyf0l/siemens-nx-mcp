@@ -741,7 +741,7 @@ class HardenedExecutor(
             "recovery": state,
             **audit,
             "warnings": [
-                "NX v2606 save invalidates native undo/checkpoints. Establish a new checkpoint before further edits.",
+                "NX save invalidates native undo/checkpoints. Establish a new checkpoint before further edits.",
                 "Verification covers loaded part files and flags, not external linked files or concurrent external writers.",
             ],
         }
@@ -1073,7 +1073,7 @@ class HardenedExecutor(
             "undo_depth": sum(
                 self.session.DoesUndoMarkExist(h["mark"], None) for h in self._history
             ),
-            "save_semantics": "NX v2606 save removes native marks. Expired checkpoints cannot be rolled back; create a new checkpoint after save.",
+            "save_semantics": "NX save removes native marks. Expired checkpoints cannot be rolled back; create a new checkpoint after save.",
             "retention": "Current NX process only; cross-part rollback is rejected if it would undo another part.",
         }
 
@@ -1560,17 +1560,16 @@ class HardenedExecutor(
         shutil.copyfile(source, staged)
         builder = self.session.DexManager.CreateStep214Importer()
         try:
-            settings_file = str(
-                Path(
-                    __import__("os").environ.get(
-                        "UGII_BASE_DIR", r"C:\Program Files\Siemens\Designcenter2606"
-                    )
+            base_dir = __import__("os").environ.get("UGII_BASE_DIR")
+            if not base_dir:
+                raise NXToolError(
+                    "NX_IMPORT_FAILED", "UGII_BASE_DIR is not set; cannot locate step214ug.def"
                 )
-                / "STEP214UG"
-                / "step214ug.def"
-            )
+            settings_file = str(Path(base_dir) / "STEP214UG" / "step214ug.def")
             builder.SettingsFile = settings_file
             builder.InputFile = str(staged)
+            # NX 2406 validates OutputFile even when importing into the work part.
+            builder.OutputFile = str(import_dir / "output.prt")
             builder.ImportTo = self.nxopen.Step214Importer.ImportToOption.WorkPart
             builder.FileOpenFlag = False
             builder.FlattenAssembly = flatten
@@ -1616,7 +1615,7 @@ class HardenedExecutor(
             "target": target,
             "part": self._reference(part, "part", part, "Part"),
             "units": self._units(),
-            "translator": "NX v2606 Step214Importer WorkPart",
+            "translator": "NX Step214Importer WorkPart",
             "flatten": flatten,
             "warnings": [
                 "Translator-generated prototypes are staged in the returned import directory. Save to persist them; native undo does not delete translator artifacts."
@@ -1678,8 +1677,9 @@ class HardenedExecutor(
         r = self._validate_rotation(rotation_matrix)
         p, m = c.GetPosition()
         delta = matmul(r, transpose(rows(m)))
-        # NX MoveComponent rotates orientation about the component origin and adds translation.
-        shift = [a - b for a, b in zip(t, xyz(p), strict=False)]
+        # NX MoveComponent rotates about the assembly origin, then translates
+        # (measured on NX 2406): new_origin = delta * origin + shift.
+        shift = [a - b for a, b in zip(t, matvec(delta, xyz(p)), strict=False)]
         part.ComponentAssembly.MoveComponent(
             c, self.nxopen.Vector3d(*shift), self._nx_matrix(delta)
         )
@@ -1760,7 +1760,7 @@ class HardenedExecutor(
 
     def _capabilities(self, tool=None, prefix=None):
 
-        from nx_mcp.manifest import load_manifest
+        from nx_mcp.manifest import load_manifest, scope_to_version
 
         manifest = load_manifest()
         part = self._work_part(required=False)
@@ -1803,9 +1803,7 @@ class HardenedExecutor(
                 manifest["tools"][name].update(
                     status="unavailable", scope="Requires the interactive NX host"
                 )
-        if self.nx_version != "v2606":
-            for entry in manifest["tools"].values():
-                entry.update(status="experimental", scope="This NX version has not been tested")
+        scope_to_version(manifest, self.nx_version)
         if tool is not None and prefix is not None:
             raise NXToolError("NX_INVALID_ARGUMENT", "Use tool or prefix, not both")
         total = len(manifest["tools"])

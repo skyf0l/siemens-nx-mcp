@@ -201,9 +201,11 @@ def test_transform_readback_and_relative_composition(rig, tmp_path):
     rig.part.ComponentAssembly.RootComponent = root
 
     def move(obj, delta, rotation):
-        obj.position = point(
-            obj.position.X + delta.X, obj.position.Y + delta.Y, obj.position.Z + delta.Z
-        )
+        # Measured on NX 2406: MoveComponent rotates the component's position
+        # about the assembly origin, then adds the translation.
+        p = [obj.position.X, obj.position.Y, obj.position.Z]
+        q = [sum(rows(rotation)[i][k] * p[k] for k in range(3)) for i in range(3)]
+        obj.position = point(q[0] + delta.X, q[1] + delta.Y, q[2] + delta.Z)
         obj.rotation = rig.e._nx_matrix(matmul(rows(rotation), rows(obj.rotation)))
 
     rig.part.ComponentAssembly.MoveComponent = move
@@ -211,8 +213,10 @@ def test_transform_readback_and_relative_composition(rig, tmp_path):
     r = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
     result = rig.e._set_component_transform(ref, [1, 2, 3], r)
     assert result["translation"] == [1, 2, 3] and result["rotation_matrix"] == r
+    # Rotating a component away from the origin must keep the requested origin.
     result = rig.e._reposition_component(ref, dx=4, rz=90)
-    assert result["translation"] == [5, 2, 3] and abs(result["rotation_matrix"][0][0] + 1) < 1e-8
+    assert result["translation"] == pytest.approx([5, 2, 3])
+    assert abs(result["rotation_matrix"][0][0] + 1) < 1e-8
     rig.part.ComponentAssembly.MoveComponent = Mock()
     with pytest.raises(NXToolError) as error:
         rig.e._set_component_transform(ref, [9, 9, 9], IDENTITY)

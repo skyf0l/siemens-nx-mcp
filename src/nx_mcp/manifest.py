@@ -18,3 +18,22 @@ def load_manifest() -> dict:
     for fragment in sorted((HERE / "capability_fragments").glob("*.json")):
         manifest["tools"].update(json.loads(fragment.read_text(encoding="utf-8")))
     return manifest
+
+
+def scope_to_version(manifest: dict, nx_version: str) -> dict:
+    """Keep "tested" only where there is native evidence for the running NX version.
+
+    Evidence for a version is an evidence_type of real_NX_<version>... or the
+    version listed in verified_versions; anything else becomes experimental.
+    """
+    for entry in manifest["tools"].values():
+        versions = set(entry.get("verified_versions", []))
+        evidence = str(entry.get("evidence_type", ""))
+        if evidence.startswith("real_NX_"):
+            versions.add(evidence.split("_")[2])
+        if entry.get("status") == "tested" and nx_version not in versions:
+            entry.update(
+                status="experimental",
+                scope=f"Not tested on NX {nx_version}; evidence: {entry.get('scope', '')}",
+            )
+    return manifest

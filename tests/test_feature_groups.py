@@ -33,3 +33,17 @@ def test_tool_names_are_unique_across_groups():
         for name in tool_names(module):
             assert name not in seen, f"{name} defined in {seen.get(name)} and {module.__name__}"
             seen[name] = module.__name__
+
+
+def test_capabilities_report_evidence_for_the_running_nx_version():
+    from nx_mcp.manifest import load_manifest, scope_to_version
+
+    tools = scope_to_version(load_manifest(), "v2406")["tools"]
+    assert tools["nx_extrude"]["status"] == "tested"  # verified_versions includes v2406
+    assert tools["nx_datum_plane"]["status"] == "tested"  # real_NX_v2406 evidence
+    assert tools["nx_bridge_surface"]["status"] == "experimental"  # 2606 evidence only
+    assert "Not tested on NX v2406" in tools["nx_bridge_surface"]["scope"]
+    assert (
+        scope_to_version(load_manifest(), "v2606")["tools"]["nx_bridge_surface"]["status"]
+        == "tested"
+    )
