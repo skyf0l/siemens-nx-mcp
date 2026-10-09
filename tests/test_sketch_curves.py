@@ -254,14 +254,15 @@ def test_ellipse_perimeter_is_exact_for_thin_ellipses():
     assert ellipse_perimeter(10, 10) == pytest.approx(2 * math.pi * 10, rel=1e-12)
 
 
-def test_ellipse_point_uses_parametric_angles_and_rotation():
+def test_ellipse_point_uses_polar_angles_and_rotation():
     from nx_mcp.sketch_curves import ellipse_point
 
     assert ellipse_point([0, 0], 10, 5, 0, 0) == pytest.approx([10, 0])
     assert ellipse_point([0, 0], 10, 5, 0, 90) == pytest.approx([0, 5])
-    assert ellipse_point([300, 100], 20, 10, 90, -45) == pytest.approx(
-        [300 + 10 * math.sqrt(0.5), 100 + 20 * math.sqrt(0.5)]
-    )
+    # Live NX 2406: 20x10, rotation 90, -45..45 ends at (308.944, 108.944) and
+    # (291.056, 108.944), i.e. polar angles (radius 12.649), not parametric ones.
+    assert ellipse_point([300, 100], 20, 10, 90, -45) == pytest.approx([308.94427191, 108.94427191])
+    assert ellipse_point([300, 100], 20, 10, 90, 45) == pytest.approx([291.05572809, 108.94427191])
 
 
 def test_mirror_line_of_another_sketch_is_rejected():
@@ -289,3 +290,81 @@ def test_mirror_line_of_another_sketch_is_rejected():
     with pytest.raises(NXToolError) as error:
         mixin._sketch_mirror("s", ["own"], "far")
     assert error.value.code == "NX_OBJECT_OWNER_MISMATCH"
+
+
+def test_offset_sets_a_positive_approximation_tolerance_before_building_loops():
+    # Live NX 2406 (verify_a): the builder default Tolerance 0.0 made ellipse offsets
+    # fail with "Cannot approximate offset curve" (nx_code 1720072).
+    import contextlib
+    from types import SimpleNamespace
+
+    from nx_mcp.sketch_curves import SketchCurvesMixin
+
+    class Stop(Exception):
+        pass
+
+    class Builder:
+        Tolerance = 0.0
+
+        def CreateSection(self):
+            return SimpleNamespace(AddToSection=lambda *a: None)
+
+        def UpdateLoopsAndCopies(self):
+            assert self.Tolerance > 0
+            raise Stop
+
+        def Destroy(self):
+            pass
+
+    curve = SimpleNamespace(Tag=1)
+    sketch = SimpleNamespace(GetAllGeometry=lambda: [curve], OwningPart="P")
+    part = SimpleNamespace(
+        Sketches=SimpleNamespace(CreateSketchOffsetBuilder=lambda _null: Builder()),
+        ScRuleFactory=SimpleNamespace(CreateRuleCurveDumb=lambda c: c),
+    )
+    mixin = SketchCurvesMixin()
+    mixin.nxopen = SimpleNamespace(
+        SketchOffset=SimpleNamespace(Null=None),
+        Point3d=lambda *a: a,
+        Section=SimpleNamespace(Mode=SimpleNamespace(Create=0)),
+    )
+    mixin.session = SimpleNamespace(ActiveSketch=None)
+    mixin._work_part = lambda: part
+    mixin._units = lambda: "mm"
+    mixin._sketch_frame = lambda s: {}
+    mixin._editing_sketch = lambda s: contextlib.nullcontext()
+    mixin._resolve = lambda ref, kinds=None: {"s": sketch, "c": curve}[ref]
+    sketch.OwningPart = part
+    with pytest.raises(Stop):
+        mixin._sketch_offset("s", ["c"], 2.0)
+
+
+def test_ellipse_angles_are_reported_in_the_sketch_frame():
+    from nx_mcp.sketch_curves import ellipse_in_frame
+
+    frame = {"x_axis": [1, 0, 0], "y_axis": [0, 1, 0], "normal": [0, 0, 1]}
+    # Same matrix as the sketch: values pass through.
+    assert ellipse_in_frame([1, 0, 0], [0, 1, 0], [0, 0, 1], 30, 0, 200, frame) == pytest.approx(
+        (30, 0, 200)
+    )
+    # Mirrored ellipse seen live: own matrix X at 150 deg with a flipped normal.
+    c, s = math.cos(math.radians(150)), math.sin(math.radians(150))
+    rot, start, end = ellipse_in_frame([c, s, 0], [s, -c, 0], [0, 0, -1], 0, 0, 200, frame)
+    assert (rot, start, end) == pytest.approx((150, -200, 0))
+
+
+def test_native_input_rejections_get_a_stable_code_and_keep_nx_code():
+    from nx_mcp.sketch_curves import native_input_error
+
+    class NXException(Exception):
+        ErrorCode = 3680011
+
+    def fail():
+        raise NXException("No intersection exists between selected faces and sketch plane")
+
+    with pytest.raises(NXToolError) as error:
+        native_input_error(fail, "The faces do not cross the sketch plane")
+    assert error.value.code == "NX_INVALID_ARGUMENT"
+    assert error.value.nx_code == 3680011
+    with pytest.raises(ZeroDivisionError):  # Non-NX faults are not disguised.
+        native_input_error(lambda: 1 / 0, "x")

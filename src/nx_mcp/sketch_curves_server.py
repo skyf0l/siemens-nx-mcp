@@ -83,7 +83,7 @@ def nx_sketch_ellipse(
     start_angle: float = 0.0,
     end_angle: float = 360.0,
 ):
-    """Add a native sketch ellipse. center is local [x, y]; major_radius >= minor_radius > 0 (part units) are the semi-axes; rotation (degrees, counterclockwise from sketch +x) is the major-axis direction. start_angle/end_angle (degrees, 0 < end-start <= 360, parametric angles measured from the major axis) give an elliptical arc; the default is a full closed ellipse. Returns the curve ID and NX's actual center, radii, rotation, arc length."""
+    """Add a native sketch ellipse. center is local [x, y]; major_radius >= minor_radius > 0 (part units) are the semi-axes; rotation (degrees, counterclockwise from sketch +x) is the major-axis direction. start_angle/end_angle (degrees, 0 < end-start <= 360) give an elliptical arc running counterclockwise from start to end; they are polar angles of the end points measured at the center from the major axis (NX convention, not the parametric angle); the default is a full closed ellipse. Returns the curve ID and NX's actual center, radii, rotation, arc length."""
 
 
 def nx_sketch_fillet(

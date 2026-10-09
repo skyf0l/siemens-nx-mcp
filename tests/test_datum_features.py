@@ -218,3 +218,27 @@ def test_datum_axis_or_csys_is_not_a_plane_reference():
         with pytest.raises(NXToolError) as error:
             DatumFeaturesMixin()._df_plane_of(obj)
         assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"
+
+
+def test_datum_tools_refuse_while_a_sketch_is_active():
+    # Live NX 2406 (verify_a): committing a datum feature silently ended sketch mode.
+    from types import SimpleNamespace
+
+    from nx_mcp.datum_features import DatumFeaturesMixin
+
+    mixin = DatumFeaturesMixin()
+    mixin.session = SimpleNamespace(ActiveSketch=object())
+    mixin._work_part = lambda: object()
+    calls = [
+        lambda: mixin._datum_plane("point_normal", origin=[0, 0, 0], normal=[0, 0, 1]),
+        lambda: mixin._datum_axis("point_direction", origin=[0, 0, 0], direction=[0, 0, 1]),
+        lambda: mixin._datum_csys([0, 0, 0], [1, 0, 0], [0, 1, 0]),
+        lambda: mixin._datum_point([1, 2, 3]),
+        lambda: mixin._circular_pattern(
+            ["f"], 4, 90, axis_origin=[0, 0, 0], axis_direction=[0, 0, 1]
+        ),
+    ]
+    for call in calls:
+        with pytest.raises(NXToolError) as error:
+            call()
+        assert error.value.code == "NX_SKETCH_ACTIVE"

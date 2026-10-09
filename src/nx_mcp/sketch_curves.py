@@ -13,6 +13,7 @@ import math
 from nx_mcp.runtime import NXToolError
 
 TOL = 1e-6
+OFFSET_APPROX_TOL = 0.001  # mm; approximation tolerance for offsets of ellipses/splines
 
 
 # ---- pure helpers (no NXOpen) -------------------------------------------------
@@ -85,13 +86,49 @@ def ellipse_perimeter(a, b):
 
 
 def ellipse_point(center, a, b, rotation, angle):
-    """Local point at parametric angle (degrees) of an ellipse rotated by rotation (degrees)."""
+    """Local point of an ellipse at a POLAR angle (degrees from the major axis, seen from
+    the centre), which is how NX 2406 Ellipse start/end angles behave (verified live:
+    -45..45 on a 20x10 ellipse ends at radius 12.649, not at the parametric point)."""
     r, t = math.radians(rotation), math.radians(angle)
-    u, v = a * math.cos(t), b * math.sin(t)
+    radius = a * b / math.hypot(b * math.cos(t), a * math.sin(t))
+    u, v = radius * math.cos(t), radius * math.sin(t)
     return [
         center[0] + u * math.cos(r) - v * math.sin(r),
         center[1] + u * math.sin(r) + v * math.cos(r),
     ]
+
+
+def native_input_error(call, message):
+    """Run a native call; an NX rejection of the inputs becomes NX_INVALID_ARGUMENT.
+
+    Keeps the native code as nx_code (live NX 2406: 674275 "Invalid data for Sketch
+    Project", 3680011 "No intersection exists between selected faces and sketch plane").
+    """
+    try:
+        return call()
+    except NXToolError:
+        raise
+    except Exception as error:
+        code = getattr(error, "ErrorCode", None)
+        if code is None:
+            raise
+        raise NXToolError("NX_INVALID_ARGUMENT", f"{message}: {error}", nx_code=code) from error
+
+
+def ellipse_in_frame(x, y, z, rotation, start, end, frame):
+    """Ellipse rotation/start/end (degrees) in the sketch frame.
+
+    NX stores them relative to the curve's own matrix. Mirrored ellipses get their
+    own (often flipped) matrix: live NX 2406 reported rotation 0 for a mirror whose
+    major axis lies at 150 degrees in the sketch. A flipped normal reverses the
+    angle sense, so the arc [s, e] becomes [-e, -s].
+    """
+    r = math.radians(rotation)
+    axis = [math.cos(r) * x[i] + math.sin(r) * y[i] for i in range(3)]
+    local = math.degrees(math.atan2(_dot(axis, frame["y_axis"]), _dot(axis, frame["x_axis"])))
+    if _dot(z, frame["normal"]) < 0:
+        start, end = -end, -start
+    return local, start, end
 
 
 def reflect2(p, a, b):
@@ -216,13 +253,23 @@ class SketchCurvesMixin:
                 end_angle=math.degrees(curve.EndAngle),
             )
         elif isinstance(curve, nx.Ellipse):
+            m = curve.Matrix.Element
+            rotation, start, end = ellipse_in_frame(
+                [m.Xx, m.Xy, m.Xz],
+                [m.Yx, m.Yy, m.Yz],
+                [m.Zx, m.Zy, m.Zz],
+                math.degrees(curve.RotationAngle),
+                math.degrees(curve.StartAngle),
+                math.degrees(curve.EndAngle),
+                frame,
+            )
             row.update(
                 center=self._sc_local(frame, curve.CenterPoint),
                 major_radius=float(curve.MajorRadius),
                 minor_radius=float(curve.MinorRadius),
-                rotation=math.degrees(curve.RotationAngle),
-                start_angle=math.degrees(curve.StartAngle),
-                end_angle=math.degrees(curve.EndAngle),
+                rotation=rotation,
+                start_angle=start,
+                end_angle=end,
             )
         return row
 
@@ -327,7 +374,7 @@ class SketchCurvesMixin:
         self._sc_verify(ok, "NX ellipse differs from the request", **row)
         full = e - s >= 360.0 - 1e-9
         if not full:
-            # An elliptical arc: its ends must be the requested parametric angles (either
+            # An elliptical arc: its ends must be at the requested polar angles (either
             # curve direction), not only the centre, radii and rotation.
             want = [ellipse_point(c, a, b, rot, s), ellipse_point(c, a, b, rot, e)]
             got = [row["start"], row["end"]]
@@ -581,6 +628,7 @@ class SketchCurvesMixin:
         part, nx = self._work_part(), self.nxopen
         frame = self._sketch_frame(sketch)
         before = self._sc_geometry_tags(sketch)
+        approx_tol = OFFSET_APPROX_TOL * (1.0 if self._units() == "mm" else 1 / 25.4)
 
         def side_of(outputs):
             _, p_in, p_out = min(
@@ -596,6 +644,9 @@ class SketchCurvesMixin:
             try:
                 section = builder.CreateSection()
                 self._sc_add_rules(section, [self._sc_curve_rule(inputs)], inputs[0])
+                # The builder's default Tolerance is 0.0: lines and arcs offset exactly, but
+                # ellipses/splines fail with "Cannot approximate offset curve" (NX 1720072).
+                builder.Tolerance = approx_tol
                 builder.UpdateLoopsAndCopies()
                 builder.Distance.RightHandSide = repr(d)
                 builder.CreateDimension = True
@@ -622,8 +673,9 @@ class SketchCurvesMixin:
         self._sc_verify(bool(created), "NX created no offset curves")
         measured = [min(self._sc_min_dist(i, c)[0] for i in inputs) for c in created]
         actual_side = side_of(created)
+        exact = all(isinstance(c, (nx.Line, nx.Arc)) for c in created)
         self._sc_verify(
-            all(abs(m - d) <= 1e-5 * max(1.0, d) for m in measured)
+            all(abs(m - d) <= (1e-5 * max(1.0, d) if exact else approx_tol) for m in measured)
             and (side == "auto" or actual_side == side),
             "NX offset differs from the request",
             distances=measured,
@@ -796,7 +848,11 @@ class SketchCurvesMixin:
                 if curves:
                     rules.append(self._sc_curve_rule(curves))
                 self._sc_add_rules(builder.Section, rules, items[0])
-                builder.Commit()
+                native_input_error(
+                    builder.Commit,
+                    "NX cannot project these objects onto the sketch plane (an edge normal to the "
+                    "plane projects to a point)",
+                )
                 feature = builder.GetOperation()
             finally:
                 builder.Destroy()
@@ -824,7 +880,9 @@ class SketchCurvesMixin:
                 builder.FaceCollector.ReplaceRules(
                     [part.ScRuleFactory.CreateRuleFaceDumb(items)], False
                 )
-                builder.CollectorUpdated()
+                native_input_error(
+                    builder.CollectorUpdated, "The faces do not cross the sketch plane"
+                )
                 feature = builder.CommitFeature()
             finally:
                 builder.Destroy()

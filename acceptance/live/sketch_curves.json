@@ -401,7 +401,7 @@
    ]
   },
   "save": "s5b",
-  "intent": "Own sketch: nx_sketch_info (shared) cannot read ellipses yet"
+  "intent": "Half-ellipse sketch"
  },
  {
   "tool": "nx_sketch_ellipse",
@@ -424,6 +424,15 @@
   "args": {
    "sketch_id": "$s5b.object.id"
   }
+ },
+ {
+  "tool": "nx_sketch_info",
+  "args": {
+   "sketch_id": "$s5b.object.id"
+  },
+  "mutation": false,
+  "save": "info5b",
+  "intent": "nx_sketch_info reads ellipses: center (0,-100,40), major 10, minor 5"
  },
  {
   "tool": "nx_create_sketch",
@@ -594,6 +603,116 @@
   "tool": "nx_finish_sketch",
   "args": {
    "sketch_id": "$i7b.object.id"
+  }
+ },
+ {
+  "tool": "nx_create_sketch",
+  "args": {
+   "plane": "XY",
+   "origin": [
+    0,
+    0,
+    80
+   ],
+   "name": "SC_ELLIPSE"
+  },
+  "save": "se"
+ },
+ {
+  "tool": "nx_sketch_ellipse",
+  "args": {
+   "sketch_id": "$se.object.id",
+   "center": [
+    0,
+    0
+   ],
+   "major_radius": 50,
+   "minor_radius": 5
+  },
+  "save": "thin",
+  "intent": "Thin 50x5: exact perimeter 203.198709 (AGM; Ramanujan II would reject it)"
+ },
+ {
+  "tool": "nx_sketch_ellipse",
+  "args": {
+   "sketch_id": "$se.object.id",
+   "center": [
+    0,
+    100
+   ],
+   "major_radius": 20,
+   "minor_radius": 10,
+   "rotation": 90,
+   "start_angle": -45,
+   "end_angle": 45
+  },
+  "save": "parc",
+  "intent": "Polar end angles: ends (8.944,108.944) and (-8.944,108.944), length 30.385206"
+ },
+ {
+  "tool": "nx_sketch_ellipse",
+  "args": {
+   "sketch_id": "$se.object.id",
+   "center": [
+    200,
+    0
+   ],
+   "major_radius": 20,
+   "minor_radius": 10
+  },
+  "save": "el3"
+ },
+ {
+  "tool": "nx_sketch_offset",
+  "args": {
+   "sketch_id": "$se.object.id",
+   "curves": [
+    "$el3.curve_ids.0"
+   ],
+   "distance": 2
+  },
+  "save": "eoff",
+  "intent": "Ellipse offset outward 2 -> spline starting (222,0), measured distance ~2 (approximation tolerance 0.001)"
+ },
+ {
+  "tool": "nx_sketch_info",
+  "args": {
+   "sketch_id": "$se.object.id"
+  },
+  "mutation": false,
+  "intent": "4 curves: 3 ellipses (center/major/minor) + offset spline"
+ },
+ {
+  "tool": "nx_sketch_line",
+  "args": {
+   "sketch_id": "$se.object.id",
+   "start": {
+    "x": 300,
+    "y": -10
+   },
+   "end": {
+    "x": 300,
+    "y": 10
+   }
+  },
+  "save": "ml"
+ },
+ {
+  "tool": "nx_sketch_mirror",
+  "args": {
+   "sketch_id": "$se.object.id",
+   "curves": [
+    "$ml.object.id"
+   ],
+   "mirror_line": "$i7b.curves.0.object.id"
+  },
+  "expect_error": true,
+  "intent": "mirror_line from another sketch: NX_OBJECT_OWNER_MISMATCH"
+ },
+ {
+  "tool": "nx_finish_sketch",
+  "args": {
+   "sketch_id": "$se.object.id"
   }
  }
 ]

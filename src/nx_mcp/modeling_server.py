@@ -23,7 +23,7 @@ def nx_datum_plane(
     flip: bool = False,
     name: str | None = None,
 ):
-    """Create a native datum plane feature. offset (associative): parallel to a planar face or datum plane ID (reference) at signed distance along the reference normal (a face's outward normal); negative distance or flip=true puts it on the other side; the result normal equals the reference normal and the distance stays an editable expression. point_normal: fixed plane through origin with that normal. three_points: fixed plane through three non-collinear points, normal = (p1-p0) x (p2-p0). Returns the feature, the datum plane ID (usable by nx_create_sketch_on and as an offset reference) and NX's actual origin and normal, verified against the request (position and normal sense)."""
+    """Create a native datum plane feature. offset (associative): parallel to a planar face or datum plane ID (reference; datum axes/CSYS are rejected with NX_OBJECT_TYPE_MISMATCH) at signed distance along the reference normal (a face's outward normal); negative distance or flip=true puts it on the other side (flip is ignored by the other methods); the result normal equals the reference normal and the distance stays an editable expression. point_normal: fixed plane through origin with that normal. three_points: fixed plane through three non-collinear points, normal = (p1-p0) x (p2-p0). Returns the feature, the datum plane ID (usable by nx_create_sketch_on and as an offset reference) and NX's actual origin and normal, verified against the request (position and normal sense). Refused with NX_SKETCH_ACTIVE while a sketch is active (finish it first)."""
 
 
 def nx_datum_axis(
@@ -34,7 +34,7 @@ def nx_datum_axis(
     end: list[float] | None = None,
     name: str | None = None,
 ):
-    """Create a fixed (non-associative) native datum axis feature through origin along direction, or from start toward end. Returns the feature, the datum axis ID (usable as nx_circular_pattern axis) and NX's actual origin and unit direction, verified against the request (same line and sense). The returned origin is a point on the axis, not necessarily start: NX extends the displayed axis beyond the points."""
+    """Create a fixed (non-associative) native datum axis feature through origin along direction, or from start toward end. Returns the feature, the datum axis ID (usable as nx_circular_pattern axis) and NX's actual origin and unit direction, verified against the request (same line and sense). The returned origin is a point on the axis, not necessarily start: NX extends the displayed axis beyond the points. Refused with NX_SKETCH_ACTIVE while a sketch is active (finish it first)."""
 
 
 def nx_datum_csys(
@@ -43,11 +43,11 @@ def nx_datum_csys(
     y_axis: list[float],
     name: str | None = None,
 ):
-    """Create a native datum coordinate system feature (CSYS with its three datum planes and axes) at origin [x,y,z] with unit, mutually orthogonal x_axis and y_axis (tolerance 1e-8); z = x cross y. Returns the feature, the coordinate system ID and NX's actual origin and axes, verified against the request."""
+    """Create a native datum coordinate system feature (CSYS with its three datum planes and axes) at origin [x,y,z] with unit, mutually orthogonal x_axis and y_axis (tolerance 1e-8); z = x cross y. Returns the feature, the coordinate system ID and NX's actual origin and axes, verified against the request. Refused with NX_SKETCH_ACTIVE while a sketch is active (finish it first)."""
 
 
 def nx_datum_point(position: list[float], name: str | None = None):
-    """Create a native point feature at position [x, y, z] in the work part. Returns the feature and NX's actual coordinates."""
+    """Create a native point feature at position [x, y, z] in the work part. Returns the feature and NX's actual coordinates. Refused with NX_SKETCH_ACTIVE while a sketch is active (finish it first)."""
 
 
 def nx_create_sketch_on(
@@ -66,4 +66,4 @@ def nx_circular_pattern(
     axis_origin: list[float] | None = None,
     axis_direction: list[float] | None = None,
 ):
-    """Create a native circular feature pattern (Count and Pitch) of owned feature IDs, e.g. an extrude boss or cut: count total instances including the seed (2-360), angle = pitch in degrees between neighbours. Rotate about a datum axis ID (axis, associative) or a fixed axis through axis_origin along axis_direction; give one or the other. (count-1)*angle must be < 360 so no instance lands on the seed. Returns the pattern feature, count, pitch and the axis used."""
+    """Create a native circular feature pattern (Count and Pitch) of owned feature IDs, e.g. an extrude boss or cut: count total instances including the seed (2-360), angle = pitch in degrees between neighbours. Rotate about a datum axis ID (axis, associative) or a fixed axis through axis_origin along axis_direction; give one or the other. (count-1)*angle must be < 360 so no instance lands on the seed. Returns the pattern feature, count, pitch and the axis used. Refused with NX_SKETCH_ACTIVE while a sketch is active (finish it first)."""

@@ -121,6 +121,12 @@ class DatumFeaturesMixin:
             )
         return obj, *self._df_plane_of(obj)
 
+    def _df_no_active_sketch(self):
+        # Committing a feature ends sketch mode: NX 2406 silently deactivated the
+        # active sketch (later sketch calls failed NX_SKETCH_NOT_ACTIVE). Refuse instead.
+        if self.session.ActiveSketch is not None:
+            raise NXToolError("NX_SKETCH_ACTIVE", "Finish the active sketch first")
+
     def _df_verify(self, ok, message, **actual):
         if not ok:
             raise NXToolError("NX_VERIFICATION_FAILED", message, details={"actual": actual})
@@ -145,6 +151,7 @@ class DatumFeaturesMixin:
         flip=False,
         name=None,
     ):
+        self._df_no_active_sketch()
         part = self._work_part()
         if method == "offset":
             if reference is None or distance is None or not math.isfinite(float(distance)):
@@ -220,6 +227,7 @@ class DatumFeaturesMixin:
 
     # ---- datum axis -----------------------------------------------------
     def _datum_axis(self, method, origin=None, direction=None, start=None, end=None, name=None):
+        self._df_no_active_sketch()
         part = self._work_part()
         if method == "point_direction":
             if origin is None or direction is None:
@@ -275,6 +283,7 @@ class DatumFeaturesMixin:
         o = _vec(origin, "origin")
         x, y, z = orthonormal_frame(x_axis, y_axis)
         part = self._work_part()
+        self._df_no_active_sketch()
         update = self.nxopen.SmartObject.UpdateOption.WithinModeling
         xform = part.Xforms.CreateXform(
             self.nxopen.Point3d(*o),
@@ -314,6 +323,7 @@ class DatumFeaturesMixin:
     def _datum_point(self, position, name=None):
         p = _vec(position, "position")
         part = self._work_part()
+        self._df_no_active_sketch()
         builder = part.BaseFeatures.CreatePointFeatureBuilder(self.nxopen.Features.Feature.Null)
         try:
             builder.Point = self._df_point(p)
@@ -417,6 +427,7 @@ class DatumFeaturesMixin:
                     "NX_INVALID_ARGUMENT", "axis_origin and axis_direction are both required"
                 )
             o, d = _vec(axis_origin, "axis_origin"), unit_normal(axis_direction, "axis_direction")
+        self._df_no_active_sketch()
         seeds = [self._resolve(f, {"feature"}) for f in features or []]
         if not seeds:
             raise NXToolError("NX_INVALID_ARGUMENT", "At least one feature is required")

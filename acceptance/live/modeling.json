@@ -743,6 +743,54 @@
   "intent": "unchanged: 8445.3208"
  },
  {
+  "tool": "nx_datum_plane",
+  "args": {
+   "method": "offset",
+   "reference": "$ax1.datum_axis.id",
+   "distance": 5
+  },
+  "expect_error": true,
+  "intent": "datum axis is not a plane reference: NX_OBJECT_TYPE_MISMATCH"
+ },
+ {
+  "tool": "nx_create_sketch",
+  "args": {
+   "plane": "XY",
+   "origin": [
+    0,
+    0,
+    50
+   ],
+   "name": "ACTIVE_SK"
+  },
+  "save": "act"
+ },
+ {
+  "tool": "nx_datum_point",
+  "args": {
+   "position": [
+    1,
+    2,
+    3
+   ]
+  },
+  "expect_error": true,
+  "intent": "feature tools refuse while a sketch is active: NX_SKETCH_ACTIVE (NX would end sketch mode)"
+ },
+ {
+  "tool": "nx_finish_sketch",
+  "args": {
+   "sketch_id": "$act.object.id"
+  }
+ },
+ {
+  "tool": "nx_measure_volume",
+  "args": {},
+  "save": "total_final",
+  "intent": "unchanged: 8445.3208",
+  "mutation": false
+ },
+ {
   "tool": "nx_model_health",
   "args": {},
   "save": "health",

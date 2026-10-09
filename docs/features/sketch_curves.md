@@ -16,12 +16,17 @@ Common rules:
 - Every result lists the new curves (`curves`, `curve_ids`, kind `curve`). Each
   curve is read back from NX with its local `start`/`end`, `length` and
   `closed` flag, plus `center`/`radius` for arcs and
-  `center`/`major_radius`/`minor_radius`/`rotation` for ellipses.
+  `center`/`major_radius`/`minor_radius`/`rotation`/`start_angle`/`end_angle`
+  for ellipses. Ellipse angles are reported in the sketch frame (NX stores them
+  relative to the curve's own matrix, which a mirror flips).
 - Results are verified against the request. A mismatch raises
   `NX_VERIFICATION_FAILED`, and the executor rolls the operation back.
-- A rollback (any failed mutation) makes all object IDs of the part stale.
-  Re-acquire the sketch by name with `nx_sketch_info` and use the curve IDs it
-  returns.
+- A rejected call that changed nothing keeps object IDs
+  (`"references": "preserved"`). A rollback after NX already built something
+  invalidates the part's IDs (`"references": "invalidated"`); re-acquire the
+  sketch by name with `nx_sketch_info` and use the curve IDs it returns.
+- `nx_sketch_info` reads ellipses (center, major_radius, minor_radius); for
+  splines (for example ellipse offsets) it reports only the type.
 
 ## nx_sketch_polygon(sketch_id, center, sides, radius, inscribed=True, rotation=0)
 
@@ -41,19 +46,28 @@ Example: `{"center": [0, 0], "sides": 6, "radius": 20}` gives side 20.
 ## nx_sketch_ellipse(sketch_id, center, major_radius, minor_radius, rotation=0, start_angle=0, end_angle=360)
 
 Adds a native `NXOpen.Ellipse` (created with `Curves.CreateEllipse` using the
-sketch orientation). `rotation` is the direction of the major axis. The
-parametric `start_angle`/`end_angle` define an elliptical arc; the defaults give
-a full, closed ellipse.
+sketch orientation). `rotation` is the direction of the major axis.
+`start_angle`/`end_angle` define an elliptical arc running counterclockwise;
+they are **polar** angles of the end points measured at the center from the
+major axis (NX convention, not the parametric angle). The defaults give a full,
+closed ellipse. Full ellipses are checked against the exact perimeter (AGM);
+arcs are checked at both end points.
 
 **Verified:**
 - 20x10 ellipse at 30°: center, radii and rotation read back exactly; perimeter
-  96.884482 (Ramanujan check to 1e-6).
+  96.884482.
+- Thin ellipses 50x5 and 50x1: lengths 203.198709 and 200.191958, equal to the
+  exact perimeter (the former Ramanujan II check was off by 1.2e-5 / 1.6e-4
+  and rejected them).
+- 20x10 rotated 90°, -45..45°: ends (308.944, 108.944) and (291.056, 108.944)
+  around center (300, 100), length 30.385206 (polar angles, radius 12.649).
+- Rotation 120 reads back 120; 90..450 gives a closed ellipse; 10x10 works.
 - Extruded 10, volume is 6283.355 against the analytic 6283.185 (+2.7e-5, NX
   body tolerance).
 - Half ellipse 10x5, 0–180°: ends at (±10, y), length 24.2211.
 
-**Known limit:** the shared `nx_sketch_info` fails on sketches that contain an
-ellipse (it reads `Radius` on any curve that has a `CenterPoint`).
+`nx_sketch_info` now reports sketches with ellipses (center, major_radius,
+minor_radius), verified on six ellipses in one sketch.
 
 ## nx_sketch_fillet(sketch_id, curve1, curve2, radius)
 
@@ -75,8 +89,9 @@ the corner.
 - Line–arc: R2 between a line and an R10 arc gives center (28.168, 2), tangent
   to the line and 12.0 from the arc center.
 
-**Known limit:** for curves that cross, the result depends on which ends are
-nearest.
+**Known limits:** for curves that cross, the result depends on which ends are
+nearest. Tangent inputs (an arc continuing into a line) have no corner: NX
+builds a full circle and the call is rejected with `NX_VERIFICATION_FAILED`.
 
 ## nx_sketch_chamfer(sketch_id, curve1, curve2, distance1, distance2=None)
 
@@ -87,10 +102,14 @@ swapped, the tool undoes the attempt (inner invisible mark) and repeats it with
 the values exchanged. The chamfer is then verified: each end lies on its
 original line, at `distance1` along curve1 and `distance2` along curve2.
 
-Supported for lines only.
+Supported for lines only (arcs/ellipses: `NX_OBJECT_TYPE_MISMATCH`). Lines
+that do not meet are rejected with `NX_VERIFICATION_FAILED` (NX would extend
+them to their virtual corner).
 
 **Verified:**
 - 4/6 chamfer at (50, 30): ends at (54, 30) and (50, 24).
+- Symmetric 3 at (0, 30): ends (3, 30)/(0, 27), length 4.242641; asymmetric
+  2 along the left line / 7 along the bottom line at (0, 0): (0, 2)/(7, 0).
 - Rectangle with R5 fillet and 4/6 chamfer extruded 10 gives volume 11826.350
   (exact).
 
@@ -101,16 +120,26 @@ arc caps. `side` is `left` or `right` of the first curve's direction as seen
 from the sketch normal; `auto` keeps NX's default, which is outward for a
 counterclockwise closed loop. Every output is checked to lie at `distance` from
 the inputs (UF minimum distance). The result reports `measured_distance` and
-`side`.
+`side`. Lines and arcs are offset exactly; ellipses and splines become splines
+built with an approximation tolerance of 0.001 mm (the builder default 0.0
+failed with "Cannot approximate offset curve", nx_code 1720072), and their
+measured distance is checked to that tolerance.
 
 **Verified:**
 - Hexagon R10, offset 2 (auto): vertex radius 12.3094, side `right` (outward).
+- Hexagon R10 (counterclockwise) offset 2 `left` = inward, vertex radius
+  7.690599; `right` = outward, 12.309401.
+- R10 arc (0..90°) offset 3 `left`: R7, same center.
+- Ellipse 20x10 offset 2: spline starting (22, 100) (auto/right, measured
+  1.99943) and (18, 100) (left, measured 1.99992).
 - Line along +x, offset 3: `left` gives y = -57, `right` gives y = -63.
 
 ## nx_sketch_mirror(sketch_id, curves, mirror_line)
 
-Creates an associative `SketchMirrorPatternBuilder` mirror about an owned
-sketch line or a datum axis in the sketch plane. The mirror line is not
+Creates an associative `SketchMirrorPatternBuilder` mirror about a line of this
+sketch or a datum axis parallel to the sketch plane (projected onto it). A line
+of another sketch is rejected with `NX_OBJECT_OWNER_MISMATCH`; a datum axis
+normal to the plane with `NX_INVALID_ARGUMENT`. The mirror line is not
 converted to construction. Each output is verified to be the reflection of one
 input.
 
@@ -119,6 +148,11 @@ input.
   endpoints.
 - A line and 2 arcs mirrored about a datum axis (the Y axis) are exact
   reflections.
+- Mirror about a Y-parallel datum axis 50 above the sketch: (0,-40)-(30,-40)
+  becomes (0,-40)-(-30,-40).
+- Ellipse arc 10x4, rotation 30, 0..200°, center (320, 0) mirrored about x=300:
+  center (280, 0), rotation 150, reflected ends (271.340, 5) and
+  (285.059, -6.030).
 
 ## nx_sketch_construction(sketch_id, curves, construction=True)
 
@@ -140,6 +174,12 @@ the projected curves and the projection feature.
 - A block's top edge projected into a sketch 20 above it gives the line
   (140, -10)–(160, -10).
 - The line is still correct after the block height changes from 10 to 15.
+- A cylinder's circular edge projects to an R5 arc at (150, 0); an ellipse of
+  another sketch projects to a 20x10 ellipse.
+- An edge normal to the sketch plane (it would project to a point) is rejected
+  with `NX_INVALID_ARGUMENT` (nx_code 674275); faces are rejected with
+  `NX_OBJECT_TYPE_MISMATCH`, curves already in the sketch with
+  `NX_INVALID_ARGUMENT`.
 
 ## nx_sketch_intersection(sketch_id, faces)
 
@@ -149,6 +189,10 @@ the sketch plane.
 **Verified:**
 - Block top face against an XZ sketch at y = 0 gives the line (140, 10)–(160, 10).
 - After the block extrude is edited from 10 to 15, the curve follows to z = 15.
+- Cylinder side face at z = 5 gives an R5 circle at (150, 0); an elliptic
+  extrude side face gives the 20x10 ellipse.
+- A face that does not cross the plane is rejected with `NX_INVALID_ARGUMENT`
+  (nx_code 3680011); edges with `NX_OBJECT_TYPE_MISMATCH`.
 
 ## NX API notes (2406)
 
@@ -160,3 +204,7 @@ the sketch plane.
   section tolerances are set.
 - `SketchOffsetBuilder.ReverseOffsetDirection()` raises "Sketch is not
   initialized"; `ReverseOffsetDirectionOfChain(curve)` works.
+- `SketchOffsetBuilder.Tolerance` defaults to 0.0; set it before
+  `UpdateLoopsAndCopies()` or offsets of ellipses/splines fail.
+- `Ellipse.StartAngle/EndAngle` are polar angles relative to the curve's own
+  matrix; a mirrored ellipse gets its own matrix (rotation 0, flipped normal).
