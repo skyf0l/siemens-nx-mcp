@@ -200,7 +200,7 @@ def _light_entry(method, params):
     rec = {"method": method, "mode": h.mode, "wait_ms": (pc() - t) * 1000 if t else None}
     t1 = pc()
     try:
-        if method in ("nx_set_control", "nx_status") or h.mode != "agent" or B["restore"]:
+        if method in ("nx_set_control", "nx_get_status") or h.mode != "agent" or B["restore"]:
             return orig_exec(method, params)
         return light_execute(method, params)
     finally:

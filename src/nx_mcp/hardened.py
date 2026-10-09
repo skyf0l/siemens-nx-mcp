@@ -57,14 +57,12 @@ from nx_mcp.visual_tools import VisualToolsMixin
 
 READ_ONLY = {
     "nx_list_datums",
-    "nx_status",
     "nx_list_sketches",
     "nx_list_features",
     "nx_list_bodies",
     "nx_list_topology",
     "nx_checkpoint_state",
     "nx_capabilities",
-    "nx_operation_status",
 }
 # Files, session lifecycle, and undo itself cannot be reversed by a model undo mark.
 NON_MODEL = {
@@ -146,12 +144,9 @@ class HardenedExecutor(
             {
                 "nx_list_datums": self._list_datums,
                 "nx_list_expressions": self._list_expressions,
-                "nx_preview_change": self._preview_change,
-                "nx_finish_preview": self._finish_preview,
                 "nx_checkpoint": self._checkpoint,
                 "nx_checkpoint_state": self._checkpoint_state,
                 "nx_rollback": self._rollback_checkpoint,
-                "nx_operation_status": lambda operation_id: self.store.get(operation_id),
                 "nx_list_topology": self._list_topology,
                 "nx_capabilities": self._capabilities,
                 "nx_rename_object": self._rename_object,
@@ -209,7 +204,7 @@ class HardenedExecutor(
     def _execute_legacy(self, method, params):
         params = dict(params)
         params.pop("intent", None)  # Agent's note for the NX panel; not a handler argument.
-        supplied_id = params.pop("operation_id", None) if method != "nx_operation_status" else None
+        supplied_id = params.pop("operation_id", None)
         mutable = method not in READ_ONLY
         op_id = supplied_id or ("op_" + uuid.uuid4().hex)
         handler = self._handlers.get(method)
@@ -255,7 +250,7 @@ class HardenedExecutor(
                     return result
                 raise NXToolError(
                     "NX_OPERATION_" + existing["state"].upper(),
-                    "Request was already recorded; inspect nx_operation_status before proceeding",
+                    "Request was already recorded; inspect nx_get_operation before proceeding",
                     details=existing,
                 )
             record = {
@@ -293,11 +288,6 @@ class HardenedExecutor(
                     result.get("code", result.get("error_code", "NX_OPERATION_FAILED")),
                     result.get("message", "Operation failed"),
                 )
-            receipt_metadata = (
-                {key: result.get(key) for key in ("operation_id", "session_id", "mutation_outcome")}
-                if method == "nx_operation_status"
-                else None
-            )
             result = {
                 "status": "success",
                 **result,
@@ -306,9 +296,6 @@ class HardenedExecutor(
                 "mutation_outcome": "committed" if mutable else "not_applicable",
                 "warnings": result.get("warnings", []),
             }
-            if receipt_metadata is not None:
-                result.update(receipt_metadata)
-                result.update(query_operation_id=op_id, query_session_id=self.session_id)
             if part:
                 result.setdefault(
                     "units", self._units() if self._work_part(required=False) else None
@@ -380,7 +367,7 @@ class HardenedExecutor(
         finally:
             observer.stop()
             self._current_operation = previous
-        if mutable and method != "nx_preview_change":
+        if mutable:
             self._review_epoch = getattr(self, "_review_epoch", 0) + 1
         if record:
             record.update(

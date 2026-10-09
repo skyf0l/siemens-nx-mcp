@@ -33,23 +33,6 @@ def test_success_requires_payload_but_error_has_independent_contract(name):
         validate(name, {"status": "error", "message": "missing code and retry guidance"})
 
 
-def test_recovery_states_and_unknown_are_typed_without_inventing_failure():
-    unknown = {"operation_id": "unknown_123", "state": "unknown", "mutation_outcome": "unknown"}
-    validate("nx_operation_status", unknown)
-    for key, value in [("state", "complete"), ("mutation_outcome", "probably_ok")]:
-        with pytest.raises(ValidationError):
-            validate("nx_operation_status", {**unknown, key: value})
-    validate(
-        "nx_operation_status",
-        {
-            **unknown,
-            "state": "committed",
-            "mutation_outcome": "committed",
-            "result": {"object": {}},
-        },
-    )
-
-
 @pytest.mark.asyncio
 async def test_fresh_mcp_client_gets_structured_errors(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")

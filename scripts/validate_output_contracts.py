@@ -38,7 +38,7 @@ async def validate(url, output):
 
         before = await loaded_parts()
         try:
-            await call("nx_status")
+            await call("nx_get_status")
             components = (await call("nx_list_components"))["components"]
             await call("nx_measure_bounds")
             await call("nx_measure_mass")
@@ -50,7 +50,7 @@ async def validate(url, output):
                 await call("nx_measure_distance", pair)
                 await call("nx_check_interference", pair)
             await call("nx_checkpoint_state")
-            await call("nx_operation_status", {"operation_id": "contract_unknown_20260906"})
+            await call("nx_get_operation", {"operation": "contract_unknown_20260906"})
             await call("nx_revolve", error=True)
             report["passed"] = True
         finally:

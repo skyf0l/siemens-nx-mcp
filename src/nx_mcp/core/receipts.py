@@ -1,9 +1,9 @@
 """Receipts: fingerprint, idempotent replay, states, outcome, progress, cancel flag.
 
 Gate 7. During migration the records live in the legacy ``OperationStore``
-(``.nx-mcp/operations/<operation_id>.json``), so ``nx_operation_status`` and
-``nx_cancel_operation`` work for catalogue tools unchanged. ``store`` needs
-``get(op_id)``, ``put(record)`` and ``path(op_id)``; running receipts from an
+(``.nx-mcp/operations/<operation_id>.json``), so ``nx_get_operation`` and
+``nx_cancel_operation`` (domains/session/status.py) cover legacy and catalogue
+receipts alike. ``store`` needs ``get(op_id)``, ``put(record)`` and ``path(op_id)``; running receipts from an
 earlier session are turned into ``unknown`` by the store's ``recover()``.
 """
 

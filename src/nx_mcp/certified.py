@@ -12,7 +12,6 @@ from nx_mcp.contracts import (
     NXToolError,
     ObjectListResult,
     OperationResult,
-    StatusResult,
 )
 from nx_mcp.workspace import Workspace
 
@@ -22,7 +21,6 @@ class BridgeCaller(Protocol):
 
 
 CERTIFIED_TOOL_NAMES = {
-    "nx_status",
     "nx_list_sketches",
     "nx_list_bodies",
     "nx_list_features",
@@ -44,11 +42,6 @@ def create_certified_server(
             return await bridge.call(method, params)
         except NXToolError as error:
             raise MCPToolError(json.dumps(error.as_dict(), ensure_ascii=False)) from error
-
-    @mcp.tool()
-    async def nx_status() -> StatusResult:
-        """Report bridge, NX version, and active-part status."""
-        return StatusResult(**await call("nx_status", {}))
 
     @mcp.tool()
     async def nx_list_sketches() -> ObjectListResult:

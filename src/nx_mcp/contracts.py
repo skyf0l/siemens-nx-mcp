@@ -19,7 +19,6 @@ __all__ = [
     "OperationResult",
     "PartResult",
     "Point2D",
-    "StatusResult",
     "ToolSuccess",
 ]
 
@@ -44,16 +43,6 @@ class OperationResult(BaseModel):
 
     status: Literal["success"] = "success"
     message: str
-
-
-class StatusResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    status: Literal["success"] = "success"
-    connected: bool
-    nx_version: str
-    bridge_protocol: int
-    active_part: ObjectRef | None = None
 
 
 class PartResult(BaseModel):

@@ -160,14 +160,6 @@ class _Context:
         key, value = next(iter(values.items()))
         return f"{self.key(key)} = {_number(value)}" + _more(len(values) - 1)
 
-    def steps(self, operations: Any, head: str) -> str:
-        """head + first step's summary + (+N more), keeping the count visible."""
-        operations = operations if isinstance(operations, list) else []
-        first = operations[0] if operations and isinstance(operations[0], dict) else {}
-        tail = _more(len(operations) - 1)
-        text = self.describe(str(first.get("method", "")), first.get("params") or {})
-        return head + _clip(text or "an unknown step", MAX_LENGTH - len(head) - len(tail)) + tail
-
 
 # --- Formatting details ---------------------------------------------------------
 
@@ -193,8 +185,6 @@ def _capabilities(p, c):
 
 
 _READ_ONLY_FIXED = {
-    "nx_status": "Check NX and bridge status",
-    "nx_workspace_info": "Check the workspace location",
     "nx_checkpoint_state": "List undo checkpoints",
     "nx_list_bodies": "List bodies in the work part",
     "nx_list_features": "List features in the work part",
@@ -208,8 +198,6 @@ _READ_ONLY_FIXED = {
 _ACTION_FIXED = {
     "nx_undo": "Undo the agent's last operation",
     "nx_rollback": "Roll back to an earlier checkpoint",
-    "nx_cancel_operation": "Cancel a running batch",
-    "nx_operation_status": "Check the outcome of an earlier request",
     "nx_read_result": "Read a stored result",
 }
 
@@ -218,14 +206,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     "nx_capabilities": _capabilities,
     "nx_checkpoint": lambda p, c: f'Create undo checkpoint "{p.get("label", "checkpoint")}"',
     "nx_rename_object": lambda p, c: f'Rename {c.obj(p.get("object_id"))} to "{p.get("name")}"',
-    "nx_preview_change": lambda p, c: c.steps(
-        p.get("operations"), f"Preview {c.count(p.get('operations'), 'change')}: "
-    ),
-    "nx_finish_preview": lambda p, c: (
-        "Apply the previewed changes"
-        if p.get("action") == "accept"
-        else "Discard the previewed changes"
-    ),
     # Measurements and inspections
     "nx_list_topology": lambda p, c: (
         f"List faces and edges of {c.obj(p.get('face') or p.get('body'))}"

@@ -58,6 +58,7 @@ MODE_LABELS = {"auto": "Auto", "agent": "Agent drives", "ask": "Ask me first"}
 _RANK = {"ask": 0, "auto": 1, "agent": 2}
 LEGACY_MODES = {"manual": "ask"}  # nx_set_control(mode="manual") = hand NX back
 CONTROL_TOOL = "nx_set_control"  # the panel-mode tool (domains/session/control.py)
+STATUS_TOOL = "nx_get_status"  # the status read (domains/session/status.py)
 
 # Panel window messages: the bridge's listening socket has a connection
 # (WSAAsyncSelect), and "tick again now" (posted by the host itself).
@@ -132,7 +133,7 @@ def control_target(params):
 
 def runs_while_engineer_has_control(pending):
     """Status reads and handing NX back never wait for the engineer."""
-    if pending.method == "nx_status":
+    if pending.method == STATUS_TOOL:
         return True
     if pending.method == CONTROL_TOOL:
         return control_target(pending.params) in ("status", "ask")
@@ -657,6 +658,17 @@ class InteractiveHost:
             from nx_mcp.domains.session.control import envelope_from_snapshot
 
             return envelope_from_snapshot(snapshot, params)
+        if method == STATUS_TOOL and snapshot and snapshot.get("running_method"):
+            from nx_mcp.domains.session import status
+
+            executor = self.executor
+            return status.envelope_from_snapshot(
+                snapshot,
+                params,
+                root=executor.workspace.root,
+                build=getattr(executor, "nx_version", None),
+                store=getattr(executor, "store", None),
+            )
         return self.dispatcher.call(method, params)
 
     # -- panel -----------------------------------------------------------------
@@ -673,10 +685,22 @@ class InteractiveHost:
         state = self.status()
         self._snapshot = {
             **state,
+            "parts": self._parts_snapshot(),
             "_sample_monotonic": time.monotonic(),
             "_operation_monotonic": self.operation_started,
         }
         return state
+
+    def _parts_snapshot(self):
+        """Work/display part for nx_get_status while a step runs (UI thread only)."""
+        from nx_mcp.domains.session.status import snapshot_parts
+
+        executor = self.executor
+        session = getattr(executor, "session", None)
+        workspace = getattr(executor, "workspace", None)
+        if session is None or workspace is None:
+            return None
+        return snapshot_parts(session, workspace.root)
 
     def _refresh_panel(self):
         self.panel.update(*self.panel_state())
@@ -832,6 +856,9 @@ class InteractiveHost:
             "modes": list(MODES),
             "activity": activity,
             "running_method": self.running_method,
+            "running_operation_id": (
+                getattr(self, "current_operation_id", None) if self.running_method else None
+            ),
             "operation_elapsed_seconds": (
                 time.monotonic() - self.operation_started
                 if self.operation_started is not None
@@ -1155,10 +1182,8 @@ class InteractiveHost:
     def execute(self, method, params):
         if threading.get_ident() != self.thread:
             raise RuntimeError("NX request called off registering UI thread")
-        if method == CONTROL_TOOL:  # the kernel calls agent_control (LegacyServices)
+        if method in (CONTROL_TOOL, STATUS_TOOL):  # never waits for the engineer
             return self.executor.execute(method, params)
-        if method == "nx_status":
-            return {**self.executor.execute(method, params), "ui": self.status()}
         reserved = self.mode == "agent" and self.owns_lock
         if not (reserved or self._light):
             raise NXToolError(
@@ -1189,6 +1214,7 @@ class InteractiveHost:
         # Summarize before running: a delete removes the names it would show.
         self.current_summary = self._summarize(method, params)
         self.current_intent = params.get("intent")
+        self.current_operation_id = params.get("operation_id")
         self.current_started_at = time.time()
         self.last_error = None
         result = error = None
@@ -1317,7 +1343,7 @@ class InteractiveHost:
 
     def _never_waits(self, pending):
         """Status reads and mode changes that do not give the agent more control."""
-        if pending.method == "nx_status":
+        if pending.method == STATUS_TOOL:
             return True
         if pending.method == CONTROL_TOOL:
             target = control_target(pending.params)

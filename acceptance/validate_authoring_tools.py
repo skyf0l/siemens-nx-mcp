@@ -245,43 +245,6 @@ async def run(call, root):
 
     await group("inspection_report_artifacts_restore", report)
 
-    async def preview():
-        s, f = await box("preview")
-        feature = f["feature"]["id"]
-        r = await call(
-            "nx_preview_change",
-            operations=[
-                {
-                    "method": "nx_edit_feature",
-                    "params": {"name": feature, "params": {"distance": 22}},
-                }
-            ],
-        )
-        assert abs((await call("nx_get_bounding_box"))["max"][2] - 10) < 1e-07
-        await call("nx_finish_preview", preview_id=r["preview_id"], action="accept")
-        assert abs((await call("nx_get_bounding_box"))["max"][2] - 22) < 1e-07
-        feature = (await call("nx_list_features"))["objects"][-1]["id"]
-        q = await call(
-            "nx_preview_change",
-            operations=[
-                {
-                    "method": "nx_edit_feature",
-                    "params": {"name": feature, "params": {"distance": 30}},
-                }
-            ],
-            capture=False,
-        )
-        await call("nx_set_expression", expression="marker", formula="1", create=True)
-        try:
-            await call("nx_finish_preview", preview_id=q["preview_id"], action="accept")
-        except Exception:
-            pass
-        else:
-            raise AssertionError("stale preview accepted")
-        return r
-
-    await group("change_preview_accept_and_staleness", preview)
-
     async def summary():
         r = {
             s: await call("nx_model_summary", section=s, limit=2)
@@ -308,7 +271,6 @@ async def main():
         tools = {t.name: t for t in (await client.list_tools()).tools}
         assert len(tools) == int(os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT)))
         assert tools["nx_model_health"].annotations.readOnlyHint
-        assert not tools["nx_preview_change"].annotations.readOnlyHint
 
         async def call(method, **params):
             result = await client.call_tool(method, params)

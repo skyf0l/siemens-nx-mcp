@@ -82,7 +82,7 @@ async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_pa
     assert set(gateways.NAMES) | tested <= set(tools)
     assert not untested & set(tools)  # decision 11: untested tools are hidden
     assert set(full.nx_surface.legacy) <= set(tools)
-    assert {"nx_status", "nx_result", "nx_inspect"} <= set(tools)
+    assert {"nx_capabilities", "nx_result", "nx_inspect"} <= set(tools)
     datum = tools["nx_create_datum_plane"]
     assert datum.annotations.readOnlyHint is False and datum.annotations.destructiveHint is True
     assert {"operation_id", "intent"} <= set(datum.inputSchema["properties"])
@@ -100,9 +100,9 @@ def test_profile_defaults_to_agent_and_rejects_typos(tmp_path, monkeypatch):
 
 def test_a_catalogue_name_colliding_with_a_legacy_tool_stops_the_sidecar(tmp_path, monkeypatch):
     clash = dict(catalogue.load())
-    clash["nx_status"] = clash["nx_list_objects"]
+    clash["nx_capabilities"] = clash["nx_list_objects"]
     monkeypatch.setattr(catalogue, "load", lambda: clash)
-    with pytest.raises(CatalogueError, match="nx_status"):
+    with pytest.raises(CatalogueError, match="nx_capabilities"):
         server(tmp_path)
 
 
@@ -351,7 +351,7 @@ async def test_invoke_read_refuses_other_effects_before_validation(tmp_path, tes
     )
     assert not ok.isError
     bridge.call.return_value = {"status": "success", "connected": True}
-    assert not (await agent.call_tool("nx_invoke_read", {"tool": "nx_status"})).isError
+    assert not (await agent.call_tool("nx_invoke_read", {"tool": "nx_capabilities"})).isError
     nested = body(await agent.call_tool("nx_invoke", {"tool": "nx_invoke", "arguments": {}}))
     assert nested["error"]["code"] == "NX_UNSUPPORTED_OPTION"
 
@@ -451,9 +451,7 @@ async def test_a_long_call_outlasting_the_bridge_wait_says_how_to_check(tmp_path
     )
     assert failure["mutation_outcome"] == "unknown" and failure["operation_id"] == "op_long"
     assert failure["error"]["retry"] == "after_status_check"
-    assert (
-        "nx_operation_status" in failure["error"]["hint"] and "op_long" in failure["error"]["hint"]
-    )
+    assert "nx_get_operation" in failure["error"]["hint"] and "op_long" in failure["error"]["hint"]
 
 
 async def test_part_not_granted_keeps_its_category_and_hint(tmp_path, tested):

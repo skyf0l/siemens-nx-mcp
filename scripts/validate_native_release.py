@@ -83,8 +83,8 @@ async def snapshot():
                 raise RuntimeError((name, result.structuredContent))
             return result.structuredContent
 
-        status = await call("nx_status")
-        if status["ui"]["mode"] != "agent":
+        status = await call("nx_get_status")
+        if (status["data"]["control"] or {}).get("mode") != "agent":
             raise RuntimeError("NX must be in agent mode before native acceptance")
         parts = (await call("nx_list_parts"))["data"]["items"]
         if not parts or any(p["modified"] for p in parts):

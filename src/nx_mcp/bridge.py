@@ -533,7 +533,7 @@ class BridgeClient:
                 raise NXToolError(
                     "NX_BRIDGE_OUTCOME_UNKNOWN",
                     "The request reached the NX bridge but no answer arrived "
-                    f"({type(error).__name__}: {error}). Query nx_operation_status with this "
+                    f"({type(error).__name__}: {error}). Query nx_get_operation with this "
                     "operation_id before retrying.",
                     retryable=False,
                     details={
@@ -557,7 +557,7 @@ class BridgeClient:
             # The request was delivered; a dropped connection leaves its outcome unknown.
             raise NXToolError(
                 "NX_PROTOCOL_ERROR",
-                "NX bridge returned an invalid response size; query nx_operation_status "
+                "NX bridge returned an invalid response size; query nx_get_operation "
                 "before retrying",
                 details={"operation_id": params.get("operation_id"), "mutation_outcome": "unknown"},
             )

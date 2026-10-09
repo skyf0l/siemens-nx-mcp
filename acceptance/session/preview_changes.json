@@ -1,0 +1,148 @@
+{
+ "covers": {
+  "nx_preview_changes": [],
+  "nx_finish_preview": ["accept", "discard"]
+ },
+ "part": "new",
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}, "name": "PREVIEW_SK"}},
+  {"call": "nx_create_sketch_curves", "setup": true,
+   "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+
+  {
+   "call": "nx_preview_changes",
+   "save": "p1",
+   "args": {"operations": [
+    {"tool": "nx_create_extrude", "arguments": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 10}}}
+   ]},
+   "expect": {
+    "mutation_outcome": "previewed",
+    "data.count": 1,
+    "data.before.volume": null,
+    "data.before.counts.bodies": 0,
+    "data.after.volume": {"close": 8000, "tol": 1e-3},
+    "data.after.bounds.size": {"close": [40, 20, 10], "tol": 1e-6},
+    "data.after.health.healthy": true,
+    "data.delta.volume": {"close": 8000, "tol": 1e-3},
+    "data.delta.bodies": 1,
+    "data.results.0.tool": "nx_create_extrude",
+    "data.references": {"count": 1},
+    "data.image": null
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "intent": "Acceptance: the preview left the model unchanged",
+   "args": {"kind": "body"},
+   "expect": {"page.total": 0}
+  },
+  {
+   "call": "nx_finish_preview",
+   "save": "acc",
+   "args": {"preview_id": "$p1.data.preview_id", "action": "accept"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.action": "accept",
+    "data.count": 1,
+    "data.results.0.tool": "nx_create_extrude",
+    "data.results.0.data.volume": {"close": 8000, "tol": 1e-3}
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: an accepted preview cannot be applied twice",
+   "args": {"preview_id": "$p1.data.preview_id", "action": "accept"},
+   "expect": {"ok": false, "error.code": "NX_STALE_PREVIEW", "mutation_outcome": "not_started"}
+  },
+
+  {
+   "call": "nx_preview_changes",
+   "save": "p2",
+   "args": {"operations": [
+    {"tool": "nx_edit_feature", "arguments": {"feature": "$acc.data.results.0.data.feature.id", "parameters": [{"name": "distance", "value": 25}]}}
+   ]},
+   "expect": {
+    "mutation_outcome": "previewed",
+    "data.before.volume": {"close": 8000, "tol": 1e-3},
+    "data.after.volume": {"close": 20000, "tol": 1e-3},
+    "data.delta.volume": {"close": 12000, "tol": 1e-3},
+    "data.delta.features": 0
+   }
+  },
+  {
+   "call": "nx_finish_preview",
+   "args": {"preview_id": "$p2.data.preview_id", "action": "discard"},
+   "expect": {"mutation_outcome": "committed", "data.action": "discard", "data.count": 0}
+  },
+  {
+   "call": "nx_measure_mass",
+   "intent": "Acceptance: discard leaves the model unchanged",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-3}}
+  },
+
+  {
+   "call": "nx_list_objects",
+   "save": "feat",
+   "args": {"kind": "feature", "name_contains": "EXTRUDE"},
+   "expect": {"page.total": 1}
+  },
+  {
+   "call": "nx_preview_changes",
+   "save": "p3",
+   "args": {"operations": [
+    {"tool": "nx_edit_feature", "arguments": {"feature": "$feat.data.items.0.id", "parameters": [{"name": "distance", "value": 30}]}}
+   ]},
+   "expect": {"mutation_outcome": "previewed", "data.after.volume": {"close": 24000, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_set_expression",
+   "intent": "Acceptance: an intervening change makes the preview stale",
+   "args": {"name": "preview_marker", "formula": "1", "units": "mm"},
+   "expect": {"mutation_outcome": "committed"}
+  },
+  {
+   "call": "nx_finish_preview",
+   "args": {"preview_id": "$p3.data.preview_id", "action": "accept"},
+   "expect": {"ok": false, "error.code": "NX_STALE_PREVIEW", "error.category": "stale_reference", "mutation_outcome": "not_started"}
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-3}}
+  },
+
+  {
+   "call": "nx_list_objects",
+   "save": "feat2",
+   "args": {"kind": "feature", "name_contains": "EXTRUDE"},
+   "expect": {"page.total": 1}
+  },
+  {
+   "call": "nx_preview_changes",
+   "intent": "Acceptance: a tool that is not previewable is refused before anything runs",
+   "args": {"operations": [
+    {"tool": "nx_delete_objects", "arguments": {"objects": ["$feat2.data.items.0.id"]}}
+   ]},
+   "expect": {
+    "ok": false,
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/operations/0/tool",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-3}}
+  }
+ ]
+}

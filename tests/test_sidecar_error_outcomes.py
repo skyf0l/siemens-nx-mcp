@@ -91,7 +91,7 @@ async def test_timeout_after_send_is_unknown_and_not_retryable():
     assert error.code == "NX_BRIDGE_OUTCOME_UNKNOWN"
     assert error.retryable is False
     assert error.details == {"operation_id": "op_sent", "mutation_outcome": "unknown"}
-    assert "nx_operation_status" in error.message
+    assert "nx_get_operation" in error.message
 
 
 async def test_dropped_connection_after_send_is_unknown():

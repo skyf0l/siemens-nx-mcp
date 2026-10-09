@@ -35,8 +35,8 @@ async def run_iteration(
 ) -> dict[str, Any]:
     part_path = f"{prefix}/run-{index:02d}.prt"
     step_path = f"{prefix}/run-{index:02d}.stp"
-    status = await _call(client, "nx_status", {})
-    if not status["connected"]:
+    status = await _call(client, "nx_get_status", {"include": ["bridge"]})
+    if status["data"]["bridge"]["state"] != "connected":
         raise RuntimeError("NX bridge reports disconnected")
 
     try:

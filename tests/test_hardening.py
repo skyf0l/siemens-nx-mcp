@@ -142,7 +142,7 @@ async def test_uniform_structured_success_failure_and_schema(tmp_path):
     move = next(t for t in tools if t.name == "nx_rename_object")
     assert "name" in move.inputSchema["required"]
     assert "operation_id" in move.inputSchema["properties"]
-    success = await server.call_tool("nx_status", {})
+    success = await server.call_tool("nx_capabilities", {})
     assert success.structuredContent["status"] == "success" and not success.isError
     for name, args in [
         ("nx_list_topology", {"body": "a"}),

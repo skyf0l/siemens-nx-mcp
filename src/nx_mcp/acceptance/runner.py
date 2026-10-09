@@ -10,7 +10,8 @@ A scenario is ``acceptance/<domain>/<name>.json``::
 Argument strings ``$part`` (a fresh absolute path under ``smoke/<run-id>/``),
 ``$fixture`` (a copy of the fixture there), ``$run`` (the run directory) and
 ``$label.dotted.path`` (a value from an earlier saved result) are resolved
-before each call. Every call goes through the stdio MCP client of a fresh
+before each call; ``$$`` escapes a literal ``$`` (``"$$0.data.sketch"`` reaches
+the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). Every call goes through the stdio MCP client of a fresh
 ``python -m nx_mcp.server`` (agent profile): catalogue read tools through
 ``nx_invoke_read``, everything else through ``nx_invoke`` with an intent, both
 with ``detail=full``. Legacy results are unwrapped to the envelope shape
@@ -158,7 +159,9 @@ def unwrap(structured: Any) -> dict:
 
 
 def resolve(value: Any, saved: dict, special: dict) -> Any:
-    """Replace ``$part``/``$fixture``/``$run`` and ``$label.path`` strings."""
+    """Replace ``$part``/``$fixture``/``$run`` and ``$label.path`` strings (``$$`` = ``$``)."""
+    if isinstance(value, str) and value.startswith("$$"):
+        return value[1:]
     if isinstance(value, str) and value.startswith("$"):
         if value in special:
             return special[value]
@@ -382,11 +385,12 @@ async def sidecar(workspace: Path):
 
 async def nx_version(session) -> tuple[str, str]:
     """``(build key, build text)`` reported by the bridge."""
-    status = await call_tool(session, "nx_status", {}, intent=None)
+    status = await call_tool(session, "nx_get_status", {"include": ["bridge"]}, intent=None)
     if not status.get("ok"):
-        raise RuntimeError(f"nx_status failed: {status.get('error')}")
-    text = str(status.get("nx_build") or status.get("nx_version") or "")
-    key = core_evidence.build_key(status.get("nx_version") or text)
+        raise RuntimeError(f"nx_get_status failed: {status.get('error')}")
+    bridge = (status.get("data") or {}).get("bridge") or {}
+    text = str(bridge.get("nx_build") or bridge.get("nx_version") or "")
+    key = core_evidence.build_key(bridge.get("nx_version") or text)
     if key is None:
         raise RuntimeError(f"The bridge reports no NX version: {status}")
     return key, text

@@ -1,0 +1,108 @@
+{
+  "format": 1,
+  "scenario": "acceptance/session/status_operations.json",
+  "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
+  "domain": "session",
+  "covers": {
+    "nx_get_status": [],
+    "nx_get_operation": [],
+    "nx_cancel_operation": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "ac394c587f2d238285e26f62e0d89a1532055d90",
+  "sources": {
+    "nx_get_status": "02a11f84877b188f537768fb481f68551e76df7cfc028b522ac57476c26a2406",
+    "nx_get_operation": "02a11f84877b188f537768fb481f68551e76df7cfc028b522ac57476c26a2406",
+    "nx_cancel_operation": "02a11f84877b188f537768fb481f68551e76df7cfc028b522ac57476c26a2406"
+  },
+  "run_id": "20261009-200734-589016",
+  "owner": "s5_status",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-200734-589016\\session_status_operations_589016.prt",
+  "started": "2026-10-09T16:07:34Z",
+  "finished": "2026-10-09T16:07:36Z",
+  "passed": true,
+  "checks": 38,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.985,
+      "result_sha256": "3d850fddb36b6911fa169641c4bfe74b7d901eed7511f40b64c2c03493b806e9"
+    },
+    {
+      "index": 2,
+      "call": "nx_get_status",
+      "setup": false,
+      "passed": true,
+      "checks": 17,
+      "seconds": 0.031,
+      "result_sha256": "21a12f406f7fd090a39eb1406890650594b0ecbfa38bef7ce326b08b5a8a73e2"
+    },
+    {
+      "index": 3,
+      "call": "nx_get_status",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.015,
+      "result_sha256": "ea981330da97311671d1ca4f4e8923c6f34d2f623eb90f5fb7067c43748ffae4"
+    },
+    {
+      "index": 4,
+      "call": "nx_get_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.0,
+      "result_sha256": "4bd3b4ce91d1848c002a32de70eda3f5d27333462b4e487bcb5befae48e79661"
+    },
+    {
+      "index": 5,
+      "call": "nx_get_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.0,
+      "result_sha256": "5ed8dd27f3e99dfb7cab34f16234098c8001b029e649134673b74ffd15ffbbb7"
+    },
+    {
+      "index": 6,
+      "call": "nx_cancel_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.016,
+      "result_sha256": "1c58f36a5b08c4a28152bad7dd90f643b9838105b1daffef83a52728f1162987"
+    },
+    {
+      "index": 7,
+      "call": "nx_cancel_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.016,
+      "result_sha256": "5fca31238d7be3157e3597a4b22d60c94a2d4172f9354be082b8c875695832a0"
+    },
+    {
+      "index": 8,
+      "call": "nx_get_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "b3b329878d7a3e170090c5d5fba814df1a260b71e52d24d6f8f2a7086d2808d6"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-200734-589016/session_status_operations_589016.prt"
+    ],
+    "failed": []
+  }
+}

@@ -74,6 +74,13 @@ def test_resolve_specials_and_saved_pointers():
             runner.resolve(bad, saved, special)
 
 
+def test_double_dollar_passes_a_literal_batch_reference():
+    args = {"operations": [{"arguments": {"sketch": "$$0.data.sketch", "name": "$$part"}}]}
+    assert runner.resolve(args, {}, {"$part": "C:/w/a.prt"}) == {
+        "operations": [{"arguments": {"sketch": "$0.data.sketch", "name": "$part"}}]
+    }
+
+
 def test_unwrap_gives_legacy_errors_the_envelope_shape():
     legacy = {
         "status": "error",

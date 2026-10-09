@@ -21,7 +21,6 @@ from nx_mcp import (
 )
 from nx_mcp.feature_groups import server_modules as feature_group_modules
 from nx_mcp.output_schemas import output_schema
-from nx_mcp.recovery import OperationStore
 from nx_mcp.runtime import NXToolError
 from nx_mcp.workspace import WorkspaceViolation
 
@@ -50,14 +49,6 @@ def nx_rollback(checkpoint_id: str):
     pass
 
 
-def nx_operation_status(operation_id: str):
-    pass
-
-
-def nx_cancel_operation(operation_id: str):
-    pass
-
-
 def nx_list_topology(
     body: str, face: str | None = None, include_adjacency: bool = False, compact: bool = False
 ):
@@ -81,17 +72,10 @@ def nx_rename_object(object_id: str, name: str):
     pass
 
 
-def nx_workspace_info():
-    pass
-
-
 DESCRIPTIONS = {
-    "nx_workspace_info": "Discover the NX host workspace root and path rules. Paths refer to the NX machine, not the MCP client's filesystem. No session-wide current directory is changed.",
     "nx_checkpoint": "Create an in-session model undo checkpoint. NX v2606 saves expire native marks; create a new checkpoint after save. Restart/close also invalidates checkpoints.",
     "nx_checkpoint_state": "Inspect available checkpoint IDs and retained model-operation history. Read-only calls retain marks. Native NX save can expire them; availability is checked against NX.",
     "nx_rollback": "Rollback to an in-session checkpoint. Rejects rollback across mutations to unrelated parts. Reacquire object IDs afterward; save explicitly to persist.",
-    "nx_operation_status": "Read durable request state without waiting on the NX thread: running, committed, failed, unknown. Unknown never authorizes blind retry.",
-    "nx_cancel_operation": "Request cooperative cancellation of a running batch between child operations. Cannot interrupt a single NXOpen call; inspect final outcome.",
     "nx_list_topology": "Enumerate body topology. Optional face restricts results to that face and its boundary edges; include_adjacency returns face_edges and edge_faces ID mappings. compact retains minimal typed IDs. Use current upward-face boundary edges for flat-pattern orientation rather than guessing a former outer edge. Reacquire after edits/rollback/close.",
     "nx_rename_object": "Rename a referenced object and return its actual NX-normalized display name. Reacquire references afterward.",
     "nx_capabilities": "Inspect NX-version-specific tested scope. Use tool=exact_name or prefix=nx_sheet to limit response size; omit both for all tools. API detection is separate from native test evidence. Batch NX has no model viewport.",
@@ -99,15 +83,12 @@ DESCRIPTIONS = {
 
 READ_ONLY = {
     "nx_list_datums",
-    "nx_status",
     "nx_list_sketches",
     "nx_list_features",
     "nx_list_bodies",
     "nx_list_topology",
     "nx_checkpoint_state",
     "nx_capabilities",
-    "nx_operation_status",
-    "nx_workspace_info",
     "nx_read_result",
 }
 READ_ONLY.update(
@@ -133,12 +114,7 @@ DESCRIPTIONS.update(
     }
 )
 
-SIDE = {
-    "nx_workspace_info",
-    "nx_read_result",
-    "nx_operation_status",
-    "nx_cancel_operation",
-}
+SIDE = {"nx_read_result"}
 PATHS: dict[str, str] = {}
 
 
@@ -245,10 +221,7 @@ def configure(mcp, bridge, workspace):
                     from pydantic_core import to_jsonable_python
 
                     params = to_jsonable_python(dict(bound.arguments))
-                    if "operation_id" in params and method not in {
-                        "nx_operation_status",
-                        "nx_cancel_operation",
-                    }:
+                    if "operation_id" in params:
                         params["operation_id"] = params["operation_id"] or (
                             "op_" + uuid.uuid4().hex
                         )
@@ -280,7 +253,7 @@ def configure(mcp, bridge, workspace):
                         error = NXToolError(
                             "NX_INTERNAL_ERROR",
                             f"Sidecar failed handling {method}: {type(e).__name__}: {e}",
-                            suggestion="Query nx_operation_status before retrying"
+                            suggestion="Query nx_get_operation before retrying"
                             if forwarded and operation_id
                             else None,
                             details={"mutation_outcome": "unknown" if forwarded else "not_started"},
@@ -359,35 +332,12 @@ def configure(mcp, bridge, workspace):
 
     mcp.call_tool = uniform_call
     mcp._mcp_server.call_tool(validate_input=False)(uniform_call)
-    mcp._mcp_server.instructions = "Siemens NX v2606 integration. Use nx_capabilities for tested scope. Discover the host root with nx_workspace_info. File paths are workspace-relative or absolute inside that root; use explicit project subfolders on every file call. Use client-supplied operation_id for mutation retry; query receipts after transport failure. No general certification is claimed."
+    mcp._mcp_server.instructions = "Siemens NX v2606 integration. Use nx_capabilities for tested scope. Discover the host root with nx_get_status. File paths are workspace-relative or absolute inside that root; use explicit project subfolders on every file call. Use client-supplied operation_id for mutation retry; query receipts after transport failure. No general certification is claimed."
 
 
 def artifact_call(method, p, workspace):
-    store = OperationStore(workspace.root)
     if method == "nx_read_result":
         from nx_mcp.result_transport import read_result
 
         return read_result(workspace.root / ".nx-mcp" / "bridge-results", **p)
-    if method == "nx_operation_status":
-        return store.get(p["operation_id"])
-    if method == "nx_cancel_operation":
-        record = store.get(p["operation_id"])
-        if record["state"] != "running" or record.get("method") != "nx_run_batch":
-            raise NXToolError("NX_NOT_CANCELLABLE", "Only running batches accept cancellation")
-        store.path(p["operation_id"]).with_suffix(".cancel").touch()
-        return {
-            "status": "success",
-            "operation_id": p["operation_id"],
-            "cancellation_requested": True,
-        }
-    if method == "nx_workspace_info":
-        return {
-            "status": "success",
-            "root": str(workspace.root),
-            "path_host": "NX server",
-            "relative_to": str(workspace.root),
-            "absolute_paths": "accepted inside workspace only",
-            "parent_creation": ["nx_create_part", "nx_save_part", "nx_upload_file"],
-            "current_directory": "No mutable current directory; use explicit paths on every call",
-        }
     raise NXToolError("NX_TOOL_NOT_FOUND", f"{method} is not a sidecar tool")

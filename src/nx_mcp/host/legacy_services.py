@@ -485,6 +485,9 @@ class LegacyServices:
 
             raise classify(exc) from exc
 
+    def revision(self) -> int:
+        return getattr(self.x, "_review_epoch", 0)
+
     def after_commit(self, spec) -> None:
         if spec.effect != "read":
             self.x._review_epoch = getattr(self.x, "_review_epoch", 0) + 1

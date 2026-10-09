@@ -313,20 +313,6 @@ FAKE_NXOPEN = SimpleNamespace(
 )
 
 
-def test_status_reports_version_and_stable_active_part_reference(tmp_path: Path):
-    executor = NXOpenExecutor(FakeSession(), FAKE_NXOPEN, "NX 2512.7000", Workspace(tmp_path))
-
-    first = executor.execute("nx_status", {})
-    second = executor.execute("nx_status", {})
-
-    assert first == second
-    assert first["connected"] is True
-    assert first["nx_version"] == "NX 2512.7000"
-    assert first["bridge_protocol"] == 1
-    assert first["active_part"]["kind"] == "part"
-    assert first["active_part"]["name"] == "bracket"
-
-
 def test_query_commands_return_typed_stable_object_references(tmp_path: Path):
     executor = NXOpenExecutor(FakeSession(), FAKE_NXOPEN, "NX test", Workspace(tmp_path))
 

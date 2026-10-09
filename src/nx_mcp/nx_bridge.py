@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from nx_mcp.bridge import (
-    BRIDGE_PROTOCOL_VERSION,
     BridgeDescriptor,
     BridgeServer,
     MainThreadDispatcher,
@@ -40,7 +39,6 @@ class NXOpenExecutor:
         self.objects = ObjectRegistry()
         self._undo_marks: list[Any] = []
         self._handlers: dict[str, Callable[..., dict[str, Any]]] = {
-            "nx_status": self._status,
             "nx_list_sketches": lambda: self._list_objects("Sketches", "sketch"),
             "nx_list_bodies": lambda: self._list_objects("Bodies", "body"),
             "nx_list_features": lambda: self._list_objects("Features", "feature"),
@@ -109,15 +107,6 @@ class NXOpenExecutor:
             name=self._name(value, fallback),
             part_id=self._part_id(part),
         ).model_dump()
-
-    def _status(self) -> dict[str, Any]:
-        part = self._work_part(required=False)
-        return {
-            "connected": True,
-            "nx_version": self.nx_version,
-            "bridge_protocol": BRIDGE_PROTOCOL_VERSION,
-            "active_part": self._reference(part, "part", part, "Part") if part else None,
-        }
 
     def _list_objects(self, collection_name: str, kind: ObjectKind) -> dict[str, Any]:
         part = self._work_part()

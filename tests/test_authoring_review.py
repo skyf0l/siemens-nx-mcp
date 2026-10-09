@@ -216,79 +216,6 @@ def test_temporary_presentation_cleanup_failure_is_partial(author):
     assert err.value.details["mutation_outcome"] == "partial"
 
 
-@pytest.mark.parametrize(
-    "section", ["overview", "features", "components", "expressions", "sketches"]
-)
-def test_compact_summaries_have_counts_and_bounded_pages(author, section):
-    result = author.e._model_summary(section, limit=1)
-    if section == "overview":
-        assert result["counts"]["bodies"] == 1 and result["diagnostics"]["healthy"]
-    else:
-        assert len(result["items"]) <= 1
-
-
-def test_summary_empty_part_and_bad_section(author):
-    author.part.Bodies.clear()
-    assert author.e._model_summary()["bounds"] is None
-    with pytest.raises(NXToolError):
-        author.e._model_summary("bad")
-
-
-@pytest.mark.parametrize(
-    "operation",
-    [
-        {"method": "nx_set_expression", "params": {"expression": "height"}},
-        {"method": "nx_set_expression", "params": {"expression": "height", "bogus": 1}},
-        {"method": "nx_set_expression", "params": ["height", "20"]},
-        "nx_set_expression",
-    ],
-)
-def test_preview_rejects_malformed_operations_before_nx(author, operation):
-    with pytest.raises(NXToolError) as error:
-        author.e.execute("nx_preview_change", {"operations": [operation], "capture": False})
-    assert error.value.code == "NX_INVALID_ARGUMENT"
-    assert author.expression.RightHandSide == "10"
-
-
-def test_preview_failure_rolls_back_prior_edits(author):
-    r = author
-    e = r.e
-    with pytest.raises(NXToolError):
-        e.execute(
-            "nx_preview_change",
-            {
-                "operations": [
-                    {
-                        "method": "nx_set_expression",
-                        "params": {"expression": "height", "formula": "20"},
-                    },
-                    {
-                        "method": "nx_set_expression",
-                        "params": {"expression": "height", "formula": "invalid"},
-                    },
-                ],
-                "capture": False,
-            },
-        )
-    assert r.expression.RightHandSide == "10"
-
-
-@pytest.mark.parametrize(
-    "operations",
-    [[], [{"method": "nx_save_part", "params": {}}], [{"method": "nx_edit_feature", "params": {}}]],
-)
-def test_preview_preflight_rejects_unrecoverable_or_invalid_operations(author, operations):
-    with pytest.raises((NXToolError, TypeError)):
-        author.e._preview_plan(operations)
-    assert author.expression.RightHandSide == "10"
-
-
-def test_preview_discards_unknown_tokens_and_invalid_actions(author):
-    for action in ["accept", "unknown"]:
-        with pytest.raises(NXToolError):
-            author.e._finish_preview("missing", action)
-
-
 def test_expression_value_uses_its_declared_unit_not_part_unit(author):
     exp = author.expression
     exp.Units = NS(Abbreviation="in")
@@ -310,7 +237,6 @@ async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path, mon
     server = create_server(bridge, Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
     assert tools["nx_find_geometry"].annotations.readOnlyHint
-    assert not tools["nx_preview_change"].annotations.readOnlyHint
     await server.call_tool("nx_export_inspection_report", {"path": "reports/review.zip"})
     args = bridge.call.call_args.args[1]
     assert args["path"] == str(tmp_path / "reports" / "review.zip") and args["operation_id"]

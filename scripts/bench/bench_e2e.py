@@ -37,10 +37,14 @@ def datum_args():
 
 async def bridge_series(n):
     c = client()
-    out = {"bridge nx_status": [], "bridge nx_list_parts": [], "bridge nx_create_datum_plane": []}
+    out = {
+        "bridge nx_get_status": [],
+        "bridge nx_list_parts": [],
+        "bridge nx_create_datum_plane": [],
+    }
     for _ in range(n):
         for tool, args in (
-            ("nx_status", {}),
+            ("nx_get_status", {}),
             ("nx_list_parts", {}),
             (
                 "nx_create_datum_plane",
@@ -50,7 +54,7 @@ async def bridge_series(n):
             t = pc()
             r = await c.call(tool, args)
             out[f"bridge {tool}"].append((pc() - t) * 1000)
-            if tool != "nx_status" and not r.get("ok", True):
+            if tool != "nx_get_status" and not r.get("ok", True):
                 raise RuntimeError(json.dumps(r)[:600])
     return out
 
@@ -109,7 +113,7 @@ async def busy_series(n):
 def wait_mode(want, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        r = asyncio.run(client().call("nx_status", {}))
+        r = asyncio.run(client().call("nx_get_status", {}))
         if r.get("ui", {}).get("mode") == want:
             return
         time.sleep(0.1)
@@ -140,7 +144,7 @@ def main():
             client_ms.update(asyncio.run(busy_series(args.busy)))
     finally:
         inner = nx_json(snippet("auto_collect.py"), restore=True)
-        state = asyncio.run(client().call("nx_status", {}))["ui"]
+        state = asyncio.run(client().call("nx_get_status", {}))["data"]["control"]
     rows = [(k, stats(v)) for k, v in client_ms.items()]
     table(rows, f"Client-side latency ({args.phase})")
     print("\nNX side:", json.dumps(inner, indent=1))

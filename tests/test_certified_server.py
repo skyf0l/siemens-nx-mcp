@@ -47,25 +47,6 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
 
 
 @pytest.mark.asyncio
-async def test_status_returns_structured_content():
-    server = create_server(StubBridge(), surface="full")
-
-    async with create_connected_server_and_client_session(server) as client:
-        result = await client.call_tool("nx_status", {})
-
-    assert result.isError is False
-    assert result.structuredContent == {
-        "status": "success",
-        "warnings": [],
-        "units": None,
-        "connected": True,
-        "nx_version": "NX test",
-        "bridge_protocol": 1,
-        "active_part": None,
-    }
-
-
-@pytest.mark.asyncio
 async def test_create_part_resolves_path_inside_workspace(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("NX_MCP_DEV", "1")  # untested catalogue tools are listed and run
     bridge = RecordingBridge(

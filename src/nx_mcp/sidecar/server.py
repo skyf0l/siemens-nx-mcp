@@ -53,7 +53,7 @@ AGENT_INSTRUCTIONS = (
     "nx_get_tool_schemas (1-10 names; 'tool#variant' for one variant), then call nx_invoke, or "
     "nx_invoke_read for read-only tools. Results carry ok, mutation_outcome and data, or error "
     "{category, code, retry, hint, field}. Put operation_id inside arguments for mutations you "
-    "may retry; after an unknown outcome query nx_operation_status before retrying. Rows marked "
+    "may retry; after an unknown outcome query nx_get_operation before retrying. Rows marked "
     "legacy are older tools with the previous result shape. Compact results keep result_id; "
     "expand with nx_result. Never paste base64 file content into the conversation."
 )

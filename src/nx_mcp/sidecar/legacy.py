@@ -16,18 +16,12 @@ from nx_mcp import agent_guidance, agent_surface, integration_server
 # Legacy agent categories -> catalogue domains.
 _DOMAINS = {"files": "parts_files", "manufacturing": "sheet_metal"}
 _SESSION = {
-    "nx_status",
-    "nx_workspace_info",
-    "nx_operation_status",
-    "nx_cancel_operation",
     "nx_capabilities",
     "nx_read_result",
     "nx_checkpoint",
     "nx_checkpoint_state",
     "nx_rollback",
     "nx_undo",
-    "nx_preview_change",
-    "nx_finish_preview",
     *agent_surface.HELPERS,
 }
 

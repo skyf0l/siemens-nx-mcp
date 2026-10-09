@@ -66,24 +66,6 @@ META = {"path": S, "size": COUNT, "sha256": HASH}
 # Required fields follow actual bridge implementations; optional metadata remains typed.
 PAYLOADS: dict[str, dict[str, Any]] = {
     "nx_list_topology": obj({"body": REF, "faces": arr(REF), "edges": arr(REF), "solid": B}),
-    "nx_operation_status": obj(
-        {
-            "operation_id": S,
-            "state": {"enum": ["running", "committed", "failed", "unknown", "rolled_back"]},
-            "mutation_outcome": {"enum": OUTCOMES},
-            "method": S,
-            "reason": S,
-            "session_id": S,
-            "started_at": S,
-            "finished_at": S,
-            "result": {"type": "object"},
-            "error": {"type": "object"},
-            "reverted_by": S,
-            "query_operation_id": S,
-            "query_session_id": S,
-        },
-        ["operation_id", "state", "mutation_outcome"],
-    ),
     "nx_checkpoint": obj({"checkpoint_id": S, "message": S}),
     "nx_rollback": obj({"checkpoint_id": S, "message": S}),
     "nx_checkpoint_state": obj(

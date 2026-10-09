@@ -74,8 +74,11 @@ def _at(index: int, error: NXError, tool_name: str | None) -> NXError:
     return error
 
 
-def _preflight(operations: list[dict]) -> list:
-    """Every step's spec, checked before any step runs; raise on the first problem."""
+def _preflight(operations: list[dict], mode: str = "batch") -> list:
+    """Every step's spec, checked before any step runs; raise on the first problem.
+
+    ``mode`` ``"batch"`` admits batchable tools, ``"preview"`` previewable ones
+    (``nx_preview_changes``)."""
     registry = catalogue.load()
     specs = []
     for index, step in enumerate(operations):
@@ -85,9 +88,10 @@ def _preflight(operations: list[dict]) -> list:
             if spec is None:
                 fail("NX_UNKNOWN_TOOL", f"Unknown tool {name}", field="/tool",
                      hint="Find batchable tools with nx_find_tools")  # fmt: skip
-            if not spec.batchable or spec.runs != "nx":
-                fail("NX_UNSUPPORTED_OPTION", f"{name} cannot run in a batch", field="/tool",
-                     hint="Call it on its own; only batchable tools run in nx_run_batch")  # fmt: skip
+            admitted = spec.batchable if mode == "batch" else spec.previewable
+            if not admitted or spec.runs != "nx":
+                fail("NX_UNSUPPORTED_OPTION", f"{name} cannot run in a {mode}", field="/tool",
+                     hint=f"Only {mode}able tools run here; find them with nx_find_tools")  # fmt: skip
             checked = validate(spec.params, step["arguments"], placeholders=True)
             for path, text in checked.placeholders:
                 if int(re.match(r"^\$([0-9]+)", text).group(1)) >= index:

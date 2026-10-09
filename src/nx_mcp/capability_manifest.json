@@ -19,26 +19,10 @@
         "v2406"
       ]
     },
-    "nx_status": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Live graphical NX 2606 connection, version and UI/main-thread status; restored saved session.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_rename_object": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
       "scope": "Native extrusion rename resolved again by returned name after Save As. Other object kinds are not independently covered by this fixture.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_operation_status": {
-      "status": "tested",
-      "evidence_type": "local_contract_test",
-      "scope": "Durable committed/failed/unknown receipt tests; no crash reconstruction claimed",
       "verified_versions": [
         "v2406"
       ]
@@ -91,14 +75,6 @@
         "v2406"
       ]
     },
-    "nx_cancel_operation": {
-      "status": "tested",
-      "evidence_type": "local_contract_tests",
-      "scope": "Sidecar contract accepts cancellation only for running batches and creates the cancellation marker; batch boundary seam verifies rollback. Live non-running request rejected. No mid-NXOpen interruption claim.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_checkpoint_state": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
@@ -108,22 +84,6 @@
       ]
     },
     "nx_list_expressions": {
-      "status": "tested",
-      "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_preview_change": {
-      "status": "tested",
-      "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_finish_preview": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
       "evidence_type": "real_NX_v2606_and_local_stateful_seams",
@@ -151,14 +111,6 @@
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
       "scope": "Native computed size and retention diagnostics; occurrence-edge dimension follows extrusion resize and explicitly rebinds after replacement.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_workspace_info": {
-      "status": "tested",
-      "evidence_type": "live_sidecar_and_contract_tests",
-      "scope": "NX host workspace root and path conventions; no NX geometry calls.",
       "verified_versions": [
         "v2406"
       ]

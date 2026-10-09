@@ -15,7 +15,7 @@ class NonTextErrorClient:
 
 @pytest.mark.asyncio
 async def test_real_smoke_reports_non_text_error_content(tmp_path: Path):
-    with pytest.raises(RuntimeError, match="nx_status failed: unknown error"):
+    with pytest.raises(RuntimeError, match="nx_get_status failed: unknown error"):
         await run_iteration(NonTextErrorClient(), tmp_path, 1)
 
 

@@ -29,7 +29,7 @@ def test_checkpoint_rollback_invalidates_objects_and_preserves_receipt(rig):
     committed = add(operation_id="test-operation-001")
     ref = committed["changes"]["created"][0]["id"]
     assert rig.e._checkpoint_state()["undo_depth"] == 1
-    rig.e.execute("nx_status", {})
+    rig.e.execute("nx_checkpoint_state", {})
     assert rig.e._checkpoint_state()["undo_depth"] == 1
     rig.e.execute("nx_rollback", {"checkpoint_id": cp["checkpoint_id"]})
     assert not rig.part.Bodies and not rig.part.IsModified
@@ -199,17 +199,6 @@ def test_guard_failures_never_create_undo_marks(rig):
     with pytest.raises(NXToolError, match="NX_TOOL_NOT_FOUND|nx_no_such_tool"):
         rig.e.execute("nx_no_such_tool", {})
     assert not rig.session.marks
-
-
-def test_operation_status_preserves_target_receipt_metadata(rig):
-    committed = mutation(rig)(operation_id="receipt-query-target")
-    status = rig.e.execute("nx_operation_status", {"operation_id": "receipt-query-target"})
-    for key in ["operation_id", "session_id", "mutation_outcome"]:
-        assert status[key] == committed[key]
-    assert status["query_operation_id"] != status["operation_id"]
-    missing = rig.e.execute("nx_operation_status", {"operation_id": "receipt-not-recorded"})
-    assert missing["operation_id"] == "receipt-not-recorded"
-    assert missing["mutation_outcome"] == "unknown" and missing["session_id"] is None
 
 
 def test_capability_filters_and_unit_conventions(rig):

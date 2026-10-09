@@ -159,7 +159,7 @@ def test_operation_failure_relocks_ui_and_refresh_failure_is_warning(host, rig):
     with pytest.raises(NXToolError, match="NX MCP panel"):
         host.execute("nx_list_bodies", {})
     host.control("agent")
-    assert host.execute("nx_status", {})["ui"]["mode"] == "agent"
+    assert host.status()["mode"] == "agent"
     rig.e._handlers["nx_test_fail"] = Mock(side_effect=RuntimeError("native error"))
     with pytest.raises(NXToolError):
         host.execute("nx_test_fail", {})
@@ -202,7 +202,7 @@ def test_leaving_agent_drives_releases_nx_and_keeps_references_without_edits(hos
     with pytest.raises(RuntimeError):
         host.control("ask")
     with pytest.raises(RuntimeError):
-        host.execute("nx_status", {})
+        host.execute("nx_get_status", {})
 
 
 def test_engineer_change_between_calls_invalidates_references_once(host, rig):
@@ -462,7 +462,7 @@ def test_auto_idle_and_running_lines(host):
 
 def test_ask_run_once_runs_only_the_waiting_steps_and_stays(host, monkeypatch):
     queue = _queue(host, "ask")
-    status = queue.submit("nx_status")
+    status = queue.submit("nx_get_status")
     held = queue.submit("nx_list_bodies", {"intent": "Check the boss body"})
     host.tick()
     assert status.complete.is_set() and not held.complete.is_set()  # status never waits
@@ -717,6 +717,7 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
     def operation():
         def reader():
             observed.append(host.dispatch("nx_set_control", {"mode": "status"}))
+            observed.append(host.dispatch("nx_get_status", {"include": ["control", "operation"]}))
 
         thread = threading.Thread(target=reader)
         thread.start()
@@ -732,11 +733,15 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
         return {}
 
     rig.e._handlers["nx_test_busy"] = operation
-    host.execute("nx_test_busy", {})
+    host.execute("nx_test_busy", {"operation_id": "op_busy_0001"})
     assert observed[0]["ok"] and observed[0]["mutation_outcome"] == "not_applicable"
     assert observed[0]["data"]["activity"] == "running"
     assert observed[0]["data"]["running"] == "nx_test_busy"
     assert observed[0]["data"]["owner"] == "agent"
+    status = observed[1]  # nx_get_status from the snapshot, never queued
+    assert status["ok"] and status["data"]["operation"]["tool"] == "nx_test_busy"
+    assert status["data"]["operation"]["operation_id"] == "op_busy_0001"
+    assert status["data"]["control"]["activity"] == "running"
     host.dispatcher.drain.assert_not_called()
     assert host.status()["activity"] == "reserved_idle"
     assert host.status()["last_duration_seconds"] >= 0

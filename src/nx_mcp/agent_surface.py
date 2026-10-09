@@ -277,7 +277,7 @@ def install(mcp, workspace, legacy_call) -> Helpers:
         limit: int = 20,
         detail: Literal["compact", "full"] = "compact",
     ) -> CallToolResult:
-        """Expand a retained response snapshot without repeating NX operations. field is a JSON Pointer (/bodies, /changes/created); arrays are paged with limit 1..100. Empty field returns compact data plus available top-level fields. detail=full returns full selected object/scalar data; arrays remain paged. Snapshots survive server restarts until workspace cleanup; references may be stale after model changes. Use nx_operation_status for authoritative mutation recovery."""
+        """Expand a retained response snapshot without repeating NX operations. field is a JSON Pointer (/bodies, /changes/created); arrays are paged with limit 1..100. Empty field returns compact data plus available top-level fields. detail=full returns full selected object/scalar data; arrays remain paged. Snapshots survive server restarts until workspace cleanup; references may be stale after model changes. Use nx_get_operation for authoritative mutation recovery."""
         if offset < 0 or not 1 <= limit <= 100:
             raise ValueError("offset >= 0; limit 1..100")
         value = store.get(result_id)

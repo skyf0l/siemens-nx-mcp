@@ -1,0 +1,217 @@
+{
+  "format": 1,
+  "scenario": "acceptance/session/preview_changes.json",
+  "scenario_sha256": "2214097144adb1df5dd8f7e99e802c5bac7fa922b88a306b94ec0215abe8a42a",
+  "domain": "session",
+  "covers": {
+    "nx_preview_changes": [],
+    "nx_finish_preview": [
+      "accept",
+      "discard"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "ac394c587f2d238285e26f62e0d89a1532055d90",
+  "sources": {
+    "nx_preview_changes": "99281d17987744a30287f8949682208a3265321197c0739377aa59b954a96486",
+    "nx_finish_preview": "99281d17987744a30287f8949682208a3265321197c0739377aa59b954a96486"
+  },
+  "run_id": "20261009-200303-5e336d",
+  "owner": "s3_preview",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-200303-5e336d\\session_preview_changes_5e336d.prt",
+  "started": "2026-10-09T16:03:03Z",
+  "finished": "2026-10-09T16:03:06Z",
+  "passed": true,
+  "checks": 46,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.047,
+      "result_sha256": "77386cfd8264b087722eca8ed3e62861bbe8734543482a7f67514b16c5f34033"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "b5d31d5721ee6228b9978462470db7e5c31349d138f8fe5aa01e53381a1eb6c8"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "3c162c948552fc4e193a03c42d060ff2858d9cb23454b341e09d412e1f16bc05"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "b2faf323cc637d6ed7132fb6d9c8ed87df39bf27f072972d1a06748efbc8fbe0"
+    },
+    {
+      "index": 5,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 12,
+      "seconds": 0.125,
+      "result_sha256": "e4a47956ea037510d9541edbc6cf8780ce8b734893768f297316b2ec46850637"
+    },
+    {
+      "index": 6,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "3221ff855129aa35dd90d167ee14748fd9ab242312a40c7e8989a387b12f9ade"
+    },
+    {
+      "index": 7,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.078,
+      "result_sha256": "14d571e189ad30325387fdb864d73e16e6dfb539e6ab76e97468f0c9b74db122"
+    },
+    {
+      "index": 8,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "2f895ab02e207f0894ade962e99710bd4c12a864634ac2ab46102f78b682231f"
+    },
+    {
+      "index": 9,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.047,
+      "result_sha256": "ae7c2178ff55ec36e9ad2028ed128049bee47305425e0314f6c3fd4e8d7506fa"
+    },
+    {
+      "index": 10,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.14,
+      "result_sha256": "2a848a88ed72fd6671eb038968b2de7ac031882664b2936446dbaba24917b700"
+    },
+    {
+      "index": 11,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.047,
+      "result_sha256": "5e2e39e0f48c12216c5204483c34b83443baf621069bb09dd016748c3a02cb33"
+    },
+    {
+      "index": 12,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "6f8dc7021e4fb2b225c40ffc759654ab1156d62246f8cefed95f59251d060e41"
+    },
+    {
+      "index": 13,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.016,
+      "result_sha256": "09417c66ba3137cc1f522d01721355e81b3f16e3ca26aed7feb4036bf018154a"
+    },
+    {
+      "index": 14,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.093,
+      "result_sha256": "3a3b00183f3dab4a6ab4bc16154eea5847d6b00bf9da3751bd8e3db5e12fa99c"
+    },
+    {
+      "index": 15,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "59d3facc40abc8b71f4ec0bc7ebcf8df90b2c5c7b72f40e40cb51f8cd3ea0921"
+    },
+    {
+      "index": 16,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.032,
+      "result_sha256": "583c359398d3b26f6a7056dfddd58c5832e24afe7a661a684e4e320cddd183b8"
+    },
+    {
+      "index": 17,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "a0565bf7a99e87daf86cb628a8b19a368af480d60dc598e314a35136e65dedba"
+    },
+    {
+      "index": 18,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.015,
+      "result_sha256": "0ed4b3313756c3bddb2c9ea17c74c3fd762a93beae90b84cbbdb25442936cc43"
+    },
+    {
+      "index": 19,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.047,
+      "result_sha256": "dedfb7877efe85ffdcb6332b482850d2ebebd4b01f34e86200ff2581a1bb222f"
+    },
+    {
+      "index": 20,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.016,
+      "result_sha256": "7609bb8a4076dcb51805848171a369e981f4666ae38953cf9513647440a4b0bc"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-200303-5e336d/session_preview_changes_5e336d.prt"
+    ],
+    "failed": []
+  }
+}

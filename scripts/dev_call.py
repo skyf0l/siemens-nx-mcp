@@ -7,7 +7,7 @@ a later step can reference an earlier result with "$label.json.pointer", e.g.
 the run stops at the first error unless the step has "expect_error": true.
 
     python scripts/dev_call.py steps.json
-    python scripts/dev_call.py --inline '[{"tool": "nx_status"}]'
+    python scripts/dev_call.py --inline '[{"tool": "nx_get_status"}]'
 """
 
 import argparse
@@ -65,7 +65,7 @@ async def run(steps, limit):
                     print(f"[{index}] FAIL {tool}  bad reference {error}; saved keys: {shapes}")
                     failures += 1
                     break
-                direct = tool in {"nx_status"}
+                direct = tool in {"nx_get_status"}
                 if not direct and step.get("mutation", True) and "operation_id" not in args:
                     args = {**args, "operation_id": "dev-" + uuid.uuid4().hex[:12]}
                 if direct:

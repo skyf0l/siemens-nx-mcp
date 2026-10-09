@@ -7,18 +7,7 @@ import struct
 import uuid
 
 from nx_mcp.kit.geom import rows, xyz
-from nx_mcp.runtime import NXToolError, api_error
-
-
-def with_cleanup_failure(original, cleanup_error):
-    """The original error, with a later cleanup/rollback failure in its details."""
-    error = original if isinstance(original, NXToolError) else api_error(original)
-    if isinstance(cleanup_error, NXToolError):
-        failure = {"code": cleanup_error.code, "message": cleanup_error.message}
-    else:
-        failure = {"code": "NX_API_ERROR", "message": str(cleanup_error)}
-    error.details.update(rollback_error=failure, mutation_outcome="partial")
-    return error
+from nx_mcp.runtime import NXToolError
 
 
 class InspectionMixin:

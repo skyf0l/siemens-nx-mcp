@@ -48,14 +48,6 @@ def test_summaries_use_real_arguments_and_names(method, params, expected):
     assert describe(method, params) == expected
 
 
-def test_batch_keeps_its_count_when_the_first_step_is_long():
-    long_name = {"object_id": "x" * 200, "name": "A"}
-    operations = [{"method": "nx_rename_object", "params": long_name}] * 12
-    line = describe("nx_preview_change", {"operations": operations})
-    assert len(line) <= MAX_LENGTH
-    assert line.startswith("Preview 12 changes: Rename") and line.endswith("… (+11 more)")
-
-
 def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
     show = relative_path(tmp_path)
     target = str(tmp_path / "smoke" / "view.json")
@@ -85,19 +77,19 @@ def test_dispatcher_runs_selected_call_and_rejects_held_ones():
     from nx_mcp.bridge import _PendingBridgeCall
 
     held = _PendingBridgeCall("nx_extrude", {})
-    status = _PendingBridgeCall("nx_status", {})
+    status = _PendingBridgeCall("nx_get_status", {})
     for pending in (held, status):
         dispatcher._calls.put(pending)
     assert dispatcher.waiting() == [held, status]
-    assert dispatcher.drain_where(lambda p: p.method == "nx_status") == 1
-    assert ran == ["nx_status"] and dispatcher.waiting() == [held]
+    assert dispatcher.drain_where(lambda p: p.method == "nx_get_status") == 1
+    assert ran == ["nx_get_status"] and dispatcher.waiting() == [held]
     error = NXToolError("NX_UI_DECLINED", "no", details={"x": 1})
     assert dispatcher.reject_where(lambda p: True, error) == 1
     assert held.error.code == "NX_UI_DECLINED" and held.error.details == {
         "x": 1,
         "mutation_outcome": "not_started",
     }
-    assert ran == ["nx_status"] and dispatcher.waiting() == []
+    assert ran == ["nx_get_status"] and dispatcher.waiting() == []
 
 
 @pytest.mark.asyncio

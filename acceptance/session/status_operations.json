@@ -1,0 +1,80 @@
+{
+ "covers": {
+  "nx_get_status": [],
+  "nx_get_operation": [],
+  "nx_cancel_operation": []
+ },
+ "part": "new",
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "made", "args": {"path": "$part", "units": "mm"}},
+  {
+   "call": "nx_get_status",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.bridge.state": "connected",
+    "data.bridge.nx_version": "v2406",
+    "data.bridge.nx_build": {"matches": "2406"},
+    "data.bridge.interactive": true,
+    "data.bridge.answered_from": "nx",
+    "data.control.mode": "agent",
+    "data.control.mode_label": "Agent drives",
+    "data.control.owner": "agent",
+    "data.parts.work.path": {"matches": "session_status_operations_[0-9a-f]+[.]prt$"},
+    "data.parts.work.units": "mm",
+    "data.parts.work.modified": true,
+    "data.parts.display.path": {"matches": "session_status_operations_"},
+    "data.workspace.root": {"matches": "[A-Za-z]"},
+    "data.workspace.absolute_paths": {"contains": "inside the workspace"},
+    "data.workspace.current_directory": {"contains": "explicit paths"},
+    "data.operation": null
+   }
+  },
+  {
+   "call": "nx_get_status",
+   "args": {"include": ["workspace"]},
+   "expect": {"data": {"count": 1}, "data.workspace.reserved": {"contains": ".nx-mcp"}}
+  },
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "$made.operation_id"},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.state": "committed",
+    "data.tool": "nx_create_part",
+    "data.mutation_outcome": "committed",
+    "data.result.data.units": "mm",
+    "data.cancel_requested": false,
+    "data.error": null
+   }
+  },
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "op_s5_status_never_used"},
+   "expect": {"data.state": "unknown", "data.mutation_outcome": "unknown", "data.result": null}
+  },
+  {
+   "call": "nx_cancel_operation",
+   "args": {"operation": "op_s5_status_never_used"},
+   "intent": "Acceptance: cancel an operation id that was never used",
+   "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/operation", "mutation_outcome": "not_started"}
+  },
+  {
+   "call": "nx_cancel_operation",
+   "args": {"operation": "$made.operation_id"},
+   "intent": "Acceptance: cancel a call that already committed",
+   "expect": {
+    "error.code": "NX_IN_USE",
+    "error.category": "blocked",
+    "error.details.state": "committed",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "x"},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/operation"}
+  }
+ ]
+}

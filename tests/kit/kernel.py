@@ -68,6 +68,7 @@ class KitServices(Services):
         self.references = _Refs(fake)
         self.history: list[dict] = []
         self.owned: set[str] = set()
+        self.revisions = 0  # Services.revision(): bumped by every non-read call
 
     nx = property(lambda self: self.fake.nx)
     uf = property(lambda self: self.fake.uf)
@@ -238,11 +239,15 @@ class KitServices(Services):
     def record_history(self, mark, part, operation_id, tool):
         self.history.append({"mark": mark, "operation_id": operation_id, "method": tool})
 
+    def revision(self):
+        return self.revisions
+
     def after_commit(self, spec):
-        pass
+        if spec.effect != "read":
+            self.revisions += 1
 
     def after_failure(self, spec):
-        pass
+        self.after_commit(spec)
 
 
 class Result:

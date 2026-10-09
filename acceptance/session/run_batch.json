@@ -94,6 +94,29 @@
    "call": "nx_measure_mass",
    "args": {"scope": "part"},
    "expect": {"data.volume": {"close": 7214.601837, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_run_batch",
+   "intent": "Acceptance: later steps name the first one as $0 (written $$0 in the scenario)",
+   "args": {"operations": [
+    {"tool": "nx_create_sketch", "arguments": {"placement": {"principal": "xz"}, "name": "BATCH_REF"}},
+    {"tool": "nx_create_sketch_curves", "arguments": {
+     "sketch": "$$0.data.sketch",
+     "curves": [{"type": "line", "start": [0, 0], "end": [10, 0]}]}},
+    {"tool": "nx_finish_sketch", "arguments": {"sketch": "$$0.data.sketch"}}
+   ]},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 3,
+    "data.results.1.data.curves": {"count": 1},
+    "data.results.2.data.curve_count": 1,
+    "data.results.2.data.was_active": true
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {"kind": "sketch"},
+   "expect": {"page.total": 2}
   }
  ]
 }

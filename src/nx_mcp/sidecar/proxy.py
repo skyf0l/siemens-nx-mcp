@@ -69,7 +69,7 @@ def failure(
     if outcome == "unknown":
         body["retry"] = "after_status_check"
         body["hint"] = (
-            "NX may still be running or have finished; query nx_operation_status with "
+            "NX may still be running or have finished; query nx_get_operation with "
             f"operation_id {operation_id} before retrying"
             if operation_id
             else "NX may still be running or have finished; check the model before retrying"
@@ -256,6 +256,13 @@ class CatalogueProxy:
             answer = await self.bridge.call(spec.name, params)
         except NXToolError as error:
             envelope = from_bridge_error(spec.name, spec.effect, error, operation_id)
+            if spec.name == "nx_get_status" and envelope["error"].get("category") == "bridge":
+                # Status still answers with NX down: workspace rules, bridge unavailable.
+                from nx_mcp.domains.session import status
+
+                envelope = status.offline_envelope(
+                    self.workspace.root, envelope["error"], args, build=self.build()
+                )
         except Exception as error:  # A sidecar fault after the request left.
             fault = NXError(
                 "NX_ERROR",
