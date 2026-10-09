@@ -4,10 +4,11 @@ Status: proposal for review. Scope: the public tool surface (names, arguments,
 results, errors, profiles) of the catalogue-based re-architecture. Names and
 arguments change freely: no aliases, no backwards compatibility.
 
-**Summary.** 227 current tools become **149 task tools** plus 3 new gateway tools
+**Summary.** 227 current tools become **149 task tools** plus 3 new tools
 (`nx_invoke`, `nx_invoke_read`, `nx_delete_results`), 152 in total. Every current
 tool maps to exactly one new tool (section 3, checked by script). The 151
-distinct error codes raised in `src/nx_mcp` become 22 categories and 64 codes. Listing every tool directly drops from about
+distinct error codes raised in `src/nx_mcp` become 22 categories and 65 codes.
+Code layout, the kernel and migration are specified in [architecture.md](architecture.md). Listing every tool directly drops from about
 55-60K tokens to about 27K. The recommended agent profile costs about 4K tokens.
 
 Notation in tables: `a/b/c` is an enum, `?` marks an optional argument, `=x`
@@ -20,28 +21,34 @@ Tool names omit nothing: every name is written in full.
 
 ### 1.1 Catalogue entry
 
-Every tool is defined once in the catalogue. The kernel builds the MCP
-listing, discovery, panel, manifest and bridge dispatch from that entry.
+Every tool is defined once, as one `@tool`-decorated function in its domain
+package (architecture.md 1.2 has the full field list). The kernel builds the MCP
+listing, discovery, panel, evidence gating and bridge dispatch from that entry.
 
 | Field | Content |
 |---|---|
 | `name` | `nx_<verb>_<object>[_<qualifier>]` (1.2) |
 | `domain` | `session`, `parts_files`, `sketch`, `modeling`, `assembly`, `drawing`, `sheet_metal`, `freeform`, `inspection`, `display` |
 | `effect` | `read`, `view`, `model`, `file` or `session` (1.3). One fixed value per tool, never dependent on arguments |
-| `summary` | Panel line, imperative, at most 48 characters ("Extrude sketch", "Measure distance") |
-| `description` | Model-facing text (1.7) |
+| `label` | Static name, imperative, at most 48 characters ("Extrude sketch", "Measure distance"); discovery rows, undo-mark name, panel fallback |
+| `summary` | Panel line rendered from the arguments (template, per-variant templates or function), at most 60 characters rendered (`Extrude "profile" 10 mm`) |
+| `description` | Model-facing text (1.7), the handler's docstring |
 | `keywords` | 3-8 synonyms and NX command names used by search ("pad, boss, protrude, cut") |
-| `input` / `output` | Pydantic models built from the shared types (1.4) |
+| `input` / `output` | The handler signature and its returned `TypedDict`, built from the shared types (1.4); stdlib only, the sidecar derives Pydantic models and JSON Schema |
 | `requires` | Preconditions checked by the kernel before NX: `work_part`, `no_active_sketch`, `application:sheet_metal`, `drawing_sheet`, `interactive`, `assembly` |
 | `batchable` / `previewable` | Whether `nx_run_batch` / `nx_preview_changes` may run it |
 | `variants` | Named sub-schemas for discriminated unions (`nx_create_drawing_view#section`) |
-| `evidence` | Per NX build: `{"v2406": "tested", "v2606": "tested"}` with scope text; values `tested`, `api_only`, `unavailable` |
-| `handler` | Domain package function (`modeling.extrude`) |
+| `evidence` | Not written by hand: the acceptance runner records, per NX build, the variants that passed machine-checked scenarios (`evidence/<domain>.json`). A build key present means tested; there is no other visible state (decision 11) |
+| `handler` | The decorated function itself (`domains/modeling/datums.py: nx_create_datum_plane`) |
+| `cost`, `invalidates`, `refresh_annotations`, `runs`, `example` | Long-operation class, reference impact, managed-annotation refresh, sidecar-only tools, one minimal example (architecture.md 1.2) |
 
-The kernel runs every call through fixed gates in this order: schema
-validation → workspace path validation → `requires` preconditions →
-engineer control → undo mark (for `model`) → handler → read-back verification →
-change recording → result projection. Handlers never repeat these gates.
+The kernel runs every call, including each batch and preview child, through
+fixed gates in this order: schema validation → workspace path validation →
+evidence/version gate → `requires` preconditions → engineer control hold →
+part ownership → receipt → undo mark (for `model`) → unit conversion →
+handler → read-back verification → reference invalidation → annotation refresh →
+result projection → error mapping (architecture.md 3.1). Handlers never repeat
+these gates.
 
 ### 1.2 Naming and closed verb list
 
@@ -100,8 +107,10 @@ the result carries `marks_part_modified: true` (open question 9).
 
 ### 1.4 Argument types
 
-All types are shared Pydantic models with `extra="forbid"`. Fixed-length arrays
-have `minItems = maxItems`, so no vector is unbounded.
+All types are shared stdlib `Annotated`/`TypedDict` types in `core/types.py`
+with extra fields forbidden (the NX side has no Pydantic; the sidecar derives
+Pydantic models from them). Fixed-length arrays have `minItems = maxItems`, so
+no vector is unbounded.
 
 | Type | JSON shape | Meaning |
 |---|---|---|
@@ -112,9 +121,9 @@ have `minItems = maxItems`, so no vector is unbounded.
 | `Vec3` | `[x, y, z]` | Nonzero direction; the kernel normalises it and reports the normalised value |
 | `Mat3` | `[[r00,r01,r02],[r10,r11,r12],[r20,r21,r22]]` | Right-handed orthonormal rotation, row-major, `p_out = R·p + t` |
 | `Pose` | `{translation: Point3, rotation?: Mat3}` | Absolute placement; rotation defaults to identity |
-| `Length` | number | Part (work-part) length units; schema field descriptions say "part units" |
-| `SheetLength` | number | Sheet units of the target sheet |
-| `Angle` | number | Degrees, always |
+| `Length` | number or `"10 mm"` | Plain number: part (work-part) length units; a string with `mm`/`in` is converted (decision 12) |
+| `SheetLength` | number or `"10 mm"` | Plain number: sheet units of the target sheet |
+| `Angle` | number or `"0.5 rad"` | Plain number: degrees; a string with `deg`/`rad` is converted |
 | `Units` | `"mm"` or `"in"` | Everywhere (parts, sheets, exports). `"inch"` disappears. Expressions add `"deg"`, `"rad"`, `"unitless"` |
 | `Plane` | `Ref` (datum plane or planar face) or `{principal: "xy"/"yz"/"xz"}` or `{origin: Point3, normal: Vec3}` | One plane shape for sketches, mirrors, datums, trims |
 | `Axis` | `Ref` (datum axis, linear edge, cylindrical face) or `{principal: "x"/"y"/"z"/"-x"/"-y"/"-z"}` or `{origin: Point3, direction: Vec3}` | One axis shape for revolve, circular patterns, rotations |
@@ -190,7 +199,7 @@ Every tool returns the same envelope. Tool-specific data lives in `data`.
 | Whole description | at most 300 characters | Then only non-obvious constraints: preconditions, which reference to reacquire, the one gotcha. No units or field docs (fields carry them) and no advertising ("native", "associative" only when it changes behaviour) |
 | Field description | at most 80 characters | Units, frame, range |
 | Tool definition (name + description + input schema) | median 700, cap 1,200 characters; cap 2,500 for discriminated unions | Checked by a catalogue test |
-| Panel summary | at most 48 characters | Separate field, never shown to the model |
+| Panel label / summary | label at most 48 characters; rendered summary at most 60 | Separate fields; the summary is never shown to the model |
 | Examples | one minimal example per tool | Returned by `nx_get_tool_schemas`, not in the listing |
 
 Cross-references name the tool to call next only when the agent cannot infer it:
@@ -243,14 +252,14 @@ All codes start with `NX_`.
 | 15 | `path_rejected` | `NX_PATH_OUTSIDE_WORKSPACE`, `NX_PATH_RESERVED` | after_fix | Use a workspace-relative path (`nx_get_status` shows the root) | `NX_PATH_OUTSIDE_WORKSPACE`, `NX_PATH_RESERVED` |
 | 16 | `file_failed` | `NX_IMPORT_FAILED`, `NX_EXPORT_FAILED`, `NX_SAVE_FAILED`, `NX_CAPTURE_FAILED`, `NX_TRANSFER_FAILED` | after_fix | Read `details` (translator log, checksum); fix input; ask the engineer for save failures | `NX_IMPORT_FAILED`, `NX_EXPORT_FAILED`, `NX_SAVE_FAILED`, `NX_SAVE_PREFLIGHT_FAILED`, `NX_CLONE_FAILED`, `NX_CAPTURE_FAILED`, `NX_SCREENSHOT_FAILED`, `NX_COMPONENT_LOAD_FAILED`, `NX_DIRECTORY_ERROR`, `NX_CHECKSUM_MISMATCH`, `NX_UPLOAD_GAP`, `NX_UPLOAD_CONFLICT`, `NX_RECEIPT_UNREADABLE`, `NX_RESULT_STORAGE_FAILED` |
 | 17 | `unavailable` | `NX_LICENSE_UNAVAILABLE`, `NX_VERSION_UNSUPPORTED`, `NX_VIEWPORT_UNAVAILABLE`, `NX_CATALOG_UNAVAILABLE` | never | Tell the engineer which license or build is missing; use an alternative if one exists | `NX_LICENSE_UNAVAILABLE`, `NX_UNAVAILABLE_ON_VERSION`, `NX_API_UNAVAILABLE`, `NX_VIEWPORT_UNAVAILABLE`, `NX_CATALOG_UNAVAILABLE`, `NX_UNDO_UNAVAILABLE` |
-| 18 | `engineer_control` | `NX_CONTROL_DECLINED`, `NX_CONTROL_PAUSED`, `NX_UI_BUSY` | ask_engineer | The engineer has NX. Ask in chat before requesting control again; `NX_UI_BUSY` = wait and retry | `NX_UI_DECLINED`, `NX_UI_PAUSED`, `NX_UI_BUSY` |
+| 18 | `engineer_control` | `NX_CONTROL_DECLINED`, `NX_CONTROL_PAUSED`, `NX_UI_BUSY`, `NX_PART_NOT_GRANTED` | ask_engineer | The engineer has NX. Ask in chat before requesting control again; `NX_UI_BUSY` = wait and retry; `NX_PART_NOT_GRANTED` = the part is the engineer's: ask them to grant it on the panel or work on a copy | `NX_UI_DECLINED`, `NX_UI_PAUSED`, `NX_UI_BUSY` (the ownership gate is new) |
 | 19 | `bridge` | `NX_BRIDGE_UNAVAILABLE`, `NX_PROTOCOL_MISMATCH`, `NX_AUTH_FAILED` | after_wait | NX or the bridge is not running or was restarted; for mutations check `nx_get_operation` first; ask the engineer if it persists | `NX_BRIDGE_UNAVAILABLE`, `NX_PROTOCOL_ERROR`, `NX_PROTOCOL_VERSION_MISMATCH`, `NX_AUTH_FAILED`, `NX_MAIN_THREAD_UNAVAILABLE`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
 | 20 | `interrupted` | `NX_CANCELLED`, `NX_OUTCOME_UNKNOWN`, `NX_IDEMPOTENCY_CONFLICT` | after_status_check | Query `nx_get_operation(operation_id)`; never retry a mutation blindly; reuse an `operation_id` only with identical arguments | `NX_CANCELLED`, `NX_IDEMPOTENCY_CONFLICT`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
 | 21 | `rollback_failed` | `NX_ROLLBACK_FAILED`, `NX_RESTORE_FAILED` | ask_engineer | The model or view may be partly changed. Stop mutating, capture a screenshot, tell the engineer | `NX_ROLLBACK_FAILED`, `NX_SAVE_VIEW_RESTORE_FAILED`, `NX_RENDER_RESTORE_FAILED` |
 | 22 | `nx_error` | `NX_ERROR` | ask_engineer | Unclassified native exception; `nx_code` and message preserved. Retry once only after changing inputs | `NX_API_ERROR`, `NX_INTERNAL_ERROR` |
 
 `NX_MCP_*` strings in the code are environment variables and marker names, not
-error codes. The new code list has 64 entries (the "Codes" column); a
+error codes. The new code list has 65 entries (the "Codes" column); a
 catalogue test fails when a handler raises a code that is not in the list.
 
 ### 1.9 `mutation_outcome`
@@ -560,7 +569,7 @@ Note: `nx_section_view(section=...)` edits move to `nx_edit_section_view`;
 
 | Domain | Current tools mapped | New tools |
 |---|---|---|
-| session (incl. 3 new gateway) | 19 | 20 |
+| session (incl. 3 new) | 19 | 20 |
 | parts_files | 16 | 14 |
 | feature tree + datums | 14 | 11 |
 | sketch | 32 | 11 |
@@ -571,7 +580,7 @@ Note: `nx_section_view(section=...)` edits move to `nx_edit_section_view`;
 | drawing | 33 | 19 |
 | sheet metal | 6 | 6 |
 | display | 17 | 11 |
-| **Total** | **227** | **152** (149 + 3 gateway) |
+| **Total** | **227** | **152** (149 + 3 new) |
 
 Effects of the 152: 81 model, 40 read, 13 file, 9 session, 8 view, 1 per tool
 (`nx_invoke`).
@@ -586,8 +595,9 @@ highlight (3 → 1), camera (3 → 1).
 ## 4. Reserved families for the next wave
 
 Each family extends an existing tool with a new enum value or variant where the
-job is the same; new tools only where the job is new. Evidence starts as
-`api_only` until the real-NX test passes on the supported build.
+job is the same; new tools only where the job is new. A new tool or variant has
+no evidence (and is refused and hidden, decision 11) until its acceptance
+scenario passes on the supported build.
 
 | Family | Tool(s) | Arguments to add | Effect | Fits as |
 |---|---|---|---|---|
@@ -613,35 +623,33 @@ job is the same; new tools only where the job is new. Evidence starts as
 
 ---
 
-## 5. Open questions for the engineer
+## 5. Decisions (engineer, 2026-10-09)
 
-1. **One inventory tool.** Is `nx_list_objects(kind=...)` acceptable in place of
-   15 typed list tools? Its output is a union keyed by `kind`; the gain is one
-   filter and paging contract and about 10K fewer tokens in the full listing.
-2. **Name lookup.** Should mutating tools refuse names entirely (proposed), or
-   still accept unique names for features and expressions as today?
-3. **`nx_hole` removal.** `nx_create_hole` needs a planar placement face. Drop
-   free-point cylinder holes (proposed), or keep a `placement: point_direction`
-   variant for faces that are not planar?
-4. **Sheet metal.** Keep 34 operations behind one tool with sub-schemas
-   (proposed), or promote the 6-8 most used (tab, flange, contour flange, bend,
-   cutout, flat pattern) to their own tools?
-5. **Persistent references.** Should every returned face/edge ref carry an anchor
-   automatically (removing `nx_create_anchor`), at the cost of one native handle
-   per returned object?
-6. **Batch scope.** Make every `model` tool batchable with `$n` back-references
-   (proposed), or keep the current short allow-list?
-7. **Default profile.** `agent` (18 tools listed) as default for all clients, and
-   `full` only for clients with deferred tool search?
-8. **Generic delete.** One `nx_delete_objects` for mixed kinds simplifies the
-   surface, but one approval then covers features and components together. Is
-   that acceptable, or should deletes be limited to one kind per call?
-9. **Appearance effect.** `nx_set_appearance` persists on save. Classify it as
-   `view` (auto-approvable, proposed) or `model`?
-10. **Export saves.** `nx_export_step` saves the part before translating (and
-    expires undo marks). Should `nx_export_model` export the in-memory state
-    without saving where NX allows it?
-11. **Evidence gaps.** When a tool is `tested` on one build and `api_only` on the
-    connected one, hide it from discovery, or show it with its status (proposed)?
-12. **Units in arguments.** Keep plain numbers in part units (proposed), or accept
-    strings such as `"10 mm"` and convert?
+Tool names and arguments may change freely; there are no compatibility aliases.
+
+1. **One inventory tool:** `nx_list_objects(kind=...)` replaces the 15 list tools.
+2. **No name lookup in mutations:** mutating tools accept only `Ref`; finding
+   by name is a `list`/`find` job.
+3. **`nx_hole` dropped:** `nx_create_hole` places on a planar face; a free cut is
+   a sketch plus `nx_create_extrude` with a subtract `Combine`.
+4. **Sheet metal:** one tool with per-operation sub-schemas (`variants`).
+5. **Anchors:** features, bodies and sketches carry a persistent anchor
+   automatically; faces and edges only on request (`anchor: true` on the
+   returning tool or `nx_create_anchor`).
+6. **Batch scope:** only tools marked `batchable` (sketch geometry,
+   constraints and dimensions, annotations, component placement); heavy
+   features stay one call each.
+7. **Default profile:** `agent`; `full` stays available.
+8. **Generic delete:** `nx_delete_objects` accepts mixed kinds and reports the
+   dependent objects NX deletes with them.
+9. **Appearance:** `view` effect, restorable through display snapshots; the
+   description says it persists when the part is saved.
+10. **Export does not save:** `nx_export_model` exports the in-memory state where
+    the translator allows it, otherwise a temporary copy; it never saves the
+    engineer's part.
+11. **Evidence gaps:** a tool without `tested` evidence on the connected NX build
+    is unavailable there (refused by the kernel, hidden from discovery); there is
+    no `api_only` state visible to agents.
+12. **Units in arguments:** a plain number is in part units (sheet units for
+    sheet quantities); a string with a unit (`"10 mm"`, `"0.5 in"`, `"30 deg"`)
+    is converted explicitly. Results always state their units.
