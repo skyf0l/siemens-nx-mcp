@@ -12,29 +12,9 @@ from nx_mcp.authoring import finite, page
 from nx_mcp.hardened import IDENTITY, xyz
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Collection, Component, Curve, Feature, Object, Sketch, point
+from tests.kit.objects import Expression
 
 pytestmark = pytest.mark.fake_nx
-
-
-class Expression(Object):
-    def __init__(self, name="height", formula="10", unit=None):
-        super().__init__(name)
-        self.RightHandSide = formula
-        self.Value = 10.0
-        self.Type = "Number"
-        self.Units = unit
-        self.IsNoEdit = self.IsRightHandSideLockedFromEdit = self.IsInterpartExpression = False
-        self.parents = []
-        self.dependents = []
-
-    def GetValueUsingUnits(self, option):
-        return getattr(self, "expression_value", self.Value)
-
-    def GetExpressionParents(self):
-        return self.parents
-
-    def GetReferencingExpressions(self):
-        return self.dependents
 
 
 @pytest.fixture

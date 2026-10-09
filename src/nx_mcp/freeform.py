@@ -2,23 +2,12 @@
 
 from __future__ import annotations
 
-from nx_mcp.authoring import finite
+from nx_mcp.kit.geom import cross, dot, xyz
+from nx_mcp.legacy_kit import finite, points3, unit_normal
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import unit_normal
 
 # Native NX error code: "The requested license feature is not available."
 LICENSE_UNAVAILABLE = 949895
-
-
-def points3(values, minimum=1, maximum=1000):
-    if not isinstance(values, list) or not minimum <= len(values) <= maximum:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"Expected {minimum}..{maximum} points")
-    result = []
-    for value in values:
-        if not isinstance(value, list) or len(value) != 3:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Each point must contain x, y, z")
-        result.append([finite(v, "coordinate") for v in value])
-    return result
 
 
 class FreeformMixin:
@@ -57,7 +46,7 @@ class FreeformMixin:
     def _spline(self, points, degree=3, method="through_points", periodic=False, feature=None):
         import NXOpen.Features as F
 
-        values = points3(points, 2)
+        values = points3(points, "points", 2)
         if isinstance(degree, bool) or not isinstance(degree, int) or not 1 <= degree <= 7:
             raise NXToolError("NX_INVALID_ARGUMENT", "degree must be an integer from 1 to 7")
         if len(values) <= degree or method not in {"through_points", "poles"}:
@@ -173,8 +162,6 @@ class FreeformMixin:
 
         import NXOpen.Features as F
         import NXOpen.GeometricUtilities as G
-
-        from nx_mcp.hardened import xyz
 
         faces = [list(edge.GetFaces()) for edge in edges]
         if continuity != "G0" and any(len(f) != 1 for f in faces):
@@ -379,8 +366,6 @@ class FreeformMixin:
 
         import NXOpen.UF as U
 
-        from nx_mcp.hardened import cross, dot
-
         if type(samples) is not int or not 2 <= samples <= 1000:
             raise NXToolError("NX_INVALID_ARGUMENT", "samples must be 2..1000")
         obj = self._resolve(curve, {"curve"})
@@ -432,8 +417,6 @@ class FreeformMixin:
             "method": "native first and second derivatives; sampled, not global extrema",
         }
         if hasattr(obj, "Get3DPoles"):
-            from nx_mcp.hardened import xyz
-
             result["spline"] = {
                 "degree": obj.Order - 1,
                 "periodic": obj.Periodic,

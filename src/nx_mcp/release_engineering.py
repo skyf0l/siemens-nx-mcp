@@ -3,7 +3,9 @@
 import math
 import uuid
 
-from nx_mcp.authoring import finite
+from nx_mcp.kit.drawing import work_view_is_drawing as drawing_work_view
+from nx_mcp.kit.geom import dot, xyz
+from nx_mcp.legacy_kit import finite, sheet_point
 from nx_mcp.runtime import NXToolError
 
 CONSTRUCTION_WARNING = (
@@ -11,23 +13,6 @@ CONSTRUCTION_WARNING = (
     "per view, and they share a layer with model bodies (datums on layers of their own are "
     "hidden in the view). Move them to a separate layer."
 )
-
-
-def drawing_work_view(part):
-    """True when NX shows a drawing sheet as the work view (no modeling view)."""
-    try:
-        _ = part.ModelingViews.WorkView
-    except AttributeError:
-        return False
-    except Exception:  # NX: "The view is not a model view"
-        return True
-    return False
-
-
-def sheet_point(value):
-    if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise NXToolError("NX_INVALID_ARGUMENT", "Position requires two sheet coordinates")
-    return [finite(x, "position") for x in value]
 
 
 class ReleaseEngineeringMixin:
@@ -92,8 +77,6 @@ class ReleaseEngineeringMixin:
     def _drawing_view_info(self, view):
         import NXOpen.UF as U
 
-        from nx_mcp.hardened import xyz
-
         obj = self._drawing_object(view, "drawing_view")
         sheet = self._view_sheet(obj)
         uf = U.UFSession.GetUFSession().Draw
@@ -136,7 +119,7 @@ class ReleaseEngineeringMixin:
         style = {k: v for k, v in (style or {}).items() if v is not None}
         if position is None and scale is None and not style:
             raise NXToolError("NX_INVALID_ARGUMENT", "Supply position, scale or style")
-        point = sheet_point(position) if position is not None else None
+        point = sheet_point(position, "position") if position is not None else None
         scale = finite(scale, "scale", True) if scale is not None else None
         obj = self._drawing_object(view, "drawing_view")
         self._open_drawing_sheet(self._view_sheet(obj))
@@ -173,10 +156,9 @@ class ReleaseEngineeringMixin:
     ):
         import NXOpen.UF as U
 
-        from nx_mcp.hardened import dot
-        from nx_mcp.visual_tools import unit_normal
+        from nx_mcp.legacy_kit import unit_normal
 
-        point = sheet_point(position)
+        point = sheet_point(position, "position")
         scale = finite(scale, "scale", True)
         step, arrow = (
             unit_normal(step_direction, "step_direction"),
@@ -241,7 +223,7 @@ class ReleaseEngineeringMixin:
 
         center = points3([center])[0]
         radius = finite(radius, "radius", True)
-        point = sheet_point(position)
+        point = sheet_point(position, "position")
         scale = finite(scale, "scale", True)
         parent = self._drawing_object(parent_view, "drawing_view")
         sheet = self._view_sheet(parent)
@@ -380,7 +362,7 @@ class ReleaseEngineeringMixin:
             )
         widths = [finite(w, "width", True) for w in widths]
         height = finite(row_height, "row_height", True)
-        point = sheet_point(position)
+        point = sheet_point(position, "position")
         sheet = self._drawing_object(drawing, "drawing_sheet")
         part = self._work_part()
         section = self._engineering_owned(table, "annotation") if table else None
@@ -681,8 +663,6 @@ class ReleaseEngineeringMixin:
         return edge
 
     def _list_dimensions(self):
-        from nx_mcp.hardened import xyz
-
         part = self._work_part()
         return {
             "dimensions": [

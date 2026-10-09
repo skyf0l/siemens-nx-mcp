@@ -13,29 +13,11 @@ are re-listed with fresh IDs in every result so callers can reacquire.
 
 from __future__ import annotations
 
+from nx_mcp.legacy_kit import object_id, object_ids
 from nx_mcp.runtime import NXToolError
 
 MAX_FEATURES = 100
 POSITIONS = ("before", "after")
-
-
-def _id_list(values, name, limit=MAX_FEATURES):
-    """Validate a non-empty list of distinct object-ID/name strings."""
-    if not isinstance(values, (list, tuple)) or not values:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be a non-empty list of feature IDs")
-    if len(values) > limit:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} accepts at most {limit} features")
-    if not all(isinstance(v, str) and v.strip() for v in values):
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must contain non-empty feature IDs")
-    if len(set(values)) != len(values):
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must not repeat a feature")
-    return list(values)
-
-
-def _id(value, name):
-    if not isinstance(value, str) or not value.strip():
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be a feature ID")
-    return value
 
 
 def reorder_conflicts(order, parents, children, moved, target, position):
@@ -206,7 +188,7 @@ class FeatureTreeMixin:
 
     # ---- suppress / unsuppress -------------------------------------------
     def _suppress_features(self, features, suppress):
-        ids = _id_list(features, "features")
+        ids = object_ids(features, "features", 1, MAX_FEATURES, "feature IDs")
         if not isinstance(suppress, bool):
             raise NXToolError("NX_INVALID_ARGUMENT", "suppress must be true or false")
         part = self._work_part()
@@ -289,7 +271,7 @@ class FeatureTreeMixin:
     # ---- make current -----------------------------------------------------
     def _make_current_feature(self, feature=None):
         if feature is not None:
-            _id(feature, "feature")
+            object_id(feature, "feature", "a feature ID")
         part = self._work_part()
         order = self._ft_order(part)
         if not order:
@@ -334,8 +316,8 @@ class FeatureTreeMixin:
 
     # ---- reorder ----------------------------------------------------------
     def _reorder_feature(self, feature, target, position):
-        _id(feature, "feature")
-        _id(target, "target")
+        object_id(feature, "feature", "a feature ID")
+        object_id(target, "target", "a feature ID")
         if position not in POSITIONS:
             raise NXToolError("NX_INVALID_ARGUMENT", "position must be before or after")
         part = self._work_part()

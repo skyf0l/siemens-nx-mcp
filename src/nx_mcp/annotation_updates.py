@@ -2,6 +2,7 @@
 
 import json
 
+from nx_mcp.kit.geom import xyz
 from nx_mcp.runtime import NXToolError
 
 
@@ -90,8 +91,6 @@ class AnnotationUpdatesMixin:
 
     def _refresh_annotations(self):
         import NXOpen.UF as U
-
-        from nx_mcp.hardened import xyz
 
         part = self._work_part()
         self._refresh_detail_boundaries()

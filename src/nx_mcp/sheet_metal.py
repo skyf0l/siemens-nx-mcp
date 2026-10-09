@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nx_mcp.authoring import finite, page
+from nx_mcp.authoring import page
+from nx_mcp.kit.geom import cross, dot, transpose
+from nx_mcp.kit.result import enum_name
+from nx_mcp.legacy_kit import finite, unit_normal
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import enum_name, unit_normal
 
 CATALOG = json.loads(Path(__file__).with_name("sheet_metal_catalog.json").read_text())
 APPLICATION = "UG_APP_SBSM"
@@ -430,13 +432,10 @@ class SheetMetalMixin:
                 value = self._sm_validate(
                     {k: {"kind": "point3d" if k == "origin" else "direction"} for k in keys}, value
                 )
-                if kind == "csys":
-                    from nx_mcp.hardened import dot
-
-                    if abs(dot(value["x_axis"], value["y_axis"])) > 1e-8:
-                        raise NXToolError(
-                            "NX_INVALID_ARGUMENT", "Coordinate-system axes must be orthogonal"
-                        )
+                if kind == "csys" and abs(dot(value["x_axis"], value["y_axis"])) > 1e-8:
+                    raise NXToolError(
+                        "NX_INVALID_ARGUMENT", "Coordinate-system axes must be orthogonal"
+                    )
             else:
                 reference_kind = "sketch" if kind == "section" else kind.removeprefix("select_")
                 value = self._sm_reference(value, reference_kind)
@@ -582,8 +581,6 @@ class SheetMetalMixin:
                 )
                 setattr(builder, path, plane)
             elif kind == "csys":
-                from nx_mcp.hardened import cross, transpose
-
                 matrix = self._nx_matrix(
                     transpose(
                         [value["x_axis"], value["y_axis"], cross(value["x_axis"], value["y_axis"])]

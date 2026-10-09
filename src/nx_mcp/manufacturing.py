@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from nx_mcp.authoring import finite
+from nx_mcp.legacy_kit import finite
 from nx_mcp.runtime import NXToolError
 
 # Principal radii at or beyond this many part units mean a straight (flat) direction.
@@ -334,7 +334,7 @@ class ManufacturingMixin:
     def _face_analysis(self, faces, samples_per_axis=3, pull_direction=None, minimum_draft=1.0):
         import math
 
-        from nx_mcp.visual_tools import unit_normal
+        from nx_mcp.legacy_kit import unit_normal
 
         objects = self._freeform_refs(faces, "face")
         direction = unit_normal(pull_direction) if pull_direction is not None else None

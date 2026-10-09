@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
-from nx_mcp.authoring import finite, page
+from nx_mcp.authoring import page
 from nx_mcp.engineering import EngineeringMixin
+from nx_mcp.kit.geom import matmul, matvec, rows, transpose, xyz
+from nx_mcp.legacy_kit import finite, vector
 from nx_mcp.runtime import NXToolError
 
 
@@ -143,8 +145,6 @@ class ExplodedViewsMixin:
         }
 
     def _exploded_record(self, entry):
-        from nx_mcp.hardened import rows, xyz
-
         child, component, path, suppressed = entry
         position, rotation = child.GetPosition()
         assembled_position, assembled_rotation = component.GetPosition()
@@ -199,8 +199,6 @@ class ExplodedViewsMixin:
         return {**self._explosion_record(ex), "component_count": len(self._exploded_tree(ex))}
 
     def _edit_explosion(self, explosion, placements=None, reset_components=None):
-        from nx_mcp.hardened import matmul, matvec, rows, transpose, vector, xyz
-
         self._explosion_context()
         ex = self._explosion(explosion)
         uf = self._explosion_uf()

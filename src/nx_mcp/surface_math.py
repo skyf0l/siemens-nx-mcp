@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.kit.geom import dot
 from nx_mcp.runtime import NXToolError
-
-
-def dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=True))
 
 
 def shape_operator(du, dv, duu, duv, dvv):

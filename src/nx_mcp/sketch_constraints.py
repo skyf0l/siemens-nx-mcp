@@ -24,9 +24,15 @@ from __future__ import annotations
 import contextlib
 import math
 
-from nx_mcp.authoring import finite
+from nx_mcp.kit.geom import cross2 as _cross2
+from nx_mcp.kit.geom import dot as _dot
+from nx_mcp.kit.geom import norm as _norm
+from nx_mcp.kit.geom import sub as _sub
+from nx_mcp.kit.geom import tol as tolerance
+from nx_mcp.kit.geom import xyz as _xyz
+from nx_mcp.kit.result import enum_name
+from nx_mcp.legacy_kit import finite
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import enum_name
 
 POINTS = ("start", "end", "center", "mid")
 VERTEX_POINTS = ("start", "end", "center")
@@ -39,26 +45,6 @@ FULL_TURN = 2 * math.pi
 
 
 # ---- pure geometry (sketch-local 2D unless noted) ----------------------------
-def _sub(a, b):
-    return [x - y for x, y in zip(a, b, strict=True)]
-
-
-def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _norm(a):
-    return math.sqrt(_dot(a, a))
-
-
-def _cross2(a, b):
-    return a[0] * b[1] - a[1] * b[0]
-
-
-def tolerance(*points):
-    """Absolute length tolerance scaled to the coordinates involved."""
-    scale = max([1.0] + [abs(c) for p in points for c in p])
-    return 1e-6 * scale
 
 
 def check_value(kind, value):
@@ -728,7 +714,3 @@ class SketchConstraintsMixin:
             "remaining_degrees_of_freedom": diagnostics["remaining_degrees_of_freedom"],
             "units": self._units(),
         }
-
-
-def _xyz(p):
-    return [float(p.X), float(p.Y), float(p.Z)]

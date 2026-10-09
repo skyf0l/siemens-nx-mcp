@@ -8,6 +8,7 @@ import math
 import struct
 import uuid
 
+from nx_mcp.kit.geom import rows, xyz
 from nx_mcp.runtime import NXToolError, api_error
 
 # Native clearance checks per call (each pair may run a solid interference check).
@@ -32,8 +33,6 @@ def envelope_gap(a, b):
 
 class InspectionMixin:
     def _view_info(self):
-        from nx_mcp.hardened import rows, xyz
-
         part = self.session.Parts.Display
         if part is None:
             raise NXToolError("NX_NO_DISPLAY_PART", "Open a display part first")
@@ -354,8 +353,6 @@ class InspectionMixin:
 
     def _analyze_pairs(self, bodies, pairs, minimum_clearance, max_pairs, include_clear):
         import NXOpen.UF
-
-        from nx_mcp.hardened import xyz
 
         n = len(pairs)
         part = self._work_part()

@@ -10,6 +10,16 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.kit.geom import close as _close
+from nx_mcp.kit.geom import dot as _dot
+from nx_mcp.kit.geom import sub as _sub
+from nx_mcp.kit.geom import xyz as _xyz
+from nx_mcp.legacy_kit import finite as _number
+from nx_mcp.legacy_kit import frame_from_normal as plane_frame
+from nx_mcp.legacy_kit import object_id as _id
+from nx_mcp.legacy_kit import object_ids as _ids
+from nx_mcp.legacy_kit import unit_normal as _unit
+from nx_mcp.legacy_kit import vector as _vec
 from nx_mcp.runtime import NXToolError
 
 PLANAR_FACE = 22  # UF face type for planes
@@ -17,39 +27,6 @@ PLANAR_FACE = 22  # UF face type for planes
 
 def _bad(message):
     return NXToolError("NX_INVALID_ARGUMENT", message)
-
-
-def _number(value, name, positive=False):
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(value)
-        or (positive and value <= 0)
-    ):
-        raise _bad(name + " must be finite" + (" and positive" if positive else ""))
-    return float(value)
-
-
-def _vec(value, name):
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        raise _bad(f"{name} must contain three numbers")
-    return [_number(v, name) for v in value]
-
-
-def _ids(values, name):
-    if not isinstance(values, (list, tuple)) or not values:
-        raise _bad(f"{name} must be a non-empty list of object IDs")
-    if not all(isinstance(v, str) and v for v in values):
-        raise _bad(f"{name} must contain object ID strings")
-    if len(set(values)) != len(values):
-        raise _bad(f"{name} contains duplicates")
-    return list(values)
-
-
-def _id(value, name):
-    if not isinstance(value, str) or not value:
-        raise _bad(f"{name} must be an object ID")
-    return value
 
 
 def chamfer_offsets(method, offset1, offset2=None, angle=None):
@@ -105,35 +82,6 @@ def scale_factor(factor):
     return f
 
 
-def _xyz(p):
-    return [float(p.X), float(p.Y), float(p.Z)]
-
-
-def _unit(v):
-    n = math.sqrt(sum(x * x for x in v))
-    return [x / n for x in v]
-
-
-def _cross(a, b):
-    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-
-
-def plane_frame(normal):
-    """Orthonormal (x, y, z) rows with z = normal (unit)."""
-    z = _unit(normal)
-    helper = [1.0, 0.0, 0.0] if abs(z[0]) < 0.9 else [0.0, 1.0, 0.0]
-    x = _unit(_cross(helper, z))
-    return x, _cross(z, x), z
-
-
-def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _sub(a, b):
-    return [x - y for x, y in zip(a, b, strict=True)]
-
-
 def plane_box_range(box_min, box_max, origin, normal):
     """(min, max) signed distance of an axis-aligned box's 8 corners to a plane."""
     n = _unit(normal)
@@ -151,10 +99,6 @@ def plane_misses_box(box_min, box_max, origin, normal):
     lo, hi = plane_box_range(box_min, box_max, origin, normal)
     tol = 1e-6 * max(1.0, *(abs(v) for v in (*box_min, *box_max)))
     return hi <= tol or lo >= -tol
-
-
-def _close(a, b, rel=1e-6):
-    return abs(a - b) <= rel * max(1.0, abs(a), abs(b))
 
 
 class BodyOpsMixin:

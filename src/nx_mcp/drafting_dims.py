@@ -16,6 +16,10 @@ import math
 import os
 from pathlib import Path
 
+from nx_mcp.kit.drawing import seen_true_shape
+from nx_mcp.kit.geom import arc_plane_normal
+from nx_mcp.legacy_kit import choice, object_id
+from nx_mcp.legacy_kit import finite as _number
 from nx_mcp.runtime import NXToolError
 from nx_mcp.workspace import WorkspaceViolation
 
@@ -36,17 +40,6 @@ ANGULAR_OFFSET_MM = 10.0  # Default angular text offset from the edges' mid-poin
 
 
 # ---- pure helpers (unit tested) ---------------------------------------------
-def _number(value, name, positive=False):
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(value)
-        or (positive and value <= 0)
-    ):
-        raise NXToolError(
-            "NX_INVALID_ARGUMENT", f"{name} must be finite" + (" and positive" if positive else "")
-        )
-    return float(value)
 
 
 def sheet_xy(value, name="origin"):
@@ -56,20 +49,6 @@ def sheet_xy(value, name="origin"):
     if not isinstance(value, (list, tuple)) or len(value) != 2:
         raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be [x, y] in sheet units")
     return [_number(v, name) for v in value]
-
-
-def choice(value, allowed, name):
-    if value not in allowed:
-        raise NXToolError(
-            "NX_INVALID_ARGUMENT", f"{name} must be one of {', '.join(sorted(allowed))}"
-        )
-    return value
-
-
-def object_id(value, name):
-    if not isinstance(value, str) or not value.strip():
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be an object ID")
-    return value
 
 
 def acute_angle_deg(a, b):
@@ -134,27 +113,6 @@ def ordinate_snap(kind, snap, label, closed=False):
             f"{label}: a full circle has no end vertices; use center (or auto)",
         )
     return snap
-
-
-def arc_plane_normal(center, points):
-    """Unit normal of an arc's plane from points on it; None if they are degenerate."""
-    vectors = [[p[i] - center[i] for i in range(3)] for p in points]
-    best = (0.0, None)
-    for i, a in enumerate(vectors):
-        for b in vectors[i + 1 :]:
-            c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-            norm = math.sqrt(sum(x * x for x in c))
-            if norm > best[0]:
-                best = (norm, c)
-    if best[1] is None or best[0] <= 1e-12:
-        return None
-    return [x / best[0] for x in best[1]]
-
-
-def seen_true_shape(normal, view_z, tol_deg=TRUE_SHAPE_TOL_DEG):
-    """True if a plane with this normal is parallel to the drawing plane of the view."""
-    dot = abs(sum(a * b for a, b in zip(normal, view_z, strict=True)))
-    return math.degrees(math.acos(min(1.0, dot))) <= tol_deg
 
 
 # ---- NX-side mixin --------------------------------------------------------------
@@ -235,7 +193,7 @@ class DraftingDimsMixin:
 
     # radial / diameter --------------------------------------------------------
     def _add_radial_dimension(self, view, edge, kind="radius", origin=None):
-        choice(kind, {"radius", "diameter"}, "kind")
+        choice(kind, "kind", {"radius", "diameter"})
         object_id(view, "view")
         object_id(edge, "edge")
         point = sheet_xy(origin)
@@ -399,9 +357,9 @@ class DraftingDimsMixin:
             raise NXToolError("NX_INVALID_ARGUMENT", "objects must be unique edge IDs")
         if origin_object in objects:
             raise NXToolError("NX_INVALID_ARGUMENT", "origin_object cannot also be in objects")
-        choice(direction, {"horizontal", "vertical"}, "direction")
-        choice(origin_snap, {"start", "end", "center"}, "origin_snap")
-        choice(object_snap, {"auto", "start", "end", "center"}, "object_snap")
+        choice(direction, "direction", {"horizontal", "vertical"})
+        choice(origin_snap, "origin_snap", {"start", "end", "center"})
+        choice(object_snap, "object_snap", {"auto", "start", "end", "center"})
         if margin is not None:
             margin = _number(margin, "margin")
         drawing_view = self._drawing_object(view, "drawing_view")
@@ -524,10 +482,10 @@ class DraftingDimsMixin:
             raise NXToolError("NX_INVALID_ARGUMENT", "name must be a nonempty sheet name")
         name = name.strip()
         if size is not None:
-            choice(size, set(SHEET_SIZES), "size")
+            choice(size, "size", set(SHEET_SIZES))
         scale = _number(scale, "scale", positive=True)
-        choice(units, {"mm", "in"}, "units")
-        choice(projection, set(PROJECTIONS), "projection")
+        choice(units, "units", {"mm", "in"})
+        choice(projection, "projection", set(PROJECTIONS))
         if template is not None:
             if not isinstance(template, str) or not template.strip():
                 raise NXToolError("NX_INVALID_ARGUMENT", "template must be a name or .prt path")

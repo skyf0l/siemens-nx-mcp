@@ -8,72 +8,18 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.kit.geom import cross as _cross
+from nx_mcp.kit.geom import dot as _dot
+from nx_mcp.kit.geom import norm as _norm
+from nx_mcp.kit.geom import on_plane, parallel, same_direction
+from nx_mcp.kit.geom import sub as _sub
+from nx_mcp.kit.geom import tol as _tolerance
+from nx_mcp.kit.geom import xyz as _xyz
+from nx_mcp.legacy_kit import orthonormal_frame, plane_through, unit_normal
+from nx_mcp.legacy_kit import vector as _vec
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import unit_normal
 
 PLANAR_FACE = 22  # UF face type for planes
-
-
-def _vec(value, name):
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must contain three numbers")
-    result = [float(v) for v in value]
-    if not all(math.isfinite(v) for v in result):
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be finite")
-    return result
-
-
-def _sub(a, b):
-    return [x - y for x, y in zip(a, b, strict=True)]
-
-
-def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _cross(a, b):
-    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-
-
-def _norm(a):
-    return math.sqrt(_dot(a, a))
-
-
-def _tolerance(*points):
-    scale = max([1.0] + [abs(c) for p in points for c in p])
-    return 1e-6 * scale
-
-
-def plane_through(points):
-    """Unit normal of the plane through three points; rejects collinear points."""
-    if not isinstance(points, (list, tuple)) or len(points) != 3:
-        raise NXToolError("NX_INVALID_ARGUMENT", "three_points needs exactly three points")
-    a, b, c = (_vec(p, f"points[{i}]") for i, p in enumerate(points))
-    normal = _cross(_sub(b, a), _sub(c, a))
-    if _norm(normal) <= _tolerance(a, b, c) * max(_norm(_sub(b, a)), _norm(_sub(c, a)), 1.0):
-        raise NXToolError("NX_INVALID_ARGUMENT", "The three points are collinear")
-    return [v / _norm(normal) for v in normal]
-
-
-def parallel(a, b, tol=1e-6):
-    """True when unit vectors a and b are parallel or antiparallel."""
-    return _norm(_cross(a, b)) <= tol
-
-
-def same_direction(a, b, tol=1e-6):
-    """True when unit vectors a and b are parallel and point the same way."""
-    return parallel(a, b, tol) and _dot(a, b) > 0
-
-
-def on_plane(point, origin, normal, tol):
-    return abs(_dot(_sub(point, origin), normal)) <= tol
-
-
-def orthonormal_frame(x_axis, y_axis):
-    x, y = _vec(x_axis, "x_axis"), _vec(y_axis, "y_axis")
-    if abs(_norm(x) - 1) > 1e-8 or abs(_norm(y) - 1) > 1e-8 or abs(_dot(x, y)) > 1e-8:
-        raise NXToolError("NX_INVALID_ARGUMENT", "x_axis and y_axis must be orthonormal")
-    return x, y, _cross(x, y)
 
 
 class DatumFeaturesMixin:
@@ -473,7 +419,3 @@ class DatumFeaturesMixin:
             "units": self._units(),
             "coordinate_frame": "work_part",
         }
-
-
-def _xyz(p):
-    return [float(p.X), float(p.Y), float(p.Z)]

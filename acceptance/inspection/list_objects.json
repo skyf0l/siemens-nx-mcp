@@ -1,0 +1,32 @@
+{
+  "covers": {"nx_list_objects": []},
+  "fixture": null,
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+    {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"plane": "XY"}},
+    {"call": "nx_sketch_rectangle", "setup": true,
+     "args": {"sketch_id": "$sk.object.id", "corner1": {"x": 0, "y": 0}, "corner2": {"x": 40, "y": 20}}},
+    {"call": "nx_finish_sketch", "setup": true, "args": {"sketch_id": "$sk.object.id"}},
+    {"call": "nx_extrude", "setup": true, "save": "ext", "args": {"sketch_id": "$sk.object.id", "distance": 10}},
+    {"call": "nx_list_objects", "save": "bodies", "args": {"kind": "body"},
+     "expect": {"mutation_outcome": "not_applicable", "page.total": 1, "data.items.0.type": "solid",
+                "data.items.0.kind": "body", "data.items.0.anchor": {"matches": ":EXTRUDE\\(2\\)#0$"}}},
+    {"call": "nx_list_objects", "args": {"kind": "face", "owner": "$bodies.data.items.0.id", "type": "plane"},
+     "expect": {"page.total": 6, "data.items": {"count": 6}}},
+    {"call": "nx_list_objects", "args": {"kind": "face", "owner": "$ext.body.id", "limit": 2},
+     "expect": {"data.items": {"count": 2}, "page.next_offset": 2, "page.total": 6}},
+    {"call": "nx_list_objects", "args": {"kind": "edge", "owner": "$bodies.data.items.0.id"},
+     "expect": {"page.total": 12}},
+    {"call": "nx_list_objects", "args": {"kind": "feature", "name_contains": "extrude"},
+     "expect": {"page.total": 1, "data.items.0.type": "extrude", "data.items.0.details.suppressed": false}},
+    {"call": "nx_list_objects", "args": {"kind": "sketch"},
+     "expect": {"page.total": 1, "data.items.0.details.active": false}},
+    {"call": "nx_list_objects", "args": {"kind": "datum", "type": "plane"},
+     "expect": {"data.items.0.kind": "datum_plane"}},
+    {"call": "nx_list_objects", "args": {"kind": "face", "owner": "f:999999999"},
+     "expect": {"error.category": "not_found", "mutation_outcome": "not_applicable"}},
+    {"call": "nx_list_objects", "args": {"kind": "body", "limit": 500},
+     "expect": {"error.field": "/limit"}}
+  ]
+}

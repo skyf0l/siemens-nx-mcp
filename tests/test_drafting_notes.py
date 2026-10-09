@@ -14,14 +14,13 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.drafting_notes import (
     close2,
-    distinct_ids,
     note_lines,
     number_text,
-    positive,
     ra_text,
     sheet_point,
 )
 from nx_mcp.drafting_notes_server import SUMMARIES
+from nx_mcp.legacy_kit import number, object_ids
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -49,20 +48,20 @@ def test_note_lines_and_sheet_points():
 def test_callout_text_and_numbers():
     assert ra_text(3.2) == "Ra 3.2" and ra_text(0.8) == "Ra 0.8" and ra_text(25) == "Ra 25"
     assert number_text(5.0) == "5" and number_text(1 / 3) == "0.333333"
-    assert positive(2, "size") == 2.0
+    assert number(2, "size", positive=True) == 2.0
     for bad in (0, -1, math.inf, True, "3"):
         with pytest.raises(NXToolError):
-            positive(bad, "size")
+            number(bad, "size", positive=True)
     with pytest.raises(NXToolError, match="at most 1000"):
-        positive(1001, "roughness", 1000)
+        number(1001, "roughness", positive=True, maximum=1000)
     assert close2([100.0, 50.0], [100.00001, 50.0]) and not close2([100.0, 50.0], [101.0, 50.0])
 
 
 def test_distinct_ids():
-    assert distinct_ids(["obj_a", "obj_b"], 2, 2, "objects") == ["obj_a", "obj_b"]
+    assert object_ids(["obj_a", "obj_b"], "objects", 2, 2) == ["obj_a", "obj_b"]
     for bad in ([], ["a", "a"], ["a", ""], ["a", "b", "c"], "a"):
         with pytest.raises(NXToolError):
-            distinct_ids(bad, 1, 2, "objects")
+            object_ids(bad, "objects", 1, 2)
 
 
 @pytest.mark.parametrize(
@@ -169,7 +168,8 @@ async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path
 
 
 def test_view_geometry_helpers():
-    from nx_mcp.drafting_notes import enum_name, line_distance, parallel2, uv_samples
+    from nx_mcp.drafting_notes import line_distance, parallel2, uv_samples
+    from nx_mcp.kit.result import enum_name
 
     assert line_distance([128, 190], [120, 190], [80, 0]) == pytest.approx(0)
     assert line_distance([120, 100], [120, 90], [0, -100]) == pytest.approx(0)
@@ -183,9 +183,9 @@ def test_view_geometry_helpers():
         Fillet = 13
         VButt = 4
 
-    assert enum_name(Kinds, 13, ["VButt", "Fillet"]) == "Fillet"
-    assert enum_name(Kinds, 0, ["Fillet", "None"]) == "None"
-    assert enum_name(Kinds, 7, ["Fillet"]) == "7"
+    assert enum_name(13, Kinds, ["VButt", "Fillet"]) == "Fillet"
+    assert enum_name(0, Kinds, ["Fillet", "None"]) == "None"
+    assert enum_name(7, Kinds, ["Fillet"], default="7") == "7"
 
 
 def test_annotation_inventory_includes_drafting_symbols(rig):

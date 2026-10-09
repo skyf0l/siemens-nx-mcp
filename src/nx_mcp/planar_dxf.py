@@ -5,6 +5,8 @@ import math
 import re
 from collections import Counter
 
+from nx_mcp.kit.geom import cross, dot
+from nx_mcp.legacy_kit import vector
 from nx_mcp.runtime import NXToolError
 
 
@@ -77,8 +79,7 @@ class PlanarDxfMixin:
     ):
         import NXOpen.UF as U
 
-        from nx_mcp.hardened import cross, dot, vector
-        from nx_mcp.visual_tools import unit_normal
+        from nx_mcp.legacy_kit import unit_normal
 
         destination = self.workspace.ensure_inside(path)
         if destination.suffix.lower() != ".dxf" or destination.exists():

@@ -10,6 +10,12 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.kit.geom import close as _close
+from nx_mcp.kit.geom import dot as _dot
+from nx_mcp.kit.geom import norm as _norm
+from nx_mcp.kit.geom import sub as _sub
+from nx_mcp.kit.geom import xyz as _xyz
+from nx_mcp.legacy_kit import number as _number
 from nx_mcp.runtime import NXToolError
 
 FORMS = ("simple", "counterbore", "countersink", "threaded")
@@ -17,33 +23,11 @@ MAX_POSITIONS = 100
 PLANAR_FACE = 22  # UF face type for planes
 
 
-def _number(value, name, positive=False, allow_none=False):
-    if value is None and allow_none:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be a finite number")
-    if positive and value <= 0:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be positive")
-    return float(value)
-
-
 def _angle(value, name):
     value = _number(value, name)
     if not 0 < value < 180:
         raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must be between 0 and 180 degrees")
     return value
-
-
-def _sub(a, b):
-    return [x - y for x, y in zip(a, b, strict=True)]
-
-
-def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _norm(a):
-    return math.sqrt(_dot(a, a))
 
 
 def tip_height(diameter, tip_angle):
@@ -243,21 +227,13 @@ def matches_nominal(removed, nominal_total):
     return abs(removed - nominal_total) <= 1e-6 * max(1.0, abs(nominal_total))
 
 
-def _xyz(p):
-    return [float(p.X), float(p.Y), float(p.Z)]
-
-
-def _close(a, b):
-    return abs(float(a) - float(b)) <= 1e-6 * max(1.0, abs(float(b)))
-
-
 class HolesMixin:
     # ---- placement ------------------------------------------------------
     def _holes_placement(self, face, target_body):
         """(face, body, plane origin, outward unit normal, UF modeling) of a planar face."""
         import NXOpen.UF
 
-        from nx_mcp.visual_tools import unit_normal
+        from nx_mcp.legacy_kit import unit_normal
 
         placement = self._engineering_owned(face, "face")
         modeling = NXOpen.UF.UFSession.GetUFSession().Modeling

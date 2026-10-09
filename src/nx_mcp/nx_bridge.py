@@ -19,6 +19,7 @@ from nx_mcp.bridge import (
     ObjectRegistry,
     default_descriptor_path,
 )
+from nx_mcp.legacy_kit import vector as point_vector
 from nx_mcp.runtime import NXToolError, ObjectKind, api_error
 from nx_mcp.workspace import Workspace
 
@@ -514,8 +515,7 @@ class NXOpenExecutor:
         axis_key = axis.strip().upper()
         if axis_key not in vectors:
             raise NXToolError("NX_INVALID_ARGUMENT", "axis must be X, Y, Z, -X, -Y, or -Z")
-        from nx_mcp.hardened import vector as point_vector
-        from nx_mcp.visual_tools import unit_normal
+        from nx_mcp.legacy_kit import unit_normal
 
         if (axis_origin is None) != (axis_direction is None):
             raise NXToolError("NX_INVALID_ARGUMENT", "Supply both axis_origin and axis_direction")

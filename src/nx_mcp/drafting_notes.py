@@ -15,6 +15,10 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.kit.drawing import seen_true_shape
+from nx_mcp.kit.geom import arc_plane_normal
+from nx_mcp.kit.result import enum_name
+from nx_mcp.legacy_kit import number, object_id, object_ids, sheet_point
 from nx_mcp.runtime import NXToolError
 
 MAX_LINES = 50
@@ -53,27 +57,6 @@ def note_lines(text):
     return lines
 
 
-def sheet_point(value, name="origin"):
-    """[x, y] sheet coordinates as finite floats."""
-    if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise _invalid(f"{name} must be [x, y] in sheet units")
-    result = []
-    for v in value:
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
-            raise _invalid(f"{name} must contain finite numbers")
-        result.append(float(v))
-    return result
-
-
-def positive(value, name, maximum=None):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise _invalid(f"{name} must be a finite number")
-    if value <= 0 or (maximum is not None and value > maximum):
-        limit = f" and at most {maximum:g}" if maximum is not None else ""
-        raise _invalid(f"{name} must be positive{limit}")
-    return float(value)
-
-
 def number_text(value):
     """Shortest exact decimal for a drawing callout (3.2 -> '3.2', 5.0 -> '5')."""
     return f"{float(value):.6g}"
@@ -81,33 +64,6 @@ def number_text(value):
 
 def ra_text(roughness):
     return "Ra " + number_text(roughness)
-
-
-def distinct_ids(values, minimum, maximum, name):
-    if not isinstance(values, (list, tuple)) or not minimum <= len(values) <= maximum:
-        count = str(minimum) if minimum == maximum else f"{minimum}-{maximum}"
-        raise _invalid(f"{name} must list {count} object IDs")
-    if any(not isinstance(v, str) or not v for v in values) or len(set(values)) != len(values):
-        raise _invalid(f"{name} must be distinct non-empty object IDs")
-    return list(values)
-
-
-def object_id(value, name):
-    if not isinstance(value, str) or not value:
-        raise _invalid(f"{name} must be an object ID")
-    return value
-
-
-def enum_name(enum_type, value, names):
-    """Name of a native enum member among names (NX enums stringify as integers)."""
-    for name in names:
-        member = getattr(enum_type, name, None)
-        if member is None and name == "None":  # Python NXOpen cannot expose a member "None".
-            if str(value) == "0":
-                return name
-        elif member == value:
-            return name
-    return str(value)
 
 
 def line_distance(point, origin, direction):
@@ -130,27 +86,6 @@ def uv_samples(steps=8):
     values = [i / steps for i in range(1, steps)]
     grid = [(u, v) for u in values for v in values]
     return sorted(grid, key=lambda uv: ((uv[0] - 0.5) ** 2 + (uv[1] - 0.5) ** 2, uv))
-
-
-def arc_plane_normal(center, points):
-    """Unit normal of an arc's plane from points on it; None if they are degenerate."""
-    vectors = [[p[i] - center[i] for i in range(3)] for p in points]
-    best = (0.0, None)
-    for i, a in enumerate(vectors):
-        for b in vectors[i + 1 :]:
-            c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-            norm = math.sqrt(sum(x * x for x in c))
-            if norm > best[0]:
-                best = (norm, c)
-    if best[1] is None or best[0] <= 1e-12:
-        return None
-    return [x / best[0] for x in best[1]]
-
-
-def seen_true_shape(normal, view_z, tol_deg=TRUE_SHAPE_TOL_DEG):
-    """True if a plane with this normal is parallel to the drawing plane of the view."""
-    dot = abs(sum(a * b for a, b in zip(normal, view_z, strict=True)))
-    return math.degrees(math.acos(min(1.0, dot))) <= tol_deg
 
 
 def close2(a, b, tol=1e-3):
@@ -425,7 +360,7 @@ class DraftingNotesMixin:
 
     # ---- center mark -----------------------------------------------------
     def _add_center_mark(self, view, edges):
-        refs = distinct_ids(edges, 1, 50, "edges")
+        refs = object_ids(edges, "edges", 1, 50)
         target_view, sheet = self._dn_view(view)
         targets = [self._dn_geometry(r, {"edge"}) for r in refs]
         import NXOpen
@@ -519,7 +454,7 @@ class DraftingNotesMixin:
     def _add_centerline(self, view, objects, kind="3d"):
         if kind not in CENTERLINE_KINDS:
             raise _invalid("kind must be 2d or 3d")
-        refs = distinct_ids(objects, *((1, 1) if kind == "3d" else (2, 2)), "objects")
+        refs = object_ids(objects, "objects", *((1, 1) if kind == "3d" else (2, 2)))
         target_view, sheet = self._dn_view(view)
         import NXOpen
         import NXOpen.Annotations as A
@@ -593,7 +528,7 @@ class DraftingNotesMixin:
     ):
         if symbol not in SYMBOLS:
             raise _invalid("symbol must be basic, material_removal_required or prohibited")
-        value = positive(roughness, "roughness", MAX_RA_UM)
+        value = number(roughness, "roughness", positive=True, maximum=MAX_RA_UM)
         point = sheet_point(origin)
         object_id(object, "object")
         target_view, sheet = self._dn_view(view)
@@ -619,7 +554,9 @@ class DraftingNotesMixin:
         reader = collection.CreateDraftingSurfaceFinishSymbolBuilder(obj)
         try:
             stored = {
-                "finish": enum_name(kinds, reader.Finish, SYMBOLS.values()),
+                "finish": enum_name(
+                    reader.Finish, kinds, SYMBOLS.values(), default=str(reader.Finish)
+                ),
                 "a2": str(reader.A2),
             }
             self._dn_check_leader(reader, geometry, target_view)
@@ -648,7 +585,7 @@ class DraftingNotesMixin:
             raise _invalid("weld must be fillet, square_butt or v_butt")
         if side not in SIDES:
             raise _invalid("side must be arrow, other or both")
-        value = positive(size, "size")
+        value = number(size, "size", positive=True)
         point = sheet_point(origin)
         object_id(object, "object")
         target_view, sheet = self._dn_view(view)
@@ -673,7 +610,12 @@ class DraftingNotesMixin:
         try:
             stored = {
                 name: {
-                    "symbol": enum_name(symbols, data.WeldSymbol, [*WELDS.values(), "None"]),
+                    "symbol": enum_name(
+                        data.WeldSymbol,
+                        symbols,
+                        [*WELDS.values(), "None"],
+                        default=str(data.WeldSymbol),
+                    ),
                     "size": str(data.WeldSize),
                 }
                 for name, data in (

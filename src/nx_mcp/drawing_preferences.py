@@ -1,7 +1,7 @@
 """Associative dimension formatting and native drafting view presentation."""
 
+from nx_mcp.kit.result import enum_name
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import enum_name
 
 
 def visible_in_view(view, objects):
@@ -105,7 +105,7 @@ class DrawingPreferencesMixin:
     ):
         import NXOpen.Annotations as A
 
-        from nx_mcp.authoring import finite
+        from nx_mcp.legacy_kit import finite
 
         values = locals().copy()
         if all(

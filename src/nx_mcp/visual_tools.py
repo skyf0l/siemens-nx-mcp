@@ -2,28 +2,13 @@
 
 from __future__ import annotations
 
-import math
 import uuid
 
 from nx_mcp import side_effects
+from nx_mcp.kit.geom import xyz
+from nx_mcp.kit.result import enum_name
+from nx_mcp.legacy_kit import unit_normal, vector
 from nx_mcp.runtime import NXToolError
-
-
-def enum_name(value, enum):
-    for name in dir(enum):
-        if not name.startswith("_") and getattr(enum, name) == value:
-            return name
-    return "unknown_" + str(value)
-
-
-def unit_normal(value, argument="normal"):
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{argument} requires three finite numbers")
-    v = [float(x) for x in value]
-    length = math.sqrt(sum(x * x for x in v))
-    if not math.isfinite(length) or length < 1e-12:
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{argument} must be finite and nonzero")
-    return [x / length for x in v]
 
 
 class VisualToolsMixin:
@@ -343,8 +328,6 @@ class VisualToolsMixin:
         }
 
     def _list_sections(self):
-        from nx_mcp.hardened import xyz
-
         part = self._visual_part()
         view = part.ModelingViews.WorkView
         active = view.ActiveDynamicSection
@@ -381,8 +364,6 @@ class VisualToolsMixin:
 
     def _section_view(self, origin, normal, section=None, name="MCP section", cap=True):
         import NXOpen.Display
-
-        from nx_mcp.hardened import vector, xyz
 
         part = self._visual_part()
         view = part.ModelingViews.WorkView

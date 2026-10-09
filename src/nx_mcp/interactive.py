@@ -38,6 +38,15 @@ PANEL_ROWS = 8  # Panel body lines: running/idle line or request card, then hist
 VIEW_ONLY = frozenset({"nx_fit_view", "nx_set_view", "nx_screenshot", "nx_render_view"})
 
 
+def _read_only(method):
+    """Catalogue tools by their effect; legacy tools by the legacy READ_ONLY list."""
+    from nx_mcp.hardened import READ_ONLY
+    from nx_mcp.host.dispatch import is_read_only
+
+    flag = is_read_only(method)
+    return method in READ_ONLY if flag is None else flag
+
+
 def runs_while_engineer_has_control(pending):
     """Status reads and handing control back never need the engineer's approval."""
     if pending.method == "nx_status":
@@ -650,13 +659,7 @@ class InteractiveHost:
                 "in the NX MCP control window.",
                 details={"mutation_outcome": "not_started"},
             )
-        from nx_mcp.hardened import READ_ONLY
-
-        if (
-            self.driver == "journal"
-            and method not in READ_ONLY
-            and not self._nx_application_ready()
-        ):
+        if self.driver == "journal" and not _read_only(method) and not self._nx_application_ready():
             # Seen on NX 2406: the first part creation in a fresh session must
             # start NX's Modeling application, which waits for NX's own main
             # loop - held by this host - and freezes NX for good. Refuse instead.
@@ -690,7 +693,7 @@ class InteractiveHost:
             sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
             from nx_mcp.release_engineering import drawing_work_view
 
-            if part and method not in READ_ONLY and sheet is None and not drawing_work_view(part):
+            if part and not _read_only(method) and sheet is None and not drawing_work_view(part):
                 try:
                     part.ModelingViews.WorkView.UpdateDisplay()
                 except Exception as exc:
@@ -709,7 +712,7 @@ class InteractiveHost:
                     started=self.current_started_at,
                     duration=self.last_duration_seconds,
                     intent=self.current_intent,
-                    read_only=method in READ_ONLY or method in VIEW_ONLY,
+                    read_only=_read_only(method) or method in VIEW_ONLY,
                     result=result,
                     error=error,
                 )
@@ -841,6 +844,11 @@ class InteractiveHost:
         except Exception:
             units = None
         try:
+            from nx_mcp.host.dispatch import render_summary
+
+            line = render_summary(self.executor, method, params, path_of=relative_path(self.root))
+            if line is not None:
+                return line
             return summarize(
                 method,
                 params,

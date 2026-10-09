@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import traceback
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Literal
+
+# One error hierarchy for legacy and catalogue code: NXToolError is defined in
+# nx_mcp.core.errors (stdlib only) and core.errors.NXError subclasses it.
+from nx_mcp.core.errors import NXToolError
 
 ObjectKind = Literal[
     "reference_set",
@@ -43,43 +47,6 @@ class ObjectRef:
     def model_dump(self) -> dict[str, str]:
         """Match the sidecar model interface without importing Pydantic in NX."""
         return asdict(self)
-
-
-class NXToolError(Exception):
-    """A recoverable NX operation error that can be shown to an MCP caller."""
-
-    def __init__(
-        self,
-        code: str,
-        message: str,
-        *,
-        suggestion: str | None = None,
-        nx_code: int | str | None = None,
-        retryable: bool = False,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.suggestion = suggestion
-        self.nx_code = nx_code
-        self.retryable = retryable
-        self.details = details or {}
-
-    def as_dict(self) -> dict[str, Any]:
-        result: dict[str, Any] = {
-            "status": "error",
-            "code": self.code,
-            "message": self.message,
-            "retryable": self.retryable,
-        }
-        if self.suggestion:
-            result["suggestion"] = self.suggestion
-        if self.nx_code is not None:
-            result["nx_code"] = self.nx_code
-        if self.details:
-            result["details"] = self.details
-        return result
 
 
 # Native license checkout failures (NX 2406: 948801 missing token feature,

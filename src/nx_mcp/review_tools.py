@@ -10,14 +10,13 @@ import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from nx_mcp.authoring import finite, page
+from nx_mcp.authoring import page
+from nx_mcp.legacy_kit import finite, vector
 from nx_mcp.runtime import NXToolError
 
 
 class ReviewToolsMixin:
     def _set_camera(self, rotation, origin, scale):
-        from nx_mcp.hardened import vector
-
         view = self._visual_part().ModelingViews.WorkView
         matrix = self._validate_rotation(rotation)
         point = vector(origin, "origin")
@@ -306,8 +305,7 @@ class ReviewToolsMixin:
     ):
         import html
 
-        from nx_mcp.hardened import vector
-        from nx_mcp.visual_tools import unit_normal
+        from nx_mcp.legacy_kit import unit_normal
 
         file = self.workspace.ensure_inside(path)
         if file.suffix.lower() != ".zip" or file.exists():

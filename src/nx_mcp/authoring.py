@@ -5,8 +5,10 @@ from __future__ import annotations
 import math
 import re
 
+from nx_mcp.kit.geom import add, dot, rows, xyz
+from nx_mcp.kit.result import enum_name
+from nx_mcp.legacy_kit import finite, unit_normal, vector
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import enum_name, unit_normal
 
 
 def page(items, offset=0, limit=50):
@@ -40,19 +42,6 @@ def _expression_list(exp, method):
     """Expressions returned by an optional NXOpen dependency query, [] if absent."""
     query = getattr(exp, method, None)
     return list(query()) if query is not None else []
-
-
-def finite(value, name, positive=False):
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(value)
-        or (positive and value <= 0)
-    ):
-        raise NXToolError(
-            "NX_INVALID_ARGUMENT", name + " must be finite" + (" and positive" if positive else "")
-        )
-    return float(value)
 
 
 class AuthoringMixin:
@@ -288,8 +277,6 @@ class AuthoringMixin:
         limit=50,
     ):
         import NXOpen.UF
-
-        from nx_mcp.hardened import dot, vector
 
         if kind not in {"face", "edge"} or geometry_type not in {
             "any",
@@ -549,8 +536,6 @@ class AuthoringMixin:
         return {"health": self._model_health(), "modified": None, "update": "native DoUpdate"}
 
     def _edit_sketch(self, sketch_id, operations):
-        from nx_mcp.hardened import add
-
         sketch = self._resolve(sketch_id, {"sketch"})
         active = self.session.ActiveSketch
         if active and active != sketch:
@@ -679,8 +664,6 @@ class AuthoringMixin:
                 )
 
     def _component_action(self, component, action, name=None, part_path=None):
-        from nx_mcp.hardened import rows, xyz
-
         part = self._work_part()
         c = self._resolve(component, {"component"})
         if c.Parent != part.ComponentAssembly.RootComponent:
@@ -754,8 +737,6 @@ class AuthoringMixin:
         }
 
     def _pattern_components(self, component, direction, spacing, count):
-        from nx_mcp.hardened import rows, xyz
-
         c = self._resolve(component, {"component"})
         part = self._work_part()
         if c.Parent != part.ComponentAssembly.RootComponent or c.IsSuppressed:

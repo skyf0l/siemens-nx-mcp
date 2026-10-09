@@ -10,6 +10,11 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.kit.geom import dot as _dot
+from nx_mcp.kit.geom import sub as _sub
+from nx_mcp.kit.geom import xyz as _xyz
+from nx_mcp.legacy_kit import finite, point2
+from nx_mcp.legacy_kit import object_ids as distinct_ids
 from nx_mcp.runtime import NXToolError
 
 TOL = 1e-6
@@ -17,23 +22,6 @@ OFFSET_APPROX_TOL = 0.001  # mm; approximation tolerance for offsets of ellipses
 
 
 # ---- pure helpers (no NXOpen) -------------------------------------------------
-def finite(value, name, positive=False):
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(value)
-        or (positive and value <= 0)
-    ):
-        raise NXToolError(
-            "NX_INVALID_ARGUMENT", name + " must be finite" + (" and positive" if positive else "")
-        )
-    return float(value)
-
-
-def point2(value, name="center"):
-    if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise NXToolError("NX_INVALID_ARGUMENT", name + " must be local [x, y]")
-    return [finite(v, name) for v in value]
 
 
 def polygon_vertices(center, sides, radius, inscribed=True, rotation=0.0):
@@ -159,30 +147,6 @@ def on_arc(p, arc, tol):
     delta = ((phi - arc["start"]) * arc["direction"]) % (2 * math.pi)
     slack = tol / arc["radius"]
     return delta <= arc["sweep"] + slack or delta >= 2 * math.pi - slack
-
-
-def distinct_ids(values, name, minimum=1, maximum=200):
-    if (
-        not isinstance(values, list)
-        or not minimum <= len(values) <= maximum
-        or not all(isinstance(v, str) and v for v in values)
-    ):
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} must list {minimum}-{maximum} object IDs")
-    if len(set(values)) != len(values):
-        raise NXToolError("NX_INVALID_ARGUMENT", f"{name} contains duplicates")
-    return values
-
-
-def _sub(a, b):
-    return [x - y for x, y in zip(a, b, strict=True)]
-
-
-def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _xyz(p):
-    return [float(p.X), float(p.Y), float(p.Z)]
 
 
 class SketchCurvesMixin:

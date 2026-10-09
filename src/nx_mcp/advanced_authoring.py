@@ -5,9 +5,11 @@ from __future__ import annotations
 import contextlib
 import math
 
-from nx_mcp.authoring import finite, page
+from nx_mcp.authoring import page
+from nx_mcp.kit.geom import dot, rows, xyz
+from nx_mcp.kit.result import enum_name
+from nx_mcp.legacy_kit import finite, unit_normal
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import enum_name, unit_normal
 
 
 class AdvancedAuthoringMixin:
@@ -73,8 +75,6 @@ class AdvancedAuthoringMixin:
     def _recognize_holes(self, owner=None, offset=0, limit=50):
         import NXOpen.UF
 
-        from nx_mcp.hardened import dot
-
         uf = NXOpen.UF.UFSession.GetUFSession()
         self._require_api(uf.Modeling, "AskFaceUvMinmax")
         rows = []
@@ -129,8 +129,6 @@ class AdvancedAuthoringMixin:
 
     def _component_pattern_record(self, pattern):
         import NXOpen.GeometricUtilities
-
-        from nx_mcp.hardened import rows, xyz
 
         part = self._work_part()
         builder = part.ComponentAssembly.CreateComponentPatternBuilder(pattern)
@@ -601,8 +599,6 @@ class AdvancedAuthoringMixin:
         )
 
     def _relation_residual(self, a, b, relation, point1=None, point2=None):
-        from nx_mcp.hardened import dot, xyz
-
         if relation == "equal_radius":
             return abs(a.Radius - b.Radius)
         if relation == "concentric":
@@ -672,7 +668,6 @@ class AdvancedAuthoringMixin:
     def _explicit_constraint_conflicts(self, sketch):
         # NX 2606's modern solver can report UnderConstrained for contradictory
         # persistent legacy relations. Report only directly provable pairs.
-        from nx_mcp.hardened import xyz
 
         pairs = []
         for curve in sketch.GetAllGeometry():

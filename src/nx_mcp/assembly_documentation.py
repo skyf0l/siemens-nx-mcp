@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from nx_mcp.authoring import finite
+from nx_mcp.kit.geom import IDENTITY, matvec, rows, transpose, xyz
+from nx_mcp.legacy_kit import finite
 from nx_mcp.runtime import NXToolError
 
 
@@ -172,8 +173,6 @@ class AssemblyDocumentationMixin:
         start_direction=None,
         end_direction=None,
     ):
-        from nx_mcp.hardened import IDENTITY
-
         part = self._explosion_context()
         ex = self._explosion(explosion)
         tree = self._exploded_tree(ex)
@@ -246,8 +245,6 @@ class AssemblyDocumentationMixin:
         }
 
     def _trace_position(self, explosion, record):
-        from nx_mcp.hardened import matvec, rows, transpose, xyz
-
         part = self._work_part()
         import NXOpen.UF as U
 

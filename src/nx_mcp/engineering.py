@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 
-from nx_mcp.authoring import finite
+from nx_mcp.kit.geom import IDENTITY, cross, dot, rows, xyz
+from nx_mcp.legacy_kit import finite, unit_normal, vector
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import unit_normal
 
 
 class EngineeringMixin:
@@ -409,8 +409,6 @@ class EngineeringMixin:
     def _mass_properties(self, body=None, scope="auto"):
         import NXOpen.UF
 
-        from nx_mcp.hardened import rows, xyz
-
         bodies = self._geometry(body, scope)
         if not bodies or any(not b.IsSolidBody for b in bodies):
             raise NXToolError("NX_NOT_SOLID", "Mass properties require solid bodies")
@@ -481,8 +479,6 @@ class EngineeringMixin:
     def _transform_bodies(
         self, translation, rotation_matrix, bodies=None, copy=False, feature=None
     ):
-        from nx_mcp.hardened import IDENTITY, vector
-
         rotation = self._validate_rotation(rotation_matrix)
         translation = vector(translation, "translation")
         if feature is not None and (bodies is not None or copy):
@@ -566,8 +562,6 @@ class EngineeringMixin:
         axis=None,
         angle=None,
     ):
-        from nx_mcp.hardened import cross, dot, vector
-
         if (
             type(count) is not int
             or not 2 <= count <= 100
@@ -783,8 +777,6 @@ class EngineeringMixin:
     @staticmethod
     def _line_angle_residual(one, two, value):
         """Degrees between the lines' undirected angle (or its supplement) and value."""
-        from nx_mcp.hardened import dot, xyz
-
         u, v = [
             [e - s for e, s in zip(xyz(c.EndPoint), xyz(c.StartPoint), strict=True)]
             for c in (one, two)
@@ -794,8 +786,6 @@ class EngineeringMixin:
         return min(abs(theta - value), abs(180 - theta - value))
 
     def _sketch_tangent(self, sketch_id, curve1, curve2):
-        from nx_mcp.hardened import cross, dot, xyz
-
         sketch = self._engineering_owned(sketch_id, "sketch")
         a, b = self._owned_curve(sketch, curve1), self._owned_curve(sketch, curve2)
         if (
@@ -865,8 +855,6 @@ class EngineeringMixin:
         }
 
     def _sketch_symmetry(self, sketch_id, curve1, curve2, centerline):
-        from nx_mcp.hardened import dot, xyz
-
         sketch = self._engineering_owned(sketch_id, "sketch")
         a, b, c = [self._owned_curve(sketch, r) for r in [curve1, curve2, centerline]]
         if len({int(o.Tag) for o in [a, b, c]}) != 3 or not all(
@@ -1106,7 +1094,7 @@ class EngineeringMixin:
     def _assembly_constraint_record(self, constraint):
         import NXOpen.Positioning
 
-        from nx_mcp.visual_tools import enum_name
+        from nx_mcp.kit.result import enum_name
 
         part = self._work_part()
         cls = NXOpen.Positioning.Constraint
@@ -1442,8 +1430,6 @@ class EngineeringMixin:
         )
 
     def _mirror_body(self, body, plane):
-        from nx_mcp.hardened import IDENTITY
-
         matrices = {
             "XY": IDENTITY,
             "XZ": [[1, 0, 0], [0, 0, -1], [0, 1, 0]],

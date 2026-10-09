@@ -152,7 +152,7 @@ start, and `dev_reload.py` prints the error. The checks:
 
 | Module | Responsibility |
 |---|---|
-| `errors.py` | Table of 22 categories and 65 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None)` raises `NXError`. `native(codes=None, default="NX_ERROR")` context manager (below) |
+| `errors.py` | Table of 22 categories and 65 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None)` raises `NXError`, which subclasses the legacy `NXToolError` (one hierarchy until F4). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
@@ -200,9 +200,9 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `args` | cross-field rules the schema cannot express: `need(**fields)`, `exactly_one(**fields)`, `distinct(field, values)`. Each raises `invalid_argument` with a JSON-pointer `field` |
 | `units` | `part_units(tx)` → `"mm"`/`"in"`, `sheet_units(tx, sheet)`, `convert(value, dim, to)`, `say(value, units)` → `"10 mm"`. The spelling `"inch"` does not exist |
 | `builders` | `with builders.build(tx, factory, *a) as b:` then `b.commit()` (`CommitFeature` or `Commit`). `Destroy()` always runs, and rejections pass through `native(default="NX_BUILD_FAILED")`. Also `point(tx, p)`, `direction(tx, v, origin)`, `collector(tx, refs, "Edge"/"Face"/"Body")` |
-| `select` | `planar(tx, ref)` → `(obj, origin, normal)` for a planar face or datum plane of the work part. `plane`, `axis`, `direction(tx, value)` resolve the union types. `bodies`, `faces`, `edges(tx, refs)`, `owned_by_work_part(obj)` |
+| `select` | `planar(tx, ref)` → `(obj, origin, normal)` for a planar face or datum plane of the work part. `plane`, `axis`, `direction(tx, value)` resolve the union types. `bodies`, `faces`, `edges(tx, refs)`, `owned_by_work_part(tx, obj)` |
 | `sketch` | `with sketch.editing(tx, ref) as sk:` activates the sketch and restores the previous state, with `sk.frame`, `sk.to_part(p2)` and `sk.to_local(p3)`. `sketch.solve(tx, sk)` returns status and DOF, or raises `solver_failed`. `sketch.owns(tx, sk, curve)` is the one ownership check |
-| `drawing` | `with drawing.on_sheet(tx, sheet) as sh:` activates the sheet and restores application and sheet afterwards. `sh.units`, `sh.point(SheetPoint)`, `drawing.view(tx, ref)`, `drawing.refresh(tx, views)` |
+| `drawing` | `with drawing.on_sheet(tx, sheet) as sh:` activates the sheet and restores the previous sheet and display afterwards (it does not switch or restore the NX application; open). `sh.units`, `sh.point(SheetPoint)`, `drawing.view(tx, ref)`, `drawing.refresh(tx, views)` |
 | `expr` | `create(tx, name, formula, units)`, `set_formula`, `value`, `alias(feature, "distance")` (semantic parameter names), `bind` |
 | `readback` | `expect(ok, check, **actual)`, `expect_close(actual, wanted, check, tol=None)` (scalar or vector, scaled tolerance), `expect_same_direction`, `expect_on_plane`. Each raises `verification_failed` with `details.check` |
 | `result` | `rows(tx, objs, kind)`, `page(rows, page)`, `measured(value, "length")`, `rename(tx, obj, name)` (returns the name as NX normalised it) |
@@ -510,6 +510,41 @@ step.
 | F3 | `sidecar/` generation, both profiles and the 4 gateways (replacing `nx_discover_tools` and the 13-entry agent surface); the acceptance runner and evidence writer; the scenario base set, migrated by the orchestrator: `nx_open_part`, `nx_find_geometry`, `nx_list_objects` (body, face, edge, feature, sketch listers), `nx_measure_mass`, `nx_measure_bounds`, `nx_check_model` | after F1 |
 | D1-D10 | Domains, ordered by what the next feature wave needs: modeling; drawing; parts_files with the feature tree and expressions; sketch; assembly; sheet_metal; freeform; inspection; display; session. Each domain also registers its hooks | one agent per domain |
 | F4 | Delete the legacy code. `host/nxservices.py` absorbs the rest of `NXOpenExecutor`, and Tx tracking replaces `side_effects.py`. Update CLAUDE.md, README and `docs/architecture.md` | last |
+
+**F1 as built (deviations and additions).**
+
+- Pilots are `nx_create_datum_plane` and a first slice of `nx_list_objects` (kinds body, face,
+  edge, datum, feature, sketch). `nx_create_part` and `nx_measure_distance` were not migrated:
+  their names are live legacy handlers, and a catalogue entry would change their arguments and
+  result shape under the current sidecar before F3. A test fails if a catalogue name shadows a
+  legacy handler; the migrating change deletes the legacy tool first.
+- Gate 3 lets untested tools run with `NX_MCP_DEV=1`, so the acceptance runner can record their
+  first evidence. Production refuses them.
+- Gate 4 runs once, in the kernel after the hold; the pre-hold run is host work.
+- Gate 6: before the handler only `model` effects check the work part; `model` and `file`
+  effects get the after-handler `IsModified` check. Legacy `nx_create_part` and newly opened
+  `nx_open_part` record ownership (`dispatch.after_legacy`). The panel grant is not built yet
+  (`services.own(part)` exists).
+- Any failure after the handler returned counts as touched and rolls back. The rollback
+  snapshot is compared before undoing.
+- Receipts replay a failed result too (same id, same arguments); a running or unknown receipt
+  gives `NX_OUTCOME_UNKNOWN`. Read tools report `not_applicable` on failure.
+- `changes.references` is `listed` with `stale_kinds: ["face", "edge"]` after a
+  `topology` commit. A returned `data.page` is lifted to the envelope's `page`.
+- Batch placeholders are 0-based: `"$0.data.feature"`; a row resolves to its `id`.
+- Additional `Tx` members: `tx.run(tool, args)` (child call), `tx.preview()`,
+  `tx.kind_of(obj)`, `tx.services`, `tx.outcome`, and `tx.resolve(ref, *kinds, work_part=True)`.
+- `@lister(kind)` is `fn(tx, owner, owner_kind) -> [(obj, kind, extra)]`; rows are built only
+  for the requested page. Hook keys may be a kind group (`datum`).
+- `NXToolError` now lives in `core/errors.py` (re-exported by `runtime`) and `NXError` subclasses
+  it, so legacy `except NXToolError` blocks and the legacy executor handle kit errors with their
+  own code. `NXError.as_dict()` is the legacy bridge payload (plus `category`, `field`);
+  `error_dict()` is the envelope's `error`. `legacy_kit.py` keeps only legacy names for kit
+  helpers (deleted in F4).
+- A failed catalogue call reaches the bridge as `KernelError`: the legacy keys (`code`,
+  `message`, `details.mutation_outcome`) plus the full error envelope in `details.envelope`.
+- Sheet quantities use part units until the drawing domain supplies `services.sheet_units`.
+  `view` and `session` failures report `unknown` until display snapshots are wired.
 
 F4 deletes:
 

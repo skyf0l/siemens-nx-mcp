@@ -37,8 +37,23 @@ from nx_mcp.feature_groups import server_modules as feature_group_modules
 from nx_mcp.feature_tree import FeatureTreeMixin
 from nx_mcp.freeform import FreeformMixin
 from nx_mcp.holes import HolesMixin
+from nx_mcp.host import dispatch
 from nx_mcp.inspection import InspectionMixin
 from nx_mcp.inventory import compact_reference, page
+
+# Vector math lives in nx_mcp.kit.geom; these names stay importable from here.
+from nx_mcp.kit.geom import (  # noqa: F401
+    IDENTITY,
+    add,
+    cross,
+    dot,
+    matmul,
+    matvec,
+    rows,
+    transpose,
+    xyz,
+)
+from nx_mcp.legacy_kit import vector
 from nx_mcp.legacy_repairs import LegacyRepairsMixin
 from nx_mcp.manufacturing import ManufacturingMixin
 from nx_mcp.nx_bridge import NXOpenExecutor
@@ -100,50 +115,6 @@ NON_MODEL = {
     "nx_checkpoint",
     "nx_rollback",
 }
-
-
-def vector(value, name="vector"):
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        raise NXToolError("NX_INVALID_ARGUMENT", name + " must contain three numbers")
-    result = [float(v) for v in value]
-    if not all(math.isfinite(v) for v in result):
-        raise NXToolError("NX_INVALID_ARGUMENT", name + " must be finite")
-    return result
-
-
-def dot(a, b):
-    return sum(x * y for x, y in zip(a, b, strict=False))
-
-
-def cross(a, b):
-    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-
-
-def xyz(p):
-    return [p.X, p.Y, p.Z]
-
-
-def rows(m):
-    return [[m.Xx, m.Yx, m.Zx], [m.Xy, m.Yy, m.Zy], [m.Xz, m.Yz, m.Zz]]
-
-
-def matvec(m, p):
-    return [dot(row, p) for row in m]
-
-
-def matmul(a, b):
-    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
-
-
-def transpose(m):
-    return [list(v) for v in zip(*m, strict=False)]
-
-
-def add(a, b):
-    return [x + y for x, y in zip(a, b, strict=False)]
-
-
-IDENTITY = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 
 
 READ_ONLY.update(
@@ -382,6 +353,15 @@ class HardenedExecutor(
         )
 
     def execute(self, method, params):
+        # Catalogue tools run through the kernel (architecture.md section 4);
+        # every other tool keeps the legacy path below.
+        if (spec := dispatch.catalogue_spec(method)) is not None:
+            return dispatch.run(self, spec, params)
+        result = self._execute_legacy(method, params)
+        dispatch.after_legacy(self, method, result)
+        return result
+
+    def _execute_legacy(self, method, params):
         params = dict(params)
         params.pop("intent", None)  # Agent's note for the NX panel; not a handler argument.
         supplied_id = params.pop("operation_id", None) if method != "nx_operation_status" else None

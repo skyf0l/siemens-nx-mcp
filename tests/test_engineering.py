@@ -16,6 +16,7 @@ import pytest
 from nx_mcp.hardened import IDENTITY
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Edge, Feature, Object, Sketch, point
+from tests.kit.objects import Collector
 
 pytestmark = pytest.mark.fake_nx
 
@@ -45,13 +46,6 @@ def eng(rig, monkeypatch):
     for kind in ["Edge", "Body", "Face"]:
         setattr(r.part.ScRuleFactory, "CreateRule" + kind + "Dumb", lambda objects: objects)
     r.part.ScRuleFactory.CreateRuleCurveFeature = lambda objects, *_: objects
-
-    class Collector:
-        def ReplaceRules(self, rules, *_):
-            self.rules = rules
-
-        def GetRules(self):
-            return self.rules
 
     r.part.ScCollectors = NS(CreateCollector=Collector)
     r.part.Sections = NS(CreateSection=lambda: NS(AddToSection=Mock()))

@@ -1,13 +1,12 @@
 """Explicit reference-set membership and datum display controls for NX 2606."""
 
+from nx_mcp.kit.geom import xyz
 from nx_mcp.runtime import NXToolError
 
 
 class ReferenceGeometryMixin:
     def _flat_pattern_orientation_edges(self, upward_face):
         import NXOpen.UF
-
-        from nx_mcp.hardened import xyz
 
         face = self._engineering_owned(upward_face, "face")
         uf = NXOpen.UF.UFSession.GetUFSession()

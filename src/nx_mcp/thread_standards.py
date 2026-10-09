@@ -4,7 +4,8 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from nx_mcp.authoring import finite, page
+from nx_mcp.authoring import page
+from nx_mcp.legacy_kit import finite
 from nx_mcp.runtime import NXToolError
 
 

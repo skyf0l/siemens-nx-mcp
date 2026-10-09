@@ -1,6 +1,8 @@
 """Native drawing/annotation editing; NXOpen calls remain on the NX thread."""
 
-from nx_mcp.authoring import finite, page
+from nx_mcp.authoring import page
+from nx_mcp.kit.geom import xyz
+from nx_mcp.legacy_kit import finite
 from nx_mcp.release_engineering import drawing_work_view
 from nx_mcp.runtime import NXToolError
 
@@ -41,8 +43,6 @@ class DocumentationEditingMixin:
         return self._list_drawings()
 
     def _list_annotations(self, offset=0, limit=100):
-        from nx_mcp.hardened import xyz
-
         part = self._work_part()
         values = [(x, "annotation") for x in self._documentation_annotations(part)] + [
             (x, "traceline") for x in part.Tracelines
@@ -91,7 +91,6 @@ class DocumentationEditingMixin:
 
     def _edit_annotation(self, annotation, position=None, name=None, delete=False):
         from nx_mcp.freeform import points3
-        from nx_mcp.hardened import xyz
 
         obj = self._resolve(annotation, {"annotation", "traceline"})
         if delete and (position is not None or name is not None):
@@ -216,8 +215,6 @@ class DocumentationEditingMixin:
         self, traceline, start_percent=None, end_percent=None, start_offset=None, end_offset=None
     ):
         import json
-
-        from nx_mcp.hardened import xyz
 
         line = self._resolve(traceline, {"traceline"})
         ex = line.AskExplosion()
