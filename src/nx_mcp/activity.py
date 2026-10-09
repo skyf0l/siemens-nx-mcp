@@ -42,6 +42,8 @@ _SHORT_REASON = {
     "NX_ROLLBACK_FAILED": "undo failed",
 }
 _CREATED_KEYS = ("feature", "sketch", "component", "part", "drawing_sheet", "drawing_view", "body")
+# Created kinds an engineer recognises, most meaningful first.
+_MAIN_KINDS = ("sketch", "body", "component", "drawing_sheet", "drawing_view", "feature")
 
 
 @dataclass
@@ -71,17 +73,34 @@ def _clip(text: str, width: int = LINE_WIDTH) -> str:
 
 
 def created_name(result: dict[str, Any]) -> str | None:
-    """Name of what a successful step created, if the result says."""
+    """Name of the main thing a successful step created, if the result says.
+
+    NX creates helper objects along with the one the engineer asked for (a sketch
+    also brings its sketch feature, datums and points), so name the step's own
+    result, else the most meaningful created kind, never a list of internals.
+    """
     for key in _CREATED_KEYS:
         value = result.get(key)
         if isinstance(value, dict) and value.get("name"):
             return str(value["name"])
-    created = (result.get("changes") or {}).get("created") or []
-    names = [str(c["name"]) for c in created if isinstance(c, dict) and c.get("name")]
-    if not names:
+    created = [
+        c
+        for c in (result.get("changes") or {}).get("created") or []
+        if isinstance(c, dict) and c.get("name")
+    ]
+    if not created:
         return None
-    extra = f" +{len(names) - 2}" if len(names) > 2 else ""
-    return ", ".join(names[:2]) + extra
+    own = result.get("object")
+    if isinstance(own, dict) and any(c.get("id") == own.get("id") for c in created):
+        return str(own.get("name") or created[0]["name"])
+    for kind in _MAIN_KINDS:
+        main = [c for c in created if c.get("kind") == kind]
+        if main:
+            return str(main[0]["name"]) if len(main) == 1 else f"{len(main)} {kind}s"
+    kinds = {c.get("kind") for c in created}
+    if len(created) > 1 and len(kinds) == 1 and None not in kinds:
+        return f"{len(created)} {kinds.pop()}s"  # e.g. a rectangle's 4 curves
+    return str(created[0]["name"])
 
 
 @dataclass

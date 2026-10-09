@@ -11,7 +11,18 @@ from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
-NAMES = {"obj_sketch": "profile", "obj_edge": "EDGE_1"}
+NAMES = {
+    "obj_sketch": "profile",
+    "obj_edge": "EDGE_1",
+    "obj_arc": "ARC_2",
+    "obj_face": "FACE_7",
+    "obj_bolt": "BOLT M8",
+    "obj_front": "FRONT@1",
+    "obj_flat": "FLAT@2",
+    "obj_sheet": "SHT1",
+    "obj_flange": "SB_FLANGE(4)",
+    "obj_extrude": "EXTRUDE(2)",
+}
 
 
 def describe(method, params, **kwargs):
@@ -41,7 +52,7 @@ def describe(method, params, **kwargs):
         (
             "nx_sketch_arc",
             {"cx": 0, "cy": 0, "radius": 5, "start_angle": 0, "end_angle": 360},
-            "Add circle R5 mm to sketch the work part",
+            "Add circle R5 mm to the active sketch",
         ),
         (
             "nx_hole",
@@ -55,20 +66,135 @@ def describe(method, params, **kwargs):
             "Delete feature an object from before the last handover",
         ),
         ("nx_delete_feature", {"name": "EXTRUDE(2)"}, 'Delete feature "EXTRUDE(2)"'),
-        ("nx_bend_table", {"anything": 1}, "Bend table"),
+        (
+            "nx_sketch_line",
+            {"sketch_id": "obj_sketch", "start": {"x": 0, "y": 0}, "end": {"x": 30, "y": 40}},
+            'Add 50 mm line to sketch "profile"',
+        ),
+        ("nx_boolean", {"boolean_type": "unite", "targets": ["a", "b"]}, "Unite 2 bodies"),
+        ("nx_check_clearance", {"objects": list("abcd")}, "Check clearance between 4 objects"),
+        ("nx_measure_volume", {"scope": "assembly"}, "Measure volume of the whole assembly"),
+        ("nx_ui_control", {"mode": "status"}, "Check who controls NX"),
+        (
+            "nx_component_action",
+            {"component": "obj_bolt", "action": "replace", "part_path": "parts/m8.prt"},
+            'Replace component "BOLT M8" with parts/m8.prt',
+        ),
+        (
+            "nx_native_component_pattern",
+            {"component": "obj_bolt", "direction": [0, -1, 0], "spacing": 25, "count": 4},
+            'Pattern "BOLT M8" 4 × 25 mm along -Y',
+        ),
+        (
+            "nx_add_section_drawing_view",
+            {"parent_view": "obj_front", "cut_object": "obj_edge", "scale": 0.5},
+            'Add a section view of "FRONT@1" through "EDGE_1" at 1:2',
+        ),
+        (
+            "nx_create_parts_list",
+            {"drawing": "obj_sheet", "position": [10, 10], "scope": "top_level"},
+            'Add a parts list (top level) to drawing "SHT1"',
+        ),
+        (
+            "nx_edit_faces",
+            {"faces": ["obj_face"], "action": "move", "distance": -2, "direction": [0, 0, 1]},
+            'Move "FACE_7" -2 mm along +Z',
+        ),
+        (
+            "nx_section_view",
+            {"origin": [0, 0, 15], "normal": [1, 0, 0]},
+            'Add section "MCP section" at (0, 0, 15) normal +X',
+        ),
+        (
+            "nx_bend_table",
+            {"view": "obj_flat", "position": [200, 40], "columns": ["BendID", "BendAngle"]},
+            'Add bend table for view "FLAT@2" (2 columns)',
+        ),
+        (
+            "nx_sketch_tangent",
+            {"sketch_id": "obj_sketch", "curve1": "obj_edge", "curve2": "obj_arc"},
+            'Make "ARC_2" tangent to "EDGE_1"',
+        ),
+        (
+            "nx_copy_project",
+            {"path": "smoke/rev_b", "prefix": "b_"},
+            'Copy the assembly to smoke/rev_b with prefix "b_"',
+        ),
+        (
+            "nx_set_display",
+            {"objects": ["obj_bolt"], "color": "red", "transparency": 50},
+            'Make "BOLT M8" red, 50% transparent',
+        ),
     ],
 )
 def test_summaries_use_real_arguments_and_names(method, params, expected):
     assert describe(method, params) == expected
 
 
-def test_batch_names_first_step_and_counts_the_rest():
-    operations = [
-        {"method": "nx_blend", "params": {"edges": ["obj_edge"], "radius": 2}},
-        {"method": "nx_fit_view", "params": {}},
+def test_batch_counts_steps_and_names_the_first():
+    line = {"sketch_id": "obj_sketch", "start": {"x": 0, "y": 0}, "end": {"x": 40, "y": 0}}
+    operations = [{"method": "nx_sketch_line", "params": line}] * 4 + [
+        {"method": "nx_add_component", "params": {"part_path": "parts/bolt.prt"}}
     ]
     assert describe("nx_batch", {"operations": operations}) == (
-        "Blend 1 edge R2 mm (+1 more in the same step)"
+        'Batch of 5 steps: Add 40 mm line to sketch "profile" (+4 more)'
+    )
+    one = describe("nx_batch", {"operations": operations[-1:]})
+    assert one == "Batch of 1 step: Add component parts/bolt.prt"
+    assert describe("nx_batch", {"operations": []}) == "Run an empty batch"
+
+
+def test_batch_keeps_its_count_when_the_first_step_is_long():
+    long_name = {"expression": "x" * 200, "formula": "1"}
+    operations = [{"method": "nx_set_expression", "params": long_name}] * 12
+    line = describe("nx_preview_change", {"operations": operations})
+    assert len(line) <= MAX_LENGTH
+    assert line.startswith("Preview 12 changes: Set xxx") and line.endswith("… (+11 more)")
+
+
+def test_sketch_edits_and_sheet_metal_name_their_first_change_and_values():
+    edits = [
+        {"action": "add_line", "start": [0, 0], "end": [0, 25]},
+        {"action": "constraint", "curve": "obj_edge", "type": "horizontal"},
+        {"action": "delete", "object": "obj_arc"},
+    ]
+    assert describe("nx_edit_sketch", {"sketch_id": "obj_sketch", "operations": edits}) == (
+        'Edit sketch "profile": add 25 mm line (+2 more)'
+    )
+    flange = {"operation": "advanced_flange", "parameters": {"length": 25, "angle": 90}}
+    assert describe("nx_sheet_metal_feature", flange) == (
+        "Add sheet-metal advanced flange, 25 mm long, 90°"
+    )
+    edit = {"operation": "tab", "feature": "obj_flange", "parameters": {"thickness": 2}}
+    assert describe("nx_sheet_metal_feature", edit) == (
+        'Edit sheet-metal tab "SB_FLANGE(4)", 2 mm thick'
+    )
+
+
+def test_feature_parameters_and_formats_show_the_values_that_change():
+    values = {"obj_p12": "25", "p13": "4"}
+    assert describe("nx_set_feature_parameters", {"feature": "obj_extrude", "values": values}) == (
+        'Set a parameter = 25 (+1 more) on "EXTRUDE(2)"'
+    )
+    tolerance = {
+        "dimension": "obj_edge",
+        "decimal_places": 2,
+        "tolerance_type": "bilateral",
+        "upper_tolerance": 0.1,
+        "lower_tolerance": -0.05,
+    }
+    assert describe("nx_edit_dimension_format", tolerance) == (
+        'Format dimension "EDGE_1": 2 decimals, +0.1/-0.05 mm'
+    )
+    fcf = {
+        "faces": ["obj_face"],
+        "characteristic": "ProfileOfASurface",
+        "tolerance": 0.2,
+        "zone_shape": "none",
+        "datums": ["a", "b"],
+    }
+    assert describe("nx_pmi_fcf", fcf) == (
+        'Add profile of a surface tolerance 0.2 mm on "FACE_7" to 2 datums'
     )
 
 

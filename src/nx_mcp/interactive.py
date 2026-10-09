@@ -31,6 +31,7 @@ _retired = []
 # answer from the panel. Keep this well under the 120 s bridge timeout so an
 # approved request still has time to run.
 HOLD_SECONDS = 60
+PANEL_ROWS = 8  # Panel body lines: running/idle line or request card, then history.
 
 # Steps that change only the view or write an image; grouped with read-only
 # inspections in the panel history so model changes stay visible.
@@ -167,8 +168,8 @@ class ControlPanel:
             0x10C80000,
             40,
             60,
-            560,
-            245,
+            680,
+            265,
             self.host.main_hwnd,
             None,
             None,
@@ -182,23 +183,27 @@ class ControlPanel:
                 0, cls_name, text, style, x, y, width, height, self.hwnd, ident, None, None
             )
 
-        # Status (who has control, current or waiting step) above recent activity.
-        self.label = control("STATIC", "Starting interactive bridge...", 0x50000000, 12, 8, 530, 72)
-        self.history = control("STATIC", "", 0x50000000, 12, 84, 530, 72)
+        # One list, newest first: the running step (or idle line / request card) on
+        # top, then recent activity. The title and toggle already say who has control.
+        # SS_LEFTNOWORDWRAP (0xC): an entry never wraps into the next one; a line too
+        # long for a high-DPI font is clipped at the right edge instead.
+        self.label = control(
+            "STATIC", "Starting interactive bridge...", 0x5000000C, 12, 8, 650, 164
+        )
         # One toggle hands control over in either direction; its caption names
         # the only available action. "Not now" replaces "Open log" only while the
         # agent is waiting for control. Stop sits apart so it is not hit by mistake.
-        self.toggle = control("BUTTON", "Give control to agent", 0x50010000, 12, 164, 250, 28, 101)
-        self.decline = control("BUTTON", "Not now", 0x40010000, 270, 164, 110, 28, 104)
-        self.open_log = control("BUTTON", "Open log", 0x50010000, 270, 164, 110, 28, 105)
-        stop = control("BUTTON", "Stop bridge", 0x50010000, 412, 164, 130, 28, 103)
+        self.toggle = control("BUTTON", "Give control to agent", 0x50010000, 12, 178, 250, 28, 101)
+        self.decline = control("BUTTON", "Not now", 0x40010000, 270, 178, 110, 28, 104)
+        self.open_log = control("BUTTON", "Open log", 0x50010000, 270, 178, 110, 28, 105)
+        stop = control("BUTTON", "Stop bridge", 0x50010000, 532, 178, 130, 28, 103)
         # The dialog font fits a full activity line; the default system font does not.
         try:
             gdi = ctypes.WinDLL("gdi32")
             gdi.GetStockObject.restype = ctypes.c_void_p
             font = gdi.GetStockObject(17)  # DEFAULT_GUI_FONT
             self.user.SendMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
-            for child in (self.label, self.history, self.toggle, self.decline, self.open_log, stop):
+            for child in (self.label, self.toggle, self.decline, self.open_log, stop):
                 self.user.SendMessageW(child, 0x30, font, 1)  # WM_SETFONT
         except Exception as exc:
             self.host.last_error = "Panel font: " + str(exc)
@@ -230,15 +235,12 @@ class ControlPanel:
         button=None,
         button_enabled=True,
         decline_visible=False,
-        history=None,
     ):
-        state = (text, title, button, button_enabled, decline_visible, history)
+        state = (text, title, button, button_enabled, decline_visible)
         if state == getattr(self, "_text", None):
             return
         self._text = state
         self.user.SetWindowTextW(self.label, text)
-        if history is not None:
-            self.user.SetWindowTextW(self.history, history)
         if title is not None:
             self.user.SetWindowTextW(self.hwnd, title)
         if button is not None:
@@ -393,7 +395,7 @@ class InteractiveHost:
             "_sample_monotonic": time.monotonic(),
             "_operation_monotonic": self.operation_started,
         }
-        self.panel.update(*self.panel_state(), history=self.history_text())
+        self.panel.update(*self.panel_state())
         temp = self.state_dir / "ui-state.tmp"
         temp.write_text(json.dumps(state))
         temp.replace(self.state_dir / "ui-state.json")
@@ -407,27 +409,31 @@ class InteractiveHost:
             self._activity = Activity(state_dir / "activity.log" if state_dir else None)
         return self._activity
 
-    def history_text(self):
-        lines = self.activity.recent(4)
-        return "Recent agent activity\n" + ("\n".join(lines) if lines else "Nothing yet.")
+    def history_lines(self, rows):
+        """The latest activity lines, newest first."""
+        return list(reversed(self.activity.recent(rows))) if rows > 0 else []
+
+    def _with_history(self, lines):
+        return "\n".join(lines + self.history_lines(PANEL_ROWS - len(lines)))
 
     def panel_text(self):
+        from nx_mcp.activity import LINE_WIDTH, _clip
+
         if self.running_method:
             # The panel cannot repaint while NX runs this step, so show a start
             # time rather than a counter that would appear frozen.
             started = time.strftime("%H:%M:%S", time.localtime(self.current_started_at))
-            lines = [
-                "● Agent working",
-                f"▶ {self.current_summary or self.running_method}",
-            ]
+            head, tail = f"▶  {started}  ", " — running, NX may pause"
+            summary = self.current_summary or self.running_method
+            lines = [head + _clip(summary, LINE_WIDTH - len(head) - len(tail)) + tail]
             if self.current_intent:
-                lines.append(f"   “{self.current_intent}”  (agent's note)")
-            lines.append(f"Started {started} · NX may freeze until this step finishes.")
-            return "\n".join(lines)
+                indent = " " * (len(head) + 2)
+                lines.append(indent + _clip(f"“{self.current_intent}”", LINE_WIDTH - len(indent)))
+            return self._with_history(lines)
         handover_error = getattr(self, "handover_error", None)
         if self.mode == "manual" and self.waiting_count:
             more = f"  (+{self.waiting_count - 1} more)" if self.waiting_count > 1 else ""
-            lines = ["● You have control", f"▶ Agent wants to: {self.waiting_summary}{more}"]
+            lines = [f"▶ Agent wants to: {self.waiting_summary}{more}"]
             if self.waiting_intent:
                 lines.append(f"   “{self.waiting_intent}”  (agent's note)")
             left = max(0, int(HOLD_SECONDS - (time.monotonic() - self.waiting_since)))
@@ -436,22 +442,19 @@ class InteractiveHost:
             )
             return "\n".join(lines)
         if self.mode == "manual":
-            return "● You have control\n" + (
+            first = (
                 handover_error
                 or self.notice
                 or self.recap
                 or "Agent requests wait until you give control to the agent."
             )
-        idle = (
-            " since " + time.strftime("%H:%M", time.localtime(self.idle_since))
-            if self.idle_since
-            else ""
-        )
-        return (
-            "● Agent has control — NX input is locked\n"
-            f"Idle{idle} · waiting for the agent's next request.\n"
-            "Take control back at any time to work in NX."
-        )
+            return self._with_history([first])
+        if self.idle_since:
+            since = time.strftime("%H:%M", time.localtime(self.idle_since))
+            idle = f"·  Idle since {since} — waiting for the agent's next request"
+        else:
+            idle = "·  Waiting for the agent's first request"
+        return self._with_history([idle])
 
     def panel_state(self):
         """Label, window title, toggle caption, toggle enabled, and "Not now" visibility."""
@@ -698,7 +701,7 @@ class InteractiveHost:
                 self.dispatcher.drain(timeout=0, limit=1)
             else:
                 self._serve_while_engineer_has_control()
-            self.panel.update(*self.panel_state(), history=self.history_text())
+            self.panel.update(*self.panel_state())
             if self.ticks % 10 == 0:
                 self.publish()
         except BaseException as exc:

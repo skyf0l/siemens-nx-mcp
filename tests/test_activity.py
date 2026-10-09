@@ -94,8 +94,22 @@ def test_model_state_survives_a_very_long_summary():
 def test_created_name_from_result_or_changes():
     assert created_name({"sketch": {"name": "profile"}}) == "profile"
     created = [{"name": "EDGE_1"}, {"name": "EDGE_2"}, {"name": "FACE_1"}]
-    assert created_name({"changes": {"created": created}}) == "EDGE_1, EDGE_2 +1"
+    assert created_name({"changes": {"created": created}}) == "EDGE_1"
     assert created_name({"status": "success"}) is None
+    # nx_create_sketch: the sketch, not "SKETCH(1:1B), SKETCH(1) +5" internals.
+    sketch = {"id": "s", "kind": "sketch", "name": "NACELLE_PROFILE"}
+    made = [
+        {"id": "f", "kind": "feature", "name": "SKETCH(1:1B)"},
+        {"id": "f2", "kind": "feature", "name": "SKETCH(1)"},
+        sketch,
+        *({"id": f"p{i}", "kind": "point", "name": f"Point{i}"} for i in range(4)),
+    ]
+    assert created_name({"object": sketch, "changes": {"created": made}}) == "NACELLE_PROFILE"
+    assert created_name({"changes": {"created": made}}) == "NACELLE_PROFILE"
+    lines = [{"id": f"l{i}", "kind": "curve", "name": f"Line{i}"} for i in range(4)]
+    assert created_name({"changes": {"created": lines}}) == "4 curves"
+    # "object" names a modified thing too: only shown when this step created it.
+    assert created_name({"object": sketch, "changes": {"created": []}}) is None
 
 
 def test_log_failure_never_breaks_recording(tmp_path):

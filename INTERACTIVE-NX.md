@@ -67,25 +67,30 @@ resident-journal variant and can freeze NX as described above.
 
 ## What the agent is doing
 
-While the agent works, the panel shows the step in plain words with the agent's
-note and its start time (`Started 14:32:05 · NX may freeze until this step
-finishes`). The panel cannot repaint during a native call, so it shows a start
-time, not a running counter. When the agent is idle but holds control, it shows
-`Idle since 14:32`, so you know it is safe to take control back.
-
-Below that, **Recent agent activity** lists the last four entries:
+The window title and the toggle say who has control; the panel body is one
+list of the agent's activity, newest first. The step running now is the top
+line, in plain words with its start time and the agent's note below it:
 
 ```
-✓  14:32:05  Extrude "profile" 10 mm → EXTRUDE(2)  7.0 s
-·  14:32:09  3 read-only or view steps (model unchanged)
+▶  14:32:31  Blend 2 edges R3 mm — running, NX may pause
+               “Round the outer edges”
 ✗  14:32:20  Drill hole Ø6.6 mm × 12 mm deep — rolled back, model unchanged (…)
-⚠  14:32:31  Blend 2 edges R3 mm — partly applied, check the model
+·  14:32:09  3 read-only or view steps (model unchanged)
+✓  14:32:05  Extrude "profile" 10 mm → EXTRUDE(2)  7.0 s
 ```
+
+The panel cannot repaint during a native call, so the running line shows a
+start time, not a counter. When the step ends it becomes a ✓/✗/⚠ line in place.
+When the agent is idle but holds control, the top line reads `·  Idle since
+14:32 — waiting for the agent's next request`, so you know it is safe to take
+control back.
 
 Failures always state what happened to the model; a long summary is shortened
 before the model state is. Read-only and view-only steps are grouped into one
-line. When you take control back, the panel recaps the agent's session
-(`Agent's last session: 6 changes, 1 failed (14:31–14:33)`).
+line. When you take control back, the top line recaps the agent's session
+(`Agent's last session: 6 changes, 1 failed (14:31–14:33)`) above the same
+list. While the agent is waiting for control, the request card replaces the
+list.
 
 Every step, including each read-only one, is appended to
 `<workspace>/.nx-mcp/activity.log` with its tool name and the agent's note.

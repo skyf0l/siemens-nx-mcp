@@ -265,7 +265,10 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
         state = __import__("json").loads((host.state_dir / "ui-state.json").read_text())
         assert state["running_method"] == "nx_test_busy"
         text = host.panel.update.call_args.args[0]
-        assert "● Agent working" in text and "▶ Test busy" in text and "Started " in text
+        # The running step is the top line of the history; the title says who works.
+        top = text.splitlines()[0]
+        assert top.startswith("▶  ") and top.endswith("Test busy — running, NX may pause")
+        assert "Agent working" not in text
         assert host.panel.update.call_args.args[1] == "NX MCP — Agent working"
         return {}
 
@@ -277,7 +280,8 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
     host.dispatcher.drain.assert_not_called()
     assert host.status()["activity"] == "reserved_idle"
     assert host.status()["last_duration_seconds"] >= 0
-    assert "NX input is locked" in host.panel_text()
+    idle, *history = host.panel_text().splitlines()
+    assert idle.startswith("·  Idle since ") and history[0].startswith("✓ ")
     assert not host.status()["nx_window_input_enabled"]
 
 
@@ -303,13 +307,15 @@ def test_panel_unchanged_text_does_not_repaint(host):
 def test_toggle_caption_and_title_follow_who_has_control(host):
     host.mode = "manual"
     text, title, button, enabled, decline = host.panel_state()
-    assert text.startswith("● You have control") and title == "NX MCP — You have control"
+    # Who has control is in the title and the toggle only, not repeated in the body.
+    assert text.startswith("Agent requests wait") and title == "NX MCP — You have control"
     assert (button, enabled, decline) == ("Give control to agent", True, False)
     host.handover_error = "Close the open NX dialog, then give control to the agent again."
     assert "Close the open NX dialog" in host.panel_state()[0]
     host.mode = "agent"
     text, title, button, _, _ = host.panel_state()
-    assert text.startswith("● Agent has control") and title == "NX MCP — Agent has control"
+    assert text.startswith("·  Waiting for the agent's first request")
+    assert title == "NX MCP — Agent has control"
     assert button == "Take control back"
     host.running_method = "nx_extrude"
     assert host.panel_state()[2:] == ("Take control back after this step", True, False)
@@ -323,7 +329,6 @@ def test_panel_update_sets_title_and_toggle(host):
         SetWindowTextW=Mock(), EnableWindow=Mock(), UpdateWindow=Mock(), ShowWindow=Mock()
     )
     panel.label, panel.hwnd, panel.toggle, panel.decline, panel.open_log = 2, 3, 4, 5, 6
-    panel.history = 7
     panel.update("text", "NX MCP — Agent is waiting", "Give control to agent", True, True)
     shown = [c.args for c in panel.user.ShowWindow.call_args_list]
     assert (5, 5) in shown and (6, 0) in shown  # "Not now" replaces "Open log".
@@ -332,10 +337,10 @@ def test_panel_update_sets_title_and_toggle(host):
     assert (3, "NX MCP — You have control") in calls and (4, "Handing over…") in calls
     assert panel.user.EnableWindow.call_args_list[-1].args == (4, False)
     assert panel.user.ShowWindow.call_args_list[-2:][0].args == (5, 0)
-    panel.update("t", "x", "y", True, False, "Recent agent activity")
-    assert (7, "Recent agent activity") in [
+    panel.update("▶  14:32:05  Extrude\n✓  14:32:01  Sketch", "x", "y", True, False)
+    assert (2, "▶  14:32:05  Extrude\n✓  14:32:01  Sketch") in [
         c.args for c in panel.user.SetWindowTextW.call_args_list
-    ]
+    ]  # One body: the history shares the label with the running step.
 
 
 class _Queue:
@@ -428,14 +433,16 @@ def test_history_idle_text_and_recap_follow_real_operations(host, rig):
     host.execute("nx_list_bodies", {})
     with pytest.raises(NXToolError):
         host.execute("nx_test_fail", {})
-    history = host.history_text().splitlines()
-    assert history[0] == "Recent agent activity"
-    assert history[1].startswith("✓ ") and "Test make → EXTRUDE(2)" in history[1]
-    assert "1 read-only or view step (model unchanged)" in history[2]
-    assert history[3].startswith("✗ ") and "model unchanged" in history[3]
-    assert "Idle since" in host.panel_text() and host.current_summary is None
+    # One list, newest first, under the idle line; no separate status block.
+    idle, *history = host.panel_text().splitlines()
+    assert idle.startswith("·  Idle since ") and host.current_summary is None
+    assert history[0].startswith("✗ ") and "model unchanged" in history[0]
+    assert "1 read-only or view step (model unchanged)" in history[1]
+    assert history[2].startswith("✓ ") and "Test make → EXTRUDE(2)" in history[2]
     host.control("manual")
-    assert "Agent's last session: 1 change, 1 failed" in host.panel_text()
+    recap, *history = host.panel_text().splitlines()
+    assert recap.startswith("Agent's last session: 1 change, 1 failed")
+    assert history[0].startswith("✗ ")
     log = (host.state_dir / "activity.log").read_text(encoding="utf-8")
     assert "note: “Add the boss”" in log and log.count("\n") == 3
 
