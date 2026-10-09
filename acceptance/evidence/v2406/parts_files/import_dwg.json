@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "scenario": "acceptance/parts_files/import_dwg.json",
+  "scenario_sha256": "da0383c97063808d9fb1f699f79598ebf7a92abe0f869a327f40bba03d4c7f2a",
+  "domain": "parts_files",
+  "covers": {
+    "nx_import_model": [
+      "dxf_dwg"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "b24f1f4ce44d3798636f439040afbbc2af9ae72b",
+  "sources": {
+    "nx_import_model": "b7e3854d7c227d029122b32eecdf775f8f5cd285938a25353fdce1bdf2b29e54"
+  },
+  "run_id": "20261010-005450-6d5bc9",
+  "owner": "wa_import",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-005450-6d5bc9\\parts_files_import_dwg_6d5bc9.prt",
+  "started": "2026-10-09T20:55:03Z",
+  "finished": "2026-10-09T20:55:05Z",
+  "passed": true,
+  "checks": 14,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.484,
+      "result_sha256": "b2ca651ac646db53c880cffbb9cb5e32f7b12ad8fd80de508a430e9229c41c2b"
+    },
+    {
+      "index": 2,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 8,
+      "seconds": 0.578,
+      "result_sha256": "333948297fc04b8d6a6ded53d6e95168c4f09e9c29ce4d26597bcf899e5d1568"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "33d48bf4ff81b4690e0e58094c7377bea7bc868796a8c62e444a6d03a9097358"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "e22695c6a054c6bbb71adb2f00ca29ae2040fc8e81a2b2996f9e12690562951c"
+    },
+    {
+      "index": 5,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.579,
+      "result_sha256": "f3cd34f41b561adac76a3a79343ca6f9ed56c2566e4df3812e76d0c0aeb57427"
+    },
+    {
+      "index": 6,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.125,
+      "result_sha256": "6b6653daecbaa8e7fefeed00d8584386ecdd2495d4c89005a36bd6f42f74955a"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-005450-6d5bc9/parts_files_import_dwg_6d5bc9.prt"
+    ],
+    "failed": []
+  }
+}

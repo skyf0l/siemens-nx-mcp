@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "scenario": "acceptance/parts_files/import_catia_v5_license_2406.json",
+  "scenario_sha256": "fb7c1beae69fb8a00251ab563e8f02cbca53cb2152df28d6bc427723c56586f9",
+  "domain": "parts_files",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "b24f1f4ce44d3798636f439040afbbc2af9ae72b",
+  "sources": {},
+  "run_id": "20261010-010512-781deb",
+  "owner": "fix_probe_evidence",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-010512-781deb\\parts_files_import_catia_v5_license_2406_781deb.prt",
+  "started": "2026-10-09T21:05:12Z",
+  "finished": "2026-10-09T21:05:13Z",
+  "passed": true,
+  "checks": 7,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.922,
+      "result_sha256": "6ad3a7b6190178fa0883868a2b159c62d15d7790dc464d6c5ef7385863c7049b"
+    },
+    {
+      "index": 2,
+      "call": "nx_upload_file",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "5a936e43219d3fbf554a0570f184937869406c38c7d3b988a5730d264148f70e"
+    },
+    {
+      "index": 3,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.109,
+      "result_sha256": "fd7ca6db930ea77f07b7a05c6e143db4d34e2b3593ef45c0ca7decf35ec26c10"
+    },
+    {
+      "index": 4,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "7fb75042cde8dcb0d23a7fad76e8d63a53ee7dcc06467dd48461b52c4adcb411"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-010512-781deb/parts_files_import_catia_v5_license_2406_781deb.prt"
+    ],
+    "failed": []
+  }
+}

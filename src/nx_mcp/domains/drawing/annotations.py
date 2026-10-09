@@ -541,8 +541,8 @@ def nx_update_annotations(
     *,
     objects: Annotated[list[RefTo()], Items(1, 100)] | None = None,  # type: ignore[valid-type]
 ) -> RefreshData:
-    """Refresh managed annotations from the model: parts lists, automatic bend tables, detail
-    boundaries and measured callouts. Omit objects to refresh all of them."""
+    """Refresh managed annotations from the model: parts lists, bend tables, title blocks,
+    detail boundaries and callouts. Omit objects to refresh all of them."""
     live = (
         [select.resolve(tx, r, field=f"/objects/{i}") for i, r in enumerate(objects)]
         if objects

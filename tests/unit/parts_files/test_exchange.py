@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from nx_mcp.domains.parts_files import exchange
+from nx_mcp.domains.parts_files import exchange, importing
 from tests.kit import NXException
 from tests.kit.objects import Body
 from tests.unit.parts_files.support import call
@@ -100,7 +100,7 @@ def test_import_into_the_work_part(nx, root, ugii):
     part = nx.new_part("w.prt")
     (root / "in.step").write_text(STEP)
     ok = call(
-        nx, exchange.nx_import_model, path="in.step", format="step", operation_id="op_import_1"
+        nx, importing.nx_import_model, path="in.step", format="step", operation_id="op_import_1"
     )
     assert ok.ok and ok.mutation_outcome == "committed", ok
     importer = nx.step_importers[-1]
@@ -114,7 +114,7 @@ def test_import_into_the_work_part(nx, root, ugii):
 
 def test_import_into_a_new_part(nx, root, ugii):
     (root / "in.step").write_text(STEP)
-    ok = call(nx, exchange.nx_import_model, path="in.step", format="step", target="new_part",
+    ok = call(nx, importing.nx_import_model, path="in.step", format="step", target="new_part",
               new_part_path="imp/new.prt")  # fmt: skip
     assert ok.ok, ok
     work = nx.session.Parts.Work
@@ -126,14 +126,14 @@ def test_import_rejections_and_rollback(nx, root, ugii):
     nx.new_part("w.prt")
     (root / "in.step").write_text(STEP)
     (root / "cut.step").write_text(STEP[:-20])
-    truncated = call(nx, exchange.nx_import_model, path="cut.step", format="step")
+    truncated = call(nx, importing.nx_import_model, path="cut.step", format="step")
     assert truncated.error["code"] == "NX_INVALID_ARGUMENT" and truncated.error["field"] == "/path"
     assert truncated.mutation_outcome == "not_started"
-    both = call(nx, exchange.nx_import_model, path="in.step", format="step", target="new_part")
+    both = call(nx, importing.nx_import_model, path="in.step", format="step", target="new_part")
     assert both.error["field"] == "/new_part_path"
     nx.import_bodies = 0
     loaded = len(nx.session.Parts)
-    empty = call(nx, exchange.nx_import_model, path="in.step", format="step",
+    empty = call(nx, importing.nx_import_model, path="in.step", format="step",
                  target="new_part", new_part_path="imp/n2.prt", operation_id="op_import_2")  # fmt: skip
     assert empty.error["code"] == "NX_INCOMPLETE_RESULT" and empty.mutation_outcome == "rolled_back"
     assert len(nx.session.Parts) == loaded and not (root / "imports" / "op_import_2").exists()
@@ -146,7 +146,7 @@ def test_import_refuses_loaded_product_names_without_flatten(nx, root, ugii):
         "DATA;\n", "DATA;\n#9=NEXT_ASSEMBLY_USAGE_OCCURRENCE('1','','',#1,#1,$);\n"
     )
     (root / "asm.step").write_text(asm_step)
-    bad = call(nx, exchange.nx_import_model, path="asm.step", format="step", flatten=False)
+    bad = call(nx, importing.nx_import_model, path="asm.step", format="step", flatten=False)
     assert bad.error["code"] == "NX_NAME_CONFLICT" and bad.mutation_outcome == "not_started"
     assert bad.error["details"]["loaded_parts"] == ["blk.prt"]
     assert not nx.step_importers

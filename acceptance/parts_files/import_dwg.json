@@ -1,0 +1,23 @@
+{
+  "covers": {"nx_import_model": ["dxf_dwg"]},
+  "fixture": "fixtures/parts_files_plate.dwg",
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part"}},
+    {"call": "nx_import_model", "args": {"path": "$fixture", "format": "dxf_dwg"},
+     "expect": {"mutation_outcome": "committed", "data.format": "dxf_dwg", "data.curve_count": 5,
+                "data.curves": {"count": 5}, "data.body_count": 0, "data.file_units": "mm",
+                "data.bounds.min": {"close": [0, 0, 0], "tol": 0.001},
+                "data.bounds.max": {"close": [40, 20, 0], "tol": 0.001}}},
+    {"call": "nx_create_sketch", "setup": true, "save": "sk",
+     "args": {"placement": {"principal": "yz", "origin": [100, 0, 0]}}},
+    {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+    {"call": "nx_import_model",
+     "args": {"path": "$fixture", "format": "dxf_dwg", "target": "sketch", "sketch": "$sk.data.sketch.id"},
+     "expect": {"mutation_outcome": "committed", "data.target": "sketch", "data.curve_count": 5,
+                "data.bounds.min": {"close": [100, 0, 0], "tol": 0.001},
+                "data.bounds.max": {"close": [100, 40, 20], "tol": 0.001}}},
+    {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+     "expect": {"data.curves": {"count": 5}}}
+  ]
+}

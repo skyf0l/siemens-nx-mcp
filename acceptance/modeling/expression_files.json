@@ -1,0 +1,700 @@
+{
+ "covers": {
+  "nx_export_expressions": [],
+  "nx_import_expressions": [
+   "replace",
+   "keep",
+   "delete"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "10",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "wall",
+    "formula": "len/4",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "ratio",
+    "formula": "3"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "setup": true,
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "distance",
+      "value": "len"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "args": {
+    "path": "$run/ex/all.exp"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.path": {
+     "matches": "ex/all\\.exp$"
+    },
+    "data.names": {
+     "contains": "len"
+    },
+    "data.truncated": false
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "args": {
+    "path": "$run/ex/some.exp",
+    "names": [
+     "len",
+     "w*"
+    ],
+    "sort": "timestamp"
+   },
+   "expect": {
+    "data.count": 2,
+    "data.names": [
+     "len",
+     "wall"
+    ]
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "args": {
+    "path": "$run/ex/all.exp"
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "args": {
+    "path": "$run/ex/none.exp",
+    "names": [
+     "zz*"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/names"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "args": {
+    "path": "$run/ex/all.txt"
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_FILE_TYPE",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "20"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 16000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/all.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.changed": {
+     "count": 1
+    },
+    "data.changed.0.expression.name": "len",
+    "data.changed.0.previous": "20",
+    "data.changed.0.value": {
+     "close": 10,
+     "tol": 1e-09
+    },
+    "data.created": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "25"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "extra",
+    "formula": "len*2",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/new.exp",
+    "names": [
+     "len",
+     "extra"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "10"
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/new.exp",
+    "mode": "delete"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.deleted": [
+     "extra"
+    ],
+    "data.skipped": [
+     "len"
+    ],
+    "data.changed": {
+     "count": 0
+    },
+    "data.created": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/new.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "data.file_expressions": 2,
+    "data.created.0.expression.name": "extra",
+    "data.created.0.value": {
+     "close": 50,
+     "tol": 1e-09
+    },
+    "data.created.0.units": "mm",
+    "data.changed.0.previous": "10",
+    "data.changed.0.value": {
+     "close": 25,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 20000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "30"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "extra2",
+    "formula": "7"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/keep.exp",
+    "names": [
+     "len",
+     "extra2"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "25"
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/keep.exp",
+    "mode": "delete"
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/keep.exp",
+    "mode": "keep"
+   },
+   "expect": {
+    "data.skipped": [
+     "len"
+    ],
+    "data.changed": {
+     "count": 0
+    },
+    "data.created.0.expression.name": "extra2",
+    "data.created.0.value": {
+     "close": 7,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 20000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "helper",
+    "formula": "3",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "wall",
+    "formula": "helper*2"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "fresh",
+    "formula": "helper+1",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/missing.exp",
+    "names": [
+     "wall"
+    ]
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/fresh.exp",
+    "names": [
+     "fresh"
+    ]
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/helper.exp",
+    "names": [
+     "helper"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "wall",
+    "formula": "len/4"
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/fresh.exp",
+    "mode": "delete"
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/helper.exp",
+    "mode": "delete"
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/missing.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "error.code": "NX_IMPORT_FAILED",
+    "error.field": "/path",
+    "mutation_outcome": "rolled_back",
+    "error.details.expressions.0.name": "wall",
+    "error.details.expressions.0.nx_code": 1050007
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/fresh.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "error.code": "NX_IMPORT_FAILED",
+    "error.nx_code": 1050053,
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 20000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "wall",
+    "formula": "5"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "wall*2"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/cycle.exp",
+    "names": [
+     "len"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "len",
+    "formula": "25"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "wall",
+    "formula": "len/4"
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/cycle.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "error.code": "NX_IMPORT_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.details.expressions.0.problem": "depends on itself"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 20000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "ang",
+    "formula": "12",
+    "units": "deg"
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "setup": true,
+   "args": {
+    "path": "$run/ex/ang.exp",
+    "names": [
+     "ang"
+    ]
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/ang.exp",
+    "mode": "delete"
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "ang",
+    "formula": "12",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/ang.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.details.expressions.0.units": "mm"
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/nope.exp",
+    "mode": "replace"
+   },
+   "expect": {
+    "error.field": "/path",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 20000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

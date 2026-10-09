@@ -13,7 +13,7 @@ import contextlib
 
 from nx_mcp.core.catalogue import deleter, lister, refresher, sheet_locator
 from nx_mcp.core.errors import fail
-from nx_mcp.domains.drawing import views
+from nx_mcp.domains.drawing import title_blocks, views
 from nx_mcp.domains.drawing.common import DETAIL, attribute, table_kind, update
 from nx_mcp.domains.drawing.tables import cells
 from nx_mcp.kit import builders, drawing
@@ -56,7 +56,8 @@ def refresh_detail_views(tx, objects):
 
 @refresher("drawing_table")
 def refresh_tables(tx, objects):
-    """Update parts lists and rebuild automatic bend tables; rows of the changed ones."""
+    """Update parts lists, rebuild automatic bend tables and re-evaluate title blocks
+    (attribute links); the changed ones."""
     part = tx.part
     out = []
     for plist in _wanted(objects, part.Annotations.PartsLists):
@@ -76,6 +77,12 @@ def refresh_tables(tx, objects):
             rebuilt = b.commit()
         if rebuilt is not None and (cells(tx, rebuilt.Tag) != before or objects is not None):
             out.append(tx.ref(rebuilt, "drawing_table"))
+    blocks = getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None) or []
+    for block in _wanted(objects, blocks):
+        before = [c["value"] for c in title_blocks.read(tx, block)]
+        block.DoUpdate()
+        if [c["value"] for c in title_blocks.read(tx, block)] != before or objects is not None:
+            out.append(tx.ref(block, "drawing_table"))
     if out:
         update(tx)
     return out

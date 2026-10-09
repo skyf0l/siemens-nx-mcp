@@ -1,0 +1,554 @@
+{
+ "covers": {
+  "nx_edit_drawing_table": [
+   "title_block"
+  ],
+  "nx_get_drawing_table": [],
+  "nx_create_drawing_table": [
+   "title_block"
+  ],
+  "nx_update_annotations": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "template": "A3"
+   },
+   "expect": {
+    "data.title_block_added": true,
+    "data.title_block.kind": "drawing_table"
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "data.kind": "title_block",
+    "data.cells": {
+     "count": 27
+    },
+    "data.cells.4": {
+     "contains": {
+      "label": "Drawn By",
+      "locked": false,
+      "value": ""
+     }
+    },
+    "data.cells.15": {
+     "contains": {
+      "label": "Label7",
+      "locked": true,
+      "text": ""
+     }
+    },
+    "data.cells.19.value": "A3",
+    "data.cells.22.value": "SCALE 1:1",
+    "data.position": {
+     "close": [
+      410,
+      10
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "setup": true,
+   "args": {
+    "values": [
+     {
+      "name": "DB_PART_NO",
+      "type": "string",
+      "value": "PN-100"
+     },
+     {
+      "name": "DB_PART_DESC",
+      "type": "string",
+      "value": "BRACKET"
+     },
+     {
+      "name": "DB_MATERIAL",
+      "type": "string",
+      "value": "Steel"
+     },
+     {
+      "name": "DB_PART_REV",
+      "type": "string",
+      "value": "A"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$sh.data.title_block.id",
+    "kind": "title_block",
+    "cells": [
+     {
+      "label": "Label7",
+      "attribute": "DB_PART_DESC",
+      "lock": false
+     },
+     {
+      "label": "Label10",
+      "text": "PART NO",
+      "lock": false
+     },
+     {
+      "label": "Label11",
+      "attribute": "DB_PART_NO",
+      "lock": false
+     },
+     {
+      "label": "Label12",
+      "text": "MATERIAL",
+      "lock": false
+     },
+     {
+      "label": "Label13",
+      "attribute": "DB_MATERIAL",
+      "lock": false
+     },
+     {
+      "label": "Drawn By",
+      "text": "AGENT"
+     },
+     {
+      "label": "Approved By",
+      "text": "REV <W@DB_PART_REV>"
+     },
+     {
+      "section": 1,
+      "row": 5,
+      "column": 2,
+      "text": "<W@$SH_SHEET_SCALE_NUMERATOR>:<W@$SH_SHEET_SCALE_DENOMINATOR>",
+      "lock": false
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.cells.4.value": "AGENT",
+    "data.cells.8": {
+     "contains": {
+      "text": "REV <W@DB_PART_REV>",
+      "value": "REV A"
+     }
+    },
+    "data.cells.10": {
+     "contains": {
+      "label": "Label11",
+      "text": "<W@DB_PART_NO>",
+      "attribute": "DB_PART_NO",
+      "value": "PN-100",
+      "locked": false
+     }
+    },
+    "data.cells.12": {
+     "contains": {
+      "label": "Label13",
+      "attribute": "DB_MATERIAL",
+      "value": "Steel"
+     }
+    },
+    "data.cells.15": {
+     "contains": {
+      "label": "Label7",
+      "attribute": "DB_PART_DESC",
+      "value": "BRACKET"
+     }
+    },
+    "data.cells.23": {
+     "contains": {
+      "label": "Label20",
+      "value": "1:1"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "setup": true,
+   "args": {
+    "values": [
+     {
+      "name": "DB_PART_NO",
+      "type": "string",
+      "value": "PN-200"
+     },
+     {
+      "name": "DB_MATERIAL",
+      "type": "string",
+      "value": "Aluminium"
+     },
+     {
+      "name": "DB_PART_REV",
+      "type": "string",
+      "value": "B"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {
+    "objects": [
+     "$sh.data.title_block.id"
+    ]
+   },
+   "expect": {
+    "data.refreshed": {
+     "count": 1
+    },
+    "data.refreshed.0.kind": "drawing_table"
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$sh.data.title_block.id"
+   },
+   "expect": {
+    "data.cells.8.value": "REV B",
+    "data.cells.10.value": "PN-200",
+    "data.cells.12.value": "Aluminium",
+    "data.cells.15.value": "BRACKET"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$sh.data.title_block.id",
+    "kind": "title_block",
+    "cells": [
+     {
+      "label": "Label14",
+      "text": "X"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_READ_ONLY",
+    "error.field": "/cells/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$sh.data.title_block.id",
+    "kind": "title_block",
+    "cells": [
+     {
+      "label": "Nope",
+      "text": "X"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$sh.data.title_block.id",
+    "kind": "title_block",
+    "rows": [
+     [
+      "A"
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.field": "/rows",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "save": "sh2",
+   "args": {
+    "name": "SHT2",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "own",
+   "args": {
+    "kind": "title_block",
+    "sheet": "$sh2.data.sheet.id",
+    "position": [
+     300,
+     10
+    ],
+    "rows": [
+     [
+      "PART NO",
+      "<W@DB_PART_NO>"
+     ],
+     [
+      "MATERIAL",
+      ""
+     ]
+    ],
+    "widths": [
+     30,
+     50
+    ]
+   },
+   "expect": {
+    "data.rows": [
+     [
+      "PART NO",
+      "PN-200"
+     ],
+     [
+      "MATERIAL",
+      ""
+     ]
+    ],
+    "data.cells": {
+     "count": 4
+    },
+    "data.cells.1": {
+     "contains": {
+      "label": "R0C1",
+      "attribute": "DB_PART_NO",
+      "locked": false
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$own.data.table.id",
+    "kind": "title_block",
+    "cells": [
+     {
+      "row": 1,
+      "column": 1,
+      "attribute": "DB_MATERIAL"
+     },
+     {
+      "label": "R0C0",
+      "lock": true
+     }
+    ]
+   },
+   "expect": {
+    "data.rows.1.1": "Aluminium",
+    "data.cells.0.locked": true,
+    "data.cells.3.text": "<W@DB_MATERIAL>"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$own.data.table.id",
+    "kind": "title_block",
+    "rows": [
+     [
+      "PART NO",
+      "<W@DB_PART_NO>"
+     ],
+     [
+      "MATERIAL",
+      "<W@DB_MATERIAL>"
+     ],
+     [
+      "SCALE",
+      "1:1"
+     ]
+    ]
+   },
+   "expect": {
+    "data.rows": {
+     "count": 3
+    },
+    "data.rows.2.1": "1:1",
+    "data.cells": {
+     "count": 6
+    },
+    "data.cells.0": {
+     "contains": {
+      "label": "R0C0",
+      "locked": true
+     }
+    },
+    "data.cells.5": {
+     "contains": {
+      "label": "R2C1",
+      "locked": false
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "sheet": "$sh2.data.sheet.id"
+   },
+   "expect": {
+    "data.cells": {
+     "count": 6
+    },
+    "data.rows.1.1": "Aluminium"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "inp",
+   "args": {
+    "path": "$run/title_block_in.prt",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "save": "shin",
+   "args": {
+    "name": "SHT1",
+    "template": "Drawing-B-Size2D-template",
+    "units": "in"
+   },
+   "expect": {
+    "data.units": "in",
+    "data.title_block_added": true
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "setup": true,
+   "args": {
+    "values": [
+     {
+      "name": "DB_PART_NO",
+      "type": "string",
+      "value": "IN-7"
+     },
+     {
+      "name": "DB_MATERIAL",
+      "type": "string",
+      "value": "Brass"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$shin.data.title_block.id",
+    "kind": "title_block",
+    "cells": [
+     {
+      "label": "Label16",
+      "attribute": "DB_PART_NO",
+      "lock": false
+     },
+     {
+      "label": "Label11",
+      "attribute": "DB_MATERIAL",
+      "lock": false
+     },
+     {
+      "label": "Drawn By",
+      "text": "AGENT"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "units.length": "in",
+    "data.cells.4": {
+     "contains": {
+      "label": "Drawn By",
+      "value": "AGENT"
+     }
+    },
+    "data.cells.10": {
+     "contains": {
+      "label": "Label11",
+      "attribute": "DB_MATERIAL",
+      "value": "Brass"
+     }
+    },
+    "data.cells.15": {
+     "contains": {
+      "label": "Label16",
+      "attribute": "DB_PART_NO",
+      "value": "IN-7"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "setup": true,
+   "args": {
+    "values": [
+     {
+      "name": "DB_MATERIAL",
+      "type": "string",
+      "value": "Bronze"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "sheet": "$shin.data.sheet.id"
+   },
+   "expect": {
+    "data.cells.10.value": "Bronze",
+    "data.cells.15.value": "IN-7"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$inp.data.part.id",
+    "save": false
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

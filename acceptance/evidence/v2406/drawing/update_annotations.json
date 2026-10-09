@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "b24f1f4ce44d3798636f439040afbbc2af9ae72b",
   "sources": {
-    "nx_update_annotations": "cff22fa04aaf459aaf58076238726a1f3ec982fbfb9263fcea853bc994e82f6b"
+    "nx_update_annotations": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61"
   },
-  "run_id": "20261009-220037-f5bd9e",
-  "owner": "reg_final_2",
+  "run_id": "20261010-005605-170e74",
+  "owner": "wa_titleblock",
   "part": null,
-  "started": "2026-10-09T18:01:54Z",
-  "finished": "2026-10-09T18:01:57Z",
+  "started": "2026-10-09T20:56:05Z",
+  "finished": "2026-10-09T20:56:07Z",
   "passed": true,
   "checks": 6,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.86,
-      "result_sha256": "7297e7f9b79fd0a9f3710149edc3aecc5dfef8870f08d57cf4039a6cc0ffc49c"
+      "seconds": 0.484,
+      "result_sha256": "220cdca1c597f230508e7b2e61281d53b52367d9a3dc24daea669b33a94ce692"
     },
     {
       "index": 2,
@@ -37,7 +37,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.094,
-      "result_sha256": "398d039cce9effaff04fb5a3b9f545267d3870c928dc701c4142bbf1360a5ccc"
+      "result_sha256": "db7c1e27a4c0fc4a0c84051092344dcf12810b69138f64e17e6aec52abd4e676"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.265,
-      "result_sha256": "b4c28c8da954438e41528b2cb304dbf208410c32f0f17bbddfc489e08adfc386"
+      "seconds": 1.062,
+      "result_sha256": "82a663d012089b67481a6dda9dd5d7d0e6ff93908d772e72d3d5cdb9b5edceca"
     },
     {
       "index": 4,
@@ -54,8 +54,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.188,
-      "result_sha256": "8fb566847937fd749edad3de97541977a92bb62f4cde5f0c31a592a09d01ebf9"
+      "seconds": 0.203,
+      "result_sha256": "f7670805d1c5d926aee7ba64d717e8703d80b4ba132fe7a8fb4f80bbcf3a2a8d"
     },
     {
       "index": 5,
@@ -63,8 +63,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "7d812584a574daeb330fa0f12e81df7bc8209ed8582136546abe881c838f8b66"
+      "seconds": 0.078,
+      "result_sha256": "e8b5d427f50c42bf3099aa73c8e99cc77c9a48a309c11dcff4c56838f8441e77"
     },
     {
       "index": 6,
@@ -72,8 +72,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "dc53a92ed45d1720512e311351bbfa0dfc0f3932d5299c1da3aa8fccf0126498"
+      "seconds": 0.11,
+      "result_sha256": "3805f83192fb7527b72c4e2a849c247ad6bf25dd3bec10b14c01aeb993aa2850"
     },
     {
       "index": 7,
@@ -82,7 +82,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.031,
-      "result_sha256": "8c079b759b2ea92a2487b132126c23eb43942bb29db5e94f2353388e044ce9ba"
+      "result_sha256": "f7d0f81c6d89945f5a30a6ec79375cb525c799c59ba2b73dbee4e944e4043ca0"
     },
     {
       "index": 8,
@@ -91,7 +91,7 @@
       "passed": true,
       "checks": 1,
       "seconds": 0.063,
-      "result_sha256": "ca140ea3d8e4386e273d659ae311fb6b4ce9aee2b3ef1eb0fdda13bb75289ecd"
+      "result_sha256": "214ef1e2c78a34593879185083edc5c1a041da28204b57a6ffd4e7b1073b43bf"
     },
     {
       "index": 9,
@@ -99,8 +99,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "06d54c0e1970fe2975a950fe9ced22bceb84903a0f70a65dbc99bd5a0acdac48"
+      "seconds": 0.062,
+      "result_sha256": "47a8a6a5ce8bd732fa2c8ec65e6fa4e9a8305ef1df1e99f4877e0ab5b72d9869"
     },
     {
       "index": 10,
@@ -108,8 +108,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.718,
-      "result_sha256": "539a573f1c7a6e61bd4557efcf82c1f11254bf7284a2b9dbef14067893750632"
+      "seconds": 0.188,
+      "result_sha256": "8457d051b34b848c244e10c831dc096a790ecb00c4705379d96edc66e03b64da"
     }
   ],
   "cleanup": {

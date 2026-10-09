@@ -1,0 +1,587 @@
+{
+  "format": 1,
+  "scenario": "acceptance/modeling/expression_files.json",
+  "scenario_sha256": "7ff31b51a7cc0842f9a62ccc9d02e586f51dbd77ae9552bfba7fcda74cf0818e",
+  "domain": "modeling",
+  "covers": {
+    "nx_export_expressions": [],
+    "nx_import_expressions": [
+      "replace",
+      "keep",
+      "delete"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "b24f1f4ce44d3798636f439040afbbc2af9ae72b",
+  "sources": {
+    "nx_export_expressions": "6ddcc1eec413f04f756e30087459a1a287bae20589b3f7ac0971eca46534a40e",
+    "nx_import_expressions": "6ddcc1eec413f04f756e30087459a1a287bae20589b3f7ac0971eca46534a40e"
+  },
+  "run_id": "20261010-005256-ea4002",
+  "owner": "wa_expressions",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-005256-ea4002\\modeling_expression_files_ea4002.prt",
+  "started": "2026-10-09T20:52:57Z",
+  "finished": "2026-10-09T20:53:01Z",
+  "passed": true,
+  "checks": 58,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.656,
+      "result_sha256": "d21eb0dc92e10ba47d661b936fbcdf7274ef7981a59ae2b99dd3e9fd74e03ae5"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "4794c72f46636ad861a8a01f9711ddefeb9cee346183c091c2dcac7fc987381c"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "2bd82d4fa1723348c7ae7080ed7e8f5f0c62a7e96d50254b9888a5b7e9d0cd26"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "7a8cec77093f2c31de18667178a9f31d6e41972fd6b7f8862915ea58ab3acb68"
+    },
+    {
+      "index": 5,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "af96e06ee61342010dc04e2cd2cc709ff345b6a60054d9cce849e9b65c5f057c"
+    },
+    {
+      "index": 6,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "e7d76ff11246aa0912ef70356cdab2b66b608a719836479af4df0ade497f67b7"
+    },
+    {
+      "index": 7,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "fda869aff8f128ed2abc8f46b8348e0ec432e68fc889e94607094c7b39331a2e"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "c09551ac0166120b2563fed929a7b0f30ad467031b5b9ef7da26780ab0ab7977"
+    },
+    {
+      "index": 9,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "8edbef9a9a49a9ea0719c252bd52a297ee58c4b2847c26aa67febc199d29f63b"
+    },
+    {
+      "index": 10,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "9a32b65372b641b29c1349403f223f2e8f214dee6a3c821f609380d7c8129590"
+    },
+    {
+      "index": 11,
+      "call": "nx_export_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.047,
+      "result_sha256": "ea445e74dedaafcd36f84c4d6f795e4721c5ae7150e1639284d437e8303bee97"
+    },
+    {
+      "index": 12,
+      "call": "nx_export_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.078,
+      "result_sha256": "bcb94f9a5a2452e952a3528b99954a7a2cdbd5661e2b29a2718b92fb57661163"
+    },
+    {
+      "index": 13,
+      "call": "nx_export_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "141299b7ec60d0177e33c397c165705feed2bb1ea256b083a4b2313ddecb1d52"
+    },
+    {
+      "index": 14,
+      "call": "nx_export_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.047,
+      "result_sha256": "a6673656e975a0d7d1203382881b2f43a4635476f5c7131aa9ac428785860cc0"
+    },
+    {
+      "index": 15,
+      "call": "nx_export_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.047,
+      "result_sha256": "86af66159139b48b34371a3cf472511b13265b2bfd1ae07e42a95328e865a203"
+    },
+    {
+      "index": 16,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "6821edd5fbdb3caa3d1bd82e2d631e8de3fec5296d6b99fbb0d740981b24cce6"
+    },
+    {
+      "index": 17,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "56ba792483108f5d9219c0a52e499c602c2caaa2c25b0272b2e95cbdd0f83b78"
+    },
+    {
+      "index": 18,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.078,
+      "result_sha256": "5e464e1a9a3f45b4cd56208c110af5c1b833f6b2eed21d816d478e032c180910"
+    },
+    {
+      "index": 19,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "922b64baef81b66f0fe188981e8be8da06f408c623e730a843c124906b984d64"
+    },
+    {
+      "index": 20,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "be28804b4104f0b0a125a948a62e4d28665ee99317c46c5d6ace734243879843"
+    },
+    {
+      "index": 21,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "91f048aeb962623da843a6b49229f166f23c79ccedd7e2f640ddcb109d58405c"
+    },
+    {
+      "index": 22,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "b9aa0a1a37ba7f96b1621bb4b93ae753a4cb389a7ece097a802e22452c6bd5a6"
+    },
+    {
+      "index": 23,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "f13c06dda7b3f6fc64886c0400898f3e3c6b3aac9a39bf0b906ff280fc79d4a9"
+    },
+    {
+      "index": 24,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.093,
+      "result_sha256": "1c44bcf4ee482ee0a3896a817b3d843dae3bcec274ad89dede3a5edbc0fc0438"
+    },
+    {
+      "index": 25,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.032,
+      "result_sha256": "bdf8738e55f8cffc803b01b6f49adb79df53d8167b2897df497b698233201f8e"
+    },
+    {
+      "index": 26,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.093,
+      "result_sha256": "2fc4978f02dc9dfed09f6ae8a7405d4ba3b86eda06b83e4e8c74abfc8aaca6b0"
+    },
+    {
+      "index": 27,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.032,
+      "result_sha256": "69f0d23eeeef38fe6c8d5183bbd6d0ca71e9f6e0bbbd92de59711f8c60f40f83"
+    },
+    {
+      "index": 28,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.109,
+      "result_sha256": "be2c0ba1fbff8d5cfff4bd3adccded9ddd83db30e7a52eeefcf82f9096026a9a"
+    },
+    {
+      "index": 29,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "29ba1c301fd6278bd0fd7e4e8fc8deb3d06bb45fc038d976c013c859eaa1f334"
+    },
+    {
+      "index": 30,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "079df600cd48d21fc830eb38141678fad98e1b403143c5a7fcdd9fa846a97bd2"
+    },
+    {
+      "index": 31,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "d7c3962f149805648ebd4fe6c1d4df8fe1b0c85ff9e90cdb71d7cbfbc7636690"
+    },
+    {
+      "index": 32,
+      "call": "nx_import_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "efcacc50bcdb5d1b1b0ab40155d2070460d8c4a57bbaf7e5e9890ade1e8827ad"
+    },
+    {
+      "index": 33,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.078,
+      "result_sha256": "47369b36b9e162556a6e5b17221ef3f20cefdb2e004233c6eb3ff9a46a8eca78"
+    },
+    {
+      "index": 34,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.032,
+      "result_sha256": "193c99913c9248d8cbfba1c17dd7e1883615ecf1b0c2254336c30c23d365b744"
+    },
+    {
+      "index": 35,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "a3316e516c76987b5be69523e860f4bc84dabf8db840c2bef67664038210c2be"
+    },
+    {
+      "index": 36,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "cd4280cad8e01f130ec537798cc9d6b45af95c2b67d272978379d1208920a1e8"
+    },
+    {
+      "index": 37,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "79503b80c567b5f6ea3cc367273059e1a6d7a4f7743e82638d56eaa0b9a9c12b"
+    },
+    {
+      "index": 38,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "46b000f791fec7bb2f40a33bf13a608fd7058e8ab1fabddaa5688f537c892a85"
+    },
+    {
+      "index": 39,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "73b94bebb7ca77e0203e9584f52b8ae660f7ea1ae6b72c0081808a1144ade6d5"
+    },
+    {
+      "index": 40,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "adffb3e4d660a13edcbc59f1569c2d65761d006bec385df9823c3b4132c9ca2a"
+    },
+    {
+      "index": 41,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "de77e45cb540842c1f02396479e319c34c8db654f7066bd2f6aa92c1311f1ca2"
+    },
+    {
+      "index": 42,
+      "call": "nx_import_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "11f881475e7f96cec93001b1d30657685ef2ec5fe76e0e84ee23744611a20e47"
+    },
+    {
+      "index": 43,
+      "call": "nx_import_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "2b761210b5a790cbb73f82a07b209a1fb5dd65113d6c7a9844ccc7850c7a09fc"
+    },
+    {
+      "index": 44,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.079,
+      "result_sha256": "d9cb3a18b6cc1d282bbc24716461041fcf191d15e3bfbf78a34ab2fdadb2c69a"
+    },
+    {
+      "index": 45,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.109,
+      "result_sha256": "6fb8df73ab7ea05e5af120b717ced1c3388b3ae4339d2a3b5f69eabab7604325"
+    },
+    {
+      "index": 46,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "c7ef64ad508c92a6be632db0fd781e10eea9c6a82c56a840d56ce13dadece928"
+    },
+    {
+      "index": 47,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "5195d277992f1f15a26a6376c19d3c4535588b15dcbc38e2d4018dfe7919b3c7"
+    },
+    {
+      "index": 48,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "08117c6cc135899258ebe168bbd8fb171d591f2d7c3f5e40a1098454f637eb6b"
+    },
+    {
+      "index": 49,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "1352f3617e44bfa04a595de29e191658fc4288b08fb3e5964695f55374020cc3"
+    },
+    {
+      "index": 50,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "d559336bd49427a5aef4dcb3e196594ab220c8190c56c231688b73442231775d"
+    },
+    {
+      "index": 51,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "eff06f79e4ef9af38ac290c258fa32e3099a5069438a8f7011f43510c46a9cfe"
+    },
+    {
+      "index": 52,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.078,
+      "result_sha256": "8d8fede59fc4cc972001501c17c123bb1d536b50cfe70e4330c67e963331fea2"
+    },
+    {
+      "index": 53,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "e5d8df9b6c4952c698449d764a7cba6beb3ce2f3002a91290bfdd571e5ccf3f8"
+    },
+    {
+      "index": 54,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "61f84b2418d08dc2c40f0c3c75dbdae4a4f5661bf9df3ce07eba1045c675de8a"
+    },
+    {
+      "index": 55,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "2ddecece8cd8ca500197ccac3fdab9e656e4804435abc1676ddcf02ec3801c79"
+    },
+    {
+      "index": 56,
+      "call": "nx_import_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "da424b03d41cbbc919a4c35b21bbc752ae609d06d9cd0b229aca0ed9693f7926"
+    },
+    {
+      "index": 57,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "82b2c4a0f4dad80c92564a7b8e8f41106e3ecb16099154be0bce0b4fc93f792c"
+    },
+    {
+      "index": 58,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.062,
+      "result_sha256": "6a8e1a07ff29aa659d0d9eaae2a7538a6e7c3ee0d0b3a91e9d31c68b2cca1ca4"
+    },
+    {
+      "index": 59,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.047,
+      "result_sha256": "dc544b7f6a79bb8f8186149df21038331aefac58d8eb1f66767a5ef5cd1ec277"
+    },
+    {
+      "index": 60,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.016,
+      "result_sha256": "1649c94fd353c9e0c1a10fe3a432bc1d1df1dd5f8114b50a973eea678bb67f21"
+    },
+    {
+      "index": 61,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "0afcfc7eb1bf1fae135c39cd315b57cf40cedb5f5014df9117892b6735683728"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-005256-ea4002/modeling_expression_files_ea4002.prt"
+    ],
+    "failed": []
+  }
+}

@@ -25,7 +25,11 @@ from nx_mcp.kit import files, result
 CHUNK_BYTES = 262_144
 MAX_UPLOAD = 256 * 1024 * 1024
 INLINE_IMAGE_BYTES = 8 * 1024 * 1024
-UPLOAD_SUFFIXES = (".prt", ".step", ".stp", ".png", ".json", ".zip", ".txt", ".pdf")
+# Parts, images, documents, expression files (.exp) and every file nx_import_model reads
+# (importing.SUFFIXES).
+UPLOAD_SUFFIXES = (".prt", ".step", ".stp", ".png", ".json", ".zip", ".txt", ".pdf",
+                   ".igs", ".iges", ".x_t", ".x_b", ".stl", ".dxf", ".dwg", ".catpart",
+                   ".catproduct", ".exp")  # fmt: skip
 RESERVED = ".nx-mcp"
 
 

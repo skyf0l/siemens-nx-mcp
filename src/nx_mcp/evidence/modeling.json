@@ -248,6 +248,16 @@
       "variants": []
     }
   },
+  "nx_export_expressions": {
+    "v2406": {
+      "checks": 58,
+      "recorded": "2026-10-09T20:53:01Z",
+      "scenario": "acceptance/modeling/expression_files.json",
+      "scenario_sha256": "7ff31b51a7cc0842f9a62ccc9d02e586f51dbd77ae9552bfba7fcda74cf0818e",
+      "source_sha256": "6ddcc1eec413f04f756e30087459a1a287bae20589b3f7ac0971eca46534a40e",
+      "variants": []
+    }
+  },
   "nx_get_feature": {
     "v2406": {
       "checks": 14,
@@ -261,19 +271,33 @@
   "nx_get_material": {
     "v2406": {
       "checks": 42,
-      "recorded": "2026-10-09T20:04:06Z",
+      "recorded": "2026-10-09T20:58:00Z",
       "scenario": "acceptance/modeling/material_library.json",
-      "scenario_sha256": "3b1dfd1189a1e0509f67ed6914f086fa190caa1b59a89959b3a4a039ec78f0bd",
+      "scenario_sha256": "a4336987e6bdd13663bb65e664e73d3e4593f4e2568c94681231713753d0f553",
       "source_sha256": "7aedff2180d3ec54168c437f60280e2a371361945ba1ebe3dceed32dc2693821",
       "variants": []
+    }
+  },
+  "nx_import_expressions": {
+    "v2406": {
+      "checks": 58,
+      "recorded": "2026-10-09T20:53:01Z",
+      "scenario": "acceptance/modeling/expression_files.json",
+      "scenario_sha256": "7ff31b51a7cc0842f9a62ccc9d02e586f51dbd77ae9552bfba7fcda74cf0818e",
+      "source_sha256": "6ddcc1eec413f04f756e30087459a1a287bae20589b3f7ac0971eca46534a40e",
+      "variants": [
+        "delete",
+        "keep",
+        "replace"
+      ]
     }
   },
   "nx_list_materials": {
     "v2406": {
       "checks": 42,
-      "recorded": "2026-10-09T20:04:06Z",
+      "recorded": "2026-10-09T20:58:00Z",
       "scenario": "acceptance/modeling/material_library.json",
-      "scenario_sha256": "3b1dfd1189a1e0509f67ed6914f086fa190caa1b59a89959b3a4a039ec78f0bd",
+      "scenario_sha256": "a4336987e6bdd13663bb65e664e73d3e4593f4e2568c94681231713753d0f553",
       "source_sha256": "7aedff2180d3ec54168c437f60280e2a371361945ba1ebe3dceed32dc2693821",
       "variants": []
     }
@@ -331,9 +355,9 @@
   "nx_set_material": {
     "v2406": {
       "checks": 42,
-      "recorded": "2026-10-09T20:04:06Z",
+      "recorded": "2026-10-09T20:58:00Z",
       "scenario": "acceptance/modeling/material_library.json",
-      "scenario_sha256": "3b1dfd1189a1e0509f67ed6914f086fa190caa1b59a89959b3a4a039ec78f0bd",
+      "scenario_sha256": "a4336987e6bdd13663bb65e664e73d3e4593f4e2568c94681231713753d0f553",
       "source_sha256": "7aedff2180d3ec54168c437f60280e2a371361945ba1ebe3dceed32dc2693821",
       "variants": []
     }

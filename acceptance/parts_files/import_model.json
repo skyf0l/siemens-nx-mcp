@@ -39,7 +39,7 @@
      "expect": {"error.code": "NX_FILE_NOT_FOUND", "mutation_outcome": "not_started"}},
     {"call": "nx_import_model", "args": {"path": "$run/im/block.txt", "format": "step"},
      "expect": {"error.code": "NX_UNSUPPORTED_FILE_TYPE", "mutation_outcome": "not_started"}},
-    {"call": "nx_import_model", "args": {"path": "$run/im/block.step", "format": "iges"},
+    {"call": "nx_import_model", "args": {"path": "$run/im/block.step", "format": "jt"},
      "expect": {"error.category": "invalid_argument", "error.field": "/format", "mutation_outcome": "not_started"}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
      "expect": {"page.total": 3}}

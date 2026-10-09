@@ -204,3 +204,12 @@ async def test_a_changed_image_is_not_attached(tree, monkeypatch):
                                                "inline": True}}}  # fmt: skip
     assert proxy._image(envelope) is None
     assert "changed" in envelope["warnings"][0]["message"]
+
+
+@pytest.mark.parametrize("name", ["expr/params.exp", "inbox/plate.dxf", "inbox/block.x_t"])
+def test_upload_expression_and_import_files(tree, name):
+    data = b"p0=10\n"
+    ok = side(tree, ws.nx_upload_file, path=name, data_base64=base64.b64encode(data).decode(),
+              offset=0, total_size=len(data), sha256=hashlib.sha256(data).hexdigest())  # fmt: skip
+    assert ok.ok and ok.data["committed"] is True, ok
+    assert (tree / name).read_bytes() == data

@@ -37,6 +37,7 @@ class SheetData(TypedDict):
     projection: str
     template: str | None
     title_block_added: bool
+    title_block: result.Row | None
 
 
 def _installed(name):
@@ -128,7 +129,7 @@ def nx_create_drawing_sheet(
             fail("NX_ALREADY_EXISTS", f"A drawing sheet named {name!r} exists", field="/name")
         path = _installed(installed) if installed else template_path
         before = {int(s.Tag) for s in existing}
-        title_blocks = len(list(part.DraftingManager.TitleBlocks))
+        title_blocks = {int(t.Tag) for t in part.DraftingManager.TitleBlocks}
     b = part.DraftingDrawingSheets.CreateDraftingDrawingSheetBuilder(None)
     try:
         b.Name = name
@@ -216,6 +217,7 @@ def nx_create_drawing_sheet(
             "NX_UPDATE_WARNING",
             "The sheet scale differs from the template's; title-block scale text is unchanged",
         )
+    added = [t for t in part.DraftingManager.TitleBlocks if int(t.Tag) not in title_blocks]
     return {
         "sheet": tx.ref(sheet, "drawing_sheet"),
         "size": actual["size"],
@@ -224,7 +226,8 @@ def nx_create_drawing_sheet(
         "scale": actual["scale"],
         "projection": actual["projection"],
         "template": str(path) if path is not None else None,
-        "title_block_added": len(list(part.DraftingManager.TitleBlocks)) > title_blocks,
+        "title_block_added": bool(added),
+        "title_block": tx.ref(added[0], "drawing_table") if added else None,
     }
 
 

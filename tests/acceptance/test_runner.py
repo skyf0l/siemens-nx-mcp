@@ -421,6 +421,26 @@ def test_repository_scenarios_cover_every_catalogue_tool_and_variant():
         assert not missing, f"{spec.name}: variants without a scenario: {sorted(missing)}"
 
 
+REFUSALS = {"NX_LICENSE_UNAVAILABLE", "NX_BUILD_FAILED", "NX_IMPORT_FAILED", "NX_EXPORT_FAILED"}
+
+
+def test_refusal_probes_credit_no_variant():
+    """Only a scenario in which a variant succeeds may cover it; probes cover nothing."""
+    for path in runner.scenario_files():
+        data = runner.load_scenario(path)
+        if "license" in path.name or "probe" in path.name:
+            assert data["covers"] == {}, f"{path.name}: a refusal probe must cover nothing"
+        for tool, variants in data["covers"].items():
+            checked = [
+                s["expect"] for s in data["steps"] if s.get("call") == tool and s.get("expect")
+            ]
+            if variants and checked:
+                assert not all(
+                    e.get("error.code") in REFUSALS or e.get("error.category") == "unavailable"
+                    for e in checked
+                ), f"{path.name}: {tool} {variants} only expect refusals"
+
+
 def test_repository_scenarios_parse_and_live_in_domain_folders():
     files = runner.scenario_files()
     assert files and all(f.parent.name in catalogue.DOMAINS for f in files)

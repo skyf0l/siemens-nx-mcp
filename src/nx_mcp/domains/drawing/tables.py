@@ -9,7 +9,9 @@ NX 2406 findings encoded here:
   otherwise). Automatic bend tables are rebuilt by ``nx_update_annotations``; the
   automatic flag alone can leave stale rows after reopening a part.
 - Title blocks are defined from a table section; the section's tabular note keeps the
-  cells (its handle is stored on the title block).
+  cells (its handle is stored on the title block). Cell labels, locks and attribute
+  links are handled in ``title_blocks``; created title blocks label their cells
+  ``R<row>C<column>``, unlocked.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Items, RefTo, SheetLength, SheetPoint, Text
+from nx_mcp.domains.drawing import title_blocks
 from nx_mcp.domains.drawing.common import (
     NATIVE_TABLE,
     TABLE_KIND,
@@ -54,14 +57,26 @@ class TableInfo(TypedDict, total=False):
     rows: list[list[str]]
     columns: list[dict]
     automatic: bool
+    cells: list[title_blocks.CellInfo]
 
 
 # ---- reading --------------------------------------------------------------------------------
 
 
-def cells(tx, tag):
+def cells(tx, tag, raw=False):
+    """Evaluated cell texts by row; ``raw`` gives the stored text (``<W@X>`` references)."""
     tab = tx.uf.Tabnot
     columns = [tab.AskNthColumn(tag, i) for i in range(tab.AskNmColumns(tag))]
+    if raw:
+        return [
+            [
+                title_blocks.normalize(
+                    tab.AskCellText(tab.AskCellAtRowCol(tab.AskNthRow(tag, i), c))
+                )
+                for c in columns
+            ]
+            for i in range(tab.AskNmRows(tag))
+        ]
     return [
         [
             str(tab.AskEvaluatedCellText(tab.AskCellAtRowCol(tab.AskNthRow(tag, i), c)))
@@ -69,6 +84,24 @@ def cells(tx, tag):
         ]
         for i in range(tab.AskNmRows(tag))
     ]
+
+
+def _expect_rows(tx, obj, rows):
+    got = cells(tx, table_tag(tx, obj) or _single_note(tx, obj), raw=True)
+    want = [[title_blocks.normalize(c) for c in r] for r in rows]
+    readback.expect(got == want, "rows", rows=got)
+
+
+def _is_title_block(obj):
+    return type(obj).__name__ == "TitleBlock"
+
+
+def _single_note(tx, obj):
+    """The tabular note of a one-section title block (template blocks have several)."""
+    if not _is_title_block(obj):
+        return None
+    notes = title_blocks.sections(tx, obj)
+    return notes[0] if len(notes) == 1 else None
 
 
 def _parts_list_columns(tx, tag, scale=1.0):
@@ -107,7 +140,12 @@ def table_info(tx, obj, kind=None):
     if kind is None:
         fail("NX_WRONG_KIND", "Select a drawing table", field="/table")
     tag = table_tag(tx, obj)
-    out = {"table": tx.ref(obj, "drawing_table"), "kind": kind, "rows": cells(tx, tag)}
+    out = {"table": tx.ref(obj, "drawing_table"), "kind": kind}
+    if kind == "title_block" and _is_title_block(obj):
+        out["cells"] = title_blocks.public(title_blocks.read(tx, obj))
+        tag = tag or _single_note(tx, obj)
+    if tag is not None:
+        out["rows"] = cells(tx, tag)
     sheet = drawing.sheet_of_annotation(tx, obj)
     scale = 1.0  # part units per sheet unit (UF table widths are in part units)
     if sheet is not None:
@@ -120,7 +158,7 @@ def table_info(tx, obj, kind=None):
         out["automatic"] = bool(tx.uf.Plist.AskPrefs(obj.Tag).AutoUpdate)
     elif kind == "bend":
         out["columns"], out["automatic"] = _bend_columns(tx, obj)
-    else:
+    elif tag is not None:
         tab = tx.uf.Tabnot
         out["columns"] = [
             {"width": float(tab.AskColumnWidth(tab.AskNthColumn(tag, i))) / scale}
@@ -307,10 +345,10 @@ def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
             table.AnnotationOrigin = sh.point(position)
             table.SetAttribute(TABLE_KIND, kind)
             table.SetAttribute(NATIVE_TABLE, tx.uf.Tag.AskHandleFromTag(tag))
+            title_blocks.define_cells(tx, table)
         update(tx)
-        out = table_info(tx, table, kind)
-        readback.expect(out["rows"] == [list(r) for r in rows], "rows", rows=out["rows"])
-        return out
+        _expect_rows(tx, table, rows)
+        return table_info(tx, table, kind)
 
 
 # ---- edit and inspect -----------------------------------------------------------------------
@@ -342,7 +380,15 @@ ColumnEdit.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-define
         "revision": "Edit revision table {table}",
     },
     variants="kind",
-    keywords=("edit parts list", "bom column", "table rows", "revision entry", "bend columns"),
+    keywords=(
+        "edit parts list",
+        "bom column",
+        "table rows",
+        "revision entry",
+        "bend columns",
+        "fill title block",
+        "title block attribute",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     invalidates="deleted",
@@ -360,14 +406,19 @@ def nx_edit_drawing_table(
     columns: Annotated[list[ColumnEdit], Items(1, 20)] | None = None,
     bend_columns: BendColumns | None = None,
     automatic: bool | None = None,
+    cells: Annotated[list[title_blocks.CellEdit], Items(1, 100)] | None = None,
 ) -> TableInfo:
     """Edit a drawing table of the given kind, or move it. Title blocks and revisions take rows,
-    widths and row height; parts lists column edits; bend tables column order and update
-    mode."""
+    widths and row height; title blocks also cells (text, <W@TITLE> attribute link or lock,
+    by label or row/column); parts lists columns; bend tables column order and update mode."""
     if all(
-        v is None for v in (rows, widths, row_height, position, columns, bend_columns, automatic)
+        v is None
+        for v in (rows, widths, row_height, position, columns, bend_columns, automatic, cells)
     ):
         fail("NX_INVALID_ARGUMENT", "Give an edit")
+    if cells:
+        title_blocks.check_edits(cells)
+    pairs = None
     with tx.checks():
         obj = select.resolve(
             tx, table, "drawing_table", "annotation", field="/table", work_part=True
@@ -379,6 +430,7 @@ def nx_edit_drawing_table(
         allowed = {
             "parts_list": {"columns", "position"},
             "bend": {"bend_columns", "automatic", "position"},
+            "title_block": {"rows", "widths", "row_height", "position", "cells"},
         }.get(kind, {"rows", "widths", "row_height", "position"})
         given = {
             k
@@ -390,6 +442,7 @@ def nx_edit_drawing_table(
                 "columns": columns,
                 "bend_columns": bend_columns,
                 "automatic": automatic,
+                "cells": cells,
             }.items()
             if v is not None
         }
@@ -399,6 +452,17 @@ def nx_edit_drawing_table(
                  field=f"/{field}")  # fmt: skip
         if columns:
             _check_columns(tx, obj, columns)
+        if kind == "title_block":
+            obj = _title_block_of(tx, obj)
+            grid = {"rows", "widths", "row_height"} & given
+            if grid and table_tag(tx, obj) is None:
+                fail("NX_UNSUPPORTED_OPTION", "This title block spans several tables: edit its "
+                     "cells", field=f"/{sorted(grid)[0]}")  # fmt: skip
+        if cells:
+            title_blocks.check_attributes(tx, tx.part, cells)
+            current = title_blocks.read(tx, obj)
+            if current and rows is None:
+                pairs = title_blocks.resolve_edits(current, cells)
         sheet = drawing.sheet_of_annotation(tx, obj)
     with drawing.on_sheet(tx, sheet) as sh:
         if kind == "parts_list" and columns:
@@ -410,15 +474,40 @@ def nx_edit_drawing_table(
             _edit_bend(tx, obj, bend_columns, automatic)
         if kind not in ("parts_list", "bend") and (rows or widths or row_height is not None):
             _edit_grid(tx, obj, rows, widths, row_height, sh)
+        if cells:
+            if pairs is None:
+                title_blocks.define_cells(tx, obj)
+                pairs = title_blocks.resolve_edits(title_blocks.read(tx, obj), cells)
+            title_blocks.apply(tx, obj, pairs)
         if position is not None:
             drawing.anchor_of(tx, obj).AnnotationOrigin = sh.point(position)
         update(tx)
+        if rows is not None:
+            _expect_rows(tx, obj, rows)
+        if pairs:
+            title_blocks.verify(title_blocks.read(tx, obj), pairs)
         out = table_info(tx, obj, kind)
     if position is not None:
         readback.expect_close(out.get("position"), list(position), "position", 1e-3)
-    if rows is not None:
-        readback.expect(out["rows"] == [list(r) for r in rows], "rows", rows=out["rows"])
     return out
+
+
+def _title_block_of(tx, obj):
+    """The title block itself (a managed title block's table section maps to it)."""
+    if _is_title_block(obj):
+        return obj
+    tag = int(obj.Tag)
+    for block in tx.part.DraftingManager.TitleBlocks:
+        if tag in {int(s) for s in _section_tags(tx, block)}:
+            return block
+    fail("NX_WRONG_KIND", "Select the title block, not its table section", field="/table")
+
+
+def _section_tags(tx, block):
+    with builders.build(
+        tx, tx.part.DraftingManager.TitleBlocks.CreateDefineTitleBlockBuilder, block
+    ) as d:
+        return [s.Tag for s in d.Components.GetArray()]
 
 
 def _check_columns(tx, obj, edits):
@@ -499,7 +588,7 @@ def _edit_bend(tx, obj, columns, automatic):
 def _edit_grid(tx, obj, rows, widths, row_height, sh):
     tag = table_tag(tx, obj)
     tab = tx.uf.Tabnot
-    current = cells(tx, tag)
+    current = cells(tx, tag, raw=True)
     count = tab.AskNmColumns(tag)
     if widths is not None and len(widths) != count:
         fail("NX_UNSUPPORTED_OPTION", "Keep the table's column count", field="/widths")
@@ -520,14 +609,26 @@ def _edit_grid(tx, obj, rows, widths, row_height, sh):
             if tab.AskNmRows(tag)
             else sh.to_part([drawing.from_mm(sh.units, DEFAULT_ROW_HEIGHT_MM)[0], 0])[0]
         )
+    kept = title_blocks.clear_cells(tx, obj) if _is_title_block(obj) else None
     _fill(tx, tag, rows if rows is not None else current, native_widths, height)
+    if kept is not None:
+        title_blocks.define_cells(tx, obj, kept)
 
 
 @tool(
     effect="read",
     label="Get drawing table",
-    summary="Table {table}",
-    keywords=("parts list rows", "bom contents", "table cells", "bend table rows", "columns"),
+    summary=lambda a, say: (
+        f"Table {say('table')}" if a.get("table") else f"Title block of {say('sheet')}"
+    ),
+    keywords=(
+        "parts list rows",
+        "bom contents",
+        "table cells",
+        "bend table rows",
+        "columns",
+        "title block cells",
+    ),
     requires=("work_part",),
     cost="light",
     example={"table": "t:4"},
@@ -535,11 +636,33 @@ def _edit_grid(tx, obj, rows, widths, row_height, sh):
 def nx_get_drawing_table(
     tx: Tx,
     *,
-    table: RefTo("drawing_table"),  # type: ignore[valid-type]
+    table: RefTo("drawing_table") | None = None,  # type: ignore[valid-type]
+    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
 ) -> TableInfo:
-    """Read a drawing table: kind, evaluated rows, columns, update mode and sheet position."""
-    obj = select.resolve(tx, table, "drawing_table", "annotation", field="/table", work_part=True)
-    return table_info(tx, obj)
+    """Read a drawing table, or the title block of a sheet. Gives kind, evaluated rows, columns,
+    update mode and position; title blocks list cells (label, lock, text with <W@TITLE> links,
+    value)."""
+    if (table is None) == (sheet is None):
+        fail("NX_INVALID_ARGUMENT", "Give table or sheet", field="/table")
+    if table is not None:
+        obj = select.resolve(
+            tx, table, "drawing_table", "annotation", field="/table", work_part=True
+        )
+        return table_info(tx, obj)
+    target = select.resolve(tx, sheet, "drawing_sheet", field="/sheet", work_part=True)
+    found = [
+        b
+        for b in tx.part.DraftingManager.TitleBlocks
+        if (on := drawing.sheet_of_annotation(tx, b)) is not None and int(on.Tag) == int(target.Tag)
+    ]
+    if not found:
+        fail("NX_NOT_FOUND", "The sheet has no title block", field="/sheet",
+             hint="Create the sheet from a template, or nx_create_drawing_table "
+             "kind=title_block")  # fmt: skip
+    if len(found) > 1:
+        fail("NX_AMBIGUOUS_REFERENCE", "The sheet has several title blocks: pass table",
+             field="/sheet", details={"tables": [tx.ref(b, "drawing_table") for b in found]})  # fmt: skip
+    return table_info(tx, found[0], "title_block")
 
 
 class BalloonData(TypedDict):
