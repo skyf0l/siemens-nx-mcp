@@ -1,0 +1,133 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/edge_rip.json",
+  "scenario_sha256": "8ef729800887267a28f6c2b9ff3f82ee8a13dd1e3f32d80dbc703ec341c1b76b",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "edge_rip"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {
+    "nx_create_sheet_metal_feature": "8829052ca2c1c1c2b3aaec621247991c1d872b522fe551e48c85ea4a85ce0e03"
+  },
+  "run_id": "20261009-230052-50880b",
+  "owner": "sm_ops_a",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230052-50880b\\sheet_metal_edge_rip_50880b.prt",
+  "started": "2026-10-09T19:00:54Z",
+  "finished": "2026-10-09T19:00:56Z",
+  "passed": true,
+  "checks": 4,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.953,
+      "result_sha256": "eb3e8fe5664c4915dd2b715368ceb330ec5044ee25732dbf900bb538e8315903"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.235,
+      "result_sha256": "a8b129a112b0de25370017996d9e5841c6b8c2ea2089883686a60022081a1b64"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "4118bfda0fd79c4445a14a46a3a29511568b198178ec50d6632c9f4c5ad81c01"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "4dcf02917cb6f19ee6d6e2207461b0643458a7eb9be9698496d196fb80c6b889"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "1fb5910c6041e2693aa54257eb918b3d60f766ccaddfcd2d3120896b17d163e3"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "9037d86733b8c52356d179d8006eb62c90aa9e1a7e6a25f444ab08f1c8dcc067"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "75fb2902fd227a3a5872445a796a3b410034a29517ad0da9d3603d3278830d7f"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "aa9beadae257315fcc5d16cc5f3c4b3ea7cbd897880ed47a4fb00c1e993b287c"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "ca22018e47ba35e0374e0d03bc55fe74088c65745752a714e49643a8a352628e"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "4d8f70198016ee87456e63f1015d28f64211b3c49458769a9b8ba371a0c9eefc"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.047,
+      "result_sha256": "405600d455aa8a8b7c8886aa1225573907c1dd46d44363440d1601a804068fc0"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-230052-50880b/sheet_metal_edge_rip_50880b.prt"
+    ],
+    "failed": []
+  }
+}

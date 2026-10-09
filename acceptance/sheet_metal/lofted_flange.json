@@ -1,0 +1,184 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "lofted_flange"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2,
+    "bend_radius": 3,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "a"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$a.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       60,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$a.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      40
+     ]
+    }
+   },
+   "save": "b"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$b.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       10,
+       0
+      ],
+      "end": [
+       50,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$b.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "lofted_flange",
+    "parameters": {
+     "section": "$a.data.sketch.id",
+     "end_section": "$b.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 4000.0,
+     "tol": 1e-06
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.bend_count": 0,
+    "changes.created": {
+     "count_kind": {
+      "body": 1
+     }
+    }
+   },
+   "save": "lf"
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$lf.data.body.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min.0": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.max.0": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "data.min.2": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.max.2": {
+     "close": 40,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "lofted_flange",
+    "parameters": {
+     "section": "$a.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/end_section",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

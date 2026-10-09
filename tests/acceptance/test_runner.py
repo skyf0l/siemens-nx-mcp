@@ -436,3 +436,89 @@ def test_committed_evidence_folds_back_to_the_committed_files(tmp_path):
     for path in committed.glob("*.json"):
         assert json.loads(path.read_text()) == json.loads((tmp_path / path.name).read_text())
     assert {p.name for p in committed.glob("*.json")} == {p.name for p in tmp_path.glob("*.json")}
+
+
+class AssemblyNX(FakeNX):
+    """Scenario parts in an assembly: a used prototype refuses to close, and closing
+    any part renumbers the part IDs (stale IDs are refused)."""
+
+    def __init__(self, parents, locked=()):
+        super().__init__()
+        self.parents, self.locked, self.generation = parents, set(locked), 0
+        for path in ["smoke/top.prt", *parents]:  # assembly first: closing reverses it
+            if path not in [p["path"] for p in self.parts]:
+                self.parts.append(self.row(path))
+        self.renumber()
+
+    def renumber(self):
+        for p in self.parts[1:]:  # the engineer's part keeps its ID
+            p["part"]["id"] = f"obj_{p['path'][6:-4]}_part{self.generation}"
+
+    @staticmethod
+    def refuse(code, message, **details):
+        error = {"code": code, "category": "blocked", "message": message, "details": details}
+        error["nx_code"] = 3520018 if code == "NX_READ_ONLY" else None
+        envelope = {"ok": False, "tool": "nx_close_part", "mutation_outcome": "not_started"}
+        raise NXToolError(code, message, details={"envelope": {**envelope, "error": error}})
+
+    async def call(self, method, params):
+        if method != "nx_close_part":
+            return await super().call(method, params)
+        self.calls.append((method, params))
+        part = next((p for p in self.parts if p["part"]["id"] == params["part"]), None)
+        if part is None:
+            self.refuse("NX_STALE_OBJECT", "The part ID is stale")
+        loaded = {p["path"] for p in self.parts}
+        if part["path"] in self.locked:
+            self.refuse("NX_READ_ONLY", "The part is locked")
+        if self.parents.get(part["path"]) in loaded:
+            self.refuse(
+                "NX_PART_IN_USE", "A loaded assembly uses this part",
+                parent_assemblies=[self.parents[part["path"]]],
+            )  # fmt: skip
+        self.parts.remove(part)
+        self.generation += 1
+        self.renumber()
+        return self.ok(method, {"closed": [], "closed_count": 1})
+
+
+async def test_cleanup_closes_assemblies_before_their_components(tmp_path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # registers nx_close_part
+    # top uses sub, sub uses pin: reverse load order tries pin, then sub, first.
+    nx = AssemblyNX({"smoke/sub.prt": "smoke/top.prt", "smoke/pin.prt": "smoke/sub.prt"})
+    before = [nx.parts[0]]
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        report = await runner.close_new_parts(session, before)
+    assert not report["failed"], report["failed"]
+    assert report["closed"] == ["smoke/top.prt", "smoke/sub.prt", "smoke/pin.prt"]
+    assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"]
+    # Pass 2 closes the refusing parent (sub) before its prototype, with fresh IDs.
+    closes = [c[1]["part"] for c in nx.calls if c[0] == "nx_close_part"]
+    assert closes == [
+        "obj_pin_part0",
+        "obj_sub_part0",
+        "obj_top_part0",
+        "obj_sub_part1",
+        "obj_pin_part2",
+    ]
+
+
+async def test_cleanup_reports_why_a_part_stays_loaded(tmp_path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    nx = AssemblyNX({"smoke/pin.prt": "smoke/top.prt"}, locked={"smoke/top.prt"})
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        report = await runner.close_new_parts(session, [nx.parts[0]])
+    assert report["closed"] == []
+    assert report["failed"] == [
+        "could not close smoke/top.prt: NX_READ_ONLY: The part is locked (nx_code 3520018)",
+        "could not close smoke/pin.prt: NX_PART_IN_USE: A loaded assembly uses this part; "
+        "used by smoke/top.prt",
+    ]
+    closes = [c for c in nx.calls if c[0] == "nx_close_part"]
+    assert len(closes) == 2 * runner.CLOSE_PASSES  # bounded retries
+
+
+def test_close_failure_without_a_reason():
+    assert runner.close_failure("a.prt", None) == "could not close a.prt: no reason given"

@@ -1,0 +1,146 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/joggle.json",
+  "scenario_sha256": "eca68cf4481f1036dab06a13adf9b8d3c09e74ba51f677c92ebfa8ff38ef3f28",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "joggle"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {
+    "nx_create_sheet_metal_feature": "7580cd009ab14663b8c9b5a9afbe716e5856d38b98b89a3b8b5a3ebb416d7cf7"
+  },
+  "run_id": "20261009-225829-5e95fc",
+  "owner": "sm_ops_b",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-225829-5e95fc\\sheet_metal_joggle_5e95fc.prt",
+  "started": "2026-10-09T18:58:39Z",
+  "finished": "2026-10-09T18:58:40Z",
+  "passed": false,
+  "checks": 2,
+  "failed_checks": 2,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.437,
+      "result_sha256": "ffe789a168a5efddace8194a8cdcb6ed6ca157f166b8186507c3b090dbd92bff"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "a1d572e2c33d08f5607bc2b6f66b88035053917fc8e4f2b96718993893831f78"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "41bc55fb84248c34ff152be98d556c179471b0ba602e6993ebd2dbd56a44c99c"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "9e08d95335631e2ef96ab9dd479499f540b3a1a266fd17f90928aae6633a80cf"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "93a02c85ff5d32822beb1da40df4e83d0f753e820c844d5d93fd98514bf763b1"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "cb2ef252272e732d596ab2af80f089c66f9182ab23adb6f814b9c79c6717ac1f"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.063,
+      "result_sha256": "33b56a17e0f11c02a0a3715dac0e2c0a20b8f996738760fccd05d962d271c96d"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "8afd1f68807ac1e599afc571bd44a6b13c9a3da07ca7d0647ecb78b5b3b425ee"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "d9c4db012c0d5e32423143557d45b4345e7fb976750b3c0a38e4ef6f86876b76"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "11d26f78ac8517a14ceaabc3acbc14e04e3c40be89209cac2f4715a01e54f086"
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "208313d36b518cb4e7d700e4f9de16e7e6876b148cbcacc2ec64ed49dd98a822"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": false,
+      "checks": 1,
+      "seconds": 0.062,
+      "result_sha256": "18732706e7ef013b29d8b8a2f2bc782bd8c0b65269a66149894880bac38531f1",
+      "failures": [
+        "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
+        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')"
+      ]
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-225829-5e95fc/sheet_metal_joggle_5e95fc.prt"
+    ],
+    "failed": []
+  }
+}

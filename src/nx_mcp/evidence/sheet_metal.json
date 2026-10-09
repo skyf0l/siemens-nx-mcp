@@ -1,27 +1,36 @@
 {
   "nx_create_sheet_metal_feature": {
     "v2406": {
-      "checks": 14,
-      "recorded": "2026-10-09T18:03:01Z",
-      "scenario": "acceptance/sheet_metal/inch.json",
-      "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "930960bf7bece830681681cc55854ed1d19dc49e98adfeb81e6f8f4ddbed361d",
+      "checks": 11,
+      "recorded": "2026-10-09T19:00:30Z",
+      "scenario": "acceptance/sheet_metal/three_bend_corner.json",
+      "scenario_sha256": "bf31ad5f795a262c56abdb9ac2f6b111ad782586712775dd2c3e98c0a2798fac",
+      "source_sha256": "8829052ca2c1c1c2b3aaec621247991c1d872b522fe551e48c85ea4a85ce0e03",
       "variants": [
+        "bead",
         "bend",
+        "bend_taper",
         "break_corner",
+        "bridge_bend",
+        "bulge_relief",
+        "closed_corner",
         "contour_flange",
         "dimple",
         "drawn_cutout",
+        "edge_rip",
         "flange",
         "flat_pattern",
+        "gusset",
         "hem",
         "jog",
+        "lofted_flange",
         "normal_cutout",
         "rebend",
         "resize_bend_angle",
         "resize_bend_radius",
         "resize_neutral_factor",
         "tab",
+        "three_bend_corner",
         "unbend"
       ]
     }

@@ -1,0 +1,142 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/gusset.json",
+  "scenario_sha256": "c1933078930727e267eb663e74d09999227971df6500d745d373a5dec636233e",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "gusset"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {
+    "nx_create_sheet_metal_feature": "a080d8ebf070ed2aa1cbb0fbc80821fdb64e49c9c3f7b3e057a0e05761eb15db"
+  },
+  "run_id": "20261009-230052-50880b",
+  "owner": "sm_ops_a",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230052-50880b\\sheet_metal_gusset_50880b.prt",
+  "started": "2026-10-09T19:00:56Z",
+  "finished": "2026-10-09T19:00:58Z",
+  "passed": true,
+  "checks": 9,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.515,
+      "result_sha256": "1bb2ded31528278e4fa95f8b39c610c77016041a301275638bbc1969958d54ec"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "d874b7eeba6f31367219b906e8214b6aafb8dfa30e92519f6d477200fcf3f316"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "d17c93a2aeeeaa6d6c2c15821375dc29440f38edec89f03c9438fa92581f501c"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "0aa7a1358eda893eaff85e41ff31c1835b7885b9170edced238974e67668930c"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "da8650c683597d93473a02ab9c2c372c4aeecc2d7462efd3e660cf2962168e15"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "9c331a168388914c671201b04efcad822d639ff7ebd0136c52c8f2c504b2267b"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "39f61080455c44e7a49c335afbfa6f0448ea2356c012a26379e89458d62645f9"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.016,
+      "result_sha256": "ed91ec44369cc585ccc6c419db69f357192d67e0a3aa908414567634eda3ba2c"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.063,
+      "result_sha256": "99ec0eebcd6a9cb7b4fb059e6467fcfdadcf3802ba8e7cf0dea72ffc6b803ee4"
+    },
+    {
+      "index": 10,
+      "call": "nx_get_sheet_metal",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "b9c1126483d4e04018df155b853eebfee0126fa59f1b1e1002a3637b9234bdaa"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.015,
+      "result_sha256": "7711c2b90ce02136af6e1581c23af0558ff3e044a00d35c9726ad9d53dd99301"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.11,
+      "result_sha256": "22aa7fab18a62659b8c97a345782b9a91802fd4a531cae844cad8616e74b06b9"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-230052-50880b/sheet_metal_gusset_50880b.prt"
+    ],
+    "failed": []
+  }
+}

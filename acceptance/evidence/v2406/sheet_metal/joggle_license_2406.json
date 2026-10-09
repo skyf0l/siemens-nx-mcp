@@ -1,0 +1,145 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/joggle_license_2406.json",
+  "scenario_sha256": "94a82260a8ba4ce915f105cfceaea2ea04c9b0d6b3147bf507a7547057779f4c",
+  "domain": "sheet_metal",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {},
+  "run_id": "20261009-225829-5e95fc",
+  "owner": "sm_ops_b",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-225829-5e95fc\\sheet_metal_joggle_license_2406_5e95fc.prt",
+  "started": "2026-10-09T18:58:40Z",
+  "finished": "2026-10-09T18:58:42Z",
+  "passed": true,
+  "checks": 6,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.453,
+      "result_sha256": "5a30ce5649b7dcebb199319d43737fc55808f35711a9aafaf4f20b8aba713f86"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "c49a084cb57caaf4015e9f7e2c85adbae80d671a313d10fa305576b8fd7265e0"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "8c285d592a09b4e397f93657f28e4c6f0cccf2d608ee3cc2dcfd81b4a6cc6ba1"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "80b1867c355658b2e192eab4995151b3b915f112613a3625e9a5fea200f12b7a"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "252112875f4e1fd194528a56c185f5464f8e24a513f6595a3ed73e2077afcfd8"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "ec5161fc308be43afae12d5407ef49ccea6257c989e3a6a9e442808af0259563"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.062,
+      "result_sha256": "7c8dab03678261c616e8f2ebaed423d9e3979b0bba9d433f9af65bc1e4f7d054"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "4016b4ebe1c27d265aaae175302f1b2cc51469367d58c83e900489751e68381c"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "2079ca633d464ad8481ff7201fa54b697973ce98c5319303d94d6d8935e15141"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "68818629ceaeab30f1fe8b123566dcfba2ef31ea0b53f7bf99fa3d805e9c7d6f"
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "744ed36899dd858333ad3a63b43c6da0fce3c8a8f7f006ad7d7d51362ed48b8e"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.078,
+      "result_sha256": "99647a4ef604cd998a45551abddd1b747cbc09686abbfd3856ad903f1ae761c6"
+    },
+    {
+      "index": 13,
+      "call": "nx_get_sheet_metal",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.016,
+      "result_sha256": "f3690c3d9975f05918896f253e889e5181056884357e73fe5a9ff5f7a4edac0c"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-225829-5e95fc/sheet_metal_joggle_license_2406_5e95fc.prt"
+    ],
+    "failed": []
+  }
+}

@@ -496,13 +496,29 @@ async def loaded_parts(session) -> list[dict] | None:
     return rows
 
 
+CLOSE_PASSES = 4  # close passes: assemblies, then the prototypes they released
+
+
+def close_failure(path: str | None, error: dict | None) -> str:
+    """``could not close <path>: <code>: <message>`` with NX's own code when known."""
+    error = error or {}
+    reason = ": ".join(str(x) for x in (error.get("code"), error.get("message")) if x)
+    if error.get("nx_code") is not None:
+        reason += f" (nx_code {error['nx_code']})"
+    parents = (error.get("details") or {}).get("parent_assemblies")
+    if parents:
+        reason += f"; used by {', '.join(map(str, parents))}"
+    return f"could not close {path}: {reason or 'no reason given'}"
+
+
 async def close_new_parts(session, before: list[dict] | None, mode: str = "close") -> dict:
     """Close every part loaded since ``before`` and re-activate the earlier display part.
 
     ``mode`` is the scenario's ``cleanup``: ``close`` (default, without saving),
     ``save`` (save, then close) or ``keep``. Closing a drawing part closes its
     sheets. Assemblies go before their prototypes: a refused close is retried
-    after the others.
+    after the others, with fresh part IDs and the refusing parents first, for up
+    to ``CLOSE_PASSES`` passes. A part still loaded is reported with NX's reason.
     """
     report: dict[str, Any] = {"mode": mode, "closed": [], "failed": []}
     if mode == "keep" or before is None:
@@ -510,11 +526,17 @@ async def close_new_parts(session, before: list[dict] | None, mode: str = "close
     known = {p.get("path") for p in before}
     after = await loaded_parts(session) or []
     pending = [p for p in reversed(after) if p.get("path") not in known]
-    for _ in range(len(pending) + 1):
+    reasons: dict[str, dict] = {}
+    for _ in range(CLOSE_PASSES):
         if not pending:
             break
         refused = []
+        live: dict | None = None  # the rows listed after the last close
         for part in pending:
+            if live is not None:
+                part = live.get(part.get("path"))
+                if part is None:
+                    continue  # NX unloaded it with its assembly
             closed = await call_tool(
                 session,
                 "nx_close_part",
@@ -523,14 +545,33 @@ async def close_new_parts(session, before: list[dict] | None, mode: str = "close
             )
             if closed.get("ok"):
                 report["closed"].append(part.get("path"))
+                reasons.pop(part.get("path"), None)
+                # A close can unload prototypes and renew part IDs: list again.
+                listed = await loaded_parts(session)
+                live = None if listed is None else {p.get("path"): p for p in listed}
             else:
                 refused.append(part)
-        if len(refused) == len(pending):
+                reasons[part.get("path")] = closed.get("error") or {}
+        if not refused:
+            pending = []
             break
-        # NX may unload unused prototypes with their assembly: list again.
-        live = {p.get("path") for p in await loaded_parts(session) or []}
-        pending = [p for p in refused if p.get("path") in live]
-    report["failed"] = [f"could not close {p.get('path')}" for p in pending]
+        # Retry what is still loaded, with fresh rows.
+        listed = await loaded_parts(session)
+        if listed is None:
+            pending = refused
+            continue
+        live = {p.get("path"): p for p in listed}
+        pending = [live[p.get("path")] for p in refused if p.get("path") in live]
+        parents = {
+            parent
+            for p in pending
+            for parent in ((reasons.get(p.get("path")) or {}).get("details") or {}).get(
+                "parent_assemblies"
+            )
+            or []
+        }
+        pending.sort(key=lambda p: p.get("path") not in parents)  # assemblies first
+    report["failed"] = [close_failure(p.get("path"), reasons.get(p.get("path"))) for p in pending]
     display = next((p for p in before if p.get("display")), None)
     work = next((p for p in before if p.get("work")), None)
     targets = [(display, True)]
@@ -548,7 +589,9 @@ async def close_new_parts(session, before: list[dict] | None, mode: str = "close
         if restored.get("ok"):
             report.setdefault("restored", []).append(part.get("path"))
         else:
-            report["failed"].append(f"could not re-activate {part.get('path')}")
+            error = restored.get("error") or {}
+            reason = ": ".join(str(x) for x in (error.get("code"), error.get("message")) if x)
+            report["failed"].append(f"could not re-activate {part.get('path')}: {reason}")
     return report
 
 

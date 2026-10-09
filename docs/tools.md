@@ -1694,14 +1694,14 @@ Place a Sheet Metal PMI callout with the measured thickness or bend data. Bend d
 
 ### `nx_create_sheet_metal_feature`
 
-**Create sheet-metal feature** · effect `model` · NX 2406: tested: bend, break_corner, contour_flange, dimple, drawn_cutout, flange, flat_pattern, hem, jog, normal_cutout, rebend, resize_bend_angle, resize_bend_radius, resize_neutral_factor, tab, unbend (untested: louver); 14 checks in `acceptance/sheet_metal/inch.json`
+**Create sheet-metal feature** · effect `model` · NX 2406: tested: bead, bend, bend_taper, break_corner, bridge_bend, bulge_relief, closed_corner, contour_flange, dimple, drawn_cutout, edge_rip, flange, flat_pattern, gusset, hem, jog, lofted_flange, normal_cutout, rebend, resize_bend_angle, resize_bend_radius, resize_neutral_factor, tab, three_bend_corner, unbend (untested: advanced_flange, joggle, louver, variational_flange); 11 checks in `acceptance/sheet_metal/three_bend_corner.json`
 
 Create one sheet-metal feature. Parameters take the fields their descriptions assign to the operation; needs the Sheet Metal application (nx_activate_application).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `operation` | `tab` \| `flange` \| `contour_flange` \| `bend` \| `jog` \| `hem` \| `normal_cutout` \| `dimple` \| `louver` \| `drawn_cutout` \| `break_corner` \| `resize_bend_angle` \| `resize_bend_radius` \| `resize_neutral_factor` \| `unbend` \| `rebend` \| `flat_pattern` | required |  |
-| `parameters` | object {section, face, faces, edges, edge, body, thickness, length, angle, height, width, radius, neutral_factor, reverse, style} | required |  |
+| `operation` | `tab` \| `flange` \| `contour_flange` \| `bend` \| `jog` \| `hem` \| `normal_cutout` \| `dimple` \| `louver` \| `drawn_cutout` \| `break_corner` \| `resize_bend_angle` \| `resize_bend_radius` \| `resize_neutral_factor` \| `unbend` \| `rebend` \| `flat_pattern` \| `lofted_flange` \| `advanced_flange` \| `variational_flange` \| `gusset` \| `edge_rip` \| `closed_corner` \| `three_bend_corner` \| `bridge_bend` \| `bend_taper` \| `joggle` \| `bulge_relief` \| `bead` | required |  |
+| `parameters` | object {section, end_section, face, faces, edges, edge, body, thickness, length, angle, height, width, radius, neutral_factor, reverse, style} | required |  |
 
 ### `nx_export_flat_pattern`
 

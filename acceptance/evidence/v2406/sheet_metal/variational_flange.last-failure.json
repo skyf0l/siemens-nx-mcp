@@ -1,0 +1,123 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/variational_flange.json",
+  "scenario_sha256": "9e856733854a5fbc17b3b7148717dff76e72e0f91510e030b6486468600e5d5d",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "variational_flange"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {
+    "nx_create_sheet_metal_feature": "a080d8ebf070ed2aa1cbb0fbc80821fdb64e49c9c3f7b3e057a0e05761eb15db"
+  },
+  "run_id": "20261009-230052-50880b",
+  "owner": "sm_ops_a",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230052-50880b\\sheet_metal_variational_flange_50880b.prt",
+  "started": "2026-10-09T19:01:02Z",
+  "finished": "2026-10-09T19:01:04Z",
+  "passed": false,
+  "checks": 5,
+  "failed_checks": 6,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.016,
+      "result_sha256": "f126bdd8ec0b9d4f59a9263414cd3dff5a0ad5f2001bdc731c2b15b6c9058fc5"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "2c7c7d177c8e919cb0ee7d1db7fad574e93b6d89bb07210f511ef4cfa98a9f24"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "146a2077028d24ec486b218176dcfdd9ec7ff06b1d51e26abdb31c9dca6cf34b"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "1ad072089425a8a91ba943998e842fcfcb16bc72025f3fb29099c1dfe56be2ff"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "4e4a68fc8fb6b18c0a28888072eef0c2ef69d7b32487cf7c0468ccb0c7ff6720"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "893aca6d67802ec9274ba027e90a7068002758f26c0584f0030a56940af4615b"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "c26eaf46c25623fed568588bdefb8cd3dc7842f255433b5e0b7bb577003e51ce"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "d3bbb773c376042811a7236583b588b05b673f680c2b65dcddf8911962e9ad97"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": false,
+      "checks": 5,
+      "seconds": 0.062,
+      "result_sha256": "0d629ce702c08db3d9b756b30874aad00aef4308a4458f1b2a2aaf1c302cc6d1",
+      "failures": [
+        "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
+        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
+        "data.bend_count: missing (wanted 1)",
+        "data.volume: missing (wanted {'close': 19656.63706143592, 'tol': 1e-06})",
+        "data.bends.0.angle: missing (wanted {'close': 90, 'tol': 1e-06})",
+        "data.bends.0.radius: missing (wanted {'close': 3.0, 'tol': 1e-06})"
+      ]
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-230052-50880b/sheet_metal_variational_flange_50880b.prt"
+    ],
+    "failed": []
+  }
+}

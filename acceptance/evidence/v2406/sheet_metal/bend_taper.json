@@ -1,0 +1,142 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/bend_taper.json",
+  "scenario_sha256": "1ebf974d7f274692deed6314bcd2176ac34b45c45cb01971847f1b59478b866d",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "bend_taper"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {
+    "nx_create_sheet_metal_feature": "8829052ca2c1c1c2b3aaec621247991c1d872b522fe551e48c85ea4a85ce0e03"
+  },
+  "run_id": "20261009-230028-f8225c",
+  "owner": "sm_ops_b",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230028-f8225c\\sheet_metal_bend_taper_f8225c.prt",
+  "started": "2026-10-09T19:00:30Z",
+  "finished": "2026-10-09T19:00:32Z",
+  "passed": true,
+  "checks": 7,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.484,
+      "result_sha256": "64a248c2a72b93d5f51b8ffa8e1c222128be8d9f45ff139bdf12d698c4f5e5ba"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.656,
+      "result_sha256": "4b778b9c7a6823c3539581fd5515617c039cd68d42c18f472e05bb162930b770"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "888731faf102f4d80595e40cb6f941cc316c641f032396b563999ee4244d50a0"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "44d61ab45834efb9af6b4e3df52997537d16c7ff45e8ca94714943fd4cec0652"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "6d5e788d4c12b1f29613ac61f0f019260db6eeeba8af19bd59a55eabc1a053f2"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.093,
+      "result_sha256": "ea2aac4ba5dece8eedf96ca07f930e262e3aad52592a0158c3fc702d2817aea7"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.079,
+      "result_sha256": "1d887ad3965a941653f882237d4f46859313cd05f89d6f1d5e4270d2e53f8f2e"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "fa314e5a68f5b13c779c0a7d8709fcfd1cb21e0d46158e9abfef57c14619efed"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.079,
+      "result_sha256": "fcae5c7054826379137bce30252bc94fe42768d34ae490e0e6a1dad0ab9d0e2a"
+    },
+    {
+      "index": 10,
+      "call": "nx_get_sheet_metal",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.015,
+      "result_sha256": "b7ccac4295df6fcfcfe827272bc9c9a11eaf26213ed420f71661cd9df5e88197"
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "9dcd69876f5118608153caa3d059a3aaafe1168c379551193eb2f2400cf8071c"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.125,
+      "result_sha256": "9d4a998924f2c5728d43853f15f4095a3140d9a8dafdb170f5fba324bcda1cc2"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-230028-f8225c/sheet_metal_bend_taper_f8225c.prt"
+    ],
+    "failed": []
+  }
+}

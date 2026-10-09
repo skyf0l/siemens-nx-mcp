@@ -383,6 +383,18 @@ EXAMPLES = {
     "unbend": {"faces": ["fc:1"], "face": "fc:2"},
     "rebend": {"faces": ["fc:1"], "face": "fc:2"},
     "flat_pattern": {"face": "fc:1", "edge": "e:1"},
+    "lofted_flange": {"section": "s:1", "end_section": "s:2", "thickness": 2},
+    "advanced_flange": {"edges": ["e:1"], "length": 20, "angle": 90},
+    "variational_flange": {"edges": ["e:1"], "length": 20},
+    "gusset": {"faces": ["fc:1"], "height": 6, "width": 10},
+    "edge_rip": {"section": "s:1", "width": 0.5},
+    "closed_corner": {"faces": ["fc:1", "fc:2"]},
+    "three_bend_corner": {"faces": ["fc:1", "fc:2"]},
+    "bridge_bend": {"edges": ["e:1", "e:2"]},
+    "bend_taper": {"faces": ["fc:1"], "face": "fc:2", "length": 5},
+    "joggle": {"faces": ["fc:1"], "section": "s:1", "height": 5},
+    "bulge_relief": {"edges": ["e:1"], "height": 3},
+    "bead": {"section": "s:1", "height": 2, "radius": 4},
 }
 
 

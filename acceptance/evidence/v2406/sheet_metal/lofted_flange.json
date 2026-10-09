@@ -1,0 +1,142 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/lofted_flange.json",
+  "scenario_sha256": "f7c641598b117813a142c6a13f5055e736dfc1410f5a60a25c27f491b2204e09",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "lofted_flange"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "sources": {
+    "nx_create_sheet_metal_feature": "8829052ca2c1c1c2b3aaec621247991c1d872b522fe551e48c85ea4a85ce0e03"
+  },
+  "run_id": "20261009-230052-50880b",
+  "owner": "sm_ops_a",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230052-50880b\\sheet_metal_lofted_flange_50880b.prt",
+  "started": "2026-10-09T19:00:52Z",
+  "finished": "2026-10-09T19:00:54Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.844,
+      "result_sha256": "64029e241e2d9d9050f3a1be9cac1786cc914178d2e6010833dbfa7e60bc0380"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "7c52ef032a1b7ffd4a0b24cfcb59a6d37107ffca42e4c357f43e5e8e7af9a673"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "2c84d907ed5b027f505cd2f1dfb8bf8fd640e7645306aff6147fc006edf19279"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "29e39efde1e7130c902465dc8473a7b0816164490e3b55335aed7ecdcd4bddb0"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "691d7ee4aa7b612c2c6057e17064bfaa870cf615fbffddac066d203656fc1c97"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "662af443a47f71a1faeaee8c8c656b3bf6a059fe47721c2c95613ba5c0f8d767"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "7368781a403c2e89812e0af528f414206becd7042c91c6227741d27b13e0da72"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "347e4b3f9a84f4956e4172806e63fcfa882651c78e4b8a6a36ef45e26f4c2996"
+    },
+    {
+      "index": 9,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.093,
+      "result_sha256": "9d471e6c6741b194af04e013f54623f5cf08c5bd9ba7ee919dcf2a811ebd9b63"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.079,
+      "result_sha256": "143055f2da1e52ef0be00e98aa160d7a76cf9b767a4a6855935c21b13f3582e7"
+    },
+    {
+      "index": 11,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.046,
+      "result_sha256": "6e08c805f370f9ed36a030a132ba7f42860894ca7e2f4c2a5fff469c902ba30f"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.032,
+      "result_sha256": "2cb8a73f1b89f71eb9bf2ce5ddeffce8a9e7fa0a14d1165ec0f6d1ccd6015757"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-230052-50880b/sheet_metal_lofted_flange_50880b.prt"
+    ],
+    "failed": []
+  }
+}

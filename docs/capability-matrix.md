@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `eaf677d04a0f120caef6843725519bf45b3d98a219cb04a854bf75aac8d6ebed`.
+Canonical SHA-256 (catalogue evidence): `18ca671a8bad1fb2bcac189e22cb6864e86257eee1b4ddcb9bc4f16919a6c5a9`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -67,7 +67,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_section_view | Native-tested | display | view | v2406: tested; 40 checks in acceptance/display/sections.json |
 | nx_create_sew | Native-tested | freeform | model | v2406: tested; 23 checks in acceptance/freeform/sew_thicken.json |
 | nx_create_sheet_metal_callout | Experimental | sheet_metal | model | no acceptance evidence: hidden and refused in production |
-| nx_create_sheet_metal_feature | Native-tested | sheet_metal | model | v2406: bend, break_corner, contour_flange, dimple, drawn_cutout, flange, flat_pattern, hem, jog, normal_cutout, rebend, resize_bend_angle, resize_bend_radius, resize_neutral_factor, tab, unbend (untested: louver); 14 checks in acceptance/sheet_metal/inch.json |
+| nx_create_sheet_metal_feature | Native-tested | sheet_metal | model | v2406: bead, bend, bend_taper, break_corner, bridge_bend, bulge_relief, closed_corner, contour_flange, dimple, drawn_cutout, edge_rip, flange, flat_pattern, gusset, hem, jog, lofted_flange, normal_cutout, rebend, resize_bend_angle, resize_bend_radius, resize_neutral_factor, tab, three_bend_corner, unbend (untested: advanced_flange, joggle, louver, variational_flange); 11 checks in acceptance/sheet_metal/three_bend_corner.json |
 | nx_create_shell | Native-tested | modeling | model | v2406: tested; 9 checks in acceptance/modeling/shell.json |
 | nx_create_sketch | Native-tested | sketch | model | v2406: all variants; 54 checks in acceptance/sketch/create_sketch.json |
 | nx_create_sketch_constraints | Native-tested | sketch | model | v2406: all variants; 44 checks in acceptance/sketch/sketch_constraints.json |
