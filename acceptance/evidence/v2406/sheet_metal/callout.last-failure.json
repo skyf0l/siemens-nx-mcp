@@ -1,7 +1,7 @@
 {
   "format": 1,
   "scenario": "acceptance/sheet_metal/callout.json",
-  "scenario_sha256": "0f4d35431aa8c75ccdae32149aada59934e8315202d7a7b2a3a0dbbc08cb93f6",
+  "scenario_sha256": "1394d307247ff01c96d22c309285f94b0fcf9c9053dd00317a60b142f9e31117",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_callout": [
@@ -11,15 +11,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
   "sources": {
     "nx_create_sheet_metal_callout": "c75d9e7eb5f14c0ffe126933e8892ffb2546c27957fe4ca1be178fd4338b654c"
   },
-  "run_id": "20261009-183156-585a09",
-  "owner": "dom_sheet_metal",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-183156-585a09\\sheet_metal_callout_585a09.prt",
-  "started": "2026-10-09T14:32:18Z",
-  "finished": "2026-10-09T14:32:23Z",
+  "run_id": "20261009-220234-965409",
+  "owner": "reg_final_2",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-220234-965409\\sheet_metal_callout_965409.prt",
+  "started": "2026-10-09T18:02:48Z",
+  "finished": "2026-10-09T18:02:50Z",
   "passed": false,
   "checks": 10,
   "failed_checks": 10,
@@ -30,8 +30,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.781,
-      "result_sha256": "c4f2a0738c925d85fe7a0a263104c1945bfab59f3a7206e6c86017d2936eb1f7"
+      "seconds": 0.453,
+      "result_sha256": "b8c919c8e628a2297dd62e3fcc4cad8a34fd29010de402c9ddf11a3b947a2627"
     },
     {
       "index": 2,
@@ -39,8 +39,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.5,
-      "result_sha256": "a57670fa8442a0ca2dcc239691815c1b3f8190cf4a1aacd429e73069a1c67fa0"
+      "seconds": 0.188,
+      "result_sha256": "7c20069686765b8cad273c712f4eec2e117dc47479bc47e30b51289dae2b78c6"
     },
     {
       "index": 3,
@@ -48,8 +48,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.172,
-      "result_sha256": "5c53326816148c77283064546147401bfa4292b163f3b2fbe2747c3e798217a0"
+      "seconds": 0.062,
+      "result_sha256": "dc670f18c0a6e9114d376e7066e130271aa2c3b44597a4543889e03952bdd43c"
     },
     {
       "index": 4,
@@ -57,8 +57,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.187,
-      "result_sha256": "b2f14fa753b1eb3b88be650d7510bbe4ba9e465f302ce1d7e9102cf71da0fc25"
+      "seconds": 0.047,
+      "result_sha256": "e127672fd23d19e230b6fc748b9bbea3e4271f3aed7ea0707927f6167acfd1b9"
     },
     {
       "index": 5,
@@ -66,8 +66,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.188,
-      "result_sha256": "6a7950f6178bee016f1ab7e1fc35af36e2e2d21ec7808c288e3a20bf1d3c0c65"
+      "seconds": 0.063,
+      "result_sha256": "32bea0d20ff2a71cb82a2842e580d62f9f3d92c57a4798df635390f3ede5588a"
     },
     {
       "index": 6,
@@ -75,8 +75,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.218,
-      "result_sha256": "742841961792ed1f6d05e8ce781c06b63acd3f86ee49fb5e610921b9fb14216b"
+      "seconds": 0.062,
+      "result_sha256": "c0bd934bec7a8e0500b1e5bc90b4d8db3b2c94b738d2d80371b69f4a4ed9880c"
     },
     {
       "index": 7,
@@ -84,8 +84,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.25,
-      "result_sha256": "61b6f859a6113956b6e273bdef72e6cf12d9190340ea27c6ebe25ebb4a9760b7"
+      "seconds": 0.063,
+      "result_sha256": "d3242f76f2e5f88d3c965b209eab0e8f9350ce376817e25962e8fe6277ff6bce"
     },
     {
       "index": 8,
@@ -93,8 +93,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.204,
-      "result_sha256": "d2984a2e2e9331cbc9594e23d678024a567caedce0386ed14a6791b972a43b95"
+      "seconds": 0.031,
+      "result_sha256": "0d2bca38350e80b03bf1bd4c8482fdf19bb2e7a21ffe0f8a73caaf7e637ecd32"
     },
     {
       "index": 9,
@@ -102,8 +102,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.218,
-      "result_sha256": "6ac20512e7a6805301bafe940b645418a776d0d9d9f70d5edb95de81bd1db09e"
+      "seconds": 0.078,
+      "result_sha256": "1cf21f138002c6b3a5b05dd2c33e7f006600a52650233c23adb52456c78b29ec"
     },
     {
       "index": 10,
@@ -111,8 +111,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.141,
-      "result_sha256": "97b77bc26b88b11a800252d121a1d97ed7f1c42d601afb52ecca45e2dec5c812"
+      "seconds": 0.031,
+      "result_sha256": "d616ebeb1f84ea7188df8f0598569f6f68f2b63e8c265328a968c59d18321eba"
     },
     {
       "index": 11,
@@ -120,8 +120,8 @@
       "setup": false,
       "passed": false,
       "checks": 4,
-      "seconds": 0.484,
-      "result_sha256": "5b09f6ade8f283055d58139708fcd9bee57a8d1908c43fbe02d3201f587975ec",
+      "seconds": 0.344,
+      "result_sha256": "f635fb551bb8baca7dc06dbdebae19f802682faaae57b7bfe012e9539e36d2d5",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -136,8 +136,8 @@
       "setup": false,
       "passed": false,
       "checks": 4,
-      "seconds": 0.203,
-      "result_sha256": "ccf6c7ad26312c6dbad3f5ce9c1bd1c04ffc23465510faa6a4513a9b278eed3f",
+      "seconds": 0.078,
+      "result_sha256": "c992d83ee0e51527a7c80c1007168831b1f360533c46b91244d85e57417f8049",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -152,14 +152,14 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.188,
-      "result_sha256": "c3d1c17a87e02bf7d32d99611bd5ac340b9ca4c733e921892583b7a864fe274d"
+      "seconds": 0.047,
+      "result_sha256": "6b3e047ece7e2b32abd5925a4526ee43ea39bb6dff4aee0cefe4e98242f3d66c"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-183156-585a09/sheet_metal_callout_585a09.prt"
+      "smoke/20261009-220234-965409/sheet_metal_callout_965409.prt"
     ],
     "failed": []
   }

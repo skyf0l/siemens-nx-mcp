@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `36f86471d20f2663aa6a3a98b98dbecdcd57cc8f044e8fa9d1cbea6b547e3ab9`.
+Canonical SHA-256 (catalogue evidence): `eaf677d04a0f120caef6843725519bf45b3d98a219cb04a854bf75aac8d6ebed`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -148,7 +148,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_appearance | Native-tested | display | view | v2406: tested; 53 checks in acceptance/display/appearance.json |
 | nx_set_camera | Native-tested | display | view | v2406: tested; 48 checks in acceptance/display/camera.json |
 | nx_set_component_pose | Native-tested | assembly | model | v2406: all variants; 108 checks in acceptance/assembly/components.json |
-| nx_set_control | Native-tested | session | session | v2406: all variants; 19 checks in acceptance/session/set_control.json |
+| nx_set_control | Native-tested | session | session | v2406: all variants; 16 checks in acceptance/session/set_control.json |
 | nx_set_current_feature | Native-tested | modeling | model | v2406: tested; 10 checks in acceptance/modeling/current_feature.json |
 | nx_set_explosion_display | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_set_expression | Native-tested | modeling | model | v2406: tested; 24 checks in acceptance/modeling/expression.json |

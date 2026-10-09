@@ -10,15 +10,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
   "sources": {
     "nx_create_gdt": "a22cd1d64d176b4390186910121c4f099e94bf37e9a3b2032287d5734086a847"
   },
-  "run_id": "20261009-191226-818b86",
-  "owner": "dom_inspection",
+  "run_id": "20261009-220037-f5bd9e",
+  "owner": "reg_final_2",
   "part": null,
-  "started": "2026-10-09T15:12:39Z",
-  "finished": "2026-10-09T15:12:40Z",
+  "started": "2026-10-09T18:00:59Z",
+  "finished": "2026-10-09T18:01:00Z",
   "passed": false,
   "checks": 4,
   "failed_checks": 4,
@@ -29,8 +29,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.625,
-      "result_sha256": "054dc5266d3bd951c3c18c606d76179be1711d24aac47dea69c3121b619cc81e"
+      "seconds": 0.547,
+      "result_sha256": "cbeb00bef6a817df67d7ed85fc349a5fd2fdf025553ae9a7ebb4bdb79415c8b9"
     },
     {
       "index": 2,
@@ -38,8 +38,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "71029e1635de0b2cd46f4821dbb2e4012333dc5946a7a431b31d0c11f66e1da1"
+      "seconds": 0.015,
+      "result_sha256": "947ba3c86f53049db873c1c7e384f508973a82f53224a23ff0f4db80fa353afd"
     },
     {
       "index": 3,
@@ -47,8 +47,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.032,
-      "result_sha256": "eaa989c08432637dd602803b1d4a19f75f6d649e494429d3fb3aa30f31aab54d"
+      "seconds": 0.016,
+      "result_sha256": "6bdb7ebfe6eeedf0fdbd63c6992c96acb42f25ba7b2bd0a50e2fa17777af2987"
     },
     {
       "index": 4,
@@ -56,8 +56,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.015,
-      "result_sha256": "87720a925e8fc32fe891cd9549b81e23888f910cfa4d82a3c359b08cf1d27327"
+      "seconds": 0.016,
+      "result_sha256": "cc755f1298f2fcfff0eca7da9fbc10b8b27ef559556c441b56bff7166dd5fac8"
     },
     {
       "index": 5,
@@ -65,8 +65,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "d6cca241c1b769ee8a1188b2933ca0aeba52dafd69becd5e7c88abc1d276248d"
+      "seconds": 0.016,
+      "result_sha256": "fb037ecdfb8eec119b8c20f733e4bdc4d272e6e442cc13ecd80b95a72b492f3a"
     },
     {
       "index": 6,
@@ -74,8 +74,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "ea69adb7d9404a38b134968ebcbedabbecc260121de3f726227cbbee37160ef9"
+      "seconds": 0.015,
+      "result_sha256": "de63a9f7f181dfd86949d68267e2be76df2efef7cb343a8be27cd4fd1f094615"
     },
     {
       "index": 7,
@@ -83,8 +83,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "76563988dc78d31c7e98c9e94e175d444efa39a18be97fb772edc7404220f6e9"
+      "seconds": 0.032,
+      "result_sha256": "abeb4271b2316b1fb90182faed38c162db09d9cd7cd8f31cc251e67a8e4305c7"
     },
     {
       "index": 8,
@@ -92,8 +92,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "8440efd369a797c7f72921907857f4fb769ac56da8a30807a3f57d7ccc2f9ef4"
+      "seconds": 0.015,
+      "result_sha256": "ee24f9fa8d42aaeaf56cd120d5fc0babe7e7306e06bd0606fe381bf1d3513e09"
     },
     {
       "index": 9,
@@ -101,8 +101,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.015,
-      "result_sha256": "f4794302554542927fc9a1fc749b169baf4aa70efcde8f9cc73c2782f90d6786"
+      "seconds": 0.016,
+      "result_sha256": "a0798e9c22c67e3dae7427ffa0da14a7a76404fa221fb2e693afd02aa1f3c811"
     },
     {
       "index": 10,
@@ -110,8 +110,8 @@
       "setup": false,
       "passed": false,
       "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "aa8e8072794c8cc9ae5fb77d1c77d21fce5b6d97b84ffeed42749d5040b8294e",
+      "seconds": 0.078,
+      "result_sha256": "c317ad6671fe6eb9ebc8cb1af882db235024a3994f01f3c41aba84a2298219db",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -134,7 +134,7 @@
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-191226-818b86/drawing_create_gdt_datum_feature_drawing_block_mm.prt"
+      "smoke/20261009-220037-f5bd9e/drawing_create_gdt_datum_feature_drawing_block_mm.prt"
     ],
     "failed": []
   }

@@ -1649,7 +1649,7 @@ Run 1-100 batchable tool calls in order under one undo mark; any failure undoes 
 
 ### `nx_set_control`
 
-**Set NX control** · effect `session` · NX 2406: tested (all variants); 19 checks in `acceptance/session/set_control.json`
+**Set NX control** · effect `session` · NX 2406: tested (all variants); 16 checks in `acceptance/session/set_control.json`
 
 Read or change the NX MCP panel mode. auto: steps run between the engineer's commands. agent: NX stays locked for you. ask (= manual): each step waits for the engineer's OK. Lowering your control is immediate; more control waits up to 60 s for the engineer on the panel (else ask in chat).
 

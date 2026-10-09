@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "48e4e51a54677bddfbb09286a59e42267aa0e755",
+  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
   "sources": {
     "nx_get_drawing_view": "f023426bb1ac931809b1430c572d6cb76ca34f1de4ff84d58d38934a02998fe3"
   },
-  "run_id": "20261009-212953-34ed99",
-  "owner": "cl3_executor",
+  "run_id": "20261009-220037-f5bd9e",
+  "owner": "reg_final_2",
   "part": null,
-  "started": "2026-10-09T17:29:57Z",
-  "finished": "2026-10-09T17:29:59Z",
+  "started": "2026-10-09T18:01:51Z",
+  "finished": "2026-10-09T18:01:52Z",
   "passed": true,
   "checks": 13,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 1.109,
-      "result_sha256": "18513f1ad799cc79e8ba97010e75e148bcfdf04c02b5350a87d310cd9670bec5"
+      "seconds": 0.468,
+      "result_sha256": "be0d0f12030a6be305fa8399dab9c1f7b51afda2758231e05f74f3a4fd998074"
     },
     {
       "index": 2,
@@ -37,7 +37,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.078,
-      "result_sha256": "fc2cc900a0980df240dc7b8e8396f862c7caf0aa7b5d905dfdbec118073c5f6a"
+      "result_sha256": "9a965fc7e6b39214e26850c40f5a99c33336d68ad59ebaf9c1e5643abeec1b53"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.297,
-      "result_sha256": "5c787e1c10f8a689574cf5140226733eb8bdf451cf2a11af61dae4e00686f97a"
+      "seconds": 0.282,
+      "result_sha256": "e33c443878443d29c78aafb17a81a488b69de9237f0591af6cea595c8a226f88"
     },
     {
       "index": 4,
@@ -54,8 +54,8 @@
       "setup": false,
       "passed": true,
       "checks": 11,
-      "seconds": 0.032,
-      "result_sha256": "27e07336bae8e87ecd2e1fcaf8c05683f528f07e63eee6c32891fd0b18af9df9"
+      "seconds": 0.031,
+      "result_sha256": "95da07c88579a2af459a9831c22568aa661c0002e878899472d76cca88e37054"
     },
     {
       "index": 5,
@@ -64,7 +64,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.031,
-      "result_sha256": "73350b89d5853a340508157a60e78dc16b9d70099fc18dbfa90eec071cf6139d"
+      "result_sha256": "6c6cdfffc637777317a8cde606c9a2c909a45049b4f0f81efb34bdb1d5897b7b"
     },
     {
       "index": 6,
@@ -72,8 +72,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.25,
-      "result_sha256": "94717a34abc01279da91561e89db1868ab7dded4c9309eef614e06acc25cd259"
+      "seconds": 0.219,
+      "result_sha256": "9791a3e4ed8d285d26a5aa1cfcd7f4be25548564651ddd9d5f6b03609b45b2be"
     }
   ],
   "cleanup": {

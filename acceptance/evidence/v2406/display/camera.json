@@ -10,17 +10,17 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "48e4e51a54677bddfbb09286a59e42267aa0e755",
+  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
   "sources": {
     "nx_get_camera": "3d264c50e55936d1412560e769b27b4eff2978d793fe9bf994afd1c592941ed6",
     "nx_set_camera": "3d264c50e55936d1412560e769b27b4eff2978d793fe9bf994afd1c592941ed6",
     "nx_restore_display": "38a3a4dcae0e7c7c7c015d3a74942a7be42cbc80c63e868747f1b94637731fcf"
   },
-  "run_id": "20261009-211931-703ad5",
-  "owner": "cl3_executor",
+  "run_id": "20261009-220357-3e73b8",
+  "owner": "reg_final_2",
   "part": null,
-  "started": "2026-10-09T17:19:39Z",
-  "finished": "2026-10-09T17:19:44Z",
+  "started": "2026-10-09T18:03:59Z",
+  "finished": "2026-10-09T18:04:03Z",
   "passed": true,
   "checks": 48,
   "failed_checks": 0,
@@ -31,8 +31,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 1.844,
-      "result_sha256": "a9437c838a761dfb7097932ead058a5d2ace10b054ee4df26cdb8e9e6fb2f7e3"
+      "seconds": 0.907,
+      "result_sha256": "ddfb1913b379e782c54e61acefb437ebbcc117bee3d0ba7ecb4fd09e472ae457"
     },
     {
       "index": 2,
@@ -41,7 +41,7 @@
       "passed": true,
       "checks": 6,
       "seconds": 0.531,
-      "result_sha256": "c41ee5aa6b61966ce45b896c3e8209a9ac335e777d541c3ebd7f3797f298f16f"
+      "result_sha256": "5563ef5963e216954c37ea8e0a29655692ffd4a0107e377dbcff8ac0cd4b5a3a"
     },
     {
       "index": 3,
@@ -49,8 +49,8 @@
       "setup": false,
       "passed": true,
       "checks": 5,
-      "seconds": 0.016,
-      "result_sha256": "f8fcb35c3482f73a23586856f0154d7e9e2dea15d216013e37418931e5cb4f2d"
+      "seconds": 0.031,
+      "result_sha256": "1ae3da52cc0d180dc4141a833d3970ebd5395580943c905ad11d72c1ba230e67"
     },
     {
       "index": 4,
@@ -58,8 +58,8 @@
       "setup": false,
       "passed": true,
       "checks": 4,
-      "seconds": 0.062,
-      "result_sha256": "fbf3097fd69b2e5a54456500b52b22b8ee6f914cbb3b4d6d056057ee945794f9"
+      "seconds": 0.031,
+      "result_sha256": "f61d203962dd4a69727a6f32427ea6667c1e5797dcdc9b28102d1b7f6a7fff4c"
     },
     {
       "index": 5,
@@ -67,8 +67,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.032,
-      "result_sha256": "dbdcde6f298f65d69eb4ca8fbf14a8f950df1947f08b8a9caa5c56e35902ed65"
+      "seconds": 0.016,
+      "result_sha256": "b9faf4d5c3fa7e49d8f3934412b7d2be58921aa55a63d86af5cd54e475aa235f"
     },
     {
       "index": 6,
@@ -77,7 +77,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.031,
-      "result_sha256": "5d9f8538d7e373485b27b0be82cd566ea6f9b30833e5b186b9faf59d0aa00803"
+      "result_sha256": "ba0dd3f9f4653c823b39bab00445551e9694d767ac56531b5d4909c11610be77"
     },
     {
       "index": 7,
@@ -86,7 +86,7 @@
       "passed": true,
       "checks": 3,
       "seconds": 0.5,
-      "result_sha256": "01e41ac9ed4dbf922169cbdbb4ad20ec254d02787d174f73e623a907df2de972"
+      "result_sha256": "69870f77592f4bdb13004a3a9b4ec375e588253642c69a2534bf1c1131ea40ab"
     },
     {
       "index": 8,
@@ -94,8 +94,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.062,
-      "result_sha256": "2fe59951486959e287775a44629f8412758b01c410a6d12eacd07268782d8c58"
+      "seconds": 0.047,
+      "result_sha256": "cb1d7423db58a7fa6583ae1fd0d1b90bc695e3c0475f9b64be3ccfa01ae90c30"
     },
     {
       "index": 9,
@@ -104,7 +104,7 @@
       "passed": true,
       "checks": 1,
       "seconds": 0.047,
-      "result_sha256": "9841a3933daefe82605731776e4c48eb799527f55e01ca1a077026d4a3568efd"
+      "result_sha256": "2cb2561eab5195c48b97802ec47add075b7406c6af5a1bd45d1f88d56d015d78"
     },
     {
       "index": 10,
@@ -113,7 +113,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.516,
-      "result_sha256": "2bd1b080e9e8e60240c840ba53c337797807fdd2b1cc895256d4f2910b760d50"
+      "result_sha256": "2f898734c0bbab609d827631b2d3cc8b4f4b029a6a82f368a4d95cad7411d83b"
     },
     {
       "index": 11,
@@ -121,8 +121,8 @@
       "setup": false,
       "passed": true,
       "checks": 5,
-      "seconds": 0.047,
-      "result_sha256": "ad8c581bda01c42436c1a8453ae6f622dc329b320f2e1c31a7425e00d78bad0c"
+      "seconds": 0.031,
+      "result_sha256": "88b7277ce0d27dbedb93b712a5325296588ce6637672fc5773ec769815f9c01a"
     },
     {
       "index": 12,
@@ -130,8 +130,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "10a7d443f1e4870600471fff593f08cd4cdff283dfaf1deb9838bcddef85cf70"
+      "seconds": 0.062,
+      "result_sha256": "c472aad546da729f481d16bcf65b5d6de4ed9e22f025b0750d11e1e8452eb6b1"
     },
     {
       "index": 13,
@@ -139,8 +139,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "a732b1b6c86a6107782d6458f78abc9ca5a8f7188c04329daf4be31f16887c06"
+      "seconds": 0.032,
+      "result_sha256": "de652e4dce0ef746eadedf242f29110df6c2223e5c477632d17c4d3015e998a2"
     },
     {
       "index": 14,
@@ -149,7 +149,7 @@
       "passed": true,
       "checks": 3,
       "seconds": 0.031,
-      "result_sha256": "84c854a7314ed1bfdea78346ce954ce3c1a50199c8e7ad49e6dbd70d0ccdb418"
+      "result_sha256": "7f40f61038c7cccc7e855f8ae6c82a24a64317eba49b118e0ce2a4d9c56db035"
     },
     {
       "index": 15,
@@ -157,8 +157,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "183c5bb1e111c429d42f33b26211192b6b00f949356a375c364e09f981574369"
+      "seconds": 0.015,
+      "result_sha256": "dcd3d52da1c94a2932fd821b923092cd07a65ab8e97bb2b18adc10ccd4c7da3e"
     },
     {
       "index": 16,
@@ -167,7 +167,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.032,
-      "result_sha256": "dd51d5131a396c3b85b97e1d11c0751d1faded04eeeba500e20c0df150b84b14"
+      "result_sha256": "c98ca0099fc75b7d4af3cca66d10c2442f21a55c3471360e45ed1a9bf63c1dea"
     },
     {
       "index": 17,
@@ -176,13 +176,13 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.031,
-      "result_sha256": "5766ba29e757c884042317d2d204ed6bcf2b688150260b747360cbdd6c4c4b0e"
+      "result_sha256": "f62bbe5dd52cb1a231c8ab24af80aab212f333db1b8ca815d69b6b9d8647fee5"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-211931-703ad5/display_camera_drawing_block_mm.prt"
+      "smoke/20261009-220357-3e73b8/display_camera_drawing_block_mm.prt"
     ],
     "failed": []
   }

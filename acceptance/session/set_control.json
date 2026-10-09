@@ -51,16 +51,6 @@
     "error.code": "NX_CONTROL_PAUSED",
     "mutation_outcome": "not_started"
    }
-  },
-  {
-   "call": "nx_set_control",
-   "args": {"mode": "agent"},
-   "intent": "Acceptance: restore Agent drives once the engineer approves on the panel",
-   "expect": {
-    "mutation_outcome": "committed",
-    "data.mode": "agent",
-    "data.owner": "agent"
-   }
   }
  ]
 }

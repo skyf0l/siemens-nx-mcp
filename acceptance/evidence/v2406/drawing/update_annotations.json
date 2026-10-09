@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
   "sources": {
     "nx_update_annotations": "cff22fa04aaf459aaf58076238726a1f3ec982fbfb9263fcea853bc994e82f6b"
   },
-  "run_id": "20261009-181416-7cf560",
-  "owner": "core_fix",
+  "run_id": "20261009-220037-f5bd9e",
+  "owner": "reg_final_2",
   "part": null,
-  "started": "2026-10-09T14:15:17Z",
-  "finished": "2026-10-09T14:15:21Z",
+  "started": "2026-10-09T18:01:54Z",
+  "finished": "2026-10-09T18:01:57Z",
   "passed": true,
   "checks": 6,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.891,
-      "result_sha256": "a2f7e2aa960d52dc3ceabcee22036f1cfe7c8bc19206be0a229bd17e0fd81dd9"
+      "seconds": 0.86,
+      "result_sha256": "7297e7f9b79fd0a9f3710149edc3aecc5dfef8870f08d57cf4039a6cc0ffc49c"
     },
     {
       "index": 2,
@@ -36,8 +36,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.266,
-      "result_sha256": "6ee4b58d77352c461e062b0dd43fa1043bf2f52534e58cb20c9fde8de66a464e"
+      "seconds": 0.094,
+      "result_sha256": "398d039cce9effaff04fb5a3b9f545267d3870c928dc701c4142bbf1360a5ccc"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.5,
-      "result_sha256": "99f9e97b99d56d219134d4f550544c8742ef70c617360ec45bb3980efacadec3"
+      "seconds": 0.265,
+      "result_sha256": "b4c28c8da954438e41528b2cb304dbf208410c32f0f17bbddfc489e08adfc386"
     },
     {
       "index": 4,
@@ -54,8 +54,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "1b50342c32ebc409a437038d8b31e73953088417acd07908016456295a14751a"
+      "seconds": 0.188,
+      "result_sha256": "8fb566847937fd749edad3de97541977a92bb62f4cde5f0c31a592a09d01ebf9"
     },
     {
       "index": 5,
@@ -63,8 +63,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.187,
-      "result_sha256": "8b7dc28e821347696c1d85ce62737f5b7791daf34688b8b63eb68982a3c5dec4"
+      "seconds": 0.047,
+      "result_sha256": "7d812584a574daeb330fa0f12e81df7bc8209ed8582136546abe881c838f8b66"
     },
     {
       "index": 6,
@@ -72,8 +72,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.266,
-      "result_sha256": "15f6f43e4341a44b0219cec377a76d6ae5f7e1afc01fcad459681bd7acc478cb"
+      "seconds": 0.094,
+      "result_sha256": "dc53a92ed45d1720512e311351bbfa0dfc0f3932d5299c1da3aa8fccf0126498"
     },
     {
       "index": 7,
@@ -81,8 +81,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.141,
-      "result_sha256": "fda25444c04fef8ee662b65008f491a9410f1c9cc2e95f10d6d0959dda8a8b19"
+      "seconds": 0.031,
+      "result_sha256": "8c079b759b2ea92a2487b132126c23eb43942bb29db5e94f2353388e044ce9ba"
     },
     {
       "index": 8,
@@ -90,8 +90,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.171,
-      "result_sha256": "b34491e99e93ab3c8d30e7920b2cab3aacc2a3190392996c064caad9d4337c8e"
+      "seconds": 0.063,
+      "result_sha256": "ca140ea3d8e4386e273d659ae311fb6b4ce9aee2b3ef1eb0fdda13bb75289ecd"
     },
     {
       "index": 9,
@@ -99,8 +99,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.125,
-      "result_sha256": "31ae07ee1a8885db234fa7b321fb72f994e869ef3fe422040a2f521710303c7c"
+      "seconds": 0.047,
+      "result_sha256": "06d54c0e1970fe2975a950fe9ced22bceb84903a0f70a65dbc99bd5a0acdac48"
     },
     {
       "index": 10,
@@ -108,8 +108,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.375,
-      "result_sha256": "adf0103be2691900b912c7341d63d60bfbbabda763f24de7097a0086a3bf8307"
+      "seconds": 0.718,
+      "result_sha256": "539a573f1c7a6e61bd4557efcf82c1f11254bf7284a2b9dbef14067893750632"
     }
   ],
   "cleanup": {
