@@ -21,7 +21,7 @@ repos:
       - id: name-tests-test
         args: [--pytest-test-first]
         # Shared fixtures and fakes, not test modules.
-        exclude: ^tests/(kit/|core/(fakes|tools)\.py$|fakes/|unit/[^/]+/fakes\.py$)
+        exclude: ^tests/(kit/|core/(fakes|tools)\.py$|fakes/|unit/[^/]+/(fakes|support)\.py$)
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20
@@ -41,7 +41,8 @@ repos:
       - id: tool-reference
         name: tool reference matches the catalogue
         entry: python scripts/generate_tool_reference.py --check
-        language: system
+        language: python
+        additional_dependencies: ["pydantic>=2.11,<3"]
         pass_filenames: false
         files: ^(src/nx_mcp/evidence/.*\.json|src/nx_mcp/domains/.*\.py|src/nx_mcp/core/(catalogue|types)\.py|src/nx_mcp/sidecar/schema\.py|scripts/generate_tool_reference\.py|docs/tools\.md)$
       - id: pytest
