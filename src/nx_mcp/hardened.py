@@ -5,6 +5,7 @@ NXOpen is accessed only by the existing main-thread dispatcher.
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import math
 import uuid
@@ -432,6 +433,7 @@ class HardenedExecutor(
             }
             self.store.put(record)
         before = {}
+        have_before = False  # An empty part has an empty, but real, snapshot.
         previous = self._current_operation
         self._current_operation = op_id
         try:
@@ -444,6 +446,7 @@ class HardenedExecutor(
                 and part
             ):
                 before = self._snapshot(part)
+                have_before = True
             if (
                 mutable
                 and method not in NON_MODEL
@@ -526,11 +529,24 @@ class HardenedExecutor(
             if mutable:
                 self._review_epoch = getattr(self, "_review_epoch", 0) + 1
             outcome = "not_started" if mark is None else "partial"
+            references = "invalidated"
             if mark is not None:
+                # A call that failed before creating or deleting anything (for
+                # example an argument check) keeps every reference: undo restores
+                # the same NX objects. Anything structural, or any doubt,
+                # invalidates the whole part as before.
+                try:
+                    unchanged = have_before and self._snapshot(part).keys() == before.keys()
+                except Exception:
+                    unchanged = False
                 try:
                     self.session.UndoToMark(mark, None)
-                    self.objects.invalidate_part(part_id)
+                    if unchanged:
+                        references = "preserved"
+                    else:
+                        self.objects.invalidate_part(part_id)
                     self.session.DeleteUndoMark(mark, None)
+                    self._clear_update_errors()
                     outcome = "rolled_back"
                 except Exception as rollback_error:
                     error = NXToolError(
@@ -546,6 +562,8 @@ class HardenedExecutor(
                 # handler's explicit cleanup outcome when no outer rollback ran.
                 outcome = err.details.get("mutation_outcome", outcome)
             err.details.update(operation_id=op_id, mutation_outcome=outcome)
+            if outcome == "rolled_back":
+                err.details.setdefault("references", references)
             if record:
                 record.update(
                     state="failed",
@@ -1821,6 +1839,18 @@ class HardenedExecutor(
         sketch = self.objects.resolve(sketch_id)
         result["object"] = self._reference(sketch, "sketch", self._work_part(), "Sketch")
         return result
+
+    def _clear_update_errors(self):
+        """Drop NX update errors left by a rolled-back commit.
+
+        Otherwise NX attaches the failed operation's message to the next
+        feature, and model health reports an error that no longer exists.
+        """
+        manager = getattr(self.session, "UpdateManager", None)
+        clear = getattr(manager, "ClearErrorList", None)
+        if clear is not None:
+            with contextlib.suppress(Exception):
+                clear()
 
     def _snapshot(self, part):
         groups = [

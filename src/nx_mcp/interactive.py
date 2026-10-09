@@ -587,11 +587,21 @@ class InteractiveHost:
                 "in the NX MCP control window.",
                 details={"mutation_outcome": "not_started"},
             )
+        from nx_mcp.hardened import READ_ONLY
+
+        if method not in READ_ONLY and not self._nx_application_ready():
+            # Seen on NX 2406: the first part creation in a fresh session must
+            # start NX's Modeling application, which waits for NX's own main
+            # loop - held by this host - and freezes NX for good. Refuse instead.
+            raise NXToolError(
+                "NX_NO_PART_OPEN",
+                "NX has no part open yet. In NX, create or open any part once "
+                "(File > New or File > Open), then retry.",
+                details={"mutation_outcome": "not_started"},
+            )
         # FileNew must not run inside LockAccess: NX v2606 can strand its
         # internal UI lock. The disabled main window reserves user input while
         # native operations execute on this same UI thread.
-        from nx_mcp.hardened import READ_ONLY
-
         self.ui.UnlockAccess()
         self.last_method = method
         self.running_method = method
@@ -772,6 +782,15 @@ class InteractiveHost:
         except Exception:
             # A summary is a courtesy; it must never stop a request from waiting.
             return humanize(method)
+
+    def _nx_application_ready(self):
+        """True once NX runs an application with at least one part loaded."""
+        try:
+            application = str(self.session.ApplicationName or "")
+            loaded = any(True for _ in self.session.Parts)
+        except Exception:
+            return True  # Unknown: do not block work on a failed probe.
+        return loaded and application not in {"", "UG_APP_NOPART"}
 
     def _dev_python(self, code):
         """Run a Python snippet on the NX UI thread (development launcher only).

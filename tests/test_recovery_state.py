@@ -243,3 +243,25 @@ def test_capability_filters_and_unit_conventions(rig):
     for params in [{"tool": "nx_missing"}, {"tool": "nx_close_part", "prefix": "nx_"}]:
         with pytest.raises(NXToolError):
             rig.e._capabilities(**params)
+
+
+def test_rejected_call_keeps_references_unless_something_was_created(rig):
+    body = rig.ref(rig.part.Bodies[0], "body") if rig.part.Bodies else None
+    rig.e._handlers["nx_test_reject"] = lambda: (_ for _ in ()).throw(
+        NXToolError("NX_INVALID_ARGUMENT", "rejected before any NX work")
+    )
+    with pytest.raises(NXToolError) as error:
+        rig.e.execute("nx_test_reject", {})
+    assert error.value.details["mutation_outcome"] == "rolled_back"
+    assert error.value.details["references"] == "preserved"
+    if body:
+        rig.e._resolve(body["id"], {"body"})  # Still valid.
+
+    def create_then_fail():
+        rig.part.Features.append(type("F", (), {"Tag": 987654, "Name": "NEW(9)"})())
+        raise RuntimeError("native commit failed after creating a feature")
+
+    rig.e._handlers["nx_test_create_fail"] = create_then_fail
+    with pytest.raises(NXToolError) as error:
+        rig.e.execute("nx_test_create_fail", {})
+    assert error.value.details["references"] == "invalidated"

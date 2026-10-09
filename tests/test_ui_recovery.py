@@ -466,3 +466,22 @@ def test_engineer_take_back_is_lasting_but_agent_handback_is_held(host):
     host.tick()
     assert host.mode == "manual" and not host.auto_start
     assert not (host.mode == "agent" or host.auto_start)  # A reload keeps the engineer in control.
+
+
+def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig):
+    from types import SimpleNamespace as NS2
+
+    host.control("agent")
+    real_session = host.session
+    host.session = NS2(ApplicationName="UG_APP_NOPART", Parts=[])
+    assert not host._nx_application_ready()
+    with pytest.raises(NXToolError) as error:
+        host.execute("nx_create_part", {"path": "x.prt"})
+    assert error.value.code == "NX_NO_PART_OPEN"
+    assert "File > New" in error.value.message
+    assert error.value.details["mutation_outcome"] == "not_started"
+    host.session = NS2(ApplicationName="UG_APP_MODELING", Parts=[object()])
+    assert host._nx_application_ready()
+    host.session = NS2()  # A failed probe never blocks work.
+    assert host._nx_application_ready()
+    host.session = real_session
