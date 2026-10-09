@@ -44,6 +44,18 @@ Suppresses or unsuppresses 1-100 owned feature IDs (`FeatureCollection.SuppressF
 - `still_suppressed_dependents` (unsuppress only): descendants of the listed
   features that are still suppressed.
 
+Every listed feature must be **active**. A feature after the current feature
+(after `nx_make_current_feature`) is rejected with `NX_INVALID_ARGUMENT`
+(`details.inactive`). Verified live (independent verification): NX 2406 sets the
+suppressed flag of an inactive hole, but the hole is still cut after the last
+feature is made current again (volume 50901.571 instead of 52660.863), so the
+flag and the geometry disagree.
+
+Dependents are found from every feature's `GetParents()` (plus `GetChildren()`).
+NX 2406 `GetChildren()` is one-sided: the block extrude reports no children
+although the united boss and the hole list it as a parent. The old
+`GetChildren()`-only walk missed them.
+
 NX suppresses all dependents with a parent. **Unsuppress restores only the
 listed features**, and NX's dependents stay suppressed. List them too (see
 `still_suppressed_dependents`) to restore the full model. Native
@@ -69,7 +81,8 @@ Moves `feature` directly before or after `target`
 (`FeatureCollection.ReorderFeature`, `ReorderType.Before/After`).
 
 - Pre-check: a feature may not move before any direct parent or after any
-  direct child. Indirect relations are covered, because an ancestor inside
+  direct child. Children come from the `GetParents()` of every feature, because
+  `GetChildren()` is one-sided in NX 2406. Indirect relations are covered, because an ancestor inside
   the moved range implies a direct parent inside it. A violation raises
   `NX_REORDER_DEPENDENCY` with `details.conflicts` = [{feature, name, relation:
   parent|child}].
@@ -110,5 +123,8 @@ boss top edge (BLEND(6), a child of the boss). Full volume 50901.571 mm3
 - Only owned features in the work part; no assembly/occurrence features, no
   feature groups (`ReorderType.Into` is not exposed).
 - One feature per reorder call.
-- Make-current to a suppressed feature is passed to NX unchanged and has not been tested live.
+- Make-current to a suppressed feature works: verified live, a suppressed
+  BLEND(6) became current, stayed suppressed, and the volume was 50953.097
+  (the volume without the blend).
+- Suppress/unsuppress of inactive features is rejected (see above).
 - Unsuppress does not cascade (NX behaviour); use `still_suppressed_dependents`.

@@ -135,8 +135,12 @@ def test_panel_summaries_are_readable():
             return f"{len(values)} {noun}s"
 
     assert SUMMARIES["nx_add_note"]({"text": ["NOTE", "two"]}, C()).startswith(
-        'Add drawing note "NOTE" (+1 lines)'
+        'Add drawing note "NOTE" (+1 line)'
     )
+    assert SUMMARIES["nx_add_note"]({"text": ["NOTE", "two", "3"]}, C()).endswith("(+2 lines)")
+    assert SUMMARIES["nx_add_note"]({"text": ["NOTE"]}, C()) == 'Add drawing note "NOTE"'
+    weld = {"weld": "v_butt", "size": 4, "object": "e"}
+    assert SUMMARIES["nx_add_weld_symbol"](weld, C()) == 'Add v butt weld symbol 4 on "e"'
     assert "Ra 3.2" in SUMMARIES["nx_add_surface_finish"]({"roughness": 3.2, "object": "f"}, C())
 
 

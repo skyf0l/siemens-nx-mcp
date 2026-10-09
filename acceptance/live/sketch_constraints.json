@@ -373,7 +373,7 @@
    "sketch_id": "$sks5.objects.0.id"
   },
   "mutation": false,
-  "intent": "Needs the shared _expression_record fix on NX 2406 (GetExpressionParents)"
+  "intent": "Works on NX 2406 since the shared _expression_record made GetExpressionParents optional"
  },
  {
   "tool": "nx_sketch_conflicts",
@@ -388,13 +388,22 @@
    "expression": "$dp.expression.name",
    "formula": "18"
   },
-  "intent": "Drive L2 to 18 mm from L1; the circle center follows the midpoint. Needs the shared _expression_record fix on NX 2406"
+  "intent": "Drive L2 to 18 mm from L1; the circle center follows the midpoint. (the sketch is still active: the curves follow when the sketch is finished)"
+ },
+ {
+  "tool": "nx_finish_sketch",
+  "args": {
+   "sketch_id": "$sks5.objects.0.id"
+  },
+  "intent": "Finishing solves the sketch with the edited expression"
  },
  {
   "tool": "nx_sketch_info",
   "args": {
    "sketch_id": "$sks5.objects.0.id"
   },
-  "mutation": false
+  "mutation": false,
+  "intent": "expect L2 at y=18 and the circle centre at its midpoint",
+  "save": "final"
  }
 ]

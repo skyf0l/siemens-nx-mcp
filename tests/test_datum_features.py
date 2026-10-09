@@ -202,3 +202,19 @@ async def test_live_acceptance_tools_exist_on_the_agent_surface(tmp_path: Path):
     async with create_connected_server_and_client_session(server) as client:
         names = {t.name for t in (await client.list_tools()).tools}
     assert {step["tool"] for step in steps} <= names
+
+
+def test_datum_axis_or_csys_is_not_a_plane_reference():
+    # Live NX 2406 (verify_a): a datum axis passed as offset reference / sketch target
+    # reached AskFaceData and failed with raw NX_API_ERROR 820022.
+    from types import SimpleNamespace
+
+    from nx_mcp.datum_features import DatumFeaturesMixin
+
+    point = SimpleNamespace(X=0.0, Y=0.0, Z=0.0)
+    axis = SimpleNamespace(Origin=point, Direction=point, Tag=1)
+    csys = SimpleNamespace(Origin=point, Orientation=None, Tag=2)
+    for obj in (axis, csys):
+        with pytest.raises(NXToolError) as error:
+            DatumFeaturesMixin()._df_plane_of(obj)
+        assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"

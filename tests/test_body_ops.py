@@ -11,7 +11,14 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.body_ops import blend_points, chamfer_offsets, plane_frame, scale_factor
+from nx_mcp.body_ops import (
+    blend_points,
+    chamfer_offsets,
+    plane_box_range,
+    plane_frame,
+    plane_misses_box,
+    scale_factor,
+)
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -43,6 +50,17 @@ def test_chamfer_offsets():
     ]:
         with pytest.raises(NXToolError, match=message):
             chamfer_offsets(*args)
+
+
+def test_plane_misses_box_rejects_planes_that_cannot_cut_the_body():
+    lo, hi = [0, 0, 0], [40, 20, 10]
+    assert plane_misses_box(lo, hi, [0, 0, 50], [0, 0, 1])  # live: NX 670030
+    assert plane_misses_box(lo, hi, [0, 0, 50], [0, 0, -1])
+    assert plane_misses_box(lo, hi, [0, 0, 0], [0, 0, 1])  # on the bottom face
+    assert plane_misses_box(lo, hi, [40, 0, 0], [-1, 0, 0])
+    assert not plane_misses_box(lo, hi, [0, 0, 4], [0, 0, 1])
+    assert not plane_misses_box(lo, hi, [20, 10, 0], [1, 1, 0])  # oblique, live 4000+4000
+    assert plane_box_range(lo, hi, [0, 0, 4], [0, 0, 2]) == (-4.0, 6.0)
 
 
 def test_blend_points():
@@ -125,3 +143,12 @@ async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path
     assert tools["nx_trim_body"].inputSchema["required"] == ["body", "tool"]
     for name in NEW_TOOLS:
         assert MANIFEST["tools"][name]["status"] in {"experimental", "tested"}
+
+
+def test_chamfer_panel_summary_shows_every_size():
+    from nx_mcp.request_summary import summarize
+
+    two = {"edges": ["a", "b"], "method": "two_offsets", "offset1": 2, "offset2": 4}
+    angle = {"edges": ["a"], "method": "offset_angle", "offset1": 3, "angle": 30}
+    assert summarize("nx_chamfer_advanced", two, units="mm").endswith("(two offsets, 2 mm x 4 mm)")
+    assert "(offset angle, 3 mm at 30 deg)" in summarize("nx_chamfer_advanced", angle, units="mm")

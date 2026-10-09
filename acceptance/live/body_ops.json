@@ -476,7 +476,7 @@
   },
   "save": "v2",
   "mutation": false,
-  "intent": "expect 16000 total (source removed, mirror of it added)"
+  "intent": "expect 24000 total: the hidden source still counts (8000 source + 8000 + 8000 mirrors)"
  },
  {
   "tool": "nx_create_part",

@@ -12,7 +12,7 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.feature_tree import expected_order, reorder_conflicts
+from nx_mcp.feature_tree import child_map, descendants, expected_order, reorder_conflicts
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -243,6 +243,58 @@ def test_reorder_rejects_same_feature(rig):
             "nx_reorder_feature",
             {"feature": ids["Boss"], "target": ids["Boss"], "position": "after"},
         )
+
+
+def test_child_map_uses_parents_because_native_get_children_is_one_sided():
+    a, b, c = (NS(Tag=i, parents=[], kids=[]) for i in (1, 2, 3))
+    b.parents, c.parents, a.kids = [a], [b], []  # NX: block.GetChildren() == []
+    for f in (a, b, c):
+        f.GetParents = lambda f=f: f.parents
+        f.GetChildren = lambda f=f: f.kids
+    children = child_map([a, b, c])
+    assert children == {1: {2}, 2: {3}}
+    assert descendants(children, [1]) == [2, 3]
+
+
+def _one_sided(rig):
+    """Like NX 2406: the block's GetChildren is empty although Boss and Blend list it."""
+    ids = _tree(rig)
+    rig.part.Features[0].children = []
+    return ids
+
+
+def test_unsuppress_lists_dependents_missing_from_native_get_children(rig):
+    ids = _one_sided(rig)
+    rig.e.execute("nx_suppress_features", {"features": [ids["Block"]], "suppress": True})
+    rig.part.Features[0].children = []
+    for f in rig.part.Features:  # the simulated NX suppresses every dependent
+        f.Suppressed = True
+    back = rig.e.execute("nx_suppress_features", {"features": [ids["Block"]], "suppress": False})
+    assert [c["name"] for c in back["changed"]] == ["Block"]
+    assert {d["name"] for d in back["still_suppressed_dependents"]} == {"Boss", "Hole", "Blend"}
+
+
+def test_reorder_detects_children_missing_from_native_get_children(rig):
+    ids = _one_sided(rig)
+    with pytest.raises(NXToolError) as error:
+        rig.e.execute(
+            "nx_reorder_feature",
+            {"feature": ids["Block"], "target": ids["Boss"], "position": "after"},
+        )
+    assert error.value.code == "NX_REORDER_DEPENDENCY"
+    assert [c["name"] for c in error.value.details["conflicts"]] == ["Boss"]
+
+
+def test_suppression_change_of_inactive_feature_is_rejected(rig):
+    ids = _tree(rig)
+    rig.e.execute("nx_make_current_feature", {"feature": ids["Block"]})
+    for suppress in (True, False):  # A rejected call invalidates the part's IDs.
+        hole = rig.ref(rig.part.Features[2], "feature")
+        with pytest.raises(NXToolError, match="inactive") as error:
+            rig.e.execute("nx_suppress_features", {"features": [hole], "suppress": suppress})
+        assert error.value.code == "NX_INVALID_ARGUMENT"
+        assert error.value.details["inactive"][0]["name"] == "Hole"
+    assert not any(f.Suppressed for f in rig.part.Features)
 
 
 @pytest.mark.asyncio

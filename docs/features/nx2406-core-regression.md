@@ -114,6 +114,30 @@ nx_list_dimensions, nx_export_drawing_pdf, nx_sheet_metal_schema,
 nx_sheet_metal_feature. The step files are ready under the verifier scratch
 folder (s8.json, s9.json).
 
+## Follow-up: orchestrator fixes (code-reviewed; live check pending)
+
+After the restart, NX hung again with the modal "Work in Progress" window, this
+time over verify_a's nx_create_part. `dev_reload` timed out, the sidecar lost
+its connection on the first extrude of s8.json, and the orchestrator stopped
+all NX calls. So no fix has been verified live yet. Offline review:
+
+| Fix | Offline result |
+|---|---|
+| STEP import: `builder.OutputFile = import_dir/"output.prt"` (hardened.py) | Matches the 2406 probe that imported correctly (1000 mm³) |
+| Placement pivot: `shift = t - delta·p` (hardened.py) | Matches the measured 2406 behaviour: MoveComponent with zero shift and rz 90 moved [20,0,0] to [0,20,0], which is delta·p. The `rows`/`_nx_matrix` conventions are consistent |
+| Invalid formula -> `NX_INVALID_FORMULA` (authoring.py `_native_formula`) | Wraps the native error, keeps nx_code, runs inside the rolled-back mutation |
+| Capabilities scoped to version (`manifest.scope_to_version(..., "v2406")`) | nx_extrude tested (verified_versions v2406); nx_datum_plane tested (real_NX_v2406_scoped); nx_bridge_surface "experimental", "Not tested on NX v2406; evidence: ...". Still pending live: nx_capabilities needs the bridge, and the running NX must report the version string "v2406" |
+
+Note: under this gating, nx_import_geometry, nx_set_component_transform,
+nx_reposition_component, nx_create_drawing and nx_sheet_metal_feature now
+report "experimental" on 2406 until v2406 is added to their verified_versions.
+
+Pending live runs (step files in the verifier scratch folder): s8.json
+(drawings), s9.json (sheet metal), s10.json (the four fixes above with
+expected numbers: import 1000 mm³; rz 90 of a component at [30,10,0] -> pose
+unchanged, assembly bounds x 20..30, y 10..20; ry 90 at [50,-5,0] -> x 50..60,
+z -10..0; bad formula -> NX_INVALID_FORMULA, volume stays 1000).
+
 ## Recommended shared fixes (hardened.py)
 
 1. STEP import: set `builder.OutputFile` (for example `import_dir/"output.prt"`)

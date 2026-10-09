@@ -134,6 +134,25 @@ def _sub(a, b):
     return [x - y for x, y in zip(a, b, strict=True)]
 
 
+def plane_box_range(box_min, box_max, origin, normal):
+    """(min, max) signed distance of an axis-aligned box's 8 corners to a plane."""
+    n = _unit(normal)
+    d = [
+        _dot(_sub([x, y, z], origin), n)
+        for x in (box_min[0], box_max[0])
+        for y in (box_min[1], box_max[1])
+        for z in (box_min[2], box_max[2])
+    ]
+    return min(d), max(d)
+
+
+def plane_misses_box(box_min, box_max, origin, normal):
+    """True when the plane cannot cut the box (all corners on one side or on it)."""
+    lo, hi = plane_box_range(box_min, box_max, origin, normal)
+    tol = 1e-6 * max(1.0, *(abs(v) for v in (*box_min, *box_max)))
+    return hi <= tol or lo >= -tol
+
+
 def _close(a, b, rel=1e-6):
     return abs(a - b) <= rel * max(1.0, abs(a), abs(b))
 
@@ -392,6 +411,17 @@ class BodyOpsMixin:
         obj, origin, normal, is_datum = self._bo_plane(tool, "tool")
         if not is_datum and int(obj.GetBody().Tag) == int(target.Tag):
             raise _bad(f"tool face must not belong to the body being {verb}")
+        # Reject a plane that cannot cut the body before NX fails on it: a failed
+        # native commit leaves its error message on the next feature created.
+        box_min, box_max = self._bo_box(target)
+        if plane_misses_box(box_min, box_max, origin, normal):
+            lo, hi = plane_box_range(box_min, box_max, origin, normal)
+            raise NXToolError(
+                "NX_INVALID_ARGUMENT",
+                f"The tool plane does not cut the body: the whole body lies on one side of it "
+                f"(signed distances {lo:g}..{hi:g} along the plane normal)",
+                details={"plane_origin": origin, "plane_normal": normal},
+            )
         return target, obj, origin, normal, is_datum
 
     def _split_body(self, body, tool):

@@ -17,9 +17,11 @@ from nx_mcp.holes import (
     hole_spec,
     hole_volume,
     match_thread_row,
+    matches_nominal,
     off_plane,
     tip_height,
 )
+from nx_mcp.request_summary import summarize
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -48,6 +50,36 @@ def test_analytic_volumes():
     assert h == pytest.approx(3)
     frustum = math.pi * 3 / 3 * (64 + 40 + 25)
     assert hole_volume(cs) == pytest.approx(frustum + math.pi * 25 * 17 + tip)
+
+
+def test_removed_volume_flags_breakout():
+    # Live NX 2406: a 4 x 30 blind hole in a 20 mm block removed 251.327 (pi*4*20),
+    # nominal 382.025; a hole 2 mm from the side removed 142.157 of 158.361.
+    assert matches_nominal(599.4645451643883, 599.4645451643939) is True
+    assert matches_nominal(251.32741228718078, 382.0248765816242) is False
+    assert matches_nominal(142.1567926311909, 158.36060317065628) is False
+    assert matches_nominal(125.66, None) is None
+
+
+def test_panel_summary_states_extent():
+    line = summarize(
+        "nx_hole_feature",
+        {"face": "f", "positions": [[0, 0, 0]] * 2, "form": "simple", "diameter": 6, "depth": 10},
+        units="mm",
+    )
+    assert line == 'Simple hole 6 mm x2, 10 mm deep, on "f"'
+    line = summarize(
+        "nx_hole_feature",
+        {
+            "face": "f",
+            "positions": [[0, 0, 0]],
+            "form": "threaded",
+            "thread_size": "M8 x 1.25",
+            "diameter": 6.8,
+            "through_all": True,
+        },
+    )
+    assert "M8 x 1.25 x1, through all" in line
 
 
 def test_positions_and_plane_checks():

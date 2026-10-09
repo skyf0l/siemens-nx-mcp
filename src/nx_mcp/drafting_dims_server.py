@@ -9,7 +9,11 @@ request_summary template (params, context) -> one line for the NX MCP panel.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
+
+from nx_mcp.schema_types import Field
+
+Point2 = Annotated[list[float], Field(min_length=2, max_length=2)]
 
 READ_ONLY: set[str] = set()
 NON_MODEL: set[str] = set()
@@ -37,24 +41,24 @@ def nx_add_radial_dimension(
     view: str,
     edge: str,
     kind: Literal["radius", "diameter"] = "radius",
-    origin: list[float] | None = None,
+    origin: Point2 | None = None,
 ):
-    """Create a native associative radius (R) or diameter (Ø) dimension on a circular or arc edge shown in a drawing view. view is a drawing-view ID; edge is an owned (or work-assembly occurrence) circular edge ID, e.g. from nx_find_geometry(kind="edge", geometry_type="circle"). origin=[x,y] places the dimension text in sheet units (default: 25 sheet units up-right of the view's reference point). Returns the dimension ID, NX's computed value in model units (radius or diameter), the edge's model radius and the placement; the value is verified against the edge geometry."""
+    """Create a native associative radius (R) or diameter (Ø) dimension on a circular or arc edge shown in a drawing view. view is a drawing-view ID; edge is an owned (or work-assembly occurrence) circular edge ID, e.g. from nx_find_geometry(kind="edge", geometry_type="circle"). origin=[x,y] places the dimension text in sheet units (default: up-right of the arc center at 45 degrees, about 12 mm (drawing scale 1) outside the arc). Returns the dimension ID, NX's computed value in model units (radius or diameter), the edge's model radius and the placement; the value is verified against the edge geometry."""
 
 
 def nx_add_angular_dimension(
     view: str,
     first: str,
     second: str,
-    origin: list[float] | None = None,
+    origin: Point2 | None = None,
 ):
-    """Create a native associative angular dimension between two straight edges shown in a drawing view (e.g. a chamfer face edge and a side edge). view is a drawing-view ID; first and second are owned (or work-assembly occurrence) linear edge IDs that are not parallel in the view. origin=[x,y] (sheet units) places the dimension text and chooses which of the angle's quadrants is dimensioned (default: 25 sheet units up-right of the view's reference point). Returns the dimension ID, NX's computed angle in degrees, the projected angle between the edges in the view (degrees, 0-90 acute value) and the placement; NX's value must equal that angle or its supplement."""
+    """Create a native associative angular dimension between two straight edges shown in a drawing view (e.g. a chamfer face edge and a side edge). view is a drawing-view ID; first and second are owned (or work-assembly occurrence) linear edge IDs that are not parallel in the view. origin=[x,y] (sheet units) places the dimension text and chooses which of the angle's quadrants is dimensioned (default: 10 mm right of and above the point midway between the two edges' midpoints in the view). Returns the dimension ID, NX's computed angle in degrees, the projected angle between the edges in the view (degrees, 0-90 acute value) and the placement; NX's value must equal that angle or its supplement."""
 
 
 def nx_add_ordinate_dimensions(
     view: str,
     origin_object: str,
-    objects: list[str],
+    objects: Annotated[list[str], Field(min_length=1, max_length=50)],
     direction: Literal["horizontal", "vertical"] = "horizontal",
     origin_snap: Literal["start", "end", "center"] = "start",
     object_snap: Literal["auto", "start", "end", "center"] = "auto",
@@ -71,4 +75,4 @@ def nx_create_drawing_sheet(
     projection: Literal["first_angle", "third_angle"] = "third_angle",
     template: str | None = None,
 ):
-    """Create and open a native drawing sheet with an explicit projection angle (first_angle = ISO/European, a view placed right of its parent shows the part's left side; third_angle = ASME/US, it shows the right side). Without template: landscape A0-A4 (default A3) custom-size sheet in mm or in sheet units and positive scale. With template: the sheet, border and title block are copied from an NX drawing sheet template, given as an installed template name (e.g. "Drawing-A3-Size2D-template" or "A3") or a workspace .prt path; the template defines the size (size, if given, must match) and units. Returns the sheet ID, actual size, scale, units, projection read back from NX and the template used."""
+    """Create and open a native drawing sheet with an explicit projection angle (first_angle = ISO/European, a view placed right of its parent shows the part's left side; third_angle = ASME/US, it shows the right side). Without template: landscape A0-A4 (default A3) custom-size sheet in mm or in sheet units and positive scale. With template: the sheet, border and title block are copied from an NX drawing sheet template, given as an installed template name from UGII_BASE_DIR/DRAFTING/templates (e.g. "Drawing-A3-Size2D-template" or "A3"; a name without a folder is always looked up there) or a workspace-relative .prt path that contains a folder (e.g. "templates/my_a3.prt"); the template defines the size (size, if given, must match) and units. Returns the sheet ID, actual size, scale, units, projection read back from NX and the template used."""

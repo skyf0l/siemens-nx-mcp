@@ -101,11 +101,47 @@ Coincident point-to-point joins remain `nx_sketch_relation coincident`.
 
 ## Known limits
 
-- `nx_set_expression`, `nx_sketch_diagnostics`, `nx_sketch_conflicts` and
-  `nx_sketch_relation` currently fail on NX 2406 once a sketch has a dimension:
-  the shared `_expression_record` calls `Expression.GetExpressionParents`, which
-  does not exist in 2406. These tools therefore use their own solver-status
-  check and expression record; the acceptance file ends with those shared tools
-  and passes completely only after the shared fix.
+- The shared `_expression_record` now tolerates the missing
+  `Expression.GetExpressionParents` on NX 2406: `nx_set_expression`,
+  `nx_sketch_diagnostics`, `nx_sketch_conflicts`, `nx_sketch_dimension` and
+  `nx_feature_parameters` work on dimensioned sketches (independent verification,
+  see below). These tools still use their own solver-status check.
+- `nx_set_expression` on a dimension of a sketch that is still active returns
+  the new value, but the curves only move when the sketch is finished
+  (`nx_finish_sketch`) or solved again; finish the sketch before reading geometry
+  back after an expression edit.
+- `nx_sketch_midpoint` / `nx_sketch_point_on_curve` solve by a native drag. In a
+  heavily constrained sketch the drag can fail (`drag_solver_status`
+  `UpdateFailed`); the call then rolls back with `NX_CONSTRAINT_UNSATISFIED`.
+  Example: an arc start onto a line extension when the arc centre is already on
+  another line and its end is equidistance-constrained.
+- NX's `fix` constraint on a line fixes the infinite line, not its end points: a
+  dimension to a "fixed" line's end may slide that end along the line.
+- The solver may also move the target (e.g. the arc moved 60 mm to the circle
+  centre for a midpoint constraint); constrain what must stay put.
 - Splines, ellipses and other curve types are rejected.
 - Dimension annotation placement is automatic (cosmetic only).
+
+## Independent verification (verify_b, NX 2406)
+
+- Replay of `acceptance/live/sketch_constraints.json` on a fresh part: all 38
+  steps as expected, including `nx_sketch_diagnostics`, `nx_sketch_conflicts`
+  and `nx_set_expression`.
+- XZ-plane sketch (sketch-local frame != part frame): line start to arc mid
+  measured 60.8276 (= |(60,10)|); arc chord horizontal 17.3205 -> 20; line mid
+  vertical 17.5 -> 12; circle centre to line end 44.7214 -> 35; angle measured
+  26.5651 and driven to 135 (obtuse, read back 135.000000); perpendicular_distance
+  with second_point end 63.2456 -> 50, arc start 0 -> 8, line mid 25 -> 40.
+  Expression values equal the read-back geometry; work-part coordinates have
+  y = 0 and z = sketch y.
+- Inch part: horizontal 1.5 in, parallel_distance 0.75 in, perpendicular 0.4 in,
+  expressions in `in`.
+- Midpoint: line start to line midpoint (20, 0), circle centre to arc midpoint,
+  on_curve=false (point projected onto the bisector x+y=110, residual 0).
+  Point-on-curve onto circle, arc, line extension, arc centre onto a line.
+- 24 rejected inputs (line centre, circle start/end, same point/curve, value 0
+  or negative, zero size measured, angle >= 180, non-line operands, second_point
+  with angle, parallel lines without an angle value, full-circle midpoint
+  target, curves of another sketch -> NX_OBJECT_OWNER_MISMATCH, wrong object
+  kinds -> NX_OBJECT_TYPE_MISMATCH): sketch geometry and constraint list
+  unchanged afterwards.

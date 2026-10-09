@@ -80,7 +80,9 @@ from the acceptance run.
   - `MirrorBodyBuilder` (NX 2406) has no delete-source option, and the feature
     stays associative to its source. So `keep_original=false` hides (blanks) the
     source body. It still exists and still counts in part-scope measurements.
-  - Oblique planes were not measured.
+  - Oblique plane (independent verification): mirroring about the plane
+    through (50,0,0) with normal (1,1,0) gave bounding box x 30..50, y 10..50,
+    z 0..10, which is the exact reflection.
 
 ## nx_split_body(body, tool)
 - **Purpose:** native Split Body by a datum plane ID, or by a planar face of
@@ -94,7 +96,12 @@ from the acceptance run.
   - NX does not extend a selected face on its own. Using it directly fails with
     "Tool body completely outside target body", which is why the face's plane is
     used.
-  - A plane that misses the body returns that NX error (`nx_code` 670030).
+  - A plane that misses the body or only touches its boundary is rejected with
+    `NX_INVALID_ARGUMENT` before NX runs. The check is against the body's
+    bounding box. Before this check, NX failed with 670030, and the
+    rolled-back failure left its message on the next feature created, so
+    `nx_model_health` reported a false error. A plane that cuts the box but not
+    the body still reaches NX and returns 670030.
   - A face of the body being split is rejected.
 
 ## nx_trim_body(body, tool, reverse=False)
@@ -110,6 +117,12 @@ from the acceptance run.
   | Datum plane x=10 | +X | false | x 0..10 | 2000 |
   | Datum plane x=110 | +X | true | x 110..140 | 6000 |
   | Face x=215 of another body | −X | false | x 215..240 | 5000 |
+  | Oblique datum (120,10,0), normal (1,1,0) | (1,1,0) | false | x+y ≤ 130 | 4000 |
+  | Oblique datum (220,10,0), normal (1,1,0) | (1,1,0) | true | x+y ≥ 230 | 4000 |
+
+  The two oblique rows come from independent verification.
+- **Limits:** a plane that does not cut the body is rejected as in
+  `nx_split_body`.
 
 ## nx_scale_body(bodies, factor, origin=[0,0,0])
 - **Purpose:** native uniform Scale feature on owned solid bodies. Each point p
@@ -120,6 +133,10 @@ from the acceptance run.
   - x2 about the origin: 8000 → 64000, bounding box 0..80 / 0..40 / 0..20.
   - x0.5 about [140,20,10]: 8000 → 1000, bounding box x 120..140, y 10..20,
     z 5..10.
+  - Independent verification: two 10 mm cubes scaled x3 together about
+    [10,10,10] became 27000 each, with bounding boxes -20..10 and x 40..70.
+    Factor 1, 0 and -2, a 2-element origin, duplicate bodies and an edge ID are
+    all rejected with the model unchanged.
 - **Limits:**
   - `factor = 1` is rejected.
   - Non-uniform and axisymmetric scaling are not offered.

@@ -19,7 +19,9 @@ def _value(p, c, unit=None):
     value = p.get("value")
     if value is None:
         return "at its current size"
-    return f"to {value:g}{unit}" if unit and isinstance(value, int | float) else f"to {value}"
+    if not isinstance(value, int | float):
+        return f"to {value}"
+    return f"to {value:g}{unit}" if unit else f"to {c.length(value)}"
 
 
 SUMMARIES: dict = {
@@ -34,8 +36,13 @@ SUMMARIES: dict = {
         + _value(p, c, " deg" if p.get("kind") == "angle" else None)
     ),
     "nx_sketch_midpoint": lambda p, c: (
-        f"Put the {p.get('point')} of {c.obj(p.get('point_curve'))} at the midpoint of "
-        f"{c.obj(p.get('target_curve'))}"
+        f"Put the {p.get('point')} of {c.obj(p.get('point_curve'))} "
+        + (
+            "equidistant from the ends of "
+            if p.get("on_curve", True) is False
+            else "at the midpoint of "
+        )
+        + c.obj(p.get("target_curve"))
     ),
     "nx_sketch_point_on_curve": lambda p, c: (
         f"Put the {p.get('point')} of {c.obj(p.get('point_curve'))} on {c.obj(p.get('curve'))}"

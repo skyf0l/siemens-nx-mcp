@@ -40,7 +40,9 @@ counterbore/countersink values, thread standard/size/radial engagement/thread
 depth), `hole_count`, NX's hole `positions` (`HolePackage.GetOrigins`),
 `direction`, `removed_volume` (measured body volume change),
 `nominal_volume_per_hole` / `nominal_volume_total` (analytic, blind holes only;
-valid when holes lie fully in material and do not overlap), and for threaded
+valid when holes lie fully in material and do not overlap),
+`removed_matches_nominal` (`false` when a blind hole breaks out of the body or
+overlaps another cut, `null` for through holes), and for threaded
 holes a `thread` block (standard, size, radial engagement, tap drill, thread
 depth, major/minor diameter, pitch, angle, callout from the catalog row).
 
@@ -87,9 +89,42 @@ operation's undo mark rolls the feature back.
 - Thread representation is NX's symbolic hole thread data, not helical
   geometry; right-hand threads only; start/end chamfers and relief disabled;
   the `Custom` radial-engagement rows are not selectable.
-- Not live-verified: inch parts, inclined faces, holes that break out of the
-  body side (nominal volumes then do not apply).
+- Holes that break out of the body (blind depth beyond the far face, or a
+  hole near a side face) are built by NX; their nominal volumes do not apply and
+  `removed_matches_nominal` is `false`.
+- Not live-verified: `Custom` radial engagement, non-planar or occurrence faces.
 - Holes are fixed to the given coordinates (smart points), not dimensioned to
   edges in a sketch.
 - After any rejected call, re-acquire body/face IDs (the rollback invalidates
   them), as the acceptance file does.
+
+## Independent verification (verify_b, NX 2406)
+
+- Replay of `acceptance/live/holes.json` on a fresh part: identical volumes
+  (599.4645, 623.3163, 469.3783, 1138.9660, 1178.0972, 785.3982 mm³).
+- 60 x 40 x 20 mm block: 5 simple 3 x 8 holes with tip 90 removed 300.4148
+  (analytic 300.4148); counterbore 9 x 3 + 5 through 524.6460 (π·(20.25·3 +
+  6.25·17)); countersink 8 x 90 + 4 through 284.8377; M5 x 0.8 through with
+  thread_depth 8 removed 277.0885 (π·4.41·20), thread_length "value" 8; blind
+  M6 x 1.0 (drill 5 x 10, thread depth defaulted to 10) 206.1811.
+- Breakout: a 4 x 30 blind hole in the 20 mm block removed 251.3274 (π·4·20)
+  against nominal 382.0249; a 6 mm hole 2 mm from a side face removed 142.1568
+  of 158.3606; `nx_model_health` healthy.
+- Inclined faces (block on a plane tilted 30° about X): 2 x 6 x 10 removed
+  599.4645, counterbore through on the opposite face 524.6460, M8 x 1.25 blind
+  460.5326; drill directions (0, 0.5, -0.866) and (0, -0.5, 0.866).
+- Inch part (3 x 2 x 1 in): 2 x 0.25 x 0.5 simple 0.0515453 in³, counterbore
+  0.4375 x 0.25 + 0.25 x 0.6 0.0559921, countersink 0.5 x 82° through 0.0584988,
+  1/4-20 UNC tap drill 0.201 x 0.6 thread 0.5 0.0196772 (all equal to analytic);
+  metric thread on the inch part -> NX_UNSUPPORTED_ARGUMENT.
+- target_body: the other body -> NX_INVALID_ARGUMENT; the owning body accepted
+  (through 4 mm in a 10 mm body: 125.6637).
+- Rejected with stable codes, volume and feature count unchanged, model healthy:
+  cylindrical face (NX_NON_PLANAR), body ID as face (NX_OBJECT_TYPE_MISMATCH),
+  position on the boundary or inside an existing hole, duplicates, 101
+  positions, depth + through_all, neither, tip 0/180, negative diameter,
+  counterbore depth >= depth / diameter <= hole / missing depth, countersink
+  cone deeper than depth, countersink angle 180, thread args on a simple hole,
+  unknown standard/size (NX_NOT_FOUND), inch standard on mm part
+  (NX_UNSUPPORTED_ARGUMENT), thread_depth > depth, 0.01 off-plane. A position
+  0.00005 off the plane is projected and accepted.

@@ -17,8 +17,13 @@ NON_MODEL: set[str] = set()
 
 
 def _chamfer_summary(p, c):
-    method = p.get("method", "symmetric").replace("_", " ")
-    return f"Chamfer {c.count(p.get('edges'), 'edge')} ({method}, {c.length(p.get('offset1'))})"
+    method = p.get("method", "symmetric")
+    size = c.length(p.get("offset1"))
+    if method == "two_offsets":
+        size += f" x {c.length(p.get('offset2'))}"
+    elif method == "offset_angle":
+        size += f" at {p.get('angle')} deg"
+    return f"Chamfer {c.count(p.get('edges'), 'edge')} ({method.replace('_', ' ')}, {size})"
 
 
 def _blend_summary(p, c):
@@ -58,11 +63,11 @@ def nx_mirror_body_about(body: str, plane: str, keep_original: bool = True):
 
 
 def nx_split_body(body: str, tool: str):
-    """Split an owned solid body with a datum plane ID or a planar face ID of another body; a face is used as its infinite plane (an associative coincident plane). Creates a native Split Body feature. Returns the feature, every resulting body ID with its volume (normally 2 bodies whose volumes sum to the original) and the plane used; fails with NX_API_ERROR "Tool body completely outside target body" if the plane misses the body."""
+    """Split an owned solid body with a datum plane ID or a planar face ID of another body; a face is used as its infinite plane (an associative coincident plane). Creates a native Split Body feature. Returns the feature, every resulting body ID with its volume (normally 2 bodies whose volumes sum to the original) and the plane used; a plane that misses the body or only touches its boundary (all of the body on one side, checked on its bounding box) is rejected with NX_INVALID_ARGUMENT before NX runs; a plane that cuts the box but not the body fails with NX_API_ERROR "Tool body completely outside target body"."""
 
 
 def nx_trim_body(body: str, tool: str, reverse: bool = False):
-    """Trim an owned solid body with a datum plane ID or a planar face ID of another body; a face is used as its infinite plane. NX removes the material on the side the tool normal points to (datum plane normal, or the face's outward normal) and keeps the other side; reverse=true keeps the side the normal points to instead. The kept side is verified from the result's centroid. Creates a native Trim Body feature; returns it with the trimmed body, the volume before/after, the plane origin/normal and kept_side."""
+    """Trim an owned solid body with a datum plane ID or a planar face ID of another body; a face is used as its infinite plane. NX removes the material on the side the tool normal points to (datum plane normal, or the face's outward normal) and keeps the other side; reverse=true keeps the side the normal points to instead. The kept side is verified from the result's centroid. Creates a native Trim Body feature; returns it with the trimmed body, the volume before/after, the plane origin/normal and kept_side. A plane that does not cut the body is rejected like in nx_split_body (NX_INVALID_ARGUMENT, or NX_API_ERROR from NX when it cuts only the bounding box)."""
 
 
 def nx_scale_body(bodies: list[str], factor: float, origin: list[float] | None = None):

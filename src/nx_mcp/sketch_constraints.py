@@ -302,7 +302,11 @@ class SketchConstraintsMixin:
             builder.SetDragGeometry([sg])
             builder.InitializeDrag(self.nxopen.Point3d(*start_xyz))
             builder.DragToPoint(self._skc_world(sketch, target_local))
-            status = str(builder.GetSolverStatus())
+            raw = builder.GetSolverStatus()
+            try:  # Readable name (e.g. UpdateFailed) instead of NX's numeric str().
+                status = enum_name(raw, self.nxopen.SketchDragGeometryBuilder.SolverStatus)
+            except Exception:
+                status = str(raw)
             builder.Commit()
         finally:
             builder.Destroy()

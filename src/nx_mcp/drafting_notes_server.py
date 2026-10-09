@@ -22,7 +22,10 @@ NON_MODEL: set[str] = set()
 def _lines(p):
     text = p.get("text")
     first = text[0] if isinstance(text, list) and text else ""
-    return f'"{str(first)[:30]}"' + (f" (+{len(text) - 1} lines)" if len(text or []) > 1 else "")
+    more = len(text or []) - 1
+    return f'"{str(first)[:30]}"' + (
+        f" (+{more} line{'s' if more > 1 else ''})" if more > 0 else ""
+    )
 
 
 SUMMARIES: dict = {
@@ -40,7 +43,8 @@ SUMMARIES: dict = {
         f"Add surface finish Ra {p.get('roughness')} on {c.obj(p.get('object'))}"
     ),
     "nx_add_weld_symbol": lambda p, c: (
-        f"Add {p.get('weld')} weld symbol {p.get('size')} on {c.obj(p.get('object'))}"
+        f"Add {str(p.get('weld')).replace('_', ' ')} weld symbol {p.get('size')} "
+        f"on {c.obj(p.get('object'))}"
     ),
 }
 

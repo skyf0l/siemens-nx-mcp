@@ -21,7 +21,8 @@ def _hole_summary(p, c):
     count = len(positions) if isinstance(positions, list) else 0
     form = p.get("form", "simple")
     size = p.get("thread_size") if form == "threaded" else c.length(p.get("diameter"))
-    return f"{form.capitalize()} hole {size} x{count} on {c.obj(p.get('face'))}"
+    extent = "through all" if p.get("through_all") else f"{c.length(p.get('depth'))} deep"
+    return f"{form.capitalize()} hole {size} x{count}, {extent}, on {c.obj(p.get('face'))}"
 
 
 SUMMARIES: dict = {"nx_hole_feature": _hole_summary}
@@ -56,4 +57,4 @@ def nx_hole_feature(
     - countersink: diameter (hole), countersink_diameter > diameter, countersink_angle (included angle in degrees, 0-180 exclusive, default 90); the countersink cone height (countersink_diameter - diameter) / 2 / tan(angle / 2) must be < depth.
     - threaded: thread_standard and thread_size name a row of the installed NX thread table (list them with nx_thread_catalog, e.g. "Metric Coarse" / "M10 x 1.5"); diameter is the tap-drill diameter and must equal one of that size's catalog TapDrillDia values (which selects the radial engagement), thread_depth (> 0, <= depth; default = depth, or the full length for through_all) is the threaded length. Metric standards need a mm part, inch standards an inch part. The hole carries native NX thread data (symbolic, right-hand; no chamfers or relief).
 
-    Returns the hole feature, the modified body, the actual hole parameters read back from NX, the drill direction, the number of holes and the nominal removed volume of one hole when it lies fully inside the material (blind holes only; tip cone included)."""
+    Returns the hole feature, the modified body, the actual hole parameters read back from NX, the drill direction, the number of holes, the measured removed_volume (cubic work-part units) and the nominal removed volume of one hole when it lies fully inside the material (blind holes only; tip cone included). removed_matches_nominal is false when the measured removal differs from the nominal total (a blind hole breaks out of the body or overlaps another cut), null for through holes."""

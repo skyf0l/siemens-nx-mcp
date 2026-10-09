@@ -68,9 +68,30 @@ def ellipse_args(center, major_radius, minor_radius, rotation, start_angle, end_
 
 
 def ellipse_perimeter(a, b):
-    """Ramanujan II approximation (relative error < 1e-9 for b/a > 0.1)."""
-    h = ((a - b) / (a + b)) ** 2
-    return math.pi * (a + b) * (1 + 3 * h / (10 + math.sqrt(4 - 3 * h)))
+    """Exact ellipse perimeter 4a*E(e) via the arithmetic-geometric mean.
+
+    Ramanujan II (used before) is off by 1.2e-5 at b/a = 0.1 and 1.6e-4 at 0.02,
+    which made the 1e-6 read-back check reject valid thin ellipses.
+    """
+    a, b = max(a, b), min(a, b)
+    x, g = 1.0, b / a
+    s, p = 0.5 * (1.0 - g * g), 0.5
+    while abs(x - g) > 1e-15 * x:
+        c = (x - g) / 2
+        x, g = (x + g) / 2, math.sqrt(x * g)
+        p *= 2
+        s += p * c * c
+    return 2 * math.pi * a / x * (1 - s)
+
+
+def ellipse_point(center, a, b, rotation, angle):
+    """Local point at parametric angle (degrees) of an ellipse rotated by rotation (degrees)."""
+    r, t = math.radians(rotation), math.radians(angle)
+    u, v = a * math.cos(t), b * math.sin(t)
+    return [
+        center[0] + u * math.cos(r) - v * math.sin(r),
+        center[1] + u * math.sin(r) + v * math.cos(r),
+    ]
 
 
 def reflect2(p, a, b):
@@ -305,6 +326,20 @@ class SketchCurvesMixin:
         )
         self._sc_verify(ok, "NX ellipse differs from the request", **row)
         full = e - s >= 360.0 - 1e-9
+        if not full:
+            # An elliptical arc: its ends must be the requested parametric angles (either
+            # curve direction), not only the centre, radii and rotation.
+            want = [ellipse_point(c, a, b, rot, s), ellipse_point(c, a, b, rot, e)]
+            got = [row["start"], row["end"]]
+            self._sc_verify(
+                any(
+                    all(math.dist(p, q) <= tol for p, q in zip(got, order, strict=True))
+                    for order in (want, want[::-1])
+                ),
+                "NX elliptical arc ends differ from the requested angles",
+                expected_ends=want,
+                **row,
+            )
         if full and "length" in row:
             self._sc_verify(
                 abs(row["length"] - ellipse_perimeter(a, b)) <= 1e-6 * ellipse_perimeter(a, b),
@@ -615,6 +650,13 @@ class SketchCurvesMixin:
         inputs = self._sc_curves(sketch, curves)
         nx, part = self.nxopen, self._work_part()
         axis = self._resolve(mirror_line, {"curve", "datum"})
+        if isinstance(axis, nx.Curve) and int(axis.Tag) not in self._sc_geometry_tags(sketch):
+            # The documented contract is a line of THIS sketch (or a datum axis); a line of
+            # another sketch or a model curve would create an undocumented external reference.
+            raise NXToolError(
+                "NX_OBJECT_OWNER_MISMATCH",
+                "mirror_line must be a line of this sketch or a datum axis",
+            )
         frame = self._sketch_frame(sketch)
         if isinstance(axis, nx.Line):
             a, b = self._sc_local(frame, axis.StartPoint), self._sc_local(frame, axis.EndPoint)

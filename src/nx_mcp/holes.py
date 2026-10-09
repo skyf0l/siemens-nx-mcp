@@ -236,6 +236,13 @@ def match_thread_row(rows, standard, size, diameter, units):
     return matches[0]
 
 
+def matches_nominal(removed, nominal_total):
+    """Whether the measured removal equals the analytic total (None for through holes)."""
+    if nominal_total is None:
+        return None
+    return abs(removed - nominal_total) <= 1e-6 * max(1.0, abs(nominal_total))
+
+
 def _xyz(p):
     return [float(p.X), float(p.Y), float(p.Z)]
 
@@ -531,9 +538,14 @@ class HolesMixin:
             removed_volume=removed,
             nominal_volume_per_hole=nominal,
             nominal_volume_total=None if nominal is None else nominal * len(origins),
+            removed_matches_nominal=matches_nominal(
+                removed, None if nominal is None else nominal * len(origins)
+            ),
             volume_note=(
                 "Nominal volumes assume each hole lies fully inside the material "
-                "and overlaps no other hole; through holes have no nominal volume."
+                "and overlaps no other hole; through holes have no nominal volume. "
+                "removed_matches_nominal=false means a hole breaks out of the body "
+                "or overlaps another cut."
             ),
         )
         if row is not None:

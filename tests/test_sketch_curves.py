@@ -228,3 +228,64 @@ async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path
     assert offset["properties"]["side"]["enum"] == ["auto", "left", "right"]
     for name in NEW_TOOLS:
         assert MANIFEST["tools"][name]["status"] in {"experimental", "tested"}
+
+
+def test_chamfer_summary_shows_asymmetric_distance():
+    from nx_mcp.request_summary import summarize
+
+    def line(**extra):
+        params = {"sketch_id": "S", "curve1": "a", "curve2": "b", "distance1": 4, **extra}
+        return summarize("nx_sketch_chamfer", params, units="mm")
+
+    assert "4 mm x 6 mm" in line(distance2=6)
+    assert " x " not in line() and " x " not in line(distance2=4)
+
+
+def test_ellipse_perimeter_is_exact_for_thin_ellipses():
+    # Live NX 2406 (verify_a): Ramanujan II rejected valid 50x5 / 50x1 ellipses.
+    from nx_mcp.sketch_curves import ellipse_perimeter
+
+    def integrated(a, b, n=200000):
+        e2, h = 1 - (b / a) ** 2, math.pi / 2 / n
+        return 4 * a * h * sum(math.sqrt(1 - e2 * math.sin((i + 0.5) * h) ** 2) for i in range(n))
+
+    for a, b in [(20, 10), (50, 5), (50, 1), (100, 0.01)]:
+        assert ellipse_perimeter(a, b) == pytest.approx(integrated(a, b), rel=1e-9)
+    assert ellipse_perimeter(10, 10) == pytest.approx(2 * math.pi * 10, rel=1e-12)
+
+
+def test_ellipse_point_uses_parametric_angles_and_rotation():
+    from nx_mcp.sketch_curves import ellipse_point
+
+    assert ellipse_point([0, 0], 10, 5, 0, 0) == pytest.approx([10, 0])
+    assert ellipse_point([0, 0], 10, 5, 0, 90) == pytest.approx([0, 5])
+    assert ellipse_point([300, 100], 20, 10, 90, -45) == pytest.approx(
+        [300 + 10 * math.sqrt(0.5), 100 + 20 * math.sqrt(0.5)]
+    )
+
+
+def test_mirror_line_of_another_sketch_is_rejected():
+    # Live review (verify_a): a line from a different sketch passed the "owned line"
+    # contract unchecked. It must fail before any native mirror work.
+    from types import SimpleNamespace
+
+    from nx_mcp.sketch_curves import SketchCurvesMixin
+
+    class Curve:
+        def __init__(self, tag):
+            self.Tag = tag
+
+    class Line(Curve):
+        pass
+
+    own, foreign = Line(1), Line(99)
+    sketch = SimpleNamespace(GetAllGeometry=lambda: [own], OwningPart="P", IsOccurrence=False)
+    mixin = SketchCurvesMixin()
+    mixin.nxopen = SimpleNamespace(Curve=Curve, Line=Line)
+    mixin.session = SimpleNamespace(ActiveSketch=None)
+    mixin._work_part = lambda: "P"
+    objects = {"s": sketch, "own": own, "far": foreign}
+    mixin._resolve = lambda ref, kinds=None: objects[ref]
+    with pytest.raises(NXToolError) as error:
+        mixin._sketch_mirror("s", ["own"], "far")
+    assert error.value.code == "NX_OBJECT_OWNER_MISMATCH"

@@ -27,14 +27,20 @@ SUMMARIES: dict = {
         f"Add a {p.get('sides')}-sided polygon R{c.length(p.get('radius'))} to {_in(c, p)}"
     ),
     "nx_sketch_ellipse": lambda p, c: (
-        f"Add an ellipse {c.length(p.get('major_radius'))} x "
-        f"{c.length(p.get('minor_radius'))} to {_in(c, p)}"
+        f"Add an ellipse (semi-axes {c.length(p.get('major_radius'))} x "
+        f"{c.length(p.get('minor_radius'))}) to {_in(c, p)}"
     ),
     "nx_sketch_fillet": lambda p, c: (
         f"Fillet two curves R{c.length(p.get('radius'))} in {_in(c, p)}"
     ),
     "nx_sketch_chamfer": lambda p, c: (
-        f"Chamfer two curves {c.length(p.get('distance1'))} in {_in(c, p)}"
+        f"Chamfer two curves {c.length(p.get('distance1'))}"
+        + (
+            f" x {c.length(p.get('distance2'))}"
+            if p.get("distance2") not in (None, p.get("distance1"))
+            else ""
+        )
+        + f" in {_in(c, p)}"
     ),
     "nx_sketch_offset": lambda p, c: (
         f"Offset {c.count(p.get('curves'), 'curve')} by {c.length(p.get('distance'))} "

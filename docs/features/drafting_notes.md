@@ -98,6 +98,8 @@ the requested origins, leaders on the intended geometry, text readable).
 - The surface finish collection is `part.Annotations.DraftingSurfaceFinishSymbol`
   (singular); `DraftingSurfaceFinishSymbols` is the older `DraftingSurfaceFinish`
   collection.
-- Center marks, centerlines, surface finish and weld symbols are not in the
-  shared annotation inventory; this group extends `_documentation_annotations`
-  through its mixin (see the orchestrator note in the final report).
+- Center marks, centerlines, surface finish and weld symbols are enumerated by
+  the shared annotation inventory (`_documentation_annotations` in
+  `assembly_documentation.py`: `Annotations.Centerlines`,
+  `DraftingSurfaceFinishSymbol`, `Welds`), so `nx_list_annotations` lists them
+  and `nx_edit_annotation` moves, renames or deletes them.

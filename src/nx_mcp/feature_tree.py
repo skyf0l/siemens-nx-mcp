@@ -58,6 +58,36 @@ def reorder_conflicts(order, parents, children, moved, target, position):
     return [(k, "parent") for k in passed if k in parents.get(moved, set())]
 
 
+def child_map(features):
+    """{parent tag: {child tag}} from every feature's GetParents and GetChildren.
+
+    NX 2406 Feature.GetChildren is one-sided: a block extrude reports no
+    children although a boss extrude united into its body and a hole cutting it
+    both list the block in GetParents. Children are therefore derived from the
+    parents of every feature in the part, plus whatever GetChildren reports.
+    """
+    children = {}
+    for f in features:
+        tag = int(f.Tag)
+        for p in f.GetParents():
+            children.setdefault(int(p.Tag), set()).add(tag)
+        for c in f.GetChildren():
+            children.setdefault(tag, set()).add(int(c.Tag))
+    return children
+
+
+def descendants(children, roots):
+    """All tags reachable from roots through the child map (roots excluded)."""
+    seen, stack, out = set(roots), list(roots), []
+    while stack:
+        for tag in sorted(children.get(stack.pop(), ())):
+            if tag not in seen:
+                seen.add(tag)
+                stack.append(tag)
+                out.append(tag)
+    return out
+
+
 def expected_order(order, moved, target, position):
     """Timeline order after moving `moved` before/after `target`."""
     rest = [k for k in order if k != moved]
@@ -184,6 +214,19 @@ class FeatureTreeMixin:
         if len({int(f.Tag) for f in targets}) != len(targets):
             raise NXToolError("NX_INVALID_ARGUMENT", "features resolve to the same feature twice")
         before = self._ft_states(part)
+        # NX 2406 sets the flag of a feature after the current feature but does
+        # not re-evaluate it when the model is rolled forward again (verified
+        # live: a hole suppressed while inactive was still cut after making the
+        # last feature current), so suppression changes need active features.
+        inactive = [f for f in targets if not before[int(f.Tag)][2]]
+        if inactive:
+            raise NXToolError(
+                "NX_INVALID_ARGUMENT",
+                "Features after the current feature are inactive; make the last feature "
+                "current (nx_make_current_feature without feature) before suppressing or "
+                "unsuppressing them",
+                details={"inactive": [self._ft_entry(f, part) for f in inactive]},
+            )
         pending = [f for f in targets if before[int(f.Tag)][1] != suppress]
         unchanged = [f for f in targets if before[int(f.Tag)][1] == suppress]
         collection = part.Features
@@ -223,15 +266,10 @@ class FeatureTreeMixin:
         # together with a parent stay suppressed until they are listed too.
         dependents = []
         if not suppress:
-            seen, stack = {int(t.Tag) for t in targets}, list(targets)
-            while stack:
-                for child in stack.pop().GetChildren():
-                    tag = int(child.Tag)
-                    if tag not in seen:
-                        seen.add(tag)
-                        stack.append(child)
-                        if tag in after and after[tag][1]:
-                            dependents.append(self._ft_entry(child, part, suppressed=True))
+            children = child_map(list(part.Features))
+            for tag in descendants(children, [int(t.Tag) for t in targets]):
+                if tag in after and after[tag][1]:
+                    dependents.append(self._ft_entry(after[tag][0], part, suppressed=True))
         return self._ft_result(
             part,
             after,
@@ -309,7 +347,7 @@ class FeatureTreeMixin:
         key = int(moved.Tag)
         relations = {
             "parents": {key: {int(p.Tag) for p in moved.GetParents()}},
-            "children": {key: {int(c.Tag) for c in moved.GetChildren()}},
+            "children": {key: child_map(list(part.Features)).get(key, set())},
         }
         conflicts = reorder_conflicts(
             order, relations["parents"], relations["children"], key, int(anchor.Tag), position

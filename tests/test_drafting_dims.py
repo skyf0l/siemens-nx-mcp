@@ -141,6 +141,11 @@ async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path
     ordinate = tools["nx_add_ordinate_dimensions"].inputSchema
     assert ordinate["required"] == ["view", "origin_object", "objects"]
     assert ordinate["properties"]["direction"]["enum"] == ["horizontal", "vertical"]
+    assert ordinate["properties"]["objects"]["minItems"] == 1
+    assert ordinate["properties"]["objects"]["maxItems"] == 50
+    for name in ("nx_add_radial_dimension", "nx_add_angular_dimension"):
+        point = tools[name].inputSchema["properties"]["origin"]["anyOf"][0]
+        assert point["minItems"] == 2 and point["maxItems"] == 2
     sheet = tools["nx_create_drawing_sheet"].inputSchema
     assert sheet["properties"]["projection"]["enum"] == ["first_angle", "third_angle"]
     assert "required" not in sheet or sheet["required"] == []

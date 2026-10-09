@@ -100,6 +100,12 @@ class DatumFeaturesMixin:
         """(origin, unit normal) of a planar face or datum plane."""
         if hasattr(obj, "Normal") and hasattr(obj, "Origin"):
             return _xyz(obj.Origin), unit_normal(_xyz(obj.Normal))
+        if hasattr(obj, "Origin"):
+            # Datum axes and coordinate systems share the "datum" kind but are not planes;
+            # AskFaceData on them raises a raw NX error (820022) instead of a stable code.
+            raise NXToolError(
+                "NX_OBJECT_TYPE_MISMATCH", "Select a planar face or a datum plane, not an axis/CSYS"
+            )
         import NXOpen.UF
 
         data = NXOpen.UF.UFSession.GetUFSession().Modeling.AskFaceData(obj.Tag)

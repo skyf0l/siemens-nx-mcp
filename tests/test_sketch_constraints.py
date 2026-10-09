@@ -183,6 +183,18 @@ def test_panel_summaries():
     assert "angle" in line and "30" in line
     line = summarize("nx_sketch_point_dimension", {"kind": "distance", "value": None})
     assert "current size" in line
+    line = summarize("nx_sketch_point_dimension", {"kind": "vertical", "value": 12}, units="mm")
+    assert line.endswith("to 12 mm")
+    # on_curve=false only makes the point equidistant from the target's ends.
+    line = summarize(
+        "nx_sketch_midpoint",
+        {"point_curve": "a", "point": "end", "target_curve": "b", "on_curve": False},
+    )
+    assert "equidistant from the ends of" in line and "midpoint" not in line
+    line = summarize(
+        "nx_sketch_midpoint", {"point_curve": "a", "point": "end", "target_curve": "b"}
+    )
+    assert "at the midpoint of" in line
 
 
 @pytest.mark.asyncio
