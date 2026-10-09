@@ -49,7 +49,8 @@ def main() -> int:
                 entry["unavailable_on"] = unavailable
             else:
                 entry.pop("unavailable_on", None)
-    MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    text = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+    MANIFEST.write_text(text, encoding="utf-8", newline="\n")  # LF, as in the repository
     print(f"{args.version}: {counts['pass']} pass, {counts['disabled']} disabled")
     for problem in problems:
         print("PROBLEM:", problem)
