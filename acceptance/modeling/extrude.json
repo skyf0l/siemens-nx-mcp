@@ -391,7 +391,7 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
@@ -440,7 +440,7 @@
     "sketch": "$s5.data.sketch.id",
     "end": {
      "type": "until_face",
-     "face": "$top.items.0.object.id"
+     "face": "$top.data.items.0.id"
     },
     "direction": [
      0,

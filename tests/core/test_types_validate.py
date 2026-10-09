@@ -123,7 +123,7 @@ def test_unions_and_typeddicts():
                 "pose": {"translation": [0, 0, 0]},
             },
         )
-    assert e.value.field == "/plane"
+    assert e.value.field == "/plane/extra"  # the principal form, its unknown field
     with pytest.raises(NXError) as e:
         validate(
             spec,
@@ -134,6 +134,43 @@ def test_unions_and_typeddicts():
             },
         )
     assert "limit" in e.value.field
+
+
+def test_union_errors_name_the_best_matching_form():
+    from typing import TypedDict
+
+    class Path(TypedDict):
+        path: Annotated[list[T.RefTo("edge")], T.Items(1, 5)]
+        help_point: T.Point3
+
+    class PathMore(Path, total=False):
+        percent: Annotated[float, T.Range(ge=0, le=100)]
+
+    class On(TypedDict):
+        on: T.RefTo("face")
+
+    spec = params(placement=T.PrincipalPlane | On | PathMore)
+    bad = {"path": ["e:1"], "help_point": [0, 0, 0], "percent": 150}
+    with pytest.raises(NXError) as e:
+        validate(spec, {"placement": bad})
+    assert e.value.field == "/placement/percent" and "<= 100" in e.value.message
+    with pytest.raises(NXError) as e:  # missing required key of the path form
+        validate(spec, {"placement": {"path": ["e:1"]}})
+    assert e.value.field == "/placement/help_point"
+    with pytest.raises(NXError) as e:  # nothing fits better than anything else
+        validate(spec, {"placement": {"bogus": 1}})
+    assert e.value.field == "/placement" and "any accepted form" in e.value.message
+
+
+def test_null_is_refused_for_required_fields_and_allowed_for_optional_ones():
+    spec = {
+        "need": Param("need", T.Length, None, True),
+        "maybe": Param("maybe", T.Length | None, None, False),
+    }
+    assert validate(spec, {"need": 1, "maybe": None}).args == {"need": 1, "maybe": None}
+    with pytest.raises(NXError) as e:
+        validate(spec, {"need": None})
+    assert e.value.field == "/need"
 
 
 def test_placeholders_only_in_ref_fields():

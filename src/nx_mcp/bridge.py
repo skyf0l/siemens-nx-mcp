@@ -8,7 +8,9 @@ import hmac
 import json
 import os
 import secrets
+import select
 import socketserver
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -22,11 +24,15 @@ from nx_mcp.runtime import NXToolError, ObjectKind, ObjectRef
 
 BRIDGE_PROTOCOL_VERSION = 1
 _MAX_MESSAGE_BYTES = 1024 * 1024
-# NX answers a request it could not finish within DISPATCHER_TIMEOUT itself
-# (NX_MAIN_THREAD_UNAVAILABLE with a known outcome); the sidecar waits a little
-# longer so that answer arrives before its own transport timeout.
+# NX answers a request it could not finish within DISPATCHER_TIMEOUT of starting
+# it itself (NX_MAIN_THREAD_UNAVAILABLE with a known outcome). The interactive
+# host may hold a request in its queue for up to QUEUE_TIMEOUT first (the engineer
+# is busy in an NX command, or has not answered the panel yet); it answers held
+# requests itself before that. The sidecar waits a little longer than both so
+# NX's answer arrives before its own transport timeout.
 DISPATCHER_TIMEOUT = 120.0
-CLIENT_TIMEOUT = DISPATCHER_TIMEOUT + 15.0
+QUEUE_TIMEOUT = 135.0
+CLIENT_TIMEOUT = QUEUE_TIMEOUT + DISPATCHER_TIMEOUT + 15.0
 
 
 @dataclass
@@ -96,11 +102,32 @@ class _BridgeTCPServer(socketserver.TCPServer):
     executor: Any
     token: str
 
-    def __init__(self, executor: Any, token: str, result_directory: Path | None = None) -> None:
+    def __init__(
+        self,
+        executor: Any,
+        token: str,
+        result_directory: Path | None = None,
+        progress: Event | None = None,
+    ) -> None:
         self.result_directory = result_directory
         self.executor = executor
         self.token = token
+        # Connections accepted whose response is not written yet; ``progress`` is
+        # set whenever one finishes (the interactive host waits on it, see
+        # BridgeServer.in_flight).
+        self.in_flight = 0
+        self.progress = progress or Event()
+        self._flight_lock = Lock()
         super().__init__(("127.0.0.1", 0), _BridgeRequestHandler)
+
+    def _enter(self) -> None:
+        with self._flight_lock:
+            self.in_flight += 1
+
+    def _leave(self) -> None:
+        with self._flight_lock:
+            self.in_flight -= 1
+        self.progress.set()
 
 
 class _BridgeRequestHandler(socketserver.StreamRequestHandler):
@@ -159,6 +186,20 @@ class _BridgeRequestHandler(socketserver.StreamRequestHandler):
 class _ThreadedBridgeTCPServer(socketserver.ThreadingMixIn, _BridgeTCPServer):
     daemon_threads = True
 
+    def process_request(self, request: Any, client_address: Any) -> None:
+        self._enter()
+        try:
+            socketserver.ThreadingMixIn.process_request(self, request, client_address)
+        except BaseException:
+            self._leave()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            socketserver.ThreadingMixIn.process_request_thread(self, request, client_address)
+        finally:
+            self._leave()
+
 
 class BridgeServer:
     """A serialized loopback JSON-RPC server for an NX-side executor."""
@@ -170,31 +211,81 @@ class BridgeServer:
         token: str,
         result_directory: Path | None = None,
         concurrent_requests: bool = False,
+        progress: Event | None = None,
     ) -> None:
         # Interactive callers serialize NXOpen through MainThreadDispatcher.
         # Concurrent socket handling permits cached health reads during work;
         # the batch/default executor retains its original serialized transport.
         server_type = _ThreadedBridgeTCPServer if concurrent_requests else _BridgeTCPServer
-        self._server = server_type(executor, token, result_directory)
+        self._server = server_type(executor, token, result_directory, progress)
         self._thread: Thread | None = None
+        self._external_accept = False
+        self._closed = False
 
     @property
     def port(self) -> int:
         return int(self._server.server_address[1])
 
-    def start(self) -> None:
-        if self._thread is not None:
+    @property
+    def socket(self) -> Any:
+        """The listening socket (the interactive host registers it for FD_ACCEPT)."""
+        return self._server.socket
+
+    @property
+    def in_flight(self) -> int:
+        """Connections accepted whose response has not been written yet."""
+        return self._server.in_flight
+
+    @property
+    def progress(self) -> Event:
+        return self._server.progress
+
+    def start(self, *, accept_thread: bool = True) -> None:
+        """Serve. ``accept_thread=False``: the owner accepts with accept_pending()."""
+        if self._thread is not None or self._external_accept:
+            return
+        if not accept_thread:
+            self._external_accept = True
             return
         self._thread = Thread(target=self._server.serve_forever, name="nx-mcp-bridge", daemon=True)
         self._thread.start()
 
+    def pending_connection(self) -> bool:
+        """True when a connection waits to be accepted; never blocks."""
+        try:
+            readable, _, _ = select.select([self._server.socket], [], [], 0)
+        except (OSError, ValueError):
+            return False
+        return bool(readable)
+
+    def accept_pending(self, prepare: Callable[[Any], None] | None = None, limit: int = 16) -> int:
+        """Accept waiting connections on the calling thread; each is handled on its own
+        worker thread. ``prepare(socket)`` runs first; a socket it rejects is closed."""
+        accepted = 0
+        while accepted < limit and not self._closed:
+            try:
+                request, address = self._server.socket.accept()
+            except OSError:  # BlockingIOError: nothing waiting; others: socket closed.
+                break
+            try:
+                if prepare is not None:
+                    prepare(request)
+                self._server.process_request(request, address)
+            except Exception:
+                with contextlib.suppress(OSError):
+                    request.close()
+                continue
+            accepted += 1
+        return accepted
+
     def stop(self) -> None:
-        if self._thread is None:
-            return
-        self._server.shutdown()
-        self._server.server_close()
-        self._thread.join(timeout=5)
-        self._thread = None
+        if self._thread is not None:
+            self._server.shutdown()
+            self._thread.join(timeout=5)
+            self._thread = None
+        if not self._closed:
+            self._closed = True
+            self._server.server_close()
 
 
 @dataclass
@@ -206,6 +297,15 @@ class _PendingBridgeCall:
     error: Exception | None = None
     started: bool = False
     cancelled: bool = False
+    # Monotonic times: queued, first seen by the host, execution started.
+    queued_at: float = field(default_factory=time.monotonic)
+    seen_at: float | None = None
+    started_at: float | None = None
+    # The engineer approved this call on the NX MCP panel.
+    approved: bool = False
+    summary: str | None = None
+    # A caller is blocked on this call (counted in MainThreadDispatcher.parked).
+    parked: bool = False
 
 
 class MainThreadDispatcher:
@@ -216,12 +316,40 @@ class MainThreadDispatcher:
         executor: Callable[[str, dict[str, Any]], dict[str, Any]],
         *,
         timeout: float = DISPATCHER_TIMEOUT,
+        queue_timeout: float | None = None,
+        progress: Event | None = None,
     ) -> None:
+        """``timeout`` bounds a call from its start, ``queue_timeout`` (default:
+        ``timeout``) its wait in the queue. ``progress`` is set whenever a call is
+        queued."""
         self._executor = executor
         self._timeout = timeout
+        self._queue_timeout = timeout if queue_timeout is None else queue_timeout
         self._calls: Queue[_PendingBridgeCall] = Queue()
         self._lock = Lock()
+        self._count_lock = Lock()
         self._stopped = False
+        self.progress = progress or Event()
+        # Callers blocked on a call that has not completed: they need no CPU (or
+        # Python's GIL) until it does. The interactive host compares this with the
+        # server's connections in flight to tell when a worker wants to run.
+        self.parked = 0
+
+    def _park(self, pending: _PendingBridgeCall) -> None:
+        with self._count_lock:
+            if not pending.parked:
+                pending.parked = True
+                self.parked += 1
+
+    def _unpark(self, pending: _PendingBridgeCall) -> None:
+        with self._count_lock:
+            if pending.parked:
+                pending.parked = False
+                self.parked -= 1
+
+    def _finish(self, pending: _PendingBridgeCall) -> None:
+        self._unpark(pending)
+        pending.complete.set()
 
     def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         pending = _PendingBridgeCall(method, params)
@@ -233,24 +361,38 @@ class MainThreadDispatcher:
                     retryable=True,
                     details={"mutation_outcome": "not_started"},
                 )
+            self._park(pending)
             self._calls.put(pending)
-
-        if not pending.complete.wait(self._timeout):
-            with self._lock:
-                if not pending.started:
-                    pending.cancelled = True
-                outcome = "unknown" if pending.started else "not_started"
-            raise NXToolError(
-                "NX_MAIN_THREAD_UNAVAILABLE",
-                "NX did not complete the bridge request before the timeout. Query the operation receipt before retrying a started mutation.",
-                retryable=not pending.started,
-                details={"mutation_outcome": outcome},
-            )
+        self.progress.set()
+        try:
+            self._wait(pending)
+        finally:
+            self._unpark(pending)
         if pending.error is not None:
             raise pending.error
         if pending.result is None:
             raise NXToolError("NX_OPERATION_FAILED", "NX bridge returned no result")
         return pending.result
+
+    def _wait(self, pending: _PendingBridgeCall) -> None:
+        """Wait up to the queue timeout for the call to start, then up to the
+        dispatcher timeout from its start for it to finish."""
+        deadline = pending.queued_at + self._queue_timeout
+        while not pending.complete.wait(max(0.0, deadline - time.monotonic())):
+            with self._lock:
+                started = pending.started
+                if not started:
+                    pending.cancelled = True
+                else:
+                    deadline = (pending.started_at or pending.queued_at) + self._timeout
+            if started and time.monotonic() < deadline:
+                continue
+            raise NXToolError(
+                "NX_MAIN_THREAD_UNAVAILABLE",
+                "NX did not complete the bridge request before the timeout. Query the operation receipt before retrying a started mutation.",
+                retryable=not started,
+                details={"mutation_outcome": "unknown" if started else "not_started"},
+            )
 
     def drain(self, timeout: float = 0.0, *, limit: int = 1) -> int:
         """Execute up to ``limit`` pending calls on the calling thread."""
@@ -300,7 +442,7 @@ class MainThreadDispatcher:
                 retryable=error.retryable,
                 details={**error.details, "mutation_outcome": "not_started"},
             )
-            pending.complete.set()
+            self._finish(pending)
         return len(rejected)
 
     def stop(self) -> None:
@@ -317,7 +459,7 @@ class MainThreadDispatcher:
                     retryable=True,
                     details={"mutation_outcome": "not_started"},
                 )
-                pending.complete.set()
+                self._finish(pending)
 
     def _execute(self, pending: _PendingBridgeCall) -> None:
         with self._lock:
@@ -328,9 +470,10 @@ class MainThreadDispatcher:
                     retryable=True,
                     details={"mutation_outcome": "not_started"},
                 )
-                pending.complete.set()
+                self._finish(pending)
                 return
             pending.started = True
+            pending.started_at = time.monotonic()
         # The queue consumer is serialized; release the queue lock so a waiting
         # caller can distinguish queued expiry from a running, unknown outcome.
         try:
@@ -338,7 +481,7 @@ class MainThreadDispatcher:
         except Exception as error:
             pending.error = error
         finally:
-            pending.complete.set()
+            self._finish(pending)
 
 
 class BridgeClient:
@@ -500,6 +643,9 @@ class ObjectRegistry:
         identity_key = (part_id, kind, identity)
         if object_id := self._identities.get(identity_key):
             entry = self._objects[object_id]
+            # NX may reuse a tag after an undo inside one call (a rolled-back attempt):
+            # keep the live object, never a wrapper of the deleted one.
+            entry.value = value
             if entry.reference.name != name:
                 entry.reference = replace(entry.reference, name=name)
             return entry.reference

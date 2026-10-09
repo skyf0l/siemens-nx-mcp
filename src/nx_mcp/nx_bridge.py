@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import base64
 import os
 import secrets
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,10 +24,7 @@ from nx_mcp.workspace import Workspace
 class NXOpenExecutor:
     """Executes the certified bridge commands against one live NX session."""
 
-    _MODEL_MUTATIONS = {
-        "nx_add_component",
-        "nx_reposition_component",
-    }
+    _MODEL_MUTATIONS: set[str] = set()
 
     def __init__(
         self,
@@ -50,14 +45,8 @@ class NXOpenExecutor:
             "nx_list_bodies": lambda: self._list_objects("Bodies", "body"),
             "nx_list_features": lambda: self._list_objects("Features", "feature"),
             "nx_undo": self._undo,
-            "nx_fit_view": self._fit_view,
-            "nx_screenshot": self._screenshot,
             "nx_get_bounding_box": self._get_bounding_box,
             "nx_measure_volume": self._measure_volume,
-            "nx_add_component": self._add_component,
-            "nx_list_components": self._list_components,
-            "nx_reposition_component": self._reposition_component,
-            "nx_set_view": self._set_view,
         }
 
     def execute(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -149,11 +138,6 @@ class NXOpenExecutor:
         self.objects.invalidate_part(self._part_id(part))
         return {"message": "Undo successful"}
 
-    def _fit_view(self) -> dict[str, Any]:
-        part = self._work_part()
-        part.ModelingViews.WorkView.Fit()
-        return {"message": "View fitted"}
-
     def _find_sketch(self, name: str) -> Any:
         part = self._work_part()
         for sketch in part.Sketches:
@@ -238,166 +222,6 @@ class NXOpenExecutor:
             "volume_mm3": sum(r["volume_mm3"] for r in rows),
             "message": "Sum of solid body volumes; overlapping bodies are counted separately",
         }
-
-    def _add_component(self, part_path, name=None):
-        part = self._work_part()
-        path = self.workspace.ensure_inside(part_path)
-        matrix = self.nxopen.Matrix3x3()
-        matrix.Xx = matrix.Yy = matrix.Zz = 1.0
-        component, status = part.ComponentAssembly.AddComponent(
-            str(path),
-            "Entire Part",
-            name or Path(path).stem,
-            self.nxopen.Point3d(0.0, 0.0, 0.0),
-            matrix,
-            -1,
-        )
-        try:
-            return {
-                "component": component.Name,
-                "tag": int(component.Tag),
-                "path": str(path),
-                "message": "Component added at origin",
-            }
-        finally:
-            if status is not None:
-                status.Dispose()
-
-    def _list_components(self):
-        part = self._work_part()
-        root = part.ComponentAssembly.RootComponent
-        rows = []
-
-        def walk(parent, depth):
-            for comp in parent.GetChildren():
-                point, matrix = comp.GetPosition()
-                rows.append(
-                    {
-                        "name": comp.Name,
-                        "tag": int(comp.Tag),
-                        "depth": depth,
-                        "translation": [point.X, point.Y, point.Z],
-                        "rotation": [
-                            matrix.Xx,
-                            matrix.Xy,
-                            matrix.Xz,
-                            matrix.Yx,
-                            matrix.Yy,
-                            matrix.Yz,
-                            matrix.Zx,
-                            matrix.Zy,
-                            matrix.Zz,
-                        ],
-                        "part_path": comp.Prototype.FullPath,
-                    }
-                )
-                walk(comp, depth + 1)
-
-        if root is not None:
-            walk(root, 0)
-        return {"components": rows, "count": len(rows)}
-
-    def _reposition_component(self, component, dx=0, dy=0, dz=0, rx=0, ry=0, rz=0):
-        import math
-
-        part = self._work_part()
-        root = part.ComponentAssembly.RootComponent
-        matches = [c for c in root.GetChildren() if c.Name == component]
-        if len(matches) != 1:
-            raise NXToolError(
-                "NX_NOT_FOUND", "Component name must match exactly one immediate child"
-            )
-        a, b, c = [math.radians(v) for v in (rx, ry, rz)]
-        sx, cx, sy, cy, sz, cz = (
-            math.sin(a),
-            math.cos(a),
-            math.sin(b),
-            math.cos(b),
-            math.sin(c),
-            math.cos(c),
-        )
-        matrix = self.nxopen.Matrix3x3()
-        values = [
-            cz * cy,
-            sz * cy,
-            -sy,
-            cz * sy * sx - sz * cx,
-            sz * sy * sx + cz * cx,
-            cy * sx,
-            cz * sy * cx + sz * sx,
-            sz * sy * cx - cz * sx,
-            cy * cx,
-        ]
-        for key, value in zip(
-            ("Xx", "Xy", "Xz", "Yx", "Yy", "Yz", "Zx", "Zy", "Zz"), values, strict=False
-        ):
-            setattr(matrix, key, value)
-        part.ComponentAssembly.MoveComponent(matches[0], self.nxopen.Vector3d(dx, dy, dz), matrix)
-        return {"component": component, "message": "Applied relative translation and rotation"}
-
-    def _set_view(self, orientation):
-        options = {
-            "isometric": "Isometric",
-            "trimetric": "Trimetric",
-            "front": "Front",
-            "back": "Back",
-            "top": "Top",
-            "bottom": "Bottom",
-            "left": "Left",
-            "right": "Right",
-        }
-        key = orientation.strip().lower()
-        if key not in options:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Unknown view orientation")
-        self._work_part().ModelingViews.WorkView.Orient(
-            getattr(self.nxopen.View.Canned, options[key]), self.nxopen.View.ScaleAdjustment.Fit
-        )
-        return {
-            "message": "View orientation set",
-            "orientation": key,
-            "viewport_available": not self.session.IsBatch,
-        }
-
-    def _screenshot(self, path: str) -> dict[str, Any]:
-        destination = self.workspace.ensure_inside(path)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        script = r"""
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-$bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
-$bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-try {
-  $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bounds.Size)
-  $bitmap.Save($env:NX_MCP_SCREENSHOT_PATH, [System.Drawing.Imaging.ImageFormat]::Png)
-} finally {
-  $graphics.Dispose()
-  $bitmap.Dispose()
-}
-"""
-        encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
-        environment = dict(os.environ)
-        environment["NX_MCP_SCREENSHOT_PATH"] = str(destination)
-        completed = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-EncodedCommand",
-                encoded,
-            ],
-            capture_output=True,
-            check=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            env=environment,
-            text=True,
-            timeout=30,
-        )
-        if completed.returncode != 0 or not destination.is_file():
-            message = (completed.stderr or completed.stdout or "screen capture failed").strip()
-            raise NXToolError("NX_SCREENSHOT_FAILED", message)
-        return {"path": str(destination), "message": f"Screenshot saved to {destination.name}"}
 
 
 @dataclass

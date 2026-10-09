@@ -86,3 +86,15 @@ def min_distance(tx, a, b):
     with native(default="NX_ERROR"):
         out = tx.uf.Modeling.AskMinimumDist(a.Tag, b.Tag, 0, zero, 0, zero)
     return float(out[0]), [float(v) for v in out[1]], [float(v) for v in out[2]]
+
+
+def point_distance(tx, obj, point):
+    """``(distance, point on obj)`` from a work-part point to a curve, edge, face or body.
+
+    UF minimum distance with a NULL second object measures to its guess point
+    (NX 2406).
+    """
+    zero = [0.0, 0.0, 0.0]
+    with native(default="NX_ERROR"):
+        out = tx.uf.Modeling.AskMinimumDist(obj.Tag, 0, 0, zero, 1, [float(v) for v in point])
+    return float(out[0]), [float(v) for v in out[1]]

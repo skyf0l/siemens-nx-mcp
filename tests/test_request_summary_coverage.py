@@ -43,7 +43,6 @@ TEXT = {
 # Arguments that are text for one tool and an object ID for another.
 TOOL_TEXT = {
     ("nx_capabilities", "tool"): "nx_extrude",
-    ("nx_set_sheet_metal_defaults", "tool"): "T1",
 }
 PATHS = {"path", "part_path", "output_path"}
 NOT_IDS = {"operation_id", "checkpoint_id", "preview_id", "restore_id", "result_id"}

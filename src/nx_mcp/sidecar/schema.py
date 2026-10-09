@@ -6,9 +6,14 @@ the same metadata into
 
 - a Pydantic ``TypeAdapter`` per tool (sidecar gate 1); a parity test asserts it
   accepts and rejects exactly what :func:`nx_mcp.core.validate.validate` does;
-- the tool's JSON Schema for listings and ``nx_get_tool_schemas``: bounded
-  arrays, unit strings as ``number | pattern``, references as patterned strings
-  whose description names the accepted kinds, no titles, nested objects inlined;
+- the tool's JSON Schema for listings and ``nx_get_tool_schemas``, kept compact
+  (tool-surface 1.7): bounded arrays and strings, no titles; references are
+  bounded strings whose description names the accepted kinds and quantities are
+  ``number | string`` with the unit spelled in the description (their regular
+  expressions are checked by gate 1, Pydantic here and ``core.validate`` in NX,
+  not repeated in every listing); a subschema that occurs more than once (a
+  ``Plane``, ``Length`` or ``Point3`` used by several fields) is shared once
+  under ``$defs`` when that makes the definition shorter;
 - the output schema of the result envelope, ``data`` derived from the returned
   ``TypedDict``.
 """
@@ -24,17 +29,49 @@ from typing import Annotated, Any, Literal, Union
 import typing_extensions as te
 from pydantic import BeforeValidator, ConfigDict, Field, Strict, StringConstraints, TypeAdapter
 
-from nx_mcp.core.types import QUANTITY_PATTERNS, Doc, Items, Quantity, Range, Text
+from nx_mcp.core import types as core_types
+from nx_mcp.core.types import (
+    QUANTITY_MAX,
+    QUANTITY_PATTERNS,
+    REF_PATTERN,
+    Doc,
+    Items,
+    Json,
+    Quantity,
+    Range,
+    Text,
+)
 from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwrap
 
 # Keys a caller may add next to a tool's own arguments; never handler arguments.
 CALL_KEYS = ("operation_id", "intent", "detail")
-OPERATION_ID = {"type": "string", "maxLength": 128, "description": "Reuse to retry safely"}
-INTENT = {
-    "type": "string",
-    "maxLength": 120,
-    "description": "Why, in the engineer's terms (NX panel)",
-}
+# Explained once in the server instructions (sidecar/server.py), not in every listing.
+OPERATION_ID = {"type": "string", "maxLength": 128}
+INTENT = {"type": "string", "maxLength": 120}
+# Regular expressions gate 1 checks but listings omit (references, unit strings).
+LISTING_UNSHOWN_PATTERNS = frozenset({REF_PATTERN, *QUANTITY_PATTERNS.values()})
+# Core types named in ``$defs`` when shared (others are named after their field).
+NAMED_TYPES = (
+    "Plane",
+    "Axis",
+    "Direction",
+    "Limit",
+    "Combine",
+    "Pose",
+    "SketchPoint",
+    "Point3",
+    "Point2",
+    "SheetPoint",
+    "Vec3",
+    "Mat3",
+    "Length",
+    "SheetLength",
+    "Angle",
+    "PrincipalAxis",
+    "PrincipalPlane",
+    "PlaneByNormal",
+    "AxisByPoint",
+)
 OUTCOMES = (
     "not_applicable",
     "committed",
@@ -82,8 +119,15 @@ class _Converter:
         if Quantity in markers:
             pattern = QUANTITY_PATTERNS[markers[Quantity].dim]
             number = Annotated[float, Strict(), Field(allow_inf_nan=False)]
-            text = Annotated[str, Strict(), StringConstraints(pattern=pattern)]
+            text = Annotated[
+                str, Strict(), StringConstraints(max_length=QUANTITY_MAX, pattern=pattern)
+            ]
             return _annotated(Union[number, text], meta)  # noqa: UP007
+        if base is dict and Json in markers:
+            marker = markers[Json]
+            bound = Field(max_length=marker.max_keys)
+            check = BeforeValidator(lambda v, m=marker: core_types.check_json(v, m))
+            return _annotated(dict[str, Any], [*meta, bound, check])
         if is_union(base):
             alternatives = tuple(self(alt) for alt in typing.get_args(base))
             return _annotated(Union[alternatives], meta)  # noqa: UP007
@@ -243,20 +287,170 @@ def _hoist_description(schema: dict) -> dict:
     return schema
 
 
+def _unshown_patterns(node, *, in_properties: bool = False):
+    """Drop reference and unit-string patterns (gate 1 checks them) from a listing.
+
+    A quantity's ``number | string`` pair then reads ``type: [number, string]``;
+    ``maxLength`` constrains only the string, so the meaning is unchanged.
+    """
+    if isinstance(node, list):
+        return [_unshown_patterns(v) for v in node]
+    if not isinstance(node, dict):
+        return node
+    if in_properties:  # a map of field names, any of which may be called "pattern"
+        return {k: _unshown_patterns(v) for k, v in node.items()}
+    out = {
+        k: _unshown_patterns(v, in_properties=k in ("properties", "$defs"))
+        for k, v in node.items()
+        if not (k == "pattern" and isinstance(v, str) and v in LISTING_UNSHOWN_PATTERNS)
+    }
+    branches = out.get("anyOf")
+    if (
+        isinstance(branches, list)
+        and len(branches) == 2
+        and {"type": "number"} in branches
+        and any(
+            isinstance(b, dict) and b.get("type") == "string" and set(b) <= {"type", "maxLength"}
+            for b in branches
+        )
+    ):
+        text = next(b for b in branches if b.get("type") == "string")
+        rest = {k: v for k, v in out.items() if k != "anyOf"}
+        out = {"type": ["number", "string"], **{k: v for k, v in text.items() if k != "type"}}
+        out.update(rest)
+    return out
+
+
+def _field(prop: dict, param) -> dict:
+    prop = _hoist_description(prop)
+    if not param.required:
+        prop = _without_null(prop) if param.default is None else {**prop, "default": param.default}
+    return _hoist_description(prop)
+
+
+# -- shared definitions ------------------------------------------------------
+
+_SCHEMA_LISTS = ("anyOf", "oneOf", "allOf", "prefixItems")
+_SCHEMA_MAPS = ("properties", "$defs")
+
+
+def _sites(node):
+    """``(container, key)`` of every subschema below ``node`` (not ``node`` itself)."""
+    if not isinstance(node, dict):
+        return
+    for key, value in node.items():
+        if key in _SCHEMA_MAPS and isinstance(value, dict):
+            for name, sub in value.items():
+                if isinstance(sub, dict):
+                    yield value, name
+                    yield from _sites(sub)
+        elif key in _SCHEMA_LISTS and isinstance(value, list):
+            for i, sub in enumerate(value):
+                if isinstance(sub, dict):
+                    yield value, i
+                    yield from _sites(sub)
+        elif key in ("items", "additionalProperties", "not") and isinstance(value, dict):
+            yield node, key
+            yield from _sites(value)
+
+
+def _key(node: dict) -> str:
+    return json.dumps(node, sort_keys=True, separators=(",", ":"))
+
+
+def _body(node: dict, keep_description: bool) -> dict:
+    """The shareable part of a subschema: without its default (and description)."""
+    drop = {"default"} if keep_description else {"default", "description"}
+    return {k: v for k, v in node.items() if k not in drop}
+
+
+@functools.cache
+def _known_names() -> dict:
+    """Canonical subschema -> core type name, for readable ``$defs`` keys."""
+    names = {_key({"maxLength": 128, "type": "string"}): "Ref"}
+    for name in NAMED_TYPES:
+        hint = getattr(core_types, name)
+        node = _hoist_description(
+            _without_null(
+                _unshown_patterns(tidy(_inline(TypeAdapter(_Converter()(hint)).json_schema())))
+            )
+        )
+        names.setdefault(_key(_body(node, True)), name)
+        names.setdefault(_key(_body(node, False)), name)
+    return names
+
+
+def _def_name(body: dict, taken: set) -> str:
+    name = _known_names().get(_key(body))
+    if name is None:  # named by its JSON type: a field name could mislead other fields
+        kind = body.get("type")
+        name = {
+            "string": "Text",
+            "number": "Number",
+            "integer": "Integer",
+            "boolean": "Flag",
+            "array": "List",
+            "object": "Object",
+        }.get(kind if isinstance(kind, str) else "", "Choice" if "anyOf" in body else "Value")
+    unique, n = name, 2
+    while unique in taken:
+        unique, n = f"{name}{n}", n + 1
+    return unique
+
+
+def share_definitions(schema: dict) -> dict:
+    """Move a subschema that occurs more than once to ``$defs`` when that saves characters.
+
+    Greedy: the candidate with the largest saving goes first; a field keeps its
+    own description and default next to the ``$ref``.
+    """
+    defs: dict = {}
+    while True:
+        found: dict = {}
+        tree = {"properties": schema.get("properties", {}), "$defs": defs}
+        for container, key in _sites(tree):
+            if container is defs:
+                continue  # a definition itself is never replaced by a reference to it
+            node = container[key]
+            for keep in (True, False) if "description" in node else (True,):
+                body = _body(node, keep)
+                if not body or set(body) == {"$ref"}:
+                    continue
+                text = _key(body)
+                slot = found.setdefault(text, {"body": body, "sites": []})
+                slot["sites"].append((container, key))
+        best, best_name, saving = None, "", 20  # not worth a definition below this
+        for text, slot in found.items():
+            sites = slot["sites"]
+            if len({id(c[k]) for c, k in sites}) < 2:
+                continue
+            name = _def_name(slot["body"], set(defs))
+            # Each site becomes {"$ref":"#/$defs/<name>"}; the body is written once.
+            gain = len(sites) * (len(text) - 15 - len(name)) - (len(text) + len(name) + 4)
+            if gain > saving:
+                best, saving, best_name = slot, gain, name
+        if best is None:
+            break
+        name = best_name
+        defs[name] = best["body"]
+        ref = {"$ref": "#/$defs/" + name}
+        for container, key in best["sites"]:
+            node = container[key]
+            extra = {k: v for k, v in node.items() if k not in best["body"]}
+            container[key] = {**ref, **extra}
+    if defs:
+        schema["$defs"] = defs
+    return schema
+
+
 @functools.cache
 def _arguments_schema(spec) -> str:
-    schema = tidy(_inline(adapter(spec).json_schema()))
+    schema = _unshown_patterns(tidy(_inline(adapter(spec).json_schema())))
     properties = schema.get("properties", {})
     for name, param in spec.params.items():
-        prop = _hoist_description(properties[name])
-        if not param.required:
-            if param.default is None:
-                prop = _without_null(prop)
-            else:
-                prop = {**prop, "default": param.default}
-        properties[name] = _hoist_description(prop)
+        properties[name] = _field(properties[name], param)
     schema["additionalProperties"] = False
-    return json.dumps(schema)
+    return json.dumps(share_definitions(schema))
 
 
 def input_schema(spec, *, call_keys: bool = True) -> dict:

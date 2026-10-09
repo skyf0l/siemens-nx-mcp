@@ -40,15 +40,16 @@ and invokes registered tools; it does not bypass their validation or permissions
 
 The batch runner calls `pump_bridge()` on the journal main thread. The graphical
 runner retains a Win32 timer callback and returns from the journal. The callback
-executes one queued operation at a time on the NX UI thread. Taking control back releases input
-for manual editing and invalidates references/checkpoints; resume requires fresh
-inspection. Agent mode intentionally disables the NX main window even while idle; use
-`nx_ui_control(mode="manual")` or the panel's **Take control back** toggle to navigate or edit. This
-handoff invalidates object references and checkpoints. The panel distinguishes
-reserved idle, active operation and manual mode, paints before native execution,
-and reports the last operation duration. Its window is owned by NX so the toggle
-control stays above NX without being globally topmost. It does not continuously repaint an
-unchanged label.
+executes one queued operation at a time on the NX UI thread. The panel has three
+modes (see INTERACTIVE-NX.md): **Auto** takes NX for each agent call only (main window
+disabled, no `UI.LockAccess`) and waits while the engineer is busy in an NX command;
+**Agent drives** keeps NX locked for the agent even while idle; **Ask me first** holds
+every call for the engineer's answer. References and checkpoints are invalidated only
+when an engineer edit is detected between two agent calls (newest undo mark, undo-mark
+count, loaded/work/display parts). A request wakes the host at once: the listening
+socket posts FD_ACCEPT to the panel window. The panel paints before native execution
+and reports the last operation duration. Its window is owned by NX so it stays above
+NX without being globally topmost. It does not continuously repaint an unchanged label.
 
 `nx_ui_control(mode="status")` reads a timestamped snapshot without joining the
 NX execution queue. `snapshot_age_seconds` is the age of the last main-thread

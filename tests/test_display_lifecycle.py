@@ -1,4 +1,5 @@
-"""Stateful display, clipping and solver tests at the installed NX API seam."""
+"""Legacy section and collision-highlight helpers still used by the legacy inspection report
+(display tools are catalogue tools: tests/unit/display)."""
 
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
@@ -6,114 +7,9 @@ from unittest.mock import Mock
 import pytest
 
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import enum_name
-from tests.fakes import Body, Component, Curve, Feature, Object, Part, Sketch, point
+from tests.fakes import Object, point
 
 pytestmark = pytest.mark.fake_nx
-
-
-def test_appearance_restores_per_face_attributes_and_blank_flags(rig):
-    b = Body()
-    b.faces[0].Color = 21
-    b.faces[0].transparency = 15
-    b.IsBlanked = True
-    rig.part.Bodies.append(b)
-    ref = rig.ref(b)
-    before = rig.e._display_info([ref])["objects"]
-    result = rig.e.execute("nx_set_display", {"objects": [ref], "color": "red", "transparency": 60})
-    assert b.Color == 3 and b.faces[0].Color == 3 and b.faces[0].transparency == 60
-    assert all(not m.ApplyToOwningParts for m in rig.modifications)
-    rig.e.execute("nx_restore_display", {"restore_id": result["restore_id"]})
-    assert rig.e._display_info([ref])["objects"] == before
-    assert all(m.Dispose.call_count == 1 for m in rig.modifications)
-    with pytest.raises(NXToolError):
-        rig.e._restore_display(result["restore_id"])
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        {},
-        {"color": "invalid"},
-        {"color": "red", "color_index": 3},
-        {"color_index": True},
-        {"color_index": 0},
-        {"color_index": 217},
-        {"transparency": -1},
-        {"transparency": 101},
-        {"transparency": 1.5},
-    ],
-)
-def test_invalid_appearance_preflight_never_applies(rig, params):
-    with pytest.raises(NXToolError):
-        rig.e._set_display(["unresolved"], **params)
-    assert not rig.modifications
-
-
-def test_snapshot_order_and_stale_member_fail_before_any_restore(rig):
-    b = Body()
-    rig.part.Bodies.append(b)
-    ref = rig.ref(b)
-    first = rig.e._set_visibility([ref], "hide")["restore_id"]
-    second = rig.e._set_display([ref], color="gray")["restore_id"]
-    with pytest.raises(NXToolError) as error:
-        rig.e._restore_display(first)
-    assert error.value.code == "NX_RESTORE_ORDER" and b.IsBlanked
-    face_ref = rig.e._display_snapshots[second]["records"][1]["object"]["id"]
-    rig.e.objects._objects.pop(face_ref)
-    n = len(rig.modifications)
-    with pytest.raises(NXToolError):
-        rig.e._restore_display(second)
-    assert len(rig.modifications) == n and b.Color == 5
-
-
-def test_isolation_keeps_nested_ancestors_and_restores_hidden_siblings(rig):
-    seed = Body()
-    root = Component("root")
-    nested = Component("nested", parent=root)
-    child = Component("child", [seed], nested)
-    other = Component("other", [Body()], root)
-    rig.part.ComponentAssembly.RootComponent = root
-    root.IsBlanked = True
-    other.IsBlanked = True
-    ref = rig.ref(child, "component")
-    body = child.FindOccurrence(seed)
-    result = rig.e._set_visibility([ref], "isolate")
-    assert not body.IsBlanked and not child.IsBlanked and not nested.IsBlanked
-    assert other.IsBlanked
-    rig.e._restore_display(result["restore_id"])
-    assert other.IsBlanked and root.IsBlanked and not body.IsBlanked
-    assert rig.e._display_info([ref])["count"] == 2
-
-
-def test_display_target_kinds_and_part_guards(rig, tmp_path):
-    b = Body()
-    feature = Feature(bodies=[b])
-    sk = Sketch(rig.session)
-    sk.geometry = [Curve()]
-    assert rig.e._display_targets([rig.ref(feature, "feature")]) == [b]
-    assert rig.e._display_targets([rig.ref(sk, "sketch")]) == sk.geometry
-    face = rig.ref(b.faces[0], "face")
-    with pytest.raises(NXToolError):
-        rig.e._set_visibility([face], "hide")
-    for mode in ["invalid", "isolate"]:
-        with pytest.raises(NXToolError):
-            rig.e._set_visibility([rig.ref(sk.geometry[0], "curve")], mode)
-    with pytest.raises(NXToolError):
-        rig.e._set_display([rig.ref(sk.geometry[0], "curve")], transparency=10)
-    for values in [[], None, ["a"] * 1001]:
-        with pytest.raises(NXToolError):
-            rig.e._display_targets(values)
-    with pytest.raises(NXToolError):
-        rig.e._display_records([Curve()] * 10001)
-    sk.geometry = []
-    with pytest.raises(NXToolError):
-        rig.e._display_targets([rig.ref(sk, "sketch")])
-    old = rig.part
-    Part(rig.session, tmp_path / "other.prt")
-    rig.session.Parts.Work = old
-    with pytest.raises(NXToolError):
-        rig.e._display_info([face])
 
 
 def section_builder(rig):
@@ -151,29 +47,6 @@ def section_builder(rig):
     return builders
 
 
-def test_sections_create_edit_toggle_delete_and_inspection_cleanup(rig):
-    builders = section_builder(rig)
-    result = rig.e._section_view([1, 2, 3], [0, 0, 4])
-    ref = result["object"]["id"]
-    assert result["normal"] == [0, 0, 1] and not result["geometry_changed"]
-    assert result["retained_side"] == "negative_normal"
-    info = rig.e._list_sections()
-    assert info["count"] == 1 and info["sections"][0]["active"]
-    assert not rig.session.marks
-    with pytest.raises(NXToolError):
-        rig.e._section_view([0, 0, 0], [1, 0, 0])
-    rig.e._section_view([4, 5, 6], [1, 0, 0], section=ref, cap=False)
-    rig.e._section_control(ref, "disable")
-    assert not rig.part.ModelingViews.WorkView.DisplaySectioningToggle
-    rig.e._section_control(ref, "enable")
-    assert rig.part.ModelingViews.WorkView.DisplaySectioningToggle
-    with pytest.raises(NXToolError):
-        rig.e._section_control(ref, "bad")
-    rig.e._section_control(ref, "delete")
-    assert not rig.part.DynamicSections
-    assert all(b.Destroy.call_count == 1 for b in builders)
-
-
 @pytest.mark.parametrize(
     "origin,normal,name",
     [
@@ -188,30 +61,3 @@ def test_invalid_section_parameters_do_not_create_builder(rig, origin, normal, n
     with pytest.raises(NXToolError):
         rig.e._section_view(origin, normal, name=name)
     assert not builders
-
-
-def test_highlighting_only_includes_penetration_unless_contact_requested(rig):
-    a = Body("a")
-    b = Body("b")
-    refs = [rig.e._reference(v, "body", rig.part, "body") for v in (a, b)]
-    rig.e._check_interference = lambda *_: {
-        "pairs": [{"classification": "contact", "objects": refs}]
-    }
-    ida, idb = (r["id"] for r in refs)  # IDs are validated before NX is touched
-    assert rig.e._highlight_collisions(ida, idb)["highlighted_count"] == 0
-    assert rig.e._highlight_collisions(ida, idb, True)["highlighted_count"] == 2
-    assert a.highlighted and b.highlighted
-    assert rig.e._clear_highlights()["cleared_count"] == 2 and not a.highlighted
-    b.Highlight = Mock(side_effect=RuntimeError("deleted"))
-    with pytest.raises(RuntimeError):
-        rig.e._highlight_collisions(ida, idb, True)
-    assert not a.highlighted
-    b.Unhighlight = Mock(side_effect=RuntimeError("deleted"))
-    rig.e._highlighted_objects = [b]
-    assert rig.e._clear_highlights()["cleared_count"] == 0
-    rig.session.IsBatch = True
-    with pytest.raises(NXToolError):
-        rig.e._highlight_collisions(ida, idb)
-    with pytest.raises(NXToolError):
-        rig.e._section_view([0, 0, 0], [0, 0, 1])
-    assert enum_name(999, NS(A=1)) == "unknown_999"

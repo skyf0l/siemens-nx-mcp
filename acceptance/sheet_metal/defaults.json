@@ -1,0 +1,164 @@
+{
+ "covers": {
+  "nx_get_sheet_metal_defaults": [],
+  "nx_set_sheet_metal_defaults": []
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal_defaults",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.thickness": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.bend_radius": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.neutral_factor": {
+     "close": 0.33,
+     "tol": 1e-09
+    },
+    "data.parameter_entry": "value",
+    "data.bend_definition": "neutral_factor_value"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "thickness": 2,
+    "bend_radius": "3 mm",
+    "neutral_factor": 0.4
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.bend_radius": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.neutral_factor": {
+     "close": 0.4,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "bend_relief_width": 1.5,
+    "bend_relief_depth": "0.1 in"
+   },
+   "expect": {
+    "data.bend_relief_width": {
+     "close": 1.5,
+     "tol": 1e-09
+    },
+    "data.bend_relief_depth": {
+     "close": 2.54,
+     "tol": 1e-09
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "bend_definition": "bend_allowance_formula",
+    "bend_formula": "(Radius+(Thickness*0.4))*rad(Angle)"
+   },
+   "expect": {
+    "data.bend_definition": "bend_allowance_formula",
+    "data.bend_allowance_formula": "(Radius+(Thickness*0.4))*rad(Angle)"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "bend_definition": "neutral_factor_value",
+    "parameter_entry": "value"
+   },
+   "expect": {
+    "data.bend_definition": "neutral_factor_value",
+    "data.parameter_entry": "value"
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal_defaults",
+   "args": {},
+   "expect": {
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.neutral_factor": {
+     "close": 0.4,
+     "tol": 1e-09
+    },
+    "data.bend_relief_width": {
+     "close": 1.5,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "thickness": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/thickness",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "bend_formula": "2*Thickness"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/bend_formula",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "neutral_factor": 1.5
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "bend_table": "missing/bends.xlsx"
+   },
+   "expect": {
+    "error.code": "NX_FILE_NOT_FOUND",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

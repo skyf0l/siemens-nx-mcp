@@ -1,0 +1,241 @@
+{
+ "covers": {
+  "nx_set_visibility": [],
+  "nx_restore_display": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "bodies",
+   "args": {
+    "kind": "body"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "faces",
+   "args": {
+    "kind": "face",
+    "owner": "$bodies.data.items.0.id",
+    "limit": 50
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "datums",
+   "args": {
+    "kind": "datum",
+    "limit": 50
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "save": "hide",
+   "args": {
+    "mode": "hide",
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.objects.0.blanked": true,
+    "data.objects.0.object.kind": "body",
+    "restore_id": {
+     "matches": "^display_"
+    }
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.objects.0.blanked": true
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "save": "show",
+   "args": {
+    "mode": "show",
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.objects.0.blanked": false
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$hide.restore_id"
+   },
+   "expect": {
+    "error.category": "blocked",
+    "error.code": "NX_DEPENDENCY_ORDER",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$show.restore_id"
+   },
+   "expect": {
+    "data.identical": true,
+    "data.objects.0.blanked": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$hide.restore_id"
+   },
+   "expect": {
+    "data.identical": true,
+    "data.objects.0.blanked": false
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "save": "dh",
+   "args": {
+    "mode": "hide",
+    "datums": true
+   },
+   "expect": {
+    "data.count": 8,
+    "data.objects.0.blanked": true,
+    "data.objects.7.blanked": true,
+    "data.objects.0.object.kind": "datum_plane",
+    "data.objects.3.object.kind": "datum_axis",
+    "data.objects.6.object.kind": "datum_csys",
+    "data.objects.7.object.kind": "datum_csys"
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "save": "ds",
+   "args": {
+    "mode": "show",
+    "objects": [
+     "$datums.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.count": 1,
+    "data.objects.0.blanked": false
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$ds.restore_id"
+   },
+   "expect": {
+    "data.objects.0.blanked": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$dh.restore_id"
+   },
+   "expect": {
+    "data.count": 8,
+    "data.objects.0.blanked": false,
+    "data.objects.7.blanked": false
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "save": "iso",
+   "args": {
+    "mode": "isolate",
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.count": 1,
+    "data.objects.0.blanked": false
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$iso.restore_id"
+   },
+   "expect": {
+    "data.identical": true
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "args": {
+    "mode": "hide",
+    "objects": [
+     "$faces.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "args": {
+    "mode": "isolate",
+    "datums": true
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/mode",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "args": {
+    "mode": "isolate",
+    "objects": [
+     "$datums.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "args": {
+    "mode": "show"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

@@ -322,7 +322,7 @@
    "args": {
     "type": "section",
     "parent": "$top.data.view.id",
-    "cut": "$h1.items.0.object.id",
+    "cut": "$h1.data.items.0.id",
     "cut_point": "center",
     "step_direction": [
      1,
@@ -357,7 +357,7 @@
    "args": {
     "type": "section",
     "parent": "$top.data.view.id",
-    "cut": "$back.items.0.object.id",
+    "cut": "$back.data.items.0.id",
     "cut_point": "start",
     "step_direction": [
      0,
@@ -461,7 +461,7 @@
    "args": {
     "type": "section",
     "parent": "$top.data.view.id",
-    "cut": "$h1.items.0.object.id",
+    "cut": "$h1.data.items.0.id",
     "cut_point": "start",
     "step_direction": [
      1,
@@ -488,7 +488,7 @@
    "args": {
     "type": "section",
     "parent": "$top.data.view.id",
-    "cut": "$h1.items.0.object.id",
+    "cut": "$h1.data.items.0.id",
     "cut_point": "center",
     "step_direction": [
      1,

@@ -72,15 +72,54 @@ async def test_full_listing_catalogue_part_and_legacy_part(tmp_path, every_tool_
     assert legacy_part <= LEGACY_TODAY
 
 
+def own_definition(spec) -> int:
+    """name + description + input schema as ``nx_get_tool_schemas`` returns it.
+
+    The call keys ``operation_id`` and ``intent`` (the same 87 characters on every changing
+    tool, explained once in the server instructions) are listed only on directly listed
+    tools, so the per-tool caps and the median measure the tool's own definition; the
+    full listing's cap above counts them.
+    """
+    return schema.definition_size(
+        spec.name, spec.description, schema.input_schema(spec, call_keys=False)
+    )
+
+
+def has_object_union(generated: dict) -> bool:
+    """True when an argument is a union of two or more object forms (Limit, Axis, a
+    linear|circular layout): a discriminated union in the sense of tool-surface 1.7 even
+    without a top-level variant field, so the 2,500 cap applies."""
+    defs = generated.get("$defs", {})
+
+    def is_object(node):
+        if "$ref" in node:
+            node = defs.get(node["$ref"].split("/")[-1], {})
+        return node.get("type") == "object"
+
+    def walk(node):
+        if isinstance(node, dict):
+            branches = node.get("anyOf")
+            if isinstance(branches, list) and sum(is_object(b) for b in branches) >= 2:
+                return True
+            return any(walk(v) for v in node.values())
+        if isinstance(node, list):
+            return any(walk(v) for v in node)
+        return False
+
+    return walk(generated)
+
+
 def test_catalogue_definitions_respect_their_caps():
     sizes = {}
     for spec in catalogue.load().values():
-        size = schema.definition_size(spec.name, spec.description, schema.input_schema(spec))
+        size = own_definition(spec)
         sizes[spec.name] = size
-        assert size <= (UNION_CAP if spec.variants else DEFINITION_CAP), (spec.name, size)
-    print("definitions:", sizes)
+        union = bool(spec.variants) or has_object_union(schema.input_schema(spec))
+        assert size <= (UNION_CAP if union else DEFINITION_CAP), (spec.name, size)
+    median = statistics.median(sizes.values())
+    print(f"definitions: median {median}, max {max(sizes.values())}:", sizes)
     if len(sizes) >= 10:  # a median of the two pilot tools is not the catalogue's median
-        assert statistics.median(sizes.values()) <= MEDIAN_DEFINITION
+        assert median <= MEDIAN_DEFINITION
 
 
 @pytest.mark.parametrize("query", ["", "datum plane", "create", "list faces", "measure"])
@@ -95,15 +134,20 @@ async def test_a_page_of_ten_discovery_rows_fits(tmp_path, every_tool_tested, qu
 async def test_schema_fetch_adds_little_to_each_definition(tmp_path, every_tool_tested):
     server = make(tmp_path, "agent")
     names = sorted(catalogue.load())
-    result = await server.call_tool("nx_get_tool_schemas", {"names": names})
-    entries = result.structuredContent["data"]["tools"]
+    entries, text = [], 0
+    for start in range(0, len(names), 10):  # nx_get_tool_schemas takes 1-10 names
+        result = await server.call_tool("nx_get_tool_schemas", {"names": names[start : start + 10]})
+        entries += result.structuredContent["data"]["tools"]
+        text += len(result.content[0].text)
+    assert [e["name"] for e in entries] == names
     listed = {t.name: t for t in await make(tmp_path, "full").list_tools()}
     for entry in entries:
         size = compact(entry)
         overhead = size - definition(listed[entry["name"]])
         print(f"schema {entry['name']}: {size} chars, {overhead} over its definition")
         assert overhead <= SCHEMA_OVERHEAD
-    average = len(result.content[0].text) / len(entries)
+    average = text / len(entries)
     definitions = statistics.mean(definition(listed[n]) for n in names)
+    print(f"schema fetch: {average:.0f} chars per tool on average")
     # 900 per tool on average once definitions meet their 700 median.
     assert average <= SCHEMA_PER_TOOL + max(0, definitions - MEDIAN_DEFINITION)

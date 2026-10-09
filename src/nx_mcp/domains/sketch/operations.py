@@ -149,7 +149,6 @@ def _chamfer(tx, sk, a, b, d1, d2):
             c for c in ksketch.new_geometry(sk, before) if ksketch.curve_kind(tx, c) == "line"
         ]
         readback.expect(len(created) == 1, "chamfer_count", count=len(created))
-        # No reference yet: an attempt that is undone frees its tag for the next line.
         row = ksketch.read(tx, f, created[0])
         # Each chamfer end lies on the ORIGINAL segment of its line (a cut, not an
         # outside extension); measure the cut-back along first and second.

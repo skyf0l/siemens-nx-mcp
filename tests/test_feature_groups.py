@@ -42,11 +42,13 @@ def test_capabilities_report_evidence_for_the_running_nx_version():
     assert tools["nx_measure_volume"]["status"] == "tested"  # verified_versions includes v2406
     real_2406 = {"tools": {"t": {"status": "tested", "evidence_type": "real_NX_v2406_scoped"}}}
     assert scope_to_version(real_2406, "v2406")["tools"]["t"]["status"] == "tested"
-    sheet_metal_pmi = "nx_sheet_metal_annotation"
-    assert tools[sheet_metal_pmi]["status"] == "unavailable"  # unavailable_on v2406
-    assert scope_to_version(load_manifest(), "v2606")["tools"][sheet_metal_pmi]["status"] == (
-        "tested"
-    )
+
+    def licensed_on_2606():
+        entry = {"status": "tested", "evidence_type": "real_NX_v2606_scoped"}
+        return {"tools": {"t": {**entry, "unavailable_on": {"v2406": "no license"}}}}
+
+    assert scope_to_version(licensed_on_2606(), "v2406")["tools"]["t"]["status"] == "unavailable"
+    assert scope_to_version(licensed_on_2606(), "v2606")["tools"]["t"]["status"] == "tested"
     only_2606 = {"tools": {"t": {"status": "tested", "evidence_type": "real_NX_v2606_scoped"}}}
     entry = scope_to_version(only_2606, "v2406")["tools"]["t"]
     assert entry["status"] == "experimental" and "Not tested on NX v2406" in entry["scope"]

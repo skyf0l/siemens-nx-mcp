@@ -65,7 +65,7 @@ async def run(steps, limit):
                     print(f"[{index}] FAIL {tool}  bad reference {error}; saved keys: {shapes}")
                     failures += 1
                     break
-                direct = tool in {"nx_status", "nx_screenshot"}
+                direct = tool in {"nx_status"}
                 if not direct and step.get("mutation", True) and "operation_id" not in args:
                     args = {**args, "operation_id": "dev-" + uuid.uuid4().hex[:12]}
                 if direct:

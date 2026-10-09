@@ -156,11 +156,11 @@ def test_start_options_set_agent_control_and_dev_title(monkeypatch):
     monkeypatch.setattr(interactive.InteractiveHost, "__init__", init)
     interactive.start("w", "d", True, agent_control=True, dev=True)
     host = interactive._host
-    assert host.auto_start and host.dev
+    assert host.mode == "agent" and host.dev
     host.requested_mode = host.running_method = None
     host.waiting_count = 0
     host.panel_text = lambda: ""
-    assert host.panel_state()[1] == "NX MCP DEV — You have control"
+    assert host.panel_state()[1] == "NX MCP DEV — Agent drives"
     assert "nx_dev_python" in host.executor._handlers  # Dev launcher only.
     host.stopped = True
     interactive.start("w", "d", True)

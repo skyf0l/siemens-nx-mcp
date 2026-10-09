@@ -401,7 +401,7 @@
    "call": "nx_create_trim_body",
    "args": {
     "body": "$d.data.bodies.0.id",
-    "tool": "$ef.items.0.object.id",
+    "tool": "$ef.data.items.0.id",
     "keep": "back"
    },
    "expect": {
@@ -492,7 +492,7 @@
    "call": "nx_create_trim_body",
    "args": {
     "body": "$e.data.bodies.0.id",
-    "tool": "$ef.items.0.object.id",
+    "tool": "$ef.data.items.0.id",
     "keep": "back"
    },
    "expect": {

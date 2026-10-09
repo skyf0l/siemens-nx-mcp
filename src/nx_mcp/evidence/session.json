@@ -1,0 +1,12 @@
+{
+  "nx_activate_application": {
+    "v2406": {
+      "checks": 19,
+      "recorded": "2026-10-09T15:13:25Z",
+      "scenario": "acceptance/sheet_metal/activate_application.json",
+      "scenario_sha256": "a3932a129d155a9db7dd214fdba899c07fd315f6ef746dea2581f49b04587b0b",
+      "source_sha256": "9f9cab4235b4303e7ceb11971d1861a8e08e2a7ce288ac40716951eb17a396dd",
+      "variants": []
+    }
+  }
+}

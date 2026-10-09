@@ -62,16 +62,15 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
             if catalogue.get(n) and catalogue.get(n).effect in ("read", "view")
         }  # an unknown build shows only read and view tools
         assert "nx_list_objects" in listed and listed == set(gateways.NAMES) | core
-        assert "nx_thicken" not in {t.name for t in tools}
-        result = await client.call_tool("nx_find_tools", {"query": "nx_thicken"})
-        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_thicken"
-        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_thicken"]})
+        assert "nx_rename_object" not in {t.name for t in tools}
+        result = await client.call_tool("nx_find_tools", {"query": "nx_rename_object"})
+        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_rename_object"
+        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_rename_object"]})
         schema = result.structuredContent["data"]["tools"][0]["input_schema"]
-        assert "first_offset" in schema["properties"]
+        assert "object_id" in schema["properties"]
         # A legacy tool stays callable directly, with compact agent defaults.
-        result = await client.call_tool("nx_list_components", {})
+        result = await client.call_tool("nx_list_topology", {"body": "obj_body"})
         assert not result.isError
-        assert bridge.call.call_args.args[1]["limit"] == 20
         assert bridge.call.call_args.args[1]["compact"] is True
         snapshot = await client.call_tool(
             "nx_invoke_read",
@@ -86,14 +85,15 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
         assert snapshot.structuredContent["items"] == []
         bridge.call.reset_mock()
         bad = await client.call_tool(
-            "nx_invoke", {"tool": "nx_thicken", "arguments": {"bogus": True}}
+            "nx_invoke", {"tool": "nx_rename_object", "arguments": {"bogus": True}}
         )
         assert bad.isError and not bridge.call.called
         good = await client.call_tool(
-            "nx_invoke", {"tool": "nx_list_components", "arguments": {}, "detail": "full"}
+            "nx_invoke",
+            {"tool": "nx_list_topology", "arguments": {"body": "obj_body"}, "detail": "full"},
         )
         assert "result_id" not in good.structuredContent
-        assert bridge.call.call_args.args[1]["limit"] is None
+        assert bridge.call.call_args.args[1]["compact"] is False
 
 
 @pytest.mark.asyncio
@@ -126,8 +126,8 @@ async def test_failed_mutation_retains_outcome_and_operation_id(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_thicken",
-            "arguments": {"faces": ["x"], "first_offset": 1, "operation_id": "test_operation"},
+            "tool": "nx_rename_object",
+            "arguments": {"object_id": "x", "name": "A", "operation_id": "test_operation"},
         },
     )
     assert result.isError and result.structuredContent["mutation_outcome"] == "rolled_back"
@@ -151,8 +151,8 @@ async def test_compact_success_replay_receipt_and_full_snapshot(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_thicken",
-            "arguments": {"faces": ["s"], "first_offset": 2, "operation_id": "operation_123"},
+            "tool": "nx_rename_object",
+            "arguments": {"object_id": "s", "name": "A", "operation_id": "operation_123"},
         },
     )
     payload = result.structuredContent
@@ -191,8 +191,8 @@ async def test_storage_failure_does_not_relabel_committed_mutation(tmp_path, mon
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_thicken",
-            "arguments": {"faces": ["s"], "first_offset": 2, "operation_id": "operation_123"},
+            "tool": "nx_rename_object",
+            "arguments": {"object_id": "s", "name": "A", "operation_id": "operation_123"},
         },
     )
     assert not result.isError and result.structuredContent["mutation_outcome"] == "committed"
@@ -269,8 +269,8 @@ async def test_gateway_rejects_ignored_top_level_arguments(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_thicken",
-            "arguments": {"faces": ["s"], "first_offset": 2},
+            "tool": "nx_rename_object",
+            "arguments": {"object_id": "s", "name": "A"},
             "operation_id": "wrong_place",
         },
     )

@@ -1,0 +1,139 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/louver.json",
+  "scenario_sha256": "762e7cc6a85edd6326e2cb55f640b58f7a84ec7d0ff0db40a960d6d56fbfff07",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "louver"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "sources": {
+    "nx_create_sheet_metal_feature": "930960bf7bece830681681cc55854ed1d19dc49e98adfeb81e6f8f4ddbed361d"
+  },
+  "run_id": "20261009-183156-585a09",
+  "owner": "dom_sheet_metal",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-183156-585a09\\sheet_metal_louver_585a09.prt",
+  "started": "2026-10-09T14:32:47Z",
+  "finished": "2026-10-09T14:32:51Z",
+  "passed": false,
+  "checks": 3,
+  "failed_checks": 4,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.765,
+      "result_sha256": "149a74894aae4b405173bb91615338581cf56e265bd1018ce7a3300aa10dc10e"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.391,
+      "result_sha256": "2b717d4e1c73269e043f7305f185ab81d54cca820a0250186e67fd89e71e7ce3"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "29807853b9bc6c19a8b321eb2402909644f546a7d9334d1fd44dff99747dcfc7"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "228bb805194d13166e3e0ac5f6c6165bae27e05646f53ae3f0764c04e06d4261"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.204,
+      "result_sha256": "9e5ce927a594527b296213331190cf7f2c35b108bc631f496db17263457e41e3"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "5872477f3ea5b2c7fe7a92718c5a6eb09792cc3a238dcb85821e5282a75e216e"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "3b17433b4892a1897145d43ea7e11be94836c5c324f8e7d3911fccaf388b4c21"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "00cc9e048cfa372d0674e26a2e06d0b1fe208552fa37d00a73d3b9aa75b92bea"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "8a9fb6fc1386254db3b2febf32fd34d176d8fc6211620e7f09fe6ea4772b143a"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.219,
+      "result_sha256": "36d50ffa5a525c486758077104ca6ab4813f896618f694593f252698ba52097e"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": false,
+      "checks": 3,
+      "seconds": 0.703,
+      "result_sha256": "c36d0034c89df3ca41ddf066af74421145d126ffb72fa12cb9ffe7d4c58e3dd6",
+      "failures": [
+        "unexpected error NX_BUILD_FAILED: Cannot create feature. Try changing input selections or values.",
+        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
+        "data.thickness: missing (wanted {'close': 2, 'tol': 1e-09})",
+        "data.bend_count: missing (wanted 0)"
+      ]
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-183156-585a09/sheet_metal_louver_585a09.prt"
+    ],
+    "failed": []
+  }
+}

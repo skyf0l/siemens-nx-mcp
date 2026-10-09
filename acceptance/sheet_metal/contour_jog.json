@@ -1,0 +1,314 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "contour_flange",
+   "jog"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2,
+    "bend_radius": 3,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   },
+   "save": "p"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$p.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       30,
+       0
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       30,
+       0
+      ],
+      "end": [
+       30,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$p.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "contour_flange",
+    "parameters": {
+     "section": "$p.data.sketch.id",
+     "thickness": 2,
+     "length": 40
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 4022.654824574367,
+     "tol": 1e-06
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.bend_count": 1,
+    "data.bends.0.radius": {
+     "close": 3,
+     "tol": 1e-06
+    },
+    "data.bends.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "changes.created": {
+     "count_kind": {
+      "body": 1
+     }
+    }
+   },
+   "save": "cf"
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$cf.data.body.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      0,
+      -40,
+      -2
+     ],
+     "tol": 1e-06
+    },
+    "max": {
+     "close": [
+      32,
+      0,
+      20
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       100,
+       0
+      ],
+      "corner2": [
+       200,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "j"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$j.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       100,
+       50
+      ],
+      "end": [
+       200,
+       50
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$j.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     150,
+     20,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "top"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "jog",
+    "parameters": {
+     "section": "$j.data.sketch.id",
+     "face": "$top.data.items.0.id",
+     "height": 10
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bend_count": 2,
+    "data.bends.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.bends.1.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.volume": {
+     "close": 17713.274122871833,
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$tab.data.body.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      100,
+      0,
+      -2
+     ],
+     "tol": 1e-06
+    },
+    "max": {
+     "close": [
+      200,
+      80,
+      12
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "contour_flange",
+    "parameters": {
+     "section": "$p.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/length",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

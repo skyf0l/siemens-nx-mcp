@@ -1,8 +1,8 @@
-"""Native bend tables and transactional refresh of measured sheet-metal PMI."""
+"""Native bend tables and their transactional refresh.
 
-import json
+Managed sheet-metal callouts refresh through the sheet-metal domain's ``@refresher``.
+"""
 
-from nx_mcp.kit.geom import xyz
 from nx_mcp.runtime import NXToolError
 
 
@@ -20,72 +20,10 @@ class AnnotationUpdatesMixin:
             for i in range(tab.AskNmRows(obj.Tag))
         ]
 
-    def _remember_managed_annotation(self, annotation, kind, body, faces, measured):
-        import NXOpen.UF as U
-
-        tags = U.UFSession.GetUFSession().Tag
-        record = {
-            "kind": kind,
-            "body": tags.AskHandleFromTag(body.Tag),
-            "faces": [tags.AskHandleFromTag(f.Tag) for f in faces],
-            "measured": measured,
-        }
-        annotation.SetAttribute("NX_MCP_MEASURED_PMI_V1", json.dumps(record, sort_keys=True))
-
     def _refresh_annotations(self):
-        import NXOpen.UF as U
-
         part = self._work_part()
         self._refresh_detail_boundaries()
         updated = []
-        for obj in self._documentation_annotations(part):
-            if not hasattr(obj, "HasUserAttribute") or not obj.HasUserAttribute(
-                "NX_MCP_MEASURED_PMI_V1", self.nxopen.NXObject.AttributeType.String, -1
-            ):
-                continue
-            tags = U.UFSession.GetUFSession().Tag
-            raw = obj.GetStringAttribute("NX_MCP_MEASURED_PMI_V1")
-            if raw == "disabled":
-                continue
-            record = json.loads(raw)
-            try:
-                bodytag = int(tags.AskTagOfHandle(record["body"]))
-                facetags = [int(tags.AskTagOfHandle(x)) for x in record["faces"]]
-                body = next(b for b in part.Bodies if int(b.Tag) == bodytag)
-                faces = [next(f for f in body.GetFaces() if int(f.Tag) == tag) for tag in facetags]
-            except Exception as error:
-                raise NXToolError(
-                    "NX_STALE_ANNOTATION_SOURCE",
-                    "A managed annotation source was deleted or no longer resolves",
-                ) from error
-            manager = self._sm_manager()
-            if record["kind"] == "body":
-                measured = {"thickness": float(manager.GetBodyThickness(body))}
-            else:
-                values = [manager.GetBendParameters(f) for f in faces]
-                measured = {
-                    "bends": [
-                        {
-                            "inner_radius": float(v.InnerRadius),
-                            "angle_degrees": float(v.BendAngle),
-                            "neutral_factor": float(v.NeutralFactor),
-                        }
-                        for v in values
-                    ]
-                }
-            if measured == record["measured"]:
-                continue
-            result = self._sheet_metal_annotation(
-                record["kind"],
-                self._reference(body, "body", part, "Body")["id"],
-                xyz(obj.AnnotationOrigin),
-                faces=[self._reference(f, "face", part, "Face")["id"] for f in faces]
-                if faces
-                else None,
-                annotation=self._reference(obj, "annotation", part, "PMI")["id"],
-                automatic=True,
-            )
-            updated.extend(result["modified"])
         tables = getattr(getattr(part, "Annotations", None), "BendTables", None)
         for table in list(tables or []):
             builder = tables.CreateBendTableBuilder(table)
@@ -108,5 +46,5 @@ class AnnotationUpdatesMixin:
             "updated": updated,
             "updated_count": len(updated),
             "units": self._units(),
-            "semantics": "Managed PMI refresh after MCP mutations; invoke explicitly after manual NX edits. Automatic bend tables are rebuilt through their native builder in the same transaction.",
+            "semantics": "Automatic bend tables are rebuilt through their native builder in the same transaction.",
         }

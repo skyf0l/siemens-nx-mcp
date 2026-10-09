@@ -172,8 +172,8 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "linear",
-    "first": "$front.items.0.object.id",
-    "second": "$back.items.0.object.id",
+    "first": "$front.data.items.0.id",
+    "second": "$back.data.items.0.id",
     "orientation": "vertical",
     "origin": [
      200,
@@ -188,7 +188,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "radius",
-    "first": "$h1.items.0.object.id"
+    "first": "$h1.data.items.0.id"
    }
   },
   {
@@ -267,8 +267,8 @@
    "args": {
     "dimension": "$lin.data.dimension.id",
     "edges": [
-     "$front.items.0.object.id",
-     "$ch.items.0.object.id"
+     "$front.data.items.0.id",
+     "$ch.data.items.0.id"
     ]
    },
    "expect": {
@@ -285,7 +285,7 @@
    "args": {
     "dimension": "$lin.data.dimension.id",
     "edges": [
-     "$back.items.0.object.id"
+     "$back.data.items.0.id"
     ]
    },
    "expect": {
@@ -299,7 +299,7 @@
    "args": {
     "dimension": "$rad.data.dimension.id",
     "edges": [
-     "$h2.items.0.object.id"
+     "$h2.data.items.0.id"
     ]
    },
    "expect": {

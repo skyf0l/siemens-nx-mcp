@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
   "sources": {
     "nx_update_annotations": "cff22fa04aaf459aaf58076238726a1f3ec982fbfb9263fcea853bc994e82f6b"
   },
-  "run_id": "20261009-172335-5674f0",
-  "owner": "dom_drawing",
+  "run_id": "20261009-181416-7cf560",
+  "owner": "core_fix",
   "part": null,
-  "started": "2026-10-09T13:23:45Z",
-  "finished": "2026-10-09T13:23:49Z",
+  "started": "2026-10-09T14:15:17Z",
+  "finished": "2026-10-09T14:15:21Z",
   "passed": true,
   "checks": 6,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.875,
-      "result_sha256": "02240731cb63f78570f18e7ab7bcec09dec7a9f1452721e0867167427a8f49f0"
+      "seconds": 0.891,
+      "result_sha256": "a2f7e2aa960d52dc3ceabcee22036f1cfe7c8bc19206be0a229bd17e0fd81dd9"
     },
     {
       "index": 2,
@@ -36,8 +36,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.187,
-      "result_sha256": "d5e1bb68dd855ce3636fb5ae8c0cca1041c7dc915b4959c5ce36cc89262c538c"
+      "seconds": 0.266,
+      "result_sha256": "6ee4b58d77352c461e062b0dd43fa1043bf2f52534e58cb20c9fde8de66a464e"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.391,
-      "result_sha256": "8ff5baa27a023662ba221e845b1b48b06d2d4dcca2ec7ce3241358b7901ba44a"
+      "seconds": 0.5,
+      "result_sha256": "99f9e97b99d56d219134d4f550544c8742ef70c617360ec45bb3980efacadec3"
     },
     {
       "index": 4,
@@ -54,8 +54,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "7fe700420f5cd6ff4e3b4929ffb3943b19e9da2ae3224956fe57ae37612aa5a3"
+      "seconds": 0.453,
+      "result_sha256": "1b50342c32ebc409a437038d8b31e73953088417acd07908016456295a14751a"
     },
     {
       "index": 5,
@@ -63,8 +63,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.219,
-      "result_sha256": "446916e4ca997812fb81134225f7b4cc68d06552abde06a59048d72414f9dc3e"
+      "seconds": 0.187,
+      "result_sha256": "8b7dc28e821347696c1d85ce62737f5b7791daf34688b8b63eb68982a3c5dec4"
     },
     {
       "index": 6,
@@ -72,8 +72,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.203,
-      "result_sha256": "d393f814c6887a629e32d326aeeb0cb4c3c220e1a3141080b0731232b9e1bb08"
+      "seconds": 0.266,
+      "result_sha256": "15f6f43e4341a44b0219cec377a76d6ae5f7e1afc01fcad459681bd7acc478cb"
     },
     {
       "index": 7,
@@ -81,8 +81,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.109,
-      "result_sha256": "2ef5158af1c620564dbd8496911f94288e2eebab5d23ec013be26c43346c1414"
+      "seconds": 0.141,
+      "result_sha256": "fda25444c04fef8ee662b65008f491a9410f1c9cc2e95f10d6d0959dda8a8b19"
     },
     {
       "index": 8,
@@ -90,8 +90,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.234,
-      "result_sha256": "cf23ccec89198092f0072f04327a53d75b11ea33b5061bcd103e759b5a4e5768"
+      "seconds": 0.171,
+      "result_sha256": "b34491e99e93ab3c8d30e7920b2cab3aacc2a3190392996c064caad9d4337c8e"
     },
     {
       "index": 9,
@@ -99,8 +99,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.141,
-      "result_sha256": "32e87c2258a0a48d6031c1d2a12ef4054877eaa8e9363129f877556cace4c865"
+      "seconds": 0.125,
+      "result_sha256": "31ae07ee1a8885db234fa7b321fb72f994e869ef3fe422040a2f521710303c7c"
     },
     {
       "index": 10,
@@ -108,8 +108,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.406,
-      "result_sha256": "401becd0038b53446aa1c645e21c0fda470740e474095fcf6d96788ecdcd418c"
+      "seconds": 0.375,
+      "result_sha256": "adf0103be2691900b912c7341d63d60bfbbabda763f24de7097a0086a3bf8307"
     }
   ],
   "cleanup": {

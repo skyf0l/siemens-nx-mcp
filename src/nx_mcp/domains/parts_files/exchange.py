@@ -229,6 +229,7 @@ def _diagnostics(folder: Path, settings: Path, root) -> dict:
     requires=("no_active_sketch",),
     cost="long",
     invalidates="deleted",
+    new_part="new_part_path",
     example={"path": "inbox/bracket.step", "format": "step"},
 )
 def nx_import_model(

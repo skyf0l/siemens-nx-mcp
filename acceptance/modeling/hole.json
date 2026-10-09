@@ -82,14 +82,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_hole",
    "save": "h1",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       10,
@@ -149,13 +149,13 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       25,
@@ -196,13 +196,13 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       25,
@@ -243,13 +243,13 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       40,
@@ -306,7 +306,7 @@
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$side.items.0.object.id",
+    "face": "$side.data.items.0.id",
     "positions": [
      [
       60,
@@ -363,13 +363,13 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       50,
@@ -392,7 +392,7 @@
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       70,
@@ -415,7 +415,7 @@
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       50,
@@ -442,7 +442,7 @@
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       50,
@@ -454,7 +454,7 @@
     "diameter": 6,
     "depth": {
      "type": "until_face",
-     "face": "$side.items.0.object.id"
+     "face": "$side.data.items.0.id"
     }
    },
    "expect": {
@@ -466,7 +466,7 @@
   {
    "call": "nx_create_hole",
    "args": {
-    "face": "$top.items.0.object.id",
+    "face": "$top.data.items.0.id",
     "positions": [
      [
       50,

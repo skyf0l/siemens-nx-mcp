@@ -16,8 +16,26 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit, RefTo, Text
 from nx_mcp.kit import result
 
-# The first slice; the remaining kinds arrive with their domains.
-ListKind = Literal["body", "face", "edge", "datum", "feature", "sketch"]
+# Every kind some domain registered a @lister for (a test keeps the two in step: a domain
+# that registers a new lister adds its kind here).
+ListKind = Literal[
+    "body",
+    "face",
+    "edge",
+    "datum",
+    "feature",
+    "sketch",
+    "drawing_sheet",
+    "drawing_view",
+    "dimension",
+    "annotation",
+    "drawing_table",
+    "reference_set",
+    "explosion",
+    "component_pattern",
+    "assembly_constraint",
+    "section_view",
+]
 
 
 class ObjectRow(result.Row, total=False):

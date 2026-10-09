@@ -154,11 +154,17 @@ def _gate_requires(spec, services: Services) -> None:  # gate 4
             fail(code, message, hint=hint)
 
 
-def _gate_ownership(spec, services: Services) -> dict | None:  # gate 6 (before)
-    """Refuse a model change of a part the agent does not own; return IsModified flags."""
+def _gate_ownership(spec, services: Services, args: dict) -> dict | None:  # gate 6 (before)
+    """Refuse a model change of a part the agent does not own; return IsModified flags.
+
+    A call given its ``new_part`` path works in a part it creates (agent-owned), so
+    the current work part is not checked; the after-handler check still undoes any
+    change to a part the agent does not own.
+    """
     if services.dev or spec.effect not in ("model", "file"):
         return None
-    if spec.effect == "model":
+    in_new_part = spec.new_part is not None and args.get(spec.new_part) is not None
+    if spec.effect == "model" and not in_new_part:
         check_owned(services, services.work_part())
     return services.modified_flags()
 
@@ -279,6 +285,16 @@ def _readback(spec, services: Services, part, before: dict, mark) -> dict:  # ga
     return after
 
 
+def _refresh(spec, services: Services, tx: Tx) -> list:  # gate 13
+    """Managed annotations after a commit, inside the call's undo mark: the legacy
+    refresher (until F4), then every ``@refresher`` hook of every domain."""
+    rows = list(services.refresh_annotations(spec) or [])
+    for _kind, refresh in sorted(services.refreshers().items()):
+        tx.checkpoint()
+        rows.extend(refresh(tx, None) or [])
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Top-level call
 
@@ -298,10 +314,16 @@ def run(spec, args, ctx: Context) -> dict:
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
     try:
         checked = _gate_schema(spec, args, where=getattr(services, "runs", "nx"))  # 1
+        if spec.effect != "read" and ctx.operation_id:
+            # Gate 7's replay goes first: repeating a committed call must not fail on
+            # what it created (a `new` path that now exists, a part it loaded).
+            replay = receipts.replay(spec.name, raw_args, operation_id)
+            if replay is not None:
+                return replay
         _gate_paths(spec, checked, services)  # 2
         _gate_evidence(spec, checked, services)  # 3
         _gate_requires(spec, services)  # 4
-        flags = _gate_ownership(spec, services)  # 6
+        flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
         if spec.effect != "read":  # 7
             record, replay = receipts.begin(
@@ -326,7 +348,7 @@ def run(spec, args, ctx: Context) -> dict:
         if spec.effect == "model":
             after = _readback(spec, services, part, before, mark)  # 11
             services.invalidate(before, after, spec.invalidates == "topology")  # 12
-            refreshed = services.refresh_annotations(spec) if spec.refresh_annotations else []  # 13
+            refreshed = _refresh(spec, services, tx) if spec.refresh_annotations else []  # 13
             changes = _changes(services, before, after, spec, refreshed)
             services.record_history(mark, part, operation_id, spec.name)
         envelope.update(ok=True)  # 14
@@ -360,7 +382,11 @@ def run(spec, args, ctx: Context) -> dict:
                 or (observer is not None and observer.touched)
             )
         )
-        if getattr(error, "unchanged", False) and not handler_done:
+        if (
+            getattr(error, "unchanged", False)
+            and not handler_done
+            and _still_unchanged(spec, services, tx, part, before)
+        ):
             touched = False  # raised inside tx.checks(): nothing was changed yet
         outcome, references, error = _settle(
             spec, services, tx, mark, part, before, error, touched, handler_started
@@ -373,6 +399,24 @@ def run(spec, args, ctx: Context) -> dict:
         services.after_failure(spec)
         receipts.finish(record, envelope)
         return envelope
+    finally:
+        if tx is not None:  # this call's staging folder, committed or not (Files)
+            with contextlib.suppress(Exception):
+                tx.files.discard()
+
+
+def _still_unchanged(spec, services, tx, part, before) -> bool:
+    """A refusal from ``tx.checks()`` is ``not_started`` only if nothing changed: no
+    published file and, for a model tool, the same objects as before the handler (a
+    misplaced ``checks()`` after a change still rolls back)."""
+    if tx is not None and tx.files.published:
+        return False
+    if spec.effect == "model" and part is not None:
+        try:
+            return set(services.snapshot(part)) == set(before)
+        except Exception:
+            return False
+    return True
 
 
 def _settle(spec, services, tx, mark, part, before, error, touched, handler_started):
@@ -434,6 +478,9 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
             )
             return "partial", "preserved", failed
         return "rolled_back", "preserved", error
+    if spec.effect == "session" and tx is not None and tx.outcome in ("rolled_back", "partial"):
+        # The handler undid its own temporary changes (tx.preview()): it knows the outcome.
+        return tx.outcome, "part_invalidated", error
     # A view handler that kept nothing, and session effects, have no generic rollback.
     return "unknown", "preserved", error
 
@@ -464,7 +511,7 @@ def run_child(
         _gate_paths(spec, checked, services)  # 2
         _gate_evidence(spec, checked, services)  # 3
         _gate_requires(spec, services)  # 4
-        flags = _gate_ownership(spec, services)  # 6
+        flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
         before = services.snapshot(part) if part is not None else {}
         child = Tx(services, spec, operation_id=parent.operation_id, parent=parent, mode=mode)

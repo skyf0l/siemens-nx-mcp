@@ -62,15 +62,117 @@ def volume(tx, bodies):
     return mass(tx, bodies)["volume"]
 
 
-def bounds(tx, objects):
-    """``(low, high)`` absolute axis-aligned bounds of bodies or faces, part units."""
+def bounds(tx, objects, exact=False):
+    """``(low, high)`` absolute axis-aligned bounds of bodies or faces, part units.
+
+    ``AskBoundingBox`` is conservative (a curved sheet's box can exceed the surface).
+    ``exact`` uses ``AskBoundingBoxExact``, which is aligned to the work CSYS: its eight
+    corners are projected to an absolute box (exact while the WCS is absolute).
+    """
     objects = objects if isinstance(objects, (list, tuple)) else [objects]
     if not objects:
         fail("NX_INVALID_ARGUMENT", "No objects to bound")
     low, high = [float("inf")] * 3, [float("-inf")] * 3
     with native(default="NX_ERROR"):
         for obj in objects:
-            box = [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)]
+            box = _exact_box(tx, obj) if exact else tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)
+            box = [float(v) for v in box]
             low = [min(a, b) for a, b in zip(low, box[:3], strict=True)]
             high = [max(a, b) for a, b in zip(high, box[3:6], strict=True)]
     return low, high
+
+
+def _exact_box(tx, obj):
+    corner, directions, lengths = tx.uf.ModlGeneral.AskBoundingBoxExact(obj.Tag, 0)
+    directions = [float(v) for v in directions] if len(directions) == 9 else directions
+    if len(directions) == 9:
+        directions = [directions[i : i + 3] for i in range(0, 9, 3)]
+    points = [
+        [
+            float(corner[i])
+            + sum(float(directions[j][i]) * float(lengths[j]) * ((mask >> j) & 1) for j in range(3))
+            for i in range(3)
+        ]
+        for mask in range(8)
+    ]
+    return [min(p[i] for p in points) for i in range(3)] + [
+        max(p[i] for p in points) for i in range(3)
+    ]
+
+
+def area(tx, faces):
+    """Total area of faces in part units^2 (``NewFaceProperties`` in mm^2, then converted)."""
+    faces = list(faces)
+    if not faces:
+        fail("NX_INVALID_ARGUMENT", "No faces to measure")
+    part = tx.part
+    k = _scale(tx)
+    with native(default="NX_ERROR"):
+        found = [part.UnitCollection.FindObject(n) for n in ("SquareMilliMeter", "MilliMeter")]
+        props = part.MeasureManager.NewFaceProperties(found[0], found[1], ACCURACY, faces)
+    try:
+        with native(default="NX_ERROR"):
+            return float(props.Area) * k**2
+    finally:
+        props.Dispose()
+
+
+# ---------------------------------------------------------------------------
+# WCS and mass/inertia (UF AskMassProps3d)
+
+UF_SOLID = 1  # AskMassProps3d: solid bodies
+UF_KG_M = 4  # AskMassProps3d units: kilograms and metres
+M_PER = {"mm": 1e-3, "in": 0.0254}
+
+
+def wcs(tx):
+    """``(origin, R)`` of the work part's WCS: ``p_abs = origin + R p_wcs`` (part units)."""
+    system = tx.part.WCS.CoordinateSystem
+    return geom.xyz(system.Origin), geom.rows(system.Orientation.Element)
+
+
+def wcs_is_absolute(tx, tol=1e-8):
+    """True when the WCS axes are the absolute axes (its origin may be anywhere)."""
+    _origin, r = wcs(tx)
+    return all(abs(r[i][j] - geom.IDENTITY[i][j]) <= tol for i in range(3) for j in range(3))
+
+
+def inertia(tx, bodies, accuracy=ACCURACY):
+    """``{"mass", "center", "inertia", "principal"}`` of solid bodies with their densities.
+
+    ``mass`` is kg, ``center`` the centre of gravity (absolute, part units), ``inertia``
+    the 3x3 tensor about the centre of gravity in absolute axes and ``principal`` the
+    principal moments, both kg * (part unit)^2. UF reports kg and metres in WCS axes
+    (centroidal moments at 12-14, products at 19-21, principal moments at 31-33).
+    """
+    bodies = list(bodies)
+    if not bodies:
+        fail("NX_INVALID_ARGUMENT", "No bodies to measure")
+    with native(default="NX_ERROR"):
+        values = tx.uf.Modeling.AskMassProps3d(
+            [b.Tag for b in bodies],
+            len(bodies),
+            UF_SOLID,
+            UF_KG_M,
+            0.0,
+            1,
+            [float(accuracy)] + [0.0] * 10,
+        )[0]
+    m = [float(v) for v in values]
+    to_part = 1.0 / M_PER[units.part_units(tx)]
+    origin, r = wcs(tx)
+    center_wcs = geom.scale(m[3:6], to_part)
+    center = geom.add(origin, geom.matvec(r, center_wcs))
+    tensor_wcs = [
+        [m[12], -m[19], -m[21]],
+        [-m[19], m[13], -m[20]],
+        [-m[21], -m[20], m[14]],
+    ]
+    k2 = to_part**2
+    tensor = geom.matmul(geom.matmul(r, tensor_wcs), geom.transpose(r))
+    return {
+        "mass": m[2],
+        "center": center,
+        "inertia": [[v * k2 for v in row] for row in tensor],
+        "principal": [v * k2 for v in m[31:34]],
+    }

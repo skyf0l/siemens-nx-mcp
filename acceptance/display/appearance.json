@@ -1,0 +1,221 @@
+{
+ "covers": {
+  "nx_get_appearance": [],
+  "nx_set_appearance": [],
+  "nx_restore_display": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "bodies",
+   "args": {
+    "kind": "body"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "faces",
+   "args": {
+    "kind": "face",
+    "owner": "$bodies.data.items.0.id",
+    "limit": 50
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.count": 10,
+    "data.objects": {
+     "count": 10
+    },
+    "data.objects.0.object.kind": "body",
+    "data.objects.0.color": 129,
+    "data.objects.0.blanked": false,
+    "data.objects.1.object.kind": "face",
+    "data.objects.1.color": 129,
+    "data.objects.1.transparency": 0,
+    "data.objects.9.transparency": 0
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "count_only": true
+   },
+   "expect": {
+    "data.count": 10
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "save": "red",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": "red",
+    "transparency": 40
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.marks_part_modified": true,
+    "data.count": 10,
+    "data.objects.0.color": 186,
+    "data.objects.1.color": 186,
+    "data.objects.1.transparency": 40,
+    "data.objects.9.color": 186,
+    "data.objects.9.transparency": 40,
+    "restore_id": {
+     "matches": "^display_[0-9a-f]{32}$"
+    }
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "save": "face",
+   "args": {
+    "objects": [
+     "$faces.data.items.0.id"
+    ],
+    "color": 211
+   },
+   "expect": {
+    "data.count": 1,
+    "data.objects.0.color": 211,
+    "data.objects.0.transparency": 40
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.objects.0.color": 186,
+    "data.objects": {
+     "contains": {
+      "color": 211,
+      "transparency": 40
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$red.restore_id"
+   },
+   "expect": {
+    "error.code": "NX_DEPENDENCY_ORDER",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$face.restore_id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true,
+    "data.count": 1,
+    "data.objects.0.color": 186,
+    "data.objects.0.transparency": 40
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$red.restore_id"
+   },
+   "expect": {
+    "data.identical": true,
+    "data.count": 10,
+    "data.objects.0.color": 129,
+    "data.objects.1.color": 129,
+    "data.objects.1.transparency": 0,
+    "data.objects.9.transparency": 0
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.count": 10,
+    "data.objects.0.color": 129,
+    "data.objects.1.color": 129,
+    "data.objects.1.transparency": 0,
+    "data.objects.5.color": 129,
+    "data.objects.9.color": 129,
+    "data.objects.9.transparency": 0,
+    "data.objects.9.blanked": false
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/color",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": 300
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "d:1"
+    ],
+    "transparency": 10
+   },
+   "expect": {
+    "error.category": "stale_reference",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

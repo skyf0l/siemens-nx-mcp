@@ -1,0 +1,287 @@
+{
+ "covers": {
+  "nx_save_presentation": [],
+  "nx_restore_display": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "bodies",
+   "args": {
+    "kind": "body"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "faces",
+   "args": {
+    "kind": "face",
+    "owner": "$bodies.data.items.0.id",
+    "limit": 50
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "rotation": [
+     [
+      0,
+      -1,
+      0
+     ],
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "origin": [
+     -20,
+     -30,
+     -5
+    ],
+    "scale": 1.5
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "setup": true,
+   "args": {
+    "objects": [
+     "$faces.data.items.0.id"
+    ],
+    "color": "blue"
+   }
+  },
+  {
+   "call": "nx_create_section_view",
+   "setup": true,
+   "args": {
+    "plane": {
+     "origin": [
+      40,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      0,
+      0
+     ]
+    },
+    "cap": false
+   }
+  },
+  {
+   "call": "nx_save_presentation",
+   "save": "pres",
+   "args": {
+    "path": "$run/review.json"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.objects": 10,
+    "data.sections": 1,
+    "data.path": {
+     "matches": "review[.]json$"
+    },
+    "data.sha256": {
+     "matches": "^[0-9a-f]{64}$"
+    }
+   }
+  },
+  {
+   "call": "nx_save_presentation",
+   "args": {
+    "path": "$run/review.json"
+   },
+   "expect": {
+    "error.category": "already_exists",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "orientation": "top",
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "setup": true,
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": "red",
+    "transparency": 30
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "secs",
+   "args": {
+    "kind": "section_view"
+   }
+  },
+  {
+   "call": "nx_edit_section_view",
+   "setup": true,
+   "args": {
+    "section": "$secs.data.items.0.id",
+    "plane": {
+     "origin": [
+      0,
+      0,
+      10
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    },
+    "enabled": false
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "presentation": "$run/review.json"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true,
+    "data.count": 10,
+    "data.sections": 1,
+    "data.camera.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.camera.origin": {
+     "close": [
+      -20,
+      -30,
+      -5
+     ],
+     "tol": 1e-09
+    },
+    "data.camera.scale": {
+     "close": 1.5,
+     "tol": 1e-09
+    },
+    "data.restored": {
+     "matches": "review[.]json$"
+    }
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.objects.0.color": 129,
+    "data.objects": {
+     "contains": {
+      "color": 211,
+      "transparency": 0
+     }
+    },
+    "data.objects.9.transparency": 0
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "section_view"
+   },
+   "expect": {
+    "data.items": {
+     "count": 1
+    },
+    "data.items.0.details.origin": {
+     "close": [
+      40,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.items.0.details.normal": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-12
+    },
+    "data.items.0.details.cap": false,
+    "data.items.0.details.sectioning": true
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/restored.png",
+    "quality": "studio",
+    "width": 640,
+    "height": 400
+   },
+   "expect": {
+    "data.resolution": [
+     640,
+     400
+    ]
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "presentation": "$run/missing.json"
+   },
+   "expect": {
+    "error.category": "not_found",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "presentation": "$run/review.json",
+    "restore_id": "display_00000000000000000000000000000000"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

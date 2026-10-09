@@ -168,13 +168,13 @@ def test_next_action_does_not_repeat_the_current_inspection():
 @pytest.mark.asyncio
 async def test_spaced_discovery_and_optional_output_schema(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
-    result = await server.call_tool("nx_find_tools", {"query": "add component"})
+    result = await server.call_tool("nx_find_tools", {"query": "list topology"})
     rows = result.structuredContent["data"]["tools"]
-    assert rows[0]["name"] == "nx_add_component" and rows[0]["legacy"] is True
-    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_add_component"]})
+    assert rows[0]["name"] == "nx_list_topology" and rows[0]["legacy"] is True
+    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_list_topology"]})
     described = result.structuredContent["data"]["tools"][0]
     assert "input_schema" in described and "output_schema" not in described
     result = await server.call_tool(
-        "nx_get_tool_schemas", {"names": ["nx_add_component"], "include_output": True}
+        "nx_get_tool_schemas", {"names": ["nx_list_topology"], "include_output": True}
     )
     assert "output_schema" in result.structuredContent["data"]["tools"][0]

@@ -1,0 +1,382 @@
+{
+ "covers": {
+  "nx_get_camera": [],
+  "nx_set_camera": [],
+  "nx_restore_display": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "save": "iso",
+   "args": {
+    "orientation": "isometric",
+    "fit": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.rotation.0": {
+     "close": [
+      0.7071067811865476,
+      -0.408248290463863,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation.1": {
+     "close": [
+      0.7071067811865476,
+      0.408248290463863,
+      -0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation.2": {
+     "close": [
+      0.0,
+      0.816496580927726,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "restore_id": {
+     "matches": "^display_[0-9a-f]{32}$"
+    },
+    "frame": "display_part_absolute"
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.rotation.2": {
+     "close": [
+      0.0,
+      0.816496580927726,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.style": "shaded_with_edges",
+    "data.interactive": true,
+    "data.part.kind": "part"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "save": "explicit",
+   "args": {
+    "rotation": [
+     [
+      0,
+      -1,
+      0
+     ],
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "origin": [
+     2,
+     3,
+     4
+    ],
+    "scale": 2
+   },
+   "expect": {
+    "data.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.rotation.1": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.origin": {
+     "close": [
+      2,
+      3,
+      4
+     ],
+     "tol": 1e-09
+    },
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "data.origin": {
+     "close": [
+      2,
+      3,
+      4
+     ],
+     "tol": 1e-09
+    },
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "scale": 3
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      2,
+      3,
+      4
+     ],
+     "tol": 1e-09
+    },
+    "data.scale": {
+     "close": 3,
+     "tol": 1e-09
+    }
+   },
+   "save": "s3"
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "front"
+   },
+   "expect": {
+    "data.rotation.0": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation.1": {
+     "close": [
+      0,
+      0,
+      -1
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 3,
+     "tol": 1e-09
+    }
+   },
+   "save": "fr"
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$iso.restore_id"
+   },
+   "expect": {
+    "error.category": "blocked",
+    "error.code": "NX_DEPENDENCY_ORDER",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$explicit.restore_id"
+   },
+   "expect": {
+    "error.code": "NX_DEPENDENCY_ORDER"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "fit": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.rotation.0": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    }
+   },
+   "save": "fitr"
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$fitr.restore_id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true,
+    "data.count": 0,
+    "data.camera.scale": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.camera.rotation.1": {
+     "close": [
+      0,
+      0,
+      -1
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$fr.restore_id"
+   },
+   "expect": {
+    "data.camera.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.camera.origin": {
+     "close": [
+      2,
+      3,
+      4
+     ],
+     "tol": 1e-09
+    },
+    "data.camera.scale": {
+     "close": 3,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$fr.restore_id"
+   },
+   "expect": {
+    "error.category": "stale_reference",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "top",
+    "rotation": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/rotation",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "rotation": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {},
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "display_00000000000000000000000000000000"
+   },
+   "expect": {
+    "error.category": "stale_reference",
+    "error.field": "/restore_id"
+   }
+  }
+ ]
+}

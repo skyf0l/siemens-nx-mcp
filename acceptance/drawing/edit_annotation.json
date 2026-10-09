@@ -187,7 +187,7 @@
     "view": "$top.data.view.id",
     "kind": "center_mark",
     "objects": [
-     "$h1.items.0.object.id"
+     "$h1.data.items.0.id"
     ]
    }
   },
@@ -198,7 +198,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "radius",
-    "first": "$h1.items.0.object.id"
+    "first": "$h1.data.items.0.id"
    }
   },
   {
@@ -231,7 +231,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,

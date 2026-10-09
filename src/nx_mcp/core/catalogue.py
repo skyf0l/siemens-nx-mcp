@@ -25,6 +25,7 @@ from nx_mcp.core.types import (
     SHEET_HINTS,
     Doc,
     Items,
+    Json,
     PathArg,
     Quantity,
     RefKind,
@@ -125,6 +126,9 @@ class ToolSpec:
     sheet: bool = False
     # Decorator, view tools only: a success returns restore_id for nx_restore_display.
     restorable: bool = False
+    # Decorator, model tools: the `new` .prt path parameter that, when given, makes the
+    # call work in a part it creates, so gate 6 does not check the current work part.
+    new_part: str | None = None
 
     @property
     def evidence(self) -> dict:
@@ -192,6 +196,8 @@ def _check_hint(hint, where: str, problems: list[str], *, seen=None) -> None:
         if unknown:
             problems.append(f"{where}: unknown reference kind {unknown}")
     if Quantity in markers:
+        return
+    if base is dict and Json in markers:
         return
     if is_union(base):
         for alt in typing.get_args(base):
@@ -304,6 +310,7 @@ def make_spec(
     example: Mapping[str, Any] | None = None,
     domain: str | None = None,
     restorable: bool = False,
+    new_part: str | None = None,
 ) -> ToolSpec:
     """Build and check a :class:`ToolSpec` without registering it."""
     name = fn.__name__
@@ -442,6 +449,14 @@ def make_spec(
         _collect_paths(p.hint, "/" + p.name, paths)
     if effect == "read" and any(mode in ("new", "save") for _, mode, _ in paths):
         problems.append("a read tool cannot take a new or save path")
+    if new_part is not None and (
+        effect != "model"
+        or not any(
+            where == "/" + new_part and mode == "new" and ".prt" in suffixes
+            for where, mode, suffixes in paths
+        )
+    ):
+        problems.append("new_part must name a model tool's new .prt path parameter")
     if problems:
         raise CatalogueError(f"{name}: " + "; ".join(problems))
     if refresh_annotations is None:
@@ -469,6 +484,7 @@ def make_spec(
         handler=fn,
         sheet=any(_uses_sheet(p.hint) for p in params.values()),
         restorable=bool(restorable),
+        new_part=new_part,
     )
 
 

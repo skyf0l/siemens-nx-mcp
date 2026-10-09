@@ -16,7 +16,7 @@ from __future__ import annotations
 import contextlib
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import geom
+from nx_mcp.kit import facts, geom, units
 
 _OWN = ("native", "committed", "_codes")
 
@@ -189,3 +189,29 @@ def fixed_plane(tx, origin, normal):
     return tx.part.Datums.CreateFixedDatumPlane(
         tx.nx.Point3d(*(float(v) for v in origin)), matrix(tx, rows)
     )
+
+
+def curve_section(tx, objects, start=None):
+    """A section over curves and edges (dumb rules) for loft, mesh, trim and bridge inputs.
+
+    ``start`` (a work-part point) picks the section's start: NX chains from the end
+    nearest it. Distance and chaining tolerances are 0.001 mm in part units, so
+    inch parts scale; the angle tolerance is 0.5 degrees.
+    """
+    objects = list(objects)
+    if not objects:
+        fail("NX_INVALID_ARGUMENT", "A section needs at least one curve")
+    part = tx.part
+    tolerance = units.part_tolerance(tx)
+    result = part.Sections.CreateSection(tolerance, tolerance, 0.5)
+    result.SetAllowedEntityTypes(tx.nx.Section.AllowTypes.OnlyCurves)
+    edges = [o for o in objects if facts.is_edge(o)]
+    curves = [o for o in objects if not facts.is_edge(o)]
+    rules = []
+    if curves:
+        rules.append(part.ScRuleFactory.CreateRuleCurveDumb(curves))
+    if edges:
+        rules.append(part.ScRuleFactory.CreateRuleEdgeDumb(edges))
+    help_point = tx.nx.Point3d(*(float(v) for v in (start or (0.0, 0.0, 0.0))))
+    result.AddToSection(rules, objects[0], None, None, help_point, tx.nx.Section.Mode.Create, False)
+    return result

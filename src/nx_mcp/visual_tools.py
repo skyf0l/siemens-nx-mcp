@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import contextlib
-import uuid
 
 from nx_mcp import side_effects
+from nx_mcp.kit import display
 from nx_mcp.kit.geom import xyz
 from nx_mcp.kit.result import enum_name  # noqa: F401 - re-exported for tests
 from nx_mcp.legacy_kit import unit_normal, vector
@@ -117,118 +117,17 @@ class VisualToolsMixin:
                 obj.Highlight()
         self._highlighted_objects = list(wanted.values())
 
-    def _save_display_snapshot(self, records, camera=None):
-        if not hasattr(self, "_display_snapshots"):
-            self._display_snapshots = {}
-        token = "display_" + uuid.uuid4().hex
-        self._display_snapshots[token] = {
-            "part_id": self._part_id(self._work_part()),
-            "records": records,
-        }
-        if camera is not None:
-            self._display_snapshots[token]["camera"] = camera
-        return token
+    @property
+    def _display_snapshots(self):
+        """The display snapshots by restore_id (``kit.display.snapshots``)."""
+        return display.snapshots.items
 
-    def _display_info(self, objects, count_only=False):
-        self._visual_part()
-        if count_only:
-            values = self._display_targets(objects, expand=True)
-            count = len(
-                {
-                    int(x.Tag)
-                    for obj in values
-                    for x in (
-                        [obj] + list(obj.GetFaces()) if isinstance(obj, self.nxopen.Body) else [obj]
-                    )
-                }
-            )
-            return {
-                "count": count,
-                "object_limit": 10000,
-                "within_limit": count <= 10000,
-                "expansion": "unique bodies and faces",
-                "objects": [],
-            }
-        records = self._display_records(self._display_targets(objects, expand=True), True)
-        return {
-            "objects": records,
-            "count": len(records),
-            "transparency_scale": "0 opaque, 100 transparent",
-            "color_system": "NX part color-table index",
-            "coordinate_frame": "display_part",
-        }
+    def _save_display_snapshot(self, records, camera=None):
+        """Store a snapshot for nx_restore_display (catalogue display domain)."""
+        return display.snapshots.save(self._part_id(self._work_part()), records, camera)
 
     def _apply_appearance(self, values, color_index=None, transparency=None):
-        modification = self.session.DisplayManager.NewDisplayModification()
-        try:
-            modification.ApplyToOwningParts = False
-            modification.ApplyToAllFaces = True
-            if color_index is not None:
-                modification.NewColor = color_index
-            if transparency is not None:
-                modification.NewTranslucency = transparency
-            modification.Apply(values)
-        finally:
-            modification.Dispose()
-
-    def _set_display(self, objects, color_index=None, transparency=None, color=None):
-        self._visual_part()
-        if color is not None:
-            import NXOpen.UF
-
-            names = {
-                n: n.upper() + "_NAME"
-                for n in [
-                    "red",
-                    "green",
-                    "blue",
-                    "yellow",
-                    "cyan",
-                    "magenta",
-                    "orange",
-                    "white",
-                    "black",
-                ]
-            }
-            names["gray"] = "MEDIUM_GRAY_NAME"
-            if color not in names or color_index is not None:
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT",
-                    "Specify a supported named color or color_index, not both",
-                )
-            uf = NXOpen.UF.UFSession.GetUFSession()
-            color_index = uf.Disp.AskClosestColorInDisplayedPart(
-                getattr(uf.Disp.ColorName, names[color])
-            )
-        if color_index is None and transparency is None:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Specify color_index or transparency")
-        if color_index is not None and (
-            type(color_index) is not int or not 1 <= color_index <= 216
-        ):
-            raise NXToolError("NX_INVALID_ARGUMENT", "color_index must be an integer from 1 to 216")
-        if transparency is not None and (
-            type(transparency) is not int or not 0 <= transparency <= 100
-        ):
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "transparency must be an integer from 0 to 100"
-            )
-        values = self._display_targets(objects, expand=True)
-        if transparency is not None and any(
-            not isinstance(x, (self.nxopen.Body, self.nxopen.Face)) for x in values
-        ):
-            raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "Transparency requires bodies or faces")
-        before = self._display_records(values, True)
-        self._apply_appearance(values, color_index, transparency)
-        token = self._save_display_snapshot(before)
-        return {
-            "restore_id": token,
-            "objects": self._display_records(values, True),
-            "modified": [r["object"] for r in before],
-            "prototype_parts_modified": False,
-            "warnings": [
-                "Appearance changes can be saved in the part; restore_id restores explicit attributes, not inherited override state."
-            ],
-        }
+        display.apply_appearance(self, values, color_index, transparency)
 
     def _set_visibility(self, objects, mode="show"):
         part = self._visual_part()
@@ -280,39 +179,6 @@ class VisualToolsMixin:
             else [],
         }
 
-    def _validate_display_restore(self, restore_id):
-        self._visual_part()
-        snapshots = getattr(self, "_display_snapshots", {})
-        if restore_id not in snapshots:
-            raise NXToolError(
-                "NX_DISPLAY_SNAPSHOT_STALE", "Unknown or already restored display snapshot"
-            )
-        snapshot = snapshots[restore_id]
-        pid = self._part_id(self._work_part())
-        if snapshot["part_id"] != pid:
-            raise NXToolError("NX_DISPLAY_PART_MISMATCH", "Activate the snapshot owner part")
-        latest = next(k for k in reversed(snapshots) if snapshots[k]["part_id"] == pid)
-        if latest != restore_id:
-            raise NXToolError("NX_RESTORE_ORDER", "Restore display changes in reverse order")
-        resolved = [(self._resolve(r["object"]["id"]), r) for r in snapshot["records"]]
-        return resolved
-
-    def _restore_display(self, restore_id):
-        resolved = self._validate_display_restore(restore_id)
-        snapshots = self._display_snapshots
-        for obj, record in resolved:
-            # Bodies precede their faces, preserving per-face colors afterward.
-            self._apply_display_record(obj, record)
-        camera = snapshots[restore_id].get("camera")
-        if camera is not None:
-            self._restore_camera(camera)
-        del snapshots[restore_id]
-        return {
-            "restored": restore_id,
-            "count": len(resolved),
-            "modified": [r["object"] for _, r in resolved],
-        }
-
     def _clear_highlights(self):
         cleared = 0
         for obj in getattr(self, "_highlighted_objects", []):
@@ -323,72 +189,6 @@ class VisualToolsMixin:
                 pass  # NX may have deleted an entity since the highlight.
         self._highlighted_objects = []
         return {"cleared_count": cleared, "scope": "MCP-owned highlights only"}
-
-    def _highlight_collisions(self, obj1, obj2, include_contact=False):
-        with side_effects.read_only():  # A failure here leaves mutation_outcome not_started.
-            self._visual_part()
-            if self.session.IsBatch:
-                raise NXToolError("NX_VIEWPORT_UNAVAILABLE", "Highlighting requires interactive NX")
-            self._geometry(obj1)
-            self._geometry(obj2)
-        result = self._check_interference(obj1, obj2)
-        pairs = [
-            p
-            for p in result["pairs"]
-            if p["classification"] == "penetration"
-            or (include_contact and p["classification"] == "contact")
-        ]
-        refs = {r["id"]: r for p in pairs for r in p["objects"]}
-        values = [self._resolve(r) for r in refs]
-        self._clear_highlights()
-        try:
-            for obj in values:
-                obj.Highlight()
-                self._highlighted_objects.append(obj)
-        except Exception:
-            self._clear_highlights()
-            raise
-        return {
-            **result,
-            "highlighted": list(refs.values()),
-            "highlighted_count": len(values),
-            "highlight_style": "native NX selection highlight; no persistent color changes",
-        }
-
-    def _list_sections(self):
-        part = self._visual_part()
-        view = part.ModelingViews.WorkView
-        active = view.ActiveDynamicSection
-        enabled = bool(view.DisplaySectioningToggle)
-        sections = []
-        mark = self.session.SetUndoMark(
-            self.nxopen.Session.MarkVisibility.Invisible, "NX MCP inspect sections"
-        )
-        try:
-            for section in part.DynamicSections:
-                builder = part.DynamicSections.CreateSectionBuilder(section, view)
-                try:
-                    sections.append(
-                        {
-                            "object": self._reference(section, "section", part, "Section"),
-                            "origin": xyz(builder.GetOrigin()),
-                            "normal": xyz(builder.GetNormal()),
-                            "active": active == section,
-                            "clip_enabled": bool(builder.ShowClip),
-                            "cap": bool(builder.ShowCap),
-                        }
-                    )
-                finally:
-                    builder.Destroy()
-        finally:
-            self.session.UndoToMark(mark, None)
-            self.session.DeleteUndoMark(mark, None)
-        return {
-            "sections": sections,
-            "count": len(sections),
-            "view_sectioning_enabled": enabled,
-            "coordinate_frame": "display_part",
-        }
 
     def _section_view(self, origin, normal, section=None, name="MCP section", cap=True):
         import NXOpen.Display
@@ -441,21 +241,3 @@ class VisualToolsMixin:
             }
         finally:
             builder.Destroy()
-
-    def _section_control(self, section, action):
-        part = self._visual_part()
-        view = part.ModelingViews.WorkView
-        if action not in {"enable", "disable", "delete"}:
-            raise NXToolError("NX_INVALID_ARGUMENT", "action must be enable, disable or delete")
-        target = self._resolve(section, {"section"})
-        if action == "delete":
-            part.DynamicSections.DeleteSections(False, [target])
-            # NX 2406 keeps the view's sectioning flag on with no section left.
-            if not list(part.DynamicSections) or not view.ActiveDynamicSection:
-                view.DisplaySectioningToggle = False
-        elif action == "enable":
-            view.ActiveDynamicSection = target
-            view.DisplaySectioningToggle = True
-        elif view.ActiveDynamicSection == target:
-            view.DisplaySectioningToggle = False
-        return {"section_id": section, "action": action, "geometry_changed": False}

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 LINE_WIDTH = 84
+ENGINEER_CHANGE = "You changed the model — agent will re-read its references"
 LOG_LIMIT_BYTES = 5 * 1024 * 1024
 
 # Failure outcome -> what the engineer needs to know about the model.
@@ -67,10 +68,11 @@ class Entry:
     created: str | None = None
     inspections: int = 0  # >0: a group of read-only steps
     session: int = 0
+    note: str | None = None  # an engineer event, not an agent step
 
     @property
     def changed_model(self) -> bool:
-        return self.inspections == 0
+        return self.inspections == 0 and self.note is None
 
 
 def _clip(text: str, width: int = LINE_WIDTH) -> str:
@@ -172,8 +174,24 @@ class Activity:
             self.entries.popleft()
         return entry
 
+    def engineer_change(self, at: float | None = None) -> Entry:
+        """The engineer changed the model between two agent steps."""
+        entry = Entry(
+            started=time.time() if at is None else at,
+            summary=ENGINEER_CHANGE,
+            note=ENGINEER_CHANGE,
+            session=self.session,
+        )
+        self._write(entry)
+        self.entries.append(entry)
+        while len(self.entries) > self.keep:
+            self.entries.popleft()
+        return entry
+
     def line(self, entry: Entry) -> str:
         clock = time.strftime("%H:%M:%S", time.localtime(entry.started))
+        if entry.note:
+            return _clip(f"✎  {clock}  {entry.note}")
         if entry.inspections:
             steps = "step" if entry.inspections == 1 else "steps"
             return _clip(
@@ -219,14 +237,17 @@ class Activity:
         if self.log_path is None:
             return
         stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry.started))
-        if entry.ok:
+        if entry.note:
+            text = f"{stamp}  ENGINEER  {entry.note}"
+        elif entry.ok:
             made = f" → {entry.created}" if entry.created else ""
             text = f"{stamp}  OK      {entry.summary}{made}  ({entry.duration:.1f} s)"
         else:
             state = _MODEL_STATE.get(entry.outcome or "", "outcome unknown, check the model")
             code = f"{entry.code}: " if entry.code else ""
             text = f"{stamp}  FAILED  {entry.summary} — {state}: {code}{entry.reason}"
-        text += f"  [{entry.method}]"
+        if entry.method:
+            text += f"  [{entry.method}]"
         if entry.intent:
             text += f"  note: “{entry.intent}”"
         try:

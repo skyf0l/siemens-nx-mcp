@@ -1,0 +1,181 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_callout": [
+   "body",
+   "bend"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2,
+    "bend_radius": 3,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     50,
+     0,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "e"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "fl",
+   "args": {
+    "operation": "flange",
+    "parameters": {
+     "edges": [
+      "$e.data.items.0.id"
+     ],
+     "length": 20
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "info"
+  },
+  {
+   "call": "nx_create_sheet_metal_callout",
+   "save": "cb",
+   "args": {
+    "kind": "body",
+    "body": "$tab.data.body.id",
+    "position": [
+     50,
+     -20,
+     0
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.measured.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.text.1": "Thickness: 2.000 mm",
+    "data.annotations": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_callout",
+   "args": {
+    "kind": "bend",
+    "body": "$tab.data.body.id",
+    "faces": [
+     "$info.data.items.0.bends.0.face.id"
+    ],
+    "position": [
+     50,
+     -20,
+     20
+    ],
+    "automatic": false
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.measured.bends.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.measured.bends.0.radius": {
+     "close": 3,
+     "tol": 1e-06
+    },
+    "data.automatic": false
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.refreshed": {
+     "count": 0
+    }
+   }
+  }
+ ]
+}

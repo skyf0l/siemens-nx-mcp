@@ -5,7 +5,7 @@
     {"call": "nx_create_part", "setup": true, "save": "blk", "args": {"path": "$run/cl/pf_close_blk.prt"}},
     {"call": "nx_save_part", "setup": true, "args": {}},
     {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$run/cl/pf_close_asm.prt"}},
-    {"call": "nx_add_component", "setup": true, "args": {"part_path": "$run/cl/pf_close_blk.prt", "name": "BLK"}},
+    {"call": "nx_create_component", "setup": true, "args": {"path": "$run/cl/pf_close_blk.prt", "name": "BLK"}},
     {"call": "nx_close_part", "args": {"part": "$blk.data.part.id", "save": false},
      "expect": {"error.code": "NX_PART_IN_USE", "mutation_outcome": "not_started",
                 "error.details.parent_assemblies.0": {"matches": "pf_close_asm\\.prt$"}}},

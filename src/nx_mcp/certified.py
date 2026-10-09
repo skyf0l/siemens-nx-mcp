@@ -27,7 +27,6 @@ CERTIFIED_TOOL_NAMES = {
     "nx_list_bodies",
     "nx_list_features",
     "nx_undo",
-    "nx_fit_view",
 }
 
 
@@ -70,11 +69,6 @@ def create_certified_server(
     async def nx_undo() -> OperationResult:
         """Undo the last visible NX MCP operation."""
         return OperationResult(**await call("nx_undo", {}))
-
-    @mcp.tool()
-    async def nx_fit_view() -> OperationResult:
-        """Fit the active modeling view."""
-        return OperationResult(**await call("nx_fit_view", {}))
 
     # Part and file tools are catalogue tools (domains/parts_files); nx_extrude's
     # single public schema lives in authoring_server.py (configure() rejects duplicates).

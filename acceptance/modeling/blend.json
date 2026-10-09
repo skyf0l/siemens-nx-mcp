@@ -83,7 +83,7 @@
    "call": "nx_create_blend",
    "args": {
     "edges": [
-     "$e1.items.0.object.id"
+     "$e1.data.items.0.id"
     ],
     "radius": 2
    },
@@ -115,7 +115,7 @@
    "call": "nx_create_blend",
    "args": {
     "edges": [
-     "$e2.items.0.object.id"
+     "$e2.data.items.0.id"
     ],
     "variable": [
      {
@@ -173,8 +173,8 @@
    "call": "nx_create_blend",
    "args": {
     "edges": [
-     "$e3.items.0.object.id",
-     "$e4.items.0.object.id"
+     "$e3.data.items.0.id",
+     "$e4.data.items.0.id"
     ],
     "variable": [
      {
@@ -197,7 +197,7 @@
    "call": "nx_create_blend",
    "args": {
     "edges": [
-     "$e3.items.0.object.id"
+     "$e3.data.items.0.id"
     ],
     "radius": 1,
     "variable": [
@@ -256,7 +256,7 @@
    "call": "nx_create_blend",
    "args": {
     "edges": [
-     "$e3.items.0.object.id"
+     "$e3.data.items.0.id"
     ],
     "radius": 30
    },
@@ -289,18 +289,32 @@
   },
   {
    "call": "nx_create_sketch",
+   "save": "after_refusal",
    "args": {
     "placement": {
      "principal": "xy"
     }
    },
-   "intent": "NX 2406 hands the refused blend's update error to the next sketch: record it",
+   "intent": "A sketch right after NX refused a blend must not inherit its update error",
    "expect": {
-    "error.code": "NX_UPDATE_FAILED",
-    "error.message": {
-     "matches": "blend faces"
-    },
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "committed",
+    "data.feature.name": {
+     "matches": "^SKETCH\\("
+    }
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$after_refusal.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
    }
   }
  ]

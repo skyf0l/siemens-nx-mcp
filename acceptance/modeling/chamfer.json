@@ -87,7 +87,7 @@
    "call": "nx_create_chamfer",
    "args": {
     "edges": [
-     "$e.items.0.object.id"
+     "$e.data.items.0.id"
     ],
     "method": "symmetric",
     "offset": 2
@@ -120,7 +120,7 @@
    "call": "nx_create_chamfer",
    "args": {
     "edges": [
-     "$e.items.0.object.id"
+     "$e.data.items.0.id"
     ],
     "method": "two_offsets",
     "offset": 2,
@@ -154,7 +154,7 @@
    "call": "nx_create_chamfer",
    "args": {
     "edges": [
-     "$e.items.0.object.id"
+     "$e.data.items.0.id"
     ],
     "method": "offset_angle",
     "offset": 3,
@@ -188,7 +188,7 @@
    "call": "nx_create_chamfer",
    "args": {
     "edges": [
-     "$e.items.0.object.id"
+     "$e.data.items.0.id"
     ],
     "method": "two_offsets",
     "offset": 1,
@@ -223,7 +223,7 @@
    "call": "nx_create_chamfer",
    "args": {
     "edges": [
-     "$e.items.0.object.id"
+     "$e.data.items.0.id"
     ],
     "method": "offset_angle",
     "offset": 1,
@@ -239,7 +239,7 @@
    "call": "nx_create_chamfer",
    "args": {
     "edges": [
-     "$e.items.0.object.id"
+     "$e.data.items.0.id"
     ],
     "method": "symmetric",
     "offset": 1,

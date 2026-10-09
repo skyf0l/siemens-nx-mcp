@@ -62,15 +62,6 @@ REF["description"] = (
 )
 HASH = {"type": "string", "pattern": "^[0-9a-f]{64}$"}
 META = {"path": S, "size": COUNT, "sha256": HASH}
-PAIR = obj(
-    {
-        "objects": arr(REF, 2),
-        "distance": N,
-        "closest_points": arr(VEC, 2),
-        "classification": {"enum": ["clear", "contact", "penetration", "below_clearance"]},
-        "interference_volume_mm3": N,
-    }
-)
 
 # Required fields follow actual bridge implementations; optional metadata remains typed.
 PAYLOADS: dict[str, dict[str, Any]] = {
@@ -86,18 +77,6 @@ PAYLOADS: dict[str, dict[str, Any]] = {
             "bodies": arr(obj({"body": REF, "box": arr(N, 6), "solid": B})),
         }
     ),
-    "nx_measure_distance": obj(
-        {
-            "distance": N,
-            "closest_points": arr(VEC, 2),
-            "references": arr(S, 2),
-            "resolved_tags": arr(COUNT, 2),
-            "coordinate_frame": S,
-            "pair_count": COUNT,
-            "method": S,
-            "accuracy": NULL,
-        }
-    ),
     "nx_measure_volume": obj(
         {
             "volume_mm3": N,
@@ -109,27 +88,6 @@ PAYLOADS: dict[str, dict[str, Any]] = {
         }
     ),
     "nx_list_topology": obj({"body": REF, "faces": arr(REF), "edges": arr(REF), "solid": B}),
-    "nx_list_components": obj(
-        {
-            "count": COUNT,
-            "matrix_convention": S,
-            "components": arr(
-                obj(
-                    {
-                        "object": REF,
-                        "name": S,
-                        "part_path": S,
-                        "depth": COUNT,
-                        "translation": VEC,
-                        "rotation_matrix": arr(VEC, 3),
-                        "coordinate_frame": S,
-                        "suppressed": B,
-                        "reference_set": S,
-                    }
-                )
-            ),
-        }
-    ),
     "nx_operation_status": obj(
         {
             "operation_id": S,
@@ -161,29 +119,6 @@ PAYLOADS: dict[str, dict[str, Any]] = {
         }
     ),
 }
-for name in ("nx_check_interference", "nx_check_clearance"):
-    PAYLOADS[name] = obj(
-        {
-            "pairs": arr(PAIR),
-            "counts": {"type": "object", "additionalProperties": COUNT},
-            "body_count": COUNT,
-            "pair_count": COUNT,
-            "reported_pair_count": COUNT,
-            "broad_phase_clear_pairs": COUNT,
-            "minimum_clearance": N,
-            "volume_units": {"const": "mm^3"},
-            "coordinate_frame": S,
-            "complete": B,
-            "semantics": S,
-        }
-    )
-for name in (
-    "nx_screenshot",
-    "nx_render_view",
-    "nx_export_flat_pattern",
-):
-    PAYLOADS[name] = obj({**META, "mime_type": S, "resolution": arr(COUNT, 2)}, ["path", "sha256"])
-
 
 # Lifecycle and authoring results use their actual native field names.
 INTEGER = {"type": "integer"}
@@ -209,65 +144,6 @@ EXPRESSION = obj(
 )
 PAYLOADS.update(
     {
-        "nx_sheet_metal_feature": obj(
-            {
-                "feature": REF,
-                "bodies": arr(REF),
-                "body_count": COUNT,
-                "body": {"anyOf": [REF, NULL]},
-                "coordinate_frame": S,
-                "created": arr(REF),
-                "modified": arr(REF),
-                "operation": S,
-                "native_feature_type": S,
-                "requested_parameters": {"type": "object"},
-                "expressions": arr(EXPRESSION),
-                "model_view_name": S,
-            },
-            [
-                "feature",
-                "bodies",
-                "body_count",
-                "body",
-                "coordinate_frame",
-                "created",
-                "modified",
-                "operation",
-                "native_feature_type",
-                "requested_parameters",
-                "expressions",
-            ],
-        ),
-        "nx_sheet_metal_info": obj(
-            {
-                "items": arr(
-                    obj(
-                        {
-                            "body": REF,
-                            "sheet_metal": B,
-                            "thickness": N,
-                            "bends": arr(
-                                obj(
-                                    {
-                                        "face": REF,
-                                        "state": S,
-                                        "inner_radius": N,
-                                        "angle_degrees": N,
-                                        "neutral_factor": N,
-                                    }
-                                )
-                            ),
-                            "bend_count": COUNT,
-                        },
-                        ["body", "sheet_metal"],
-                    )
-                ),
-                "total": COUNT,
-                "offset": COUNT,
-                "next_offset": {"anyOf": [COUNT, NULL]},
-                "coordinate_frame": S,
-            }
-        ),
         "nx_list_drawings": obj(
             {
                 "sheets": arr(
@@ -291,16 +167,6 @@ PAYLOADS.update(
         ),
     }
 )
-component_fields = PAYLOADS["nx_list_components"]["properties"]["components"]["items"]
-component_fields["properties"].update(
-    part_path={"anyOf": [S, NULL]}, load_state=S, prototype_type={"anyOf": [S, NULL]}
-)
-component_fields["required"] = [
-    x
-    for x in component_fields["required"]
-    if x not in {"translation", "rotation_matrix", "coordinate_frame"}
-]
-PAYLOADS["nx_list_components"]["properties"].update(PAGE)
 
 
 REFERENCE_SET = obj(
@@ -312,47 +178,13 @@ REFERENCE_SET = obj(
         "add_components_automatically": B,
     }
 )
-DISPLAY_ROW = obj({"object": REF, "blanked": B})
 PAYLOADS.update(
     {
-        "nx_create_reference_set": REFERENCE_SET,
-        "nx_list_reference_sets": obj(
-            {"reference_sets": arr(REFERENCE_SET), "count": COUNT, "built_in": arr(S)}
-        ),
-        "nx_set_component_reference_set": obj(
-            {
-                "components": arr(
-                    obj({"object": REF, "previous_reference_set": S, "reference_set": S})
-                ),
-                "count": COUNT,
-                "prototype_parts_modified": {"const": False},
-            }
-        ),
         "nx_list_datums": obj(
             {
                 "datums": arr(obj({"object": REF, "native_type": S, "blanked": B})),
                 "count": COUNT,
                 "scope": {"const": "work_part"},
-            }
-        ),
-        "nx_set_datum_visibility": obj(
-            {
-                "restore_id": S,
-                "objects": arr(DISPLAY_ROW),
-                "count": COUNT,
-                "visible": B,
-                "scope": {"const": "work_part"},
-            }
-        ),
-        "nx_flat_pattern_orientation_edges": obj(
-            {
-                "upward_face": REF,
-                "edges": arr(
-                    obj({"edge": REF, "start": VEC, "end": VEC, "adjacent_faces": arr(S)})
-                ),
-                "count": COUNT,
-                "coordinate_frame": S,
-                "eligibility": S,
             }
         ),
         "nx_list_dimensions": obj(
@@ -372,25 +204,8 @@ PAYLOADS.update(
                 "coordinate_frame": S,
             }
         ),
-        "nx_sheet_metal_defaults": obj(
-            {
-                "parameters": {
-                    "type": "object",
-                    "additionalProperties": {"anyOf": [EXPRESSION, NULL]},
-                },
-                "parameter_entry": S,
-                "bend_definition": S,
-                "bend_table": S,
-                "bend_allowance_formula": S,
-                "bend_deduction_formula": S,
-                "material": S,
-                "tool": S,
-                "material_catalog_status": S,
-            }
-        ),
     }
 )
-PAYLOADS["nx_set_sheet_metal_defaults"] = deepcopy(PAYLOADS["nx_sheet_metal_defaults"])
 
 
 PAYLOADS.update(

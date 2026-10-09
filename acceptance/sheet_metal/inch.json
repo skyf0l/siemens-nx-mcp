@@ -1,0 +1,232 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "tab",
+   "flange",
+   "flat_pattern"
+  ],
+  "nx_export_flat_pattern": [],
+  "nx_get_sheet_metal": [],
+  "nx_set_sheet_metal_defaults": []
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "thickness": "2.032 mm",
+    "bend_radius": 0.12,
+    "neutral_factor": 0.33
+   },
+   "expect": {
+    "units.length": "in",
+    "data.thickness": {
+     "close": 0.08,
+     "tol": 1e-09
+    },
+    "data.bend_radius": {
+     "close": 0.12,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       4,
+       3
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": "2.032 mm"
+    }
+   },
+   "expect": {
+    "units.length": "in",
+    "data.thickness": {
+     "close": 0.08,
+     "tol": 1e-09
+    },
+    "data.volume": {
+     "close": 0.96,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     2,
+     0,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "e"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "flange",
+    "parameters": {
+     "edges": [
+      "$e.data.items.0.id"
+     ],
+     "length": "20.32 mm"
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1.1940247719318986,
+     "tol": 1e-09
+    },
+    "data.bends.0.radius": {
+     "close": 0.12,
+     "tol": 1e-09
+    },
+    "data.bends.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "args": {},
+   "expect": {
+    "units.length": "in",
+    "data.items.0.thickness": {
+     "close": 0.08,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     2,
+     1.5,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "up"
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     2,
+     3,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "xe"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "flat_pattern",
+    "parameters": {
+     "face": "$up.data.items.0.id",
+     "edge": "$xe.data.items.0.id"
+    }
+   },
+   "expect": {
+    "data.flat_extents": {
+     "close": [
+      4,
+      3.709964582242773
+     ],
+     "tol": 1e-07
+    }
+   },
+   "save": "fp"
+  },
+  {
+   "call": "nx_export_flat_pattern",
+   "args": {
+    "flat_pattern": "$fp.data.feature.id",
+    "path": "$run/sheet_metal_inch.dxf",
+    "tolerance": "0.1 mm"
+   },
+   "expect": {
+    "data.extents": {
+     "close": [
+      4,
+      3.709964582242773
+     ],
+     "tol": 1e-05
+    },
+    "data.tolerance": {
+     "close": 0.003937007874015749,
+     "tol": 1e-12
+    }
+   }
+  }
+ ]
+}

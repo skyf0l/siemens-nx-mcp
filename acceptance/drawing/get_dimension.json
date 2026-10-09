@@ -172,8 +172,8 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "linear",
-    "first": "$front.items.0.object.id",
-    "second": "$back.items.0.object.id",
+    "first": "$front.data.items.0.id",
+    "second": "$back.data.items.0.id",
     "orientation": "vertical",
     "origin": [
      200,
@@ -188,7 +188,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "radius",
-    "first": "$h1.items.0.object.id"
+    "first": "$h1.data.items.0.id"
    }
   },
   {

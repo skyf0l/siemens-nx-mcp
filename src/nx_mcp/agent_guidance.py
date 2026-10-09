@@ -16,48 +16,14 @@ GUIDANCE = {
         ["body", "part", "component"],
         {},
     ),
-    "nx_add_component": (
-        ["Active assembly; saved prototype path"],
-        ["part"],
-        {"part_path": "project/bracket.prt", "name": "bracket"},
-    ),
-    "nx_set_component_transform": (
-        ["Current occurrence reference; absolute transform in documented frame"],
-        ["component"],
-        None,
-    ),
-    "nx_screenshot": (
-        ["Graphical NX with active part; agent mode"],
-        ["part"],
-        {"path": "project/review.png"},
-    ),
     "nx_rollback": (["Live explicit checkpoint; no intervening manual edits"], [], None),
 }
 GEOMETRY = {
-    "nx_add_component",
-    "nx_set_component_transform",
     "nx_rollback",
 }
-VISIBILITY = {
-    "nx_set_display",
-    "nx_set_visibility",
-    "nx_set_datum_visibility",
-    "nx_restore_display",
-    "nx_set_view",
-    "nx_set_camera",
-    "nx_fit_view",
-    "nx_show_explosion",
-    "nx_section_view",
-    "nx_section_control",
-    "nx_highlight_collisions",
-    "nx_clear_highlights",
-}
+VISIBILITY: set[str] = set()
 SAVES: set[str] = set()
-FILES = SAVES | {
-    "nx_screenshot",
-    "nx_render_view",
-    "nx_export_flat_pattern",
-}
+FILES: set[str] = set(SAVES)
 INVALIDATES = {
     "nx_rollback",
     "nx_undo",

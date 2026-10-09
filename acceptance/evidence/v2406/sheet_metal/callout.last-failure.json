@@ -1,0 +1,166 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/callout.json",
+  "scenario_sha256": "0f4d35431aa8c75ccdae32149aada59934e8315202d7a7b2a3a0dbbc08cb93f6",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_callout": [
+      "body",
+      "bend"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "sources": {
+    "nx_create_sheet_metal_callout": "c75d9e7eb5f14c0ffe126933e8892ffb2546c27957fe4ca1be178fd4338b654c"
+  },
+  "run_id": "20261009-183156-585a09",
+  "owner": "dom_sheet_metal",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-183156-585a09\\sheet_metal_callout_585a09.prt",
+  "started": "2026-10-09T14:32:18Z",
+  "finished": "2026-10-09T14:32:23Z",
+  "passed": false,
+  "checks": 10,
+  "failed_checks": 10,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.781,
+      "result_sha256": "c4f2a0738c925d85fe7a0a263104c1945bfab59f3a7206e6c86017d2936eb1f7"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.5,
+      "result_sha256": "a57670fa8442a0ca2dcc239691815c1b3f8190cf4a1aacd429e73069a1c67fa0"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "5c53326816148c77283064546147401bfa4292b163f3b2fbe2747c3e798217a0"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "b2f14fa753b1eb3b88be650d7510bbe4ba9e465f302ce1d7e9102cf71da0fc25"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "6a7950f6178bee016f1ab7e1fc35af36e2e2d21ec7808c288e3a20bf1d3c0c65"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.218,
+      "result_sha256": "742841961792ed1f6d05e8ce781c06b63acd3f86ee49fb5e610921b9fb14216b"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.25,
+      "result_sha256": "61b6f859a6113956b6e273bdef72e6cf12d9190340ea27c6ebe25ebb4a9760b7"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.204,
+      "result_sha256": "d2984a2e2e9331cbc9594e23d678024a567caedce0386ed14a6791b972a43b95"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.218,
+      "result_sha256": "6ac20512e7a6805301bafe940b645418a776d0d9d9f70d5edb95de81bd1db09e"
+    },
+    {
+      "index": 10,
+      "call": "nx_get_sheet_metal",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.141,
+      "result_sha256": "97b77bc26b88b11a800252d121a1d97ed7f1c42d601afb52ecca45e2dec5c812"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_callout",
+      "setup": false,
+      "passed": false,
+      "checks": 4,
+      "seconds": 0.484,
+      "result_sha256": "5b09f6ade8f283055d58139708fcd9bee57a8d1908c43fbe02d3201f587975ec",
+      "failures": [
+        "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
+        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
+        "data.measured.thickness: missing (wanted {'close': 2, 'tol': 1e-09})",
+        "data.text.1: missing (wanted 'Thickness: 2.000 mm')",
+        "data.annotations: missing (wanted {'count': 1})"
+      ]
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_callout",
+      "setup": false,
+      "passed": false,
+      "checks": 4,
+      "seconds": 0.203,
+      "result_sha256": "ccf6c7ad26312c6dbad3f5ce9c1bd1c04ffc23465510faa6a4513a9b278eed3f",
+      "failures": [
+        "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
+        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
+        "data.measured.bends.0.angle: missing (wanted {'close': 90, 'tol': 1e-06})",
+        "data.measured.bends.0.radius: missing (wanted {'close': 3, 'tol': 1e-06})",
+        "data.automatic: missing (wanted False)"
+      ]
+    },
+    {
+      "index": 13,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.188,
+      "result_sha256": "c3d1c17a87e02bf7d32d99611bd5ac340b9ca4c733e921892583b7a864fe274d"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-183156-585a09/sheet_metal_callout_585a09.prt"
+    ],
+    "failed": []
+  }
+}

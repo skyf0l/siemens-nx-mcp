@@ -1,0 +1,357 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "normal_cutout",
+   "break_corner",
+   "hem",
+   "dimple",
+   "drawn_cutout"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2,
+    "bend_radius": 3,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "c"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$c.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       30,
+       30
+      ],
+      "radius": 5
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$c.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "normal_cutout",
+    "parameters": {
+     "section": "$c.data.sketch.id",
+     "body": "$tab.data.body.id"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 15842.92036732051,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     100,
+     80,
+     -1
+    ],
+    "limit": 1
+   },
+   "save": "ce"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "break_corner",
+    "parameters": {
+     "edges": [
+      "$ce.data.items.0.id"
+     ],
+     "radius": 5
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 15832.190275490382,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     0,
+     40,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "he"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "hem",
+    "parameters": {
+     "edges": [
+      "$he.data.items.0.id"
+     ],
+     "length": 10,
+     "radius": 2,
+     "style": "open"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 18300.15474921348,
+     "tol": 1e-06
+    },
+    "data.bend_count": 1,
+    "data.bends.0.radius": {
+     "close": 2,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "d"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$d.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       60,
+       20
+      ],
+      "corner2": [
+       80,
+       35
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$d.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "dimple",
+    "parameters": {
+     "section": "$d.data.sketch.id",
+     "height": 3
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 18768.15474921349,
+     "tol": 1e-05
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "dc"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$dc.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       60,
+       45
+      ],
+      "corner2": [
+       80,
+       60
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$dc.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "drawn_cutout",
+    "parameters": {
+     "section": "$dc.data.sketch.id",
+     "height": 4
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 18792.154749213485,
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "normal_cutout",
+    "parameters": {
+     "section": "$c.data.sketch.id"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/body",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "hem",
+    "parameters": {
+     "edges": [
+      "$he.data.items.0.id"
+     ],
+     "length": 10,
+     "style": "fillet"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/style",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

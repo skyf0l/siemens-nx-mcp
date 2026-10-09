@@ -1,0 +1,499 @@
+{
+ "covers": {
+  "nx_create_bridge_surface": [
+   "g0",
+   "g1",
+   "g2"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      20,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap2",
+   "args": {
+    "points": [
+     [
+      0,
+      10,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac2",
+   "args": {
+    "points": [
+     [
+      20,
+      0,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "a",
+   "args": {
+    "primary": [
+     [
+      "$ap1.data.curve.id"
+     ],
+     [
+      "$ap2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$ac1.data.curve.id"
+     ],
+     [
+      "$ac2.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bp1",
+   "args": {
+    "points": [
+     [
+      30,
+      0,
+      5
+     ],
+     [
+      50,
+      0,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bp2",
+   "args": {
+    "points": [
+     [
+      30,
+      10,
+      5
+     ],
+     [
+      50,
+      10,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bc1",
+   "args": {
+    "points": [
+     [
+      30,
+      0,
+      5
+     ],
+     [
+      30,
+      10,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bc2",
+   "args": {
+    "points": [
+     [
+      50,
+      0,
+      5
+     ],
+     [
+      50,
+      10,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "b",
+   "args": {
+    "primary": [
+     [
+      "$bp1.data.curve.id"
+     ],
+     [
+      "$bp2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$bc1.data.curve.id"
+     ],
+     [
+      "$bc2.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "limit": 1,
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "limit": 1,
+    "owner": "$b.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bridge_surface",
+   "args": {
+    "first": "$e1.data.items.0.id",
+    "second": "$e2.data.items.0.id",
+    "continuity": "g0"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.continuity.first.gap": {
+     "close": 0,
+     "tol": 1e-05
+    },
+    "data.continuity.second.gap": {
+     "close": 0,
+     "tol": 1e-05
+    },
+    "data.continuity.first.angle": {
+     "close": 26.56505,
+     "tol": 0.001
+    },
+    "data.continuity.second.angle": {
+     "close": 26.56505,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.bounds.max": {
+     "close": [
+      30,
+      10,
+      5
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "limit": 1,
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "limit": 1,
+    "owner": "$b.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bridge_surface",
+   "args": {
+    "first": "$e1.data.items.0.id",
+    "second": "$e2.data.items.0.id",
+    "continuity": "g1"
+   },
+   "expect": {
+    "data.continuity.first.gap": {
+     "close": 0,
+     "tol": 1e-05
+    },
+    "data.continuity.first.angle": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.continuity.second.angle": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.bounds.max": {
+     "close": [
+      30,
+      10,
+      5
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "limit": 1,
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "limit": 1,
+    "owner": "$b.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bridge_surface",
+   "args": {
+    "first": "$e1.data.items.0.id",
+    "second": "$e2.data.items.0.id",
+    "continuity": "g2"
+   },
+   "expect": {
+    "data.continuity.first.angle": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.continuity.first.curvature": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.continuity.second.curvature": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "limit": 1,
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "limit": 1,
+    "owner": "$b.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bridge_surface",
+   "args": {
+    "first": "$e1.data.items.0.id",
+    "second": "$e1.data.items.0.id",
+    "continuity": "g0"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/second",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_bridge_surface",
+   "args": {
+    "first": "$e1.data.items.0.id",
+    "second": "$e2.data.items.0.id",
+    "continuity": "g1",
+    "reverse_second": true
+   },
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

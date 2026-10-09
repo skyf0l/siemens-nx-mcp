@@ -20,11 +20,13 @@ from nx_mcp.core.errors import NXError
 from nx_mcp.core.types import (
     PLACEHOLDER_PATTERN,
     Items,
+    Json,
     PathArg,
     Quantity,
     Range,
     RefKind,
     Text,
+    check_json,
     parse_quantity,
 )
 
@@ -120,9 +122,72 @@ def _hint_json_types(hint) -> set:
         return {"string"}
     if typing.get_origin(base) in (list, tuple):
         return {"array"}
-    if is_typeddict(base):
+    if is_typeddict(base) or base is dict:
         return {"object"}
     return set()
+
+
+_STRUCTURAL = ("unknown field", "required field is missing")
+
+
+def _fit(value, alternative, error: NXError) -> tuple:
+    """How well ``value`` fits a union alternative that rejected it (higher is better).
+
+    An object alternative that knows more of the value's keys (and misses fewer of its
+    own required keys) fits better; then an error found deeper inside the value; then a
+    wrong value over an unknown or missing field. So ``{"path", "help_point",
+    "percent": 150}`` reports the out-of-range percent of the path form, not an unknown
+    field of the first form.
+    """
+    base, _ = unwrap(alternative)
+    keys = 0
+    if isinstance(value, dict) and is_typeddict(base):
+        fields = set(typeddict_fields(base))
+        missing = set(base.__required_keys__) - set(value)
+        keys = len(set(value) & fields) - len(set(value) - fields) - len(missing)
+    depth = (error.field or "").count("/")
+    structural = str(error.message).endswith(_STRUCTURAL)
+    return (_claims(value, base), keys, depth, not structural)
+
+
+def _tags(base) -> dict:
+    """``{field: options}`` of a TypedDict's Literal fields (its discriminators)."""
+    if not is_typeddict(base):
+        return {}
+    out = {}
+    for name, hint in typeddict_fields(base).items():
+        inner, _ = unwrap(hint)
+        if typing.get_origin(inner) is Literal:
+            out[name] = typing.get_args(inner)
+    return out
+
+
+def _claims(value, base) -> bool:
+    """False when ``value`` sets a discriminator of this form to another value."""
+    if not isinstance(value, dict):
+        return True
+    return all(
+        value[k] in options and type(value[k]) in {type(o) for o in options}
+        for k, options in _tags(base).items()
+        if k in value
+    )
+
+
+def _no_form_claimed(value, same, path):
+    """The error when the value's discriminator names none of the forms (e.g. a Limit
+    ``type`` the tool does not take): name the accepted values at the union."""
+    if not isinstance(value, dict):
+        return None
+    options: dict = {}
+    for alt, _error in same:
+        for key, values in _tags(unwrap(alt)[0]).items():
+            if key in value:
+                options.setdefault(key, []).extend(v for v in values if v not in options[key])
+    if not options:
+        return None
+    key = sorted(options)[0]
+    accepted = ", ".join(repr(v) for v in options[key])
+    return _bad(path, f"{key} {value[key]!r} is not accepted here; expected one of {accepted}")
 
 
 class _Walker:
@@ -148,6 +213,11 @@ class _Walker:
             self.out.placeholders.append((tuple(path), value))
             self.out.refs.append((tuple(path), markers[RefKind].kinds))
             return value
+        if Json in markers:
+            try:
+                return check_json(value, markers[Json])
+            except ValueError as error:
+                raise _bad(path, str(error)) from None
         if is_union(base):
             return self._union(value, base, path)
         value = self._base(value, base, path)
@@ -176,12 +246,24 @@ class _Walker:
                 del self.out.placeholders[h:]
                 errors.append((alt, error))
         kind = _json_type(value)
-        same = [e for alt, e in errors if kind in _hint_json_types(alt)]
+        same = [(alt, e) for alt, e in errors if kind in _hint_json_types(alt)]
         if len(same) == 1:
-            raise same[0]
+            raise same[0][1]
         allowed = sorted({t for alt in alternatives for t in _hint_json_types(alt)})
         if same:
-            raise _bad(path, "does not match any accepted form: " + same[0].message)
+            scored = sorted(
+                ((_fit(value, alt, e), i, e) for i, (alt, e) in enumerate(same)),
+                key=lambda item: (item[0], -item[1]),
+                reverse=True,
+            )
+            best, runner_up = scored[0], scored[1]
+            if not best[0][0]:  # every form's discriminator disagrees with the value
+                unclaimed = _no_form_claimed(value, same, path)
+                if unclaimed is not None:
+                    raise unclaimed
+            if best[0] > runner_up[0]:
+                raise best[2]  # the form the value was meant to have
+            raise _bad(path, "does not match any accepted form: " + best[2].message)
         raise _bad(path, f"expected {' or '.join(allowed)}, got {kind}")
 
     def _base(self, value, base, path):
@@ -281,7 +363,7 @@ def validate(params: dict, args, *, placeholders: bool = False) -> Checked:
         raise _bad([unknown[0]], "unknown field")
     for name, param in params.items():
         if name in args:
-            if args[name] is None and param.default is None:
+            if args[name] is None and not param.required and param.default is None:
                 walker.out.args[name] = None
                 continue
             walker.out.args[name] = walker.check(args[name], param.hint, [name])

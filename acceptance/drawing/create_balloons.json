@@ -27,27 +27,31 @@
    }
   },
   {
-   "call": "nx_add_component",
+   "call": "nx_create_component",
    "setup": true,
    "args": {
-    "part_path": "$fixture",
-    "translation": [
-     0,
-     0,
-     0
-    ]
+    "path": "$fixture",
+    "pose": {
+     "translation": [
+      0,
+      0,
+      0
+     ]
+    }
    }
   },
   {
-   "call": "nx_add_component",
+   "call": "nx_create_component",
    "setup": true,
    "args": {
-    "part_path": "$fixture",
-    "translation": [
-     0,
-     80,
-     0
-    ]
+    "path": "$fixture",
+    "pose": {
+     "translation": [
+      0,
+      80,
+      0
+     ]
+    }
    }
   },
   {
@@ -103,7 +107,7 @@
      320,
      200
     ],
-    "explosion": "$ex.object.id",
+    "explosion": "$ex.data.explosion.id",
     "scale": 0.5
    },
    "expect": {

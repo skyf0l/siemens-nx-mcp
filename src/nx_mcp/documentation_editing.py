@@ -2,9 +2,7 @@
 
 from nx_mcp.authoring import page
 from nx_mcp.kit.geom import xyz
-from nx_mcp.legacy_kit import finite
 from nx_mcp.release_engineering import drawing_work_view
-from nx_mcp.runtime import NXToolError
 
 
 class DocumentationEditingMixin:
@@ -79,42 +77,4 @@ class DocumentationEditingMixin:
             "next_offset": offset + limit if offset + limit < len(values) else None,
             "units": self._units(),
             "position_frame": "native annotation frame: sheet for drafting, work part for PMI; assembly for traces",
-        }
-
-    def _edit_explosion_trace(
-        self, traceline, start_percent=None, end_percent=None, start_offset=None, end_offset=None
-    ):
-        import json
-
-        line = self._resolve(traceline, {"traceline"})
-        ex = line.AskExplosion()
-        if all(x is None for x in [start_percent, end_percent, start_offset, end_offset]):
-            raise NXToolError("NX_INVALID_ARGUMENT", "Supply an edit")
-        if not line.HasUserAttribute(
-            "NX_MCP_TRACE_V1", self.nxopen.NXObject.AttributeType.String, -1
-        ):
-            raise NXToolError("NX_UNSUPPORTED_EDIT", "Select a managed MCP trace")
-        records = json.loads(line.GetStringAttribute("NX_MCP_TRACE_V1"))
-        for record, value in zip(records, [start_percent, end_percent], strict=True):
-            if value is not None:
-                value = finite(value, "percent")
-                if not 0 <= value <= 100:
-                    raise NXToolError("NX_INVALID_ARGUMENT", "Percentage must be 0..100")
-                record["percent"] = value
-        offsets = [
-            finite(x, "offset") if x is not None else None for x in [start_offset, end_offset]
-        ]
-        line.SetAttribute("NX_MCP_TRACE_V1", json.dumps(records))
-        for attr, value in zip(["StartOffset", "EndOffset"], offsets, strict=True):
-            if value is not None:
-                setattr(line, attr, value)
-        self._refresh_explosion_traces(ex)
-        self._regenerate_explosion_display()
-        return {
-            "traceline": self._reference(line, "traceline", self._work_part(), "Trace"),
-            "start": xyz(line.StartPoint.Coordinates),
-            "end": xyz(line.EndPoint.Coordinates),
-            "start_offset": line.StartOffset,
-            "end_offset": line.EndOffset,
-            "units": self._units(),
         }

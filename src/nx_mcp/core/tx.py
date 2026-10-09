@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -107,25 +108,100 @@ class Services:
     def invalidate(self, before: dict, after: dict, topology: bool) -> None: ...
     def invalidate_parts(self, parts) -> None: ...
     def forget_parts(self, keys) -> None: ...  # closed parts (by part_key): refs, undo, owner
-    def refresh_annotations(self, spec) -> list: ...
+    def refresh_annotations(self, spec) -> list: ...  # legacy-managed annotations (F4: gone)
+
+    def refreshers(self) -> dict:
+        """The ``@refresher`` hooks gate 13 runs, ``{kind: fn(tx, objects or None)}``.
+
+        The NX host returns every registered hook; services without NX run none."""
+        return {}
+
     def record_history(self, mark, part, operation_id: str, tool: str) -> None: ...
     def after_commit(self, spec) -> None: ...
     def after_failure(self, spec) -> None: ...
 
+    # optional members (defaults below): previews and the NX MCP panel
+    def revision(self) -> int:
+        """Counter of changes to the session: every non-read call (``after_commit`` and
+        ``after_failure``) and every engineer change between agent calls bump it.
+        ``nx_finish_preview`` re-applies a preview only when nothing else happened."""
+        return 0
+
+    def control_status(self) -> dict | None:
+        """The NX MCP panel's state (mode, activity, ...), None without the panel."""
+        return None
+
+    def control(self, mode: str) -> dict:
+        """Switch the panel mode for the agent: lowering its control always works; more
+        control only after the engineer approved the request on the panel (the host
+        holds the call until then). Returns :meth:`control_status`."""
+        fail("NX_VIEWPORT_UNAVAILABLE", "No NX MCP panel in this session",
+             hint="Run the bridge in interactive NX with the NX MCP panel")  # fmt: skip
+
+
+def publish_new(temp, target, *, field: str | None = "/path") -> Path:
+    """Move a finished ``temp`` file to ``target`` without ever overwriting it.
+
+    ``os.link`` creates ``target`` atomically and fails when it exists, also when
+    another writer created it meanwhile (``os.replace`` would overwrite it). Where
+    hard links are unavailable the bytes are copied into an exclusively created
+    file. A file at ``target`` raises ``NX_ALREADY_EXISTS``; ``temp`` is removed
+    either way, and a partial copy never stays behind.
+    """
+    temp, target = Path(temp), Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        try:
+            os.link(temp, target)
+        except FileExistsError:
+            raise
+        except OSError:  # no hard links on this volume: exclusive create + copy
+            with temp.open("rb") as source, target.open("xb") as out:
+                try:
+                    shutil.copyfileobj(source, out, 1024 * 1024)
+                except BaseException:
+                    out.close()
+                    with contextlib.suppress(OSError):
+                        target.unlink()
+                    raise
+    except FileExistsError:
+        fail(
+            "NX_ALREADY_EXISTS",
+            f"{target.name} already exists; files are never overwritten",
+            field=field,
+            details={"path": str(target)},
+        )
+    finally:
+        with contextlib.suppress(OSError):
+            temp.unlink()
+    return target
+
 
 class Files:
-    """Atomic workspace writes: stage, then publish (architecture.md 3.2)."""
+    """Atomic workspace writes: stage, then publish (architecture.md 3.2).
+
+    Staged files live in ``.nx-mcp/staging/<operation_id>/``; the kernel removes
+    that folder when the call ends, committed or not (``cleanup``). ``publish``
+    never overwrites: a target that exists fails the whole publish before any
+    file is moved.
+    """
 
     def __init__(self, tx: Tx) -> None:
         self._tx = tx
         self._staged: list[tuple[Path, Path]] = []
         self.published = False
 
+    @property
+    def folder(self) -> Path:
+        root = Path(self._tx.workspace.root)
+        if not getattr(self, "_name", None):
+            self._name = self._tx.operation_id or uuid.uuid4().hex
+        return root / ".nx-mcp" / "staging" / self._name
+
     def stage(self, path) -> Path:
         """A temporary path to write; ``publish()`` moves it to ``path``."""
         target = Path(path)
-        root = Path(self._tx.workspace.root)
-        folder = root / ".nx-mcp" / "staging" / (self._tx.operation_id or uuid.uuid4().hex)
+        folder = self.folder
         folder.mkdir(parents=True, exist_ok=True)
         temp = folder / f"{len(self._staged)}_{target.name}"
         self._tx.touched = True
@@ -133,20 +209,31 @@ class Files:
         return temp
 
     def publish(self) -> list[Path]:
-        out = []
         for temp, target in self._staged:
             if not temp.exists():
                 fail("NX_EXPORT_FAILED", f"Nothing was written for {target.name}")
-        for temp, target in self._staged:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(temp, target)
-            self.published = True
-            out.append(target)
-        self._staged = []
+            if target.exists():
+                fail(
+                    "NX_ALREADY_EXISTS",
+                    f"{target.name} already exists; files are never overwritten",
+                    details={"path": str(target)},
+                )
+        out: list[Path] = []
+        staged, self._staged = self._staged, []
+        try:
+            for temp, target in staged:
+                publish_new(temp, target, field=None)
+                self.published = True
+                out.append(target)
+        except BaseException:
+            self._staged = staged[len(out) + 1 :]  # the rest stay staged until discard()
+            raise
+        self.cleanup()
         return out
 
     def discard(self) -> bool:
-        """Remove unpublished staged files; True when nothing remains."""
+        """Remove unpublished staged files and the staging folder; True when nothing
+        of them remains."""
         clean = True
         for temp, _target in self._staged:
             try:
@@ -154,7 +241,17 @@ class Files:
             except OSError:
                 clean = False
         self._staged = []
+        self.cleanup()
         return clean
+
+    def cleanup(self) -> None:
+        """Remove this call's staging folder (and ``staging`` itself once empty)."""
+        if self._staged or self._tx.parent is not None:
+            return  # files still waiting, or a batch child: the top-level call cleans up
+        folder = self.folder
+        shutil.rmtree(folder, ignore_errors=True)
+        with contextlib.suppress(OSError):
+            folder.parent.rmdir()  # only when no other call is staging
 
 
 class Display:
@@ -374,7 +471,7 @@ class Tx:
         self.touched = True
         mark = services.set_mark("NX MCP: scratch", visible=False)
         try:
-            yield
+            yield mark  # the scratch mark, e.g. for model.update(tx, mark)
         finally:
             try:
                 services.undo_to(mark)
@@ -393,36 +490,62 @@ class Tx:
 
     @contextlib.contextmanager
     def preview(self):
-        """Apply children temporarily under a visible mark that is always undone."""
+        """Apply children temporarily under a visible mark that is always undone.
+
+        Success sets ``outcome`` ``previewed``. When the body fails, its own error
+        propagates and ``outcome`` says what happened to the model: ``rolled_back``,
+        or ``partial`` when the undo failed too (``details.rollback_error``); an undo
+        that fails after a successful body raises ``NX_ROLLBACK_FAILED``.
+        """
         services = self._services
         part = services.work_part()
         before = services.snapshot(part) if part is not None else {}
         self.touched = True
         mark = services.set_mark("NX MCP: preview")
         previous, self.mark, self.mode = self.mark, mark, "preview"
+        failed = None
         try:
             yield
+        except BaseException as error:
+            failed = error
+            raise
         finally:
             self.mark, self.mode = previous, None
+            rollback_error = None
             try:
                 services.undo_to(mark)
                 services.delete_mark(mark)
                 services.clear_update_errors()
                 after = services.snapshot(part) if part is not None else {}
             except Exception as error:
+                rollback_error = error
+            if rollback_error is not None or set(after) != set(before) or self.children:
+                with contextlib.suppress(Exception):
+                    services.invalidate_parts(services.parts())
+            if failed is not None:
+                self.outcome = "rolled_back" if rollback_error is None else "partial"
+                if rollback_error is not None and isinstance(failed, NXError):
+                    failed.details["rollback_error"] = str(rollback_error)
+            elif rollback_error is not None:
+                self.outcome = "partial"
                 raise NXError(
-                    "NX_ROLLBACK_FAILED", f"The preview was not undone: {error}"
-                ) from error
-            if set(after) != set(before) or self.children:
-                services.invalidate_parts(services.parts())
-            self.outcome = "previewed"
+                    "NX_ROLLBACK_FAILED", f"The preview was not undone: {rollback_error}"
+                ) from rollback_error
+            else:
+                self.outcome = "previewed"
 
     # -- nested calls -----------------------------------------------------------------
-    def run(self, tool: str, args: dict, *, prior: list | None = None) -> dict:
-        """Run a catalogue tool as a child of this call (batch or preview)."""
+    def run(
+        self, tool: str, args: dict, *, prior: list | None = None, mode: str | None = None
+    ) -> dict:
+        """Run a catalogue tool as a child of this call (batch or preview).
+
+        ``mode`` ``"batch"`` admits batchable tools, ``"preview"`` previewable ones
+        (default: preview inside ``tx.preview()`` or under a session tool, else batch).
+        """
         from nx_mcp.core import catalogue, kernel
 
         spec = catalogue.get(tool)
         if spec is None:
             fail("NX_UNKNOWN_TOOL", f"Unknown tool {tool}", field="/tool")
-        return kernel.run_child(spec, args, self, prior=prior)
+        return kernel.run_child(spec, args, self, prior=prior, mode=mode)

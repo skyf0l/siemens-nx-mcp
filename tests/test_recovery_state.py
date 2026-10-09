@@ -217,12 +217,12 @@ def test_capability_filters_and_unit_conventions(rig):
 
     rig.session.DexManager = SimpleNamespace()
     rig.session.Measurement = SimpleNamespace()
-    one = rig.e._capabilities(tool="nx_list_components")
-    assert list(one["tools"]) == ["nx_list_components"] and one["units"] is None
+    one = rig.e._capabilities(tool="nx_measure_volume")
+    assert list(one["tools"]) == ["nx_measure_volume"] and one["units"] is None
     group = rig.e._capabilities(prefix="nx_sheet")
     assert all(name.startswith("nx_sheet") for name in group["tools"])
     assert group["tool_count"] < group["total_tool_count"]
-    for params in [{"tool": "nx_missing"}, {"tool": "nx_list_components", "prefix": "nx_"}]:
+    for params in [{"tool": "nx_missing"}, {"tool": "nx_measure_volume", "prefix": "nx_"}]:
         with pytest.raises(NXToolError):
             rig.e._capabilities(**params)
 

@@ -45,3 +45,17 @@ def test_object_reference_cannot_be_used_with_another_work_part():
         registry.resolve(reference.id, expected_kind="sketch", part_id="part-2")
 
     assert error.value.code == "NX_OBJECT_STALE"
+
+
+def test_an_identity_hit_keeps_the_live_object_when_nx_reuses_a_tag():
+    class Wrapper:
+        def __init__(self, tag):
+            self.Tag = tag
+
+    registry = ObjectRegistry()
+    dead = Wrapper(77)  # created, then undone inside the same call
+    first = registry.register(dead, kind="curve", name="LINE(1)", part_id="part-1")
+    live = Wrapper(77)  # NX hands the freed tag to the next object
+    second = registry.register(live, kind="curve", name="LINE(2)", part_id="part-1")
+    assert second.id == first.id and second.name == "LINE(2)"
+    assert registry.resolve(first.id) is live

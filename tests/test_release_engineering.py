@@ -18,29 +18,6 @@ def ff(rig, monkeypatch):
     return value
 
 
-@pytest.mark.parametrize(
-    "anchor",
-    [{}, {"version": 2}, {"version": 1, "owner_part": "part", "kind": "component", "handle": "h"}],
-)
-def test_anchor_schema_rejects_foreign_kinds(ff, anchor):
-    with pytest.raises(NXToolError):
-        ff.e._resolve_geometry_anchor(anchor)
-    ff.uf.Tag.AskTagOfHandle.assert_not_called()
-
-
-def test_anchor_owner_and_missing_entity_fail_closed(ff):
-    part = ff.e._work_part()
-    anchor = {"version": 1, "owner_part": part.FullPath, "kind": "body", "handle": "native"}
-    with pytest.raises(NXToolError, match="another part"):
-        ff.e._resolve_geometry_anchor({**anchor, "owner_part": "wrong"})
-    ff.uf.Tag.AskTagOfHandle.return_value = 912345
-    with pytest.raises(NXToolError, match="no longer exists"):
-        ff.e._resolve_geometry_anchor(anchor)
-    body = list(part.Bodies)[0]
-    ff.uf.Tag.AskTagOfHandle.return_value = body.Tag
-    assert ff.e._resolve_geometry_anchor(anchor)["object"]["kind"] == "body"
-
-
 @pytest.fixture
 def drawing(ff, monkeypatch):
     import sys
@@ -114,30 +91,6 @@ def test_detail_refresh_requires_surviving_parent(drawing):
     f.uf.Tag.AskTagOfHandle.return_value = -100
     with pytest.raises(NXToolError, match="parent no longer"):
         f.e._refresh_detail_boundaries()
-
-
-def test_assembly_refresh_unsatisfied_constraints_releases_network(drawing, monkeypatch):
-    import sys
-
-    f = drawing
-    monkeypatch.setitem(
-        sys.modules, "NXOpen.Positioning", NS(Constraint=NS(SolverStatus=NS(Solved=1)))
-    )
-    f.e._explosion_context = lambda: f.part
-    constraint = NS(GetConstraintStatus=lambda: 2)
-    f.e._assembly_constraints = lambda _: [constraint]
-    positioner = MagicMock()
-    f.part.ComponentAssembly.Positioner = positioner
-    with pytest.raises(NXToolError, match="did not solve"):
-        f.e._update_assembly_documentation()
-    positioner.ClearNetwork.assert_called_once()
-    positioner.EndAssemblyConstraints.assert_called_once()
-    f.part.Annotations.PartsLists = []
-    f.e._assembly_constraints = lambda _: []
-    f.e._explosions = lambda _: []
-    f.e._refresh_annotations = lambda: {"updated_count": 0}
-    result = f.e._update_assembly_documentation()
-    assert result["health"]["healthy"] and len(result["views"]) == 1
 
 
 def test_native_mass_unit_is_explicit(ff):

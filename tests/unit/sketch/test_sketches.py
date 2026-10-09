@@ -42,7 +42,7 @@ def test_frame_mismatch_rolls_back():
     [
         ({"principal": "xy", "x_axis": [0, 0, 1]}, "/placement/x_axis"),
         ({"principal": "xy", "x_axis": [0, 0, 0]}, "/placement/x_axis"),
-        ({"principal": "xy", "plane": "XY"}, "/placement"),
+        ({"principal": "xy", "plane": "XY"}, "/placement/plane"),
     ],
 )
 def test_invalid_placements_are_not_started(placement, field):

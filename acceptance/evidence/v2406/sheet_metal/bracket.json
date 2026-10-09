@@ -1,0 +1,328 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/bracket.json",
+  "scenario_sha256": "85a06b1469125ac6b6422dad06b10a15ce652d54b015a4f27e8af9d8ccf60526",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "tab",
+      "flange",
+      "flat_pattern"
+    ],
+    "nx_get_sheet_metal": [],
+    "nx_export_flat_pattern": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "sources": {
+    "nx_create_sheet_metal_feature": "930960bf7bece830681681cc55854ed1d19dc49e98adfeb81e6f8f4ddbed361d",
+    "nx_get_sheet_metal": "16f9e0ce886d58f2dde571b270310711b43f016ec738e9d6933f5e7cc5c40327",
+    "nx_export_flat_pattern": "357b13f2499c785920188a39c94a046a5d3681348a393f2ff8ec69b96c6db2ab"
+  },
+  "run_id": "20261009-183156-585a09",
+  "owner": "dom_sheet_metal",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-183156-585a09\\sheet_metal_bracket_585a09.prt",
+  "started": "2026-10-09T14:32:06Z",
+  "finished": "2026-10-09T14:32:18Z",
+  "passed": true,
+  "checks": 60,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.781,
+      "result_sha256": "ddc8ce854641ab7ccd67e4fdc7f4d262fb7ce754f906d3efeeac7d959644d92a"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.312,
+      "result_sha256": "087528bcb4ca7c49464a747b8025672ab6ddb4bada1746097e131bfa78e8951c"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.141,
+      "result_sha256": "073e263a4b9e6fd641668cbd22cba455ec0ca9e66999d89f948658566b932aee"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "46e33da1cc76a31587f84ee9bdd50d2377f34c2e293c124465981f257384ed5d"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "d72d3ea65e8401137ecd1491d2fa8b8d7281dc4eb3e213436408891b4a7eebe9"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "444279cb95c92f002030e9dd2a3d59ad243d40cbc8541571b9aadbbeb94092dd"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.125,
+      "result_sha256": "94a49ec557a04723f1c92a265889bf6ade4ab764773c26710d051b8e6f9a1947"
+    },
+    {
+      "index": 8,
+      "call": "nx_get_bounding_box",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.125,
+      "result_sha256": "99a40585a407513e164a03764aa25511aac64708678c74807d15e91e3fde1ec9"
+    },
+    {
+      "index": 9,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "122abb6a484611b332eb438f07d03ddb866975a087c82fa0b61124c4a38f6300"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.203,
+      "result_sha256": "bbf69173078738a0f3de2ad38a1115e48422ee7e142a5c8b91c29d77d5e0b1b4"
+    },
+    {
+      "index": 11,
+      "call": "nx_get_bounding_box",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.109,
+      "result_sha256": "541903fb66e9cc04992cecb9a9674e7fbc4f3b571f47d86984484dc27812ef70"
+    },
+    {
+      "index": 12,
+      "call": "nx_get_sheet_metal",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.125,
+      "result_sha256": "2c155a01742dcea074eb6e4b4d2f1478ca64b17b23261c70d99a3491d4b96266"
+    },
+    {
+      "index": 13,
+      "call": "nx_get_sheet_metal",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.125,
+      "result_sha256": "852fd7a4197b1bef636785336c0898e74343e9723e56b344fefed96935724ad6"
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.141,
+      "result_sha256": "fd447fcdb184d3f77bd8a6f827fa8fce04b99d27911dbd8169d28da477b4148d"
+    },
+    {
+      "index": 15,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.109,
+      "result_sha256": "5354340bb1284bd9c782ac9760f87b95f536bde944b01b13ad207eaf20ba5ab3"
+    },
+    {
+      "index": 16,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "5bd3f91e7f5e677154ea4c71bd7a528d3ec57b7e34f5357676af3df62b19a48d"
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.11,
+      "result_sha256": "2c370b62bf4eb4785021c0e1c6e3254bf1beb59147ef57164d6cc10e8257253b"
+    },
+    {
+      "index": 18,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "799828f13dd7caba5ece033ee3dd6c30d6957cc6830aa0f171ee2af79186323e"
+    },
+    {
+      "index": 19,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.078,
+      "result_sha256": "000a12c8e5ddc46beb56c36ea0c2b1b14dae2361646a3068c5a0a847d62489a0"
+    },
+    {
+      "index": 20,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.312,
+      "result_sha256": "90c7952a9ca3a95467560352fc8d2d0eab13fe5ac362936cf27b9679e7874eae"
+    },
+    {
+      "index": 21,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.125,
+      "result_sha256": "c4612c4f1385d4a0f766c782634b6cdc36f65499603ee35eb254dcef29ec80a6"
+    },
+    {
+      "index": 22,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 2.063,
+      "result_sha256": "cc384cf990509e6cb0f553b7600db51d860ce9ac543cdc18a9e0b1aaa4e0ae75"
+    },
+    {
+      "index": 23,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.234,
+      "result_sha256": "0fbb2fd5fe8d91da69209a79e02f8bb8d17b2e8b48fc40b6aa8690dc264be287"
+    },
+    {
+      "index": 24,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 2.266,
+      "result_sha256": "1e43f10bf3b01c751f9181ce34ff1f82e91313f003e0db50ce8bee119d9e2280"
+    },
+    {
+      "index": 25,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.187,
+      "result_sha256": "a1427dd92bb14dfbd3308b06149f2634c1e0027fdb619a59a567f7684e65a6e8"
+    },
+    {
+      "index": 26,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.188,
+      "result_sha256": "f3fdbde29d246d81c908093d0451c37bd576cdac8a96121931c30818e5ee7470"
+    },
+    {
+      "index": 27,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.172,
+      "result_sha256": "a836852408d6cff3c3ae2f566a612bc932936ad34e328dbb16519c55a1b78aa1"
+    },
+    {
+      "index": 28,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "0b5b40363cdb38bf2e80b08d357d54b6cc737835b8a50ff106b13a26b98e5153"
+    },
+    {
+      "index": 29,
+      "call": "nx_edit_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.265,
+      "result_sha256": "78b2d827ffdcc02afea9153eb603083fe9306be0aa94022fb2a1fcd7014e1573"
+    },
+    {
+      "index": 30,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 2.141,
+      "result_sha256": "506f0f07a1fdea16d9a7d60bbc6ac01ecbf2bd0804b6b7871888ec86c3ab0292"
+    },
+    {
+      "index": 31,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.266,
+      "result_sha256": "1834e4d755e51160272285d91f9c261a3899b0340f88a80a405821104a7eefb9"
+    },
+    {
+      "index": 32,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.171,
+      "result_sha256": "848cd364e7af69c1ff902935d8e66aae638e8db2b2d93b6c4da5c8607afecc6a"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-183156-585a09/sheet_metal_bracket_585a09.prt"
+    ],
+    "failed": []
+  }
+}

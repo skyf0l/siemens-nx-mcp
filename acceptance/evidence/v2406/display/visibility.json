@@ -1,0 +1,214 @@
+{
+  "format": 1,
+  "scenario": "acceptance/display/visibility.json",
+  "scenario_sha256": "b89bb92142395e8651386fb4fd995ebe18cc450adf5612b243aee726677e1940",
+  "domain": "display",
+  "covers": {
+    "nx_set_visibility": [],
+    "nx_restore_display": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "sources": {
+    "nx_set_visibility": "3b1d8839f5d965e78b25ac871ef21a44d724fa0cd46277911cef00b647c42a02",
+    "nx_restore_display": "38a3a4dcae0e7c7c7c015d3a74942a7be42cbc80c63e868747f1b94637731fcf"
+  },
+  "run_id": "20261009-191200-e8b2a8",
+  "owner": "dom_display",
+  "part": null,
+  "started": "2026-10-09T15:12:15Z",
+  "finished": "2026-10-09T15:12:16Z",
+  "passed": true,
+  "checks": 39,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.625,
+      "result_sha256": "b6157abb211de19a078b1b3353d7f1287d9056f92cc79cd6e030408d5f213f22"
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "57207f32e7fe052687c5af1c508063f1576ad61ee483cf5037ee2ee4142f074b"
+    },
+    {
+      "index": 3,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "5e0d9199d0d6d0a97777b1b4a1bf4f820c1fbceba526d976b9aee91d120b3a06"
+    },
+    {
+      "index": 4,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.11,
+      "result_sha256": "650f0dbde0253107e4e024acae5c3ea13da8a7382227fa6158c12de5746f4262"
+    },
+    {
+      "index": 5,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.031,
+      "result_sha256": "c2cb66663c5d0af81fd0dfb4894203f6911676ceac2967b3b1590f5c8e8ea059"
+    },
+    {
+      "index": 6,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "6b5761e6a49b0796969608552a652f70c0befe752504bef6337125d3818d32d4"
+    },
+    {
+      "index": 7,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.032,
+      "result_sha256": "2497475377e74f9b0db86028d7b271ab30f94ae8edeed5e3760989c83468782e"
+    },
+    {
+      "index": 8,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.062,
+      "result_sha256": "cbdd57197b7e18abf555d2a72947ca74bc62e8f26accc36c487415c8f486a53f"
+    },
+    {
+      "index": 9,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.047,
+      "result_sha256": "f0fc2a07d63cb1260cd226af3679324b7fa1fa647b084df30c4e49625e5968f8"
+    },
+    {
+      "index": 10,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.047,
+      "result_sha256": "71b0c59d720008f94f8d812667349cc58f222cacb38d4db4c5814fc824218e06"
+    },
+    {
+      "index": 11,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.031,
+      "result_sha256": "687cbd15512ae14dd34ced8cac328de325bd29517554f53859f1585120f04031"
+    },
+    {
+      "index": 12,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.031,
+      "result_sha256": "e1f6a9938a89c8b6d34d25d4e475730ae23a600c890b80f7860b46b282f1b749"
+    },
+    {
+      "index": 13,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "32c15b278437edf68ffc8c3a2418d316b714890dbc9db92c7846285cede0ea07"
+    },
+    {
+      "index": 14,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.047,
+      "result_sha256": "6a0a9c06106e02f8fbec03970104e448818eae0431a994f723080d71e9baf3f3"
+    },
+    {
+      "index": 15,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.031,
+      "result_sha256": "4c490229fec26c7fc02162c1bb9e638070fb6844549aac157ea788fcf3e7f7cc"
+    },
+    {
+      "index": 16,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.063,
+      "result_sha256": "bedfc715aa452fa75ccf65006491bde4d1df49f1d0d6c425eeff7c51ca8f05c1"
+    },
+    {
+      "index": 17,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.015,
+      "result_sha256": "628e038d938c739384dd48bac4da20b6bdb153ed443100f3d7829683f5b1f23d"
+    },
+    {
+      "index": 18,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.032,
+      "result_sha256": "a43c21ea2961e3feadaa22869e9a583d3673635f68b6c164ded70e27eec0878a"
+    },
+    {
+      "index": 19,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.031,
+      "result_sha256": "010a68d7018d026152df8413c6f6a1c0001988c7767fc4b045d71d7dd520b4f2"
+    },
+    {
+      "index": 20,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.031,
+      "result_sha256": "b179fe374cedfb2bd4646b2bd315aecb967c048de7b08500100416f7258e348a"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-191200-e8b2a8/display_visibility_drawing_block_mm.prt"
+    ],
+    "failed": []
+  }
+}

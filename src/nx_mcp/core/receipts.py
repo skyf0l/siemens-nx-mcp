@@ -54,8 +54,14 @@ class Receipts:
                 field="/operation_id",
             ) from error
 
-    def begin(self, tool: str, args: dict, operation_id: str, part_key: str | None):
-        """``(record, None)`` for a new operation or ``(None, replayed_envelope)``."""
+    def replay(self, tool: str, args: dict, operation_id: str) -> dict | None:
+        """The replayed envelope of a finished operation with this id, else None.
+
+        Raises ``NX_IDEMPOTENCY_CONFLICT`` for the same id with other arguments and
+        ``NX_OUTCOME_UNKNOWN`` while it is running or unknown. The kernel asks before
+        the workspace-path gate, so repeating a committed ``nx_create_part`` replays its
+        result instead of failing on the file it created.
+        """
         self.check_id(operation_id)
         digest = fingerprint(tool, args)
         existing = self.store.get(operation_id)
@@ -88,12 +94,20 @@ class Receipts:
                         }
                     )
                 replay["warnings"] = warnings
-                return None, replay
+                return replay
             fail(
                 "NX_OUTCOME_UNKNOWN",
                 f"Operation {operation_id} is {state}; query nx_get_operation before retrying",
                 details={"operation_id": operation_id, "state": state},
             )
+        return None
+
+    def begin(self, tool: str, args: dict, operation_id: str, part_key: str | None):
+        """``(record, None)`` for a new operation or ``(None, replayed_envelope)``."""
+        replayed = self.replay(tool, args, operation_id)
+        if replayed is not None:
+            return None, replayed
+        digest = fingerprint(tool, args)
         record = {
             "operation_id": operation_id,
             "method": tool,
@@ -111,6 +125,8 @@ class Receipts:
     def progress(self, record: dict, done=None, total=None) -> None:
         if record is None:
             return
+        if total is None:  # a child's checkpoint keeps the parent's announced total
+            total = (record.get("progress") or {}).get("total")
         record["progress"] = {"completed": done, "total": total, "at": timestamp()}
         self.store.put(record)
 

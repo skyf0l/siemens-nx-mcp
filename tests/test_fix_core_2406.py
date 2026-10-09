@@ -13,7 +13,6 @@ from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 from tests.fakes import Body
-from tests.test_display_lifecycle import section_builder
 
 
 def _error(rig, method, params):
@@ -34,8 +33,8 @@ NXList.__module__ = "NXOpen.Fake"
 
 
 def _outcome(rig, handler):
-    rig.e._handlers["nx_screenshot"] = handler  # NON_MODEL: no undo mark
-    error = _error(rig, "nx_screenshot", {})
+    rig.e._handlers["nx_checkpoint"] = handler  # NON_MODEL: no undo mark
+    error = _error(rig, "nx_checkpoint", {})
     assert sys.getprofile() is None
     return error.details["mutation_outcome"]
 
@@ -60,20 +59,6 @@ def test_possible_side_effects_keep_the_outcome_unknown(rig, tmp_path):
     assert _outcome(rig, lambda: _fail((tmp_path / "f.txt").read_text())) == "not_started"
 
 
-def test_real_non_model_handlers_report_not_started_for_argument_errors(rig, tmp_path):
-    cases = [
-        ("nx_inspection_report", {"path": str(tmp_path / "r.txt")}),
-        ("nx_export_explosion_animation", {"explosion": "x", "path": "a.gif", "frames": 1}),
-        ("nx_highlight_collisions", {"obj1": "obj_missing", "obj2": "obj_missing"}),
-    ]
-    for method, params in cases:
-        error = _error(rig, method, params)
-        assert error.details["mutation_outcome"] == "not_started", method
-    body = rig.ref(rig.part.Bodies[0] if rig.part.Bodies else Body())
-    error = _error(rig, "nx_highlight_collisions", {"obj1": body, "obj2": body})
-    assert error.details["mutation_outcome"] == "unknown"
-
-
 def test_nested_observers_mark_the_outer_call_touched():
     outer = side_effects.SideEffectObserver().start()
     inner = side_effects.SideEffectObserver().start()
@@ -84,29 +69,20 @@ def test_nested_observers_mark_the_outer_call_touched():
 
 
 @pytest.mark.asyncio
-async def test_sidecar_path_errors_are_not_started(tmp_path):
+async def test_sidecar_path_errors_are_not_started(tmp_path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
     bridge = AsyncMock()
     server = create_server(bridge, Workspace(tmp_path), surface="full")
-    result = await server.call_tool(
-        "nx_component_action",
-        {"component": "obj_x", "action": "replace", "part_path": "../outside.prt"},
-    )
-    assert result.structuredContent["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
-    assert result.structuredContent["details"]["mutation_outcome"] == "not_started"
+    result = await server.call_tool("nx_export_inspection_report", {"path": "../outside.zip"})
+    assert result.structuredContent["error"]["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
+    assert result.structuredContent["mutation_outcome"] == "not_started"
     bridge.call.assert_not_called()
     bridge.call.side_effect = NXToolError("NX_BRIDGE_UNAVAILABLE", "lost")
-    result = await server.call_tool("nx_save_presentation", {"path": "view.json"})
-    assert result.structuredContent["details"]["mutation_outcome"] == "unknown"
+    result = await server.call_tool("nx_export_inspection_report", {"path": "r.zip"})
+    assert result.structuredContent["mutation_outcome"] == "unknown"
 
 
-# ---- 3. deleting the last section switches view sectioning off --------------
-def test_deleting_the_last_section_turns_view_sectioning_off(rig):
-    section_builder(rig)
-    ref = rig.e._section_view([1, 2, 3], [0, 0, 1])["object"]["id"]
-    view = rig.part.ModelingViews.WorkView
-    assert view.DisplaySectioningToggle
-    rig.e._section_control(ref, "delete")
-    assert not rig.part.DynamicSections and not view.DisplaySectioningToggle
+# ---- 3. section delete turning sectioning off: tests/unit/display/test_sections.py ----
 
 
 # ---- 4. an expression edit solves the active sketch ------------------------

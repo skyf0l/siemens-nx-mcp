@@ -167,8 +167,11 @@ class FakeNX:
             return self.ok(method, {"part": {"id": "p:1", "kind": "part"}})
         if method == "nx_find_geometry":
             return {
-                "status": "success",
-                "items": [{"object": {"id": "obj_face_0001", "kind": "face"}}],
+                "ok": True,
+                "tool": method,
+                "mutation_outcome": "not_applicable",
+                "data": {"items": [{"id": "obj_face_0001", "kind": "face"}], "selector": None},
+                "page": {"offset": 0, "limit": 20, "returned": 1, "total": 1, "next_offset": None},
             }
         if method == "nx_list_objects":
             return {
@@ -211,7 +214,7 @@ SCENARIO = {
         {
             "call": "nx_create_datum_plane",
             "save": "dp",
-            "args": {"method": "offset", "reference": "$top.items.0.object.id", "distance": 15},
+            "args": {"method": "offset", "reference": "$top.data.items.0.id", "distance": 15},
             "expect": {
                 "data.origin.2": {"close": 25, "tol": 1e-9},
                 "mutation_outcome": "committed",

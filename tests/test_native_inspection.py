@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from nx_mcp.runtime import NXToolError
-from tests.fakes import Body, Component, point
+from tests.fakes import Body, Component
 
 pytestmark = pytest.mark.fake_nx
 
@@ -64,145 +64,6 @@ def native_pair(rig, result=1, temporary=True):
     return b
 
 
-@pytest.mark.parametrize(
-    "enum,label,volume", [(1, "penetration", 125), (2, "contact", 0), (3, "clear", 0)]
-)
-def test_native_interference_removes_temporary_solids(rig, enum, label, volume):
-    a = Body()
-    b = Body()
-    rig.part.Bodies.extend([a, b])
-    builder = native_pair(rig, enum)
-    result = rig.e._interference_pair(a, b)
-    assert result == {"classification": label, "interference_volume_mm3": volume}
-    assert rig.part.Bodies == [a, b] and not rig.session.marks
-    builder.Reset.assert_called_once()
-    builder.Destroy.assert_called_once()
-
-
-@pytest.mark.parametrize("failure", ["unresolved", "perform", "reset", "undo", "leaked_body"])
-def test_interference_failure_cleanup_and_partial_outcome(rig, failure):
-    a = Body()
-    b = Body()
-    builder = native_pair(rig, 99 if failure == "unresolved" else 1)
-    if failure == "perform":
-        builder.PerformCheck = Mock(side_effect=RuntimeError("native failure"))
-    if failure == "reset":
-        builder.Reset = Mock(side_effect=RuntimeError("reset failure"))
-    if failure == "undo":
-        rig.session.UndoToMark = Mock(side_effect=RuntimeError("undo failed"))
-    if failure == "leaked_body":
-        rig.session.UndoToMark = Mock()
-    with pytest.raises((NXToolError, RuntimeError)) as error:
-        rig.e._interference_pair(a, b)
-    assert builder.Destroy.call_count == 1
-    if failure in ["undo", "leaked_body"]:
-        assert error.value.code == "NX_ROLLBACK_FAILED"
-        assert error.value.details["mutation_outcome"] == "partial"
-    else:
-        assert not rig.part.Bodies
-
-
-@pytest.mark.parametrize("native", [True, False])
-def test_interference_rollback_failure_does_not_hide_the_original_error(rig, native):
-    a = Body()
-    b = Body()
-    builder = native_pair(rig, 99)  # 99: NX cannot classify the pair.
-    if native:
-        builder.PerformCheck = Mock(side_effect=RuntimeError("native failure"))
-    rig.session.UndoToMark = Mock(side_effect=RuntimeError("undo failed"))
-    with pytest.raises(NXToolError) as error:
-        rig.e._interference_pair(a, b)
-    assert error.value.code == ("NX_API_ERROR" if native else "NX_INTERFERENCE_UNRESOLVED")
-    assert ("native failure" if native else "classify") in error.value.message
-    assert error.value.details["mutation_outcome"] == "partial"
-    assert error.value.details["rollback_error"]["code"] == "NX_ROLLBACK_FAILED"
-    assert "undo failed" in error.value.details["rollback_error"]["message"]
-    assert builder.Destroy.call_count == 1
-
-
-def test_clearance_prunes_only_separated_boxes_and_returns_native_points(rig):
-    a = Body("a")
-    b = Body("b", [12, 0, 0, 22, 10, 10])
-    rig.part.Bodies.extend([a, b])
-    refs = [rig.ref(v) for v in (a, b)]
-    measured = Mock(return_value=(2.0, point(10, 0, 0), point(12, 0, 0), 123))
-    rig.session.Measurement = NS(GetMinimumDistance=measured)
-    skipped = rig.e._check_clearance(refs)
-    assert skipped["broad_phase_clear_pairs"] == 1 and measured.call_count == 0
-    result = rig.e._check_clearance(refs, minimum_clearance=3)
-    assert result["counts"]["below_clearance"] == 1
-    assert result["pairs"][0]["closest_points"] == [[10, 0, 0], [12, 0, 0]]
-    assert result["pairs"][0]["accuracy"] is None
-    assert rig.e._measure_distance(*refs)["distance"] == 2
-    native_pair(rig, 2, False)
-    measured.return_value = (0, point(), point(), None)
-    result = rig.e._check_interference(*refs)
-    assert result["counts"]["contact"] == 1
-    with pytest.raises(NXToolError):
-        rig.e._check_interference(refs[0], refs[0])
-    b.IsSolidBody = False
-    with pytest.raises(NXToolError):
-        rig.e._check_interference(*refs)
-    with pytest.raises(NXToolError):
-        rig.e._check_clearance()
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"minimum_clearance": -1},
-        {"minimum_clearance": float("inf")},
-        {"max_pairs": True},
-        {"max_pairs": 0},
-        {"max_pairs": 10001},
-        {"objects": []},
-        {"objects": ["one"]},
-        {"objects": "bad"},
-    ],
-)
-def test_invalid_clearance_rejected_before_geometry(rig, kwargs):
-    with pytest.raises(NXToolError):
-        rig.e._check_clearance(**kwargs)
-
-
-def test_pair_limit_prevents_partial_clearance_report(rig):
-    bodies = [Body(), Body(), Body()]
-    rig.part.Bodies.extend(bodies)
-    for body in bodies:
-        rig.ref(body)
-    measured = Mock()
-    rig.session.Measurement = NS(GetMinimumDistance=measured)
-    with pytest.raises(NXToolError) as error:
-        rig.e._check_clearance(max_pairs=1)
-    assert error.value.code == "NX_PAIR_LIMIT" and not measured.called
-    assert error.value.details["native_pair_count"] == 3
-    assert error.value.details["mutation_outcome"] == "not_started"
-
-
-def test_clearance_default_bounds_native_checks_and_reports_skipped_pairs(rig):
-    import inspect
-
-    from nx_mcp.inspection import DEFAULT_CLEARANCE_PAIRS, MAX_CLEARANCE_PAIRS
-
-    default = inspect.signature(rig.e._check_clearance).parameters["max_pairs"].default
-    assert default == DEFAULT_CLEARANCE_PAIRS == 100 and MAX_CLEARANCE_PAIRS == 10000
-    # 16 separated bodies: 120 pairs, more than the default, but none needs a native check.
-    bodies = [Body(f"b{i}", [20 * i, 0, 0, 20 * i + 10, 10, 10]) for i in range(16)]
-    rig.part.Bodies.extend(bodies)
-    for body in bodies:
-        rig.ref(body)
-    measured = Mock()
-    rig.session.Measurement = NS(GetMinimumDistance=measured)
-    result = rig.e._check_clearance()
-    assert result["pair_count"] == 120 and result["broad_phase_clear_pairs"] == 120
-    assert result["native_pair_count"] == 0 and result["max_pairs"] == 100
-    assert "120 of 120 pairs skipped the native check" in result["warnings"][0]
-    assert not measured.called
-    with pytest.raises(NXToolError) as error:
-        rig.e._check_clearance(include_clear=True)  # Every pair would be native.
-    assert error.value.code == "NX_PAIR_LIMIT"
-
-
 def image_builder(rig, payload=None, fail=False):
     b = NS(Destroy=Mock(), SetCustomBackgroundColor=Mock())
 
@@ -225,7 +86,9 @@ def image_builder(rig, payload=None, fail=False):
 )
 def test_viewport_metadata_and_style_restoration(rig, background, style):
     b = image_builder(rig)
-    result = rig.e._screenshot(width=320, height=240, background=background, style=style, fit=True)
+    result = rig.e._capture_view(
+        width=320, height=240, background=background, style=style, fit=True
+    )
     assert result["resolution"] == [320, 240] and not result["warnings"]
     assert result["capture_kind"] == "nx_model_viewport"
     assert rig.part.ModelingViews.WorkView.RenderingStyle == "shaded"
@@ -285,17 +148,3 @@ def test_failed_builder_destroy_still_restores_view_style(rig):
     with pytest.raises(RuntimeError):
         rig.e._capture_view(style="wireframe")
     assert rig.part.ModelingViews.WorkView.RenderingStyle == "shaded"
-
-
-def test_read_only_cleanup_failure_keeps_partial_outcome_in_receipt(rig):
-    a = Body()
-    b = Body()
-    rig.part.Bodies.extend([a, b])
-    refs = [rig.ref(v) for v in (a, b)]
-    native_pair(rig)
-    rig.session.Measurement = NS(GetMinimumDistance=lambda *_: (0, point(), point(), None))
-    rig.session.UndoToMark = Mock(side_effect=RuntimeError("undo failed"))
-    with pytest.raises(NXToolError) as error:
-        rig.e.execute("nx_check_interference", dict(zip(["obj1", "obj2"], refs, strict=True)))
-    assert error.value.code == "NX_ROLLBACK_FAILED"
-    assert error.value.details["mutation_outcome"] == "partial"

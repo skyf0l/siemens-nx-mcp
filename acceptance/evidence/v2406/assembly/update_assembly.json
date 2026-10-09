@@ -1,0 +1,313 @@
+{
+  "format": 1,
+  "scenario": "acceptance/assembly/update_assembly.json",
+  "scenario_sha256": "b36d0090a3a1557d1725d959af1cab84db4a6b644e88a512afb451a538f2bb01",
+  "domain": "assembly",
+  "covers": {
+    "nx_update_assembly": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "sources": {
+    "nx_update_assembly": "88fc7a705e6734413e61f96831f52d95a26223900ab7b77f6a1ac687d7b1f0ce"
+  },
+  "run_id": "20261009-190626-681246",
+  "owner": "dom_inspection",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-190626-681246\\assembly_update_assembly_681246.prt",
+  "started": "2026-10-09T15:08:31Z",
+  "finished": "2026-10-09T15:08:36Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.625,
+      "result_sha256": "dbb14590e7ea7e3f49366d2d3faaa9150084e896e73074b644f60e9ae0f5b44f"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "0bf4cd4986f74874ba8a2464bc5842d7027ccbcd0e8c2b7a6b0c24947de72251"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "c5211e20b2406efe7ed20ea40c4356e3acccc8c5230bc0e1d43bfb77c9d50184"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "938d76888f334897686d43dbc821896073bcefe0a38c58a4986169b17230dbf4"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "b85d474ddc4a9c97f6f1a953c1371110166ae4c7c315e28c1bee5e8f0f9c30dc"
+    },
+    {
+      "index": 6,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.156,
+      "result_sha256": "71db95599703ba7ab35227795b2417069645a4a9413c290880638d46bdbea3dd"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.344,
+      "result_sha256": "0f24783fe8305c34cf42ca4c2b03975861af3f94c21e6495a1a79def9f8b1e72"
+    },
+    {
+      "index": 8,
+      "call": "nx_update_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.062,
+      "result_sha256": "c41f34a2768a2a04f9023a4675ff93e691318a41bcfe95eb28a4c7e2a6b54910"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "6d019d7524cf1f40482f581a0bf35d9e6fa05d3f05e0adda32171677edda367e"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.109,
+      "result_sha256": "d32cae7cd5cdbffe1911f3a3e5f0d23507b6277ae38072e5ac4c5d6f2fab660f"
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "3c787588686eff40cc438dafb81ed0d0b55d439eedadd51dc12271d2ea4c624a"
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "7c163d5e671289f916152c4403009989dd24f239ecb2877127a49ea4bc69f6db"
+    },
+    {
+      "index": 13,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.016,
+      "result_sha256": "ae474a4e942fce064da0e8cc13bcd073274016abd141224e14053757477a85b2"
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "cbb5a562fdaf12b07cbb8dd3c96e36590cc5025cfa5483e10f7da8f570389f17"
+    },
+    {
+      "index": 15,
+      "call": "nx_create_assembly_constraint",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "03db1c1d9a293d30ce3ca9f491b8360d07772d705dc3b27cf04346876a9715b1"
+    },
+    {
+      "index": 16,
+      "call": "nx_create_assembly_constraint",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "2a37fb813b28af5eef3cc0844920ab2e747538da98c60caff798a3f91e454b8f"
+    },
+    {
+      "index": 17,
+      "call": "nx_list_components",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.031,
+      "result_sha256": "831aee5ced4a809fb115c9ec7fe485925c39aa55935e65782ab2c3f6fa5d4a46"
+    },
+    {
+      "index": 18,
+      "call": "nx_create_explosion",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "d45465a4e466c7bd8a447c13ce41a9599526b367372f28bd5fd71173150479de"
+    },
+    {
+      "index": 19,
+      "call": "nx_edit_explosion",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.157,
+      "result_sha256": "77be9f9399e0bcbe59fec53ecb5887d7fc498bbb0e97df56ef6c436b4f5416e6"
+    },
+    {
+      "index": 20,
+      "call": "nx_create_explosion_trace",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "8b64552cf32b4fe88cddeb75e9924b9f19f4e8b2f056f861e016268f71fdefe5"
+    },
+    {
+      "index": 21,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.109,
+      "result_sha256": "797b19cc67875d218168919ef9b2451421122522e555c3014f31136f02d12d40"
+    },
+    {
+      "index": 22,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.734,
+      "result_sha256": "6aaa1eb338cd22cab4d5377d2e623155d7b33e3b2144b72a505753076e853cb6"
+    },
+    {
+      "index": 23,
+      "call": "nx_activate_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "1dc0365946858771e4de9fc6dc193e145d5dc7bae76b9bdeb3e6c520d498d133"
+    },
+    {
+      "index": 24,
+      "call": "nx_activate_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.109,
+      "result_sha256": "fd368d89d748f56f5e4a9a527d1af380b09d4f7ebf618e5d2ba52e8d8efe46fe"
+    },
+    {
+      "index": 25,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "beebe7b1ed83a48ad6db1be2b8e198b7f35481ea3fac3e21b7b0e63b9c1341dd"
+    },
+    {
+      "index": 26,
+      "call": "nx_activate_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "cc70eefe12fee074a91a622fa63e4c73461b48e5b1281ac203abd6d26128ca4b"
+    },
+    {
+      "index": 27,
+      "call": "nx_update_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 10,
+      "seconds": 0.141,
+      "result_sha256": "01816de9d1c585d15bfe9eff375e2a29c0bd86213a20f81c5361352abd7c89f9"
+    },
+    {
+      "index": 28,
+      "call": "nx_list_components",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "fa682375dea3210782bbe3ee7c70d78378ffbe1c978f4f75f893d9ed4ff86f5e"
+    },
+    {
+      "index": 29,
+      "call": "nx_edit_explosion_trace",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.187,
+      "result_sha256": "d05f58924e1ba7694dd9aee7b0d1674b03157eb54535646f5b684b981fd45628"
+    },
+    {
+      "index": 30,
+      "call": "nx_edit_assembly_constraint",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "3eb8f2a5fa6522a5e4646666423d81376b32d8cef9c7bec3d8b5ef81e9d827c5"
+    },
+    {
+      "index": 31,
+      "call": "nx_update_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.172,
+      "result_sha256": "ba4c9f62a98a0a2250e6c5eef1b5db52e306488158cf1de32473e6e45b1938db"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-190626-681246/assembly_update_assembly_681246.prt",
+      "smoke/20261009-190626-681246/assembly_update_assembly_parts_files_block_mm.prt",
+      "smoke/20261009-190626-681246/upd/asm_upd_pin.prt"
+    ],
+    "failed": []
+  }
+}

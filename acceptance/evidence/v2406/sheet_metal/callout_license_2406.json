@@ -1,0 +1,145 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/callout_license_2406.json",
+  "scenario_sha256": "83c74993b1372ce6569f59e9ffaf03e3750e4306af1ef80a8332100f2b631140",
+  "domain": "sheet_metal",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "60dc37481b456eb8095aec4dbe78bede65192e46",
+  "sources": {},
+  "run_id": "20261009-183156-585a09",
+  "owner": "dom_sheet_metal",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-183156-585a09\\sheet_metal_callout_license_2406_585a09.prt",
+  "started": "2026-10-09T14:32:23Z",
+  "finished": "2026-10-09T14:32:27Z",
+  "passed": true,
+  "checks": 8,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.813,
+      "result_sha256": "f16beae9c4c9eb60f07b5e8638c50040ff5359d15611217b36dddb22866393d3"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.5,
+      "result_sha256": "b4130d098598e784db1d6540a8660c1ef095488a843670af807f38ff44b362c8"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "f86a525d005a7304a4b416a2d7c0a4a040a176e986ddce120e09219102a9d20f"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "ba9b591a8f39b7db387e66b10c8c80aa57c862e529e0dfd7ce99a07be0c30b00"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "d1fb4fbbe9306388117fac6588f1bf4b73b6e0a206f97dcef7aef38e01e70875"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "592942aa6a2c0812776aa20b40720ae1249259372812faf493955fb9dff4ef5f"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "dd8efbb9936dddfa02c2fbd18941b7868618fda4639c6bdb7972d9943d5c39ba"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.156,
+      "result_sha256": "5032ec7f93be43085bc78d93f9302d6700c9d5b2617f019662063c3877cd215e"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.234,
+      "result_sha256": "7b6ee7787998e7e10a25801fb0c299b42e40c1e38e3ac0b8a01a0a05a4d01969"
+    },
+    {
+      "index": 10,
+      "call": "nx_get_sheet_metal",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.11,
+      "result_sha256": "7daf9a2590d3f89bbfedc4723f89e25e66c4450eefe9fb6233cbb59238574a08"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_callout",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.203,
+      "result_sha256": "a426e9e2e952ddd554186497c6f2e6927e46ef5aed13f2e493c681589aa087db"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_callout",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.187,
+      "result_sha256": "6fa1d7bc7ee47a233427853f1893554abc5c1e2c1a115b76c5f11e45e1caa920"
+    },
+    {
+      "index": 13,
+      "call": "nx_get_sheet_metal",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.11,
+      "result_sha256": "782f47f2efcce6f5c1fc6fbfbd84390b4920572eb492bf85df49b275a65c411e"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-183156-585a09/sheet_metal_callout_license_2406_585a09.prt"
+    ],
+    "failed": []
+  }
+}

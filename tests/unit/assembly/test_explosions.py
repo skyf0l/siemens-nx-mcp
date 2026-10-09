@@ -1,0 +1,273 @@
+import json
+
+import pytest
+
+from nx_mcp.core.catalogue import hooks
+from nx_mcp.domains.assembly import exploded
+from tests.kit import run
+from tests.unit.assembly.fakes import STATUS, assembly_nx, place
+
+RZ90 = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+I3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+
+
+def flat(m):
+    return [v for row in m for v in row]
+
+
+@pytest.fixture
+def nx():
+    nx = assembly_nx()
+    nx.a = place(nx, nx.blk, "A")
+    nx.b = place(nx, nx.blk, "B", (30, 0, 0))
+    nx.sub = place(nx, nx.pin, "SUB")
+    nx.n = nx.assembly.add(nx.blk, "N", ([0, 10, 0], I3), parent=nx.sub)
+    nx.n.ref = nx.ref_of(nx.n, "component")
+    return nx
+
+
+def explosion(nx, name="E1"):
+    ok = run(nx, "nx_create_explosion", name=name)
+    assert ok.ok, ok
+    return ok.data["explosion"]["id"]
+
+
+def test_create_explosion_starts_at_assembled_poses(nx):
+    ok = run(nx, "nx_create_explosion", name="E1")
+    assert ok.ok and ok.data["component_count"] == 4 and ok.data["views"] == []
+    dup = run(nx, "nx_create_explosion", name="e1")
+    assert dup.error["code"] == "NX_NAME_CONFLICT" and dup.mutation_outcome == "not_started"
+    spaced = run(nx, "nx_create_explosion", name="E2 ")
+    assert spaced.error["field"] == "/name"
+    nx.session.Parts.Display = nx.blk
+    other = run(nx, "nx_create_explosion", name="E3")
+    assert other.error["code"] == "NX_WRONG_PART_CONTEXT"
+
+
+def test_edit_explosion_sets_absolute_nested_poses_and_keeps_assembled_ones(nx):
+    ex = explosion(nx)
+    ok = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.sub.ref, "pose": {"translation": [0, 0, 50]}},
+        {"component": nx.n.ref, "pose": {"translation": [0, 0, 100], "rotation": RZ90}},
+        {"component": nx.b.ref, "pose": {"translation": [60, 0, 0], "rotation": RZ90}},
+    ])  # fmt: skip
+    assert ok.ok, ok
+    rows = {r["component"]["id"]: r for r in ok.data["components"]}
+    assert rows[nx.n.ref]["translation"] == pytest.approx([0, 0, 100])
+    assert flat(rows[nx.n.ref]["rotation"]) == pytest.approx(flat(RZ90))
+    assert rows[nx.b.ref]["assembled_translation"] == [30, 0, 0] and nx.b.t == [30, 0, 0]
+    assert ok.data["moved_count"] == 3
+    # Resetting the subassembly drops only its own post-transform.
+    reset = run(nx, "nx_edit_explosion", explosion=ex, reset_components=[nx.sub.ref])
+    assert reset.ok, reset
+    info = run(nx, "nx_get_explosion", explosion=ex, limit=10)
+    got = {r["component"]["id"]: r for r in info.data["components"]}
+    assert got[nx.sub.ref]["translation"] == [0, 0, 0]
+    assert got[nx.n.ref]["translation"] == pytest.approx([0, 0, 50])
+    again = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "pose": {"translation": [60, 0, 0], "rotation": RZ90}}])  # fmt: skip
+    assert again.ok and again.data["moved_count"] == 0
+
+
+def test_edit_explosion_rejections_change_nothing(nx):
+    ex = explosion(nx)
+    nothing = run(nx, "nx_edit_explosion", explosion=ex)
+    assert nothing.error["code"] == "NX_INVALID_ARGUMENT"
+    twice = run(nx, "nx_edit_explosion", explosion=ex, reset_components=[nx.a.ref],
+                placements=[{"component": nx.a.ref, "pose": {"translation": [1, 0, 0]}}])  # fmt: skip
+    assert twice.error["field"] == "/placements/0/component"
+    nx.b.IsSuppressed = True
+    hidden = run(nx, "nx_edit_explosion", explosion=ex, reset_components=[nx.b.ref])
+    assert hidden.error["field"] == "/reset_components/0"
+    skew = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.a.ref, "pose": {"translation": [1, 0, 0],
+                                         "rotation": [[1, 0, 0], [0, 1, 0], [0, 0, -1]]}}])  # fmt: skip
+    assert skew.error["field"] == "/placements/0/pose/rotation"
+    assert all(not e.deltas for e in nx.assembly.explosions)
+
+
+def test_explosion_readback_failure_rolls_back(nx):
+    ex = explosion(nx)
+    api = nx.uf.Assem
+    explode = api.ExplodeComponent
+    api.ExplodeComponent = lambda e, c, m: explode(
+        e, c, [r[:3] + [r[3] + 1] for r in m[:3]] + [m[3]]
+    )
+    bad = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.a.ref, "pose": {"translation": [0, 0, 40]}}])  # fmt: skip
+    assert bad.error["details"]["check"].startswith("placements[0]")
+    assert bad.mutation_outcome == "rolled_back"
+    assert not nx.assembly.explosions[0].deltas
+
+
+def test_display_attaches_and_detaches_an_explosion(nx):
+    ex = explosion(nx)
+    view = nx.asm.ModelingViews.WorkView
+    ok = run(nx, "nx_set_explosion_display", explosion=ex)
+    assert ok.ok and nx.assembly.view_explosion[int(view.Tag)] == int(nx.assembly.explosions[0].Tag)
+    assert ok.data["view_kind"] == "modeling_view" and nx.fitted
+    listed = hooks("lister")["explosion"](nx.tx, None, None)
+    assert listed[0][2]["details"]["views"] == [ok.data["view"]["id"]]
+    assembled = run(nx, "nx_set_explosion_display")
+    assert assembled.ok and nx.assembly.view_explosion[int(view.Tag)] == 0
+    both = run(nx, "nx_set_explosion_display", drawing_view="v:1", model_view="mv:2")
+    assert both.error["field"] == "/model_view"
+
+
+def test_delete_refuses_an_explosion_in_use(nx):
+    ex = explosion(nx)
+    run(nx, "nx_set_explosion_display", explosion=ex)
+    obj = nx.assembly.explosions[0]
+    with pytest.raises(Exception) as error:
+        hooks("deleter")["explosion"](nx.tx, [obj])
+    assert error.value.code == "NX_IN_USE"
+    run(nx, "nx_set_explosion_display")
+    hooks("deleter")["explosion"](nx.tx, [obj])
+    assert not nx.assembly.explosions
+
+
+def trace(nx, ex, start=0, end=0):
+    e1 = nx.a.edge([0, 0, 10], [40, 0, 10])
+    e2 = nx.b.edge([0, 0, 0], [0, 20, 0])
+    return run(nx, "nx_create_explosion_trace", explosion=ex, start_edge=nx.ref_of(e1, "edge"),
+               end_edge=nx.ref_of(e2, "edge"), start_percent=start, end_percent=end)  # fmt: skip
+
+
+def test_trace_anchors_follow_explosion_edits(nx):
+    ex = explosion(nx)
+    ok = trace(nx, ex, 25, 100)
+    assert ok.ok, ok
+    assert ok.data["start"] == pytest.approx([10, 0, 10]) and ok.data["end"] == pytest.approx(
+        [30, 20, 0]
+    )
+    line = nx.asm.Tracelines[0]
+    records = json.loads(line.GetStringAttribute(exploded.TRACE_ATTRIBUTE))
+    assert [r["percent"] for r in records] == [25, 100]
+    moved = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.a.ref, "pose": {"translation": [0, 0, 40]}}])  # fmt: skip
+    assert moved.ok
+    assert exploded.endpoints(line)[0] == pytest.approx([10, 0, 50])
+    edited = run(nx, "nx_edit_explosion_trace", trace=ok.data["trace"]["id"], start_percent=50,
+                 end_offset=3)  # fmt: skip
+    assert edited.ok and edited.data["start"] == pytest.approx([20, 0, 50])
+    assert edited.data["end_offset"] == 3
+    got = run(nx, "nx_get_explosion", explosion=ex)
+    assert got.data["traces"] == [ok.data["trace"]]
+
+
+def test_trace_rules(nx):
+    ex = explosion(nx)
+    own = nx.ref_of(nx.blk.Bodies[0] if nx.blk.Bodies else nx.a.face(), "face")
+    bad = run(nx, "nx_create_explosion_trace", explosion=ex, start_edge=own, end_edge=own)
+    assert bad.error["code"] == "NX_WRONG_KIND"
+    nx.b.IsSuppressed = True
+    hidden = trace(nx, ex)
+    assert hidden.error["field"] == "/end_edge" and hidden.mutation_outcome == "not_started"
+    nothing = run(nx, "nx_edit_explosion_trace", trace="tl:999")
+    assert nothing.error["code"] == "NX_INVALID_ARGUMENT"
+
+
+def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
+    from nx_mcp.kit import capture
+
+    ex = explosion(nx)
+    run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "pose": {"translation": [30, 0, 60], "rotation": RZ90}}])  # fmt: skip
+    trace(nx, ex)
+    seen = []
+
+    def render(tx, path, width, height, **_kw):
+        b = nx.assembly.explosions[0].pose(nx.b)
+        seen.append(b[0][2])
+        path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\0" * 8 + width.to_bytes(4, "big")
+                         + height.to_bytes(4, "big"))  # fmt: skip
+        return width, height
+
+    monkeypatch.setattr(capture, "studio_png", render)
+    ok = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/e.html", frames=3,
+             fps=2, width=320, height=240)  # fmt: skip
+    assert ok.ok, ok
+    assert seen == pytest.approx([0, 30, 60])
+    assert ok.data["frame_count"] == 3 and ok.data["path"] == "out/e.html"
+    assert (nx.root / "out" / "e.html").read_text().count("data:image/png;base64,") == 3
+    assert nx.assembly.explosions[0].pose(nx.b)[0] == pytest.approx([30, 0, 60])
+    view = nx.asm.ModelingViews.WorkView
+    assert nx.assembly.view_explosion.get(int(view.Tag), 0) == 0
+    again = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/e.html")
+    assert again.error["code"] == "NX_ALREADY_EXISTS"
+
+
+def test_animation_failure_leaves_no_file_and_restores_the_view(nx, monkeypatch):
+    from nx_mcp.kit import capture
+
+    ex = explosion(nx)
+
+    def fail(*_a, **_k):
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(capture, "studio_png", fail)
+    bad = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/f.html", frames=2)
+    assert not bad.ok and not (nx.root / "out" / "f.html").exists()
+    view = nx.asm.ModelingViews.WorkView
+    assert nx.assembly.view_explosion.get(int(view.Tag), 0) == 0
+
+
+def test_update_assembly_solves_and_refreshes(nx):
+    ok = run(nx, "nx_create_assembly_constraint", type="fix", component=nx.a.ref)
+    ex = explosion(nx)
+    trace(nx, ex)
+    done = run(nx, "nx_update_assembly")
+    assert done.ok, done
+    assert [c["status"] for c in done.data["constraints"]] == ["Solved"]
+    assert len(done.data["traces"]) == 1 and done.data["documentation_complete"]
+    nx.assembly.solver_status = STATUS.NotSolved
+    bad = run(nx, "nx_update_assembly")
+    assert (
+        bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED" and bad.mutation_outcome == "rolled_back"
+    )
+    assert ok.ok
+
+
+def test_reference_set_keeps_only_requested_members_when_nx_seeds_components(nx):
+    """NX 2406 seeds a new assembly reference set with every component."""
+    ok = run(nx, "nx_create_reference_set", name="ASMSET", objects=[nx.a.ref])
+    assert ok.ok and ok.data["member_count"] == 1
+    assert ok.data["members"][0]["id"] == nx.a.ref
+    assert nx.asm.reference_sets[0].Name == "ASMSET"
+    dup = run(nx, "nx_create_reference_set", name="asmset", objects=[nx.b.ref])
+    assert dup.error["code"] == "NX_ALREADY_EXISTS" and dup.mutation_outcome == "not_started"
+    builtin = run(nx, "nx_create_reference_set", name="Empty", objects=[nx.b.ref])
+    assert builtin.error["field"] == "/name"
+    nested = run(nx, "nx_create_reference_set", name="X", objects=[nx.n.ref])
+    assert nested.ok  # a nested occurrence still belongs to the work part
+    listed = hooks("lister")["reference_set"](nx.tx, None, None)
+    assert [r[2]["details"]["member_count"] for r in listed] == [1, 1]
+
+
+def test_reference_set_membership_mismatch_rolls_back(nx):
+    create = nx.asm.CreateReferenceSet
+
+    def lossy():
+        rs = create()
+        rs.AddObjectsToReferenceSet = lambda objs: rs.members.clear()
+        return rs
+
+    nx.asm.CreateReferenceSet = lossy
+    bad = run(nx, "nx_create_reference_set", name="LOSSY", objects=[nx.a.ref])
+    assert bad.error["details"]["check"] == "members" and bad.mutation_outcome == "rolled_back"
+
+
+def test_component_and_trace_deleters_and_listers(nx):
+    with pytest.raises(Exception) as error:
+        hooks("deleter")["component"](nx.tx, [nx.n])
+    assert error.value.code == "NX_WRONG_OWNER"
+    hooks("deleter")["component"](nx.tx, [nx.b])
+    assert nx.b in nx.assembly.deleted
+    run(nx, "nx_create_assembly_constraint", type="fix", component=nx.a.ref)
+    rows = hooks("lister")["assembly_constraint"](nx.tx, None, None)
+    assert rows[0][2]["type"] == "fix" and rows[0][2]["details"]["components"] == [nx.a.ref]
+    made = run(nx, "nx_create_component_pattern", component=nx.a.ref,
+               layout={"linear": {"direction": [1, 0, 0], "count": 2, "spacing": 5}})  # fmt: skip
+    assert made.ok
+    patterns = hooks("lister")["component_pattern"](nx.tx, None, None)
+    assert patterns[0][2]["type"] == "linear" and patterns[0][2]["details"]["count"] == 2

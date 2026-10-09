@@ -80,7 +80,34 @@ class PathArg:
     suffixes: tuple[str, ...] = ()
 
 
-MARKERS = (Doc, Range, Items, Text, RefKind, Quantity, PathArg)
+@dataclass(frozen=True)
+class Json:
+    """A free-form JSON object: the arguments of another tool (``nx_run_batch``),
+    checked against that tool's own schema later. Bounded by key count and size."""
+
+    max_keys: int = 40
+    max_chars: int = 16000
+
+
+MARKERS = (Doc, Range, Items, Text, RefKind, Quantity, PathArg, Json)
+
+
+def check_json(value, marker: Json) -> dict:
+    """``value`` as a bounded JSON object, else ValueError (both gate-1 validators)."""
+    import json as _json
+
+    if not isinstance(value, dict):
+        raise ValueError("expected an object")
+    if len(value) > marker.max_keys:
+        raise ValueError(f"at most {marker.max_keys} keys")
+    try:
+        text = _json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"must be finite JSON ({error})") from None
+    if len(text) > marker.max_chars:
+        raise ValueError(f"at most {marker.max_chars} characters of JSON")
+    return value
+
 
 # ---------------------------------------------------------------------------
 # References
@@ -136,12 +163,12 @@ def expand_kinds(kinds) -> frozenset[str]:
 
 def RefTo(*kinds: str):  # noqa: N802 - reads as a type in signatures
     """A reference to one of ``kinds`` (any kind when empty)."""
-    what = "/".join(kinds) if kinds else "object"
+    what = "/".join(kinds) if kinds else "any"
     return Annotated[
         str,
         Text(128, REF_PATTERN),
         RefKind(*kinds),
-        Doc(f"Reference ({what}) from an earlier call"),
+        Doc(f"Ref: {what}"),
     ]
 
 
@@ -152,20 +179,16 @@ Ref = RefTo()
 
 Point2 = Annotated[tuple[float, float], Doc("[x, y] sketch-local, part units")]
 SheetPoint = Annotated[tuple[float, float], Doc("[x, y] on the sheet, sheet units")]
-Point3 = Annotated[tuple[float, float, float], Doc("[x, y, z] work-part absolute, part units")]
-Vec3 = Annotated[tuple[float, float, float], Doc("Nonzero direction [x, y, z]")]
+Point3 = Annotated[tuple[float, float, float], Doc("[x, y, z] absolute, part units")]
+Vec3 = Annotated[tuple[float, float, float], Doc("Direction [x, y, z]")]
 Mat3 = Annotated[
     tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]],
-    Doc("Orthonormal right-handed rotation, row-major"),
+    Doc("Rotation matrix, row-major"),
 ]
 
-Length = Annotated[
-    float | str, Quantity("length"), Doc("Number in part units, or '10 mm' / '0.5 in'")
-]
-SheetLength = Annotated[
-    float | str, Quantity("sheet_length"), Doc("Number in sheet units, or '10 mm'")
-]
-Angle = Annotated[float | str, Quantity("angle"), Doc("Number in degrees, or '0.5 rad'")]
+Length = Annotated[float | str, Quantity("length"), Doc("Part units, or '10 mm'/'0.5 in'")]
+SheetLength = Annotated[float | str, Quantity("sheet_length"), Doc("Sheet units, or '10 mm'")]
+Angle = Annotated[float | str, Quantity("angle"), Doc("Degrees, or '0.5 rad'")]
 Units = Literal["mm", "in"]
 # Hints in the target drawing sheet's units: a tool using one of them gets the
 # sheet resolved from its arguments and ``tx.units["sheet_length"]`` (gate 9).
@@ -175,11 +198,9 @@ SHEET_HINTS = (SheetPoint, SheetLength)
 SHEET_KINDS = frozenset(
     {"drawing_sheet", "drawing_view", "annotation", "dimension", "drawing_table"}
 )
-Name = Annotated[
-    str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_ .\-]{0,63}$"), Doc("Name for the new object")
-]
+Name = Annotated[str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_ .\-]{0,63}$"), Doc("Object name")]
 Offset = Annotated[int, Range(ge=0, le=1_000_000), Doc("First row to return")]
-PageLimit = Annotated[int, Range(ge=1, le=200), Doc("Rows per page, at most 200")]
+PageLimit = Annotated[int, Range(ge=1, le=200), Doc("Rows per page")]
 
 
 def PathTo(mode: str, *suffixes: str):  # noqa: N802 - reads as a type in signatures
@@ -188,12 +209,14 @@ def PathTo(mode: str, *suffixes: str):  # noqa: N802 - reads as a type in signat
         str,
         Text(260),
         PathArg(mode, tuple(s.lower() for s in suffixes)),  # type: ignore[arg-type]
-        Doc("Workspace-relative path (or absolute inside the workspace)"),
+        Doc("Workspace path"),
     ]
 
 
 PathIn = PathTo("read")
 PathOut = PathTo("new")
+# Another tool's arguments (batch and preview children), checked by that tool's schema.
+Arguments = Annotated[dict, Json(), Doc("The tool's own arguments")]
 
 
 class PrincipalPlane(TypedDict):
@@ -280,6 +303,8 @@ QUANTITY_PATTERNS = {
     "sheet_length": LENGTH_PATTERN,
     "angle": ANGLE_PATTERN,
 }
+# Longest accepted unit string ("  -1.25e+3 mm "): gate 1 and the listings bound it.
+QUANTITY_MAX = 40
 MM_PER_IN = 25.4
 _SPLIT = re.compile(r"^\s*(" + _NUMBER + r")\s*([a-z]+)\s*$")
 
@@ -296,7 +321,11 @@ def parse_quantity(value, dim: str) -> tuple[float, str | None]:
         if not math.isfinite(number):
             raise ValueError("must be finite")
         return number, None
-    if not isinstance(value, str) or not re.match(QUANTITY_PATTERNS[dim], value):
+    if (
+        not isinstance(value, str)
+        or len(value) > QUANTITY_MAX
+        or not re.match(QUANTITY_PATTERNS[dim], value)
+    ):
         units = "deg or rad" if dim == "angle" else "mm or in"
         raise ValueError(f"expected a number or a string like '10 {units.split()[0]}' ({units})")
     match = _SPLIT.match(value)

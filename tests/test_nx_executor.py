@@ -342,18 +342,17 @@ def test_query_commands_return_typed_stable_object_references(tmp_path: Path):
     assert executor.execute("nx_list_bodies", {})["objects"][0]["id"] == bodies[0]["id"]
 
 
-def test_undo_and_fit_view_are_exposed_by_the_executor(tmp_path: Path):
+def test_undo_is_exposed_by_the_executor(tmp_path: Path):
     session = FakeSession()
     executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    executor._handlers["nx_add_component"] = lambda **_kw: {"message": "added"}
-    executor.execute("nx_add_component", {})
-    executor.execute("nx_add_component", {})
+    executor._MODEL_MUTATIONS = {"nx_test_mutation"}
+    executor._handlers["nx_test_mutation"] = lambda **_kw: {"message": "added"}
+    executor.execute("nx_test_mutation", {})
+    executor.execute("nx_test_mutation", {})
 
     undo = executor.execute("nx_undo", {})
-    fitted = executor.execute("nx_fit_view", {})
 
     assert undo == {"message": "Undo successful"}
-    assert fitted == {"message": "View fitted"}
     assert session.undo_to_marks[-1] == 2
 
 
@@ -364,9 +363,10 @@ def test_failed_model_mutation_rolls_back_its_undo_mark(tmp_path: Path):
     def refuse(**_kw):
         raise NXToolError("NX_INVALID_ARGUMENT", "refused after the mark was set")
 
-    executor._handlers["nx_add_component"] = refuse
+    executor._MODEL_MUTATIONS = {"nx_test_mutation"}
+    executor._handlers["nx_test_mutation"] = refuse
     with pytest.raises(NXToolError):
-        executor.execute("nx_add_component", {})
+        executor.execute("nx_test_mutation", {})
 
     assert session.rollback_count == 1
 

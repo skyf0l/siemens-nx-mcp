@@ -1,0 +1,780 @@
+{
+ "covers": {
+  "nx_create_assembly_constraint": [
+   "fix",
+   "touch",
+   "align",
+   "distance",
+   "parallel",
+   "perpendicular",
+   "angle",
+   "concentric"
+  ],
+  "nx_edit_assembly_constraint": []
+ },
+ "fixture": "fixtures/parts_files_block_mm.prt",
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/con/asm_con_pin.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 5
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 20
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {}
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "A",
+   "args": {
+    "path": "$fixture",
+    "name": "A"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "B",
+   "args": {
+    "path": "$fixture",
+    "name": "B",
+    "pose": {
+     "translation": [
+      0,
+      0,
+      30
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "C",
+   "args": {
+    "path": "$fixture",
+    "name": "C",
+    "pose": {
+     "translation": [
+      0,
+      60,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "D",
+   "args": {
+    "path": "$fixture",
+    "name": "D",
+    "pose": {
+     "translation": [
+      60,
+      60,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "P1",
+   "args": {
+    "path": "$run/con/asm_con_pin.prt",
+    "name": "P1",
+    "pose": {
+     "translation": [
+      100,
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "P2",
+   "args": {
+    "path": "$run/con/asm_con_pin.prt",
+    "name": "P2",
+    "pose": {
+     "translation": [
+      100,
+      50,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Atop",
+   "args": {
+    "owner": "$A.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Amx",
+   "args": {
+    "owner": "$A.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     -1,
+     0,
+     0
+    ],
+    "order": "lowest",
+    "axis": "x",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Apy",
+   "args": {
+    "owner": "$A.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "order": "highest",
+    "axis": "y",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Amy",
+   "args": {
+    "owner": "$A.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     -1,
+     0
+    ],
+    "order": "lowest",
+    "axis": "y",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Bbot",
+   "args": {
+    "owner": "$B.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "order": "lowest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Bmx",
+   "args": {
+    "owner": "$B.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     -1,
+     0,
+     0
+    ],
+    "order": "lowest",
+    "axis": "x",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Ctop",
+   "args": {
+    "owner": "$C.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Cpx",
+   "args": {
+    "owner": "$C.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     1,
+     0,
+     0
+    ],
+    "order": "highest",
+    "axis": "x",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Cmy",
+   "args": {
+    "owner": "$C.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     -1,
+     0
+    ],
+    "order": "lowest",
+    "axis": "y",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "Dpy",
+   "args": {
+    "owner": "$D.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "order": "highest",
+    "axis": "y",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "P1e",
+   "args": {
+    "owner": "$P1.data.component.id",
+    "kind": "edge",
+    "geometry_type": "circle",
+    "order": "lowest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "P1f",
+   "args": {
+    "owner": "$P1.data.component.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "order": "lowest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "P2e",
+   "args": {
+    "owner": "$P2.data.component.id",
+    "kind": "edge",
+    "geometry_type": "circle",
+    "order": "highest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "save": "fix",
+   "args": {
+    "type": "fix",
+    "component": "$A.data.component.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "fix",
+    "data.status": "Solved",
+    "data.moved": {
+     "count": 0
+    },
+    "data.constraint.kind": "assembly_constraint",
+    "changes.created": {
+     "count_kind": {
+      "assembly_constraint": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "save": "touch",
+   "args": {
+    "type": "touch",
+    "component": "$B.data.component.id",
+    "geometry": "$Bbot.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Atop.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "touch",
+    "data.status": "Solved",
+    "data.moved": {
+     "count": 1
+    },
+    "data.moved.0.name": "B",
+    "data.moved.0.translation": {
+     "close": [
+      0,
+      0,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.references": {
+     "count": 2
+    },
+    "data.references.0.component.name": "B"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "save": "dist",
+   "args": {
+    "type": "distance",
+    "component": "$B.data.component.id",
+    "geometry": "$Bmx.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Amx.data.items.0.id",
+    "value": 15
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "distance",
+    "data.status": "Solved",
+    "data.value": {
+     "close": 15,
+     "tol": 1e-09
+    },
+    "data.moved.0.name": "B",
+    "data.moved.0.translation.2": {
+     "close": 10,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "align",
+    "component": "$D.data.component.id",
+    "geometry": "$Dpy.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Apy.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "align",
+    "data.alignment": "same",
+    "data.status": "Solved",
+    "data.moved.0.name": "D",
+    "data.moved.0.translation.1": {
+     "close": 0,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "parallel",
+    "component": "$C.data.component.id",
+    "geometry": "$Ctop.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Atop.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "parallel",
+    "data.status": "Solved"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "perpendicular",
+    "component": "$C.data.component.id",
+    "geometry": "$Cpx.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Atop.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "perpendicular",
+    "data.status": "Solved"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "save": "ang",
+   "args": {
+    "type": "angle",
+    "component": "$C.data.component.id",
+    "geometry": "$Cmy.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Amy.data.items.0.id",
+    "value": 30
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "angle",
+    "data.status": "Solved",
+    "data.value": {
+     "close": 30,
+     "tol": 1e-09
+    },
+    "data.moved.0.name": "C",
+    "data.moved.0.rotation.0.0": {
+     "close": 0.8660254,
+     "tol": 1e-06
+    },
+    "data.moved.0.rotation.2.2": {
+     "close": 1,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "concentric",
+    "component": "$P1.data.component.id",
+    "geometry": "$P1f.data.items.0.id",
+    "target_component": "$P2.data.component.id",
+    "target_geometry": "$P2e.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/geometry",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "concentric",
+    "component": "$P1.data.component.id",
+    "geometry": "$P1e.data.items.0.id",
+    "target_component": "$P2.data.component.id",
+    "target_geometry": "$P2e.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "concentric",
+    "data.status": "Solved",
+    "data.moved": {
+     "count": 1
+    },
+    "data.references.1.geometry.kind": "edge"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "touch",
+    "component": "$B.data.component.id",
+    "geometry": "$Bbot.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Atop.data.items.0.id",
+    "value": 3
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/value",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "touch",
+    "component": "$B.data.component.id",
+    "geometry": "$Atop.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Atop.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_OWNER",
+    "error.field": "/geometry",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "touch",
+    "component": "$B.data.component.id",
+    "geometry": "$Bbot.data.items.0.id",
+    "target_component": "$B.data.component.id",
+    "target_geometry": "$Bbot.data.items.0.id"
+   },
+   "expect": {
+    "error.field": "/target_component",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "angle",
+    "component": "$C.data.component.id",
+    "geometry": "$Cmy.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Amy.data.items.0.id",
+    "value": 200
+   },
+   "expect": {
+    "error.field": "/value",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_list_components",
+   "args": {
+    "name_contains": "B",
+    "include_poses": true
+   },
+   "expect": {
+    "page.total": 1,
+    "data.items.0.translation.2": {
+     "close": 10,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$dist.data.constraint.id",
+    "value": 25
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.value": {
+     "close": 25,
+     "tol": 1e-09
+    },
+    "data.status": "Solved",
+    "data.moved.0.name": "B"
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$dist.data.constraint.id",
+    "suppressed": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.suppressed": true,
+    "data.moved": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$dist.data.constraint.id",
+    "suppressed": false,
+    "value": 12
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.suppressed": false,
+    "data.status": "Solved",
+    "data.value": {
+     "close": 12,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$ang.data.constraint.id",
+    "value": 45
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.value": {
+     "close": 45,
+     "tol": 1e-09
+    },
+    "data.moved.0.rotation.0.0": {
+     "close": 0.7071068,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$fix.data.constraint.id",
+    "value": 3
+   },
+   "expect": {
+    "error.field": "/value",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$fix.data.constraint.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "args": {
+    "constraint": "$A.data.component.id",
+    "suppressed": true
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "args": {
+    "type": "distance",
+    "component": "$B.data.component.id",
+    "geometry": "$Bbot.data.items.0.id",
+    "target_component": "$A.data.component.id",
+    "target_geometry": "$Atop.data.items.0.id",
+    "value": 5
+   },
+   "expect": {
+    "error.code": "NX_CONSTRAINT_UNSATISFIED",
+    "error.category": "solver_failed",
+    "mutation_outcome": "rolled_back"
+   }
+  }
+ ]
+}

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import contextlib
 import inspect
-import math
 import uuid
 
 from nx_mcp import (
@@ -15,7 +14,6 @@ from nx_mcp import (
     documentation_editing_server,
     freeform_server,
     manufacturing_server,
-    sheet_metal_server,
     side_effects,
 )
 from nx_mcp.advanced_authoring import AdvancedAuthoringMixin
@@ -33,7 +31,7 @@ from nx_mcp.feature_groups import server_modules as feature_group_modules
 from nx_mcp.freeform import FreeformMixin
 from nx_mcp.host import dispatch
 from nx_mcp.inspection import InspectionMixin
-from nx_mcp.inventory import compact_reference, page
+from nx_mcp.inventory import compact_reference
 
 # Vector math lives in nx_mcp.kit.geom; these names stay importable from here.
 from nx_mcp.kit.geom import (  # noqa: F401
@@ -56,27 +54,16 @@ from nx_mcp.reference_geometry import ReferenceGeometryMixin
 from nx_mcp.release_engineering import ReleaseEngineeringMixin
 from nx_mcp.review_tools import ReviewToolsMixin
 from nx_mcp.runtime import NXToolError, api_error
-from nx_mcp.sheet_metal import SheetMetalMixin
 from nx_mcp.visual_tools import VisualToolsMixin
 
 READ_ONLY = {
-    "nx_flat_pattern_orientation_edges",
-    "nx_list_reference_sets",
     "nx_list_datums",
-    "nx_display_info",
-    "nx_list_sections",
-    "nx_view_info",
-    "nx_check_interference",
-    "nx_check_clearance",
     "nx_status",
     "nx_list_sketches",
     "nx_list_features",
     "nx_list_bodies",
-    "nx_list_components",
     "nx_get_bounding_box",
     "nx_measure_volume",
-    "nx_measure_distance",
-    "nx_measure_angle",
     "nx_list_topology",
     "nx_checkpoint_state",
     "nx_capabilities",
@@ -84,10 +71,6 @@ READ_ONLY = {
 }
 # Files, session lifecycle, and undo itself cannot be reversed by a model undo mark.
 NON_MODEL = {
-    "nx_highlight_collisions",
-    "nx_clear_highlights",
-    "nx_screenshot",
-    "nx_render_view",
     "nx_undo",
     "nx_checkpoint",
     "nx_rollback",
@@ -96,7 +79,6 @@ NON_MODEL = {
 
 READ_ONLY.update(
     AUTHORING_READ_ONLY
-    | sheet_metal_server.READ_ONLY
     | freeform_server.READ_ONLY
     | manufacturing_server.READ_ONLY
     | assembly_documentation_server.READ_ONLY
@@ -104,7 +86,6 @@ READ_ONLY.update(
 )
 NON_MODEL.update(
     AUTHORING_NON_MODEL
-    | sheet_metal_server.NON_MODEL
     | freeform_server.NON_MODEL
     | manufacturing_server.NON_MODEL
     | assembly_documentation_server.NON_MODEL
@@ -133,7 +114,6 @@ class HardenedExecutor(
     FreeformMixin,
     ManufacturingMixin,
     AssemblyDocumentationMixin,
-    SheetMetalMixin,
     ExplodedViewsMixin,
     EngineeringMixin,
     AdvancedAuthoringMixin,
@@ -168,75 +148,21 @@ class HardenedExecutor(
                 self._handlers[name] = getattr(self, "_" + name[3:])
         self._handlers.update(
             {
-                "nx_flat_pattern_orientation_edges": self._flat_pattern_orientation_edges,
-                "nx_list_reference_sets": self._list_reference_sets,
-                "nx_create_reference_set": self._create_reference_set,
-                "nx_set_component_reference_set": self._set_component_reference_set,
                 "nx_list_datums": self._list_datums,
-                "nx_set_datum_visibility": self._set_datum_visibility,
-                "nx_resolve_geometry": self._resolve_geometry,
-                "nx_sheet_metal_schema": self._sheet_metal_schema,
-                "nx_sheet_metal_annotation": self._sheet_metal_annotation,
-                "nx_sheet_metal_context": self._sheet_metal_context,
-                "nx_sheet_metal_feature": self._sheet_metal_feature,
-                "nx_sheet_metal_info": self._sheet_metal_info,
-                "nx_sheet_metal_defaults": self._sheet_metal_defaults,
-                "nx_set_sheet_metal_defaults": self._set_sheet_metal_defaults,
-                "nx_export_flat_pattern": self._export_flat_pattern,
-                "nx_create_explosion": self._create_explosion,
-                "nx_list_explosions": self._list_explosions,
-                "nx_explosion_info": self._explosion_info,
-                "nx_edit_explosion": self._edit_explosion,
-                "nx_show_explosion": self._show_explosion,
                 "nx_delete_explosion": self._delete_explosion,
-                "nx_render_view": self._render_view,
-                "nx_mate_component": self._mate_component,
-                "nx_list_assembly_constraints": self._list_assembly_constraints,
-                "nx_assembly_constraint": self._assembly_constraint,
-                "nx_edit_assembly_constraint": self._edit_assembly_constraint,
-                "nx_component_array": self._component_array,
-                "nx_mass_properties": self._mass_properties,
-                "nx_recognize_holes": self._recognize_holes,
-                "nx_native_component_pattern": self._native_component_pattern,
-                "nx_edit_component_pattern": self._edit_component_pattern,
-                "nx_list_component_patterns": self._list_component_patterns,
-                "nx_view_info": self._view_info,
-                "nx_find_geometry": self._find_geometry,
-                "nx_highlight_objects": self._highlight_objects,
                 "nx_list_expressions": self._list_expressions,
                 "nx_model_health": self._model_health,
-                "nx_component_action": self._component_action,
-                "nx_pattern_components": self._pattern_components,
-                "nx_set_camera": self._set_camera,
-                "nx_save_presentation": self._save_presentation,
-                "nx_restore_presentation": self._restore_presentation,
-                "nx_inspection_report": self._inspection_report,
-                "nx_model_summary": self._model_summary,
                 "nx_preview_change": self._preview_change,
                 "nx_finish_preview": self._finish_preview,
-                "nx_display_info": self._display_info,
-                "nx_set_display": self._set_display,
-                "nx_set_visibility": self._set_visibility,
-                "nx_restore_display": self._restore_display,
-                "nx_highlight_collisions": self._highlight_collisions,
-                "nx_clear_highlights": self._clear_highlights,
-                "nx_list_sections": self._list_sections,
-                "nx_section_view": self._section_view,
-                "nx_section_control": self._section_control,
-                "nx_check_interference": self._check_interference,
-                "nx_check_clearance": self._check_clearance,
-                "nx_measure_distance": self._measure_distance,
                 "nx_checkpoint": self._checkpoint,
                 "nx_checkpoint_state": self._checkpoint_state,
                 "nx_rollback": self._rollback_checkpoint,
                 "nx_operation_status": lambda operation_id: self.store.get(operation_id),
                 "nx_list_topology": self._list_topology,
-                "nx_set_component_transform": self._set_component_transform,
                 "nx_batch": self._batch,
                 "nx_capabilities": self._capabilities,
                 "nx_rename_object": self._rename_object,
                 "nx_delete_feature": self._delete_feature,
-                "nx_measure_angle": self._measure_angle,
             }
         )
 
@@ -357,8 +283,6 @@ class HardenedExecutor(
         self._current_operation = op_id
         observer = side_effects.SideEffectObserver().start()
         try:
-            if method == "nx_restore_display":
-                self._validate_display_restore(params["restore_id"])
             if mutable and method not in NON_MODEL and part:
                 before = self._snapshot(part)
                 have_before = True
@@ -368,7 +292,7 @@ class HardenedExecutor(
                 )
             self._active_mark = mark
             result = handler(**params)
-            if mark is not None and part is not None and method != "nx_sheet_metal_annotation":
+            if mark is not None and part is not None:
                 refreshed = self._refresh_annotations()
                 if refreshed["updated_count"]:
                     result["refreshed_annotations"] = refreshed["updated"]
@@ -412,22 +336,7 @@ class HardenedExecutor(
                     after,
                     invalidate_topology=method
                     not in {
-                        "nx_create_explosion",
-                        "nx_edit_explosion",
-                        "nx_show_explosion",
                         "nx_delete_explosion",
-                        "nx_set_camera",
-                        "nx_restore_presentation",
-                        "nx_set_display",
-                        "nx_set_visibility",
-                        "nx_set_datum_visibility",
-                        "nx_create_reference_set",
-                        "nx_set_component_reference_set",
-                        "nx_restore_display",
-                        "nx_section_view",
-                        "nx_section_control",
-                        "nx_set_view",
-                        "nx_fit_view",
                     },
                 )
                 self._history.append(
@@ -682,50 +591,6 @@ class HardenedExecutor(
 
         return list(walk(root, [])) if root else []
 
-    def _list_components(
-        self,
-        compact=False,
-        include_transforms=True,
-        name_contains=None,
-        suppressed=None,
-        offset=0,
-        limit=None,
-    ):
-        from nx_mcp.assembly_loading import component_info
-
-        page([], offset, limit)
-        part = self._work_part()
-        candidates = [
-            (c, path)
-            for c, path in self._walk_components(part)
-            if (name_contains is None or name_contains.casefold() in c.Name.casefold())
-            and (suppressed is None or bool(c.IsSuppressed) == suppressed)
-        ]
-        selected, metadata = page(candidates, offset, limit)
-        result = []
-        for c, path in selected:
-            ref = self._reference(c, "component", part, "Component")
-            ref["occurrence_path"] = path
-            row = {
-                "object": compact_reference(ref) if compact else ref,
-                "name": c.Name,
-                **component_info(c),
-                "depth": len(path) - 1,
-                "suppressed": bool(c.IsSuppressed),
-                "reference_set": c.ReferenceSet,
-            }
-            if include_transforms:
-                p, m = c.GetPosition()
-                row.update(translation=xyz(p), rotation_matrix=rows(m), coordinate_frame="assembly")
-                if not compact:
-                    row["rotation"] = [m.Xx, m.Xy, m.Xz, m.Yx, m.Yy, m.Yz, m.Zx, m.Zy, m.Zz]
-            result.append(row)
-        return {
-            "components": result,
-            **metadata,
-            "matrix_convention": "rotation_matrix is row-major; p_assembly = R p_local + translation. Legacy rotation lists axis vectors.",
-        }
-
     def _list_topology(self, body, face=None, include_adjacency=False, compact=False):
         b = self._resolve(body, {"body"})
         part = self._work_part()
@@ -905,56 +770,6 @@ class HardenedExecutor(
             + " bounds of included body occurrences; suppression and reference sets honored",
         }
 
-    def _measure_distance(self, obj1, obj2):
-        a = self._geometry(obj1)
-        b = self._geometry(obj2)
-        best = None
-        for x in a:
-            for y in b:
-                dist, p1, p2, accuracy = self.session.Measurement.GetMinimumDistance(x, y)
-                if best is None or dist < best["distance"]:
-                    best = {
-                        "distance": dist,
-                        "closest_points": [xyz(p1), xyz(p2)],
-                        "accuracy": None,
-                        "accuracy_note": "No validated numerical error bound is exposed by this NX binding",
-                        "resolved_tags": [int(x.Tag), int(y.Tag)],
-                    }
-        return {
-            **best,
-            "units": self._units(),
-            "coordinate_frame": "work_part",
-            "references": [obj1, obj2],
-            "method": "NX Measurement.GetMinimumDistance",
-            "pair_count": len(a) * len(b),
-            "warnings": ["Zero distance alone does not distinguish contact from penetration."],
-        }
-
-    def _add_component(self, part_path, name=None, translation=None, rotation_matrix=None):
-        part = self._work_part()
-        path = self.workspace.ensure_inside(part_path)
-        t = vector(translation or [0, 0, 0])
-        r = self._validate_rotation(rotation_matrix or IDENTITY)
-        c, status = part.ComponentAssembly.AddComponent(
-            str(path),
-            "Entire Part",
-            name or path.stem,
-            self.nxopen.Point3d(*t),
-            self._nx_matrix(r),
-            -1,
-        )
-        if status:
-            status.Dispose()
-        return {
-            "component": c.Name,
-            "object": self._reference(c, "component", part, "Component"),
-            "path": str(path),
-            "translation": t,
-            "rotation_matrix": r,
-            "coordinate_frame": "work_part",
-            "message": "Added and placed component",
-        }
-
     @staticmethod
     def _validate_rotation(matrix):
         if len(matrix) != 3:
@@ -973,73 +788,18 @@ class HardenedExecutor(
             )
         return m
 
-    def _set_component_transform(self, component, translation, rotation_matrix):
-        c = self._resolve(component, {"component"})
-        part = self._work_part()
-        if c.Parent != part.ComponentAssembly.RootComponent:
-            raise NXToolError(
-                "NX_UNSUPPORTED_ARGUMENT",
-                "Absolute placement currently supports immediate children; activate their owning subassembly",
-            )
-        t = vector(translation)
-        r = self._validate_rotation(rotation_matrix)
-        p, m = c.GetPosition()
-        delta = matmul(r, transpose(rows(m)))
-        # NX MoveComponent rotates about the assembly origin, then translates
-        # (measured on NX 2406): new_origin = delta * origin + shift.
-        shift = [a - b for a, b in zip(t, matvec(delta, xyz(p)), strict=False)]
-        part.ComponentAssembly.MoveComponent(
-            c, self.nxopen.Vector3d(*shift), self._nx_matrix(delta)
-        )
-        actual_p, actual_m = c.GetPosition()
-        if any(abs(a - b) > 1e-7 for a, b in zip(xyz(actual_p), t, strict=False)) or any(
-            abs(rows(actual_m)[i][j] - r[i][j]) > 1e-7 for i in range(3) for j in range(3)
-        ):
-            raise NXToolError(
-                "NX_PLACEMENT_MISMATCH", "Placement read-back differs; transaction will roll back"
-            )
-        return {
-            "object": self._reference(c, "component", part, "Component"),
-            "translation": xyz(actual_p),
-            "rotation_matrix": rows(actual_m),
-            "coordinate_frame": "work_part",
-        }
-
-    def _reposition_component(self, component, dx=0, dy=0, dz=0, rx=0, ry=0, rz=0):
-        c = self._resolve(component, {"component"})
-        p, m = c.GetPosition()
-        a, b, d = [math.radians(v) for v in vector([rx, ry, rz])]
-        sx, cx, sy, cy, sz, cz = (
-            math.sin(a),
-            math.cos(a),
-            math.sin(b),
-            math.cos(b),
-            math.sin(d),
-            math.cos(d),
-        )
-        r = [
-            [cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx],
-            [sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx],
-            [-sy, cy * sx, cy * cx],
-        ]
-        return self._set_component_transform(
-            component, add(xyz(p), vector([dx, dy, dz])), matmul(r, rows(m))
-        )
-
     def _batch(self, operations):
         if not 1 <= len(operations) <= 100:
             raise NXToolError("NX_INVALID_ARGUMENT", "Batch requires 1–100 operations")
-        allowed = {
-            "nx_add_component",
-            "nx_set_component_transform",
-            "nx_reposition_component",
-        }
+        # Component placement moved to catalogue tools (nx_create_component,
+        # nx_set_component_pose); no legacy tool is batchable any more.
+        allowed: set[str] = set()
         # Preflight is structural and validates all signatures before any NX mutation.
         for op in operations:
             if set(op) != {"method", "params"} or op["method"] not in allowed:
                 raise NXToolError(
                     "NX_INVALID_ARGUMENT",
-                    "Batch supports assembly placement only (sketch tools batch with nx_run_batch)",
+                    "No legacy tool is batchable; catalogue tools batch with nx_run_batch",
                 )
             self._child_handler(op["method"], op["params"])
         results = []
@@ -1107,7 +867,7 @@ class HardenedExecutor(
             },
         )
         if self.session.IsBatch:
-            for name in ("nx_screenshot", "nx_render_view", "nx_ui_control"):
+            for name in ("nx_ui_control",):
                 manifest["tools"][name].update(
                     status="unavailable", scope="Requires the interactive NX host"
                 )
@@ -1273,14 +1033,3 @@ class HardenedExecutor(
                 "Overlapping bodies are counted separately; this is not union volume or a mass estimate."
             ],
         }
-
-    def _screenshot(
-        self,
-        path=None,
-        width=1600,
-        height=1000,
-        background="white",
-        style="shaded_with_edges",
-        fit=False,
-    ):
-        return self._capture_view(path, width, height, background, style, fit)

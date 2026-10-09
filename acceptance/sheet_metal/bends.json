@@ -1,0 +1,476 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "bend",
+   "resize_bend_angle",
+   "resize_bend_radius",
+   "resize_neutral_factor",
+   "unbend",
+   "rebend"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2,
+    "bend_radius": 3,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "b"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$b.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       60
+      ],
+      "end": [
+       100,
+       60
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$b.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     40,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "top"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "bend",
+    "parameters": {
+     "section": "$b.data.sketch.id",
+     "face": "$top.data.items.0.id",
+     "angle": 90
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 16106.814150222053,
+     "tol": 1e-06
+    },
+    "data.bend_count": 1,
+    "data.bends.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.bends.0.radius": {
+     "close": 3,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$tab.data.body.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      0,
+      55,
+      -2
+     ],
+     "tol": 1e-06
+    },
+    "max": {
+     "close": [
+      100,
+      80,
+      57.250885443930684
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "i1"
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     75,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "web"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "resize_bend_angle",
+    "parameters": {
+     "faces": [
+      "$i1.data.items.0.bends.0.face.id"
+     ],
+     "face": "$web.data.items.0.id",
+     "angle": 100
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bends.0.angle": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "data.bends.0.radius": {
+     "close": 3,
+     "tol": 1e-06
+    },
+    "data.volume": {
+     "close": 16118.682389135614,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "i2"
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     75,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "web2"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "resize_bend_radius",
+    "parameters": {
+     "faces": [
+      "$i2.data.items.0.bends.0.face.id"
+     ],
+     "face": "$web2.data.items.0.id",
+     "radius": "5 mm"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bends.0.radius": {
+     "close": 5,
+     "tol": 1e-06
+    },
+    "data.bends.0.angle": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "data.volume": {
+     "close": 15863.411215857972,
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "i3"
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     75,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "web3"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "unbend",
+    "parameters": {
+     "faces": [
+      "$i3.data.items.0.bends.0.face.id"
+     ],
+     "face": "$web3.data.items.0.id"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bends.0.state": "flat",
+    "data.volume": {
+     "close": 15744.728826722358,
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$tab.data.body.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      0,
+      1.2763558663881485,
+      -2
+     ],
+     "tol": 1e-05
+    },
+    "max": {
+     "close": [
+      100,
+      80,
+      0
+     ],
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "i4"
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     75,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "web4"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "rebend",
+    "parameters": {
+     "faces": [
+      "$i4.data.items.0.bends.0.face.id"
+     ],
+     "face": "$web4.data.items.0.id"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bends.0.state": "bent",
+    "data.bends.0.angle": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "data.volume": {
+     "close": 15863.411215857972,
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "i5"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "resize_neutral_factor",
+    "parameters": {
+     "faces": [
+      "$i5.data.items.0.bends.0.face.id"
+     ],
+     "neutral_factor": 0.4
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bends.0.neutral_factor": {
+     "close": 0.4,
+     "tol": 1e-09
+    },
+    "data.bends.0.radius": {
+     "close": 5,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "args": {},
+   "save": "i6"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "unbend",
+    "parameters": {
+     "faces": [
+      "$i6.data.items.0.bends.0.face.id"
+     ],
+     "face": "$i6.data.items.0.bends.0.face.id"
+    }
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/parameters/face",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "resize_bend_angle",
+    "parameters": {
+     "faces": [
+      "$i6.data.items.0.bends.0.face.id"
+     ],
+     "face": "$i6.data.items.0.bends.0.face.id",
+     "angle": 200
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/angle",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

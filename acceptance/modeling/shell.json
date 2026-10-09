@@ -175,7 +175,7 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
@@ -184,7 +184,7 @@
     "body": "$a.data.bodies.0.id",
     "thickness": 2,
     "remove_faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ]
    },
    "expect": {
@@ -247,7 +247,7 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
@@ -256,7 +256,7 @@
     "body": "$c.data.bodies.0.id",
     "thickness": 2,
     "remove_faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ],
     "outward": true
    },
@@ -307,7 +307,7 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
@@ -316,7 +316,7 @@
     "body": "$b.data.bodies.0.id",
     "thickness": 1,
     "remove_faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ]
    },
    "expect": {

@@ -60,6 +60,10 @@ src = ["src"]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# Snippets run inside NX after scripts/bench/nx/_prelude.py, which defines their helpers.
+"scripts/bench/nx/*.py" = ["F821"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["nx_mcp"]
 
@@ -88,6 +92,5 @@ ignore_missing_imports = true
 nx_mcp = [
     "capability_manifest.json",
     "capability_fragments/*.json",
-    "sheet_metal_catalog.json",
     "evidence/*.json",
 ]

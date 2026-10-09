@@ -43,3 +43,32 @@ def test_bad_owner_and_unknown_kind():
     assert unknown.error["field"] == "/kind"
     big = run(nx, "nx_list_objects", kind="body", limit=500)
     assert big.error["field"] == "/limit"
+
+
+def test_every_registered_lister_is_listable_and_every_kind_has_a_lister():
+    """nx_list_objects reaches the listers of every domain (drawing: sheets, views,
+    dimensions, annotations, tables). A domain that registers a new @lister adds its
+    kind to ListKind in domains/inspection/inventory.py."""
+    import typing
+
+    from nx_mcp.core import catalogue
+    from nx_mcp.domains.inspection.inventory import ListKind
+
+    catalogue.load()
+    listable = set(typing.get_args(ListKind))
+    registered = set(catalogue.hooks("lister"))
+    assert registered - listable == set(), "add these kinds to ListKind"
+    assert listable - registered == set(), "these ListKind values have no lister"
+
+
+def test_drawing_sheets_and_views_are_listed_through_their_hooks():
+    from tests.unit.drawing.fakes import drawing_nx
+
+    nx = drawing_nx()
+    sheet = nx.make_sheet("SHT1")
+    nx.make_view(sheet, "Top@1")
+    sheets = run(nx, "nx_list_objects", kind="drawing_sheet")
+    assert sheets.ok, sheets
+    assert [r["kind"] for r in sheets.data["items"]] == ["drawing_sheet"]
+    views = run(nx, "nx_list_objects", kind="drawing_view")
+    assert views.ok and [r["name"] for r in views.data["items"]] == ["Top@1"], views

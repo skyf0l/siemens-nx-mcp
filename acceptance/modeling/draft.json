@@ -99,16 +99,16 @@
     ],
     "limit": 1,
     "order": "lowest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_draft",
    "args": {
     "faces": [
-     "$side.items.0.object.id"
+     "$side.data.items.0.id"
     ],
-    "stationary_face": "$bot.items.0.object.id",
+    "stationary_face": "$bot.data.items.0.id",
     "direction": {
      "principal": "z"
     },
@@ -176,16 +176,16 @@
     ],
     "limit": 1,
     "order": "lowest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_draft",
    "args": {
     "faces": [
-     "$front.items.0.object.id"
+     "$front.data.items.0.id"
     ],
-    "stationary_face": "$bot.items.0.object.id",
+    "stationary_face": "$bot.data.items.0.id",
     "direction": "$ax.data.datum_axis.id",
     "angle": "0.08726646259971647 rad"
    },
@@ -211,16 +211,16 @@
     ],
     "limit": 1,
     "order": "lowest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_draft",
    "args": {
     "faces": [
-     "$bot.items.0.object.id"
+     "$bot.data.items.0.id"
     ],
-    "stationary_face": "$bot.items.0.object.id",
+    "stationary_face": "$bot.data.items.0.id",
     "direction": [
      0,
      0,
@@ -237,9 +237,9 @@
    "call": "nx_create_draft",
    "args": {
     "faces": [
-     "$bot.items.0.object.id"
+     "$bot.data.items.0.id"
     ],
-    "stationary_face": "$bot.items.0.object.id",
+    "stationary_face": "$bot.data.items.0.id",
     "direction": [
      0,
      0,

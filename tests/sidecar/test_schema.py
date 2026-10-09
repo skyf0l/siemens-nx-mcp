@@ -10,6 +10,7 @@ import json
 import typing
 from typing import Annotated, Literal, TypedDict
 
+import jsonschema
 import pytest
 
 from nx_mcp.core import catalogue
@@ -170,23 +171,12 @@ def accepts_pydantic(spec, args):
         return False
 
 
-def known_core_gap(spec, args) -> bool:
-    """core.validate accepts null for a *required* field (``Param.default`` is None for
-    required parameters). Reported to the core owner; the sidecar rejects it, so such a
-    call never reaches NX. Remove this allowance when core rejects it too."""
-    return any(args.get(p.name, 0) is None for p in spec.params.values() if p.required)
-
-
 @pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
 def test_pydantic_and_core_validators_agree(spec):
     checked = 0
     total = sum(1 for _ in samples(spec))
     for args in samples(spec):
-        pydantic_ok, core_ok = accepts_pydantic(spec, args), accepts_core(spec, args)
-        if pydantic_ok != core_ok and known_core_gap(spec, args):
-            assert not pydantic_ok
-            continue
-        assert pydantic_ok == core_ok, (spec.name, args)
+        assert accepts_pydantic(spec, args) == accepts_core(spec, args), (spec.name, args)
         checked += 1
     assert checked > min(20, total // 2)  # tools with 0-1 parameters yield few samples
 
@@ -195,9 +185,9 @@ def _walk(node, path="#"):
     yield path, node
     if isinstance(node, dict):
         for key, value in node.items():
-            if key == "properties":
+            if key in ("properties", "$defs"):
                 for name, sub in value.items():
-                    yield from _walk(sub, f"{path}/properties/{name}")
+                    yield from _walk(sub, f"{path}/{key}/{name}")
             elif isinstance(value, (dict, list)):
                 yield from _walk(value, f"{path}/{key}")
     elif isinstance(node, list):
@@ -206,30 +196,98 @@ def _walk(node, path="#"):
 
 
 @pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
-def test_schema_is_bounded_inlined_and_untitled(spec):
+def test_schema_is_bounded_untitled_and_its_refs_resolve(spec):
     generated = schema.input_schema(spec)
-    text = json.dumps(generated)
-    assert "$ref" not in text and "$defs" not in text
+    defs = generated.get("$defs", {})
     for path, node in _walk(generated):
         if not isinstance(node, dict):
             continue
         assert "title" not in node, path
-        if node.get("type") == "array":
+        ref = node.get("$ref")
+        if ref is not None:
+            assert ref.startswith("#/$defs/") and ref.split("/")[-1] in defs, path
+        types = node.get("type")
+        types = types if isinstance(types, list) else [types]
+        if "array" in types:
             assert "maxItems" in node, path
-        if node.get("type") == "string":
-            assert "maxLength" in node or "pattern" in node or "enum" in node, path
+        if "string" in types:
+            assert "maxLength" in node or "enum" in node, path
         if node.get("type") == "object" and "properties" in node:
             assert node.get("additionalProperties") is False, path
     assert generated["additionalProperties"] is False
+    text = json.dumps(generated)
+    for unshown in schema.LISTING_UNSHOWN_PATTERNS:  # gate 1 checks these
+        assert json.dumps(unshown) not in text
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
+@pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
+def test_listed_schema_accepts_what_gate_1_accepts(spec):
+    """The compact listing never refuses a valid call except an explicit null for an
+    optional field (documented by omission); it is looser only where gate 1 checks a
+    reference or unit-string pattern that the listing leaves out (and JSON has no inf)."""
+    validator = jsonschema.Draft202012Validator(schema.input_schema(spec, call_keys=False))
+    for args in samples(spec):
+        if any(args.get(p.name, 0) is None for p in spec.params.values() if not p.required):
+            continue
+        listed_ok = validator.is_valid(args)
+        if accepts_pydantic(spec, args):
+            assert listed_ok, (spec.name, args)
+        elif listed_ok and "inf" not in repr(args):
+            assert {"x", "b:0", "10 deg", "10 mm"} & set(_strings(args)), (spec.name, args)
+
+
+def test_a_field_named_like_a_keyword_is_still_a_field():
+    def nx_edit_sample(
+        tx,
+        *,
+        pattern: Ref,
+        type: Annotated[str, Text(8, r"^[a-z]+$")] | None = None,
+        anyOf: Length | None = None,  # noqa: N803
+    ) -> Out:
+        """Edit a sample with awkward field names."""
+
+    spec = make_spec(
+        nx_edit_sample,
+        effect="model",
+        label="x",
+        keywords=("a", "b", "c"),
+        domain="modeling",
+        example={"pattern": "f:1"},
+    )
+    props = schema.input_schema(spec, call_keys=False)["properties"]
+    assert props["pattern"]["maxLength"] == 128 and "pattern" not in props["pattern"]
+    assert props["type"]["pattern"] == "^[a-z]+$"
+    assert set(props) == {"pattern", "type", "anyOf"}
+
+
+def test_shared_definitions_are_named_after_core_types():
+    generated = schema.input_schema(catalogue.get("nx_create_datum_axis"))
+    assert generated["properties"]["origin"] == {"$ref": "#/$defs/Point3"}
+    assert generated["$defs"]["Point3"]["maxItems"] == 3
+    plain = schema.input_schema(SAMPLE)
+    assert "$defs" not in plain or all(not k[0].isdigit() for k in plain["$defs"])
 
 
 def test_unit_strings_refs_defaults_and_call_keys():
     generated = schema.input_schema(SAMPLE)
     props = generated["properties"]
-    length = props["length"]["anyOf"]
-    assert {"type": "number"} in length and any("(mm|in)" in b.get("pattern", "") for b in length)
-    assert any("(deg|rad)" in b.get("pattern", "") for b in props["angle"]["anyOf"])
-    assert "Reference" in props["target"]["description"] and "pattern" in props["target"]
+    length = props["length"]
+    length = generated["$defs"][length["$ref"].split("/")[-1]] if "$ref" in length else length
+    assert length["type"] == ["number", "string"] and length["maxLength"] == 40
+    assert "mm" in length["description"] and "rad" in props["angle"]["description"]
+    assert props["target"]["description"].startswith("Ref") and "pattern" not in props["target"]
+    assert props["label"]["pattern"] == "^[a-z]+$"  # a tool's own pattern stays listed
     assert props["count"]["default"] == 1 and props["count"]["maximum"] == 9
     assert props["points"]["maxItems"] == 4 and props["points"]["items"]["maxItems"] == 2
     assert "null" not in json.dumps(props["plane"])  # optional fields are documented by omission

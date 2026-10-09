@@ -42,7 +42,7 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
     names -= server.nx_surface.added_names()  # Gateways, catalogue and helper tools.
     assert names == set(MANIFEST["tools"])  # Manifest lists exactly the legacy tools.
     assert names > CERTIFIED_TOOL_NAMES
-    assert {"nx_thicken", "nx_measure_distance"} <= names
+    assert {"nx_rename_object", "nx_checkpoint"} <= names
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 
@@ -148,7 +148,7 @@ async def test_experimental_file_tools_still_enforce_workspace_boundary(tmp_path
     )
 
     async with create_connected_server_and_client_session(server) as client:
-        result = await client.call_tool("nx_screenshot", {"path": "../screen.png"})
+        result = await client.call_tool("nx_capture_view", {"path": "../screen.png"})
 
     assert result.isError is True
     assert "NX_PATH_OUTSIDE_WORKSPACE" in result.content[0].text

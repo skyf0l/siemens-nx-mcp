@@ -3,12 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
-import json
 import uuid
-import zipfile
-from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from nx_mcp.authoring import page
 from nx_mcp.inspection import with_cleanup_failure
@@ -118,118 +113,6 @@ class ReviewToolsMixin:
             raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "Saved reference changed kind")
         return obj
 
-    def _save_presentation(self, path):
-        part = self._visual_part()
-        file = self.workspace.ensure_inside(path)
-        if file.suffix.lower() != ".json" or file.exists():
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "Choose a new workspace .json presentation path"
-            )
-        try:
-            bodies = self._geometry(scope="assembly")
-        except NXToolError as err:
-            if err.code != "NX_NO_TARGET_BODY":
-                raise
-            bodies = []
-        values = bodies + [c for c, _ in self._walk_components(part)]
-        records = self._display_records(values, True)
-        saved = []
-        for row in records:
-            obj = self._resolve(row["object"]["id"])
-            saved.append(
-                {
-                    **{k: v for k, v in row.items() if k != "object"},
-                    "locator": self._locator(obj, row["object"]["kind"]),
-                }
-            )
-        sections = self._list_sections()
-        data = {
-            "format": "nx-mcp-presentation",
-            "version": 1,
-            "part_path": part.FullPath,
-            "camera": self._view_info(),
-            "display": saved,
-            "section": next(
-                (
-                    {k: r[k] for k in ("origin", "normal", "cap")}
-                    for r in sections["sections"]
-                    if r["active"]
-                ),
-                None,
-            ),
-            "sectioning_enabled": sections["view_sectioning_enabled"],
-        }
-        file.parent.mkdir(parents=True, exist_ok=True)
-        with file.open("x", encoding="utf-8") as stream:
-            json.dump(data, stream, indent=2)
-        return {
-            "path": str(file),
-            "artifact_path": str(file.relative_to(self.workspace.root)),
-            "sha256": hashlib.sha256(file.read_bytes()).hexdigest(),
-            "size": file.stat().st_size,
-            "objects_saved": len(saved),
-            "warnings": [
-                "Restores explicit appearance attributes. Across revisions, journal identifiers must still identify the intended geometry."
-            ],
-        }
-
-    def _restore_presentation(self, path):
-        file = self.workspace.ensure_inside(path)
-        if not file.is_file():
-            raise NXToolError("NX_NOT_FOUND", "Presentation file not found: " + str(path))
-        if file.stat().st_size > 8 * 1024 * 1024:
-            raise NXToolError("NX_OBJECT_LIMIT", "Presentation exceeds 8 MiB")
-        try:
-            data = json.loads(file.read_text(encoding="utf-8"))
-        except (UnicodeDecodeError, ValueError) as exc:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Presentation is not valid JSON") from exc
-        if (
-            not isinstance(data, dict)
-            or data.get("format") != "nx-mcp-presentation"
-            or data.get("version") != 1
-            or not {"part_path", "camera", "display", "section", "sectioning_enabled"} <= set(data)
-        ):
-            raise NXToolError("NX_INVALID_ARGUMENT", "Unsupported presentation format")
-        if data["part_path"].casefold() != self._visual_part().FullPath.casefold():
-            raise NXToolError(
-                "NX_OBJECT_OWNER_MISMATCH",
-                "Activate the presentation owner as work and display part",
-            )
-        if len(data["display"]) > 10000:
-            raise NXToolError("NX_OBJECT_LIMIT", "Presentation exceeds 10000 display records")
-        resolved = [(self._locate(r["locator"]), r) for r in data["display"]]
-        # Preflight all saved entities and camera values before changing the viewport.
-        self._validate_rotation(data["camera"]["rotation"])
-        finite(data["camera"]["scale"], "scale", True)
-        before = self._view_info()
-        try:
-            for obj, row in resolved:
-                if "color_index" in row:
-                    self._apply_appearance([obj], row["color_index"], row.get("transparency"))
-                (obj.Blank if row["blanked"] else obj.Unblank)()
-            view = self._work_part().ModelingViews.WorkView
-            section = data["section"]
-            if section:
-                current = view.ActiveDynamicSection
-                ref = (
-                    self._reference(current, "section", self._work_part(), "Section")["id"]
-                    if current
-                    else None
-                )
-                self._section_view(**section, section=ref, name="Presentation section")
-            view.DisplaySectioningToggle = bool(data["sectioning_enabled"])
-            self._restore_camera(data["camera"])
-        except Exception:
-            self._restore_camera(before)
-            raise
-        return {
-            "path": str(file),
-            "restored_objects": len(resolved),
-            "camera": self._view_info(),
-            "geometry_changed": False,
-            "modified": None,
-        }
-
     def _model_summary(self, section="overview", offset=0, limit=50):
         part = self._work_part()
         if section not in {"overview", "components", "features", "expressions", "sketches"}:
@@ -237,7 +120,17 @@ class ReviewToolsMixin:
         if section == "expressions":
             return self._list_expressions(offset=offset, limit=limit)
         if section == "components":
-            return page(self._list_components()["components"], offset, limit)
+            rows = [
+                {
+                    "object": self._reference(c, "component", part, "Component"),
+                    "name": c.Name,
+                    "occurrence_path": path,
+                    "depth": len(path) - 1,
+                    "suppressed": bool(c.IsSuppressed),
+                }
+                for c, path in self._walk_components(part)
+            ]
+            return page(rows, offset, limit)
         if section == "features":
             result = page(list(part.Features), offset, limit)
             result["items"] = [
@@ -294,131 +187,9 @@ class ReviewToolsMixin:
             "warning": "Counts of owned bodies differ from recursive assembly geometry.",
         }
 
-    def _inspection_report(
-        self,
-        path,
-        objects=None,
-        minimum_clearance=0.0,
-        max_pairs=100,
-        include_clear=False,
-        capture=True,
-        section_planes=None,
-    ):
-        import html
-
-        from nx_mcp.legacy_kit import unit_normal
-
-        file = self.workspace.ensure_inside(path)
-        if file.suffix.lower() != ".zip" or file.exists():
-            raise NXToolError("NX_INVALID_ARGUMENT", "Choose a new workspace .zip report path")
-        planes = section_planes or []
-        if len(planes) > 6:
-            raise NXToolError("NX_INVALID_ARGUMENT", "At most six section planes")
-        for plane in planes:
-            if set(plane) != {"origin", "normal"}:
-                raise NXToolError("NX_INVALID_ARGUMENT", "Section requires origin and normal only")
-            vector(plane["origin"])
-            unit_normal(plane["normal"])
-        if planes and not capture:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Section screenshots require capture=true")
-        file.parent.mkdir(parents=True, exist_ok=True)
-        with TemporaryDirectory(prefix="inspection-", dir=self.workspace.root) as tmp:
-            root = Path(tmp)
-            checks = self._check_clearance(objects, minimum_clearance, max_pairs, include_clear)
-            report = {
-                "format": "nx-mcp-inspection",
-                "version": 1,
-                "summary": self._model_summary(),
-                "clearance": checks,
-                "captures": [],
-            }
-            if capture:
-                with self._temporary_view():
-                    report["captures"].append(
-                        self._capture_view(str(root / "overview.png"), fit=True)
-                    )
-                    # Capture bounded close-ups for actual flagged pairs, not every clear envelope.
-                    pairs = [
-                        p
-                        for p in checks["pairs"]
-                        if p["classification"] in {"penetration", "contact", "below_clearance"}
-                    ][:8]
-                    for i, pair in enumerate(pairs):
-                        refs = [r["id"] for r in pair["objects"]]
-                        with self._temporary_view():
-                            self._set_visibility(refs, "isolate")
-                            self._highlight_objects(refs)
-                            report["captures"].append(
-                                self._capture_view(str(root / f"pair-{i + 1}.png"), fit=True)
-                            )
-                    for i, plane in enumerate(planes):
-                        with self._temporary_view():
-                            current = self._work_part().ModelingViews.WorkView.ActiveDynamicSection
-                            ref = (
-                                self._reference(current, "section", self._work_part(), "Section")[
-                                    "id"
-                                ]
-                                if current
-                                else None
-                            )
-                            self._section_view(**plane, section=ref)
-                            report["captures"].append(
-                                self._capture_view(str(root / f"section-{i + 1}.png"), fit=True)
-                            )
-            for image in report["captures"]:
-                image["path"] = Path(image["path"]).name
-            (root / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-            body = (
-                "<h1>NX inspection report</h1><p>Units: "
-                + html.escape(self._units())
-                + "</p><pre>"
-                + html.escape(json.dumps(checks, indent=2))
-                + "</pre>"
-            )
-            body += "".join(
-                '<figure><img style="max-width:100%" src="'
-                + html.escape(r["path"], quote=True)
-                + '"><figcaption>'
-                + html.escape(r["path"])
-                + "</figcaption></figure>"
-                for r in report["captures"]
-            )
-            (root / "index.html").write_text(
-                '<!doctype html><meta charset="utf-8"><title>NX inspection</title>' + body,
-                encoding="utf-8",
-            )
-            manifest = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir()}
-            (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-            # Exclusive creation prevents overwriting reports; partial ZIPs are removed on failure.
-            created = False
-            try:
-                with file.open("xb") as stream:
-                    created = True
-                    with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
-                        for p in sorted(root.iterdir()):
-                            archive.write(p, p.name)
-            except Exception:
-                if created:
-                    file.unlink(missing_ok=True)
-                raise
-        return {
-            "path": str(file),
-            "artifact_path": str(file.relative_to(self.workspace.root)),
-            "size": file.stat().st_size,
-            "sha256": hashlib.sha256(file.read_bytes()).hexdigest(),
-            "capture_count": len(report["captures"]),
-            "clearance": checks,
-            "geometry_changed": False,
-            "warnings": [
-                "PNG views are native viewport captures, not photorealistic renders. Pair close-ups are capped at eight."
-            ],
-        }
-
     def _preview_plan(self, operations):
-        allowed = {
-            "nx_set_component_transform",
-            "nx_reposition_component",
-        }
+        # Component placement moved to catalogue tools; no legacy tool is previewable.
+        allowed: set[str] = set()
         if not isinstance(operations, list) or not 1 <= len(operations) <= 25:
             raise NXToolError("NX_INVALID_ARGUMENT", "Preview requires 1–25 supported edits")
         locators = {}

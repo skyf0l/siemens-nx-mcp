@@ -248,7 +248,7 @@
     "bodies": [
      "$a.data.bodies.0.id"
     ],
-    "plane": "$back.items.0.object.id",
+    "plane": "$back.data.items.0.id",
     "keep_original": false
    },
    "expect": {
@@ -309,7 +309,7 @@
    "call": "nx_create_mirror",
    "args": {
     "bodies": [
-     "$back.items.0.object.id"
+     "$back.data.items.0.id"
     ],
     "plane": {
      "principal": "xy"

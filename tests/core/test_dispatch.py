@@ -103,3 +103,72 @@ def test_legacy_tools_receive_the_legacy_id_of_a_catalogue_ref(rig):
     translated = dispatch.legacy_ids(services, {"body": short, "items": [short, "x:1"], "n": 3})
     assert translated == {"body": legacy, "items": [legacy, "x:1"], "n": 3}
     assert legacy.startswith("obj_") and rig.e.objects.resolve(legacy) is body
+
+
+def test_snapshot_reports_drawing_tables_with_their_own_kind(rig):
+    from types import SimpleNamespace as NS
+
+    from tests.kit.objects import Object
+
+    note, table = Object("NOTE1"), Object("PARTS_LIST1")
+    rig.part.Notes.append(note)
+    rig.part.Annotations = NS(PartsLists=[table], BendTables=[])
+    services = dispatch.services_for(rig.e)
+    snap = services.snapshot(rig.part)
+    assert snap[("annotation", int(table.Tag))]["kind"] == "drawing_table"
+    assert snap[("annotation", int(note.Tag))]["kind"] == "annotation"
+    row = services.describe(snap[("annotation", int(table.Tag))], live=True)
+    assert row["kind"] == "drawing_table" and row["id"].startswith("t:")
+
+
+def test_gate_13_uses_every_registered_refresher(rig):
+    catalogue.load()
+    services = dispatch.services_for(rig.e)
+    assert services.refreshers() == dict(catalogue.hooks("refresher"))
+    assert {"drawing_view", "drawing_table"} <= set(services.refreshers())
+    # The legacy refresher only runs for legacy measured callouts now.
+    from types import SimpleNamespace as NS
+
+    rig.e.nxopen.NXObject = NS(AttributeType=NS(String=1))
+    rig.e._refresh_annotations = lambda: (_ for _ in ()).throw(AssertionError("legacy ran"))
+    assert services.refresh_annotations(catalogue.get("nx_create_blend")) == []
+
+
+def test_inherited_update_error_is_dropped_with_the_new_sketch_deactivated(rig):
+    """NX 2406: after a rolled-back feature, the next sketch's internal datum carries the
+    old update error; NX updates it only while no sketch is active (gate 11)."""
+    from types import SimpleNamespace as NS
+
+    class Stale:
+        Tag, Name, JournalIdentifier = 9001, "SKETCH(3:1B)", "SKETCH(3:1B)"
+        messages = ["Unable to terminate the blend faces"]
+
+        def GetFeatureErrorMessages(self):  # noqa: N802 - NXOpen name
+            return list(self.messages)
+
+    stale = Stale()
+    calls = []
+
+    class Sketch:
+        def Deactivate(self, reorient, level):  # noqa: N802
+            calls.append(("deactivate", level))
+            stale.messages = []  # the model update drops the inherited message
+
+        def Activate(self, reorient):  # noqa: N802
+            calls.append(("activate", reorient))
+
+    rig.e.nxopen.Sketch = NS(ViewReorient=NS(FalseValue=False), UpdateLevel=NS(Model="model"))
+    rig.part.Features.append(stale)
+    rig.session.ActiveSketch = Sketch()
+    services = dispatch.services_for(rig.e)
+    assert services.feature_errors(rig.part, {}, mark=None) == []
+    assert calls == [("deactivate", "model"), ("activate", False)]
+
+    stale.messages = ["a real error"]  # survives the update: still reported
+
+    def keep(reorient, level):
+        calls.append(("deactivate", level))
+
+    rig.session.ActiveSketch.Deactivate = keep
+    failed = services.feature_errors(rig.part, {}, mark=None)
+    assert failed and failed[0]["message"] == "a real error" and calls[-1][0] == "activate"

@@ -148,7 +148,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,
@@ -182,7 +182,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$cyl.items.0.object.id"
+     "$cyl.data.items.0.id"
     ],
     "position": [
      25,
@@ -208,7 +208,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$cyl.items.0.object.id"
+     "$cyl.data.items.0.id"
     ],
     "position": [
      25,
@@ -232,7 +232,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,
@@ -258,7 +258,7 @@
    "args": {
     "kind": "datum_feature",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,
@@ -278,7 +278,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,
@@ -302,7 +302,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,
@@ -325,7 +325,7 @@
    "args": {
     "kind": "datum_feature",
     "faces": [
-     "$top_face.items.0.object.id"
+     "$top_face.data.items.0.id"
     ],
     "position": [
      40,
@@ -345,7 +345,7 @@
    "args": {
     "kind": "fcf",
     "faces": [
-     "$back.items.0.object.id"
+     "$back.data.items.0.id"
     ],
     "position": [
      40,

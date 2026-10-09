@@ -34,7 +34,7 @@
     {"call": "nx_export_model", "args": {"path": "../em_outside.step", "format": "step"},
      "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}},
     {"call": "nx_create_part", "setup": true, "args": {"path": "$run/em/pf_export_asm.prt"}},
-    {"call": "nx_add_component", "setup": true, "args": {"part_path": "$fixture", "name": "FX"}},
+    {"call": "nx_create_component", "setup": true, "args": {"path": "$fixture", "name": "FX"}},
     {"call": "nx_activate_part", "setup": true, "args": {"part": "$fx.data.part.id", "display": false}},
     {"call": "nx_export_model", "args": {"path": "$run/em/e.step", "format": "step"},
      "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "mutation_outcome": "not_started"}},

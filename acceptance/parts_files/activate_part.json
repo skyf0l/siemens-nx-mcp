@@ -6,7 +6,7 @@
     {"call": "nx_create_part", "setup": true, "save": "blk", "args": {"path": "$run/act/pf_act_blk.prt"}},
     {"call": "nx_save_part", "setup": true, "args": {}},
     {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$run/act/pf_act_asm.prt"}},
-    {"call": "nx_add_component", "setup": true, "args": {"part_path": "$run/act/pf_act_blk.prt", "name": "BLK"}},
+    {"call": "nx_create_component", "setup": true, "args": {"path": "$run/act/pf_act_blk.prt", "name": "BLK"}},
     {"call": "nx_activate_part", "args": {"part": "$blk.data.part.id", "display": false},
      "expect": {"mutation_outcome": "committed", "data.work": true, "data.display": false,
                 "data.path": {"matches": "pf_act_blk\\.prt$"}}},

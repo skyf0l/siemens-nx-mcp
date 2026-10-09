@@ -4,7 +4,7 @@ import pytest
 
 from nx_mcp.agent_guidance import MANIFEST
 from nx_mcp.runtime import NXToolError
-from nx_mcp.visual_tools import VisualToolsMixin, unit_normal
+from nx_mcp.visual_tools import unit_normal
 
 
 def test_section_normal_rejects_degenerate_or_nonfinite_planes():
@@ -14,47 +14,8 @@ def test_section_normal_rejects_degenerate_or_nonfinite_planes():
     assert unit_normal([0, 0, 5]) == [0, 0, 1]
 
 
-def test_restore_preflights_all_references_before_any_mutation():
-    host = VisualToolsMixin()
-    host._visual_part = lambda: None
-    host._work_part = lambda: None
-    host._part_id = lambda p: "part-1"
-    host._display_snapshots = {
-        "snapshot": {
-            "part_id": "part-1",
-            "records": [
-                {"object": {"id": "live"}, "blanked": True},
-                {"object": {"id": "stale"}, "blanked": False},
-            ],
-        }
-    }
-    changes = []
-
-    def resolve(ref):
-        if ref == "stale":
-            raise NXToolError("NX_OBJECT_STALE", "closed part")
-        return SimpleNamespace(Blank=lambda: changes.append("blank"))
-
-    host._resolve = resolve
-    with pytest.raises(NXToolError, match="closed part"):
-        host._restore_display("snapshot")
-    assert changes == [] and "snapshot" in host._display_snapshots
-
-
-def test_restore_rejects_out_of_order_changes():
-    host = VisualToolsMixin()
-    host._visual_part = lambda: None
-    host._work_part = lambda: None
-    host._part_id = lambda p: "part-1"
-    host._display_snapshots = {
-        key: {"part_id": "part-1", "records": []} for key in ("first", "second")
-    }
-    with pytest.raises(NXToolError, match="reverse order"):
-        host._restore_display("first")
-
-
 @pytest.mark.asyncio
-async def test_visual_tools_publish_enums_and_native_capture_description(tmp_path):
+async def test_display_tools_are_catalogue_tools_and_legacy_ones_are_gone(tmp_path):
     from nx_mcp.server import create_server
     from nx_mcp.workspace import Workspace
 
@@ -67,7 +28,12 @@ async def test_visual_tools_publish_enums_and_native_capture_description(tmp_pat
         "hide",
         "isolate",
     ]
-    assert "native" in tools["nx_section_view"].description.lower()
-    assert "desktop to PNG" not in tools["nx_screenshot"].description
-    assert "inline" in tools["nx_screenshot"].description
-    assert not tools["nx_set_display"].annotations.readOnlyHint
+    replaced = {
+        "nx_screenshot", "nx_render_view", "nx_view_info", "nx_set_view", "nx_fit_view",
+        "nx_set_datum_visibility", "nx_set_display", "nx_display_info", "nx_highlight_objects",
+        "nx_clear_highlights", "nx_restore_presentation", "nx_section_view",
+        "nx_section_control", "nx_list_sections",
+    }  # fmt: skip
+    assert not replaced & set(tools)
+    assert "inline" in tools["nx_capture_view"].description
+    assert not tools["nx_set_appearance"].annotations.readOnlyHint

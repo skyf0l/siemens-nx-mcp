@@ -36,7 +36,7 @@ def test_export_writes_memory_state_and_never_saves(nx, root, ugii):
     assert (root / "m.prt").read_bytes() == saved
     text = (root / "out" / "m.step").read_text()
     assert text.count("MANIFOLD_SOLID_BREP") == 2 and ok.data["path"] == "out/m.step"
-    assert not list((root / ".nx-mcp" / "staging").iterdir())  # staging cleaned
+    assert not (root / ".nx-mcp" / "staging").exists()  # staging cleaned
 
 
 def test_export_selected_bodies(nx, ugii):

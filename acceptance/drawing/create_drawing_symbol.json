@@ -172,7 +172,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$top_face.items.0.object.id",
+    "object": "$top_face.data.items.0.id",
     "origin": [
      200,
      260
@@ -199,7 +199,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$back.items.0.object.id",
+    "object": "$back.data.items.0.id",
     "origin": [
      60,
      270
@@ -219,7 +219,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$front.items.0.object.id",
+    "object": "$front.data.items.0.id",
     "origin": [
      60,
      150
@@ -238,7 +238,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$ch.items.0.object.id",
+    "object": "$ch.data.items.0.id",
     "origin": [
      220,
      250
@@ -265,7 +265,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$back.items.0.object.id",
+    "object": "$back.data.items.0.id",
     "origin": [
      150,
      270
@@ -285,7 +285,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$front.items.0.object.id",
+    "object": "$front.data.items.0.id",
     "origin": [
      150,
      150
@@ -304,7 +304,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$top_face.items.0.object.id",
+    "object": "$top_face.data.items.0.id",
     "origin": [
      200,
      260
@@ -322,7 +322,7 @@
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
-    "object": "$top_face.items.0.object.id",
+    "object": "$top_face.data.items.0.id",
     "origin": [
      200,
      260

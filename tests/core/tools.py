@@ -188,6 +188,26 @@ def nx_save_other(tx, *, part: RefTo("part")) -> Written:  # type: ignore[valid-
     return {"path": target.FullPath}
 
 
+def nx_import_block(
+    tx,
+    *,
+    target: Literal["work_part", "new_part"] = "work_part",
+    new_part_path: PathTo("new", ".prt") | None = None,  # type: ignore[valid-type]
+) -> Count:
+    """Import a block into the work part or into a new part."""
+    if new_part_path is not None:
+        from pathlib import Path
+
+        from tests.core.fakes import FakePart
+
+        previous = tx.services.part
+        tx.services.extra_parts.append(previous)
+        tx.services.part = FakePart(Path(new_part_path))
+        tx.services.own(tx.services.part)  # the host owns every part a call loads
+    tx.part.add("body", "IMPORTED")
+    return {"count": len(tx.part.objects)}
+
+
 KEYWORDS = ("alpha", "beta", "gamma")
 
 
@@ -216,6 +236,14 @@ def specs():
             batchable=True,
             domain="modeling",
             example={"feature": "f:1"},
+        ),
+        "nx_import_block": make_spec(
+            nx_import_block,
+            effect="model",
+            label="Import block",
+            keywords=KEYWORDS,
+            domain="parts_files",
+            new_part="new_part_path",
         ),
         "nx_export_note": make_spec(
             nx_export_note,

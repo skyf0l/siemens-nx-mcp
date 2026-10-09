@@ -1,10 +1,12 @@
 """Every kernel gate and outcome on the in-memory services (architecture.md 3)."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from nx_mcp.core import catalogue, evidence, kernel
+from nx_mcp.core.errors import fail
 from tests.core import tools
 from tests.core.fakes import FakeServices
 
@@ -67,6 +69,31 @@ def test_annotation_refresh_rows_join_modified(svc):
     assert ok["changes"]["modified"] == [{"id": "a:1", "kind": "annotation"}]
 
 
+def test_gate_13_runs_every_refresher_hook_under_the_calls_mark(svc):
+    calls = []
+
+    def tables(tx, objects):
+        calls.append((tx.spec.name, objects, tx.mark is not None))
+        return [{"id": "t:1", "kind": "drawing_table"}]
+
+    svc.refreshed = [{"id": "a:1", "kind": "annotation"}]
+    svc.refreshers = lambda: {"drawing_table": tables}
+    ok = run(svc, "nx_create_block", size=1)
+    assert calls == [("nx_create_block", None, True)]
+    assert ok["changes"]["modified"] == [
+        {"id": "a:1", "kind": "annotation"},
+        {"id": "t:1", "kind": "drawing_table"},
+    ]
+
+    def broken(tx, objects):
+        fail("NX_STALE_REFERENCE", "a managed table lost its source")
+
+    svc.refreshers = lambda: {"drawing_table": broken}
+    bad = run(svc, "nx_create_block", size=2)
+    assert bad["error"]["code"] == "NX_STALE_REFERENCE"
+    assert bad["mutation_outcome"] == "rolled_back"
+
+
 # -- failures and outcomes ----------------------------------------------------------
 
 
@@ -84,6 +111,30 @@ def test_untouched_handler_failure_deletes_mark_and_is_not_started(svc):
     assert bad["mutation_outcome"] == "not_started" and bad["error"]["field"] == "/size"
     assert svc.undone == [] and svc.marks == {}
     assert bad["changes"] == {"references": "preserved"}
+
+
+def test_checks_refusal_is_not_started_unless_something_changed(svc):
+    spec = SPECS["nx_create_block"]
+
+    def refused(tx, *, size):
+        with tx.checks():
+            _ = tx.session.ActiveSketch  # reading NX marks the call touched
+            fail("NX_NAME_CONFLICT", "name taken")
+
+    def misplaced(tx, *, size):
+        tx.part.add("feature", "MADE")
+        with tx.checks():
+            fail("NX_NAME_CONFLICT", "name taken")
+
+    try:
+        object.__setattr__(spec, "handler", refused)
+        early = run(svc, "nx_create_block", size=1)
+        object.__setattr__(spec, "handler", misplaced)
+        late = run(svc, "nx_create_block", size=1)
+    finally:
+        object.__setattr__(spec, "handler", tools.nx_create_block)
+    assert early["mutation_outcome"] == "not_started" and svc.marks == {}
+    assert late["mutation_outcome"] == "rolled_back" and svc.part.Features == []
 
 
 def test_touched_failure_rolls_back_and_invalidates_part(svc):
@@ -194,6 +245,31 @@ def test_ownership_gate_in_production(tmp_path, monkeypatch):
     assert bad["error"]["category"] == "engineer_control"
     svc.own(svc.part)
     assert run(svc, "nx_create_block", size=1)["ok"]
+
+
+def test_a_call_in_a_new_part_skips_the_work_part_check(tmp_path, monkeypatch):
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_import_block": {"v2406": {}}})
+    svc = FakeServices(tmp_path, dev=False)  # the engineer's part is the work part
+    engineer = svc.part
+    into_work = run(svc, "nx_import_block")
+    assert into_work["error"]["code"] == "NX_PART_NOT_GRANTED"
+    into_new = run(svc, "nx_import_block", target="new_part", new_part_path="new/imp.prt")
+    assert into_new["ok"], into_new
+    assert engineer.objects == [] and svc.owns(svc.part)
+
+
+def test_new_part_must_name_a_new_prt_path():
+    from nx_mcp.core.catalogue import CatalogueError, make_spec
+
+    with pytest.raises(CatalogueError, match="new_part"):
+        make_spec(
+            tools.nx_create_block,
+            effect="model",
+            label="x",
+            keywords=tools.KEYWORDS,
+            domain="modeling",
+            new_part="size",
+        )
 
 
 def test_change_to_a_foreign_part_forces_rollback(tmp_path, monkeypatch):
@@ -310,3 +386,53 @@ def test_preview_always_undoes_and_invalidates(svc, registered):
     with pytest.raises(Exception) as error:
         svc.references.resolve(ref, ("feature",))
     assert error.value.code == "NX_STALE_REFERENCE"
+
+
+# -- receipts before paths, never-overwrite publish (core_fix) -------------------------
+
+
+def test_repeating_a_committed_call_replays_before_the_path_gate(svc):
+    first = run(svc, "nx_export_note", operation_id="op_note_once", path="out/n.txt")
+    assert first["ok"] and (svc.root / "out" / "n.txt").exists()
+    again = run(svc, "nx_export_note", operation_id="op_note_once", path="out/n.txt")
+    assert again["ok"] and again["replayed"] is True and again["data"] == first["data"]
+    fresh = run(svc, "nx_export_note", operation_id="op_note_twice", path="out/n.txt")
+    assert fresh["error"]["code"] == "NX_ALREADY_EXISTS"
+    clash = run(svc, "nx_export_note", operation_id="op_note_once", path="out/m.txt")
+    assert clash["error"]["code"] == "NX_IDEMPOTENCY_CONFLICT"
+    assert clash["mutation_outcome"] == "not_started"
+
+
+def test_publish_never_overwrites_and_staging_is_removed(svc, monkeypatch):
+    from nx_mcp.core import tx as core_tx
+
+    staging = svc.root / ".nx-mcp" / "staging"
+    ok = run(svc, "nx_export_note", path="out/a.txt")
+    assert ok["ok"] and not staging.exists()
+    bad = run(svc, "nx_export_note", path="out/b.txt", fail_after=True)
+    assert bad["mutation_outcome"] == "rolled_back" and not staging.exists()
+
+    # Another writer creates the target between the path gate and publish().
+    real_link = core_tx.os.link
+
+    def racing_link(src, dst):
+        Path(dst).write_text("theirs", encoding="utf-8")
+        return real_link(src, dst)
+
+    monkeypatch.setattr(core_tx.os, "link", racing_link)
+    raced = run(svc, "nx_export_note", path="out/c.txt")
+    assert raced["error"]["code"] == "NX_ALREADY_EXISTS"
+    assert (svc.root / "out" / "c.txt").read_text(encoding="utf-8") == "theirs"
+    assert raced["mutation_outcome"] == "rolled_back" and not staging.exists()
+
+
+def test_publish_copies_exclusively_where_hard_links_fail(svc, monkeypatch):
+    from nx_mcp.core import tx as core_tx
+
+    def no_links(src, dst):
+        raise OSError("hard links are not supported")
+
+    monkeypatch.setattr(core_tx.os, "link", no_links)
+    ok = run(svc, "nx_export_note", path="out/d.txt")
+    assert ok["ok"] and (svc.root / "out" / "d.txt").read_text(encoding="utf-8") == "hello"
+    assert not (svc.root / ".nx-mcp" / "staging").exists()

@@ -5,8 +5,9 @@
     files.publish_new(temp, target)           # hard-link a finished temp file into place
 
 A new artifact appears whole or not at all: it is written to a temporary file
-first and published with ``os.link``, which fails instead of replacing a file
-another writer created in the meantime (``os.replace`` would overwrite it).
+first and published with ``os.link`` (``core.tx.publish_new``), which fails instead
+of replacing a file another writer created in the meantime (``os.replace`` would
+overwrite it).
 Paths are already resolved inside the workspace (gate 2); nothing here checks
 the workspace boundary again.
 """
@@ -15,11 +16,11 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import os
 import struct
 from pathlib import Path
 
 from nx_mcp.core.errors import fail
+from nx_mcp.core.tx import publish_new as publish_new  # one never-overwrite move
 
 CHUNK = 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -65,24 +66,6 @@ def _exists(target, field):
         field=field,
         details={"path": str(target)},
     )
-
-
-def publish_new(temp, target, *, field: str | None = "/path") -> Path:
-    """Move a finished ``temp`` file to ``target`` without ever overwriting it.
-
-    The parent folder is created. A file that appeared at ``target`` meanwhile
-    raises ``NX_ALREADY_EXISTS`` and ``temp`` is removed either way.
-    """
-    temp, target = Path(temp), Path(target)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.link(temp, target)
-    except FileExistsError:
-        _exists(target, field)
-    finally:
-        with contextlib.suppress(OSError):
-            temp.unlink()
-    return target
 
 
 def write_new(target, data: bytes, *, field: str | None = "/path") -> Path:

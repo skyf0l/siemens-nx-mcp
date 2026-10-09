@@ -9,20 +9,6 @@
       "variants": []
     }
   },
-  "nx_create_sketch": {
-    "v2406": {
-      "checks": 54,
-      "recorded": "2026-10-09T13:20:34Z",
-      "scenario": "acceptance/sketch/create_sketch.json",
-      "scenario_sha256": "a2f27a808e59019138acd76b269c5df673b859ba8d1f8d4f797260225ffdc36e",
-      "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",
-      "variants": [
-        "on",
-        "path",
-        "principal"
-      ]
-    }
-  },
   "nx_create_sketch_constraints": {
     "v2406": {
       "checks": 44,
@@ -50,10 +36,10 @@
   "nx_create_sketch_copy": {
     "v2406": {
       "checks": 35,
-      "recorded": "2026-10-09T13:21:09Z",
+      "recorded": "2026-10-09T14:19:42Z",
       "scenario": "acceptance/sketch/sketch_copy.json",
       "scenario_sha256": "4b8f122eafa6533abbe11a7348ef4eab0c7c485fbc7ec307c0e1dd415d3642ef",
-      "source_sha256": "fd1586311d59191dd3b55d61ce4af4ad2fca57cfa65ea0735f69e2a37a951b13",
+      "source_sha256": "06438ff68481417fb2852f3c962f8af0f8ac2c24cfeb593f8a47be244ac956e1",
       "variants": [
         "mirror",
         "offset"
@@ -63,10 +49,10 @@
   "nx_create_sketch_corner": {
     "v2406": {
       "checks": 25,
-      "recorded": "2026-10-09T13:21:15Z",
+      "recorded": "2026-10-09T14:16:18Z",
       "scenario": "acceptance/sketch/sketch_corner.json",
       "scenario_sha256": "3de2880a7bcaa0e82d78771a5d24362a57f9af7eb36d82eed2a4271e7bfa502d",
-      "source_sha256": "fd1586311d59191dd3b55d61ce4af4ad2fca57cfa65ea0735f69e2a37a951b13",
+      "source_sha256": "06438ff68481417fb2852f3c962f8af0f8ac2c24cfeb593f8a47be244ac956e1",
       "variants": [
         "chamfer",
         "fillet"
@@ -115,10 +101,10 @@
   "nx_create_sketch_projection": {
     "v2406": {
       "checks": 26,
-      "recorded": "2026-10-09T13:21:41Z",
+      "recorded": "2026-10-09T15:10:51Z",
       "scenario": "acceptance/sketch/sketch_projection.json",
-      "scenario_sha256": "781d314a82b5a0b9adcb3b71c3bec97209a5bcc92f498d8e1b8475aabdd3efdd",
-      "source_sha256": "fd1586311d59191dd3b55d61ce4af4ad2fca57cfa65ea0735f69e2a37a951b13",
+      "scenario_sha256": "4c9f46e7a536f897f5eb4edbf4e1c91c7726fb61c2a063248a40d960417c7cc3",
+      "source_sha256": "06438ff68481417fb2852f3c962f8af0f8ac2c24cfeb593f8a47be244ac956e1",
       "variants": [
         "intersect",
         "project"

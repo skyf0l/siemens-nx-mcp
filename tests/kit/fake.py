@@ -127,10 +127,28 @@ class Factories(Collection):
         self.fake = fake
 
     def __getattr__(self, name):
-        if name.startswith("Create") and name.endswith("Builder"):
+        if name.startswith("Create") and name.endswith(("Builder", "BuilderEx")):
             kind = name[len("Create") :]
             return lambda *args: self.fake.builder(kind, *args)
         raise AttributeError(name)
+
+
+class FakeSection:
+    """A section: records its tolerances, allowed types and ``AddToSection`` calls."""
+
+    def __init__(self, *tolerances):
+        self.tolerances = tolerances
+        self.allowed = None
+        self.rules = []
+        self.added = []  # (rules, seed, help point)
+
+    def SetAllowedEntityTypes(self, allowed):
+        self.allowed = allowed
+
+    def AddToSection(self, rules, seed=None, _start=None, _end=None, help_point=None, *_args):
+        self.rules.extend(rules)
+        self.added.append((list(rules), seed, help_point))
+        return rules
 
 
 # ---- drawing ------------------------------------------------------------------------
@@ -247,7 +265,7 @@ class FakeNX:
             SketchWorkRegionBuilder=NS(ScopeType=NS(EntireSketch="all")),
             SmartObject=NS(UpdateOption=NS(WithinModeling=1)),
             Session=NS(MarkVisibility=NS(Visible=1, Invisible=0)),
-            Section=NS(Mode=NS(Create=1)),
+            Section=NS(Mode=NS(Create=1), AllowTypes=NS(OnlyCurves="only_curves")),
             Edge=NS(EdgeType=NS(Linear=1, Circular=2)),
             Expression=NS(UnitsOption=NS(Expression="expression")),
             Features=NS(Feature=NS(Null=None)),
@@ -293,9 +311,10 @@ class FakeNX:
             CreateRuleBodyDumb=lambda objs: ("BodyDumb", list(objs)),
             CreateRuleOptions=lambda: NS(Dispose=lambda: None),
             CreateRuleCurveFeature=lambda feats, _a, _o: ("CurveFeature", list(feats)),
+            CreateRuleCurveDumb=lambda objs: ("CurveDumb", list(objs)),
         )
         p.ScCollectors = NS(CreateCollector=Collector)
-        p.Sections = NS(CreateSection=lambda: NS(rules=[], AddToSection=self._add_to_section))
+        p.Sections = NS(CreateSection=FakeSection)
         p.Expressions = Collection()
         p.Expressions.CreateNumberExpression = self._create_expression
         p.Expressions.EditExpression = self._edit_expression
@@ -307,10 +326,6 @@ class FakeNX:
         p.ModelingViews = ModelingViews(self, p.ModelingViews)
         self.drawing_work_view = False
         self.exit_sticks = False  # NX 2406: the sheet stays the work view after exit
-
-    @staticmethod
-    def _add_to_section(rules, *_args):
-        return rules
 
     # ---- builders ---------------------------------------------------------------
     def builder(self, kind, *args):

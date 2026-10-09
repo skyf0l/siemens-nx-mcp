@@ -115,6 +115,9 @@ class KitServices(Services):
         return dict(self.fake.camera)
 
     def display_records(self, objects, appearance):
+        if appearance:  # like the host: a body is followed by its faces (unique by tag)
+            expanded = [x for o in objects for x in [o, *getattr(o, "faces", [])]]
+            objects = list({x.Tag: x for x in expanded}.values())
         out = []
         for obj in objects:
             record = {"blanked": bool(obj.IsBlanked)}
@@ -141,7 +144,12 @@ class KitServices(Services):
             self.fake.camera = dict(camera)
 
     def save_display_snapshot(self, records, camera):
-        token = f"display_{len(self.fake.display_snapshots) + 1}"
+        """Like the host: into ``kit.display.snapshots`` (records name their reference);
+        ``nx.display_snapshots`` mirrors what was saved."""
+        from nx_mcp.kit import display
+
+        rows = [{**record, "object": self.fake.row(obj)} for obj, record in records]
+        token = display.snapshots.save(self.part_key(self.work_part()), rows, camera)
         self.fake.display_snapshots[token] = {"records": records, "camera": camera}
         return token
 
@@ -155,7 +163,8 @@ class KitServices(Services):
             "work_part": part is not None,
             "active_sketch": self.fake.session.ActiveSketch is not None,
             "drawing_sheet": getattr(sheets, "CurrentDrawingSheet", None) is not None,
-            "assembly": False,
+            "assembly": getattr(getattr(part, "ComponentAssembly", None), "RootComponent", None)
+            is not None,
             "interactive": True,
             "application": "modeling",
         }

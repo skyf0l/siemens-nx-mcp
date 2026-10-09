@@ -50,7 +50,6 @@ LEGACY_VIEW = frozenset(
         "nx_set_display",
         "nx_highlight_objects",
         "nx_clear_highlights",
-        "nx_highlight_collisions",
         "nx_restore_display",
         "nx_restore_presentation",
         "nx_section_view",

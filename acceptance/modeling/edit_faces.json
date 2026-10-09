@@ -131,14 +131,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_edit_faces",
    "args": {
     "faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ],
     "action": "offset",
     "distance": 2
@@ -176,7 +176,7 @@
    "call": "nx_edit_faces",
    "args": {
     "faces": [
-     "$side.items.0.object.id"
+     "$side.data.items.0.id"
     ],
     "action": "move",
     "distance": 5,
@@ -206,7 +206,7 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
@@ -224,17 +224,17 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_edit_faces",
    "args": {
     "faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ],
     "action": "replace",
-    "replacement": "$etop.items.0.object.id"
+    "replacement": "$etop.data.items.0.id"
    },
    "expect": {
     "data.volume": {
@@ -290,7 +290,7 @@
    "setup": true,
    "args": {
     "edges": [
-     "$e1.items.0.object.id"
+     "$e1.data.items.0.id"
     ],
     "radius": 2
    }
@@ -316,7 +316,7 @@
    "call": "nx_edit_faces",
    "args": {
     "faces": [
-     "$bf.items.0.object.id"
+     "$bf.data.items.0.id"
     ],
     "action": "delete"
    },
@@ -342,14 +342,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_edit_faces",
    "args": {
     "faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ],
     "action": "offset"
    },
@@ -363,7 +363,7 @@
    "call": "nx_edit_faces",
    "args": {
     "faces": [
-     "$top.items.0.object.id"
+     "$top.data.items.0.id"
     ],
     "action": "delete",
     "distance": 1

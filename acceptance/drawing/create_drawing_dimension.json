@@ -187,7 +187,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "linear",
-    "first": "$back.items.0.object.id",
+    "first": "$back.data.items.0.id",
     "orientation": "horizontal"
    },
    "expect": {
@@ -220,8 +220,8 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "linear",
-    "first": "$front.items.0.object.id",
-    "second": "$back.items.0.object.id",
+    "first": "$front.data.items.0.id",
+    "second": "$back.data.items.0.id",
     "orientation": "vertical",
     "origin": [
      200,
@@ -247,7 +247,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "linear",
-    "first": "$ch.items.0.object.id"
+    "first": "$ch.data.items.0.id"
    },
    "expect": {
     "data.dimension.value": {
@@ -261,7 +261,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "radius",
-    "first": "$h1.items.0.object.id"
+    "first": "$h1.data.items.0.id"
    },
    "expect": {
     "data.dimension.value": {
@@ -282,7 +282,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "diameter",
-    "first": "$h2.items.0.object.id",
+    "first": "$h2.data.items.0.id",
     "origin": [
      175,
      240
@@ -307,8 +307,8 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "angle",
-    "first": "$ch.items.0.object.id",
-    "second": "$back.items.0.object.id"
+    "first": "$ch.data.items.0.id",
+    "second": "$back.data.items.0.id"
    },
    "expect": {
     "data.dimension.value": {
@@ -327,10 +327,10 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "ordinate",
-    "datum": "$left.items.0.object.id",
+    "datum": "$left.data.items.0.id",
     "objects": [
-     "$h1.items.0.object.id",
-     "$h2.items.0.object.id"
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id"
     ],
     "direction": "horizontal"
    },
@@ -362,11 +362,11 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "ordinate",
-    "datum": "$front.items.0.object.id",
+    "datum": "$front.data.items.0.id",
     "datum_point": "end",
     "objects": [
-     "$h1.items.0.object.id",
-     "$ch.items.0.object.id"
+     "$h1.data.items.0.id",
+     "$ch.data.items.0.id"
     ],
     "object_point": "auto",
     "direction": "vertical",
@@ -392,7 +392,7 @@
    "args": {
     "view": "$fv.data.view.id",
     "kind": "radius",
-    "first": "$h1.items.0.object.id"
+    "first": "$h1.data.items.0.id"
    },
    "expect": {
     "error.category": "unsupported",
@@ -406,8 +406,8 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "angle",
-    "first": "$front.items.0.object.id",
-    "second": "$back.items.0.object.id"
+    "first": "$front.data.items.0.id",
+    "second": "$back.data.items.0.id"
    },
    "expect": {
     "error.category": "invalid_argument",
@@ -420,9 +420,9 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "ordinate",
-    "datum": "$left.items.0.object.id",
+    "datum": "$left.data.items.0.id",
     "objects": [
-     "$h1.items.0.object.id"
+     "$h1.data.items.0.id"
     ],
     "object_point": "start"
    },
@@ -438,7 +438,7 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "radius",
-    "first": "$back.items.0.object.id"
+    "first": "$back.data.items.0.id"
    },
    "expect": {
     "error.category": "wrong_kind",
@@ -464,9 +464,9 @@
    "args": {
     "view": "$top.data.view.id",
     "kind": "ordinate",
-    "datum": "$left.items.0.object.id",
+    "datum": "$left.data.items.0.id",
     "objects": [
-     "$left.items.0.object.id"
+     "$left.data.items.0.id"
     ]
    },
    "expect": {

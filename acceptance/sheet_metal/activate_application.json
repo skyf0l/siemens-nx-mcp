@@ -1,0 +1,154 @@
+{
+ "covers": {
+  "nx_activate_application": []
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "modeling"
+   },
+   "expect": {
+    "data.application": "modeling"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "error.code": "NX_WRONG_APPLICATION",
+    "error.hint": {
+     "matches": "nx_activate_application"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "sheet_metal"
+   },
+   "expect": {
+    "data.application": "sheet_metal",
+    "data.previous": "modeling",
+    "data.changed": true
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "sheet_metal"
+   },
+   "expect": {
+    "data.changed": false,
+    "data.previous": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 16000,
+     "tol": 1e-06
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "modeling"
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/application",
+    "mutation_outcome": "not_started"
+   },
+   "intent": "Prove the switch that would open NX's blocking sheet-metal warning is refused"
+  },
+  {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "drafting"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "sheet_metal"
+   },
+   "expect": {
+    "data.application": "sheet_metal",
+    "data.changed": false
+   }
+  }
+ ]
+}

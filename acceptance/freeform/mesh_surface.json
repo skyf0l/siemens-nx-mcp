@@ -1,0 +1,417 @@
+{
+ "covers": {
+  "nx_create_mesh_surface": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "p1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      20,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "p2",
+   "args": {
+    "points": [
+     [
+      0,
+      10,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "c1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "c2",
+   "args": {
+    "points": [
+     [
+      20,
+      0,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "m1",
+   "args": {
+    "primary": [
+     [
+      "$p1.data.curve.id"
+     ],
+     [
+      "$p2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$c1.data.curve.id"
+     ],
+     [
+      "$c2.data.curve.id"
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bounds.min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.bounds.max": {
+     "close": [
+      20,
+      10,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.bodies": {
+     "count": 1
+    },
+    "changes.created": {
+     "count_kind": {
+      "feature": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "q1",
+   "args": {
+    "points": [
+     [
+      0,
+      20,
+      0
+     ],
+     [
+      20,
+      20,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "q2",
+   "args": {
+    "points": [
+     [
+      0,
+      25,
+      0
+     ],
+     [
+      10,
+      25,
+      2
+     ],
+     [
+      20,
+      25,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 2
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "q3",
+   "args": {
+    "points": [
+     [
+      0,
+      30,
+      0
+     ],
+     [
+      20,
+      30,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "r1",
+   "args": {
+    "points": [
+     [
+      0,
+      20,
+      0
+     ],
+     [
+      0,
+      30,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "r2",
+   "args": {
+    "points": [
+     [
+      20,
+      20,
+      0
+     ],
+     [
+      20,
+      30,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "m2",
+   "args": {
+    "primary": [
+     [
+      "$q1.data.curve.id"
+     ],
+     [
+      "$q2.data.curve.id"
+     ],
+     [
+      "$q3.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$r1.data.curve.id"
+     ],
+     [
+      "$r2.data.curve.id"
+     ]
+    ],
+    "tolerance": "0.01 mm"
+   },
+   "expect": {
+    "data.bounds.min": {
+     "close": [
+      0,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.bounds.max.0": {
+     "close": 20,
+     "tol": 0.0001
+    },
+    "data.bounds.max.1": {
+     "close": 30,
+     "tol": 0.0001
+    },
+    "data.bounds.max.2": {
+     "close": 2.0,
+     "tol": 0.1
+    }
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "bad",
+   "args": {
+    "primary": [
+     [
+      "$p1.data.curve.id"
+     ],
+     [
+      "$p1.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$c1.data.curve.id"
+     ],
+     [
+      "$c2.data.curve.id"
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/primary/1/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "bad",
+   "args": {
+    "primary": [
+     [
+      "$p1.data.curve.id"
+     ],
+     [
+      "$p2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$c1.data.curve.id"
+     ],
+     [
+      "$c2.data.curve.id"
+     ]
+    ],
+    "tolerance": -1
+   },
+   "expect": {
+    "error.field": "/tolerance",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "far",
+   "args": {
+    "points": [
+     [
+      5,
+      -5,
+      5
+     ],
+     [
+      5,
+      15,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "bad",
+   "args": {
+    "primary": [
+     [
+      "$p1.data.curve.id"
+     ],
+     [
+      "$p2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$c1.data.curve.id"
+     ],
+     [
+      "$far.data.curve.id"
+     ]
+    ]
+   },
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "error.category": "geometry_failed",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

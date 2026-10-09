@@ -186,8 +186,8 @@
     "view": "$top.data.view.id",
     "kind": "center_mark",
     "objects": [
-     "$h1.items.0.object.id",
-     "$h2.items.0.object.id"
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id"
     ]
    },
    "expect": {
@@ -208,7 +208,7 @@
     "view": "$fv.data.view.id",
     "kind": "axis",
     "objects": [
-     "$cyl.items.0.object.id"
+     "$cyl.data.items.0.id"
     ]
    },
    "expect": {
@@ -224,8 +224,8 @@
     "view": "$top.data.view.id",
     "kind": "between_edges",
     "objects": [
-     "$front.items.0.object.id",
-     "$back.items.0.object.id"
+     "$front.data.items.0.id",
+     "$back.data.items.0.id"
     ]
    },
    "expect": {
@@ -241,7 +241,7 @@
     "view": "$fv.data.view.id",
     "kind": "center_mark",
     "objects": [
-     "$h1.items.0.object.id"
+     "$h1.data.items.0.id"
     ]
    },
    "expect": {
@@ -257,7 +257,7 @@
     "view": "$top.data.view.id",
     "kind": "axis",
     "objects": [
-     "$cyl.items.0.object.id"
+     "$cyl.data.items.0.id"
     ]
    },
    "expect": {
@@ -273,8 +273,8 @@
     "view": "$top.data.view.id",
     "kind": "between_edges",
     "objects": [
-     "$front.items.0.object.id",
-     "$left.items.0.object.id"
+     "$front.data.items.0.id",
+     "$left.data.items.0.id"
     ]
    },
    "expect": {
@@ -289,7 +289,7 @@
     "view": "$top.data.view.id",
     "kind": "center_mark",
     "objects": [
-     "$back.items.0.object.id"
+     "$back.data.items.0.id"
     ]
    },
    "expect": {
@@ -305,8 +305,8 @@
     "view": "$top.data.view.id",
     "kind": "axis",
     "objects": [
-     "$cyl.items.0.object.id",
-     "$cyl.items.0.object.id"
+     "$cyl.data.items.0.id",
+     "$cyl.data.items.0.id"
     ]
    },
    "expect": {

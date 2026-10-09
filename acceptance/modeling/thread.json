@@ -92,14 +92,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_thread",
    "args": {
-    "face": "$cf.items.0.object.id",
-    "start_face": "$tp.items.0.object.id",
+    "face": "$cf.data.items.0.id",
+    "start_face": "$tp.data.items.0.id",
     "length": 10,
     "spec": {
      "pitch": 1,
@@ -186,14 +186,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_thread",
    "args": {
-    "face": "$cf.items.0.object.id",
-    "start_face": "$tp.items.0.object.id",
+    "face": "$cf.data.items.0.id",
+    "start_face": "$tp.data.items.0.id",
     "length": 8,
     "spec": {
      "standard": "Metric Coarse",
@@ -288,14 +288,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_thread",
    "args": {
-    "face": "$cf2.items.0.object.id",
-    "start_face": "$tp2.items.0.object.id",
+    "face": "$cf2.data.items.0.id",
+    "start_face": "$tp2.data.items.0.id",
     "length": 8,
     "detailed": true,
     "spec": {
@@ -342,14 +342,14 @@
     ],
     "limit": 1,
     "order": "highest",
-    "axis": "Z"
+    "axis": "z"
    }
   },
   {
    "call": "nx_create_thread",
    "args": {
-    "face": "$tp.items.0.object.id",
-    "start_face": "$tp.items.0.object.id",
+    "face": "$tp.data.items.0.id",
+    "start_face": "$tp.data.items.0.id",
     "length": 8,
     "spec": {
      "pitch": 1,
@@ -364,8 +364,8 @@
   {
    "call": "nx_create_thread",
    "args": {
-    "face": "$cf.items.0.object.id",
-    "start_face": "$tp.items.0.object.id",
+    "face": "$cf.data.items.0.id",
+    "start_face": "$tp.data.items.0.id",
     "length": 8,
     "spec": {
      "pitch": 1,
@@ -382,8 +382,8 @@
   {
    "call": "nx_create_thread",
    "args": {
-    "face": "$cf.items.0.object.id",
-    "start_face": "$tp.items.0.object.id",
+    "face": "$cf.data.items.0.id",
+    "start_face": "$tp.data.items.0.id",
     "length": 8,
     "spec": {
      "standard": "Metric Coarse",

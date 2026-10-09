@@ -59,7 +59,9 @@ AGENT_INSTRUCTIONS = (
 )
 FULL_NOTE = (
     " Catalogue tools return {ok, mutation_outcome, data | error}; legacy tools keep their "
-    "status-based results until migrated. nx_find_tools searches both."
+    "status-based results until migrated. nx_find_tools searches both. Every changing "
+    "catalogue tool takes operation_id (reuse it to retry safely) and intent (why, in the "
+    "engineer's terms; shown in the NX panel)."
 )
 
 
@@ -302,7 +304,10 @@ class Surface:
             build = self.proxy.build()
             entry = spec.evidence.get(build) if build else None
             if entry is not None:
-                out["evidence"] = {build: entry.get("variants") or True}
+                # true: the tool, and every variant it has, is tested on this build.
+                variants = entry.get("variants") or []
+                complete = set(variants) >= set(spec.variant_values())
+                out["evidence"] = {build: True if complete else variants}
             else:
                 out["tested"] = False
             if include_output:

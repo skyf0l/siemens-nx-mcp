@@ -1,0 +1,412 @@
+{
+ "covers": {
+  "nx_create_thicken": [],
+  "nx_create_sew": [],
+  "nx_create_mesh_surface": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      1,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap2",
+   "args": {
+    "points": [
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      1,
+      1,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac2",
+   "args": {
+    "points": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      1,
+      1,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "a",
+   "args": {
+    "primary": [
+     [
+      "$ap1.data.curve.id"
+     ],
+     [
+      "$ap2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$ac1.data.curve.id"
+     ],
+     [
+      "$ac2.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bp1",
+   "args": {
+    "points": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      2,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bp2",
+   "args": {
+    "points": [
+     [
+      1,
+      1,
+      0
+     ],
+     [
+      2,
+      1,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bc2",
+   "args": {
+    "points": [
+     [
+      2,
+      0,
+      0
+     ],
+     [
+      2,
+      1,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "b",
+   "args": {
+    "primary": [
+     [
+      "$bp1.data.curve.id"
+     ],
+     [
+      "$bp2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$ac2.data.curve.id"
+     ],
+     [
+      "$bc2.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sew",
+   "save": "sewn",
+   "args": {
+    "target": "$a.data.bodies.0.id",
+    "tools": [
+     "$b.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "units.length": "in",
+    "data.bounds.max": {
+     "close": [
+      2,
+      1,
+      0
+     ],
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "f",
+   "args": {
+    "limit": 2,
+    "owner": "$sewn.data.bodies.0.id",
+    "kind": "face",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_thicken",
+   "args": {
+    "faces": [
+     "$f.data.items.0.id",
+     "$f.data.items.1.id"
+    ],
+    "offset1": "2.54 mm"
+   },
+   "expect": {
+    "units.length": "in",
+    "data.volume": {
+     "close": 0.2,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "cp1",
+   "args": {
+    "points": [
+     [
+      0,
+      3,
+      0
+     ],
+     [
+      1,
+      3,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "cp2",
+   "args": {
+    "points": [
+     [
+      0,
+      4,
+      0
+     ],
+     [
+      1,
+      4,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "cc1",
+   "args": {
+    "points": [
+     [
+      0,
+      3,
+      0
+     ],
+     [
+      0,
+      4,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "cc2",
+   "args": {
+    "points": [
+     [
+      1,
+      3,
+      0
+     ],
+     [
+      1,
+      4,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "c",
+   "args": {
+    "primary": [
+     [
+      "$cp1.data.curve.id"
+     ],
+     [
+      "$cp2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$cc1.data.curve.id"
+     ],
+     [
+      "$cc2.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cf",
+   "args": {
+    "limit": 1,
+    "owner": "$c.data.bodies.0.id",
+    "kind": "face",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_thicken",
+   "args": {
+    "faces": [
+     "$cf.data.items.0.id"
+    ],
+    "offset1": 0.05,
+    "offset2": -0.05
+   },
+   "expect": {
+    "data.volume": {
+     "close": 0.1,
+     "tol": 1e-06
+    },
+    "data.bounds.min.2": {
+     "close": -0.05,
+     "tol": 1e-06
+    },
+    "data.bounds.max.2": {
+     "close": 0.05,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

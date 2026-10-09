@@ -5,33 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from nx_mcp.assembly_loading import component_info, require_loaded
 from nx_mcp.runtime import NXToolError
-from tests.fakes import Component, Object
-
-
-def test_unloaded_component_inventory_retains_pose_and_path(rig):
-    root = Component("root")
-    child = Component("missing", parent=root)
-    child.Prototype = Object("unloaded")
-    root.children = [child]
-    rig.part.ComponentAssembly.RootComponent = root
-    rig.uf.Assem = NS(AskComponentData=lambda _: ("D:/model/child.prt", "", "", [], [], []))
-    result = rig.e._list_components(compact=True)
-    row = result["components"][0]
-    assert row["part_path"] == "D:/model/child.prt"
-    assert row["load_state"] == "unloaded"
-    assert len(row["translation"]) == 3
-    with pytest.raises(NXToolError) as error:
-        require_loaded(rig.e, rig.part)
-    assert error.value.details["mutation_outcome"] == "not_started"
-
-
-def test_unknown_prototype_path_is_explicit(rig):
-    rig.uf.Assem = NS(AskComponentData=Mock(side_effect=RuntimeError("Missing part")))
-    info = component_info(NS(Prototype=None, Tag=1))
-    assert info["part_path"] is None and info["load_state"] == "unloaded"
-    assert info["load_diagnostic"] == "Missing part"
+from tests.fakes import Object
 
 
 def test_construction_hiding_preserves_sheet_owned_section_curves(rig):

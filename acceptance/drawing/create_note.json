@@ -211,7 +211,7 @@
      260
     ],
     "view": "$top.data.view.id",
-    "leader_to": "$h1.items.0.object.id"
+    "leader_to": "$h1.data.items.0.id"
    },
    "expect": {
     "data.leader.object.kind": "edge",
@@ -236,7 +236,7 @@
      270
     ],
     "view": "$top.data.view.id",
-    "leader_to": "$top_face.items.0.object.id",
+    "leader_to": "$top_face.data.items.0.id",
     "sheet": "$sh.data.sheet.id"
    },
    "expect": {
@@ -256,7 +256,7 @@
      10,
      10
     ],
-    "leader_to": "$h1.items.0.object.id"
+    "leader_to": "$h1.data.items.0.id"
    },
    "expect": {
     "error.category": "invalid_argument",

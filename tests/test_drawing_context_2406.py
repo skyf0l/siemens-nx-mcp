@@ -99,7 +99,7 @@ def test_screenshot_exports_the_displayed_drawing_sheet(rig, current):
     builder = NS(Destroy=Mock(), SetCustomBackgroundColor=Mock())
     builder.Commit = lambda: Path(builder.FileName).write_bytes(png(320, 240))
     rig.part.Views = NS(WorkView=work, CreateImageExportBuilder=lambda: builder)
-    result = rig.e._screenshot(width=320, height=240, fit=True)
+    result = rig.e._capture_view(width=320, height=240, fit=True)
     assert result["capture_kind"] == "nx_drawing_sheet" and result["camera"] is None
     assert result["resolution"] == [320, 240] and result["view_name"] == "Sheet1@0"
     assert (result["drawing"] is not None) is current
@@ -211,16 +211,3 @@ def projection_rig(rig):
     )
     rig.part.DraftingViews = NS(CreateProjectedViewBuilder=lambda _: builder)
     return sheets, sheet, builder
-
-
-def test_flat_pattern_leaves_the_displayed_drawing_and_returns_its_sheet(rig):
-    """NX 2406 refuses a Flat Pattern commit while a drawing sheet is displayed."""
-    sheets, sheet = sheet_part(rig)
-    rig.e._close_drawing_sheets = Mock(
-        side_effect=lambda part: setattr(sheets, "CurrentDrawingSheet", None)
-    )
-    assert rig.e._sm_leave_drawing() is None
-    rig.e._close_drawing_sheets.assert_not_called()
-    sheets.CurrentDrawingSheet = sheet
-    assert rig.e._sm_leave_drawing() is sheet
-    rig.e._close_drawing_sheets.assert_called_once_with(rig.part)

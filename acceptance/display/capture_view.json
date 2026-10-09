@@ -1,0 +1,279 @@
+{
+ "covers": {
+  "nx_capture_view": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "orientation": "isometric",
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/viewport.png",
+    "width": 800,
+    "height": 500
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.quality": "viewport",
+    "data.requested": [
+     800,
+     500
+    ],
+    "data.resolution": {
+     "count": 2
+    },
+    "data.image.inline": true,
+    "data.image.mime_type": "image/png",
+    "data.image.sha256": {
+     "matches": "^[0-9a-f]{64}$"
+    },
+    "data.path": {
+     "matches": "viewport[.]png$"
+    },
+    "data.camera.style": "shaded_with_edges",
+    "frame": "display_part_absolute"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/studio.png",
+    "quality": "studio",
+    "width": 640,
+    "height": 400,
+    "style": "studio",
+    "background": "color",
+    "color": [
+     0.85,
+     0.9,
+     1.0
+    ],
+    "lighting": 2
+   },
+   "expect": {
+    "data.resolution": [
+     640,
+     400
+    ],
+    "data.image.width": 640,
+    "data.image.height": 400,
+    "warnings": {
+     "count": 0
+    },
+    "data.style": "studio"
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "data.style": "shaded_with_edges"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/wire.png",
+    "style": "wireframe",
+    "background": "transparent",
+    "fit": true
+   },
+   "expect": {
+    "data.style": "wireframe",
+    "data.image.inline": true
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "data.style": "shaded_with_edges"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/default.png",
+    "quality": "studio"
+   },
+   "expect": {
+    "data.resolution": [
+     1024,
+     768
+    ],
+    "data.requested": [
+     1024,
+     768
+    ]
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "background": "color"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/color",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "lighting": 2
+   },
+   "expect": {
+    "error.field": "/lighting",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/viewport.png"
+   },
+   "expect": {
+    "error.category": "already_exists",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/x.jpg"
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     150,
+     150
+    ]
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "setup": true,
+   "args": {
+    "sheet": "$sh.data.sheet.id"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/sheet_viewport.png",
+    "fit": true
+   },
+   "expect": {
+    "data.sheet.name": "SHT1",
+    "data.sheet.kind": "drawing_sheet",
+    "data.image.inline": true,
+    "data.resolution": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/sheet_studio.png",
+    "quality": "studio",
+    "width": 840,
+    "height": 594
+   },
+   "expect": {
+    "data.sheet.name": "SHT1",
+    "data.resolution": [
+     840,
+     594
+    ]
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "data.sheet.name": "SHT1",
+    "data.style": "drawing"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "style": "shaded"
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.field": "/style",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "top"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_APPLICATION",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "setup": true,
+   "args": {}
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/model_again.png",
+    "quality": "studio",
+    "width": 320,
+    "height": 200
+   },
+   "expect": {
+    "data.resolution": [
+     320,
+     200
+    ],
+    "data.camera.style": "shaded_with_edges"
+   }
+  }
+ ]
+}

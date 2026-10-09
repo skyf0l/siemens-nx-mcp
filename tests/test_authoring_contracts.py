@@ -6,7 +6,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from nx_mcp.hardened import IDENTITY, matmul, rows
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Component, Curve, Feature, Sketch, point
 
@@ -86,41 +85,11 @@ def feature_builders(rig):
     return f, b
 
 
-def test_transform_readback_and_relative_composition(rig, tmp_path):
+def test_rename_object_returns_a_fresh_reference(rig):
     root = Component("root")
     c = Component("instance", parent=root)
     rig.part.ComponentAssembly.RootComponent = root
-
-    def move(obj, delta, rotation):
-        # Measured on NX 2406: MoveComponent rotates the component's position
-        # about the assembly origin, then adds the translation.
-        p = [obj.position.X, obj.position.Y, obj.position.Z]
-        q = [sum(rows(rotation)[i][k] * p[k] for k in range(3)) for i in range(3)]
-        obj.position = point(q[0] + delta.X, q[1] + delta.Y, q[2] + delta.Z)
-        obj.rotation = rig.e._nx_matrix(matmul(rows(rotation), rows(obj.rotation)))
-
-    rig.part.ComponentAssembly.MoveComponent = move
     ref = rig.ref(c, "component")
-    r = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
-    result = rig.e._set_component_transform(ref, [1, 2, 3], r)
-    assert result["translation"] == [1, 2, 3] and result["rotation_matrix"] == r
-    # Rotating a component away from the origin must keep the requested origin.
-    result = rig.e._reposition_component(ref, dx=4, rz=90)
-    assert result["translation"] == pytest.approx([5, 2, 3])
-    assert abs(result["rotation_matrix"][0][0] + 1) < 1e-8
-    rig.part.ComponentAssembly.MoveComponent = Mock()
-    with pytest.raises(NXToolError) as error:
-        rig.e._set_component_transform(ref, [9, 9, 9], IDENTITY)
-    assert error.value.code == "NX_PLACEMENT_MISMATCH"
-    c.Parent = Component("other")
-    with pytest.raises(NXToolError):
-        rig.e._set_component_transform(ref, [0, 0, 0], IDENTITY)
-    c.Parent = root
-    rig.part.ComponentAssembly.AddComponent = lambda *args: (c, NS(Dispose=Mock()))
-    assert rig.e._add_component(str(tmp_path / "proto.prt"), translation=[1, 2, 3])[
-        "translation"
-    ] == [1, 2, 3]
-    assert rig.e._list_components()["count"] == 1
     new = rig.e._rename_object(ref, "renamed")["object"]["id"]
     assert new != ref and c.Name == "renamed"
     with pytest.raises(NXToolError):
@@ -133,52 +102,17 @@ def test_rotation_rejects_scale_shear_or_reflection(rig, rotation):
         rig.e._validate_rotation(rotation)
 
 
-def test_batch_preflight_cancellation_and_progress(rig):
+def test_legacy_batch_refuses_every_tool_before_running_one(rig):
+    """Component placement moved to catalogue tools; no legacy tool is batchable."""
     rig.e._current_operation = "batch-operation"
     rig.e.store.put({"operation_id": "batch-operation", "state": "running"})
     calls = []
-    rig.e._handlers["nx_add_component"] = lambda start, end: calls.append((start, end)) or {}
-    ops = [{"method": "nx_add_component", "params": {"start": 1, "end": 2}}] * 2
-    assert rig.e._batch(ops)["count"] == 2 and len(calls) == 2
-    assert rig.e.store.get("batch-operation")["progress"] == {"completed": 2, "total": 2}
-    for bad in [
-        [],
-        [{"method": "nx_bad", "params": {}}],
-        [{"method": "nx_add_component", "params": {}}],
-    ]:
-        with pytest.raises((NXToolError, TypeError)):
+    rig.e._handlers["nx_rename_object"] = lambda **kw: calls.append(kw) or {}
+    for bad in [[], [{"method": "nx_rename_object", "params": {}}], [{"method": "nx_bad"}]]:
+        with pytest.raises(NXToolError) as error:
             rig.e._batch(bad)
-    assert len(calls) == 2
-    rig.e.store.path("batch-operation").with_suffix(".cancel").touch()
-    with pytest.raises(NXToolError) as error:
-        rig.e._batch(ops)
-    assert error.value.code == "NX_CANCELLED" and len(calls) == 2
-
-
-def test_batch_children_pass_the_version_gate_and_argument_binding(rig):
-    rig.e._current_operation = "batch-gate"
-    rig.e.store.put({"operation_id": "batch-gate", "state": "running"})
-    calls = []
-    rig.e._handlers["nx_add_component"] = lambda start, end: calls.append((start, end)) or {}
-    rig.e._handlers["nx_reposition_component"] = lambda center, radius: calls.append(radius) or {}
-    rig.e.nx_version = "v2406"
-    rig.e._manifest_tools = {
-        "nx_reposition_component": {"unavailable_on": {"v2406": "API missing"}}
-    }
-    ops = [
-        {"method": "nx_add_component", "params": {"start": 1, "end": 2}},
-        {"method": "nx_reposition_component", "params": {"center": 0, "radius": 1}},
-    ]
-    with pytest.raises(NXToolError) as error:
-        rig.e._batch(ops)
-    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION" and not calls  # Refused in preflight.
-    with pytest.raises(NXToolError) as error:
-        rig.e._batch([{"method": "nx_add_component", "params": {"start": 1}}])
-    assert error.value.code == "NX_INVALID_ARGUMENT" and not calls
-    # The gate also applies when the child runs, not only in preflight.
-    with pytest.raises(NXToolError) as error:
-        rig.e._call_child("nx_reposition_component", {"center": 0, "radius": 1})
-    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION" and not calls
+        assert error.value.code == "NX_INVALID_ARGUMENT"
+    assert not calls
 
 
 @pytest.mark.parametrize(

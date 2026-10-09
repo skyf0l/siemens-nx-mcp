@@ -1,15 +1,13 @@
 """Stateful contracts for authoring and review; native geometry is tested separately."""
 
-import json
-import zipfile
-from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
 
 import pytest
 
-from nx_mcp.authoring import finite, page
-from nx_mcp.hardened import IDENTITY, xyz
+from nx_mcp.authoring import page
+from nx_mcp.hardened import IDENTITY
+from nx_mcp.legacy_kit import finite
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Collection, Component, Feature
 from tests.kit.objects import Expression
@@ -141,47 +139,6 @@ def test_pagination_is_stable_and_complete():
     assert page([1, 2, 3], 2, 2)["next_offset"] is None
 
 
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"kind": "curve"},
-        {"geometry_type": "bad"},
-        {"kind": "face", "geometry_type": "circle"},
-        {"kind": "edge", "geometry_type": "plane"},
-        {"normal": [0, 0, 1]},
-        {"radius": 1},
-        {"order": "bad"},
-        {"axis": "A"},
-        {"tolerance": 0},
-        {"order": "nearest"},
-        {"near": [0, 1]},
-        {"normal": [0, 0, 0], "geometry_type": "plane"},
-    ],
-)
-def test_selection_rejects_ambiguous_or_ignored_options(author, params):
-    with pytest.raises(NXToolError):
-        author.e._find_geometry(**params)
-
-
-def test_selection_reports_plane_orientation_radius_and_rank(author):
-    e = author.e
-    r = e._find_geometry(geometry_type="plane", normal=[0, 0, 1], order="highest")
-    assert r["total"] == 1 and r["items"][0]["bounds_center"] == [5, 5, 10]
-    assert e._find_geometry(geometry_type="plane", normal=[0, 0, -1], order="lowest")["total"] == 0
-    edge = e._find_geometry(kind="edge", geometry_type="circle", radius=5, near=[0, 0, 0])["items"][
-        0
-    ]
-    assert edge["radius"] == 5 and edge["distance_to_bounds_center"] > 0
-    assert (
-        e._find_geometry(kind="edge", geometry_type="circle", radius=6, near=[0, 0, 0])["total"]
-        == 0
-    )
-    author.body.faces[0].native_type = 16
-    assert e._find_geometry(geometry_type="cylinder", radius=5, order="lowest")["total"] == 1
-    author.body.edges[0].SolidEdgeType = 2
-    assert e._find_geometry(kind="edge", geometry_type="line", order="highest")["total"] == 1
-
-
 def test_query_highlight_failure_clears_partial_selection(author):
     r = author
     e = r.e
@@ -233,181 +190,6 @@ def test_health_missing_api_is_explicit(author):
         author.e._model_health()
 
 
-@pytest.fixture
-def assembly(author):
-    r = author
-    root = Component("root")
-    a = Component("seed", parent=root)
-    r.part.ComponentAssembly.RootComponent = root
-    a.Prototype.FullPath = str(r.e.workspace.root / "prototype.prt")
-    Path(a.Prototype.FullPath).write_bytes(b"part")
-    r.part.ComponentAssembly.SuppressComponents = lambda cs: suppress(cs, True)
-    r.part.ComponentAssembly.UnsuppressComponents = lambda cs: suppress(cs, False)
-
-    def suppress(cs, value):
-        for c in cs:
-            c.IsSuppressed = value
-        return NS(Length=0, Dispose=Mock())
-
-    r.session.UpdateManager.AddToDeleteList = lambda c: root.children.remove(c)
-
-    def add(path, refset, name, pos, matrix, layer):
-        c = Component(name, parent=root)
-        c.position = pos
-        c.rotation = matrix
-        c.Prototype.FullPath = path
-        return c, NS(Dispose=Mock())
-
-    r.part.ComponentAssembly.AddComponent = add
-    builder = NS(
-        ComponentsToReplace=NS(Add=Mock()),
-        ReplaceAllOccurrences=False,
-        MaintainRelationships=True,
-        ReplacementPart=None,
-        Commit=Mock(),
-        Destroy=Mock(),
-        GetErrorList=lambda: NS(Length=0, Dispose=Mock()),
-    )
-    r.part.AssemblyManager = NS(CreateReplaceComponentBuilder=lambda: builder)
-    r.component = a
-    r.component_id = r.ref(a, "component")
-    r.replace_builder = builder
-    return r
-
-
-def test_component_maintenance_preserves_pose_and_other_occurrences(assembly):
-    r = assembly
-    e = r.e
-    for action, args in [
-        ("rename", {"name": "changed"}),
-        ("suppress", {}),
-        ("unsuppress", {}),
-        ("replace", {"part_path": r.component.Prototype.FullPath}),
-    ]:
-        result = e.execute(
-            "nx_component_action", {"component": r.component_id, "action": action, **args}
-        )
-        assert result["placement_preserved"]
-    assert r.component.Name == "changed" and not r.component.IsSuppressed
-    r.replace_builder.Destroy.assert_called_once()
-    e.execute("nx_component_action", {"component": r.component_id, "action": "remove"})
-    assert not r.part.ComponentAssembly.RootComponent.children
-    assert Path(r.component.Prototype.FullPath).exists()
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"action": "bad"},
-        {"action": "rename"},
-        {"action": "rename", "name": ""},
-        {"action": "suppress", "name": "ignored"},
-        {"action": "replace", "part_path": "missing.prt"},
-    ],
-)
-def test_component_action_invalid_args_do_not_mutate(assembly, params):
-    with pytest.raises(NXToolError):
-        assembly.e.execute("nx_component_action", {"component": assembly.component_id, **params})
-    assert assembly.component.Name == "seed"
-
-
-def test_component_nested_edits_rejected(assembly):
-    r = assembly
-    r.component.Parent = Component("nested")
-    with pytest.raises(NXToolError):
-        r.e._component_action(r.component_id, "remove")
-    with pytest.raises(NXToolError):
-        r.e._pattern_components(r.component_id, [1, 0, 0], 10, 4)
-
-
-def test_component_pattern_count_pitch_and_placement(assembly):
-    r = assembly
-    result = r.e.execute(
-        "nx_pattern_components",
-        {"component": r.component_id, "direction": [2, 0, 0], "spacing": 16.5, "count": 16},
-    )
-    assert result["total_instances"] == 16 and not result["associative"]
-    positions = [xyz(c.position) for c in r.part.ComponentAssembly.RootComponent.children]
-    assert len(positions) == 16 and positions[-1] == [247.5, 0, 0]
-    for count in [1, 101, True]:
-        with pytest.raises(NXToolError):
-            r.e._pattern_components(r.component_id, [1, 0, 0], 1, count)
-
-
-def test_native_error_lists_are_disposed_and_reported(author):
-    errors = NS(Length=1, GetErrorInfo=lambda i: "conflicting mate", Dispose=Mock())
-    with pytest.raises(NXToolError, match="conflicting mate"):
-        author.e._error_list(errors)
-    errors.Dispose.assert_called_once()
-    author.e._error_list(None)
-
-
-def sections_stub(r):
-    r.e._list_sections = lambda: {"sections": [], "view_sectioning_enabled": False}
-
-
-def test_saved_presentation_restores_camera_and_face_colors(author):
-    r = author
-    e = r.e
-    sections_stub(r)
-    path = str(r.e.workspace.root / "view.json")
-    r.body.faces[0].Color = 33
-    e.execute(
-        "nx_set_camera",
-        {"rotation": [[0, -1, 0], [1, 0, 0], [0, 0, 1]], "origin": [2, 3, 4], "scale": 2},
-    )
-    e.execute("nx_save_presentation", {"path": path})
-    r.body.faces[0].Color = 5
-    r.body.IsBlanked = True
-    e.execute("nx_set_camera", {"rotation": IDENTITY, "origin": [0, 0, 0], "scale": 1})
-    e.execute("nx_restore_presentation", {"path": path})
-    assert r.body.faces[0].Color == 33 and not r.body.IsBlanked
-    assert e._view_info()["origin"] == [2, 3, 4] and e._view_info()["scale"] == 2
-    with pytest.raises(NXToolError):
-        e._save_presentation(path)
-
-
-@pytest.mark.parametrize("fault", ["owner", "format", "missing_face", "bad_camera"])
-def test_presentation_preflight_leaves_display_unchanged(author, fault):
-    r = author
-    e = r.e
-    sections_stub(r)
-    p = r.e.workspace.root / "view.json"
-    e._save_presentation(str(p))
-    d = json.loads(p.read_text())
-    if fault == "owner":
-        d["part_path"] = "different.prt"
-    if fault == "format":
-        d["version"] = 999
-    if fault == "missing_face":
-        d["display"][-1]["locator"]["journal_id"] = "removed"
-        r.part.FindObject = Mock(side_effect=RuntimeError("not found"))
-    if fault == "bad_camera":
-        d["camera"]["scale"] = 0
-    p.write_text(json.dumps(d))
-    r.body.Color = 13
-    with pytest.raises(NXToolError):
-        e.execute("nx_restore_presentation", {"path": str(p)})
-    assert r.body.Color == 13
-
-
-@pytest.mark.parametrize(
-    "content,code",
-    [
-        (None, "NX_NOT_FOUND"),
-        ("{not json", "NX_INVALID_ARGUMENT"),
-        ("[1, 2]", "NX_INVALID_ARGUMENT"),
-    ],
-)
-def test_presentation_file_problems_are_stable_errors(author, content, code):
-    p = author.e.workspace.root / "broken.json"
-    if content is not None:
-        p.write_text(content)
-    with pytest.raises(NXToolError) as error:
-        author.e.execute("nx_restore_presentation", {"path": str(p)})
-    assert error.value.code == code
-
-
 def test_camera_validation_and_readback(author):
     e = author.e
     with pytest.raises(NXToolError):
@@ -450,69 +232,6 @@ def test_summary_empty_part_and_bad_section(author):
     assert author.e._model_summary()["bounds"] is None
     with pytest.raises(NXToolError):
         author.e._model_summary("bad")
-
-
-def test_inspection_report_packages_evidence_and_restores_view(author):
-    r = author
-    e = r.e
-    e._check_clearance = lambda *args: {
-        "pairs": [
-            {
-                "classification": "penetration",
-                "objects": [e._reference(r.body, "body", r.part, "Body")],
-            }
-        ],
-        "complete": True,
-        "counts": {"penetration": 1},
-    }
-
-    def capture(path=None, **kw):
-        p = Path(path)
-        p.write_bytes(b"fixture-image")
-        return {"path": str(p), "camera": e._view_info()}
-
-    e._capture_view = capture
-    e._section_view = lambda **kw: None
-    path = str(e.workspace.root / "report.zip")
-    result = e.execute(
-        "nx_inspection_report",
-        {"path": path, "section_planes": [{"origin": [0, 0, 5], "normal": [0, 0, 1]}]},
-    )
-    assert result["capture_count"] == 3 and not r.body.IsBlanked
-    assert result["artifact_path"] == "report.zip"
-    with zipfile.ZipFile(path) as z:
-        assert {
-            "index.html",
-            "report.json",
-            "manifest.json",
-            "overview.png",
-            "pair-1.png",
-            "section-1.png",
-        } == set(z.namelist())
-        assert json.loads(z.read("report.json"))["clearance"]["complete"]
-    with pytest.raises(NXToolError):
-        e._inspection_report(path)
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"path": "bad.txt"},
-        {"path": "a.zip", "section_planes": [{"normal": [0, 0, 1]}]},
-        {
-            "path": "a.zip",
-            "capture": False,
-            "section_planes": [{"normal": [0, 0, 1], "origin": [0, 0, 0]}],
-        },
-        {"path": "a.zip", "section_planes": [{}] * 7},
-    ],
-)
-def test_report_rejects_invalid_plans_before_output(author, params):
-    with pytest.raises(NXToolError):
-        author.e._inspection_report(
-            **{**params, "path": str(author.e.workspace.root / params["path"])}
-        )
-    assert not (author.e.workspace.root / "a.zip").exists()
 
 
 @pytest.mark.parametrize(
@@ -580,20 +299,18 @@ def test_expression_value_uses_its_declared_unit_not_part_unit(author):
 
 
 @pytest.mark.asyncio
-async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path):
+async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path, monkeypatch):
     from unittest.mock import AsyncMock
 
     from nx_mcp.server import create_server
     from nx_mcp.workspace import Workspace
 
-    bridge = NS(call=AsyncMock(return_value={"status": "success"}))
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    bridge = NS(call=AsyncMock(return_value={"ok": True, "data": {}}))
     server = create_server(bridge, Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
     assert tools["nx_find_geometry"].annotations.readOnlyHint
     assert not tools["nx_preview_change"].annotations.readOnlyHint
-    await server.call_tool(
-        "nx_component_action",
-        {"component": "obj_example", "action": "replace", "part_path": "replacement.prt"},
-    )
+    await server.call_tool("nx_export_inspection_report", {"path": "reports/review.zip"})
     args = bridge.call.call_args.args[1]
-    assert args["part_path"] == str(tmp_path / "replacement.prt") and args["operation_id"]
+    assert args["path"] == str(tmp_path / "reports" / "review.zip") and args["operation_id"]

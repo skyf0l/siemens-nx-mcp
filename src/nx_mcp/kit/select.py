@@ -90,6 +90,10 @@ def edges(tx, refs, field="/edges"):
     return _many(tx, refs, "edge", field)
 
 
+def curves(tx, refs, field="/curves"):
+    return _many(tx, refs, "curve", field)
+
+
 def face_data(tx, face):
     """``(type, point, direction)`` of a face from UF AskFaceData."""
     data = tx.uf.Modeling.AskFaceData(face.Tag)

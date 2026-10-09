@@ -47,6 +47,21 @@ def _path_key(part) -> str:
     return full.replace("\\", "/").casefold()
 
 
+def _table_tags(part) -> set:
+    """Tags of the drawing tables of ``part`` (empty when it has none or no drafting)."""
+    tags: set = set()
+    annotations = getattr(part, "Annotations", None)
+    groups = [
+        getattr(annotations, n, None)
+        for n in ("PartsLists", "BendTables", "TableSections", "Tables")
+    ]
+    groups.append(getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None))
+    for group in groups:
+        with contextlib.suppress(Exception):
+            tags.update(int(o.Tag) for o in group or [])
+    return tags
+
+
 class LegacyServices:
     """Implements ``nx_mcp.core.tx.Services`` for one ``HardenedExecutor``."""
 
@@ -282,7 +297,15 @@ class LegacyServices:
         self.x.session.DeleteUndoMark(mark, None)
 
     def snapshot(self, part) -> dict:
-        return self.x._snapshot(part)
+        """The legacy snapshot with exact kinds: it lists drawing tables (parts lists,
+        bend tables, tabular notes, title blocks) among annotations; their entries say
+        ``drawing_table`` so ``changes`` reports them as such (keys stay unchanged)."""
+        snap = self.x._snapshot(part)
+        tables = _table_tags(part)
+        for (kind, tag), entry in snap.items():
+            if kind == "annotation" and tag in tables and isinstance(entry, dict):
+                entry["kind"] = "drawing_table"
+        return snap
 
     def describe(self, entry: dict, live: bool) -> dict:
         legacy_id = entry.get("id")
@@ -304,8 +327,36 @@ class LegacyServices:
         }
 
     def feature_errors(self, part, before: dict, mark) -> list:
+        """New features of the call that report update errors (gate 11).
+
+        NX 2406 hands the update error of a rolled-back feature to a feature created
+        later (the internal datum of the next sketch, the next chamfer); updating that
+        feature drops the stale message (``_drop_inherited_feature_errors``). While a
+        sketch is active NX does not update features, so a sketch created right after a
+        rolled-back call kept the old error and failed once: the sketch is then
+        deactivated with a model update and activated again before the errors are read.
+        A real error survives the update and still fails the call.
+        """
         self.x._active_mark = mark
         self.x._drop_inherited_feature_errors(part, before)
+        failed = self._new_feature_errors(part, before)
+        sketch = None
+        with contextlib.suppress(Exception):
+            sketch = self.x.session.ActiveSketch
+        if failed and sketch is not None:
+            reorient = self.nx.Sketch.ViewReorient.FalseValue
+            try:
+                sketch.Deactivate(reorient, self.nx.Sketch.UpdateLevel.Model)
+            except Exception:
+                return failed  # the update itself failed: report the errors as they are
+            try:
+                self.x._drop_inherited_feature_errors(part, before)
+                failed = self._new_feature_errors(part, before)
+            finally:
+                sketch.Activate(reorient)
+        return failed
+
+    def _new_feature_errors(self, part, before: dict) -> list:
         failed = []
         for feature in part.Features:
             if ("feature", int(feature.Tag)) in before:
@@ -351,10 +402,36 @@ class LegacyServices:
         }
 
     def refresh_annotations(self, spec) -> list:
+        """The legacy refresher, only where it still manages something the hooks do
+        not: measured sheet-metal callouts. Detail-view boundaries and automatic bend
+        tables are refreshed by the drawing domain's ``@refresher`` hooks (gate 13)."""
         refresh = getattr(self.x, "_refresh_annotations", None)
-        if refresh is None or self.work_part() is None:
+        part = self.work_part()
+        if refresh is None or part is None:
+            return []
+        hooks = catalogue.hooks("refresher")
+        covered = {"drawing_view", "drawing_table"} <= set(hooks)
+        if covered and not self._measured_pmi(part):
             return []
         return list(refresh().get("updated") or [])
+
+    def _measured_pmi(self, part) -> bool:
+        """True when the part holds a legacy measured callout to refresh (or when that
+        cannot be told: the legacy refresher then runs, as before)."""
+        try:
+            kind = self.nx.NXObject.AttributeType.String
+        except AttributeError:
+            return True
+        for obj in self.x._documentation_annotations(part):
+            with contextlib.suppress(Exception):
+                if obj.HasUserAttribute("NX_MCP_MEASURED_PMI_V1", kind, -1) and (
+                    obj.GetStringAttribute("NX_MCP_MEASURED_PMI_V1") != "disabled"
+                ):
+                    return True
+        return False
+
+    def refreshers(self) -> dict:
+        return dict(catalogue.hooks("refresher"))
 
     # -- display state (view rollback, restore_id) ---------------------------------------
     def display_camera(self):

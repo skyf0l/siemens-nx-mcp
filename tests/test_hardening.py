@@ -133,24 +133,24 @@ async def test_transport_timeout_does_not_duplicate_mutation(executor):
 async def test_uniform_structured_success_failure_and_schema(tmp_path):
     class Caller:
         async def call(self, method, params):
-            if method == "nx_reposition_component":
+            if method == "nx_measure_volume":
                 raise NXToolError("NX_UNSUPPORTED_EDIT", "unsupported edit")
             return {"status": "success", "method": method, "params": params}
 
     server = create_server(Caller(), Workspace(tmp_path), surface="full")
     tools = await server.list_tools()
-    move = next(t for t in tools if t.name == "nx_set_component_transform")
-    assert "translation" in move.inputSchema["required"]
+    move = next(t for t in tools if t.name == "nx_rename_object")
+    assert "name" in move.inputSchema["required"]
     assert "operation_id" in move.inputSchema["properties"]
     success = await server.call_tool("nx_status", {})
     assert success.structuredContent["status"] == "success" and not success.isError
     for name, args in [
-        ("nx_reposition_component", {"component": "c", "dx": 1}),
-        ("nx_set_component_transform", {"component": "c", "ignored": 123}),
+        ("nx_measure_volume", {"body": "a"}),
+        ("nx_rename_object", {"object_id": "c", "ignored": 123}),
     ]:
         result = await server.call_tool(name, args)
         assert result.isError and result.structuredContent["status"] == "error"
-    assert not next(t for t in tools if t.name == "nx_add_component").annotations.readOnlyHint
+    assert not next(t for t in tools if t.name == "nx_rename_object").annotations.readOnlyHint
 
 
 def test_reference_namespace_rejects_previous_session(executor, tmp_path):

@@ -65,7 +65,6 @@ DOMAINS = {
     ),
 }
 DEFAULTS: dict[str, dict[str, Any]] = {
-    "nx_list_components": {"compact": True, "include_transforms": False, "limit": 20},
     "nx_list_topology": {"compact": True},
 }
 # Helper tools served by the sidecar itself; read helpers never change anything.

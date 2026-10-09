@@ -2,10 +2,7 @@
 
 from types import SimpleNamespace as S
 
-import pytest
-
 from nx_mcp.legacy_repairs import LegacyRepairsMixin
-from nx_mcp.runtime import NXToolError
 
 
 class Line:
@@ -36,23 +33,6 @@ class Harness(LegacyRepairsMixin):
         return {"edited": True}
 
 
-@pytest.mark.parametrize(("end", "expected"), [([0, 1, 0], 90), ([1, 0, 0], 0), ([-1, 0, 0], 180)])
-def test_angle_uses_actual_directions(end, expected):
-    h = Harness()
-    h.b = Line(2, end)
-    result = h._measure_angle("a", "b")
-    assert result["angle_deg"] == pytest.approx(expected)
-    assert result["units"] == "deg"
-    assert result["coordinate_frame"] == "work_part"
-
-
-def test_zero_length_rejected():
-    h = Harness()
-    h.a = Line(1, [0, 0, 0])
-    with pytest.raises(NXToolError, match="degenerate"):
-        h._measure_angle("a", "b")
-
-
 def test_delete_feature_updates_native_delete_list_and_reports_reference():
     h = Harness()
     h.session = S(
@@ -64,18 +44,3 @@ def test_delete_feature_updates_native_delete_list_and_reports_reference():
     h._update_model = lambda: h.calls.append("update")
     assert h._delete_feature("a") == {"deleted": [{"id": "sketch"}]}
     assert h.calls == [h.a, "update"]
-
-
-@pytest.mark.parametrize("batch", [True, False])
-def test_canned_view_reports_actual_host_mode(batch):
-    from nx_mcp.nx_bridge import NXOpenExecutor
-
-    calls = []
-    executor = S(
-        session=S(IsBatch=batch),
-        nxopen=S(View=S(Canned=S(Top=1), ScaleAdjustment=S(Fit=2))),
-        _work_part=lambda: S(ModelingViews=S(WorkView=S(Orient=lambda *a: calls.append(a)))),
-    )
-    result = NXOpenExecutor._set_view(executor, "Top")
-    assert calls == [(1, 2)]
-    assert result["orientation"] == "top" and result["viewport_available"] is not batch

@@ -65,8 +65,8 @@ validators accept and reject the same generated samples.
 | `Range(ge, le, gt, lt)` | finite numeric bounds | `minimum`, `maximum`, ... |
 | `Items(min, max)` | list length; required on every list | `minItems`, `maxItems` |
 | `Text(max, pattern)` | string bounds | `maxLength`, `pattern` |
-| `RefKind(*kinds)` | accepted reference kinds | `pattern` + description |
-| `Quantity(dim)` | `length`, `sheet_length` or `angle`; allows unit strings | number or unit string |
+| `RefKind(*kinds)` | accepted reference kinds | description (gate 1 checks the pattern; section 4) |
+| `Quantity(dim)` | `length`, `sheet_length` or `angle`; allows unit strings | `[number, string]`, `maxLength` 40 |
 | `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir` or `save` | `string` |
 
 The aliases follow surface 1.4: `Ref`, `RefTo(*kinds)`, `Point2`, `SheetPoint`, `Point3`,
@@ -636,6 +636,84 @@ step.
   tools; `nx_get_tool_schemas` may add at most 200 characters to a tool's definition (900 per
   tool once definitions meet the median). The `full` listing's 110,000 cap applies to the
   generated part; the legacy part may not grow beyond today's 218,951 characters.
+
+**After wave 1 as built (core fixes and the domain agents' additive core changes).**
+
+- **Compact schemas.** Listings and `nx_get_tool_schemas` leave out the regular expressions
+  of references (`REF_PATTERN`) and unit strings: gate 1 checks them (Pydantic in the
+  sidecar, `core.validate` in NX). A reference is `{type: string, maxLength: 128,
+  description: "Ref: <kinds>"}`; a quantity is `{type: [number, string], maxLength: 40}`
+  with the unit in its description (`QUANTITY_MAX` = 40 is enforced by both validators). A
+  subschema used more than once moves to `$defs` when that is shorter (greedy, named after
+  the core type: `Plane`, `Limit`, `Point3`, `Length`, ...; otherwise by JSON type); a
+  field keeps its own description and default next to its `$ref`. A tool's own pattern
+  (`Name`, a `Text` pattern) stays listed. `operation_id`/`intent` carry no description; the
+  server instructions explain them. A test asserts that the listed schema accepts every
+  call gate 1 accepts. `evidence: {build: true}` means every variant is tested.
+- **Budget measurement.** The per-tool caps and the 700 median measure the tool's own
+  definition (name, description, input schema without the 87 characters of call keys, as
+  `nx_get_tool_schemas` returns it); the full listing's 110,000 cap counts the call keys.
+  The 2,500 cap also applies to a tool whose argument is a union of two or more object
+  forms (`Limit`, `Axis`, `linear | circular`), the discriminated unions of surface 1.7. At
+  106 catalogue tools: median 673 (751 with call keys), largest 2,317; the wave-1 tools
+  shrank by 27 %. The full listing's catalogue part is 97,032 characters: at this rate
+  152 tools would exceed its 110,000 cap, so new tools must stay near the median.
+- **Gate 1.** A required field never accepts `null` (only an optional `= None` field does).
+  A union reports the best-matching form: the form whose discriminator (`Literal` field)
+  the value names, then the one knowing most of its keys, then the deepest error. When the
+  value's discriminator names no form, the error is at the union and lists the accepted
+  values (`type 'until_face' is not accepted here; expected one of 'distance', ...`).
+- **Gate 7 before gate 2.** With a caller's `operation_id`, `Receipts.replay` runs right
+  after gate 1: repeating a finished call with the same arguments replays its envelope
+  instead of failing on what it created (`NX_ALREADY_EXISTS` for a `new` path);
+  different arguments are `NX_IDEMPOTENCY_CONFLICT`, a running one `NX_OUTCOME_UNKNOWN`.
+- **Gate 6, `new_part`.** `@tool(new_part="<param>")` names a model tool's `new` `.prt`
+  path parameter; when it is given the call works in a part it creates, so the work part
+  (possibly the engineer's) is not checked before the handler. The after-handler
+  `IsModified` check still undoes a change to a part the agent does not own.
+  `nx_import_model(target=new_part)` uses it.
+- **Files.** `Files.publish` never overwrites: every target is checked first, then each
+  file is linked into place with `core.tx.publish_new` (`os.link`, exclusive create and
+  copy where hard links fail); `kit.files.publish_new` is the same function. The kernel
+  removes `.nx-mcp/staging/<operation_id>/` when a top-level call ends (committed or not;
+  this also clears `kit.files.temp_path` leftovers), and `staging` itself once empty.
+- **Inherited update errors (gate 11).** After NX refuses a feature and the kernel rolls
+  it back, NX 2406 attaches the refused feature's update error to a feature created later
+  (the internal datum `SKETCH(n:1B)` of the next sketch, the next chamfer). Updating that
+  feature drops the stale message (`_drop_inherited_feature_errors`), but NX does not
+  update features while a sketch is active, and `nx_create_sketch` leaves its sketch
+  active, so the sketch failed once with the old message. `LegacyServices.feature_errors`
+  now deactivates the active sketch with a model update, re-reads the errors and activates
+  the sketch again; a real error survives that update and still fails the call. Live:
+  `acceptance/modeling/blend.json` creates a sketch right after the refused blend
+  (committed, model healthy).
+- **Registry.** `ObjectRegistry.register` refreshes the stored object on an identity hit,
+  so a tag NX reuses after an undo inside one call never resolves to the deleted object.
+- **Gate 13.** The kernel runs `services.refresh_annotations(spec)` (legacy, now only when
+  the part has legacy measured sheet-metal callouts) and then every `@refresher` hook
+  (`services.refreshers()`; the host returns all registered hooks, services without NX
+  none), inside the call's mark; a refresher failure rolls the call back.
+  `nx_list_objects(kind)` covers every kind with a `@lister` (a test keeps `ListKind` and
+  the registered listers equal; a domain adding a lister adds its kind). `nx_delete_objects`
+  (session domain, not migrated yet) will dispatch to the `@deleter` hooks. The host's
+  snapshot reports drawing tables (parts lists, bend tables, tabular notes, title blocks)
+  as `drawing_table` in `changes`.
+- **Additive changes kept.** `sidecar/local.py` runs `runs="sidecar"` tools through the
+  same kernel over `SidecarServices` (no NX, receipts in the shared operation store, gate 2
+  on the sidecar's workspace). The proxy attaches an inline PNG for `data.image = {path,
+  sha256, inline: true}` (hash re-checked, 8 MiB cap, otherwise a warning) and a
+  `nx-artifact://workspace/...` resource link for a result naming `data.path` with
+  `data.sha256`. `tx.checks()` marks refusals raised before the first change as
+  `not_started`; the kernel accepts that only when no file was published and, for a model
+  tool, the snapshot is unchanged (a misplaced `checks()` still rolls back).
+  `Services.forget_parts(keys)` drops the references, ownership, undo history and
+  checkpoints of parts a tool closed. `host/dispatch.legacy_ids` maps catalogue short refs
+  inside legacy arguments to their legacy IDs (until F4). Hook kind `sheet`
+  (`@sheet_locator`) maps annotations, dimensions and tables to their sheet for gate 9.
+- **Capability matrix.** `scripts/generate_capability_matrix.py` lists every catalogue tool
+  with its acceptance evidence per build and variant (`src/nx_mcp/evidence/`), then the
+  remaining legacy manifest tools; the pre-commit check also runs on evidence and domain
+  changes.
 
 F4 deletes:
 
