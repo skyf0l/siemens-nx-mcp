@@ -251,6 +251,8 @@ def scenario_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "ROOT", root)
     monkeypatch.setattr(runner, "SCENARIOS", root / "acceptance")
     monkeypatch.setenv("NX_MCP_DEV", "1")
+    # Never click a real development panel from the unit suite.
+    monkeypatch.setattr(runner, "find_dev_panel", lambda: None)
     return path
 
 
@@ -344,6 +346,69 @@ async def test_cleanup_keep_leaves_parts_loaded(tmp_path, scenario_dir):
         )
     assert record["cleanup"] == {"mode": "keep", "closed": [], "failed": []}
     assert len(nx.parts) == 2
+
+
+class PanelNX(FakeNX):
+    """A fake interactive host: the agent may lower the panel mode, never raise it."""
+
+    RANK = {"ask": 0, "auto": 1, "agent": 2}
+
+    def __init__(self, mode="agent"):
+        super().__init__()
+        self.mode = mode
+        self.clicks = []
+
+    async def call(self, method, params):
+        if method != "nx_set_control":
+            return await super().call(method, params)
+        self.calls.append((method, params))
+        wanted = {"manual": "ask"}.get(params.get("mode"), params.get("mode"))
+        if wanted not in (None, "status"):
+            if self.RANK[wanted] > self.RANK[self.mode]:
+                raise NXToolError(
+                    "NX_UI_PAUSED",
+                    "Only the engineer can",
+                    details={"mutation_outcome": "not_started"},
+                )
+            self.mode = wanted
+        data = {"mode": self.mode, "mode_label": self.mode, "owner": "agent", "busy": False,
+                "waiting": 0, "activity": "idle", "running": None}  # fmt: skip
+        return self.ok(method, data)
+
+    def click(self, panel, mode):
+        assert panel == 4242
+        self.clicks.append(mode)
+        self.mode = mode  # the engineer's click: any mode
+
+
+CONTROL = {
+    "covers": {"nx_set_control": ["ask"]},
+    "part": None,
+    "steps": [{"call": "nx_set_control", "args": {"mode": "ask"}, "expect": {"data.mode": "ask"}}],
+}
+
+
+@pytest.mark.parametrize("dev", [True, False])
+async def test_the_dev_panel_mode_is_restored_after_a_scenario(
+    tmp_path, scenario_dir, monkeypatch, dev
+):
+    scenario_dir.write_text(json.dumps(CONTROL), encoding="utf-8")
+    nx = PanelNX("agent")
+    monkeypatch.setattr(runner, "find_dev_panel", lambda: 4242 if dev else None)
+    monkeypatch.setattr(runner, "press_panel", nx.click)
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        record = await runner.run_scenario(
+            session, scenario_dir, workspace=tmp_path, run_id="r5", build=("v2406", ""), owner="t"
+        )
+    assert record["passed"], record["steps"]
+    if dev:  # "Ask me first" left by the scenario: the runner clicks Agent drives again.
+        assert nx.mode == "agent" and nx.clicks == ["agent"]
+        assert record["cleanup"]["panel"] == {"from": "ask", "to": "agent", "restored": True}
+        assert not record["cleanup"]["failed"]
+    else:  # Production panels are never touched, not even read.
+        assert nx.mode == "ask" and nx.clicks == [] and "panel" not in record["cleanup"]
+        assert [c for c in nx.calls if c[1].get("mode") == "status"] == []
 
 
 def test_repository_scenarios_cover_every_catalogue_tool_and_variant():

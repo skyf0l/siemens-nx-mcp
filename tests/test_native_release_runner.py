@@ -92,21 +92,13 @@ def test_native_suites_accept_runner_profile_count(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
     registered = registered_tool_count(tmp_path, monkeypatch)
     scripts = [root / "scripts/accept_release.py", root / "scripts/validate_native_release.py"]
-    scripts += [
-        root / "acceptance" / f"validate_{name}.py"
-        for name in [
-            "advanced_tools",
-            "authoring_tools",
-            "engineering_tools",
-            "freeform_manufacturing",
-            "project_folders",
-            "sheet_metal",
-            "visual_tools",
-        ]
-    ]
     for script in scripts:
         assert expected_tool_count(script) == registered, script.name
-        source = script.read_text(encoding="utf-8")
-        if script.parent.name == "acceptance":
-            assert 'os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT))' in source
     assert RUNNER["EXPECTED_TOOL_COUNT"] == registered
+
+
+def test_native_release_replays_every_acceptance_domain():
+    from nx_mcp.core import catalogue
+
+    assert sorted(RUNNER["DOMAINS"]) == sorted(catalogue.DOMAINS)
+    assert len(RUNNER["DOMAINS"]) == len(set(RUNNER["DOMAINS"]))

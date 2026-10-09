@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       iterations:
-        description: Number of acceptance iterations
+        description: Number of smoke iterations (plus one transport-recovery check)
         required: true
         default: 20
         type: number
@@ -49,6 +49,8 @@ jobs:
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "NX_MCP_WORKSPACE=$nxWorkspace"
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "NX_MCP_BRIDGE_STOP_FILE=$(Join-Path $nxWorkspace 'stop-bridge')"
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "NX_MCP_PROBE_OUTPUT=$(Join-Path $nxWorkspace 'nx-runtime-probe.json')"
+          # The batch bridge's descriptor (the acceptance client defaults to the interactive one).
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "NX_MCP_BRIDGE_DESCRIPTOR=$(Join-Path $env:LOCALAPPDATA 'nx-mcp\bridge.json')"
       - name: Verify NX embedded runtime
         shell: pwsh
         run: |
@@ -60,6 +62,9 @@ jobs:
           $probe = Get-Content -Raw -LiteralPath $env:NX_MCP_PROBE_OUTPUT | ConvertFrom-Json
           if ($null -ne $probe.bridge_import_error) {
             throw "NX bridge import failed: $($probe.bridge_import_error)"
+          }
+          if ($null -ne $probe.catalogue_import_error) {
+            throw "NX tool catalogue import failed: $($probe.catalogue_import_error)"
           }
       - name: Start NX bridge
         shell: pwsh
@@ -87,7 +92,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $descriptorPath) -or $descriptor.LastWriteTimeUtc -lt $startedAt) {
             throw "NX bridge did not write a fresh descriptor within two minutes."
           }
-      - name: Run real NX acceptance test
+      - name: Run real NX smoke (catalogue tools through the acceptance client)
         run: python -m pytest -q -p no:cacheprovider -m real_nx tests/test_real_nx.py
       - name: Stop NX bridge
         if: always()

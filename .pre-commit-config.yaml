@@ -38,6 +38,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/nx_mcp/evidence/.*\.json|src/nx_mcp/domains/.*\.py|scripts/generate_capability_matrix\.py|docs/capability-matrix\.md)$
+      - id: tool-reference
+        name: tool reference matches the catalogue
+        entry: python scripts/generate_tool_reference.py --check
+        language: system
+        pass_filenames: false
+        files: ^(src/nx_mcp/evidence/.*\.json|src/nx_mcp/domains/.*\.py|src/nx_mcp/core/(catalogue|types)\.py|src/nx_mcp/sidecar/schema\.py|scripts/generate_tool_reference\.py|docs/tools\.md)$
       - id: pytest
         name: pytest (non-real-NX)
         entry: python -m pytest -q -p no:cacheprovider -m "not real_nx"

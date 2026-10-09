@@ -12,21 +12,31 @@ import pytest
 RUNNER = runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/accept_release.py"))
 
 
-def package(tmp_path):
+def package(tmp_path, evidence=True, nx_app=True):
     install = tmp_path / "install"
     runtime = install / "venv/nx_mcp"
     runtime.mkdir(parents=True)
     (runtime / "__init__.py").write_bytes(b"version = 'test'\n")
     release = {"version": "1.0", "commit": "a" * 40}
     (install / "release.json").write_text(json.dumps(release))
-    (install / "source").mkdir()
-    (install / "source/file.py").write_bytes(b"source\n")
+    sources = {"source/file.py": b"source\n"}
+    if nx_app:
+        sources["source/nx_app/startup/nx_mcp_startup.py"] = b"# nx: threaded\n"
+    for name, data in sources.items():
+        (install / name).parent.mkdir(parents=True, exist_ok=True)
+        (install / name).write_bytes(data)
+    runtime_files = {"__init__.py": (runtime / "__init__.py").read_bytes()}
+    if evidence:
+        runtime_files["evidence/session.json"] = b"{}\n"
+        (runtime / "evidence").mkdir()
+        (runtime / "evidence/session.json").write_bytes(b"{}\n")
     wheel = io.BytesIO()
     with zipfile.ZipFile(wheel, "w") as z:
-        z.writestr("nx_mcp/__init__.py", (runtime / "__init__.py").read_bytes())
+        for name, data in runtime_files.items():
+            z.writestr("nx_mcp/" + name, data)
     files = {
         "release.json": json.dumps(release).encode(),
-        "source/file.py": b"source\n",
+        **sources,
         "wheels/nx_mcp-1.0-py3-none-any.whl": wheel.getvalue(),
     }
     files["manifest.json"] = json.dumps({k: RUNNER["digest"](v) for k, v in files.items()}).encode()
@@ -40,7 +50,7 @@ def package(tmp_path):
 def test_release_checks_source_wheel_commit_and_archive(tmp_path):
     args = package(tmp_path)
     result = RUNNER["verify_package"](*args)
-    assert result["source_files_verified"] == result["runtime_files_verified"] == 1
+    assert result["source_files_verified"] == result["runtime_files_verified"] == 2
     assert result["loaded_process_bytes_attested"] is False
     with pytest.raises(RuntimeError, match="SHA-256"):
         RUNNER["verify_package"](args[0], "0" * 64, *args[2:])
@@ -49,6 +59,14 @@ def test_release_checks_source_wheel_commit_and_archive(tmp_path):
     (args[3] / "source/file.py").write_text("changed")
     with pytest.raises(RuntimeError, match="Installed source mismatch"):
         RUNNER["verify_package"](*args)
+
+
+@pytest.mark.parametrize(
+    "missing, message", [({"evidence": False}, "evidence"), ({"nx_app": False}, "nx_app")]
+)
+def test_release_needs_the_evidence_and_the_nx_startup_app(tmp_path, missing, message):
+    with pytest.raises(RuntimeError, match=message):
+        RUNNER["verify_package"](*package(tmp_path, **missing))
 
 
 def test_release_rejects_shadow_runtime_and_changed_wheel(tmp_path):

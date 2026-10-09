@@ -165,7 +165,7 @@ check once in graphical NX:
 
 Start NX with the startup application in development mode:
 `python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1`. The
-agent gets control without a click, `nx_dev_python` is available, and
+agent gets control without a click, `scripts/dev_python.py` works, and
 `python scripts/dev_reload.py --wait-agent` reloads all of `nx_mcp` from disk
 (about two seconds; open parts stay open, object IDs reset): the bootstrap stops
 the host, drops every `nx_mcp` module and starts a fresh host. It exits 1 and
@@ -206,9 +206,9 @@ Every step, including each read-only one, is appended to
 **Open log** opens it in your default text editor. The log rotates to
 `activity.log.1` above 5 MB.
 
-`nx_screenshot` uses `Part.Views.CreateImageExportBuilder` and returns a PNG artifact plus MCP image content. It captures the displayed CAD viewport, never the desktop. White/transparent/original backgrounds and shaded/shaded-with-edges/static-wireframe styles are exposed. Width and height are advisory: the installed graphics driver can use the actual device size, so both requested and actual resolution are returned. These are viewport renderings, not photorealistic ray tracing. Images above 8 MiB use chunked artifact download. `nx_view_info` reports the display-part view axes, NX view origin, absolute origin, scale, and style.
+`nx_capture_view` uses `Part.Views.CreateImageExportBuilder` and returns a PNG artifact plus MCP image content. It captures the displayed CAD viewport, never the desktop. White/transparent/original backgrounds and shaded/shaded-with-edges/static-wireframe styles are exposed. Width and height are advisory: the installed graphics driver can use the actual device size, so both requested and actual resolution are returned. These are viewport renderings, not photorealistic ray tracing. Images above 8 MiB use chunked artifact download. `nx_get_camera` reports the display-part view axes, NX view origin, absolute origin, scale, and style.
 
-`nx_check_interference` examines the cross-product of two selected bodies/components, including nested body occurrences. `nx_check_clearance` examines every distinct body pair in selected groups or the full assembly. Conservative boxes only prune provably separated pairs; reported distances use native geometry. Native solid intersection distinguishes penetration, contact and separation and measures pairwise overlap volumes in mm³. Temporary interference solids are rolled back explicitly: NX builder Reset alone does not remove them. Body/feature counts are checked afterward. Pairwise overlap volumes are not geometric union volume. Custom reference-set edge cases and general solid-validity certification remain outside the validated scope.
+`nx_check_interference` examines the cross-product of two selected bodies/components, including nested body occurrences. A clearance check examines every distinct body pair in selected groups or the full assembly. Conservative boxes only prune provably separated pairs; reported distances use native geometry. Native solid intersection distinguishes penetration, contact and separation and measures pairwise overlap volumes in mm³. Temporary interference solids are rolled back explicitly: NX builder Reset alone does not remove them. Body/feature counts are checked afterward. Pairwise overlap volumes are not geometric union volume. Custom reference-set edge cases and general solid-validity certification remain outside the validated scope.
 
 Use a stable operation ID for mutation retry. A queued request that expires before execution is discarded. If execution already began, a transport timeout reports an unknown outcome; query the durable receipt. Do not send simultaneous NXOpen mutations. Save, engineer edits between agent steps, and part lifecycle changes can invalidate native recovery marks; query checkpoint state.
 

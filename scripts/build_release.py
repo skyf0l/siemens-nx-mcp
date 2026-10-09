@@ -18,6 +18,19 @@ def command(*args, **kwargs):
     return subprocess.check_output(args, text=True, **kwargs).strip()
 
 
+def check_contents(bundle: Path, version: str) -> None:
+    """The release needs the live-NX evidence in the wheel and the NX startup app."""
+    wheel = bundle / "wheels" / f"nx_mcp-{version}-py3-none-any.whl"
+    with zipfile.ZipFile(wheel) as z:
+        evidence = [
+            n for n in z.namelist() if n.startswith("nx_mcp/evidence/") and n.endswith(".json")
+        ]
+    if not evidence:
+        raise SystemExit(f"{wheel.name} lacks nx_mcp/evidence/*.json (pyproject package-data)")
+    if not (bundle / "source" / "nx_app" / "startup" / "nx_mcp_startup.py").is_file():
+        raise SystemExit("The release source lacks nx_app/startup/nx_mcp_startup.py")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
@@ -83,6 +96,7 @@ def main():
             ],
             check=True,
         )
+        check_contents(bundle, version)
         shutil.copy2(source / "requirements-windows.lock", bundle)
         for name in ("install_release.ps1", "restore_release.ps1"):
             shutil.copy2(source / "scripts" / name, bundle)

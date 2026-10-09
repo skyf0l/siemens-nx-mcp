@@ -1,7 +1,8 @@
 """Serialize live NX sessions between parallel development agents.
 
 There is one NX. A dev reload restarts the host for everyone and resets object
-IDs, so only the lock owner may run dev_reload.py, dev_call.py or dev_python.py.
+IDs, so only the lock owner may run dev_reload.py, dev_python.py or the acceptance
+runner (`python -m nx_mcp.acceptance run|call`, which takes the lock itself).
 
     python scripts/dev_lock.py acquire --owner holes      # waits; exit 0 = yours
     python scripts/dev_lock.py release --owner holes

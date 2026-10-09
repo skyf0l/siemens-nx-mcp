@@ -1,8 +1,12 @@
 """Run release acceptance serially against a live graphical NX session.
 
 Run only trusted source from a reviewed release. This never deploys or restarts NX.
-Requires NX_MCP_URL and NX_VENDOR_STEP. Stops at the first failed suite and retains
-all logs/receipts; no blind mutation retry, no parallel NX calls.
+Requires NX_MCP_URL (the HTTP surface, for the session snapshots) and
+NX_MCP_WORKSPACE. The acceptance runner (``python -m nx_mcp.acceptance run``)
+replays every scenario of acceptance/<domain>/ through a fresh stdio sidecar and
+writes its evidence under --output, never into the installed source tree. Stops at
+the first failed domain and retains all logs/evidence; no blind mutation retry, no
+parallel NX calls.
 """
 
 import argparse
@@ -25,21 +29,18 @@ EXPECTED_TOOL_COUNT = runpy.run_path(
     str(Path(__file__).resolve().parents[1] / "scripts" / "public_tool_count.py")
 )["count"]()
 
-SUITES = [
-    ("hard_geometry", "validate_hard_geometry.py", "hard-geometry-validation.json"),
-    (
-        "release_engineering",
-        "validate_release_engineering.py",
-        "release-engineering-validation.json",
-    ),
-    (
-        "documentation",
-        "validate_documentation_manufacturing.py",
-        "documentation-manufacturing-validation.json",
-    ),
-    ("documentation", "validate_annotation_recovery.py", "refresh-check.json"),
-    ("freeform", "validate_freeform_manufacturing.py", "freeform-manufacturing-validation.json"),
-    ("sheet_metal", "validate_sheet_metal.py", "sheet-metal-validation.json"),
+# Domains in release order; each runs as one acceptance-runner process.
+DOMAINS = [
+    "session",
+    "parts_files",
+    "sketch",
+    "modeling",
+    "freeform",
+    "sheet_metal",
+    "assembly",
+    "drawing",
+    "inspection",
+    "display",
 ]
 
 
@@ -115,7 +116,7 @@ async def snapshot():
         return {
             "parts": parts,
             "components": stable(components),
-            "nx_version": status["nx_version"],
+            "nx_version": status["data"]["bridge"]["nx_version"],
             "tool_count": len((await client.list_tools()).tools),
         }
 
@@ -129,8 +130,8 @@ def main():
         raise RuntimeError(
             "Use a new output directory so receipts cannot be confused with an earlier run"
         )
-    if not Path(os.environ["NX_VENDOR_STEP"]).is_file():
-        raise RuntimeError("NX_VENDOR_STEP must identify an authorized local STEP fixture")
+    if not os.environ.get("NX_MCP_WORKSPACE"):
+        raise RuntimeError("Set NX_MCP_WORKSPACE to the workspace the NX bridge serves")
     args.output.mkdir(parents=True)
     report = {"started": datetime.now(timezone.utc).isoformat(), "suites": [], "passed": False}
     source = Path(__file__).resolve().parents[1]
@@ -148,35 +149,40 @@ def main():
         report["before"] = before
         if before["tool_count"] != args.expected_tool_count:
             raise RuntimeError("Deployed tool count differs from the selected release")
-        for directory, script, receipt_name in SUITES:
-            output = args.output / directory
-            output.mkdir(exist_ok=True)
-            log = args.output / (Path(script).stem + ".log")
+        evidence = args.output / "evidence"
+        for domain in DOMAINS:
+            log = args.output / f"acceptance-{domain}.log"
             with log.open("w") as stream:
                 result = subprocess.run(
-                    [sys.executable, str(source / "acceptance" / script)],
-                    env={
-                        **os.environ,
-                        "NX_VALIDATION_OUTPUT": str(output.absolute()),
-                        "NX_EXPECTED_TOOL_COUNT": str(args.expected_tool_count),
-                    },
+                    [
+                        sys.executable,
+                        "-m",
+                        "nx_mcp.acceptance",
+                        "run",
+                        domain,
+                        "--owner",
+                        "release-acceptance",
+                        "--evidence",
+                        str(evidence.absolute()),
+                    ],
+                    cwd=source,
+                    env={**os.environ, "NX_MCP_SOURCE_ROOT": str(source)},
                     stdout=stream,
                     stderr=subprocess.STDOUT,
                     check=False,
                 )
+            records = sorted(evidence.glob(f"*/{domain}/*.json"))
             item = {
-                "script": script,
+                "domain": domain,
                 "exit_code": result.returncode,
-                "receipt": (output / receipt_name).relative_to(args.output).as_posix(),
+                "evidence": [p.relative_to(args.output).as_posix() for p in records],
             }
             report["suites"].append(item)
             if result.returncode:
-                raise RuntimeError(f"Native acceptance failed: {script}; inspect {log}")
-            receipt = json.loads((output / receipt_name).read_text())
-            if not receipt.get("passed", receipt.get("pass", False)) or not receipt.get(
-                "session_restored", False
-            ):
-                raise RuntimeError(f"Missing success or session restoration evidence: {script}")
+                raise RuntimeError(f"Native acceptance failed: {domain}; inspect {log}")
+            failed = [p.name for p in records if p.name.endswith(".last-failure.json")]
+            if not records or failed:
+                raise RuntimeError(f"Missing or failed acceptance evidence: {domain} {failed}")
         report["passed"] = True
     except Exception as error:
         report["error"] = str(error)

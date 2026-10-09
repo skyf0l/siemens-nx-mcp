@@ -1,6 +1,8 @@
 # NX MCP tool surface: target design
 
-Status: proposal for review. Scope: the public tool surface (names, arguments,
+Status: design of record, implemented. The generated [tool reference](../tools.md) is the
+authoritative list of tools and arguments; section 3 keeps the original mapping from the
+227 pre-migration tools and the rationale. Scope: the public tool surface (names, arguments,
 results, errors, profiles) of the catalogue-based re-architecture. Names and
 arguments change freely: no aliases, no backwards compatibility.
 

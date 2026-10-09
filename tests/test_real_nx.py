@@ -13,7 +13,7 @@ pytestmark = pytest.mark.real_nx
 
 
 @pytest.mark.asyncio
-async def test_real_nx_certified_workflow() -> None:
+async def test_real_nx_smoke_workflow_and_transport_recovery() -> None:
     if os.environ.get("NX_MCP_REAL_NX") != "1":
         pytest.skip("requires NX_MCP_REAL_NX=1 on a dedicated Siemens NX runner")
 
@@ -22,8 +22,9 @@ async def test_real_nx_certified_workflow() -> None:
     prefix = os.environ.get("NX_MCP_REAL_NX_RUN_PREFIX", "pytest-real-nx")
     workspace.mkdir(parents=True, exist_ok=True)
 
-    results = await run(workspace, iterations, prefix)
+    *runs, transport = await run(workspace, iterations, prefix)
 
-    assert len(results) == iterations
-    assert all(result["nx_version"] for result in results)
-    assert all(result["feature_id"] and result["body_id"] for result in results)
+    assert len(runs) == iterations
+    assert all(result["nx_version"] for result in runs)
+    assert all(result["feature_id"] and result["body_id"] for result in runs)
+    assert transport["transport"]["committed"] and transport["transport"]["replayed"]

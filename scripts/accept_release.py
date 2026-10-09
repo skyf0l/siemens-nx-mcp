@@ -1,7 +1,8 @@
 """Verify an installed offline release and run serial native acceptance on its NX host.
 
-Never installs, stops, restarts, saves or restores user parts itself. Native suites
-create isolated test parts and must restore the original saved session.
+Never installs, stops, restarts, saves or restores user parts itself. The native
+phase (scripts/validate_native_release.py) replays the acceptance scenarios on
+isolated test parts and must restore the original saved session.
 """
 
 import argparse
@@ -102,6 +103,10 @@ def verify_package(archive, expected_hash, expected_commit, install_root, runtim
             }
         if not checked_source or not runtime_files:
             raise RuntimeError("Package lacks source or runtime module files")
+        if not any(PurePosixPath(n).match("evidence/*.json") for n in runtime_files):
+            raise RuntimeError("The wheel lacks the live-NX evidence (nx_mcp/evidence/*.json)")
+        if "source/nx_app/startup/nx_mcp_startup.py" not in manifest:
+            raise RuntimeError("The package lacks the NX startup application (nx_app/)")
         for name, expected in runtime_files.items():
             actual = runtime_root.joinpath(*safe_name(name).parts)
             if not actual.is_file() or actual.read_bytes() != expected:

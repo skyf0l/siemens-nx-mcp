@@ -46,7 +46,9 @@ from nx_mcp.acceptance import expect as expectations
 from nx_mcp.core import catalogue, errors
 from nx_mcp.core import evidence as core_evidence
 
-ROOT = Path(__file__).resolve().parents[3]
+# The checkout (scenarios, fixtures, scripts/dev_lock.py); an installed release
+# points NX_MCP_SOURCE_ROOT at its source/ folder.
+ROOT = Path(os.environ.get("NX_MCP_SOURCE_ROOT") or Path(__file__).resolve().parents[3])
 SCENARIOS = ROOT / "acceptance"
 EVIDENCE = SCENARIOS / "evidence"
 FIXTURES = SCENARIOS / "fixtures"
@@ -364,6 +366,15 @@ class DevLock:
             self.path.unlink(missing_ok=True)
 
 
+def descriptor_path() -> Path | None:
+    """The bridge descriptor the sidecar connects to (the interactive one by default)."""
+    if os.environ.get("NX_MCP_BRIDGE_DESCRIPTOR"):
+        return Path(os.environ["NX_MCP_BRIDGE_DESCRIPTOR"])
+    if os.environ.get("LOCALAPPDATA"):
+        return Path(os.environ["LOCALAPPDATA"]) / "nx-mcp" / "interactive-bridge.json"
+    return None
+
+
 @contextlib.asynccontextmanager
 async def sidecar(workspace: Path):
     """A stdio MCP client session of a fresh ``python -m nx_mcp.server``."""
@@ -374,10 +385,9 @@ async def sidecar(workspace: Path):
     env["NX_MCP_WORKSPACE"] = str(workspace)
     env["NX_MCP_SURFACE"] = "agent"
     env["NX_MCP_DEV"] = "1"  # untested tools must run to earn their first evidence
-    if "NX_MCP_BRIDGE_DESCRIPTOR" not in env and env.get("LOCALAPPDATA"):
-        env["NX_MCP_BRIDGE_DESCRIPTOR"] = str(
-            Path(env["LOCALAPPDATA"]) / "nx-mcp" / "interactive-bridge.json"
-        )
+    descriptor = descriptor_path()
+    if descriptor is not None:
+        env["NX_MCP_BRIDGE_DESCRIPTOR"] = str(descriptor)
     params = StdioServerParameters(command=sys.executable, args=["-m", "nx_mcp.server"], env=env)
     with open(os.devnull, "w") as quiet:
         async with (
@@ -429,6 +439,8 @@ async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, bui
         special["$fixture"] = str(target)
     started = utc_now()
     before = await loaded_parts(session)
+    panel = find_dev_panel()
+    mode = await panel_mode(session) if panel is not None else None
     try:
         steps = await run_steps(
             session, data["steps"], special, label=f"{domain}/{path.stem}", echo=_echo
@@ -436,6 +448,12 @@ async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, bui
     finally:
         # Keep NX fast: close what the scenario loaded, even when a step failed.
         cleanup = await close_new_parts(session, before, data.get("cleanup", "close"))
+        if panel is not None and mode is not None:
+            restored = await restore_panel_mode(session, panel, mode)
+            if restored is not None:
+                cleanup["panel"] = restored
+                if not restored["restored"]:
+                    cleanup["failed"].append(f"could not restore the panel mode {mode!r}")
     for message in cleanup.get("failed", []):
         print(f"  cleanup: {message}")
     finished = utc_now()
@@ -534,6 +552,94 @@ async def close_new_parts(session, before: list[dict] | None, mode: str = "close
     return report
 
 
+# The NX MCP panel's mode buttons (interactive.ID_MODES): a WM_COMMAND with one
+# of these ids is the engineer's click.
+PANEL_BUTTONS = {"auto": 111, "agent": 112, "ask": 113}
+DEV_PANEL_TITLE = "NX MCP DEV"
+
+
+def find_dev_panel() -> int | None:
+    """The window handle of the development loop's NX MCP panel, else ``None``.
+
+    Only the panel of ``dev_start_nx.py`` (title "NX MCP DEV ...") in the NX
+    process of the bridge descriptor counts: production panels are never touched.
+    """
+    if sys.platform != "win32":
+        return None
+    descriptor = descriptor_path()
+    try:
+        pid = int(json.loads(descriptor.read_text(encoding="utf-8"))["pid"]) if descriptor else 0
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not pid:
+        return None
+    import ctypes
+    from ctypes import wintypes as w
+
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    callback_type = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+    user.EnumWindows.argtypes = [callback_type, w.LPARAM]
+    user.GetWindowThreadProcessId.argtypes = [w.HWND, ctypes.POINTER(w.DWORD)]
+    user.GetWindowTextW.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
+    user.GetClassNameW.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
+    found: list[int] = []
+
+    def visit(hwnd, _):
+        owner = w.DWORD()
+        user.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value != pid:
+            return True
+        name = ctypes.create_unicode_buffer(256)
+        title = ctypes.create_unicode_buffer(256)
+        user.GetClassNameW(hwnd, name, 256)
+        user.GetWindowTextW(hwnd, title, 256)
+        if name.value.startswith("NxMcpPanel") and title.value.startswith(DEV_PANEL_TITLE):
+            found.append(int(hwnd))
+            return False
+        return True
+
+    user.EnumWindows(callback_type(visit), 0)
+    return found[0] if found else None
+
+
+def press_panel(panel: int, mode: str) -> None:
+    """Click the panel's mode button (posted: NX applies it on its next tick)."""
+    import ctypes
+
+    ctypes.windll.user32.PostMessageW(panel, 0x111, PANEL_BUTTONS[mode], 0)  # WM_COMMAND
+
+
+async def panel_mode(session) -> str | None:
+    """The panel mode (``nx_set_control`` status; never waits), ``None`` without a panel."""
+    status = await call_tool(session, "nx_set_control", {"mode": "status"}, intent=None)
+    mode = (status.get("data") or {}).get("mode") if status.get("ok") else None
+    return mode if mode in PANEL_BUTTONS else None
+
+
+async def restore_panel_mode(
+    session, panel: int, mode: str, *, wait: float = 15.0, poll: float = 0.5
+) -> dict | None:
+    """Put the development panel back in ``mode`` when a scenario changed it.
+
+    A scenario may leave NX in "Ask me first" (session/set_control.json): the agent
+    cannot raise its own control, so the runner clicks the mode button on the
+    development panel the way the engineer would. ``None`` when nothing changed.
+    """
+    current = await panel_mode(session)
+    if current is None or current == mode:
+        return None
+    report: dict[str, Any] = {"from": current, "to": mode, "restored": False}
+    press_panel(panel, mode)
+    deadline = time.monotonic() + wait
+    while True:
+        if await panel_mode(session) == mode:
+            report["restored"] = True
+            return report
+        if time.monotonic() > deadline:
+            return report
+        await asyncio.sleep(poll)
+
+
 def write_evidence(record: dict, root: Path = EVIDENCE) -> Path:
     """Passing runs replace ``<name>.json``; a failing run is kept beside it."""
     folder = root / record["nx_version"] / record["domain"]
@@ -576,7 +682,7 @@ async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDE
 async def call(
     steps: list[dict], *, workspace: Path, owner: str, limit: int = 600, keep: bool = False
 ) -> int:
-    """Ad-hoc steps (the dev_call.py capability) through the same client; no evidence."""
+    """Ad-hoc steps through the same client (the live development loop); no evidence."""
     lock = DevLock(workspace, owner)
     lock.acquire()
     try:
@@ -682,6 +788,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     run_parser = sub.add_parser("run", help="replay scenarios against the live NX bridge")
     run_parser.add_argument("scenarios", nargs="*", help="domain, domain/name or file (all)")
+    run_parser.add_argument(
+        "--evidence", type=Path, default=EVIDENCE, help="evidence root (acceptance/evidence)"
+    )
     call_parser = sub.add_parser("call", help="run ad-hoc steps (no evidence)")
     call_parser.add_argument("file", nargs="?", help="JSON list of steps")
     call_parser.add_argument("--inline", help="JSON list of steps")
@@ -706,7 +815,14 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("set NX_MCP_WORKSPACE or pass --workspace")
     workspace = Path(args.workspace).resolve()
     if args.command == "run":
-        return asyncio.run(run(args.scenarios, workspace=workspace, owner=args.owner))
+        return asyncio.run(
+            run(
+                args.scenarios,
+                workspace=workspace,
+                owner=args.owner,
+                evidence_root=args.evidence.resolve(),
+            )
+        )
     if bool(args.file) == bool(args.inline):
         parser.error("pass a steps file or --inline")
     steps = json.loads(args.inline if args.inline else Path(args.file).read_text(encoding="utf-8"))

@@ -95,7 +95,7 @@ final pagination/discovery fixes received a separate follow-up. Provider usage
 was unavailable; response tokenizer counts are not total model costs.
 
 Historical release receipts are retained in git history and local evidence, rather
-than one documentation file per deployment. The [capability matrix](capability-matrix.md)
+than one documentation file per deployment. The [capability matrix](../capability-matrix.md)
 is generated from the runtime manifest. Do not promote a label based on builder
 presence, a mock test or an unrelated native fixture.
 
