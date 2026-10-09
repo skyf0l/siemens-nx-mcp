@@ -243,6 +243,11 @@ def test_listed_schema_accepts_what_gate_1_accepts(spec):
         if any(args.get(p.name, 0) is None for p in spec.params.values() if not p.required):
             continue
         listed_ok = validator.is_valid(args)
+        variant = spec.variant_of(args)
+        if listed_ok and schema._by_variant(spec) and variant in spec.variant_values():
+            # A ByVariant argument's fields are listed by tool#variant only.
+            narrowed = schema.variant_schema(spec, variant, call_keys=False)
+            listed_ok = jsonschema.Draft202012Validator(narrowed).is_valid(args)
         if accepts_pydantic(spec, args):
             assert listed_ok, (spec.name, args)
         elif listed_ok and "inf" not in repr(args):

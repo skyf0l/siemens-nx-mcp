@@ -1,0 +1,151 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/solid_punch.json",
+  "scenario_sha256": "a496c211c8270f94a4115a6950af1ba4ea2e60c78404081ca3c4a8eb339580d3",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "solid_punch"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "2ee08de66231560d2fc25b0fbaa72899252cfd67",
+  "sources": {
+    "nx_create_sheet_metal_feature": "cde73b7745d74a2aa20fe6963ac193743cf0a7d562a382bf73d104a78d8deabf"
+  },
+  "run_id": "20261009-233423-455520",
+  "owner": "sm_ops_c",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-233423-455520\\sheet_metal_solid_punch_455520.prt",
+  "started": "2026-10-09T19:34:23Z",
+  "finished": "2026-10-09T19:34:25Z",
+  "passed": true,
+  "checks": 5,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.0,
+      "result_sha256": "c0b74f51721d691a9aaaae9a738648151f18b291c921c49221ccdbb5a47fc9d2"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "21288b7a595b113ddaeb6097e1e7637f5c5c9d9a0b4c69c71f0a487e578d5117"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "5df5c6db200610c0fce00826d6d00174364a8417b13f660ea680e8ece49767c3"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "0eae43730906c69bc85739cfde6c1b36c711a603098e58f8d91cf8e780304b5c"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "17431adc7da450808e851326381de457bee62b0e408951483854cf5bb423f746"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "b4c9620d2b228f6841acb77d637e9eda1c5b75d9e6c663b090a7431dc5984b5a"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.094,
+      "result_sha256": "73a55dbb14dfa27355f2b12e1b158ffc65972e0071fc0bf65ff7acbe02b5c11d"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "d278320335e858e0c97bff7f69401abf94d604b82c7873aa6f3702761ebb0b21"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "2cdfef6e1adf38b7ad704fb04d361464517b02a5836f252cdd7f41b4ce472356"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "48de90dcbb85a731e7a76b5be5764b71e38206587f2f362eb0a18b9e214eeacd"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "0828bc0c66e1db339ce18efc1e4ccc5f8633240e367f9aca644f932fd031912d"
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "e8a2523f40c8c93bf9c9bfffb83c883f47c54be018411e809bfeaa7b728c4d9c"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.094,
+      "result_sha256": "9b7331f6391ee918dba6533b37144f338b9e5e6594cf76dc35a048f1bc06b37f"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-233423-455520/sheet_metal_solid_punch_455520.prt"
+    ],
+    "failed": []
+  }
+}

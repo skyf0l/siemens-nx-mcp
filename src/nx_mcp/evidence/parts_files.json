@@ -88,6 +88,16 @@
       "variants": []
     }
   },
+  "nx_get_attributes": {
+    "v2406": {
+      "checks": 145,
+      "recorded": "2026-10-09T19:26:53Z",
+      "scenario": "acceptance/parts_files/attributes.json",
+      "scenario_sha256": "ea69cacf0451a865d0463e5f1b8f2a30027db9fa1f88a393b6229fbd3ef2e335",
+      "source_sha256": "6eb6873207ccd33f3e30802d42df6ee0412b73d888271c5729b60661fcee7321",
+      "variants": []
+    }
+  },
   "nx_import_model": {
     "v2406": {
       "checks": 37,
@@ -137,6 +147,16 @@
       "scenario": "acceptance/parts_files/save_part.json",
       "scenario_sha256": "48e200f580e40b494d75828763c78d74f577da523ff536c20067b3a7cea70bf8",
       "source_sha256": "5de038221e1a2c6242ff922520dae0bd243805fa929516a21a1348dd9b776814",
+      "variants": []
+    }
+  },
+  "nx_set_attributes": {
+    "v2406": {
+      "checks": 145,
+      "recorded": "2026-10-09T19:26:53Z",
+      "scenario": "acceptance/parts_files/attributes.json",
+      "scenario_sha256": "ea69cacf0451a865d0463e5f1b8f2a30027db9fa1f88a393b6229fbd3ef2e335",
+      "source_sha256": "6eb6873207ccd33f3e30802d42df6ee0412b73d888271c5729b60661fcee7321",
       "variants": []
     }
   },

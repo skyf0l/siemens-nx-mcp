@@ -19,6 +19,7 @@ from typing import Annotated, Any, Literal, Union
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.types import (
     PLACEHOLDER_PATTERN,
+    ByVariant,
     Items,
     Json,
     PathArg,
@@ -366,10 +367,18 @@ def validate(params: dict, args, *, placeholders: bool = False) -> Checked:
             if args[name] is None and not param.required and param.default is None:
                 walker.out.args[name] = None
                 continue
-            walker.out.args[name] = walker.check(args[name], param.hint, [name])
+            walker.out.args[name] = walker.check(args[name], _form(param.hint, args), [name])
         elif param.required:
             raise _bad([name], "required field is missing")
     return walker.out
+
+
+def _form(hint, args):
+    """The variant's own form of a ``ByVariant`` argument; an unknown variant value keeps
+    the free-form hint (its own field reports the error)."""
+    by = unwrap(hint)[1].get(ByVariant)
+    value = args.get(by.field) if by is not None else None
+    return by.forms[value] if isinstance(value, str) and value in by.forms else hint
 
 
 def get_at(data, path):

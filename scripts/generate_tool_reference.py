@@ -36,10 +36,23 @@ def load_rows() -> list[dict]:
                 "description": spec.description,
                 "variants": list(spec.variant_values()),
                 "schema": schema.input_schema(spec, call_keys=False),
+                "forms": forms(spec, schema),
                 "evidence": found.get(name, {}).get(BUILD),
             }
         )
     return rows
+
+
+def forms(spec, schema) -> dict:
+    """``{argument: {variant: its fields}}`` of arguments whose fields depend on the variant."""
+    out: dict = {}
+    for name in schema._by_variant(spec):
+        for value in spec.variant_values():
+            narrowed = schema.variant_schema(spec, value, call_keys=False)["properties"][name]
+            required = set(narrowed.get("required", []))
+            fields = [k if k in required else k + "?" for k in narrowed.get("properties", {})]
+            out.setdefault(name, {})[value] = fields
+    return out
 
 
 def type_of(node: dict, defs: dict) -> str:
@@ -142,6 +155,10 @@ def render(rows: list[dict]) -> str:
                 ]
             else:
                 lines.append("No arguments.")
+            for argument, by_variant in row.get("forms", {}).items():
+                lines += ["", f"`{argument}` fields by variant (`?` optional):", ""]
+                lines += ["| Variant | Fields |", "| --- | --- |"]
+                lines += [f"| `{v}` | {', '.join(f)} |" for v, f in by_variant.items()]
     return "\n".join(lines) + "\n"
 
 

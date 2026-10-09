@@ -395,6 +395,11 @@ EXAMPLES = {
     "joggle": {"faces": ["fc:1"], "section": "s:1", "height": 5},
     "bulge_relief": {"edges": ["e:1"], "height": 3},
     "bead": {"section": "s:1", "height": 2, "radius": 4},
+    "convert": {"face": "fc:1"},
+    "from_solid": {"faces": ["fc:1", "fc:2"], "thickness": 2},
+    "flat_solid": {"face": "fc:1", "edge": "e:1"},
+    "lightening_cutout": {"section": "s:1", "length": 4},
+    "solid_punch": {"face": "fc:1", "tool": "b:1"},
 }
 
 

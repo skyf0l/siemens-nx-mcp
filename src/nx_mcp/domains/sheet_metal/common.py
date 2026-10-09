@@ -60,6 +60,20 @@ def owner_body(tx, obj, field):
     return body
 
 
+def is_plain_solid(tx, body) -> bool:
+    """A solid body that is not sheet metal (yet)."""
+    return bool(getattr(body, "IsSolidBody", False)) and not is_sheet_metal(tx, body)
+
+
+def solid_owner(tx, obj, field):
+    """The solid, not sheet-metal body owning a face or edge (convert, from_solid)."""
+    body = obj.GetBody()
+    if body is None or not is_plain_solid(tx, body):
+        fail("NX_WRONG_GEOMETRY", "Select geometry of a solid body that is not sheet metal",
+             field=field)  # fmt: skip
+    return body
+
+
 def thickness(tx, body) -> float:
     return result.measured(manager(tx).GetBodyThickness(body), "thickness")
 

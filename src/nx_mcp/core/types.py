@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 # ---------------------------------------------------------------------------
 # Markers
@@ -89,7 +90,18 @@ class Json:
     max_chars: int = 16000
 
 
-MARKERS = (Doc, Range, Items, Text, RefKind, Quantity, PathArg, Json)
+@dataclass(frozen=True, eq=False)
+class ByVariant:
+    """On a ``Json`` object: its fields depend on the tool's variant field ``field``;
+    ``forms`` maps each variant value to its TypedDict. Gate 1 checks the object against
+    the chosen form and ``nx_get_tool_schemas("tool#value")`` shows only that form, so
+    the listed schema stays small however many variants the tool has."""
+
+    field: str
+    forms: Mapping[str, Any]
+
+
+MARKERS = (Doc, Range, Items, Text, RefKind, Quantity, PathArg, Json, ByVariant)
 
 
 def check_json(value, marker: Json) -> dict:

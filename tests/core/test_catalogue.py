@@ -6,7 +6,7 @@ import pytest
 
 from nx_mcp.core import catalogue, summary
 from nx_mcp.core.catalogue import CatalogueError, make_spec
-from nx_mcp.core.types import Items, Length, PathTo, RefTo, Text
+from nx_mcp.core.types import ByVariant, Doc, Items, Json, Length, PathTo, RefTo, Text
 
 
 class Out(TypedDict):
@@ -166,3 +166,46 @@ def test_loaded_registry_is_valid():
         rendered = summary.render(s, dict(s.example), strict=True)
         assert rendered and rendered != s.label and len(rendered) <= 60
     assert {"body", "face", "edge", "feature", "datum", "sketch"} <= set(catalogue.hooks("lister"))
+
+
+class _FormA(TypedDict):
+    size: Length
+
+
+class _FormB(TypedDict, total=False):
+    edges: Annotated[list[RefTo("edge")], Items(1, 5)]
+
+
+_FORMS = {"a": _FormA, "b": _FormB}
+
+
+def nx_create_by(
+    tx,
+    *,
+    method: Literal["a", "b"],
+    p: Annotated[dict, Json(), ByVariant("method", _FORMS), Doc("Fields per method")],
+) -> Out:
+    """Doc."""
+
+
+def test_by_variant_forms_are_checked_by_gate_1_and_listed_per_variant():
+    from nx_mcp.core.errors import NXError
+    from nx_mcp.core.validate import validate
+    from nx_mcp.sidecar import schema
+
+    ok = spec(nx_create_by, variants="method", example={"method": "a", "p": {"size": 2}})
+    checked = validate(ok.params, {"method": "a", "p": {"size": "2 mm"}})
+    assert checked.quantities == [(("p", "size"), "length")]
+    with pytest.raises(NXError, match="/p/edges: unknown field"):
+        validate(ok.params, {"method": "a", "p": {"size": 1, "edges": ["e:1"]}})
+    assert validate(ok.params, {"method": "b", "p": {}}).args == {"method": "b", "p": {}}
+    listed = schema.input_schema(ok, call_keys=False)["properties"]["p"]
+    assert listed["type"] == "object" and "properties" not in listed
+    narrowed = schema.variant_schema(ok, "a", call_keys=False)["properties"]
+    assert narrowed["method"] == {"const": "a"} and narrowed["p"]["required"] == ["size"]
+    assert not schema.adapter(ok).validate_python({"method": "b", "p": {}})["p"]
+    with pytest.raises(ValueError):
+        schema.adapter(ok).validate_python({"method": "a", "p": {}})
+    # The forms must be keyed by the variant field's values.
+    with pytest.raises(CatalogueError, match="ByVariant"):
+        spec(nx_create_by, example={"method": "a", "p": {"size": 2}})

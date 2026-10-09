@@ -139,11 +139,16 @@ def close_part(tx, target, *, save: bool) -> dict:
 
     NX may unload unused prototypes with it: every part that disappeared is
     reported and its references, undo history and ownership are forgotten.
+    Closing re-enters the display part's remembered application: a displayed
+    sheet-metal part is recorded in Sheet Metal first (``parts.keep_sheet_metal``),
+    or NX would open its blocking Sheet Metal warning.
     """
     before = {}
     for p in tx.session.Parts:
         before[int(p.Tag)] = (tx.ref(p, "part"), tx.services.part_key(p))
     audit = verified_save(tx, target) if save else None
+    if not parts.same_part(tx.session.Parts.Display, target):
+        parts.keep_sheet_metal(tx)
     try:
         target.Close(
             tx.nx.BasePart.CloseWholeTree.FalseValue,

@@ -1,0 +1,28 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "convert"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_activate_application", "setup": true, "args": {"application": "sheet_metal"}},
+  {"call": "nx_set_sheet_metal_defaults", "setup": true, "args": {"thickness": 2, "bend_radius": 3, "neutral_factor": 0.33}},
+  {"call": "nx_create_sketch", "setup": true, "save": "s", "args": {"placement": {"principal": "xz"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$s.data.sketch.id", "curves": [
+   {"type": "line", "start": [0, 0], "end": [80, 0]},
+   {"type": "line", "start": [80, 0], "end": [80, 40]},
+   {"type": "line", "start": [80, 40], "end": [78, 40]},
+   {"type": "line", "start": [78, 40], "end": [78, 2]},
+   {"type": "line", "start": [78, 2], "end": [0, 2]},
+   {"type": "line", "start": [0, 2], "end": [0, 0]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$s.data.sketch.id"}},
+  {"call": "nx_create_extrude", "setup": true, "save": "x", "args": {"sketch": "$s.data.sketch.id", "end": {"type": "distance", "value": 50}},
+   "expect": {"data.volume": {"close": 11800, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "base", "args": {"owner": "$x.data.bodies.0.id", "kind": "face", "near": [40, -25, 0], "limit": 1}},
+  {"call": "nx_create_sheet_metal_feature", "save": "cv", "args": {"operation": "convert", "parameters": {"face": "$base.data.items.0.id"}},
+   "expect": {"mutation_outcome": "committed", "data.thickness": {"close": 2, "tol": 1e-06}, "data.bend_count": 1,
+    "data.volume": {"close": 11628.318530717957, "tol": 1e-06}, "data.bends.0.radius": {"close": 3, "tol": 1e-06}}}
+ ]
+}

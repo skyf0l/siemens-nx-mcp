@@ -205,10 +205,37 @@ def _arguments_type(spec):
     return model
 
 
+def _by_variant(spec) -> dict:
+    """``{argument: ByVariant}`` of a tool whose argument's fields depend on its variant."""
+    found = {n: unwrap(p.hint)[1].get(core_types.ByVariant) for n, p in spec.params.items()}
+    return {n: by for n, by in found.items() if by is not None}
+
+
+def _variant_union(spec, by: dict):
+    """The arguments as a union discriminated by the variant field, each branch with its
+    variant's own forms (what gate 1 checks; the listing keeps the free-form object)."""
+    convert = _Converter()
+    branches = []
+    for value in spec.variant_values():
+        fields = {
+            name: (te.Required if p.required else te.NotRequired)[
+                Literal[value]  # type: ignore[valid-type]
+                if name == spec.variants
+                else convert(by[name].forms[value] if name in by else p.hint)
+            ]
+            for name, p in spec.params.items()
+        }
+        branch = te.TypedDict(f"{spec.name}_{value}", fields)  # type: ignore[operator]
+        branch.__pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[attr-defined]
+        branches.append(branch)
+    return Annotated[Union[tuple(branches)], Field(discriminator=spec.variants)]  # noqa: UP007
+
+
 @functools.cache
 def adapter(spec) -> TypeAdapter:
     """The Pydantic validator of a tool's own arguments (no call keys)."""
-    return TypeAdapter(_arguments_type(spec))
+    by = _by_variant(spec)
+    return TypeAdapter(_variant_union(spec, by) if by else _arguments_type(spec))
 
 
 # ---------------------------------------------------------------------------
@@ -445,7 +472,8 @@ def share_definitions(schema: dict) -> dict:
 
 @functools.cache
 def _arguments_schema(spec) -> str:
-    schema = _unshown_patterns(tidy(_inline(adapter(spec).json_schema())))
+    listed = TypeAdapter(_arguments_type(spec)).json_schema()
+    schema = _unshown_patterns(tidy(_inline(listed)))
     properties = schema.get("properties", {})
     for name, param in spec.params.items():
         properties[name] = _field(properties[name], param)
@@ -474,6 +502,11 @@ def variant_schema(spec, variant: str, *, call_keys: bool = True) -> dict:
         schema["properties"][spec.variants] = {"const": variant}
         if description:
             schema["properties"][spec.variants]["description"] = description
+        for name, param in spec.params.items():
+            by = unwrap(param.hint)[1].get(core_types.ByVariant)
+            if by is not None:  # the variant's own fields replace the free-form object
+                form = TypeAdapter(_Converter()(by.forms[variant])).json_schema()
+                schema["properties"][name] = _unshown_patterns(tidy(_inline(form)))
     else:
         sub = spec.variants[variant]
         schema["x-variant"] = tidy(_inline(TypeAdapter(_Converter()(sub)).json_schema()))

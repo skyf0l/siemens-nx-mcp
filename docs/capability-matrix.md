@@ -3,13 +3,13 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `18ca671a8bad1fb2bcac189e22cb6864e86257eee1b4ddcb9bc4f16919a6c5a9`.
+Canonical SHA-256 (catalogue evidence): `60dfd726767687c38ecd2d57a002075c1616a8b9b094d4b74b6f5a73bcbc384d`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 147 |
+| Native-tested | 149 |
 | Experimental | 1 |
 
 ## Catalogue tools
@@ -67,7 +67,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_section_view | Native-tested | display | view | v2406: tested; 40 checks in acceptance/display/sections.json |
 | nx_create_sew | Native-tested | freeform | model | v2406: tested; 23 checks in acceptance/freeform/sew_thicken.json |
 | nx_create_sheet_metal_callout | Experimental | sheet_metal | model | no acceptance evidence: hidden and refused in production |
-| nx_create_sheet_metal_feature | Native-tested | sheet_metal | model | v2406: bead, bend, bend_taper, break_corner, bridge_bend, bulge_relief, closed_corner, contour_flange, dimple, drawn_cutout, edge_rip, flange, flat_pattern, gusset, hem, jog, lofted_flange, normal_cutout, rebend, resize_bend_angle, resize_bend_radius, resize_neutral_factor, tab, three_bend_corner, unbend (untested: advanced_flange, joggle, louver, variational_flange); 11 checks in acceptance/sheet_metal/three_bend_corner.json |
+| nx_create_sheet_metal_feature | Native-tested | sheet_metal | model | v2406: bead, bend, bend_taper, break_corner, bridge_bend, bulge_relief, closed_corner, contour_flange, convert, dimple, drawn_cutout, edge_rip, flange, flat_pattern, flat_solid, from_solid, gusset, hem, jog, lofted_flange, normal_cutout, rebend, resize_bend_angle, resize_bend_radius, resize_neutral_factor, solid_punch, tab, three_bend_corner, unbend (untested: advanced_flange, joggle, lightening_cutout, louver, variational_flange); 11 checks in acceptance/sheet_metal/three_bend_corner.json |
 | nx_create_shell | Native-tested | modeling | model | v2406: tested; 9 checks in acceptance/modeling/shell.json |
 | nx_create_sketch | Native-tested | sketch | model | v2406: all variants; 54 checks in acceptance/sketch/create_sketch.json |
 | nx_create_sketch_constraints | Native-tested | sketch | model | v2406: all variants; 44 checks in acceptance/sketch/sketch_constraints.json |
@@ -111,6 +111,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_finish_preview | Native-tested | session | model | v2406: all variants; 46 checks in acceptance/session/preview_changes.json |
 | nx_finish_sketch | Native-tested | sketch | model | v2406: tested; 20 checks in acceptance/sketch/finish_sketch.json |
 | nx_get_appearance | Native-tested | display | read | v2406: tested; 53 checks in acceptance/display/appearance.json |
+| nx_get_attributes | Native-tested | parts_files | read | v2406: tested; 145 checks in acceptance/parts_files/attributes.json |
 | nx_get_camera | Native-tested | display | read | v2406: tested; 48 checks in acceptance/display/camera.json |
 | nx_get_dimension | Native-tested | drawing | read | v2406: tested; 13 checks in acceptance/drawing/get_dimension.json |
 | nx_get_drawing_table | Native-tested | drawing | read | v2406: tested; 11 checks in acceptance/drawing/get_drawing_table.json |
@@ -146,6 +147,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_save_part | Native-tested | parts_files | file | v2406: tested; 30 checks in acceptance/parts_files/save_part.json |
 | nx_save_presentation | Native-tested | display | file | v2406: tested; 28 checks in acceptance/display/presentation.json |
 | nx_set_appearance | Native-tested | display | view | v2406: tested; 53 checks in acceptance/display/appearance.json |
+| nx_set_attributes | Native-tested | parts_files | model | v2406: tested; 145 checks in acceptance/parts_files/attributes.json |
 | nx_set_camera | Native-tested | display | view | v2406: tested; 48 checks in acceptance/display/camera.json |
 | nx_set_component_pose | Native-tested | assembly | model | v2406: all variants; 108 checks in acceptance/assembly/components.json |
 | nx_set_control | Native-tested | session | session | v2406: all variants; 16 checks in acceptance/session/set_control.json |

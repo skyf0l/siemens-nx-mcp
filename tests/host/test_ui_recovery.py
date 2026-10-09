@@ -930,3 +930,43 @@ def test_light_catalogue_steps_do_not_warn_that_nx_may_pause(host):
     assert host.panel_text().splitlines()[0].endswith("nx_list_objects — running")
     host.running_method = "nx_extrude"  # legacy tools keep the warning
     assert host.panel_text().splitlines()[0].endswith("— running, NX may pause")
+
+
+# -- Modal NX dialogs (host/dialogs.py) ----------------------------------------
+
+
+def _dialog_open(monkeypatch, is_open):
+    from nx_mcp.host import dialogs
+
+    warning = dialogs.Dialog(5, "Sheet Metal", "Features added in the Modeling environment")
+    monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [warning] if is_open() else [])
+
+
+def test_agent_drives_refuses_a_model_step_under_a_dialog_but_answers_reads(host, rig, monkeypatch):
+    _dialog_open(monkeypatch, lambda: True)
+    host.control("agent")
+    rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
+    with pytest.raises(NXToolError) as refused:
+        host.execute("nx_test_edit", {})
+    assert refused.value.code == "NX_MODAL_DIALOG_OPEN"
+    assert refused.value.details["mutation_outcome"] == "not_started"
+    rig.e.dev_tools["nx_test_edit"].assert_not_called()
+    assert host.execute("nx_list_objects", BODIES)["ok"]  # reads are never refused
+
+
+def test_auto_waits_for_an_engineers_dialog_then_runs_and_reads_answer(host, rig, monkeypatch):
+    dialog = {"open": True}
+    _dialog_open(monkeypatch, lambda: dialog["open"])
+    queue = _queue(host, "auto")
+    host.enabled["value"] = False  # the engineer's modal dialog disables NX's main window
+    rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
+    edit = queue.submit("nx_test_edit", {"intent": "Round the edges"})
+    read = queue.submit("nx_list_objects", BODIES)
+    host.tick()
+    host.tick()
+    assert read.complete.is_set() and read.error is None  # answered at once
+    assert not edit.complete.is_set() and host.busy_wait is edit  # waits, not refused
+    dialog["open"], host.enabled["value"] = False, True  # the engineer closed it
+    host.tick()
+    assert edit.complete.is_set() and edit.error is None
+    rig.e.dev_tools["nx_test_edit"].assert_called_once()

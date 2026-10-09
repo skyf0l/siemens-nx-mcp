@@ -14,6 +14,10 @@ NX 2406 findings encoded here:
   modal warning ("Sheet metal features added in the modeling environment may not be
   properly depicted in a flat pattern...") that blocks NX and every call. That switch is
   refused before NX is touched; Sheet Metal runs the modeling tools as well.
+- NX remembers per part the application last entered while it was displayed and
+  re-enters it on a later close or display (``kit.parts`` notes): a part shown in
+  Sheet Metal without a switch (created there, say) would come back in Modeling with
+  that warning. Sheet Metal is therefore entered even when NX already runs it.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from typing import Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.kit import drawing
+from nx_mcp.kit import drawing, parts
 
 APPLICATIONS = {"modeling": "UG_APP_MODELING", "sheet_metal": "UG_APP_SBSM"}
 NAMES = {
@@ -33,22 +37,10 @@ NAMES = {
 }
 
 
-SHEET_METAL_FEATURES = ("SB_", "FLAT_PATTERN", "FLAT_SOLID")
-
-
 class ApplicationData(TypedDict):
     application: str
     previous: str
     changed: bool
-
-
-def _has_sheet_metal(tx, part) -> bool:
-    """True when ``part`` holds a sheet-metal body or feature (Sheet Metal ``SB_`` types)."""
-    if any(str(getattr(f, "FeatureType", "")).startswith(SHEET_METAL_FEATURES)
-           for f in part.Features):  # fmt: skip
-        return True
-    manager = getattr(part.Features, "SheetmetalManager", None)
-    return manager is not None and any(manager.IsSheetmetalBody(b) for b in part.Bodies)
 
 
 def name_of(native_name) -> str:
@@ -84,7 +76,7 @@ def nx_activate_application(
             fail("NX_WRONG_PART_CONTEXT", "The work part must be the displayed part",
                  hint="Activate it with nx_activate_part(display=true)")  # fmt: skip
         previous = str(session.ApplicationName or "")
-        if application == "modeling" and previous != wanted and _has_sheet_metal(tx, part):
+        if application == "modeling" and previous != wanted and parts.has_sheet_metal(part):
             fail("NX_UNSUPPORTED_OPTION",
                  "NX shows a blocking warning dialog when a part with sheet-metal features "
                  "enters Modeling, so the part stays in Sheet Metal",
@@ -92,7 +84,7 @@ def nx_activate_application(
                  field="/application")  # fmt: skip
     if drawing.current(part) is not None or drawing.work_view_is_drawing(part):
         drawing.close_sheets(tx, part)
-    if previous != wanted:
+    if previous != wanted or application == "sheet_metal":
         with native(default="NX_WRONG_APPLICATION"):
             session.ApplicationSwitchImmediate(wanted)
     now = str(session.ApplicationName or "")

@@ -1,4 +1,4 @@
-"""Error taxonomy (tool-surface.md 1.8): 22 categories, 65 codes, ``native()``.
+"""Error taxonomy (tool-surface.md 1.8): 22 categories, 66 codes, ``native()``.
 
 Handlers raise only through :func:`fail` or :func:`native`. The kernel turns any
 :class:`NXError` into ``{category, code, message, hint, field, retry, nx_code,
@@ -120,7 +120,13 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "engineer_control": (
         "ask_engineer",
-        ("NX_CONTROL_DECLINED", "NX_CONTROL_PAUSED", "NX_UI_BUSY", "NX_PART_NOT_GRANTED"),
+        (
+            "NX_CONTROL_DECLINED",
+            "NX_CONTROL_PAUSED",
+            "NX_UI_BUSY",
+            "NX_PART_NOT_GRANTED",
+            "NX_MODAL_DIALOG_OPEN",
+        ),
         "The engineer has NX; ask in chat before requesting control again",
     ),
     "bridge": (
@@ -146,7 +152,9 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
 }
 
 CODES: dict[str, str] = {code: cat for cat, (_r, codes, _h) in CATEGORIES.items() for code in codes}
-WARNING_CODES = frozenset({"NX_UPDATE_WARNING", "NX_APPROXIMATED", "NX_PARTIAL_PAGE"})
+WARNING_CODES = frozenset(
+    {"NX_UPDATE_WARNING", "NX_APPROXIMATED", "NX_PARTIAL_PAGE", "NX_MODAL_DIALOG"}
+)
 
 # Native license checkout failures (NX 2406: 948801 missing token feature,
 # 949895 license feature not available).

@@ -23,6 +23,7 @@ from nx_mcp.core.types import (
     KIND_GROUPS,
     KINDS,
     SHEET_HINTS,
+    ByVariant,
     Doc,
     Items,
     Json,
@@ -417,6 +418,20 @@ def make_spec(
             variant_values = values
     elif variants is not None and not isinstance(variants, Mapping):
         problems.append("variants is a field name or a map of sub-schemas")
+    for param in params.values():
+        base, markers = unwrap(param.hint)
+        by = markers.get(ByVariant)
+        if by is None:
+            continue
+        if base is not dict or Json not in markers or by.field != variants:
+            problems.append(f"{param.name}: ByVariant goes on a Json object keyed by the variants")
+        elif set(by.forms) != set(variant_values):
+            problems.append(f"{param.name}: ByVariant forms must equal the variant values")
+        for value, form in by.forms.items():
+            if not is_typeddict(form):
+                problems.append(f"{param.name}#{value}: a ByVariant form is a TypedDict")
+            else:
+                _check_hint(form, f"/{param.name}#{value}", problems)
     templates: list[str] = []
     if isinstance(summary, str):
         templates = [summary]

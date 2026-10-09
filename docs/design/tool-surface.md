@@ -9,7 +9,7 @@ arguments change freely: no aliases, no backwards compatibility.
 **Summary.** 227 current tools become **149 task tools** plus 3 new tools
 (`nx_invoke`, `nx_invoke_read`, `nx_delete_results`), 152 in total. Every current
 tool maps to exactly one new tool (section 3, checked by script). The 151
-distinct error codes raised in `src/nx_mcp` become 22 categories and 65 codes.
+distinct error codes raised in `src/nx_mcp` become 22 categories and 66 codes.
 Code layout, the kernel and migration are specified in [architecture.md](architecture.md). Listing every tool directly drops from about
 55-60K tokens to about 27K. The recommended agent profile costs about 4K tokens.
 
@@ -187,7 +187,7 @@ Every tool returns the same envelope. Tool-specific data lives in `data`.
 | `mutation_outcome` | Always present (1.9) |
 | `units`, `frame` | Always present when any length, angle or coordinate is returned. `frame` is `work_part_absolute`, `sketch_local`, `sheet` or `display_part_absolute` |
 | `changes` | `model` tools only. `references`: `preserved` (all earlier refs still valid), `part_invalidated` (re-list the part), `listed` (only those in `deleted` are invalid) |
-| `warnings` | `{code, message}`; never dropped by compaction. Warning codes (`NX_UPDATE_WARNING`, `NX_APPROXIMATED`, `NX_PARTIAL_PAGE`) are a separate short list |
+| `warnings` | `{code, message}`; never dropped by compaction. Warning codes (`NX_UPDATE_WARNING`, `NX_APPROXIMATED`, `NX_PARTIAL_PAGE`, `NX_MODAL_DIALOG` = NX showed a modal dialog during the call) are a separate short list |
 | `page` | Inventories: `{offset, limit, returned, total, next_offset}` |
 | `result_id`, `omitted` | Compact projection: arrays over 20 items are cut, `nx_get_result` expands them; one snapshot store for bridge and sidecar results |
 | `restore_id` | `view` tools that change display state |
@@ -254,7 +254,7 @@ All codes start with `NX_`.
 | 15 | `path_rejected` | `NX_PATH_OUTSIDE_WORKSPACE`, `NX_PATH_RESERVED` | after_fix | Use a workspace-relative path (`nx_get_status` shows the root) | `NX_PATH_OUTSIDE_WORKSPACE`, `NX_PATH_RESERVED` |
 | 16 | `file_failed` | `NX_IMPORT_FAILED`, `NX_EXPORT_FAILED`, `NX_SAVE_FAILED`, `NX_CAPTURE_FAILED`, `NX_TRANSFER_FAILED` | after_fix | Read `details` (translator log, checksum); fix input; ask the engineer for save failures | `NX_IMPORT_FAILED`, `NX_EXPORT_FAILED`, `NX_SAVE_FAILED`, `NX_SAVE_PREFLIGHT_FAILED`, `NX_CLONE_FAILED`, `NX_CAPTURE_FAILED`, `NX_SCREENSHOT_FAILED`, `NX_COMPONENT_LOAD_FAILED`, `NX_DIRECTORY_ERROR`, `NX_CHECKSUM_MISMATCH`, `NX_UPLOAD_GAP`, `NX_UPLOAD_CONFLICT`, `NX_RECEIPT_UNREADABLE`, `NX_RESULT_STORAGE_FAILED` |
 | 17 | `unavailable` | `NX_LICENSE_UNAVAILABLE`, `NX_VERSION_UNSUPPORTED`, `NX_VIEWPORT_UNAVAILABLE`, `NX_CATALOG_UNAVAILABLE` | never | Tell the engineer which license or build is missing; use an alternative if one exists | `NX_LICENSE_UNAVAILABLE`, `NX_UNAVAILABLE_ON_VERSION`, `NX_API_UNAVAILABLE`, `NX_VIEWPORT_UNAVAILABLE`, `NX_CATALOG_UNAVAILABLE`, `NX_UNDO_UNAVAILABLE` |
-| 18 | `engineer_control` | `NX_CONTROL_DECLINED`, `NX_CONTROL_PAUSED`, `NX_UI_BUSY`, `NX_PART_NOT_GRANTED` | ask_engineer | The engineer has NX. Ask in chat before requesting control again; `NX_UI_BUSY` = wait and retry; `NX_PART_NOT_GRANTED` = the part is the engineer's: ask them to grant it on the panel or work on a copy | `NX_UI_DECLINED`, `NX_UI_PAUSED`, `NX_UI_BUSY` (the ownership gate is new) |
+| 18 | `engineer_control` | `NX_CONTROL_DECLINED`, `NX_CONTROL_PAUSED`, `NX_UI_BUSY`, `NX_PART_NOT_GRANTED`, `NX_MODAL_DIALOG_OPEN` | ask_engineer | The engineer has NX. Ask in chat before requesting control again; `NX_UI_BUSY` = wait and retry; `NX_PART_NOT_GRANTED` = the part is the engineer's: ask them to grant it on the panel or work on a copy; `NX_MODAL_DIALOG_OPEN` = in Agent drives a modal NX dialog blocks NX before a model or view step (`details.dialogs`; reads still answer; Auto and Ask me first wait as for `NX_UI_BUSY`): ask the engineer to answer it, the agent never clicks it | `NX_UI_DECLINED`, `NX_UI_PAUSED`, `NX_UI_BUSY` (the ownership gate is new) |
 | 19 | `bridge` | `NX_BRIDGE_UNAVAILABLE`, `NX_PROTOCOL_MISMATCH`, `NX_AUTH_FAILED` | after_wait | NX or the bridge is not running or was restarted; for mutations check `nx_get_operation` first; ask the engineer if it persists | `NX_BRIDGE_UNAVAILABLE`, `NX_PROTOCOL_ERROR`, `NX_PROTOCOL_VERSION_MISMATCH`, `NX_AUTH_FAILED`, `NX_MAIN_THREAD_UNAVAILABLE`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
 | 20 | `interrupted` | `NX_CANCELLED`, `NX_OUTCOME_UNKNOWN`, `NX_IDEMPOTENCY_CONFLICT` | after_status_check | Query `nx_get_operation(operation_id)`; never retry a mutation blindly; reuse an `operation_id` only with identical arguments | `NX_CANCELLED`, `NX_IDEMPOTENCY_CONFLICT`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
 | 21 | `rollback_failed` | `NX_ROLLBACK_FAILED`, `NX_RESTORE_FAILED` | ask_engineer | The model or view may be partly changed. Stop mutating, capture a screenshot, tell the engineer | `NX_ROLLBACK_FAILED`, `NX_SAVE_VIEW_RESTORE_FAILED`, `NX_RENDER_RESTORE_FAILED` |

@@ -1,0 +1,139 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/lightening_cutout.json",
+  "scenario_sha256": "94591c83121d9fdf696d0a8851adc25b859cbdd4b887b88cb6c58b627a108d7c",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "lightening_cutout"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "2ee08de66231560d2fc25b0fbaa72899252cfd67",
+  "sources": {
+    "nx_create_sheet_metal_feature": "3d14526a73b78b1e63565ce01cab0a7b394e8d5f0ecb6f7b01a8922ddad12166"
+  },
+  "run_id": "20261009-233757-01b8a0",
+  "owner": "sm_ops_c",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-233757-01b8a0\\sheet_metal_lightening_cutout_01b8a0.prt",
+  "started": "2026-10-09T19:37:57Z",
+  "finished": "2026-10-09T19:37:59Z",
+  "passed": false,
+  "checks": 4,
+  "failed_checks": 4,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.922,
+      "result_sha256": "ae8cea4f31d05aafe6169a6ace30f5633281f51b6bb890c671065732c61d8ba7"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.219,
+      "result_sha256": "4a0c88b460b7cc3022c5ad35d505ad35fc11ec62d33dddb87a1201e4cc28f313"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "26f5effb3f4d3811d02aec50f0a12c3f85147d0f1babe3c236510399734809c8"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "50a1e3981d6c50ffb096074afb51a071cab16536a3fc945cf136a81b9499b6c6"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "28601d77485c9d707f5da6bf418b6b296ae2702b5ace6ceab66b7d42caded4b0"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "cc677518572977027113224df7b9a5db77eb96249d876c517bb5e3e9e5b8dacc"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.125,
+      "result_sha256": "cc98179374ae45785c39b8e95882f474669861c5ef42acf0cf289cfcd39aff52"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "0d11d694f5c13f1f83fbfaf2ad18bda4beceb8c09512932f4616b39d51021527"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.046,
+      "result_sha256": "d57d6d0432b4036c7ce29e952d5310ed3f95ddc0951c056fe58f52252f92a17b"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "8dfbe96bf20f82b1afc7eb60f28f2ebc1d5e0678eba75a04d0633460e34f6a5d"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": false,
+      "checks": 3,
+      "seconds": 0.046,
+      "result_sha256": "03f9e0d7edb4420b07bb5a042bb195f04edbe263186b20b437d1859a096ff667",
+      "failures": [
+        "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
+        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
+        "data.bend_count: missing (wanted 0)",
+        "data.thickness: missing (wanted {'close': 2, 'tol': 1e-06})"
+      ]
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-233757-01b8a0/sheet_metal_lightening_cutout_01b8a0.prt"
+    ],
+    "failed": []
+  }
+}

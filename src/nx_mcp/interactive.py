@@ -1213,12 +1213,16 @@ class InteractiveHost:
         self.current_started_at = time.time()
         self.last_error = None
         result = error = None
+        watch = None
         try:
             try:
                 self.publish()
             except Exception as exc:
                 self.last_error = "UI status publication failed: " + str(exc)
+            watch = self._watch_dialogs(refuse=reserved and not _read_only(method))
             result = dispatch.execute(self.services, method, params)
+            self._report_dialogs(result, watch.stop())
+            watch = None
             self.completed += 1
             part = self.session.Parts.Display
             sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
@@ -1236,6 +1240,8 @@ class InteractiveHost:
         except BaseException as exc:
             self.last_error = str(exc)
             error = exc
+            if watch is not None:
+                self._report_dialogs(None, watch.stop(), error=exc)
             raise
         finally:
             self.last_duration_seconds = time.monotonic() - self.operation_started
@@ -1272,6 +1278,70 @@ class InteractiveHost:
                 # A failed diagnostic write must not turn a committed operation
                 # into a failure response that invites an unsafe retry.
                 self.last_error = "UI status publication failed: " + str(exc)
+
+    # -- modal NX dialogs (host/dialogs.py) ---------------------------------------
+
+    def _watch_dialogs(self, refuse=False):
+        """Watch for modal NX dialogs a call opens; ``refuse`` a call while one is open.
+
+        Refused only where a dialog is unexpected: a model or view step in Agent drives,
+        where NX input is locked, so the engineer cannot have opened it. In Auto and Ask
+        me first the busy wait decides (an engineer's dialog delays such steps up to
+        BUSY_WAIT_SECONDS); reads are never refused because of a dialog.
+        """
+        from nx_mcp.host import dialogs
+
+        open_now = dialogs.scan()
+        if open_now and refuse:
+            raise NXToolError(
+                "NX_MODAL_DIALOG_OPEN",
+                dialogs.message(open_now, still_open=True),
+                suggestion="Ask the engineer to answer the NX dialog, then retry",
+                details={"mutation_outcome": "not_started",
+                         "dialogs": [d.row() for d in open_now]},
+            )  # fmt: skip
+        return dialogs.Watch(open_now, on_new=self._dialog_appeared).start()
+
+    def _dialog_appeared(self, dialog):
+        """From the watch thread: log it now, while NX still waits for an answer."""
+        try:
+            self.activity.nx_dialog(
+                f"NX waits for an answer to a modal dialog (during "
+                f"{self.running_method or 'an agent step'}): {dialog.describe()}"
+            )
+        except Exception as exc:
+            self.last_error = "Activity history: " + str(exc)
+
+    def _report_dialogs(self, result, seen, error=None):
+        """Name the dialogs a call opened in its result (or error); never clicks them."""
+        if not seen:
+            return
+        from nx_mcp.host import dialogs
+
+        still = {d.hwnd for d in dialogs.scan()}
+        groups = [
+            (True, [d for d in seen if d.hwnd in still]),
+            (False, [d for d in seen if d.hwnd not in still]),
+        ]
+        rows = [{**d.row(), "open": d.hwnd in still} for d in seen]
+        for still_open, group in groups:
+            if not group:
+                continue
+            text = dialogs.message(group, still_open=still_open)
+            self._set_notice(text)
+            with contextlib.suppress(Exception):
+                self.activity.nx_dialog(text)
+            warning = {"code": "NX_MODAL_DIALOG", "message": text}
+            if isinstance(result, dict):
+                if "ok" not in result:  # a development tool: warnings are text
+                    warning = text
+                result.setdefault("warnings", []).append(warning)
+            details = getattr(error, "details", None)
+            if isinstance(details, dict):
+                details["modal_dialogs"] = rows
+                envelope = details.get("envelope")
+                if isinstance(envelope, dict):
+                    envelope.setdefault("warnings", []).append(warning)
 
     def tick(self, *args):
         if self.busy or self.stopped:

@@ -1,0 +1,788 @@
+{
+ "covers": {
+  "nx_get_attributes": [],
+  "nx_set_attributes": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "pin",
+   "args": {
+    "path": "$run/attr_pin.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "pinblk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$pinblk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$pinblk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "pinblk",
+   "args": {
+    "sketch": "$pinblk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "DB_PART_NO",
+      "type": "string",
+      "value": "PIN-7"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.attributes.0.value": "PIN-7"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {}
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "main",
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "DB_PART_NO",
+      "type": "string",
+      "value": "ATT-100-200",
+      "category": "TITLE_BLOCK"
+     },
+     {
+      "name": "DB_PART_DESC",
+      "type": "string",
+      "value": "Bracket, left hand (xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)",
+      "category": "TITLE_BLOCK"
+     },
+     {
+      "name": "DB_MATERIAL",
+      "type": "string",
+      "value": "AL6061-T6",
+      "category": "TITLE_BLOCK"
+     },
+     {
+      "name": "DB_PART_REV",
+      "type": "string",
+      "value": "A",
+      "category": "TITLE_BLOCK"
+     },
+     {
+      "name": "QTY",
+      "type": "integer",
+      "value": -42
+     },
+     {
+      "name": "MASS_TARGET",
+      "type": "number",
+      "value": 1.234567
+     },
+     {
+      "name": "RELEASED",
+      "type": "boolean",
+      "value": true
+     },
+     {
+      "name": "RELEASE_DATE",
+      "type": "date",
+      "value": "2026-10-09T12:30:15"
+     },
+     {
+      "name": "DUE_DATE",
+      "type": "date",
+      "value": "2027-01-31"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.object.kind": "part",
+    "data.items.0.attributes": {
+     "count": 9
+    },
+    "data.items.0.attributes.0.name": "DB_PART_NO",
+    "data.items.0.attributes.0.type": "string",
+    "data.items.0.attributes.0.value": "ATT-100-200",
+    "data.items.0.attributes.0.category": "TITLE_BLOCK",
+    "data.items.0.attributes.1.name": "DB_PART_DESC",
+    "data.items.0.attributes.1.type": "string",
+    "data.items.0.attributes.1.value": "Bracket, left hand (xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)",
+    "data.items.0.attributes.1.category": "TITLE_BLOCK",
+    "data.items.0.attributes.2.name": "DB_MATERIAL",
+    "data.items.0.attributes.2.type": "string",
+    "data.items.0.attributes.2.value": "AL6061-T6",
+    "data.items.0.attributes.2.category": "TITLE_BLOCK",
+    "data.items.0.attributes.3.name": "DB_PART_REV",
+    "data.items.0.attributes.3.type": "string",
+    "data.items.0.attributes.3.value": "A",
+    "data.items.0.attributes.3.category": "TITLE_BLOCK",
+    "data.items.0.attributes.4.name": "QTY",
+    "data.items.0.attributes.4.type": "integer",
+    "data.items.0.attributes.4.value": -42,
+    "data.items.0.attributes.5.name": "MASS_TARGET",
+    "data.items.0.attributes.5.type": "number",
+    "data.items.0.attributes.5.value": {
+     "close": 1.234567,
+     "tol": 1e-09
+    },
+    "data.items.0.attributes.6.name": "RELEASED",
+    "data.items.0.attributes.6.type": "boolean",
+    "data.items.0.attributes.6.value": true,
+    "data.items.0.attributes.7.name": "RELEASE_DATE",
+    "data.items.0.attributes.7.type": "date",
+    "data.items.0.attributes.7.value": "2026-10-09T12:30:15",
+    "data.items.0.attributes.8.name": "DUE_DATE",
+    "data.items.0.attributes.8.type": "date",
+    "data.items.0.attributes.8.value": "2027-01-31T00:00:00"
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     "DB_MATERIAL",
+     "DB_PART_DESC",
+     "DB_PART_NO",
+     "DB_PART_REV",
+     "DUE_DATE",
+     "MASS_TARGET",
+     "QTY",
+     "RELEASE_DATE",
+     "RELEASED"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.items.0.attributes": {
+     "count": 9
+    },
+    "data.items.0.attributes.0.name": "DB_MATERIAL",
+    "data.items.0.attributes.0.type": "string",
+    "data.items.0.attributes.0.value": "AL6061-T6",
+    "data.items.0.attributes.0.category": "TITLE_BLOCK",
+    "data.items.0.attributes.1.name": "DB_PART_DESC",
+    "data.items.0.attributes.1.type": "string",
+    "data.items.0.attributes.1.value": "Bracket, left hand (xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)",
+    "data.items.0.attributes.1.category": "TITLE_BLOCK",
+    "data.items.0.attributes.2.name": "DB_PART_NO",
+    "data.items.0.attributes.2.type": "string",
+    "data.items.0.attributes.2.value": "ATT-100-200",
+    "data.items.0.attributes.2.category": "TITLE_BLOCK",
+    "data.items.0.attributes.3.name": "DB_PART_REV",
+    "data.items.0.attributes.3.type": "string",
+    "data.items.0.attributes.3.value": "A",
+    "data.items.0.attributes.3.category": "TITLE_BLOCK",
+    "data.items.0.attributes.4.name": "DUE_DATE",
+    "data.items.0.attributes.4.type": "date",
+    "data.items.0.attributes.4.value": "2027-01-31T00:00:00",
+    "data.items.0.attributes.5.name": "MASS_TARGET",
+    "data.items.0.attributes.5.type": "number",
+    "data.items.0.attributes.5.value": {
+     "close": 1.234567,
+     "tol": 1e-09
+    },
+    "data.items.0.attributes.6.name": "QTY",
+    "data.items.0.attributes.6.type": "integer",
+    "data.items.0.attributes.6.value": -42,
+    "data.items.0.attributes.7.name": "RELEASE_DATE",
+    "data.items.0.attributes.7.type": "date",
+    "data.items.0.attributes.7.value": "2026-10-09T12:30:15",
+    "data.items.0.attributes.8.name": "RELEASED",
+    "data.items.0.attributes.8.type": "boolean",
+    "data.items.0.attributes.8.value": true
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "objects": [
+     "$main.data.part.id"
+    ]
+   },
+   "expect": {
+    "data.items.0.object.kind": "part",
+    "data.items.0.attributes": {
+     "count": 9
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "DB_PART_REV",
+      "type": "string",
+      "value": "B"
+     },
+     {
+      "name": "QTY",
+      "type": "integer",
+      "value": 7
+     },
+     {
+      "name": "MASS_TARGET",
+      "type": "number",
+      "value": -0.5
+     },
+     {
+      "name": "RELEASED",
+      "type": "boolean",
+      "value": false
+     },
+     {
+      "name": "RELEASE_DATE",
+      "type": "date",
+      "value": "2030-02-28T23:59:59"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.attributes.0.value": "B",
+    "data.items.0.attributes.0.category": "TITLE_BLOCK",
+    "data.items.0.attributes.1.value": 7,
+    "data.items.0.attributes.2.value": {
+     "close": -0.5,
+     "tol": 1e-12
+    },
+    "data.items.0.attributes.3.value": false,
+    "data.items.0.attributes.4.value": "2030-02-28T23:59:59"
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     "DB_PART_REV",
+     "QTY",
+     "RELEASED"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 3
+    },
+    "data.items.0.attributes.0.value": "B",
+    "data.items.0.attributes.0.category": "TITLE_BLOCK",
+    "data.items.0.attributes.1.value": 7,
+    "data.items.0.attributes.2.value": false
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "QTY",
+      "type": "string",
+      "value": "seven"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.field": "/values/0/type",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "delete": [
+     "QTY"
+    ],
+    "values": [
+     {
+      "name": "QTY",
+      "type": "string",
+      "value": "seven"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.deleted": [
+     "QTY"
+    ],
+    "data.items.0.attributes.0.type": "string",
+    "data.items.0.attributes.0.value": "seven"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "delete": [
+     "DUE_DATE",
+     "NEVER_SET"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.deleted": [
+     "DUE_DATE"
+    ]
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     "DUE_DATE",
+     "NEVER_SET"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     "NX_MaterialMissingAssignments"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 1
+    },
+    "data.items.0.attributes.0.system": true
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "NX_MaterialMissingAssignments",
+      "type": "string",
+      "value": "FALSE"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_READ_ONLY",
+    "error.category": "blocked",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "delete": [
+     "NX_MaterialMissingAssignments"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_READ_ONLY",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "MATERIAL",
+      "type": "string",
+      "value": "steel"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_READ_ONLY",
+    "error.field": "/values/0/name",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     "MATERIAL",
+     "DB_MATERIAL"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 1
+    },
+    "data.items.0.attributes.0.name": "DB_MATERIAL",
+    "data.items.0.attributes.0.value": "AL6061-T6"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "db_part_rev",
+      "type": "string",
+      "value": "C"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.attributes.0.name": "DB_PART_REV",
+    "data.items.0.attributes.0.value": "C",
+    "data.items.0.attributes.0.category": "TITLE_BLOCK"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "faces",
+   "args": {
+    "kind": "face",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id",
+     "$blk.data.feature.id",
+     "$faces.data.items.0.id"
+    ],
+    "values": [
+     {
+      "name": "FINISH",
+      "type": "string",
+      "value": "anodized",
+      "category": "MFG"
+     },
+     {
+      "name": "PASSES",
+      "type": "integer",
+      "value": 3
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items": {
+     "count": 3
+    },
+    "data.items.0.object.kind": "body",
+    "data.items.1.object.kind": "feature",
+    "data.items.2.object.kind": "face",
+    "data.items.2.attributes.1.value": 3
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id",
+     "$blk.data.feature.id"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 2
+    },
+    "data.items.0.attributes.0.name": "FINISH",
+    "data.items.0.attributes.0.category": "MFG",
+    "data.items.1.attributes.1.value": 3
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "objects": [
+     "$blk.data.feature.id"
+    ],
+    "delete": [
+     "FINISH"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.deleted": [
+     "FINISH"
+    ]
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id",
+     "$blk.data.feature.id"
+    ],
+    "names": [
+     "FINISH"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 1
+    },
+    "data.items.1.attributes": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "BAD",
+      "type": "date",
+      "value": "2026-02-30"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "BAD",
+      "type": "integer",
+      "value": 1.5
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "cmp",
+   "args": {
+    "path": "$run/attr_pin.prt",
+    "name": "PIN_A"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "objects": [
+     "$cmp.data.component.id"
+    ],
+    "values": [
+     {
+      "name": "FIND_NO",
+      "type": "integer",
+      "value": 12
+     },
+     {
+      "name": "POSITION",
+      "type": "string",
+      "value": "A1"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.object.kind": "component",
+    "data.items.0.attributes.0.value": 12,
+    "data.items.0.attributes.1.value": "A1"
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "objects": [
+     "$cmp.data.component.id"
+    ],
+    "names": [
+     "DB_PART_NO",
+     "FIND_NO",
+     "POSITION"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 3
+    },
+    "data.items.0.attributes.0.name": "DB_PART_NO",
+    "data.items.0.attributes.0.value": "PIN-7",
+    "data.items.0.attributes.0.inherited": true,
+    "data.items.0.attributes.1.value": 12,
+    "data.items.0.attributes.2.value": "A1"
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "objects": [
+     "$pin.data.part.id"
+    ],
+    "names": [
+     "DB_PART_NO",
+     "FIND_NO",
+     "POSITION"
+    ]
+   },
+   "expect": {
+    "data.items.0.object.kind": "part",
+    "data.items.0.attributes": {
+     "count": 1
+    },
+    "data.items.0.attributes.0.value": "PIN-7"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": "UNDO_ME",
+      "type": "string",
+      "value": "x"
+     },
+     {
+      "name": "DB_PART_REV",
+      "type": "string",
+      "value": "Z"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     "UNDO_ME",
+     "DB_PART_REV"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 1
+    },
+    "data.items.0.attributes.0.value": "C"
+   }
+  }
+ ]
+}

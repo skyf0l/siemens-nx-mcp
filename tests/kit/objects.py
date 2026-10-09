@@ -236,9 +236,13 @@ class Session:
         self.Parts.Work = self.Parts.Display = None
         self.ActiveSketch = None
         self.IsBatch = False
+        self.ApplicationName = "UG_APP_MODELING"
         self.marks = {}
         self.mark_ids = itertools.count(1)
         self.UpdateManager = NS(DoUpdate=Mock(return_value=0))
+
+    def ApplicationSwitchImmediate(self, name):
+        self.ApplicationName = name
 
     def SetUndoMark(self, *_):
         mark = next(self.mark_ids)

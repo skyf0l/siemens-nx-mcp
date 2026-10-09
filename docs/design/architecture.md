@@ -153,7 +153,7 @@ start, and `dev_reload.py` prints the error. The checks:
 
 | Module | Responsibility |
 |---|---|
-| `errors.py` | Table of 22 categories and 65 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
+| `errors.py` | Table of 22 categories and 66 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |

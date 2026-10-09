@@ -281,13 +281,15 @@ async def test_scenario_runs_through_the_gateways_and_writes_evidence(tmp_path, 
     assert params["intent"].startswith("Acceptance modeling/fake, step 3")
     assert [c[0] for c in nx.calls].count("nx_create_datum_plane") == 2  # step 5 stays local
     assert all(s["result_sha256"] for s in record["steps"])
-    # Cleanup: the scenario part is closed unsaved; the engineer's part is shown again.
+    # Cleanup: the scenario part is closed unsaved by ID. The engineer's part is never
+    # displayed again by the run (re-displaying a part can switch NX's application).
     assert record["cleanup"]["closed"] == [part] and not record["cleanup"]["failed"]
-    method, params = nx.calls[-2]
+    assert record["cleanup"]["not_restored"] == "C:/eng/bracket.prt"
+    method, params = nx.calls[-1]
     assert method == "nx_close_part" and params["save"] is False
     assert params["part"] == nx.row(part)["part"]["id"]
-    assert nx.calls[-1][0] == "nx_activate_part"
-    assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"] and nx.parts[0]["display"]
+    assert "nx_activate_part" not in [c[0] for c in nx.calls]
+    assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"]
 
     evidence_root = tmp_path / "evidence"
     written = runner.write_evidence(record, evidence_root)
@@ -333,7 +335,7 @@ async def test_parts_are_closed_when_a_setup_step_fails(tmp_path, scenario_dir):
         )
     assert not record["passed"] and len(record["steps"]) == 2  # stopped at the failed setup
     assert len(record["cleanup"]["closed"]) == 1
-    assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"] and nx.parts[0]["display"]
+    assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"]
 
 
 async def test_cleanup_keep_leaves_parts_loaded(tmp_path, scenario_dir):
@@ -518,6 +520,41 @@ async def test_cleanup_reports_why_a_part_stays_loaded(tmp_path, monkeypatch):
     ]
     closes = [c for c in nx.calls if c[0] == "nx_close_part"]
     assert len(closes) == 2 * runner.CLOSE_PASSES  # bounded retries
+
+
+async def test_cleanup_restores_only_the_runs_own_display_part(tmp_path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    nx = FakeNX()
+    own = nx.row("smoke/dev/kept.prt", display=True)
+    nx.parts = [nx.row("C:/eng/bracket.prt"), own]
+    before = [dict(p) for p in nx.parts]
+    nx.parts.append(nx.row("smoke/dev/new.prt", display=True))
+    nx.parts[1]["display"] = nx.parts[1]["work"] = False
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        report = await runner.close_new_parts(
+            session, before, own_dir=tmp_path / "smoke" / "dev", workspace=tmp_path
+        )
+        assert report["closed"] == ["smoke/dev/new.prt"] and report["restored"] == [own["path"]]
+        assert nx.calls[-1] == ("nx_activate_part", nx.calls[-1][1])
+        assert nx.calls[-1][1]["part"] == own["part"]["id"]
+        # Another owner's directory: nothing is displayed again.
+        nx.calls.clear()
+        nx.parts.append(nx.row("smoke/dev/new.prt", display=True))
+        report = await runner.close_new_parts(
+            session, before, own_dir=tmp_path / "smoke" / "other", workspace=tmp_path
+        )
+    assert report["not_restored"] == own["path"] and "restored" not in report
+    assert [c[0] for c in nx.calls] == ["nx_close_part"]
+
+
+def test_inside_resolves_relative_and_absolute_paths(tmp_path):
+    own = tmp_path / "smoke" / "r1"
+    assert runner._inside("smoke/r1/a.prt", own, tmp_path)
+    assert runner._inside(str(own / "a.prt"), own, None)
+    assert not runner._inside("smoke/r10/a.prt", own, tmp_path)
+    assert not runner._inside("C:/eng/bracket.prt", own, tmp_path)
+    assert not runner._inside(None, own, tmp_path) and not runner._inside("a.prt", None, None)
 
 
 def test_close_failure_without_a_reason():

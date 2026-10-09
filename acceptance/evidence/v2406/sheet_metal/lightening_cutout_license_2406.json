@@ -1,0 +1,136 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sheet_metal/lightening_cutout_license_2406.json",
+  "scenario_sha256": "f7c666b865fd31c399206d9c9d27f5e2bfa95eb34a0db377dbd65188e5cb88d1",
+  "domain": "sheet_metal",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "2ee08de66231560d2fc25b0fbaa72899252cfd67",
+  "sources": {},
+  "run_id": "20261009-233448-0a2420",
+  "owner": "sm_ops_c",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-233448-0a2420\\sheet_metal_lightening_cutout_license_2406_0a2420.prt",
+  "started": "2026-10-09T19:34:48Z",
+  "finished": "2026-10-09T19:34:50Z",
+  "passed": true,
+  "checks": 6,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.484,
+      "result_sha256": "16827d6e065917b7f3d2d066ff65b79ac9ca4cdf8158d7e4164fd30dca2fbdf5"
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "836aef66d2229a82031d9b82b6a3843660f4277c1acb70af217d3c860e44aefe"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "e9d6c897683808cdcc2269a2ba88b8ab077dfb9597cf2cbbd4187b8d480996ff"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "34662f6af52913c8e8191acce7ebea11c552dacd6d7f74b90053f1a997250c65"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "4b5eccc937f51fb45eba35cb0a496d3b41a3f077ee3157200f587c7e2a21e06d"
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "8c8e26e24f1dc4af528b399072a1651b7f0de063a3f5204d3b0fafaa4651e869"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.078,
+      "result_sha256": "84c232dd7dd064a60a5bce933a35c7f5a043c486af5e636bea642fc6fa3ac3d1"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "b157c8a062f1b749e5975a4a9fa283b254f420b0c99000789c2d3aeaad386a27"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "943c292cd9cf558f8edd6494e0a9a7a0d719f5e787df6cd6f956721acce9f0c9"
+    },
+    {
+      "index": 10,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "587a6f526b04ec2a9b72dd37e08a094144c0f402bfa499058fdf39d3c0bdc402"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.062,
+      "result_sha256": "981d5078506664bad204876a6c7efab591530f6e6de36072e1be05cb09a9dab1"
+    },
+    {
+      "index": 12,
+      "call": "nx_get_sheet_metal",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.031,
+      "result_sha256": "28949a6f89a4d959bb3a2132ed3d5c78dd1551193892ef49f53c676b3e1309a2"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-233448-0a2420/sheet_metal_lightening_cutout_license_2406_0a2420.prt"
+    ],
+    "failed": []
+  }
+}

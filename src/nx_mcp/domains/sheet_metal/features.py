@@ -43,18 +43,47 @@ NX 2406 findings encoded here:
   circular, formed beads.
 - Joggle needs a license this seat lacks: ``CreateJoggleBuilder`` fails with 948801
   (``NX_LICENSE_UNAVAILABLE``), so the operation has no 2406 evidence.
+- Each operation's ``parameters`` form (``FORMS``) is its own schema, shown by
+  ``nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>")``; the listed schema
+  keeps a free-form object, so adding operations does not grow it.
+- Convert to Sheet Metal takes only a base face of a constant-thickness solid; reading the
+  builder's options before they are set fails with a license error on this seat. A sharp
+  inner corner becomes a bend with the part's default radius.
+- Sheet Metal from Solid needs its bend edges (``GetAutomaticBendEdges`` proposes the
+  shared ones): without them the commit fails ("Cannot create feature"). It thickens the
+  web faces into the solid and hides it, as a new body.
+- Flat Solid adds a flat sheet-metal body (its bends ``flat``) beside the bent one.
+- Lightening Cutout needs a license this seat lacks: ``CreateLighteningCutoutBuilder``
+  fails with 948801 (``NX_LICENSE_UNAVAILABLE``), so the operation has no 2406 evidence.
+- Solid Punch takes the tool body where it is (no CSYS needed) and NX's default punch
+  type; the tool body stays visible.
 """
 
 from __future__ import annotations
 
 import contextlib
+import types
+import typing
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import REF_PATTERN, Doc, Items, Quantity, Range, RefKind, Text
+from nx_mcp.core.types import (
+    REF_PATTERN,
+    ByVariant,
+    Doc,
+    Items,
+    Json,
+    Quantity,
+    Range,
+    RefKind,
+    Text,
+)
+from nx_mcp.core.validate import unwrap
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.kit import (
     builders,
@@ -99,6 +128,11 @@ Operation = Literal[
     "joggle",
     "bulge_relief",
     "bead",
+    "convert",
+    "from_solid",
+    "flat_solid",
+    "lightening_cutout",
+    "solid_punch",
 ]
 
 
@@ -122,20 +156,24 @@ HEMS = {
 CORNERS = {"fillet": "Fillet", "chamfer": "ChamferEqualSetback"}
 
 
-class Parameters(TypedDict, total=False):
+class Fields(TypedDict, total=False):
+    """Every ``parameters`` field; each operation's form takes the ones it uses."""
+
     section: _ref("sketch", "Ref: finished sketch")  # type: ignore[valid-type]
-    end_section: _ref("sketch", "Ref: lofted_flange end profile")  # type: ignore[valid-type]
-    face: _ref("face", "Ref: target, stationary or upward face")  # type: ignore[valid-type]
+    end_section: _ref("sketch", "Ref: finished open end profile")  # type: ignore[valid-type]
+    face: _ref("face", "Ref: face that stays put")  # type: ignore[valid-type]
     faces: Annotated[list[_ref("face", "Ref: bend face")], Items(1, 50)]  # type: ignore[valid-type]
     edges: Annotated[list[_ref("edge", "Ref: sheet edge")], Items(1, 50)]  # type: ignore[valid-type]
-    edge: _ref("edge", "Ref: X-axis edge of the upward face")  # type: ignore[valid-type]
+    edge: _ref("edge", "Ref: straight edge of face: the X axis")  # type: ignore[valid-type]
     body: _ref("body", "Ref: sheet-metal body")  # type: ignore[valid-type]
-    thickness: _length("tab, contour_flange: sheet thickness")
-    length: _length("flange: inside length; contour_flange: width; hem: flange")
-    angle: Annotated[float | str, Quantity("angle"), Doc("Bend, flange or jog angle")]
-    height: _length("Jog height or form depth")
-    width: _length("louver width")
-    radius: _length("Inner bend radius (default: part's), or break-corner size")
+    tool: _ref("body", "Ref: solid tool body")  # type: ignore[valid-type]
+    thickness: _length("Sheet thickness")
+    length: _length("Length")
+    angle: Annotated[float | str, Quantity("angle"), Doc("Bend angle")]
+    height: _length("Form depth")
+    width: _length("Width")
+    diameter: _length("Hole diameter")
+    radius: _length("Inner bend radius (default: the part's)")
     neutral_factor: Annotated[float, Range(ge=0, le=1), Doc("Neutral factor 0..1")]
     reverse: Annotated[bool, Doc("Flip the thickness side, bend or form direction")]
     style: Annotated[
@@ -150,11 +188,8 @@ class Parameters(TypedDict, total=False):
             "fillet",
             "chamfer",
         ],
-        Doc("hem type (default open), or break_corner fillet/chamfer"),
+        Doc("Style"),
     ]
-
-
-Parameters.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
 
 
 @dataclass(frozen=True)
@@ -162,59 +197,212 @@ class Op:
     factory: str
     required: tuple[str, ...]
     optional: tuple[str, ...] = ()
+    docs: Mapping[str, str] = MappingProxyType({})  # this operation's field descriptions
 
 
+FLANGE_DOCS = {"length": "Inside length", "angle": "Bend angle (default 90)"}
 OPERATIONS: dict[str, Op] = {
-    "tab": Op("CreateTabFeatureBuilder", ("section",), ("thickness", "body", "reverse")),
+    "tab": Op(
+        "CreateTabFeatureBuilder",
+        ("section",),
+        ("thickness", "body", "reverse"),
+        {"body": "Ref: sheet-metal body of a secondary tab", "thickness": "Needed without body"},
+    ),
     "flange": Op(
-        "CreateMultiFlangeBuilder", ("edges", "length"), ("angle", "radius", "neutral_factor")
+        "CreateMultiFlangeBuilder",
+        ("edges", "length"),
+        ("angle", "radius", "neutral_factor"),
+        FLANGE_DOCS,
     ),
     "contour_flange": Op(
         "CreateContourFlangeFeatureBuilder",
         ("section", "thickness", "length"),
         ("radius", "neutral_factor", "reverse"),
+        {"section": "Ref: finished open-profile sketch", "length": "Width"},
     ),
     "bend": Op(
         "CreateBendFeatureBuilder",
         ("section", "face", "angle"),
         ("radius", "neutral_factor", "reverse"),
+        {"section": "Ref: sketch with the bend line"},
     ),
     "jog": Op(
-        "CreateJogFeatureBuilder", ("section", "face", "height"), ("angle", "radius", "reverse")
+        "CreateJogFeatureBuilder",
+        ("section", "face", "height"),
+        ("angle", "radius", "reverse"),
+        {"section": "Ref: sketch with the jog line", "height": "Jog height"},
     ),
-    "hem": Op("CreateHemFlangeFeatureBuilder", ("edges", "length"), ("style", "radius")),
+    "hem": Op(
+        "CreateHemFlangeFeatureBuilder",
+        ("edges", "length"),
+        ("style", "radius"),
+        {"length": "Hem flange length", "style": "Hem type (default open)"},
+    ),
     "normal_cutout": Op("CreateNormalCutoutFeatureBuilder", ("section", "body")),
     "dimple": Op("CreateDimpleFeatureBuilder", ("section", "height"), ("reverse",)),
     "louver": Op("CreateLouverFeatureBuilder", ("section", "height", "width"), ("reverse",)),
     "drawn_cutout": Op("CreateDrawnCutoutFeatureBuilder", ("section", "height"), ("reverse",)),
-    "break_corner": Op("CreateBreakCornerFeatureBuilder", ("edges", "radius"), ("style",)),
+    "break_corner": Op(
+        "CreateBreakCornerFeatureBuilder",
+        ("edges", "radius"),
+        ("style",),
+        {"radius": "Fillet radius or chamfer size", "style": "fillet (default) or chamfer"},
+    ),
     "resize_bend_angle": Op("CreateResizeBendAngleBuilder", ("faces", "face", "angle")),
     "resize_bend_radius": Op("CreateResizeBendRadiusFeatureBuilder", ("faces", "face", "radius")),
     "resize_neutral_factor": Op("CreateResizeNeutralFactorBuilder", ("faces", "neutral_factor")),
     "unbend": Op("CreateUnbendFeatureBuilder", ("faces", "face")),
     "rebend": Op("CreateRebendFeatureBuilder", ("faces", "face")),
-    "flat_pattern": Op("CreateFlatPatternBuilder", ("face", "edge")),
+    "flat_pattern": Op(
+        "CreateFlatPatternBuilder", ("face", "edge"), (), {"face": "Ref: planar web face, up"}
+    ),
     "lofted_flange": Op(
         "CreateLoftedFlangeFeatureBuilder",
         ("section", "end_section", "thickness"),
         ("radius", "neutral_factor", "reverse"),
+        {"section": "Ref: finished open start profile"},
     ),
     "advanced_flange": Op(
-        "CreateAdvancedFlangeBuilder", ("edges", "length"), ("angle", "radius", "neutral_factor")
+        "CreateAdvancedFlangeBuilder",
+        ("edges", "length"),
+        ("angle", "radius", "neutral_factor"),
+        FLANGE_DOCS,
     ),
     "variational_flange": Op(
-        "CreateVariationalFlangeBuilder", ("edges", "length"), ("angle", "radius", "neutral_factor")
+        "CreateVariationalFlangeBuilder",
+        ("edges", "length"),
+        ("angle", "radius", "neutral_factor"),
+        FLANGE_DOCS,
     ),
-    "gusset": Op("CreateGussetBuilder", ("faces", "height", "width")),
-    "edge_rip": Op("CreateEdgeRipFeatureBuilder", ("section",), ("width",)),
-    "closed_corner": Op("CreateClosedCornerFeatureBuilder", ("faces",)),
-    "three_bend_corner": Op("CreateThreeBendCornerFeatureBuilder", ("faces",)),
-    "bridge_bend": Op("CreateBridgeTransitionBuilder", ("edges",)),
-    "bend_taper": Op("CreateBendTaperBuilder", ("faces", "face", "length")),
-    "joggle": Op("CreateJoggleBuilder", ("faces", "section", "height"), ("radius", "reverse")),
-    "bulge_relief": Op("CreateBulgeReliefBuilder", ("edges",), ("height", "width", "radius")),
-    "bead": Op("CreateBeadFeatureBuilder", ("section", "height", "radius"), ("reverse",)),
+    "gusset": Op(
+        "CreateGussetBuilder",
+        ("faces", "height", "width"),
+        (),
+        {"faces": "Ref: the one bend face", "height": "Gusset depth", "width": "Gusset width"},
+    ),
+    "edge_rip": Op(
+        "CreateEdgeRipFeatureBuilder",
+        ("section",),
+        ("width",),
+        {"section": "Ref: sketch with the rip line", "width": "Slot width (default NX's)"},
+    ),
+    "closed_corner": Op(
+        "CreateClosedCornerFeatureBuilder", ("faces",), (), {"faces": "Ref: one of two bend faces"}
+    ),
+    "three_bend_corner": Op(
+        "CreateThreeBendCornerFeatureBuilder",
+        ("faces",),
+        (),
+        {"faces": "Ref: one of two bend faces"},
+    ),
+    "bridge_bend": Op(
+        "CreateBridgeTransitionBuilder",
+        ("edges",),
+        (),
+        {"edges": "Ref: start, then end edge, on two bodies"},
+    ),
+    "bend_taper": Op(
+        "CreateBendTaperBuilder",
+        ("faces", "face", "length"),
+        (),
+        {"faces": "Ref: the one bend face", "length": "Taper distance"},
+    ),
+    "joggle": Op(
+        "CreateJoggleBuilder",
+        ("faces", "section", "height"),
+        ("radius", "reverse"),
+        {"faces": "Ref: planar face", "section": "Ref: sketch with the start line"},
+    ),
+    "bulge_relief": Op(
+        "CreateBulgeReliefBuilder",
+        ("edges",),
+        ("height", "width", "radius"),
+        {"edges": "Ref: outer arc edge at a bend end", "height": "Relief depth"},
+    ),
+    "bead": Op(
+        "CreateBeadFeatureBuilder",
+        ("section", "height", "radius"),
+        ("reverse",),
+        {"section": "Ref: sketch with the bead path", "radius": "Cross-section radius"},
+    ),
+    "convert": Op(
+        "CreateConvertToSheetmetalFeatureBuilder",
+        ("face",),
+        (),
+        {"face": "Ref: base face of a constant-thickness solid"},
+    ),
+    "from_solid": Op(
+        "CreateSheetMetalFromSolidBuilder",
+        ("faces", "thickness"),
+        ("edges", "radius", "neutral_factor", "reverse"),
+        {
+            "faces": "Ref: web face of a solid",
+            "edges": "Ref: bend edge between webs (default: NX's)",
+            "reverse": "Thicken to the other side of the webs",
+        },
+    ),
+    "flat_solid": Op(
+        "CreateFlatSolidFeatureBuilder", ("face", "edge"), (), {"face": "Ref: planar web face, up"}
+    ),
+    "lightening_cutout": Op(
+        "CreateLighteningCutoutBuilder",
+        ("section", "length"),
+        ("angle", "radius", "reverse"),
+        {
+            "section": "Ref: sketch with the closed cutout profile",
+            "length": "Formed flange length",
+            "angle": "Flange angle (default 90)",
+            "radius": "Die radius",
+            "reverse": "Form the flange to the other side",
+        },
+    ),
+    "solid_punch": Op(
+        "CreateSolidPunchBuilder",
+        ("face", "tool"),
+        (),
+        {"face": "Ref: sheet face the punch meets", "tool": "Ref: solid punch body, in place"},
+    ),
 }
+
+
+def _hint(key, doc):
+    """The shared field type of ``key``, described by ``doc`` when given."""
+    hint = FIELD_HINTS[key]
+    if doc is None:
+        return hint
+    base, markers = unwrap(hint)
+    if typing.get_origin(base) is list:  # a list is described on its items
+        item, item_markers = unwrap(typing.get_args(base)[0])
+        kept = [m for t, m in item_markers.items() if t is not Doc]
+        base = list[Annotated[(item, *kept, Doc(doc))]]  # type: ignore[misc]
+        return Annotated[(base, *markers.values())]
+    kept = [m for t, m in markers.items() if t is not Doc]
+    return Annotated[(base, *kept, Doc(doc))]
+
+
+def _form(operation: str, op: Op) -> type:
+    """The ``parameters`` TypedDict of one operation (``tool#operation`` shows it)."""
+    name = "".join(w.capitalize() for w in operation.split("_")) + "Parameters"
+    fields = {k: _hint(k, op.docs.get(k)) for k in op.required}
+    required = TypedDict("_" + name, fields)  # type: ignore[operator]
+    optional = {k: _hint(k, op.docs.get(k)) for k in op.optional}
+    form = types.new_class(
+        name, (required,), {"total": False}, lambda ns: ns.update(__annotations__=optional)
+    )
+    form.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+    return form
+
+
+FIELD_HINTS = typing.get_type_hints(Fields, include_extras=True)
+FORMS = {operation: _form(operation, op) for operation, op in OPERATIONS.items()}
+Parameters = Annotated[
+    dict,
+    Json(max_keys=len(FIELD_HINTS)),
+    ByVariant("operation", FORMS),
+    Doc("Fields per operation: nx_get_tool_schemas(tool#operation)"),
+]
+
+
 POSITIVE = ("thickness", "length", "height", "width")
 ANGLE_TOL = 1e-4  # degrees
 NF_TOL = 1e-6
@@ -267,23 +455,12 @@ def _summary(a, say) -> str:
 
 
 def check(operation, p) -> dict:
-    """Validate ``parameters`` for ``operation`` (fields, signs, styles); pure."""
-    spec = OPERATIONS[operation]
-    allowed = set(spec.required) | set(spec.optional)
-    for key in p:
-        if key not in allowed:
-            fail(
-                "NX_INVALID_ARGUMENT",
-                f"{operation} does not use {key}; it takes "
-                + ", ".join(spec.required + tuple(k + "?" for k in spec.optional)),
-                field="/parameters/" + key,
-            )
-    missing = [k for k in spec.required if p.get(k) is None]
+    """Check ``parameters`` of ``operation`` (signs, styles, counts) beyond its form; pure.
+
+    Gate 1 already checked the fields against the operation's form (``FORMS``)."""
     if operation == "tab" and p.get("body") is None and p.get("thickness") is None:
-        missing.append("thickness")
-    if missing:
-        fail("NX_INVALID_ARGUMENT", f"{operation} needs {', '.join(missing)}",
-             field="/parameters/" + missing[0])  # fmt: skip
+        fail("NX_INVALID_ARGUMENT", "tab needs thickness (or body for a secondary tab)",
+             field="/parameters/thickness")  # fmt: skip
     for key in POSITIVE:
         if p.get(key) is not None and p[key] <= 0:
             fail("NX_INVALID_ARGUMENT", f"{key} must be positive", field="/parameters/" + key)
@@ -327,10 +504,12 @@ class Inputs:
         self.sketch = self.end_sketch = self.face = self.edge = self.body = None
         self.faces, self.edges, self.bodies = [], [], []
         self.plane = None  # joggle: (origin, normal) of its start plane
+        self.tool = None  # solid_punch: the solid tool body
 
     def resolve(self, operation):
         tx, p = self.tx, self.p
         where = "/parameters/"
+        owner = common.solid_owner if operation in FROM_SOLID else common.owner_body
         if p.get("section"):
             self.sketch = select.resolve(tx, p["section"], "sketch", field=where + "section",
                                          work_part=True)  # fmt: skip
@@ -341,16 +520,20 @@ class Inputs:
             self.body = common.sheet_body(tx, p["body"], where + "body")
         if p.get("faces"):
             self.faces = select.faces(tx, p["faces"], where + "faces")
-            self.body = self._one_body(self.faces, where + "faces")
+            self.body = self._one_body(self.faces, where + "faces", owner)
         if p.get("edges"):
             self.edges = select.edges(tx, p["edges"], where + "edges")
             if operation == "bridge_bend":
                 self.bodies = self._two_bodies(self.edges, where + "edges")
             else:
-                self.body = self._one_body(self.edges, where + "edges")
+                body = self._one_body(self.edges, where + "edges", owner)
+                if self.body is not None and int(body.Tag) != int(self.body.Tag):
+                    fail("NX_WRONG_OWNER", "edges must belong to the body of the faces",
+                         field=where + "edges")  # fmt: skip
+                self.body = body
         if p.get("face"):
             self.face = select.one(tx, p["face"], "face", field=where + "face")
-            body = common.owner_body(tx, self.face, where + "face")
+            body = owner(tx, self.face, where + "face")
             if self.body is not None and int(body.Tag) != int(self.body.Tag):
                 fail("NX_WRONG_OWNER", "face must belong to the same sheet-metal body",
                      field=where + "face")  # fmt: skip
@@ -368,7 +551,12 @@ class Inputs:
             if self.face is not None and int(self.face.Tag) in bend_faces:
                 fail("NX_INVALID_ARGUMENT", "face is the stationary face; a bend face moves",
                      field=where + "face")  # fmt: skip
-        if operation == "flat_pattern":
+        if p.get("tool"):
+            self.tool = select.one(tx, p["tool"], "body", field=where + "tool")
+            if not common.is_plain_solid(tx, self.tool):
+                fail("NX_WRONG_GEOMETRY", "The tool must be a solid body, not sheet metal",
+                     field=where + "tool")  # fmt: skip
+        if operation in ("flat_pattern", "flat_solid"):
             self._orientation()
         if operation == "joggle":
             self._joggle_plane()
@@ -380,11 +568,11 @@ class Inputs:
                      field=where + "thickness")  # fmt: skip
         return self
 
-    def _one_body(self, objects, field):
+    def _one_body(self, objects, field, owner=common.owner_body):
         bodies = {int(o.GetBody().Tag): o.GetBody() for o in objects}
         if len(bodies) != 1:
-            fail("NX_INVALID_ARGUMENT", "Select geometry of one sheet-metal body", field=field)
-        return common.owner_body(self.tx, objects[0], field)
+            fail("NX_INVALID_ARGUMENT", "Select geometry of one body", field=field)
+        return owner(self.tx, objects[0], field)
 
     def _two_bodies(self, edges, field):
         bodies = [common.owner_body(self.tx, e, f"{field}/{k}") for k, e in enumerate(edges)]
@@ -725,6 +913,46 @@ def _bead(tx, b, i):
     _side(tx, b, "BeadBuilderHeightSideOptions", "HeightSide", p.get("reverse"))
 
 
+def _convert(tx, b, i):
+    b.BaseFace = i.face
+
+
+def _from_solid(tx, b, i):
+    p = i.p
+    _collector(tx, i.faces, "Face", b.WebFaces)
+    if not i.edges:  # NX proposes the edges two web faces share
+        i.edges = list(b.GetAutomaticBendEdges())
+        if not i.edges:
+            fail("NX_WRONG_GEOMETRY", "The web faces share no bend edge; give edges",
+                 field="/parameters/faces")  # fmt: skip
+    _collector(tx, i.edges, "Edge", b.BendEdges)
+    b.UseGlobalThickness = False
+    _expression(b.Thickness, p["thickness"])
+    b.ReverseDirection = bool(p.get("reverse"))
+    _bend_options(b.BendOptions, p)
+
+
+def _flat_solid(tx, b, i):
+    b.StationaryFace.Value = i.face
+    b.XAxisEdge.Value = i.edge
+
+
+def _lightening_cutout(tx, b, i):
+    p = i.p
+    b.Type = _enum(tx, "LighteningCutoutBuilderCutoutType", "UserDefined")
+    b.UserDefinedSection = builders.section(tx, i.sketch)
+    _expression(b.Length, p["length"])
+    _expression(b.Angle, p.get("angle", 90.0))
+    if p.get("radius") is not None:
+        _expression(b.DieRadius, p["radius"])
+    b.ReverseBendDirection = bool(p.get("reverse"))
+
+
+def _solid_punch(tx, b, i):
+    b.TargetFace.Value = i.face  # NX's default punch type; the tool stays where it is
+    b.ToolBody.Value = i.tool
+
+
 CONFIGURE = {
     "tab": _tab,
     "flange": _flange,
@@ -755,12 +983,19 @@ CONFIGURE = {
     "joggle": _joggle,
     "bulge_relief": _bulge_relief,
     "bead": _bead,
+    "convert": _convert,
+    "from_solid": _from_solid,
+    "flat_solid": _flat_solid,
+    "lightening_cutout": _lightening_cutout,
+    "solid_punch": _solid_punch,
 }
 CREATES_BODY = ("tab", "contour_flange", "lofted_flange")
+FROM_SOLID = ("convert", "from_solid")  # inputs on a solid that is not sheet metal
+MAKES_BODY = ("from_solid", "flat_solid")  # a new body next to the input body
 FLANGES = ("flange", "advanced_flange", "variational_flange")
 NEW_BENDS = {"flange": 1, "advanced_flange": 1, "variational_flange": 1, "bend": 1, "jog": 2,
              "bridge_bend": 2}  # fmt: skip
-KEEPS_BENDS = ("three_bend_corner", "bend_taper", "bulge_relief", "bead")
+KEEPS_BENDS = ("three_bend_corner", "bend_taper", "bulge_relief", "bead", "solid_punch")
 VOLUME = {
     "advanced_flange": "more",
     "variational_flange": "more",
@@ -780,6 +1015,8 @@ VOLUME = {
     "dimple": "differs",
     "louver": "differs",
     "drawn_cutout": "differs",
+    "lightening_cutout": "less",
+    "solid_punch": "differs",
 }
 
 
@@ -788,7 +1025,8 @@ VOLUME = {
 
 
 def _snapshot(tx, body):
-    return {"volume": measure.volume(tx, body), "bends": common.bends(tx, body)}
+    bends = common.bends(tx, body) if common.is_sheet_metal(tx, body) else []
+    return {"volume": measure.volume(tx, body), "bends": bends}
 
 
 def _candidates(tx, i, operation):
@@ -817,6 +1055,20 @@ def _volume_change(before, after, how):
 
 def _verify(tx, operation, i, before, body, after):
     p = i.p
+    if operation == "from_solid":
+        readback.expect_close(after["thickness"], float(p["thickness"]), "thickness",
+                              tol=1e-6 * max(1.0, float(p["thickness"])))  # fmt: skip
+        readback.expect(len(after["bends"]) == len(i.edges), "bend_count",
+                        f"NX made {len(after['bends'])} bends, not {len(i.edges)}")  # fmt: skip
+        if p.get("radius") is not None:
+            radius = float(p["radius"])
+            readback.expect(all(abs(d["radius"] - radius) <= 1e-6 * max(1.0, radius)
+                                for _f, d in after["bends"]), "radius")  # fmt: skip
+        return
+    if operation == "flat_solid":
+        have = common.thickness(tx, i.body)
+        readback.expect_close(after["thickness"], have, "thickness", tol=1e-6 * max(1.0, have))
+        return
     if operation in CREATES_BODY:
         if i.body is None:
             readback.expect_close(after["thickness"], float(p["thickness"]), "thickness",
@@ -866,30 +1118,35 @@ def _verify_bends(tx, operation, i, before, after):
                     bends=found)  # fmt: skip
 
 
-def _flat_extents(tx, feature, i) -> list[float]:
-    """``[along the X-axis edge, across it]`` extents of the Flat Pattern's curves.
+def _flat_extents(tx, curves, i, what="flat_pattern") -> list[float]:
+    """``[along the X-axis edge, across it, along the upward face's normal]`` extents of
+    the Flat Pattern's curves or the Flat Solid's edges.
 
-    The curves lie on the upward face; lines are measured at their ends, other
-    curves at 64 points (``NX_APPROXIMATED`` within 0.12 % of their radius).
+    Lines and straight edges are measured at their ends, other curves at 64 points
+    (``NX_APPROXIMATED`` within 0.12 % of their radius).
     """
     _kind, _point, normal = select.face_data(tx, i.face)
     start, end = (geom.xyz(v) for v in i.edge.GetVertices())
     x = geom.unit(geom.sub(end, start))
-    y = geom.unit(geom.cross(geom.unit(normal), x))
+    z = geom.unit(normal)
+    y = geom.unit(geom.cross(z, x))
     points, sampled = [], False
-    for c in feature.GetCurves():
+    for c in curves:
         if hasattr(c, "StartPoint") and type(c).__name__ == "Line":
             points += [geom.xyz(c.StartPoint), geom.xyz(c.EndPoint)]
+            continue
+        if getattr(c, "SolidEdgeType", None) == tx.nx.Edge.EdgeType.Linear:
+            points += [geom.xyz(v) for v in c.GetVertices()]
             continue
         sampled = True
         with curve.evaluator(tx, c) as e:
             points += [e.at(k / 64)[0] for k in range(65)]
-    readback.expect(bool(points), "flat_pattern", "The Flat Pattern has no curves")
+    readback.expect(bool(points), what, f"The {what} has no curves")
     if sampled:
-        tx.warn("NX_APPROXIMATED", "Flat-pattern extents across arcs are sampled")
+        tx.warn("NX_APPROXIMATED", f"{what} extents across arcs are sampled")
     return [
         max(geom.dot(q, axis) for q in points) - min(geom.dot(q, axis) for q in points)
-        for axis in (x, y)
+        for axis in (x, y, z)
     ]
 
 
@@ -926,10 +1183,11 @@ def nx_create_sheet_metal_feature(
     tx: Tx,
     *,
     operation: Operation,
-    parameters: Parameters,
+    parameters: Parameters,  # type: ignore[valid-type]
 ) -> FeatureData:
-    """Create one sheet-metal feature. Parameters take the fields their descriptions assign
-    to the operation; needs the Sheet Metal application (nx_activate_application)."""
+    """Create one sheet-metal feature. Each operation's parameters are listed by
+    nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>"); needs the Sheet Metal
+    application (nx_activate_application)."""
     p = check(operation, dict(parameters))
     spec = OPERATIONS[operation]
     with tx.checks():
@@ -956,7 +1214,7 @@ def nx_create_sheet_metal_feature(
         readback.expect(str(feature.FeatureType) == "FLAT_PATTERN", "feature_type",
                         got=str(feature.FeatureType))  # fmt: skip
     body = i.body
-    if body is None:
+    if body is None or operation in MAKES_BODY:
         made = [b for b in feature.GetBodies() if common.is_sheet_metal(tx, b)]
         readback.expect(len(made) == 1, "body", f"NX built {len(made)} sheet-metal bodies")
         body = made[0]
@@ -964,8 +1222,13 @@ def nx_create_sheet_metal_feature(
     if operation == "bridge_bend":  # the two sheets become one body
         before = {"volume": sum(s["volume"] for s in snapshots.values()),
                   "bends": [b for s in snapshots.values() for b in s["bends"]]}  # fmt: skip
-    if before is None and operation not in CREATES_BODY:
+    if operation in MAKES_BODY:
+        before = None
+    elif before is None and operation not in CREATES_BODY:
         readback.expect(False, "body", "The feature changed an unexpected body")
+    if operation == "convert":
+        readback.expect(common.is_sheet_metal(tx, body), "sheet_metal",
+                        "The body is not sheet metal after the conversion")  # fmt: skip
     after = {
         "volume": measure.volume(tx, body),
         "thickness": common.thickness(tx, body),
@@ -974,5 +1237,10 @@ def nx_create_sheet_metal_feature(
     _verify(tx, operation, i, before, body, after)
     out = _result(tx, operation, feature, body, after, view)
     if operation == "flat_pattern":
-        out["flat_extents"] = _flat_extents(tx, feature, i)
+        out["flat_extents"] = _flat_extents(tx, feature.GetCurves(), i)[:2]
+    if operation == "flat_solid":  # flat: as thick as the sheet across the upward face
+        extents = _flat_extents(tx, body.GetEdges(), i, "flat_solid")
+        readback.expect_close(extents[2], after["thickness"], "flat",
+                              tol=1e-6 * max(1.0, after["thickness"]))  # fmt: skip
+        out["flat_extents"] = extents[:2]
     return out

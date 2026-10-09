@@ -10,8 +10,8 @@ from nx_mcp.core.references import Counter, References
 from tests.core.fakes import FakeServices
 
 
-def test_taxonomy_has_22_categories_and_65_codes():
-    assert len(errors.CATEGORIES) == 22 and len(errors.CODES) == 65
+def test_taxonomy_has_22_categories_and_66_codes():
+    assert len(errors.CATEGORIES) == 22 and len(errors.CODES) == 66
     assert all(c.startswith("NX_") for c in errors.CODES)
     assert set(errors.LEGACY_CODES.values()) <= set(errors.CODES)
 

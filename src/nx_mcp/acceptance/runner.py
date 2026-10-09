@@ -447,7 +447,9 @@ async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, bui
         )
     finally:
         # Keep NX fast: close what the scenario loaded, even when a step failed.
-        cleanup = await close_new_parts(session, before, data.get("cleanup", "close"))
+        cleanup = await close_new_parts(
+            session, before, data.get("cleanup", "close"), own_dir=run_dir, workspace=workspace
+        )
         if panel is not None and mode is not None:
             restored = await restore_panel_mode(session, panel, mode)
             if restored is not None:
@@ -511,14 +513,40 @@ def close_failure(path: str | None, error: dict | None) -> str:
     return f"could not close {path}: {reason or 'no reason given'}"
 
 
-async def close_new_parts(session, before: list[dict] | None, mode: str = "close") -> dict:
-    """Close every part loaded since ``before`` and re-activate the earlier display part.
+def _inside(path: str | None, own_dir: Path | None, workspace: Path | None) -> bool:
+    """Whether a listed part path (workspace-relative or absolute) is under ``own_dir``."""
+    if not path or own_dir is None:
+        return False
+    full = Path(path)
+    if not full.is_absolute() and workspace is not None:
+        full = Path(workspace) / full
+    try:
+        full.resolve().relative_to(Path(own_dir).resolve())
+    except ValueError:
+        return False
+    return True
+
+
+async def close_new_parts(
+    session,
+    before: list[dict] | None,
+    mode: str = "close",
+    *,
+    own_dir: Path | None = None,
+    workspace: Path | None = None,
+) -> dict:
+    """Close every part loaded since ``before``; re-activate the earlier parts only when
+    they are the run's own (under ``own_dir``).
 
     ``mode`` is the scenario's ``cleanup``: ``close`` (default, without saving),
     ``save`` (save, then close) or ``keep``. Closing a drawing part closes its
     sheets. Assemblies go before their prototypes: a refused close is retried
     after the others, with fresh part IDs and the refusing parents first, for up
     to ``CLOSE_PASSES`` passes. A part still loaded is reported with NX's reason.
+    Parts are closed by ID, never activated first. Another agent's or the
+    engineer's display part is never displayed again: NX may stay without a display
+    part, which is safe, while re-displaying a part this run did not make can
+    change NX's application under its owner.
     """
     report: dict[str, Any] = {"mode": mode, "closed": [], "failed": []}
     if mode == "keep" or before is None:
@@ -574,6 +602,12 @@ async def close_new_parts(session, before: list[dict] | None, mode: str = "close
     report["failed"] = [close_failure(p.get("path"), reasons.get(p.get("path"))) for p in pending]
     display = next((p for p in before if p.get("display")), None)
     work = next((p for p in before if p.get("work")), None)
+    if not _inside((display or {}).get("path"), own_dir, workspace):
+        if display is not None:
+            report["not_restored"] = display.get("path")
+        return report
+    if work is not None and not _inside(work.get("path"), own_dir, workspace):
+        work = display
     targets = [(display, True)]
     if work is not None and work is not display:
         targets.append((work, False))  # a different work part, made work afterwards
@@ -754,7 +788,13 @@ async def call(
             try:
                 results = await run_steps(session, normalized, special, label="dev call", echo=echo)
             finally:
-                cleanup = await close_new_parts(session, before, "keep" if keep else "close")
+                cleanup = await close_new_parts(
+                    session,
+                    before,
+                    "keep" if keep else "close",
+                    own_dir=run_dir,
+                    workspace=workspace,
+                )
             if cleanup["closed"] or cleanup["failed"]:
                 print(f"cleanup: closed {len(cleanup['closed'])}, problems {cleanup['failed']}")
     finally:

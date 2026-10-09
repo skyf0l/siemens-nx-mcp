@@ -16,11 +16,24 @@ NX 2406 findings encoded here:
   sheet is displayed: ``saving`` opens the current (or first) sheet, saves,
   then restores the sheet, the modeling display and the work/display parts.
 - ``SetDisplay`` also changes the work part; set the work part afterwards.
+- NX remembers an application per part: the one last entered with
+  ``ApplicationSwitchImmediate`` while it was displayed (a new part keeps its
+  template's Modeling). From no displayed part (``UG_APP_NOPART``, after the
+  display part was closed), ``SetDisplay`` enters the part's own application, and
+  closing any part re-enters the display part's own application. When that is
+  Modeling for a part with sheet-metal features, NX opens the modal "Sheet Metal"
+  warning ("Features added in the Modeling environment may not be properly
+  depicted in a flat pattern...") and blocks NX and every call until someone
+  answers it. Changing the display part while an application runs keeps that
+  application, without a dialog. So: re-entering Sheet Metal on the displayed part
+  records it (``keep_sheet_metal``, before a close too), and a sheet-metal part is
+  displayed from no display part through a scratch part already in Sheet Metal.
 """
 
 from __future__ import annotations
 
 import contextlib
+import uuid
 from pathlib import Path
 
 from nx_mcp.core.errors import fail
@@ -134,12 +147,88 @@ def check_work_only(tx, part, *, field: str | None = "/display") -> None:
     )
 
 
+SHEET_METAL_APP = "UG_APP_SBSM"
+SHEET_METAL_FEATURES = ("SB_", "FLAT_PATTERN", "FLAT_SOLID")
+SCRATCH_TEMPLATE = "model-plain-1-mm-template.prt"
+
+
+def has_sheet_metal(part) -> bool:
+    """True when ``part`` holds a sheet-metal body or feature (Sheet Metal ``SB_`` types)."""
+    if part is None:
+        return False
+    if any(str(getattr(f, "FeatureType", "")).startswith(SHEET_METAL_FEATURES)
+           for f in part.Features):  # fmt: skip
+        return True
+    manager = getattr(part.Features, "SheetmetalManager", None)
+    return manager is not None and any(manager.IsSheetmetalBody(b) for b in part.Bodies)
+
+
+def keep_sheet_metal(tx) -> None:
+    """Record Sheet Metal as the displayed sheet-metal part's own application.
+
+    Only while NX runs Sheet Metal; re-entering it shows no dialog (about 0.2 s).
+    Without it, NX re-enters the part's remembered Modeling on the next close or
+    display and opens its blocking "Sheet Metal" warning.
+    """
+    session = tx.session
+    display = session.Parts.Display
+    if str(session.ApplicationName or "") == SHEET_METAL_APP and has_sheet_metal(display):
+        session.ApplicationSwitchImmediate(SHEET_METAL_APP)
+
+
+def _set_display(parts, part) -> None:
+    _, status = parts.SetDisplay(part, False, False)
+    _dispose(status)
+
+
+def _display_in_sheet_metal(tx, part) -> None:
+    """Display a sheet-metal part while NX has no display part, without NX's dialog.
+
+    NX would enter the part's remembered application, possibly Modeling (the
+    blocking warning). A scratch part (never saved) is displayed and switched to
+    Sheet Metal first; the part then keeps Sheet Metal and is recorded in it before
+    the scratch part closes.
+    """
+    session = tx.session
+    parts = session.Parts
+    name = f"nx_mcp_scratch_{uuid.uuid4().hex[:12]}.prt"
+    builder = parts.FileNew()
+    try:
+        builder.TemplateFileName = SCRATCH_TEMPLATE
+        builder.Units = tx.nx.Part.Units.Millimeters
+        builder.NewFileName = str(Path(tx.workspace.root) / ".nx-mcp" / name)
+        builder.DisplayPartOption = tx.nx.DisplayPartOption.AllowAdditional
+        scratch = builder.Commit()
+    finally:
+        with contextlib.suppress(Exception):
+            builder.Destroy()
+    try:
+        if not same_part(parts.Display, scratch):
+            _set_display(parts, scratch)
+        session.ApplicationSwitchImmediate(SHEET_METAL_APP)
+        _set_display(parts, part)
+        session.ApplicationSwitchImmediate(SHEET_METAL_APP)  # before the scratch part closes
+    finally:
+        scratch.Close(
+            tx.nx.BasePart.CloseWholeTree.FalseValue,
+            tx.nx.BasePart.CloseModified.CloseModified,
+            None,
+        )
+
+
 def activate(tx, part, *, work: bool = True, display: bool = True) -> None:
-    """Make ``part`` the display and/or work part (display first: NX moves work too)."""
+    """Make ``part`` the display and/or work part (display first: NX moves work too).
+
+    Never lets NX open its Sheet Metal application dialog (module notes).
+    """
     parts = tx.session.Parts
     if display and parts.Display != part:
-        _, status = parts.SetDisplay(part, False, False)
-        _dispose(status)
+        if parts.Display is None and has_sheet_metal(part):
+            _display_in_sheet_metal(tx, part)
+        else:
+            _set_display(parts, part)
+    if display:
+        keep_sheet_metal(tx)
     if work and parts.Work != part:
         parts.SetWork(part)
 

@@ -134,8 +134,9 @@ def test_activate_application_switches_and_verifies():
     assert ok.ok, ok
     assert ok.data == {"application": "sheet_metal", "previous": "modeling", "changed": True}
     assert app.calls == ["UG_APP_SBSM"]
+    # Entered again although NX runs it: NX then remembers it for the displayed part.
     again = run(nx, "nx_activate_application", application="sheet_metal")
-    assert again.data["changed"] is False and app.calls == ["UG_APP_SBSM"]
+    assert again.data["changed"] is False and app.calls == ["UG_APP_SBSM", "UG_APP_SBSM"]
 
 
 def test_activate_application_closes_a_shown_drawing_first():
@@ -175,7 +176,7 @@ def test_a_sheet_metal_part_never_switches_back_to_modeling(what):
     assert bad.mutation_outcome == "not_started" and app.calls == []
     assert nx.session.ApplicationName == "UG_APP_SBSM"
     ok = run(nx, "nx_activate_application", application="sheet_metal")
-    assert ok.ok and ok.data["changed"] is False
+    assert ok.ok and ok.data["changed"] is False and app.calls == ["UG_APP_SBSM"]
 
 
 def test_sheet_metal_features_refuse_before_any_builder_outside_sheet_metal():

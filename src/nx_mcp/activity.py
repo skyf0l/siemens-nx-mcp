@@ -43,6 +43,7 @@ _SHORT_REASON = {
     "NX_FILE_NOT_FOUND": "file not found",
     "NX_PATH_OUTSIDE_WORKSPACE": "path outside the workspace",
     "NX_UI_BUSY": "an NX dialog is open",
+    "NX_MODAL_DIALOG_OPEN": "an NX dialog waits for an answer",
     "NX_ROLLBACK_FAILED": "undo failed",
     # Catalogue codes whose messages are long; others show their message.
     "NX_PART_NOT_GRANTED": "engineer's part, not granted",
@@ -68,7 +69,9 @@ class Entry:
     created: str | None = None
     inspections: int = 0  # >0: a group of read-only steps
     session: int = 0
-    note: str | None = None  # an engineer event, not an agent step
+    note: str | None = None  # an engineer or NX event, not an agent step
+    label: str = "ENGINEER"  # the log column of a note
+    mark: str = "✎"  # the panel mark of a note
 
     @property
     def changed_model(self) -> bool:
@@ -188,10 +191,26 @@ class Activity:
             self.entries.popleft()
         return entry
 
+    def nx_dialog(self, text: str, at: float | None = None) -> Entry:
+        """NX opened a modal dialog: NX and every call wait for a person to answer it."""
+        entry = Entry(
+            started=time.time() if at is None else at,
+            summary=text,
+            note=text,
+            label="NX DIALOG",
+            mark="⚠",
+            session=self.session,
+        )
+        self._write(entry)
+        self.entries.append(entry)
+        while len(self.entries) > self.keep:
+            self.entries.popleft()
+        return entry
+
     def line(self, entry: Entry) -> str:
         clock = time.strftime("%H:%M:%S", time.localtime(entry.started))
         if entry.note:
-            return _clip(f"✎  {clock}  {entry.note}")
+            return _clip(f"{entry.mark}  {clock}  {entry.note}")
         if entry.inspections:
             steps = "step" if entry.inspections == 1 else "steps"
             return _clip(
@@ -238,7 +257,7 @@ class Activity:
             return
         stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry.started))
         if entry.note:
-            text = f"{stamp}  ENGINEER  {entry.note}"
+            text = f"{stamp}  {entry.label}  {entry.note}"
         elif entry.ok:
             made = f" → {entry.created}" if entry.created else ""
             text = f"{stamp}  OK      {entry.summary}{made}  ({entry.duration:.1f} s)"
