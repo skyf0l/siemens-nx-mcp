@@ -483,13 +483,13 @@ Place a parts list, bend, title block, revision or hole table. Parts lists need 
 
 ### `nx_create_drawing_view`
 
-**Create drawing view** · effect `model` · NX 2406: tested (all variants); 23 checks in `acceptance/drawing/inch_units.json`
+**Create drawing view** · effect `model` · NX 2406: tested (all variants); 51 checks in `acceptance/drawing/view_types.json`
 
-Place a base, projected, section, detail or flat-pattern view at a verified position. Projected views keep the parent's scale.
+Place a drawing view at a verified sheet point; broken and break_out cut the parent. Derived views keep the parent scale.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `type` | `base` \| `projected` \| `section` \| `detail` \| `flat_pattern` | required |  |
+| `type` | `base` \| `projected` \| `section` \| `detail` \| `flat_pattern` \| `auxiliary` \| `broken` \| `half_section` \| `stepped_section` \| `revolved_section` \| `break_out` | required |  |
 | `sheet` | Ref | optional | Ref: drawing_sheet |
 | `parent` | Ref | optional | Ref: drawing_view |
 | `orientation` | `top` \| `front` \| `back` \| `right` \| `left` \| `bottom` \| `isometric` | optional |  |
@@ -497,30 +497,41 @@ Place a base, projected, section, detail or flat-pattern view at a verified posi
 | `explosion` | Ref | optional | Ref: explosion |
 | `direction` | `right` \| `left` \| `top` \| `bottom` | optional |  |
 | `spacing` | number | optional | Sheet units |
-| `cut` | Ref | optional | Ref: edge |
+| `hinge` | Value | optional | Ref: edge |
+| `cut` | Value | optional | Ref: edge |
 | `cut_point` | `start` \| `end` \| `center` | `"start"` |  |
+| `bend` | Object | optional |  |
+| `rotation` | Object | optional |  |
+| `cuts` | array[2-49] of Object | optional |  |
 | `step_direction` | Point2 | optional | Sheet [x, y] direction |
 | `arrow_direction` | Point2 | optional | Sheet [x, y] direction |
+| `axis` | `x` \| `y` | `"x"` |  |
+| `breaks` | array[1-4] of Point2 | optional | Sheet [start, end] |
+| `gap` | number | optional | Sheet units |
 | `center` | array[3] of number | optional | [x, y, z] absolute, part units |
 | `radius` | number | optional | Part units |
+| `depth` | number | optional | Below center, part units |
 | `flat_pattern` | Ref | optional | Ref: feature |
 | `position` | Point2 | optional | [x, y] on the sheet, sheet units |
 | `scale` | number | optional | e.g. 2 for 2:1 |
 
 ### `nx_create_gdt`
 
-**Create GD&T** · effect `model` · NX 2406: tested: fcf (untested: datum_feature); 21 checks in `acceptance/drawing/create_gdt.json`
+**Create GD&T** · effect `model` · NX 2406: tested: fcf, view_datum_feature, view_datum_target, view_fcf (untested: datum_feature); 18 checks in `acceptance/drawing/gdt_views_inch.json`
 
-Create PMI GD&T on model faces: a datum feature symbol (letter) or a feature control frame. NX may move it onto its annotation plane; the read-back position is returned.
+Create GD&T as PMI on faces, or as a drafting annotation with a leader to view geometry. PMI kinds take faces and position (NX may move it onto its annotation plane); view_* kinds take view, object (edge or face) and origin on the sheet; letter labels a datum or target.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `kind` | `datum_feature` \| `fcf` | required |  |
-| `faces` | array[1-20] of string | required |  |
-| `position` | array[3] of number | required | [x, y, z] absolute, part units |
-| `context` | `pmi` | `"pmi"` |  |
+| `kind` | `datum_feature` \| `fcf` \| `view_datum_feature` \| `view_fcf` \| `view_datum_target` | required |  |
+| `faces` | array[1-20] of string | optional |  |
+| `position` | array[3] of number | optional | [x, y, z] absolute, part units |
+| `view` | string | optional | Ref: drawing_view |
+| `object` | string | optional | Ref: edge/face |
+| `origin` | array[2] of number | optional | [x, y] on the sheet, sheet units |
 | `letter` | string | optional |  |
 | `frame` | object {characteristic, tolerance, datums, material, zone, datum_material, projected_height, tangent_plane, free_state} | optional |  |
+| `target` | object {type, index, diameter, inner_diameter, width, height} | optional |  |
 
 ### `nx_create_note`
 

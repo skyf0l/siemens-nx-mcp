@@ -1,0 +1,1289 @@
+{
+ "covers": {
+  "nx_create_gdt": [
+   "view_datum_feature",
+   "view_fcf",
+   "view_datum_target"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25.0,
+     25.0,
+     20.0
+    ],
+    "limit": 1,
+    "radius": 8.0
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60.0,
+     25.0,
+     20.0
+    ],
+    "limit": 1,
+    "radius": 5.0
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35.0,
+     50.0,
+     20.0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40.0,
+     0.0,
+     20.0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0.0,
+     25.0,
+     20.0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     40.0,
+     10.0,
+     20.0
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_feature",
+    "object": "$front.data.items.0.id",
+    "origin": [
+     120,
+     140
+    ],
+    "letter": "A"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.letter": "A",
+    "data.text": {
+     "contains": "A"
+    },
+    "data.origin": {
+     "close": [
+      120,
+      140
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "edge",
+    "data.leader.view.kind": "drawing_view",
+    "data.sheet.name": "SHT1"
+   },
+   "save": "dA"
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_feature",
+    "object": "$left.data.items.0.id",
+    "origin": [
+     60,
+     200
+    ],
+    "letter": "B"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.letter": "B",
+    "data.text": {
+     "contains": "B"
+    },
+    "data.origin": {
+     "close": [
+      60,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "edge",
+    "data.leader.view.kind": "drawing_view",
+    "data.sheet.name": "SHT1"
+   },
+   "save": "dB"
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_feature",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     190,
+     150
+    ],
+    "letter": "C"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.letter": "C",
+    "data.text": {
+     "contains": "C"
+    },
+    "data.origin": {
+     "close": [
+      190,
+      150
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "face",
+    "data.leader.view.kind": "drawing_view",
+    "data.sheet.name": "SHT1"
+   },
+   "save": "dC"
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     240,
+     60
+    ],
+    "frame": {
+     "characteristic": "straightness",
+     "tolerance": 0.01
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "straightness",
+    "data.frame.tolerance": {
+     "close": 0.01,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.01"
+    },
+    "data.origin": {
+     "close": [
+      240,
+      60
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     300,
+     76
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "flatness",
+    "data.frame.tolerance": {
+     "close": 0.05,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.05"
+    },
+    "data.origin": {
+     "close": [
+      300,
+      76
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h1.data.items.0.id",
+    "origin": [
+     360,
+     92
+    ],
+    "frame": {
+     "characteristic": "circularity",
+     "tolerance": 0.02
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "circularity",
+    "data.frame.tolerance": {
+     "close": 0.02,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.02"
+    },
+    "data.origin": {
+     "close": [
+      360,
+      92
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h2.data.items.0.id",
+    "origin": [
+     240,
+     108
+    ],
+    "frame": {
+     "characteristic": "cylindricity",
+     "tolerance": 0.03,
+     "zone": "spherical_diameter",
+     "free_state": true
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "cylindricity",
+    "data.frame.tolerance": {
+     "close": 0.03,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [],
+    "data.frame.material": "none",
+    "data.frame.zone": "spherical_diameter",
+    "data.text": {
+     "contains": "0.03"
+    },
+    "data.origin": {
+     "close": [
+      240,
+      108
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     300,
+     124
+    ],
+    "frame": {
+     "characteristic": "profile_of_a_line",
+     "tolerance": 0.1,
+     "datums": [
+      "$dA.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "profile_of_a_line",
+    "data.frame.tolerance": {
+     "close": 0.1,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.1"
+    },
+    "data.origin": {
+     "close": [
+      300,
+      124
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     360,
+     140
+    ],
+    "frame": {
+     "characteristic": "profile_of_a_surface",
+     "tolerance": 0.2,
+     "datums": [
+      "$dA.data.annotation.id",
+      "$dB.data.annotation.id",
+      "$dC.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "profile_of_a_surface",
+    "data.frame.tolerance": {
+     "close": 0.2,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A",
+     "B",
+     "C"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.2"
+    },
+    "data.origin": {
+     "close": [
+      360,
+      140
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$left.data.items.0.id",
+    "origin": [
+     240,
+     156
+    ],
+    "frame": {
+     "characteristic": "angularity",
+     "tolerance": 0.05,
+     "datums": [
+      "$dA.data.annotation.id"
+     ],
+     "tangent_plane": true
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "angularity",
+    "data.frame.tolerance": {
+     "close": 0.05,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.05"
+    },
+    "data.origin": {
+     "close": [
+      240,
+      156
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$left.data.items.0.id",
+    "origin": [
+     300,
+     172
+    ],
+    "frame": {
+     "characteristic": "perpendicularity",
+     "tolerance": 0.02,
+     "datums": [
+      "$dA.data.annotation.id"
+     ],
+     "zone": "square"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "perpendicularity",
+    "data.frame.tolerance": {
+     "close": 0.02,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "square",
+    "data.text": {
+     "contains": "0.02"
+    },
+    "data.origin": {
+     "close": [
+      300,
+      172
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     360,
+     188
+    ],
+    "frame": {
+     "characteristic": "parallelism",
+     "tolerance": 0.04,
+     "datums": [
+      "$dA.data.annotation.id",
+      "$dB.data.annotation.id"
+     ],
+     "material": "lmc"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "parallelism",
+    "data.frame.tolerance": {
+     "close": 0.04,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A",
+     "B"
+    ],
+    "data.frame.material": "lmc",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.04"
+    },
+    "data.origin": {
+     "close": [
+      360,
+      188
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h1.data.items.0.id",
+    "origin": [
+     240,
+     204
+    ],
+    "frame": {
+     "characteristic": "position",
+     "tolerance": 0.1,
+     "datums": [
+      "$dA.data.annotation.id",
+      "$dB.data.annotation.id",
+      "$dC.data.annotation.id"
+     ],
+     "material": "mmc",
+     "zone": "diameter",
+     "datum_material": [
+      "none",
+      "mmc",
+      "lmc"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "position",
+    "data.frame.tolerance": {
+     "close": 0.1,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A",
+     "B",
+     "C"
+    ],
+    "data.frame.material": "mmc",
+    "data.frame.zone": "diameter",
+    "data.text": {
+     "contains": "0.1"
+    },
+    "data.origin": {
+     "close": [
+      240,
+      204
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view",
+    "data.frame.datum_material": [
+     "none",
+     "mmc",
+     "lmc"
+    ]
+   },
+   "save": "fcf"
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h2.data.items.0.id",
+    "origin": [
+     300,
+     220
+    ],
+    "frame": {
+     "characteristic": "concentricity",
+     "tolerance": 0.05,
+     "datums": [
+      "$dA.data.annotation.id"
+     ],
+     "zone": "diameter"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "concentricity",
+    "data.frame.tolerance": {
+     "close": 0.05,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "diameter",
+    "data.text": {
+     "contains": "0.05"
+    },
+    "data.origin": {
+     "close": [
+      300,
+      220
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     360,
+     236
+    ],
+    "frame": {
+     "characteristic": "symmetry",
+     "tolerance": 0.06,
+     "datums": [
+      "$dB.data.annotation.id"
+     ],
+     "material": "rfs"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "symmetry",
+    "data.frame.tolerance": {
+     "close": 0.06,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "B"
+    ],
+    "data.frame.material": "rfs",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.06"
+    },
+    "data.origin": {
+     "close": [
+      360,
+      236
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h1.data.items.0.id",
+    "origin": [
+     240,
+     252
+    ],
+    "frame": {
+     "characteristic": "circular_runout",
+     "tolerance": 0.03,
+     "datums": [
+      "$dA.data.annotation.id",
+      "$dB.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "circular_runout",
+    "data.frame.tolerance": {
+     "close": 0.03,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A",
+     "B"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.03"
+    },
+    "data.origin": {
+     "close": [
+      240,
+      252
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h2.data.items.0.id",
+    "origin": [
+     300,
+     268
+    ],
+    "frame": {
+     "characteristic": "total_runout",
+     "tolerance": 0.04,
+     "datums": [
+      "$dA.data.annotation.id"
+     ],
+     "projected_height": 5
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "total_runout",
+    "data.frame.tolerance": {
+     "close": 0.04,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.04"
+    },
+    "data.origin": {
+     "close": [
+      300,
+      268
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view",
+    "data.frame.projected_height": {
+     "close": 5,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h1.data.items.0.id",
+    "origin": [
+     360,
+     284
+    ],
+    "frame": {
+     "characteristic": "axis_intersection",
+     "tolerance": 0.07,
+     "datums": [
+      "$dA.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "axis_intersection",
+    "data.frame.tolerance": {
+     "close": 0.07,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.frame.material": "none",
+    "data.frame.zone": "none",
+    "data.text": {
+     "contains": "0.07"
+    },
+    "data.origin": {
+     "close": [
+      360,
+      284
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.view.kind": "drawing_view"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$front.data.items.0.id",
+    "origin": [
+     30,
+     120
+    ],
+    "letter": "A",
+    "target": {
+     "type": "point"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.target.type": "point",
+    "data.target.label": "A",
+    "data.target.index": 1,
+    "data.text": {
+     "contains": "A1"
+    },
+    "data.origin": {
+     "close": [
+      30,
+      120
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "edge"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     30,
+     260
+    ],
+    "letter": "A",
+    "target": {
+     "type": "line",
+     "index": 2
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.target.type": "line",
+    "data.target.label": "A",
+    "data.target.index": 2,
+    "data.text": {
+     "contains": "A2"
+    },
+    "data.origin": {
+     "close": [
+      30,
+      260
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "edge"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     200,
+     120
+    ],
+    "letter": "B",
+    "target": {
+     "type": "circular",
+     "index": 1,
+     "diameter": 6
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.target.type": "circular",
+    "data.target.label": "B",
+    "data.target.index": 1,
+    "data.text": {
+     "contains": "B1"
+    },
+    "data.origin": {
+     "close": [
+      200,
+      120
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "face",
+    "data.target.diameter": {
+     "close": 6,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     215,
+     100
+    ],
+    "letter": "B",
+    "target": {
+     "type": "rectangular",
+     "index": 2,
+     "width": 8,
+     "height": 4
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.target.type": "rectangular",
+    "data.target.label": "B",
+    "data.target.index": 2,
+    "data.text": {
+     "contains": "B2"
+    },
+    "data.origin": {
+     "close": [
+      215,
+      100
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "face",
+    "data.target.width": {
+     "close": 8,
+     "tol": 1e-09
+    },
+    "data.target.height": {
+     "close": 4,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     230,
+     80
+    ],
+    "letter": "C",
+    "target": {
+     "type": "annular",
+     "index": 1,
+     "diameter": 10,
+     "inner_diameter": 4
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.target.type": "annular",
+    "data.target.label": "C",
+    "data.target.index": 1,
+    "data.text": {
+     "contains": "C1"
+    },
+    "data.origin": {
+     "close": [
+      230,
+      80
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "face",
+    "data.target.diameter": {
+     "close": 10,
+     "tol": 1e-09
+    },
+    "data.target.inner_diameter": {
+     "close": 4,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/origin",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ],
+    "faces": [
+     "$top_face.data.items.0.id"
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/faces",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05,
+     "datums": [
+      "$dA.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/frame/datums",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h1.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ],
+    "frame": {
+     "characteristic": "position",
+     "tolerance": 0.1,
+     "datums": [
+      "$fcf.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "error.field": "/frame/datums/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_feature",
+    "object": "$back.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/letter",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_feature",
+    "object": "$sh.data.sheet.id",
+    "origin": [
+     50,
+     50
+    ],
+    "letter": "D"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "error.field": "/object",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ],
+    "letter": "A",
+    "target": {
+     "type": "circular"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/target/diameter",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ],
+    "letter": "A",
+    "target": {
+     "type": "annular",
+     "diameter": 4,
+     "inner_diameter": 6
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/target/inner_diameter",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     50,
+     50
+    ],
+    "letter": "A",
+    "target": {
+     "type": "point",
+     "width": 3
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/target/width",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

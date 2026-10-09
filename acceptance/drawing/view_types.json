@@ -1,0 +1,736 @@
+{
+ "covers": {
+  "nx_create_drawing_view": [
+   "auxiliary",
+   "broken",
+   "half_section",
+   "stepped_section",
+   "revolved_section",
+   "break_out"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       200,
+       30
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 40
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      40,
+      10,
+      40
+     ],
+     [
+      100,
+      20,
+      40
+     ],
+     [
+      160,
+      8,
+      40
+     ]
+    ],
+    "form": "simple",
+    "diameter": 8,
+    "depth": {
+     "type": "distance",
+     "value": 25
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ce",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     200,
+     15,
+     40
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_chamfer",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$ce.data.items.0.id"
+    ],
+    "method": "two_offsets",
+    "offset": 12,
+    "offset2": 16
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "slant",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     194,
+     0,
+     32
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     40,
+     10,
+     40
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     100,
+     20,
+     40
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h3",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     160,
+     8,
+     40
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a2",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     150,
+     360
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "topv",
+   "args": {
+    "type": "projected",
+    "parent": "$front.data.view.id",
+    "direction": "bottom",
+    "spacing": 80
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "save": "aux",
+   "args": {
+    "type": "auxiliary",
+    "parent": "$front.data.view.id",
+    "hinge": "$slant.data.items.0.id",
+    "position": [
+     420,
+     330
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      420,
+      330
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-09
+    },
+    "data.hinge.view_length": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.toward_viewer": {
+     "close": [
+      -0.8,
+      0,
+      -0.6
+     ],
+     "tol": 1e-06
+    },
+    "data.inside_sheet": true,
+    "data.hinge.model_length": {
+     "close": 20,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$front.data.view.id"
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      150,
+      360
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$topv.data.view.id",
+    "cut": "$h1.data.items.0.id",
+    "cut_point": "center",
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     150,
+     200
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      150,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.cut_planes.0.normal": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.cut_planes.0.offset": {
+     "close": 10,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "half_section",
+    "parent": "$topv.data.view.id",
+    "cut": "$h2.data.items.0.id",
+    "cut_point": "center",
+    "bend": {
+     "edge": "$h2.data.items.0.id"
+    },
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     150,
+     120
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "section",
+    "data.position": {
+     "close": [
+      150,
+      120
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-09
+    },
+    "data.cut_planes.0.normal": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.cut_planes.0.offset": {
+     "close": 20,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "stepped_section",
+    "parent": "$topv.data.view.id",
+    "cuts": [
+     {
+      "edge": "$h1.data.items.0.id"
+     },
+     {
+      "edge": "$h2.data.items.0.id"
+     }
+    ],
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     150,
+     45
+    ],
+    "scale": 0.5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      150,
+      45
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 0.5,
+     "tol": 1e-09
+    },
+    "data.cut_planes.0.offset": {
+     "close": 10,
+     "tol": 1e-06
+    },
+    "data.cut_planes.1.offset": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      93.65,
+      28.65,
+      206.35,
+      61.35
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "revolved_section",
+    "parent": "$topv.data.view.id",
+    "rotation": {
+     "edge": "$h2.data.items.0.id"
+    },
+    "cuts": [
+     {
+      "edge": "$h1.data.items.0.id"
+     },
+     {
+      "edge": "$h3.data.items.0.id"
+     }
+    ],
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     420,
+     200
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      420,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.cut_planes.0.offset": {
+     "close": 3.287979746107119,
+     "tol": 1e-06
+    },
+    "data.cut_planes.1.offset": {
+     "close": 39.22322702763682,
+     "tol": 1e-06
+    },
+    "data.cut_planes.1.normal": {
+     "close": [
+      0.19611613513818413,
+      0.9805806756909202,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "save": "front2",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     430,
+     100
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "broken",
+    "parent": "$front2.data.view.id",
+    "breaks": [
+     [
+      435,
+      485
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      430,
+      100
+     ],
+     "tol": 1e-06
+    },
+    "data.breaks.0.gap": {
+     "close": 10,
+     "tol": 1e-09
+    },
+    "data.bounds": {
+     "close": [
+      323.65,
+      78.65,
+      496.35,
+      131.35
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "broken",
+    "parent": "$front2.data.view.id",
+    "axis": "y",
+    "breaks": [
+     [
+      85,
+      93
+     ]
+    ],
+    "gap": 3
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bounds": {
+     "close": [
+      323.65,
+      83.65,
+      496.35,
+      131.35
+     ],
+     "tol": 1e-06
+    },
+    "data.breaks.0.gap": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.position": {
+     "close": [
+      430,
+      100
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "save": "half",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     430,
+     35
+    ],
+    "scale": 0.5
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "broken",
+    "parent": "$half.data.view.id",
+    "breaks": [
+     [
+      435,
+      455
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.scale": {
+     "close": 0.5,
+     "tol": 1e-09
+    },
+    "data.breaks.0.gap": {
+     "close": 10,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "break_out",
+    "parent": "$front.data.view.id",
+    "center": [
+     40,
+     0,
+     20
+    ],
+    "radius": 8,
+    "depth": 10
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.break_out.depth": {
+     "close": 10,
+     "tol": 1e-06
+    },
+    "data.position": {
+     "close": [
+      150,
+      360
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "revolved_section",
+    "parent": "$topv.data.view.id",
+    "rotation": {
+     "edge": "$h2.data.items.0.id"
+    },
+    "cuts": [
+     {
+      "edge": "$h1.data.items.0.id"
+     },
+     {
+      "edge": "$h2.data.items.0.id"
+     }
+    ],
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     420,
+     200
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/cuts"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "broken",
+    "parent": "$topv.data.view.id",
+    "breaks": [
+     [
+      60,
+      120
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/breaks/0"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "auxiliary",
+    "parent": "$front.data.view.id",
+    "hinge": "$h1.data.items.0.id",
+    "position": [
+     420,
+     330
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "not_started",
+    "error.field": "/hinge"
+   }
+  }
+ ]
+}

@@ -1,0 +1,151 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/gdt_views_inch.json",
+  "scenario_sha256": "6d70bd00d233413de64a18152546fab39e220d24a054d83a0211a3fa15d555fe",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_gdt": [
+      "view_datum_feature",
+      "view_fcf",
+      "view_datum_target"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "3f2989383a22301e8011a46ff06a376cedfd2115",
+  "sources": {
+    "nx_create_gdt": "811df3aa4f779e20efb947cb936704d2ef29699bff345c559c2033acb0e22404"
+  },
+  "run_id": "20261010-021359-291d51",
+  "owner": "wb_gdt",
+  "part": null,
+  "started": "2026-10-09T22:14:03Z",
+  "finished": "2026-10-09T22:14:05Z",
+  "passed": true,
+  "checks": 18,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.688,
+      "result_sha256": "c8936e0af83a739718d1608fc2381f4d4d58bd71c67cedb52b0966a88e7e758c"
+    },
+    {
+      "index": 2,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "42cc01275202135615ef469fdb2629f55346d8fb79f99f57eac723052e50baf8"
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.094,
+      "result_sha256": "af5b1f18a1e14dc491303617ce9e102590abcd8d3f659358fe644d2841714c78"
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.016,
+      "result_sha256": "5f8b79b5dc97b5cda632fe471290df3eab9b7992560eb2dbfbd037b6eb2864a0"
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.031,
+      "result_sha256": "784393d8f9fffaf209e5d25705725fd4e89fdbdabaa8b8f672966a36cba45607"
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.015,
+      "result_sha256": "ab5a441fd7f3ad2483d73576faf5d1c0f3b62b66795ebee0385aca51f0320c20"
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.032,
+      "result_sha256": "bc97dbe2d9e1477576893be8e3e43b98d441fb93f2db0fc013d128cb1f9f690a"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "8a2d5290f413bd8d550567a2eeee3e79291ab3fea19cdcef79d02920bdd580a0"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.297,
+      "result_sha256": "b7025d4d4b51b8ea619e850d18b43ce340cdf35f3e32b9c11fca13bfe019b501"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.062,
+      "result_sha256": "0a54f0615e7de6c629ffaa8b667cfc435b094fe0365aa5572de30357003785ae"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.063,
+      "result_sha256": "abad738761e2be9fd6fcedf5c3d6d6a35802b239d7fdbed3dbdea89073387e72"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.078,
+      "result_sha256": "bac82a332e5d2764e7c24890ad981668899e55ad39ec3752e5213b19dd4bbc9e"
+    },
+    {
+      "index": 13,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "94ad9fc79651c45e27c23abcf64556addf2095cef2b28853c6c9eaa1709b3c39"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

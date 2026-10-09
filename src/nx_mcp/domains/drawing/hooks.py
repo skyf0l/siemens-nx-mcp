@@ -170,10 +170,13 @@ def list_dimensions(tx, owner, owner_kind):
 
 def _annotations(part):
     values = [*getattr(part, "Notes", []), *getattr(part, "Labels", [])]
+    with contextlib.suppress(Exception):  # drafting frames and datum symbols (NX 2406)
+        values.extend(getattr(part, "Gdts", None) or [])
     collections = getattr(part, "Annotations", None)
     for name in (
         "Datums",
         "Fcfs",
+        "DraftingDatumTargets",
         "IdSymbols",
         "Centerlines",
         "DraftingSurfaceFinishSymbol",

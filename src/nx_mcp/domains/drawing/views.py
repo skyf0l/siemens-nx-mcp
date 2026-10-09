@@ -16,22 +16,22 @@ NX 2406 findings encoded here:
 from __future__ import annotations
 
 import json
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Point3, Range, RefTo, SheetPoint
+from nx_mcp.core.types import Doc, Items, Point3, Range, RefTo, SheetPoint
 from nx_mcp.domains.drawing import style as view_style
+from nx_mcp.domains.drawing import view_kinds as kinds
 from nx_mcp.domains.drawing.common import (
     CONSTRUCTION,
     DETAIL,
     attribute,
-    edge_facts,
-    geometry,
-    uf_types,
     update,
 )
+from nx_mcp.domains.drawing.view_kinds import EdgePoint
 from nx_mcp.kit import args, builders, drawing, geom, parts, readback, result, select, units
 
 ORIENTATIONS = {
@@ -56,9 +56,17 @@ NATIVE_TYPES = {
 
 Vec2 = Annotated[tuple[float, float], Doc("Sheet [x, y] direction")]
 Scale = Annotated[float, Range(gt=0, le=1000), Doc("e.g. 2 for 2:1")]
+Band = tuple[float, float]
 
 
-class ViewData(TypedDict):
+class _ViewExtras(TypedDict, total=False):
+    cut_planes: list[dict]  # section views: [{normal, offset}] in part coordinates
+    hinge: dict  # auxiliary: hinge edge model_length and view_length (part units)
+    breaks: list[dict]  # broken: the bands removed (sheet units)
+    break_out: dict  # break-out: depth read back, boundary radius
+
+
+class ViewData(_ViewExtras):
     view: result.Row
     sheet: result.Row
     type: str
@@ -66,6 +74,7 @@ class ViewData(TypedDict):
     scale: float
     bounds: list[float]
     inside_sheet: bool
+    toward_viewer: list[float]
 
 
 # ---- shared ----------------------------------------------------------------------------
@@ -85,6 +94,7 @@ def view_data(tx, view, sheet):
         "scale": drawing.scale(tx, view),
         "bounds": bounds,
         "inside_sheet": drawing.inside(bounds, sheet),
+        "toward_viewer": [float(v) for v in drawing.axes(view)[2]],  # view z axis, part coords
     }
 
 
@@ -187,14 +197,24 @@ def _summary(a, say):
         return f"Projected view {a.get('direction', '')} of {say('parent')}"
     if kind == "flat_pattern":
         return f"Flat-pattern view on {say('sheet')}"
-    return f"{kind.title()} view of {say('parent')}"
+    if kind in ("broken", "break_out"):
+        return f"{kind.replace('_', '-').capitalize()} {say('parent')}"
+    return f"{kind.replace('_', ' ').capitalize()} view of {say('parent')}"
 
 
 @tool(
     effect="model",
     label="Create drawing view",
     summary=_summary,
-    keywords=("base view", "projected view", "section view", "detail view", "orthographic"),
+    keywords=(
+        "base view",
+        "projected view",
+        "section view",
+        "detail view",
+        "auxiliary view",
+        "broken view",
+        "break-out section",
+    ),
     requires=("work_part", "no_active_sketch"),
     variants="type",
     cost="heavy",
@@ -210,7 +230,19 @@ def _summary(a, say):
 def nx_create_drawing_view(
     tx: Tx,
     *,
-    type: Literal["base", "projected", "section", "detail", "flat_pattern"],
+    type: Literal[
+        "base",
+        "projected",
+        "section",
+        "detail",
+        "flat_pattern",
+        "auxiliary",
+        "broken",
+        "half_section",
+        "stepped_section",
+        "revolved_section",
+        "break_out",
+    ],
     sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
     parent: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
     orientation: Literal["top", "front", "back", "right", "left", "bottom", "isometric"]
@@ -219,38 +251,80 @@ def nx_create_drawing_view(
     explosion: RefTo("explosion") | None = None,  # type: ignore[valid-type]
     direction: Literal["right", "left", "top", "bottom"] | None = None,
     spacing: Annotated[float, Range(gt=0, le=10000), Doc("Sheet units")] | None = None,
+    hinge: RefTo("edge") | None = None,  # type: ignore[valid-type]
     cut: RefTo("edge") | None = None,  # type: ignore[valid-type]
     cut_point: Literal["start", "end", "center"] = "start",
+    bend: EdgePoint | None = None,
+    rotation: EdgePoint | None = None,
+    cuts: Annotated[list[EdgePoint], Items(2, 49)] | None = None,
     step_direction: Vec2 | None = None,
     arrow_direction: Vec2 | None = None,
+    axis: Literal["x", "y"] = "x",
+    breaks: Annotated[list[Band], Items(1, 4), Doc("Sheet [start, end]")] | None = None,
+    gap: Annotated[float, Range(gt=0, le=1000), Doc("Sheet units")] | None = None,
     center: Point3 | None = None,
     radius: Annotated[float, Range(gt=0, le=1e6), Doc("Part units")] | None = None,
+    depth: Annotated[float, Range(gt=0, le=1e6), Doc("Below center, part units")] | None = None,
     flat_pattern: RefTo("feature") | None = None,  # type: ignore[valid-type]
     position: SheetPoint | None = None,
     scale: Scale | None = None,
 ) -> ViewData:
-    """Place a base, projected, section, detail or flat-pattern view at a verified position.
-    Projected views keep the parent's scale."""
+    """Place a drawing view at a verified sheet point; broken and break_out cut the parent.
+    Derived views keep the parent scale."""
     if type == "base":
         args.need(sheet=sheet, orientation=orientation)
         return _create_base(tx, sheet, orientation, body, explosion, position, scale)
     if type == "projected":
         args.need(parent=parent, direction=direction)
         return _create_projected(tx, parent, direction, spacing)
-    if type == "section":
-        args.need(parent=parent, cut=cut, step_direction=step_direction,
-                  arrow_direction=arrow_direction, position=position)  # fmt: skip
-        step = geom.unit([*step_direction, 0.0], "/step_direction")
-        arrow = geom.unit([*arrow_direction, 0.0], "/arrow_direction")
+    if type == "auxiliary":
+        args.need(parent=parent, hinge=hinge, position=position)
+        return _create_auxiliary(tx, parent, hinge, position)
+    if type == "broken":
+        args.need(parent=parent, breaks=breaks)
+        return _create_broken(tx, parent, axis, breaks, gap)
+    if type == "break_out":
+        args.need(parent=parent, center=center, radius=radius, depth=depth)
+        return _create_break_out(tx, parent, center, radius, depth)
+    if type.endswith("section"):
+        kind = type.removesuffix("_section").removesuffix("section") or "simple"
+        needed: dict[str, object] = {"cut": cut} if kind in ("simple", "half") else {}
+        if kind == "half":
+            needed["bend"] = bend
+        elif kind != "simple":
+            needed.update(cuts=cuts, **({"rotation": rotation} if kind == "revolved" else {}))
+        args.need(parent=parent, step_direction=step_direction,
+                  arrow_direction=arrow_direction, position=position, **needed)  # fmt: skip
+        if kind == "revolved" and len(cuts or []) != 2:
+            fail("NX_INVALID_ARGUMENT", "A revolved section takes one cut per leg", field="/cuts")
+        step = geom.unit([*(step_direction or ()), 0.0], "/step_direction")
+        arrow = geom.unit([*(arrow_direction or ()), 0.0], "/arrow_direction")
         if abs(geom.dot(step, arrow)) > 1e-8:
             fail("NX_INVALID_ARGUMENT", "step and arrow must be perpendicular",
                  field="/arrow_direction")  # fmt: skip
-        return _create_section(tx, parent, cut, cut_point, step, arrow, position, scale)
+        if kind == "simple":
+            return _create_section(tx, parent, cut, cut_point, step, arrow, position, scale)
+        points = _section_points(kind, cut, cut_point, bend, rotation, cuts)
+        return _create_sx_kind(tx, kind, parent, points, step, arrow, position, scale)
     if type == "detail":
         args.need(parent=parent, center=center, radius=radius, position=position)
         return _create_detail(tx, parent, center, radius, position, scale)
     args.need(sheet=sheet, flat_pattern=flat_pattern)
     return _create_flat(tx, sheet, flat_pattern, position, scale)
+
+
+def _section_points(kind, cut, cut_point, bend, rotation, cuts):
+    """``(edge ref, at, field, at field)`` per section-line point: half (cut, bend),
+    stepped (cuts), revolved (rotation, leg 1 cut, leg 2 cut)."""
+    out = [(cut, cut_point, "/cut", "/cut_point")] if kind == "half" else []
+    given: list[tuple[str, EdgePoint]] = []
+    if kind == "half" and bend is not None:
+        given.append(("/bend", bend))
+    if kind == "revolved" and rotation is not None:
+        given.append(("/rotation", rotation))
+    given += [(f"/cuts/{i}", c) for i, c in enumerate(cuts or [])]
+    out += [(c["edge"], c.get("at", "center"), f + "/edge", f + "/at") for f, c in given]
+    return out
 
 
 def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, scale):
@@ -352,31 +426,104 @@ def _create_projected(tx, parent_ref, direction, spacing):
 def _create_section(tx, parent_ref, cut, cut_point, step, arrow, position, scale):
     with tx.checks():
         parent, sheet = drawing.view(tx, parent_ref, "/parent")
-        edge = geometry(tx, cut, ("edge",), "/cut")
-        found = edge_facts(tx, edge, "/cut", "arc" if cut_point == "center" else None)
-        if cut_point != "center" and found.get("closed"):
-            fail("NX_WRONG_GEOMETRY", "A full circle has no end points: cut at its center",
-                 field="/cut_point")  # fmt: skip
+        edge, at, _ = kinds.edge_point(tx, cut, cut_point, "/cut", "/cut_point")
         scale = scale if scale is not None else drawing.scale(tx, parent)
-        U = uf_types(tx)
-    with drawing.on_sheet(tx, sheet):
-        data = U.Drf.Object()
-        data.ObjectTag = edge.Tag
-        data.ObjectViewTag = parent.Tag
-        if cut_point == "center":
-            data.ObjectAssocType, data.ObjectAssocModifier = U.Drf.AssocType.ARC_CENTER, 0
-        else:
-            data.ObjectAssocType = U.Drf.AssocType.END_POINT
-            data.ObjectAssocModifier = 1 if cut_point == "start" else 2
+    with drawing.on_sheet(tx, sheet) as sh:
+        data = kinds.drf_object(tx, edge, at, parent)
         tag = tx.uf.Draw.CreateSimpleSxview(
             sheet.Tag, float(scale), step, arrow, parent.Tag, data, list(position)
         )
-        view = tx.nx.TaggedObjectManager.GetTaggedObject(tag)
+        return _finish_section(tx, sh, parent, tag, arrow, position, scale)
+
+
+def _create_sx_kind(tx, kind, parent_ref, given, step, arrow, position, scale):
+    """Half, stepped and revolved sections: ``given`` = (edge ref, at, field, at field)."""
+    with tx.checks():
+        parent, sheet = drawing.view(tx, parent_ref, "/parent")
+        points = [kinds.edge_point(tx, *g) for g in given]
+        if kind == "revolved":
+            kinds.revolved_legs(tx, parent, points[0], points[1:])
+        scale = scale if scale is not None else drawing.scale(tx, parent)
+    with drawing.on_sheet(tx, sheet) as sh:
+        tag = kinds.create_sxview(
+            tx, kind, sheet, parent, float(scale), step, arrow, points, position
+        )
+        return _finish_section(tx, sh, parent, tag, arrow, position, scale)
+
+
+def _finish_section(tx, sh, parent, tag, arrow, position, scale):
+    view = tx.nx.TaggedObjectManager.GetTaggedObject(tag)
+    tx.part.DraftingViews.UpdateViews([view])
+    tx.uf.Draw.SetViewScale(view.Tag, float(scale))
+    drawing.place(tx, view, position)  # NX 2406 creates it at its own aligned spot
+    _verify_scale(tx, view, scale)
+    out = view_data(tx, view, sh.sheet)
+    out["cut_planes"] = kinds.cut_planes(tx, sh, parent, view, arrow)
+    return out
+
+
+def _create_auxiliary(tx, parent_ref, hinge_ref, position):
+    with tx.checks():
+        parent, sheet = drawing.view(tx, parent_ref, "/parent")
+        parent_scale = drawing.scale(tx, parent)
+        found, hinge = kinds.hinge_of(tx, parent, hinge_ref, parent_scale)
+        center = drawing.position(parent)
+        if abs(geom.cross2(hinge, geom.sub(position, center))) <= 1e-6 * max(
+            1.0, math.dist(position, center)
+        ):
+            fail("NX_INVALID_ARGUMENT", "Place the view to one side of the hinge line",
+                 field="/position")  # fmt: skip
+        model_length = math.dist(found["start"], found["end"])
+    with drawing.on_sheet(tx, sheet) as sh:
+        view = kinds.create_auxiliary(tx, sh, parent, hinge, position)
+        _construction(tx, view)
+        drawing.place(tx, view, position)
+        tol = kinds.sheet_tolerance(tx, sheet)
+        readback.expect_close(drawing.position(parent), center, "parent_position", tol)
+        _verify_scale(tx, view, parent_scale)
+        # The view looks normal to the hinge: the hinge edge is seen true length.
+        seen = kinds.seen_length(tx, view, found, sh.scale)
+        readback.expect_close(seen, model_length, "hinge_length", 1e-6 * max(1.0, model_length))
+        out = view_data(tx, view, sheet)
+        out["hinge"] = {"model_length": model_length, "view_length": seen}
+        return out
+
+
+def _create_broken(tx, view_ref, axis, breaks, gap):
+    with tx.checks():
+        view, sheet = drawing.view(tx, view_ref, "/parent")
+        gap = gap if gap is not None else kinds.default_gap(units.sheet_units(tx, sheet))
+        bands = kinds.break_bands(tx, view, sheet, axis, breaks, gap)
+        before = drawing.borders(tx, view)
+        center = drawing.position(view)
+    with drawing.on_sheet(tx, sheet) as sh:
+        for band in bands:
+            kinds.add_break(tx, sh, view, band, gap)
         tx.part.DraftingViews.UpdateViews([view])
-        tx.uf.Draw.SetViewScale(view.Tag, float(scale))
-        drawing.place(tx, view, position)  # NX 2406 creates it at its own aligned spot
-        _verify_scale(tx, view, scale)
-        return view_data(tx, view, sheet)
+        tol = kinds.sheet_tolerance(tx, sheet)
+        readback.expect_close(drawing.position(view), center, "position", tol)
+        after = drawing.borders(tx, view)
+        width = [after[2] - after[0], after[3] - after[1]]
+        wanted = kinds.expected_bounds(before, bands, gap)
+        readback.expect_close(width, [wanted[2] - wanted[0], wanted[3] - wanted[1]], "size",
+                              10 * tol)  # fmt: skip
+        out = view_data(tx, view, sheet)
+        out["breaks"] = [{"axis": "xy"[k], "start": lo, "end": hi, "gap": gap}
+                         for k, lo, hi in bands]  # fmt: skip
+        return out
+
+
+def _create_break_out(tx, view_ref, center, radius, depth):
+    with tx.checks():
+        view, sheet = drawing.view(tx, view_ref, "/parent")
+    with drawing.on_sheet(tx, sheet):
+        tag = kinds.create_break_out(tx, view, center, radius, depth)
+        tx.part.DraftingViews.UpdateViews([view])
+        seen, curves = kinds.break_out_depth(tx, tag, center, view)
+        readback.expect_close(seen, depth, "depth", 1e-6 * max(1.0, depth))
+        out = view_data(tx, view, sheet)
+        out["break_out"] = {"depth": seen, "radius": float(radius), "curves": curves}
+        return out
 
 
 def _create_detail(tx, parent_ref, center, radius, position, scale):

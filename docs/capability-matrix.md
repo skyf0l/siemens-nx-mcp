@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `a499cda27e37c6a9a6f79c930ff646a41a33682c56de25a22c0d52fbfe2ab550`.
+Canonical SHA-256 (catalogue evidence): `95b810602c27be3435b1139fa1fe0cb236a6f03fd1cbb7df8d86e7358ab43b6c`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -49,11 +49,11 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_drawing_sheet | Native-tested | drawing | model | v2406: tested; 23 checks in acceptance/drawing/inch_units.json |
 | nx_create_drawing_symbol | Native-tested | drawing | model | v2406: all variants; 19 checks in acceptance/drawing/create_drawing_symbol.json |
 | nx_create_drawing_table | Native-tested | drawing | model | v2406: all variants; 53 checks in acceptance/drawing/title_block.json |
-| nx_create_drawing_view | Native-tested | drawing | model | v2406: all variants; 23 checks in acceptance/drawing/inch_units.json |
+| nx_create_drawing_view | Native-tested | drawing | model | v2406: all variants; 51 checks in acceptance/drawing/view_types.json |
 | nx_create_explosion | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_create_explosion_trace | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_create_extrude | Native-tested | modeling | model | v2406: tested; 36 checks in acceptance/modeling/extrude.json |
-| nx_create_gdt | Native-tested | drawing | model | v2406: fcf (untested: datum_feature); 21 checks in acceptance/drawing/create_gdt.json |
+| nx_create_gdt | Native-tested | drawing | model | v2406: fcf, view_datum_feature, view_datum_target, view_fcf (untested: datum_feature); 18 checks in acceptance/drawing/gdt_views_inch.json |
 | nx_create_hole | Native-tested | modeling | model | v2406: all variants; 26 checks in acceptance/modeling/hole.json |
 | nx_create_loft | Native-tested | modeling | model | v2406: tested; 13 checks in acceptance/modeling/loft.json |
 | nx_create_mesh_surface | Native-tested | freeform | model | v2406: tested; 18 checks in acceptance/freeform/mesh_surface.json |

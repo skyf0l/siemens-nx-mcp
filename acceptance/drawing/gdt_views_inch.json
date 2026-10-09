@@ -1,0 +1,249 @@
+{
+ "covers": {
+  "nx_create_gdt": [
+   "view_datum_feature",
+   "view_fcf",
+   "view_datum_target"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_in.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0.984252,
+     0.984252,
+     0.787402
+    ],
+    "limit": 1,
+    "radius": 0.314961
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     2.362205,
+     0.984252,
+     0.787402
+    ],
+    "limit": 1,
+    "radius": 0.19685
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     1.377953,
+     1.968504,
+     0.787402
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     1.574803,
+     0.0,
+     0.787402
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0.0,
+     0.984252,
+     0.787402
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     1.574803,
+     0.393701,
+     0.787402
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "size": "a4",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_feature",
+    "object": "$front.data.items.0.id",
+    "origin": [
+     4,
+     2.5
+    ],
+    "letter": "A"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.letter": "A",
+    "data.origin": {
+     "close": [
+      4,
+      2.5
+     ],
+     "tol": 1e-06
+    },
+    "units.sheet_length": "in",
+    "data.leader.object.kind": "edge"
+   },
+   "save": "dA"
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_fcf",
+    "object": "$h1.data.items.0.id",
+    "origin": [
+     7.5,
+     6
+    ],
+    "frame": {
+     "characteristic": "position",
+     "tolerance": 0.004,
+     "material": "mmc",
+     "zone": "diameter",
+     "datums": [
+      "$dA.data.annotation.id"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.frame.characteristic": "position",
+    "data.frame.tolerance": {
+     "close": 0.004,
+     "tol": 1e-09
+    },
+    "data.frame.datums": [
+     "A"
+    ],
+    "data.origin": {
+     "close": [
+      7.5,
+      6
+     ],
+     "tol": 1e-06
+    },
+    "units.sheet_length": "in",
+    "data.text": {
+     "contains": "0.004"
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "view_datum_target",
+    "object": "$top_face.data.items.0.id",
+    "origin": [
+     8,
+     3
+    ],
+    "letter": "B",
+    "target": {
+     "type": "circular",
+     "diameter": 0.25
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.target.diameter": {
+     "close": 0.25,
+     "tol": 1e-09
+    },
+    "data.target.label": "B",
+    "data.origin": {
+     "close": [
+      8,
+      3
+     ],
+     "tol": 1e-06
+    },
+    "units.length": "in",
+    "units.sheet_length": "in"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

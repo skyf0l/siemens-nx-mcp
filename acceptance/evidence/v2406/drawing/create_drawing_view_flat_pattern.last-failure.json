@@ -1,0 +1,118 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/create_drawing_view_flat_pattern.json",
+  "scenario_sha256": "ab4acc4b7239b2c3178d984889d5a5af4cd38944b29d045013b307c285b4b303",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_view": [
+      "flat_pattern"
+    ],
+    "nx_create_drawing_table": [
+      "bend"
+    ],
+    "nx_edit_drawing_table": [
+      "bend"
+    ],
+    "nx_update_annotations": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "3f2989383a22301e8011a46ff06a376cedfd2115",
+  "sources": {
+    "nx_create_drawing_view": "6a56dd46f19152c24ffe882af605374a11a4e155d6784bfb9571f4b8b74df802",
+    "nx_create_drawing_table": "3244c87035778bc40fadbf2b584966c0304e2d936a44cb9382a6b89e3ab55c7c",
+    "nx_edit_drawing_table": "3244c87035778bc40fadbf2b584966c0304e2d936a44cb9382a6b89e3ab55c7c",
+    "nx_update_annotations": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61"
+  },
+  "run_id": "20261010-021828-d8ff59",
+  "owner": "wb_views",
+  "part": null,
+  "started": "2026-10-09T22:18:28Z",
+  "finished": "2026-10-09T22:18:31Z",
+  "passed": false,
+  "checks": 13,
+  "failed_checks": 7,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.906,
+      "result_sha256": "45ee4abb8788e30c935c058e2e3772ca4c11fea4d480f50a187f40045ad871a0"
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "7e640ccd41bb6c4791cb89741cb2f00182f1d8999f637358c3aebb903be2f726"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.093,
+      "result_sha256": "d37a56e7cf0565ab55cdbfd73bb7e16041a0ac949898653c05cd8c57917e3e60"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.188,
+      "result_sha256": "528669119483bc5c4f4ab27f7da90650906cbb6da883ceca7b1a592f939217d0"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.125,
+      "result_sha256": "3f5b20ed4d39fe42128bb249afc81cc9f8e6960b0977fac6048199f81b6b7ee9"
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": false,
+      "checks": 5,
+      "seconds": 0.109,
+      "result_sha256": "89025a01ce3cf14c1bcadadefb8bf0e31c79388a1a41bed20d9a2c46d41e476b",
+      "failures": [
+        "unexpected error NX_ERROR: KeyError: 'field'",
+        "data.kind: missing (wanted 'bend')",
+        "data.rows: missing (wanted [['1', '90,00', '3,00']])",
+        "data.automatic: missing (wanted True)",
+        "data.columns: missing (wanted [{'field': 'id'}, {'field': 'angle'}, {'field': 'radius'}])",
+        "data.position: missing (wanted {'close': [300, 270], 'tol': 1e-06})"
+      ]
+    },
+    {
+      "index": 7,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": false,
+      "checks": 3,
+      "seconds": 0.0,
+      "result_sha256": null,
+      "failures": [
+        "argument: $bt.data.table.id: no such path in the saved result 'bt'"
+      ]
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-021828-d8ff59/drawing_create_drawing_view_flat_pattern_drawing_sheet_metal.prt"
+    ],
+    "failed": []
+  }
+}
