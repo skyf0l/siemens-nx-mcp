@@ -1784,6 +1784,9 @@ class HardenedExecutor(
         part = self._work_part(required=False)
         manifest.update(
             session_id=self.session_id,
+            # The manifest's own nx_version is the evidence baseline, not this session.
+            manifest_baseline_nx_version=manifest.get("nx_version"),
+            nx_version=self.nx_version,
             actual_nx_version=self.nx_version,
             execution=(
                 "serialized NX batch journal thread"

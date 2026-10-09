@@ -264,7 +264,7 @@ class SheetMetalMixin:
                 "unavailable": [
                     {
                         "operation": "remove_bends",
-                        "reason": "NX v2606 installation feature toggle is disabled",
+                        "reason": "This NX installation's feature toggle is disabled",
                     }
                 ],
                 "coordinate_frame": "work_part",
@@ -755,7 +755,7 @@ class SheetMetalMixin:
             "tool": manager.GetToolName(),
             "material_catalog_status": "unavailable",
             "warnings": [
-                "NX v2606 GetMaterialNames raised a native memory-access error on this installation; automatic catalog enumeration is disabled."
+                "NX GetMaterialNames raised a native memory-access error on this installation; automatic catalog enumeration is disabled."
             ],
             "units": self._units(),
         }

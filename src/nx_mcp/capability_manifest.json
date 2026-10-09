@@ -14,7 +14,10 @@
     "nx_export_drawing_pdf": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native full-sheet PDF with explicit high-resolution shaded images and updated view lists. Saved/reopened shaded solid and section verified visually; unloaded unsuppressed prototypes fail preflight. Hidden-edge invisibility verified with processing on and font 0."
+      "scope": "Native full-sheet PDF with explicit high-resolution shaded images and updated view lists. Saved/reopened shaded solid and section verified visually; unloaded unsuppressed prototypes fail preflight. Hidden-edge invisibility verified with processing on and font 0.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_finish_sketch": {
       "status": "tested",
@@ -59,7 +62,10 @@
     "nx_add_projection_view": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native right projected view and associative parent; exported PDF visually reviewed."
+      "scope": "Native right projected view and associative parent; exported PDF visually reviewed.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_upload_file": {
       "status": "tested",
@@ -143,7 +149,10 @@
     "nx_import_geometry": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "STEP solids and nested assembly through WorkPart importer, normal new-part creation; source prototypes closed explicitly; names preflighted"
+      "scope": "STEP solids and nested assembly through WorkPart importer, normal new-part creation; source prototypes closed explicitly; names preflighted",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_workspace_list": {
       "status": "tested",
@@ -174,7 +183,10 @@
     "nx_add_dimension": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native horizontal edge dimension with computed size10mm; exported PDF visually reviewed. Aligned/vertical variations are not separately kernel-tested."
+      "scope": "Native horizontal edge dimension with computed size10mm; exported PDF visually reviewed. Aligned/vertical variations are not separately kernel-tested.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_measure_distance": {
       "status": "tested",
@@ -192,7 +204,10 @@
     "nx_set_component_transform": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Absolute immediate-child placement; repeated identical pose"
+      "scope": "Absolute immediate-child placement; repeated identical pose",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_operation_status": {
       "status": "tested",
@@ -242,12 +257,18 @@
     "nx_reposition_component": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native immediate-child 20-unit X translation and 90-degree Z rotation; identical operation-ID replay does not apply translation twice."
+      "scope": "Native immediate-child 20-unit X translation and 90-degree Z rotation; identical operation-ID replay does not apply translation twice.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_add_base_view": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native top base view of a single-body part; sheet placement verified in exported PDF."
+      "scope": "Native top base view of a single-body part; sheet placement verified in exported PDF.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_checkpoint": {
       "status": "tested",
@@ -368,7 +389,10 @@
     "nx_capabilities": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Live exact-tool manifest filtering, NX version and API-detection response. API presence is not a geometry correctness certificate."
+      "scope": "Live exact-tool manifest filtering, NX version and API-detection response. API presence is not a geometry correctness certificate.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_blend": {
       "status": "tested",
@@ -399,7 +423,10 @@
     "nx_sketch_rectangle": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
-      "scope": "Principal/custom bases, multiple loops, retry deduplication and batch rollback"
+      "scope": "Principal/custom bases, multiple loops, retry deduplication and batch rollback",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_get_bounding_box": {
       "status": "tested",
@@ -428,7 +455,10 @@
     "nx_create_drawing": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native metric A3 sheet at 1:1 first-angle projection; sheet opening and typed reference."
+      "scope": "Native metric A3 sheet at 1:1 first-angle projection; sheet opening and typed reference.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sketch_constraint": {
       "status": "tested",
@@ -517,7 +547,10 @@
     "nx_find_geometry": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped_and_local_boundary_tests",
-      "scope": "Native trimmed BREP point-to-face/edge distance; selector queries, principal plane filter and radius filter. Highest/lowest retain conservative center ordering."
+      "scope": "Native trimmed BREP point-to-face/edge distance; selector queries, principal plane filter and radius filter. Highest/lowest retain conservative center ordering.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_highlight_objects": {
       "status": "tested",
@@ -820,17 +853,26 @@
     "nx_sheet_metal_schema": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Strict schemas for 34 native operation families; per-operation examples and validation scopes."
+      "scope": "Strict schemas for 34 native operation families; per-operation examples and validation scopes.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sheet_metal_context": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Modern graphical UG_APP_SBSM context; no legacy application switch or model undo mark."
+      "scope": "Modern graphical UG_APP_SBSM context; no legacy application switch or model undo mark.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sheet_metal_feature": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "34 native creation fixtures on NX v2606; flange builder edit verified. Individual options and other edit combinations remain experimental. Two-bend partial-width channel with Square/Round reliefs and independently calculated developed DXF dimensions; adjacent mitered flanges and flat export."
+      "scope": "34 native creation fixtures on NX v2606; flange builder edit verified. Individual options and other edit combinations remain experimental. Two-bend partial-width channel with Square/Round reliefs and independently calculated developed DXF dimensions; adjacent mitered flanges and flat export.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_sheet_metal_info": {
       "status": "tested",
@@ -845,7 +887,10 @@
     "nx_set_sheet_metal_defaults": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Value-mode thickness/radius/neutral factor and numeric read-back. Material/tool tables and custom bend tables remain experimental."
+      "scope": "Value-mode thickness/radius/neutral factor and numeric read-back. Material/tool tables and custom bend tables remain experimental.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_export_flat_pattern": {
       "status": "tested",
@@ -1011,7 +1056,10 @@
     "nx_thread_catalog": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Reads installed NX catalog in place; exact Metric Coarse M6 x 1.0 row selection without file transfer."
+      "scope": "Reads installed NX catalog in place; exact Metric Coarse M6 x 1.0 row selection without file transfer.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_standard_thread": {
       "status": "tested",
@@ -1069,7 +1117,10 @@
     "nx_list_dimensions": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native computed size and retention diagnostics; occurrence-edge dimension follows extrusion resize and explicitly rebinds after replacement."
+      "scope": "Native computed size and retention diagnostics; occurrence-edge dimension follows extrusion resize and explicitly rebinds after replacement.",
+      "verified_versions": [
+        "v2406"
+      ]
     },
     "nx_workspace_info": {
       "status": "tested",

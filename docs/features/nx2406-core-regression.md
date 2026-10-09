@@ -6,10 +6,13 @@ surface), after a `dev_reload.py` of the current working tree. Parts are under
 `<workspace>/smoke/verify_core/`. Every result was checked numerically
 (volume, exact bounds, sketch read-back, component poses).
 
-Summary: 65 tools run, 62 PASS, 3 FAIL. 8 tools NOT RUN (drawing and sheet
-metal). The NX session stopped responding before those sessions: NX sat idle
-with a modal "Work in Progress" window, the dev journal stopped answering
-(dev-state generation 62), and every call returned `NX_BRIDGE_UNAVAILABLE`.
+Summary (final): 73 tools run, all 73 PASS on NX 2406.
+- First pass: 65 run, 62 PASS, 3 FAIL.
+- The 3 FAILs (nx_import_geometry, nx_reposition_component,
+  nx_set_component_transform) were fixed by the orchestrator in hardened.py
+  and re-verified live (see "Follow-up").
+- The 8 drawing and sheet-metal tools ran after the switch to the "startup"
+  bridge driver.
 
 ## Part lifecycle
 
@@ -23,7 +26,7 @@ with a modal "Work in Progress" window, the dev journal stopped answering
 | nx_open_part | PASS | reopened life.prt, volume 1000 | |
 | nx_activate_part | PASS | life work+display, volume 1000 | |
 | nx_list_open_parts | PASS | compact/active_only filters correct | |
-| nx_import_geometry | **FAIL** | `NX_IMPORT_FAILED`, nx_code 4625016 "Unable to import selected file to work part", no translator files (also fails with the source part closed) | `hardened._import_geometry_inner` never sets `Step214Importer.OutputFile`. NX 2406 rejects WorkPart import without it. A dev_python probe with `OutputFile` set imported 1 body, 1000 mm³, bounds [0,0,0]-[20,10,5] |
+| nx_import_geometry | FAIL -> **PASS after fix** | `NX_IMPORT_FAILED`, nx_code 4625016 "Unable to import selected file to work part", no translator files (also fails with the source part closed) | `hardened._import_geometry_inner` never sets `Step214Importer.OutputFile`. NX 2406 rejects WorkPart import without it. A dev_python probe with `OutputFile` set imported 1 body, 1000 mm³, bounds [0,0,0]-[20,10,5] |
 
 ## Sketch
 
@@ -100,52 +103,62 @@ with a modal "Work in Progress" window, the dev journal stopped answering
 | nx_add_component | PASS | poses [0,0,0], [30,0,0], [0,40,0] | |
 | nx_list_components | PASS | | |
 | nx_assembly_constraint | PASS | fix A; distance 5 opposite -> B at x=15, gap 5 | |
-| nx_reposition_component | **FAIL** (partial) | dx-only works (50->55). Any rotation of a component not at the origin -> `NX_PLACEMENT_MISMATCH`, rolled back. rz 90 at the origin works | see below |
-| nx_set_component_transform | **FAIL** (partial) | translation-only works. Changing rotation when the current position is not 0 -> `NX_PLACEMENT_MISMATCH` | `hardened._set_component_transform` assumes MoveComponent rotates about the component origin. Probe on 2406: zero shift + rz 90 moved [20,0,0] to [0,20,0], so it rotates about the assembly origin. Fix: `shift = t - delta·p` |
+| nx_reposition_component | FAIL -> **PASS after fix** | dx-only works (50->55). Any rotation of a component not at the origin -> `NX_PLACEMENT_MISMATCH`, rolled back. rz 90 at the origin works | see below |
+| nx_set_component_transform | FAIL -> **PASS after fix** | translation-only works. Changing rotation when the current position is not 0 -> `NX_PLACEMENT_MISMATCH` | `hardened._set_component_transform` assumes MoveComponent rotates about the component origin. Probe on 2406: zero shift + rz 90 moved [20,0,0] to [0,20,0], so it rotates about the assembly origin. Fix: `shift = t - delta·p` |
 
 Side effect: after any failed and rolled-back mutation in an assembly, every
 component ID goes stale (`NX_OBJECT_STALE`) and a re-list returns new IDs. The
 error response does not tell the caller to reacquire references.
 
-## Not run (NX unavailable)
+## Drawing (run on the startup-driver NX, part drw2.prt, 20x10x10 block)
 
-nx_create_drawing, nx_add_base_view, nx_add_projection_view, nx_add_dimension,
-nx_list_dimensions, nx_export_drawing_pdf, nx_sheet_metal_schema,
-nx_sheet_metal_feature. The step files are ready under the verifier scratch
-folder (s8.json, s9.json).
+| Tool | Result | Evidence |
+|---|---|---|
+| nx_create_drawing | PASS | A3 420x297, scale 1:1, first-angle |
+| nx_add_base_view | PASS | Top@1 at sheet (100,150) mm |
+| nx_add_dimension | PASS | horizontal on the 20 mm edge -> measured_value 20.0 |
+| nx_add_projection_view | PASS | right, ORTHO@2 at (160,150), spacing 60 |
+| nx_list_dimensions | PASS | 1 HorizontalDimension, computed 20.0, valid |
+| nx_export_drawing_pdf | PASS | 1 sheet, 9905 B. The PDF shows a 20x10 top view dimensioned "20" and a 10x10 side view |
 
-## Follow-up: orchestrator fixes (code-reviewed; live check pending)
+## Sheet metal (part sm2.prt)
 
-After the restart, NX hung again with the modal "Work in Progress" window, this
-time over verify_a's nx_create_part. `dev_reload` timed out, the sidecar lost
-its connection on the first extrude of s8.json, and the orchestrator stopped
-all NX calls. So no fix has been verified live yet. Offline review:
+| Tool | Result | Evidence |
+|---|---|---|
+| nx_sheet_metal_schema | PASS | tab and flange parameter schemas returned |
+| nx_sheet_metal_feature | PASS | tab on a 100x80 sketch, t=2 -> 16000 mm³. Flange: edge y=0, inside length 20, 90°, R3 -> 19656.637 mm³ (= 75·2·100 + 4π·100 + 17·2·100), bounds z -2..20; health OK |
 
-| Fix | Offline result |
-|---|---|
-| STEP import: `builder.OutputFile = import_dir/"output.prt"` (hardened.py) | Matches the 2406 probe that imported correctly (1000 mm³) |
-| Placement pivot: `shift = t - delta·p` (hardened.py) | Matches the measured 2406 behaviour: MoveComponent with zero shift and rz 90 moved [20,0,0] to [0,20,0], which is delta·p. The `rows`/`_nx_matrix` conventions are consistent |
-| Invalid formula -> `NX_INVALID_FORMULA` (authoring.py `_native_formula`) | Wraps the native error, keeps nx_code, runs inside the rolled-back mutation |
-| Capabilities scoped to version (`manifest.scope_to_version(..., "v2406")`) | nx_extrude tested (verified_versions v2406); nx_datum_plane tested (real_NX_v2406_scoped); nx_bridge_surface "experimental", "Not tested on NX v2406; evidence: ...". Still pending live: nx_capabilities needs the bridge, and the running NX must report the version string "v2406" |
+Notes:
+- nx_sheet_metal_feature needs `nx_sheet_metal_context` first. Without it the
+  call returns `NX_PART_CONTEXT`, which is correct and rolls back.
+- nx_set_sheet_metal_defaults (also passed: thickness 2, R3, K 0.33) warns
+  "NX v2606 GetMaterialNames raised a native memory-access error", an
+  outdated version string.
 
-Note: under this gating, nx_import_geometry, nx_set_component_transform,
-nx_reposition_component, nx_create_drawing and nx_sheet_metal_feature now
-report "experimental" on 2406 until v2406 is added to their verified_versions.
+## Follow-up: orchestrator fixes (live-verified on NX 2406, s10.json)
 
-Pending live runs (step files in the verifier scratch folder): s8.json
-(drawings), s9.json (sheet metal), s10.json (the four fixes above with
-expected numbers: import 1000 mm³; rz 90 of a component at [30,10,0] -> pose
-unchanged, assembly bounds x 20..30, y 10..20; ry 90 at [50,-5,0] -> x 50..60,
-z -10..0; bad formula -> NX_INVALID_FORMULA, volume stays 1000).
+| Fix | Result | Evidence |
+|---|---|---|
+| nx_import_geometry, `OutputFile` set | PASS | life.step into new part imp_fix: 1 body, 1000 mm³, exact bounds [0,0,0]-[20,10,5]; translator output.log staged |
+| nx_reposition_component, rz 90 at [30,10,0] | PASS | pose t=[30,10,0], R=rz90; assembly bounds x 20..30, y 10..20 |
+| nx_set_component_transform, off origin | PASS | moved to [50,-5,0] identity, then ry 90 at the same position -> bounds x 50..60, y -5..5, z -10..0 |
+| nx_set_expression, invalid formula | PASS | `NX_INVALID_FORMULA`, nx_code 1050007, rolled back, references preserved; volume stays 1000, health OK |
+| nx_capabilities, per version | PASS | nx_extrude tested (verified_versions v2406); nx_datum_plane tested (real_NX_v2406_scoped); nx_bridge_surface experimental, "Not tested on NX v2406; evidence: ..." |
+
+Remaining cosmetic issue: the top-level `nx_version` in the nx_capabilities
+response is still "v2606" (revision "2606-manufacturing-r1"), copied from
+capability_manifest.json, while the per-tool gating correctly uses v2406.
+Report the running NX version there, or rename the field to the manifest's
+certified version.
 
 ## Recommended shared fixes (hardened.py)
 
-1. STEP import: set `builder.OutputFile` (for example `import_dir/"output.prt"`)
+1. (Done) STEP import: set `builder.OutputFile` (for example `import_dir/"output.prt"`)
    before `Commit()`.
-2. Component placement: compensate the pivot,
+2. (Done) Component placement: compensate the pivot,
    `shift = t - matmul(delta, xyz(p))`, and add a test that rotates an
    off-origin component.
 3. Version-neutral warnings: replace the "NX v2606" save/export/translator
    strings and the `Designcenter2606` UGII_BASE_DIR fallback.
-4. Map NX expression-formula errors (nx_code 1050007) to a stable domain code.
+4. (Done, NX_INVALID_FORMULA) Map NX expression-formula errors (nx_code 1050007) to a stable domain code.
 5. Add a reacquire hint to rolled-back errors that invalidate occurrence IDs.

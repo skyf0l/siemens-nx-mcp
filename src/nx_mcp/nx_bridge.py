@@ -243,7 +243,7 @@ class NXOpenExecutor:
         builder = self.session.DexManager.CreateStepCreator()
         try:
             builder.SettingsFile = str(
-                Path(os.environ.get("UGII_BASE_DIR", r"C:\Program Files\Siemens\Designcenter2606"))
+                Path(os.environ["UGII_BASE_DIR"])  # Set by NX for every session
                 / "STEP214UG"
                 / "ugstep214.def"
             )
