@@ -82,17 +82,27 @@ class NXToolError(Exception):
         return result
 
 
+# Native license checkout failures (NX 2406: 948801 missing token feature,
+# 949895 license feature not available). The tool works where the seat has it.
+LICENSE_ERROR_CODES = frozenset({948801, 949895})
+
+
 def api_error(error: BaseException) -> NXToolError:
-    """Wrap an unexpected exception as NX_API_ERROR, keeping where it was raised.
+    """Wrap an unexpected exception as NX_API_ERROR (NX_LICENSE_UNAVAILABLE for a
+    native license checkout failure), keeping where it was raised.
 
     The short traceback tail makes environment faults (a missing module or an
     unimported NXOpen namespace) distinguishable from genuine NX API failures.
     """
     frames = traceback.format_exception(type(error), error, error.__traceback__)
+    code = getattr(error, "ErrorCode", None)
+    licensed = code in LICENSE_ERROR_CODES
     return NXToolError(
-        "NX_API_ERROR",
-        str(error),
-        nx_code=getattr(error, "ErrorCode", None),
+        "NX_LICENSE_UNAVAILABLE" if licensed else "NX_API_ERROR",
+        "This NX seat has no license for the NX command this tool uses: " + str(error)
+        if licensed
+        else str(error),
+        nx_code=code,
         details={
             "exception_type": type(error).__name__,
             "traceback": "".join(frames[-6:])[-4000:],

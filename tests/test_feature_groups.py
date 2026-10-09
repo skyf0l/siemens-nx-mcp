@@ -41,12 +41,13 @@ def test_capabilities_report_evidence_for_the_running_nx_version():
     tools = scope_to_version(load_manifest(), "v2406")["tools"]
     assert tools["nx_extrude"]["status"] == "tested"  # verified_versions includes v2406
     assert tools["nx_datum_plane"]["status"] == "tested"  # real_NX_v2406 evidence
-    assert tools["nx_bridge_surface"]["status"] == "experimental"  # 2606 evidence only
-    assert "Not tested on NX v2406" in tools["nx_bridge_surface"]["scope"]
-    assert (
-        scope_to_version(load_manifest(), "v2606")["tools"]["nx_bridge_surface"]["status"]
-        == "tested"
+    assert tools["nx_pmi_datum"]["status"] == "unavailable"  # unavailable_on v2406
+    assert scope_to_version(load_manifest(), "v2606")["tools"]["nx_pmi_datum"]["status"] == (
+        "tested"
     )
+    only_2606 = {"tools": {"t": {"status": "tested", "evidence_type": "real_NX_v2606_scoped"}}}
+    entry = scope_to_version(only_2606, "v2406")["tools"]["t"]
+    assert entry["status"] == "experimental" and "Not tested on NX v2406" in entry["scope"]
 
 
 def test_capability_fragments_ship_as_package_data():
@@ -63,3 +64,24 @@ def test_capability_fragments_ship_as_package_data():
     for fragment in (package / "capability_fragments").glob("*.json"):
         name = fragment.relative_to(package).as_posix()
         assert any(fnmatch.fnmatch(name, p) for p in patterns), name
+
+
+def test_every_tool_is_proven_or_disabled_on_nx_2406():
+    # NX 2406 is a supported build: no tool may stay merely "experimental" there.
+    from nx_mcp.manifest import load_manifest, scope_to_version
+
+    tools = scope_to_version(load_manifest(), "v2406")["tools"]
+    unproven = sorted(n for n, e in tools.items() if e["status"] not in {"tested", "unavailable"})
+    assert unproven == []
+
+
+def test_native_license_failures_get_a_stable_code():
+    from nx_mcp.runtime import api_error
+
+    class NXException(Exception):
+        ErrorCode = 948801
+
+    error = api_error(NXException("License Error"))
+    assert error.code == "NX_LICENSE_UNAVAILABLE" and error.nx_code == 948801
+    NXException.ErrorCode = 1
+    assert api_error(NXException("other")).code == "NX_API_ERROR"
