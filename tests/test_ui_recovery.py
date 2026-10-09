@@ -472,6 +472,7 @@ def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig
     from types import SimpleNamespace as NS2
 
     host.control("agent")
+    host.driver = "journal"  # Only the resident journal host starves NX's main loop.
     real_session = host.session
     host.session = NS2(ApplicationName="UG_APP_NOPART", Parts=[])
     assert not host._nx_application_ready()
@@ -480,6 +481,10 @@ def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig
     assert error.value.code == "NX_NO_PART_OPEN"
     assert "File > New" in error.value.message
     assert error.value.details["mutation_outcome"] == "not_started"
+    host.driver = "startup"  # The startup app runs between NX commands: no refusal.
+    with pytest.raises(Exception) as other:
+        host.execute("nx_create_part", {"path": "x.prt"})
+    assert getattr(other.value, "code", None) != "NX_NO_PART_OPEN"
     host.session = NS2(ApplicationName="UG_APP_MODELING", Parts=[object()])
     assert host._nx_application_ready()
     host.session = NS2()  # A failed probe never blocks work.

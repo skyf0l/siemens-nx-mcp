@@ -258,6 +258,7 @@ class ControlPanel:
 
 class InteractiveHost:
     dev = False
+    driver = "timer"  # timer (2606 journal), journal (2406 resident), startup (NX startup app)
     hold_auto_start = False
     resident = False
     timer = None
@@ -508,11 +509,11 @@ class InteractiveHost:
                 time.monotonic() - self.waiting_since if self.waiting_since is not None else None
             ),
             "uptime_seconds": time.time() - self.started,
-            "scheduler": (
-                "resident journal loop; one queued call per tick"
-                if self.resident
-                else "Win32 UI-thread timer; one queued call per tick"
-            ),
+            "scheduler": {
+                "journal": "resident journal loop; one queued call per tick",
+                "startup": "NX startup application timer on the UI thread; one queued call per tick",
+            }.get(self.driver, "Win32 UI-thread timer; one queued call per tick"),
+            "driver": self.driver,
         }
 
     def control(self, mode="status", *, by_engineer=False):
@@ -589,7 +590,11 @@ class InteractiveHost:
             )
         from nx_mcp.hardened import READ_ONLY
 
-        if method not in READ_ONLY and not self._nx_application_ready():
+        if (
+            self.driver == "journal"
+            and method not in READ_ONLY
+            and not self._nx_application_ready()
+        ):
             # Seen on NX 2406: the first part creation in a fresh session must
             # start NX's Modeling application, which waits for NX's own main
             # loop - held by this host - and freezes NX for good. Refuse instead.
@@ -863,10 +868,14 @@ class InteractiveHost:
             pass
 
 
-def start(workspace, descriptor_path, resident=False, *, agent_control=None, dev=False):
+def start(
+    workspace, descriptor_path, resident=False, *, agent_control=None, dev=False, driver=None
+):
     """Start the host. agent_control=True gives the agent control as soon as NX
     allows it (default: timer hosts do, resident hosts start with the engineer).
-    dev marks the panel of the development loop."""
+    dev marks the panel of the development loop. driver names what ticks the
+    host: "timer" (its own Win32 timer), "journal" (a resident journal loop) or
+    "startup" (an NX startup application); resident hosts default to "journal"."""
     global _host
     if _host is not None and not _host.stopped:
         return _host.status()
@@ -887,6 +896,7 @@ def start(workspace, descriptor_path, resident=False, *, agent_control=None, dev
     if agent_control is not None:
         candidate.auto_start = agent_control
     candidate.dev = dev
+    candidate.driver = driver or ("journal" if resident else "timer")
     if dev:
         # Development launcher only: lets development agents inspect NXOpen
         # APIs inside NX. Never registered by the production launchers.

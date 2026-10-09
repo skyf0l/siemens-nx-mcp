@@ -1,4 +1,8 @@
-"""Play once in the open NX UI on NX 2406 and other releases that tear down a
+"""DEPRECATED - can freeze NX. Use the startup application nx_app/startup/nx_mcp_startup.py
+(see INTERACTIVE-NX.md). A resident journal holds NX's main loop, so NX work that needs it
+(the first part of a fresh session, the first PDF export) waits forever.
+
+Play once in the open NX UI on NX 2406 and other releases that tear down a
 journal's interpreter when it returns. The journal stays resident, pumping NX
 messages and draining bridge calls, until the panel's Stop button or the stop
 file ends it; NX is then back to normal. It starts in manual mode.

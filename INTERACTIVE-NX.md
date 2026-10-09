@@ -2,17 +2,33 @@
 
 Play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window says who has control (window title and first line) and has one toggle, **Give control to agent** / **Take control back**, plus **Stop bridge**. Long native operations can temporarily block NX; taking control back and stopping take effect between calls (the toggle then reads **Take control back after this step**).
 
-## NX 2406 and other releases without a persistent journal interpreter
+## NX 2406: run the bridge as an NX startup application (recommended)
 
-On NX 2406 the journal's interpreter is torn down when the journal returns: the
-descriptor is written but nothing listens and no tick runs. Play
-`examples/start_nx_interactive_2406.py` instead. The journal stays resident,
-pumps NX's messages between calls, ticks the host from its own interpreter (no
-Win32 timer), and imports the NXOpen namespaces the tools use. It starts in
-manual mode; click **Give control to agent** on the panel. Stop from the
-panel or the stop file; the journal then returns. Startup failures are written
-to `<workspace>/.nx-mcp/resident-error.txt`. This path is field-reported on
-2406, not part of the certified 2606 matrix.
+NX 2406 unloads a played Python journal's interpreter as soon as it returns
+(`GetUnloadOption` is not read for Python), so the 2606 timer journal stops at
+once. Keeping a journal running instead (`start_nx_interactive_2406.py`) holds
+NX's main loop inside a journal command: NX work that needs that loop - the
+first part of a fresh session (starting Modeling), the first PDF export - then
+waits forever and **NX freezes**. Do not use the resident journal for real work.
+
+Use the startup application instead: `nx_app/startup/nx_mcp_startup.py`. Its
+first line, `# nx: threaded`, makes NX keep the module loaded for the whole
+session (the same flag Siemens' Check-Mate Python checkers use). NX calls its
+`startup()` at launch; a timer on NX's UI thread then ticks the host between NX
+commands, exactly like the 2606 timer host. Nothing is played, there is no
+"Work in Progress" window, and the first part / first PDF of a session work
+(verified on NX 2406).
+
+Setup, once per machine:
+1. Point NX at the `nx_app` folder: set `UGII_USER_DIR=<checkout>\nx_app` for NX,
+   or, if `UGII_USER_DIR` is already used, add the folder as a line to your
+   `custom_dirs.dat` (`UGII_CUSTOM_DIRECTORY_FILE`). NX loads
+   `<folder>\startup\*.py` at launch.
+2. Set `NX_MCP_WORKSPACE` for NX (and the sidecar).
+3. Start NX normally. The **NX MCP control** panel appears once NX's main window
+   is up; the host starts with you in control. Startup failures go to
+   `<workspace>/.nx-mcp/resident-error.txt`.
+The bootstrap stays loaded until NX exits; **Stop bridge** stops the host.
 
 Agent mode locks NX model editing with `UI.LockAccess`. **Take control back** releases it for manual work and invalidates agent references and checkpoints: manual changes have no operation receipt and must not be undone by a later agent rollback. Reacquire references after giving control to the agent again. If an NX dialog is open, the handover is refused and the panel says to close it first. Closing the control panel stops the bridge and unlocks NX, leaving the application and parts open.
 
@@ -37,17 +53,17 @@ that points at geometry you have since edited fails safely as stale.
 
 ## Development loop (never for production work)
 
-`examples/start_nx_interactive_dev_2406.py` is the 2406 resident host for a
-development machine. Played once, it gives the agent control without a click
-and reloads the whole NX-side MCP code from disk when
-`<workspace>/.nx-mcp/dev-restart` appears: it stops the host, drops every
-`nx_mcp` module from memory and starts a fresh host (about two seconds; open
-parts stay open, object IDs reset). `python scripts/dev_reload.py --wait-agent`
-creates the file and waits; it exits 1 and prints the traceback if the new code
-does not load, and the loop keeps NX responsive until the next reload. The
-panel title reads **NX MCP DEV**. Taking control back is kept across reloads.
-It ends on Stop bridge, the `ui-stop` file or `dev-exit`. Changes to
-`devloop.py` or `winpump.py` themselves need a new Play.
+Start NX with the startup application in development mode:
+`python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1`. The
+agent gets control without a click, `nx_dev_python` is available, and
+`python scripts/dev_reload.py --wait-agent` reloads all of `nx_mcp` from disk
+(about two seconds; open parts stay open, object IDs reset): the bootstrap stops
+the host, drops every `nx_mcp` module and starts a fresh host. It exits 1 and
+prints the traceback if the new code does not load; the next reload recovers.
+Taking control back is kept across reloads. Changing
+`nx_app/startup/nx_mcp_startup.py` itself needs an NX restart. The panel title
+reads **NX MCP DEV**. `examples/start_nx_interactive_dev_2406.py` is the older
+resident-journal variant and can freeze NX as described above.
 
 ## What the agent is doing
 

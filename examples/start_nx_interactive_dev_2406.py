@@ -1,4 +1,8 @@
-"""DEVELOPMENT ONLY, NX 2406. Play once in graphical NX (Alt+F8) on a development machine.
+"""DEPRECATED - can freeze NX. Use the startup application nx_app/startup/nx_mcp_startup.py
+(see INTERACTIVE-NX.md). A resident journal holds NX's main loop, so NX work that needs it
+(the first part of a fresh session, the first PDF export) waits forever.
+
+DEVELOPMENT ONLY, NX 2406. Play once in graphical NX (Alt+F8) on a development machine.
 
 Like start_nx_interactive_2406.py, but the agent gets control immediately (no
 click) and the host reloads from disk whenever <workspace>/.nx-mcp/dev-restart

@@ -22,3 +22,6 @@ venv/
 .coverage
 coverage.xml
 htmlcov/
+
+# Personal Claude Code settings
+.claude/settings.local.json

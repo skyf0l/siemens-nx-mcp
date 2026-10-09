@@ -37,10 +37,16 @@ python -m pip install -e ".[dev]"
 
 1. Set `NX_MCP_WORKSPACE` in the NX environment to a dedicated CAD directory,
    such as `D:\NX_MCP_WORKSPACE`.
-2. In graphical NX, play `examples/start_nx_interactive_2606.py`. The journal returns;
-   a retained Win32 timer dispatches queued calls on the NX UI thread. On NX 2406,
-   play `examples/start_nx_interactive_2406.py` instead; that journal stays resident
-   (see [graphical lifecycle](INTERACTIVE-NX.md)).
+2. Start the NX side of the bridge:
+   - **NX 2406:** point NX at this checkout's `nx_app` folder once
+     (`UGII_USER_DIR=<checkout>\nx_app`, or a `custom_dirs.dat` entry) and start
+     NX normally. NX loads `nx_app/startup/nx_mcp_startup.py` at launch and
+     keeps it loaded; no journal is played. Do not use the resident
+     `start_nx_interactive_2406.py` journal for real work: it can freeze NX.
+   - **NX 2606:** in graphical NX, play `examples/start_nx_interactive_2606.py`.
+     The journal returns; a retained Win32 timer dispatches queued calls on the
+     NX UI thread.
+   See [graphical lifecycle](INTERACTIVE-NX.md).
 3. Start the sidecar using the same workspace and the graphical descriptor:
 
 ```powershell

@@ -31,16 +31,24 @@ changes the presentation (13 discover/invoke entry points). Every public tool
 needs a typed definition and a handler in `HardenedExecutor`; there is no untyped
 fallback and no arbitrary journal-execution tool.
 
-`examples/` holds only NX launchers (`start_nx_interactive_2606.py`,
-`start_nx_interactive_2406.py` for NX releases that tear down the journal
-interpreter, and the batch `start_nx_bridge.py`). Live NX acceptance suites live
-in `acceptance/`.
+On NX 2406 the NX side runs as an NX startup application,
+`nx_app/startup/nx_mcp_startup.py`: its first line `# nx: threaded` keeps it
+loaded for the session and a UI-thread timer ticks the host (driver "startup").
+Keep that line first. Never hold NX's main loop in a long-running journal: NX
+work that needs the loop (first Modeling start, first PDF export) then freezes
+NX. `examples/` holds the 2606 timer journal, the batch `start_nx_bridge.py` and
+the older 2406 resident journals (freeze-prone, not for real work). Live NX
+acceptance suites live in `acceptance/`.
 
 ## Live NX development loop
 
-With `examples/start_nx_interactive_dev_2406.py` playing in NX (development machine
-only), edit code, then `python scripts/dev_reload.py --wait-agent` reloads the
-NX-side host from disk (exit 1 prints the import traceback). Drive the new
+Start NX yourself with the startup app in development mode:
+`python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1` (close a
+hung NX with `taskkill //IM ugraf.exe //F`; `scripts/dev_nx_windows.py` shows
+blocking NX dialogs). Hold `scripts/dev_lock.py` while using NX. Edit code,
+then `python scripts/dev_reload.py --wait-agent` reloads the NX-side host from
+disk (exit 1 prints the import traceback); bootstrap changes need an NX
+restart. `scripts/dev_python.py` inspects NXOpen inside NX. Drive the new
 tool through a fresh `python -m nx_mcp.server` stdio client with
 `NX_MCP_BRIDGE_DESCRIPTOR=%LOCALAPPDATA%\nx-mcp\interactive-bridge.json`, on
 disposable parts under `<workspace>/smoke/`; check results with measurements,
