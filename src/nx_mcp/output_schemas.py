@@ -66,18 +66,6 @@ META = {"path": S, "size": COUNT, "sha256": HASH}
 # Required fields follow actual bridge implementations; optional metadata remains typed.
 PAYLOADS: dict[str, dict[str, Any]] = {
     "nx_list_topology": obj({"body": REF, "faces": arr(REF), "edges": arr(REF), "solid": B}),
-    "nx_checkpoint": obj({"checkpoint_id": S, "message": S}),
-    "nx_rollback": obj({"checkpoint_id": S, "message": S}),
-    "nx_checkpoint_state": obj(
-        {
-            "checkpoints": arr(
-                obj({"checkpoint_id": S, "part_id": S, "index": COUNT, "label": S, "available": B})
-            ),
-            "undo_depth": COUNT,
-            "save_semantics": S,
-            "retention": S,
-        }
-    ),
 }
 
 # Lifecycle and authoring results use their actual native field names.
@@ -168,23 +156,6 @@ PAYLOADS.update(
 )
 
 
-PAYLOADS.update(
-    {
-        "nx_read_result": obj(
-            {
-                "result_id": S,
-                "field": S,
-                "value": {},
-                "total_count": {"anyOf": [COUNT, NULL]},
-                "offset": COUNT,
-                "next_offset": {"anyOf": [COUNT, NULL]},
-                "omitted": {"type": "object"},
-            }
-        ),
-    }
-)
-
-
 def output_schema(name: str, common: dict) -> dict:
     """Keep an object root for MCP; discriminate errors before success payloads."""
     schema = deepcopy(common)
@@ -201,7 +172,7 @@ def output_schema(name: str, common: dict) -> dict:
                     "id": S,
                     "sha256": S,
                     "size": COUNT,
-                    "tool": {"const": "nx_read_result"},
+                    "tool": {"const": "nx_get_result"},
                     "immutable": {"const": True},
                 }
             ),

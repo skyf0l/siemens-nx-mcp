@@ -67,6 +67,7 @@ class KitServices(Services):
         self.session_id = "kit"
         self.references = _Refs(fake)
         self.history: list[dict] = []
+        self.checkpoints: dict[str, dict] = {}
         self.owned: set[str] = set()
         self.revisions = 0  # Services.revision(): bumped by every non-read call
 
@@ -237,7 +238,18 @@ class KitServices(Services):
         return []
 
     def record_history(self, mark, part, operation_id, tool):
-        self.history.append({"mark": mark, "operation_id": operation_id, "method": tool})
+        if not self.mark_exists(mark):  # like the host: an undo went back past its mark
+            return
+        key = self.part_key(part) if part is not None else None
+        self.history.append(
+            {"mark": mark, "part_id": key, "operation_id": operation_id, "method": tool}
+        )
+
+    def undo_history(self):
+        return self.history
+
+    def undo_checkpoints(self):
+        return self.checkpoints
 
     def revision(self):
         return self.revisions

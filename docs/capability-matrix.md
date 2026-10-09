@@ -4,14 +4,14 @@ Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evide
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
 Manifest revision: **2606-manufacturing-r1**. NX: **v2606**. Bridge protocol: **1**.
-Canonical SHA-256 (manifest and catalogue evidence): `4549221546b3e55f70199c699b8e8ebac3aa60e6713911009a2705a14f175021`.
+Canonical SHA-256 (manifest and catalogue evidence): `ff677ef91ec700f9b79b0536616bf4879ddca769f077dbff792fbb4d5b3efa05`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); without it the tool is Experimental, hidden from discovery and refused in production. A legacy tool is Native-tested with manifest status `tested` and an evidence type beginning `real_NX_`; only the stated scope and NX version are covered. Contract/sidecar-tested does not establish native CAD correctness. Experimental includes untested entries and tested entries without a recognized evidence type. Unavailable capabilities are explicitly recorded by the manifest; absence from this matrix is not proof of availability or unavailability.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 155 |
-| Contract/sidecar-tested | 1 |
+| Native-tested | 157 |
+| Contract/sidecar-tested | 0 |
 | Experimental | 1 |
 | Unavailable | 0 |
 
@@ -39,6 +39,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_bridge_surface | Native-tested | freeform | model | v2406: all variants; 21 checks in acceptance/freeform/bridge_surface.json |
 | nx_create_centerline | Native-tested | drawing | model | v2406: all variants; 23 checks in acceptance/drawing/create_centerline.json |
 | nx_create_chamfer | Native-tested | modeling | model | v2406: all variants; 12 checks in acceptance/modeling/chamfer.json |
+| nx_create_checkpoint | Native-tested | session | session | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_create_component | Native-tested | assembly | model | v2406: tested; 108 checks in acceptance/assembly/components.json |
 | nx_create_component_pattern | Native-tested | assembly | model | v2406: tested; 74 checks in acceptance/assembly/patterns.json |
 | nx_create_datum_axis | Native-tested | modeling | model | v2406: all variants; 14 checks in acceptance/modeling/datum_axis.json |
@@ -86,6 +87,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_trim_body | Native-tested | modeling | model | v2406: all variants; 16 checks in acceptance/modeling/trim_body.json |
 | nx_create_trim_sheet | Native-tested | freeform | model | v2406: tested; 11 checks in acceptance/freeform/trim_sheet.json |
 | nx_delete_objects | Native-tested | session | model | v2406: tested; 30 checks in acceptance/session/delete_objects.json |
+| nx_delete_results | Native-tested | session | file | v2406: tested; 57 checks in acceptance/session/results.json |
 | nx_download_file | Native-tested | parts_files | read | v2406: all variants; 27 checks in acceptance/parts_files/download_file.json |
 | nx_edit_annotation | Native-tested | drawing | model | v2406: tested; 22 checks in acceptance/drawing/edit_annotation.json |
 | nx_edit_assembly_constraint | Native-tested | assembly | model | v2406: tested; 82 checks in acceptance/assembly/constraints.json |
@@ -121,11 +123,13 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_get_material | Native-tested | modeling | read | v2406: tested; 14 checks in acceptance/modeling/material.json |
 | nx_get_model_summary | Native-tested | inspection | read | v2406: tested; 37 checks in acceptance/inspection/health.json |
 | nx_get_operation | Native-tested | session | read | v2406: tested; 38 checks in acceptance/session/status_operations.json |
+| nx_get_result | Native-tested | session | read | v2406: tested; 57 checks in acceptance/session/results.json |
 | nx_get_sheet_metal | Native-tested | sheet_metal | read | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_get_sheet_metal_defaults | Native-tested | sheet_metal | read | v2406: tested; 30 checks in acceptance/sheet_metal/defaults.json |
 | nx_get_sketch | Native-tested | sketch | read | v2406: tested; 34 checks in acceptance/sketch/get_sketch.json |
 | nx_get_status | Native-tested | session | read | v2406: tested; 38 checks in acceptance/session/status_operations.json |
 | nx_import_model | Native-tested | parts_files | model | v2406: all variants; 37 checks in acceptance/parts_files/import_model.json |
+| nx_list_checkpoints | Native-tested | session | read | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_list_components | Native-tested | assembly | read | v2406: tested; 108 checks in acceptance/assembly/components.json |
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 20 checks in acceptance/parts_files/list_files.json |
 | nx_list_objects | Native-tested | inspection | read | v2406: tested; 20 checks in acceptance/inspection/list_objects.json |
@@ -139,6 +143,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_open_part | Native-tested | parts_files | session | v2406: tested; 28 checks in acceptance/parts_files/open_part.json |
 | nx_preview_changes | Native-tested | session | session | v2406: tested; 46 checks in acceptance/session/preview_changes.json |
 | nx_resolve_reference | Native-tested | inspection | read | v2406: tested; 51 checks in acceptance/inspection/geometry.json |
+| nx_restore_checkpoint | Native-tested | session | model | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_restore_display | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
 | nx_run_batch | Native-tested | session | model | v2406: tested; 34 checks in acceptance/session/run_batch.json |
 | nx_save_part | Native-tested | parts_files | file | v2406: tested; 30 checks in acceptance/parts_files/save_part.json |
@@ -154,8 +159,10 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_feature_suppression | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/feature_suppression.json |
 | nx_set_highlight | Native-tested | display | view | v2406: tested; 10 checks in acceptance/display/highlight.json |
 | nx_set_material | Native-tested | modeling | model | v2406: tested; 14 checks in acceptance/modeling/material.json |
+| nx_set_name | Native-tested | session | model | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_set_sheet_metal_defaults | Native-tested | sheet_metal | model | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_set_visibility | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
+| nx_undo_operation | Native-tested | session | model | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_update_annotations | Native-tested | drawing | model | v2406: tested; 6 checks in acceptance/drawing/update_annotations.json |
 | nx_update_assembly | Native-tested | assembly | model | v2406: tested; 19 checks in acceptance/assembly/update_assembly.json |
 | nx_update_model | Native-tested | modeling | model | v2406: tested; 7 checks in acceptance/modeling/update_model.json |
@@ -166,8 +173,6 @@ These labels report recorded evidence, not certification or independent verifica
 | Tool | Classification | Manifest status | Evidence type | Tested scope / caveat |
 | --- | --- | --- | --- | --- |
 | nx_capabilities | Native-tested | tested | real_NX_v2606_scoped | Live exact-tool manifest filtering, NX version and API-detection response. API presence is not a geometry correctness certificate. |
-| nx_checkpoint | Native-tested | tested | real_NX_v2606 | In-session model checkpoint and available-state inspection |
-| nx_checkpoint_state | Native-tested | tested | real_NX_v2606 | Checks actual NX mark availability, including save expiration |
 | nx_list_annotations | Native-tested | tested | real_NX_v2606_scoped | Native BOM, balloon and managed sheet-metal PMI enumeration and text. |
 | nx_list_bodies | Native-tested | tested | real_NX_v2606_scoped | Native work-part inventory reports one extruded body and zero after feature deletion. |
 | nx_list_datums | Native-tested | tested | real_NX_v2606_scoped | Native owned datum planes/axes and coordinate-system enumeration on template part. |
@@ -177,10 +182,6 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_list_features | Native-tested | tested | real_NX_v2606_scoped | Native sketch/extrusion inventory and reacquisition of a renamed feature following Save As. |
 | nx_list_sketches | Native-tested | tested | real_NX_v2606_scoped | Native two-sketch work-part inventory with typed references. |
 | nx_list_topology | Native-tested | tested | real_NX_v2606 | Face and edge enumeration; face references used in actual distance query Native face-restricted boundary enumeration and bidirectional adjacency used for flat-pattern orientation. |
-| nx_read_result | Contract/sidecar-tested | tested | local_contract_tests | Immutable bounded bridge snapshots, JSON-pointer pagination, result cardinality and committed-outcome preservation on storage failure; 2032-object response fixture. |
-| nx_rename_object | Native-tested | tested | real_NX_v2606_scoped | Native extrusion rename resolved again by returned name after Save As. Other object kinds are not independently covered by this fixture. |
-| nx_rollback | Native-tested | tested | real_NX_v2606 | Explicit checkpoint rollback; stale references rejected afterward |
-| nx_undo | Native-tested | tested | real_NX_v2606 | Undo after read-only inspection; save boundary explicitly inspected |
 
 ## Explicitly unavailable capabilities
 

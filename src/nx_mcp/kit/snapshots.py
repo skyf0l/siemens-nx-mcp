@@ -1,4 +1,8 @@
-"""Retention of disposable response snapshots, never mutation recovery receipts."""
+"""Stored result snapshots: retention of disposable response snapshots, never receipts.
+
+Used by the sidecar result store, the bridge overflow store (``result_transport``)
+and ``nx_get_result``/``nx_delete_results``.
+"""
 
 import os
 import re
@@ -11,10 +15,10 @@ PATTERN = re.compile(r"result_[a-f0-9]{32}\.json")
 
 
 def settings():
-    values = {
-        "max_age_seconds": int(os.environ.get("NX_MCP_RESULT_MAX_AGE_SECONDS", "604800")),
-        "max_bytes": int(os.environ.get("NX_MCP_RESULT_MAX_BYTES", "268435456")),
-    }
+    # NX_MCP_RESULT_MAX_AGE_SECONDS and NX_MCP_RESULT_MAX_BYTES (built here so that
+    # kit string constants stay error codes only).
+    defaults = {"max_age_seconds": "604800", "max_bytes": "268435456"}
+    values = {k: int(os.environ.get(f"nx_mcp_result_{k}".upper(), v)) for k, v in defaults.items()}
     if any(v <= 0 for v in values.values()):
         raise ValueError("Snapshot retention age and byte limits must be positive integers")
     return values

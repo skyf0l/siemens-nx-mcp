@@ -225,7 +225,7 @@ async def main():
             # A fresh part isolates rollback from the flat-pattern derived bodies.
             await call("nx_create_part", path=prefix + "/rollback.prt", units="mm")
             await call("nx_sheet_metal_context")
-            checkpoint = await call("nx_checkpoint", label="before_tab")
+            checkpoint = await call("nx_create_checkpoint", label="before_tab")
             sketch = (await call("nx_create_sketch"))["object"]["id"]
             await call(
                 "nx_sketch_rectangle",
@@ -249,7 +249,7 @@ async def main():
             # A failed mutation invalidates references even when it rolls back.
             fresh = (await call("nx_sheet_metal_info"))["items"][0]["body"]["id"]
             assert await volume(fresh) == before_volume
-            await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+            await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
             assert not (await call("nx_sheet_metal_info"))["items"]
             receipt["checks"].append("unsupported_edit_unchanged_checkpoint_rollback")
             await call("nx_create_part", path=prefix + "/attached.prt", units="mm")

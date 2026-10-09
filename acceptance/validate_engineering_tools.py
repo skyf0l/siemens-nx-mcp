@@ -368,7 +368,7 @@ async def main():
                         end=dict(zip(["x", "y"], end, strict=True)),
                     )
                 await call("nx_finish_sketch", sketch_id=sketch)
-                checkpoint = await call("nx_checkpoint", label="engineering recovery")
+                checkpoint = await call("nx_create_checkpoint", label="engineering recovery")
                 failed = await client.call_tool(
                     "nx_extrude",
                     {
@@ -393,7 +393,7 @@ async def main():
                     copy=True,
                 )
                 close(await volume(), 2000)
-                await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+                await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
                 close(await volume(), 1000)
                 return {"failed_operation": failed.structuredContent, "restored_volume": 1000}
 

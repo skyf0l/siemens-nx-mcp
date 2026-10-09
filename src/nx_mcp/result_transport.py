@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import uuid
 from pathlib import Path
 
-from nx_mcp.result_retention import LOCK, maintain, settings
+from nx_mcp.kit.snapshots import LOCK, maintain, settings
 from nx_mcp.runtime import NXToolError
 
 
@@ -103,72 +102,8 @@ def bound_result(result, directory):
         "id": identifier,
         "sha256": hashlib.sha256(raw).hexdigest(),
         "size": len(raw),
-        "tool": "nx_read_result",
+        "tool": "nx_get_result",
         "immutable": True,
     }
     summary["omitted"] = omitted
     return summary
-
-
-def read_result(root, result_id, field="", offset=0, limit=20):
-    if not re.fullmatch(r"result_[0-9a-f]{32}", result_id) or offset < 0 or not 1 <= limit <= 100:
-        raise NXToolError(
-            "NX_INVALID_ARGUMENT", "Use a returned result ID, offset >=0 and limit 1..100"
-        )
-    p = Path(root) / (result_id + ".json")
-    with LOCK:
-        if not p.is_file() or p.is_symlink():
-            raise NXToolError("NX_RESULT_EXPIRED", "Result snapshot is unavailable")
-        value = json.loads(p.read_text(encoding="utf-8"))
-    if field and not field.startswith("/"):
-        raise NXToolError("NX_INVALID_ARGUMENT", "field must be a JSON pointer")
-    try:
-        for key in field.split("/")[1:]:
-            key = key.replace("~1", "/").replace("~0", "~")
-            value = value[int(key)] if isinstance(value, list) else value[key]
-    except (KeyError, IndexError, ValueError, TypeError) as error:
-        raise NXToolError("NX_INVALID_ARGUMENT", "Unknown result field") from error
-    total = len(value) if isinstance(value, (list, str, dict)) else None
-    selected = (
-        dict(list(value.items())[offset : offset + limit])
-        if isinstance(value, dict)
-        else value[offset : offset + limit]
-        if total is not None
-        else value
-    )
-    omitted = {}
-    data = (
-        [preview(v, field + "/" + str(offset + i), omitted) for i, v in enumerate(selected)]
-        if isinstance(selected, list)
-        else preview(selected, field, omitted)
-    )
-    if len(encoded({"value": data, "omitted": omitted})) > 400 * 1024:
-        if isinstance(selected, list):
-            data = [
-                {"field": field + "/" + str(offset + i), "read_separately": True}
-                for i in range(len(selected))
-            ]
-        elif isinstance(selected, dict):
-            data = {
-                k: {
-                    "field": field + "/" + k.replace("~", "~0").replace("/", "~1"),
-                    "read_separately": True,
-                }
-                for k in list(selected)[:100]
-            }
-        else:
-            data = None
-        omitted = {field: {"reason": "Read child fields separately"}}
-    return {
-        "status": "success",
-        "result_id": result_id,
-        "field": field,
-        "value": data,
-        "total_count": total,
-        "offset": offset,
-        "next_offset": min(offset + limit, total)
-        if total is not None and offset + limit < total
-        else None,
-        "omitted": omitted,
-        "mutation_outcome": "not_applicable",
-    }

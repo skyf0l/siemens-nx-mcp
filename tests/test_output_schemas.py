@@ -38,8 +38,8 @@ async def test_fresh_mcp_client_gets_structured_errors(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
     async with create_connected_server_and_client_session(server) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
-        assert "object_id" in tools["nx_rename_object"].inputSchema["required"]
-        bad = await client.call_tool("nx_rename_object", {})
+        assert "body" in tools["nx_list_topology"].inputSchema["required"]
+        bad = await client.call_tool("nx_list_topology", {})
         assert bad.isError and bad.structuredContent["code"] == "NX_INVALID_ARGUMENT"
 
 

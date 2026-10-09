@@ -250,7 +250,7 @@ mocked failure injection is not evidence of native transport interruption.
 All mutation calls run serially on the NX thread under the bridge's existing undo
 and operation-receipt handling. Reuse the same operation ID when reconciling a lost
 response. After rollback, reacquire object references; deliberately stale IDs are
-rejected. Saving follows NX save-boundary semantics: inspect `nx_checkpoint_state`
+rejected. Saving follows NX save-boundary semantics: inspect `nx_list_checkpoints`
 before relying on an earlier checkpoint. Read-only schema and inspection calls do
 not clear recovery history.
 

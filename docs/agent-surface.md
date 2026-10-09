@@ -2,7 +2,7 @@
 
 The full profile remains compatible: 227 tools with existing defaults. The opt-in
 agent profile lists 13 tools: eight core tools plus `nx_discover_tools`, `nx_invoke`
-`nx_result`, `nx_inspect` and `nx_result_cleanup`. All 227 underlying tools remain available, subject to their
+`nx_get_result` and `nx_delete_results`. All 227 underlying tools remain available, subject to their
 existing capability status and native prerequisites.
 
 For stdio, set `NX_MCP_SURFACE=agent` and `NX_MCP_WORKSPACE`. The dual HTTP entrypoint `python -m nx_mcp.http_surface` serves
@@ -28,13 +28,14 @@ They must not be used to issue concurrent mutations.
    paths, units, all warnings, mutation outcome and change counts. Long arrays
    contain at most twenty entries with explicit `omitted` metadata. Repeated
    reference metadata is omitted. Unknown change counts remain null.
-4. `nx_result(result_id="result_...", field="/bodies", offset=20)` expands an
-   immutable response snapshot. `detail="full"` expands selected object metadata;
-   selected arrays remain paged. This never repeats the original mutation.
+4. `nx_get_result(result_id="result_...", field="/data/bodies", offset=20)` expands
+   an immutable response snapshot (compact results name it in `expand_with`).
+   `detail="full"` returns the selected object uncut; selected arrays remain paged.
+   This never repeats the original call and never reaches NX.
 
 `nx_invoke(detail="full")` selects the legacy defaults and full original result
 **when making a new call**. Do not repeat a mutation to obtain detail; use
-`nx_result` instead. After uncertain transport delivery, query
+`nx_get_result` instead. After uncertain transport delivery, query
 `nx_operation_status` with the original operation ID before retrying. Snapshot
 IDs are not mutation receipt IDs. Snapshots persist under `.nx-mcp/agent-results`
 subject to the configured retention policy; they do not keep NX
@@ -49,9 +50,9 @@ snapshot detail for omitted nested arrays and metadata.
 
 ### Oversized native results
 
-The bridge keeps a bounded receipt when a native result exceeds 512 KiB. It retains the operation outcome and restore ID and adds `full_result` with a snapshot ID, checksum and size. Read it with `nx_invoke(tool="nx_read_result", arguments={"result_id":"result_...","field":"/objects","offset":0,"limit":20})`, or call `nx_read_result` directly on the full surface. Arrays, strings and objects are paged; nested omissions provide paths for further reads. Do not repeat the mutation to obtain omitted data.
+The bridge keeps a bounded receipt when a native result exceeds 512 KiB. It retains the operation outcome and restore ID and adds `full_result` with a snapshot ID, checksum and size. Read it with `nx_get_result(result_id="result_...", field="/objects", offset=0, limit=20)`. Arrays and strings are paged; nested omissions provide paths for further reads. Do not repeat the mutation to obtain omitted data.
 
-Bridge snapshots live in `.nx-mcp/bridge-results` under the configured retention age/size limits. These are separate snapshot stores: `nx_result` reads agent snapshots; `nx_read_result` reads bridge snapshots. Expiration does not delete durable operation records. Delivery/storage errors preserve known outcomes; interrupted calls with unknown outcomes still require `nx_operation_status`.
+Bridge snapshots live in `.nx-mcp/bridge-results` under the configured retention age/size limits. `nx_get_result` reads both snapshot folders by result_id. Expiration does not delete durable operation records. Delivery/storage errors preserve known outcomes; interrupted calls with unknown outcomes still require `nx_operation_status`.
 
 ## Artifacts
 
@@ -104,18 +105,12 @@ returned by NX: topology inspection for new bodies, constraint diagnostics for
 sketches and artifact metadata retrieval. They preserve geometry values and
 recovery fields; next actions are never executed implicitly.
 
-`nx_inspect` provides consistent name/text and kind filtering before paging for
-features, sketches, faces, edges and annotations. Return counts and units are
-explicit. Coordinate frames are passed through from the native result; absent
-frame metadata is `not_reported`. Reuse `result_id` for stable pages without
-another NX call, or omit it to capture current geometry. Annotations may require
-multiple serial native reads; snapshot capture is not an atomic NX transaction.
-
 Snapshot retention defaults to seven days and 256 MiB. Set positive integer
 `NX_MCP_RESULT_MAX_AGE_SECONDS` and `NX_MCP_RESULT_MAX_BYTES` environment values
 to configure it. Pruning runs on writes and protects the newly returned snapshot.
-`nx_result_cleanup` defaults to a dry-run count/byte preview; `dry_run=false`
-applies cleanup using optional overrides without changing persistent policy.
+`nx_delete_results` defaults to a dry-run count/byte preview; `dry_run=false`
+applies cleanup using optional overrides (or exact `result_ids`) without changing
+persistent policy.
 Only matching snapshot files are eligible. Symlinks, other files and the separate
 mutation recovery directory are excluded. Missing/expired snapshot IDs return
 `NX_RESULT_EXPIRED`; query mutation outcomes through `nx_operation_status`.

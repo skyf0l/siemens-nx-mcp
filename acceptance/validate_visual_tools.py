@@ -86,7 +86,7 @@ async def run(client):
     async def diagnostics():
         await call("nx_save_part")
         before = await call("nx_list_open_parts")
-        checkpoint = await call("nx_checkpoint", label="Before diagnostics")
+        checkpoint = await call("nx_create_checkpoint", label="Before diagnostics")
         result = await call("nx_sketch_diagnostics", sketch_id=sk)
         assert (
             result["solver_status"] == "UnderConstrained"
@@ -94,7 +94,7 @@ async def run(client):
         ), result
         after = await call("nx_list_open_parts")
         assert [p["modified"] for p in before["parts"]] == [p["modified"] for p in after["parts"]]
-        assert (await call("nx_checkpoint_state"))["checkpoints"], checkpoint
+        assert (await call("nx_list_checkpoints"))["checkpoints"], checkpoint
         return result
 
     await test("underconstrained_diagnostics_preserve_state", diagnostics)

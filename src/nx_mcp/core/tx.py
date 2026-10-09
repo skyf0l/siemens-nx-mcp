@@ -117,6 +117,23 @@ class Services:
         return {}
 
     def record_history(self, mark, part, operation_id: str, tool: str) -> None: ...
+
+    # the agent's undo history and checkpoints (nx_undo_operation, nx_*_checkpoint)
+    def undo_history(self) -> list:
+        """The live list of the agent's committed model calls, oldest first:
+        ``{mark, part_id, operation_id, method}``. The host empties it when the
+        engineer changes the model, so an undo never reaches across their edits."""
+        return self.__dict__.setdefault("_undo_history", [])
+
+    def undo_checkpoints(self) -> dict:
+        """The live ``{checkpoint_id: {mark, part_id, index, label}}`` of this session;
+        ``index`` is the length of :meth:`undo_history` when it was created."""
+        return self.__dict__.setdefault("_undo_checkpoints", {})
+
+    def mark_exists(self, mark) -> bool:
+        """False once NX dropped the undo mark (a save, a part close)."""
+        return bool(self.session.DoesUndoMarkExist(mark, None))
+
     def after_commit(self, spec) -> None: ...
     def after_failure(self, spec) -> None: ...
 
@@ -335,6 +352,7 @@ class Tx:
         self.non_undoable_reason: str | None = None
         self.mark = None
         self.outcome: str | None = None  # "previewed" after tx.preview()
+        self.references: str | None = None  # "part_invalidated": overrides changes
         self.files = Files(self)
         self.display = Display(self)
         self.children: list[dict] = []

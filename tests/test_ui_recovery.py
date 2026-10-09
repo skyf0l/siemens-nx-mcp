@@ -12,6 +12,7 @@ import pytest
 
 from nx_mcp import interactive
 from nx_mcp.bridge import BridgeDescriptor
+from nx_mcp.core import kernel
 from nx_mcp.interactive import ControlPanel, InteractiveHost
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Collection
@@ -189,7 +190,7 @@ def test_leaving_agent_drives_releases_nx_and_keeps_references_without_edits(hos
     host.control("agent")
     ref = rig.ref(body)
     host.execute("nx_list_bodies", {})
-    rig.e._checkpoint()
+    rig.e._checkpoints["cp_" + "0" * 32] = {"mark": 1, "part_id": "p", "index": 0}
     host.control("ask")
     assert not host.owns_lock and host.status()["nx_window_input_enabled"]
     host.mode = "auto"
@@ -205,21 +206,24 @@ def test_leaving_agent_drives_releases_nx_and_keeps_references_without_edits(hos
         host.execute("nx_get_status", {})
 
 
-def test_engineer_change_between_calls_invalidates_references_once(host, rig):
+def test_engineer_change_between_calls_invalidates_references_once(host, rig, monkeypatch):
+    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
     body = Body()
     rig.part.Bodies.append(body)
     model = {"marks": 5}
     host.model_fingerprint = lambda: (model["marks"],)
     host.mode, host._light = "auto", True
     ref = rig.ref(body)
+    rig.e._handlers["nx_test_add"] = lambda: rig.part.Bodies.append(Body()) or {}
+    rig.e.execute("nx_test_add", {})  # an agent operation nx_undo_operation could undo
     host.execute("nx_list_bodies", {})
-    rig.e._checkpoint()
+    checkpoint = rig.e.execute("nx_create_checkpoint", {})["data"]["checkpoint_id"]
     host._engineer_had_nx = True  # NX was released after the call
     model["marks"] = 6  # the engineer added a feature (an undo mark)
     host.execute("nx_list_bodies", {})
     with pytest.raises(NXToolError):
         rig.e.objects.resolve(ref)
-    assert not rig.e._checkpoints
+    assert not rig.e._checkpoints and not rig.e._history
     line = host.history_lines(8)[1]
     assert line.startswith("✎  ") and "You changed the model — agent will re-read" in line
     log = (host.state_dir / "activity.log").read_text(encoding="utf-8")
@@ -229,6 +233,13 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig):
     model["marks"] = 7
     host.execute("nx_list_bodies", {})
     assert rig.e.objects.resolve(ref) is body
+    # Neither undo nor restore reaches back across the engineer's edit.
+    with pytest.raises(NXToolError) as undo:
+        host.execute("nx_undo_operation", {})
+    with pytest.raises(NXToolError) as restore:
+        host.execute("nx_restore_checkpoint", {"checkpoint_id": checkpoint})
+    assert (undo.value.code, restore.value.code) == ("NX_NOT_FOUND", "NX_STALE_CHECKPOINT")
+    assert len(rig.part.Bodies) == 2
 
 
 def test_model_fingerprint_reads_undo_marks_and_parts(host, rig):

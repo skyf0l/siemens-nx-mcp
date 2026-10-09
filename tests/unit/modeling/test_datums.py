@@ -60,7 +60,7 @@ def test_offset_converts_units_and_rolls_back_on_readback_mismatch():
     bad = run(nx, "nx_create_datum_plane", method="offset", reference=top.ref, distance=1)
     assert bad.error["category"] == "verification_failed"
     assert bad.error["details"]["check"] == "offset"
-    # The committed call keeps its mark (nx_undo); the failed one leaves none.
+    # The committed call keeps its mark (nx_undo_operation); the failed one leaves none.
     assert bad.mutation_outcome == "rolled_back" and nx.undo_marks == marks_before
     assert nx.live_builders == 0
     assert list(nx.part.Features) == features_before

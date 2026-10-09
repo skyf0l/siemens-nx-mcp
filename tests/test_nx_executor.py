@@ -328,20 +328,6 @@ def test_query_commands_return_typed_stable_object_references(tmp_path: Path):
     assert executor.execute("nx_list_bodies", {})["objects"][0]["id"] == bodies[0]["id"]
 
 
-def test_undo_is_exposed_by_the_executor(tmp_path: Path):
-    session = FakeSession()
-    executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    executor._MODEL_MUTATIONS = {"nx_test_mutation"}
-    executor._handlers["nx_test_mutation"] = lambda **_kw: {"message": "added"}
-    executor.execute("nx_test_mutation", {})
-    executor.execute("nx_test_mutation", {})
-
-    undo = executor.execute("nx_undo", {})
-
-    assert undo == {"message": "Undo successful"}
-    assert session.undo_to_marks[-1] == 2
-
-
 def test_failed_model_mutation_rolls_back_its_undo_mark(tmp_path: Path):
     session = FakeSession()
     executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))

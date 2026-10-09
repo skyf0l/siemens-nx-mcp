@@ -87,10 +87,10 @@ async def main():
         receipt["checks"].append("disconnect_committed_receipt_exact_retry_no_double_move")
         save()
         await call("nx_save_part")
-        checkpoint = await call("nx_checkpoint", label="placement rollback")
+        checkpoint = await call("nx_create_checkpoint", label="placement rollback")
         await call("nx_reposition_component", component=component, dx=3)
         await call("nx_get_bounding_box", scope="assembly")
-        await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+        await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
         fresh = (await call("nx_list_components"))["components"][0]
         assert fresh["translation"] == [7, 0, 0]
         receipt["checks"].append("readonly_keeps_checkpoint_rollback_restores_pose")

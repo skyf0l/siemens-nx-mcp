@@ -17,12 +17,6 @@ from nx_mcp import agent_guidance, agent_surface, integration_server
 _DOMAINS = {"files": "parts_files", "manufacturing": "sheet_metal"}
 _SESSION = {
     "nx_capabilities",
-    "nx_read_result",
-    "nx_checkpoint",
-    "nx_checkpoint_state",
-    "nx_rollback",
-    "nx_undo",
-    *agent_surface.HELPERS,
 }
 
 
@@ -33,7 +27,6 @@ class LegacyTool:
     effect: str
     domain: str
     tool: Any  # the FastMCP Tool
-    helper: bool = False
 
     @property
     def input_schema(self) -> dict:
@@ -46,8 +39,6 @@ class LegacyTool:
 
 def effect_of(name: str) -> str:
     """read, view, file or model, from the legacy lists (never guessed as read)."""
-    if name in agent_surface.HELPERS:
-        return agent_surface.HELPERS[name]
     if name in integration_server.READ_ONLY:
         return "read"
     if name in agent_guidance.GEOMETRY:
@@ -68,16 +59,15 @@ def domain_of(name: str) -> str:
     return _DOMAINS.get(legacy, legacy)
 
 
-def registry(mcp, helpers) -> dict[str, LegacyTool]:
-    """Every legacy tool registered on ``mcp``, plus the helper tools."""
+def registry(mcp) -> dict[str, LegacyTool]:
+    """Every legacy tool registered on ``mcp``."""
     out = {}
-    for name, tool in {**mcp._tool_manager._tools, **helpers.tools()}.items():
+    for name, tool in mcp._tool_manager._tools.items():
         out[name] = LegacyTool(
             name=name,
             description=" ".join((tool.description or name).split()),
             effect=effect_of(name),
             domain=domain_of(name),
             tool=tool,
-            helper=name in agent_surface.HELPERS,
         )
     return out

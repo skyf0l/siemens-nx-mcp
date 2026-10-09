@@ -14,7 +14,8 @@ before each call; ``$$`` escapes a literal ``$`` (``"$$0.data.sketch"`` reaches
 the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). Every call goes through the stdio MCP client of a fresh
 ``python -m nx_mcp.server`` (agent profile): catalogue read tools through
 ``nx_invoke_read``, everything else through ``nx_invoke`` with an intent, both
-with ``detail=full``. Legacy results are unwrapped to the envelope shape
+with ``detail=full`` (a step's ``"detail": "compact"`` asks for the compact
+projection, to check ``result_id`` and ``omitted``). Legacy results are unwrapped to the envelope shape
 (``ok``, ``error.code``/``category``, ``mutation_outcome``) so one ``expect``
 vocabulary covers both. Only steps with an ``expect`` count as checks.
 
@@ -50,7 +51,7 @@ SCENARIOS = ROOT / "acceptance"
 EVIDENCE = SCENARIOS / "evidence"
 FIXTURES = SCENARIOS / "fixtures"
 SPECIAL = ("$part", "$fixture", "$run")
-STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent"}
+STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail"}
 CLEANUP = ("close", "save", "keep")
 
 
@@ -209,14 +210,16 @@ class StepResult:
         return out
 
 
-async def call_tool(session, tool: str, args: dict, *, intent: str | None) -> dict:
-    """One call through the gateways (``detail=full``); returns the unwrapped result."""
+async def call_tool(
+    session, tool: str, args: dict, *, intent: str | None, detail: str = "full"
+) -> dict:
+    """One call through the gateways (``detail=full`` by default); returns the unwrapped result."""
     spec = catalogue.load().get(tool)
     if spec is not None and spec.effect == "read":
-        request = {"tool": tool, "arguments": args, "detail": "full"}
+        request = {"tool": tool, "arguments": args, "detail": detail}
         response = await session.call_tool("nx_invoke_read", request)
     else:
-        request = {"tool": tool, "arguments": args, "detail": "full"}
+        request = {"tool": tool, "arguments": args, "detail": detail}
         if intent:
             request["intent"] = intent[:120]
         response = await session.call_tool("nx_invoke", request)
@@ -255,7 +258,9 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
             break
         intent = step.get("intent") or f"Acceptance {label}, step {index}"
         try:
-            outcome = await call_tool(session, tool, args, intent=intent)
+            outcome = await call_tool(
+                session, tool, args, intent=intent, detail=step.get("detail") or "full"
+            )
         except Exception as error:  # Transport failure: the scenario cannot continue.
             failed = StepResult(
                 index, tool, bool(step.get("setup")), False, len(rules),

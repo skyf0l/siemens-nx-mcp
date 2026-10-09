@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from nx_mcp.core import kernel
+from nx_mcp.host.dispatch import services_for
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Part
 
@@ -23,15 +24,22 @@ def mutation(rig):
     return lambda **p: rig.e.execute("nx_test_add", p)
 
 
-def test_checkpoint_rollback_invalidates_objects_and_preserves_receipt(rig):
+@pytest.fixture
+def call(rig, monkeypatch):
+    """A catalogue call on the host (evidence gate off: these tools run untested here)."""
+    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
+    return lambda tool, **args: rig.e.execute(tool, args)["data"]
+
+
+def test_checkpoint_restore_invalidates_objects_and_preserves_receipt(rig, call):
     add = mutation(rig)
-    cp = rig.e.execute("nx_checkpoint", {})
+    cp = call("nx_create_checkpoint")
     committed = add(operation_id="test-operation-001")
     ref = committed["changes"]["created"][0]["id"]
-    assert rig.e._checkpoint_state()["undo_depth"] == 1
-    rig.e.execute("nx_checkpoint_state", {})
-    assert rig.e._checkpoint_state()["undo_depth"] == 1
-    rig.e.execute("nx_rollback", {"checkpoint_id": cp["checkpoint_id"]})
+    assert call("nx_list_checkpoints")["undo_depth"] == 1
+    assert call("nx_list_checkpoints")["undo_depth"] == 1  # reads keep the marks
+    restored = call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
+    assert restored["reverted"] == ["test-operation-001"]
     assert not rig.part.Bodies and not rig.part.IsModified
     with pytest.raises(NXToolError):
         rig.e.objects.resolve(ref)
@@ -39,38 +47,54 @@ def test_checkpoint_rollback_invalidates_objects_and_preserves_receipt(rig):
     assert replay["replayed"] and "reverted" in replay["warnings"][0]
     assert not rig.part.Bodies
     with pytest.raises(NXToolError, match="not in this session"):
-        rig.e._rollback_checkpoint(cp["checkpoint_id"])
+        call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
+    assert not rig.e._history and not rig.e._checkpoints
 
 
-def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, monkeypatch):
-    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)  # nx_save_part untested
+def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, call):
     add = mutation(rig)
     add(operation_id="first-operation")
     add(operation_id="second-operation")
     assert len(rig.part.Bodies) == 2
-    assert rig.e.execute("nx_undo", {})["undone_operation_id"] == "second-operation"
+    assert call("nx_undo_operation")["undone_operation_id"] == "second-operation"
     assert len(rig.part.Bodies) == 1
-    cp = rig.e._checkpoint()
-    saved = rig.e.execute("nx_save_part", {})
-    assert saved["data"]["saved_files"] == ["test.prt"]
-    with pytest.raises(NXToolError, match="expired"):
-        rig.e._rollback_checkpoint(cp["checkpoint_id"])
-    with pytest.raises(NXToolError, match="No native undo"):
-        rig.e._undo()
+    assert [h["operation_id"] for h in rig.e._history] == ["first-operation"]
+    cp = call("nx_create_checkpoint")
+    saved = call("nx_save_part")
+    assert saved["saved_files"] == ["test.prt"]
+    assert call("nx_list_checkpoints")["checkpoints"][0]["available"] is False
+    with pytest.raises(NXToolError, match="save") as error:
+        call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
+    assert error.value.code == "NX_STALE_CHECKPOINT"
+    with pytest.raises(NXToolError, match="No agent operation") as error:
+        call("nx_undo_operation")
+    assert error.value.code == "NX_NOT_FOUND"
 
 
-def test_cross_part_undo_and_checkpoint_refuse_unrelated_changes(rig, tmp_path):
+def test_cross_part_undo_and_checkpoint_refuse_unrelated_changes(rig, call, tmp_path):
     add = mutation(rig)
-    cp = rig.e._checkpoint()
+    cp = call("nx_create_checkpoint")
     add()
     other = Part(rig.session, tmp_path / "other.prt")
+    services_for(rig.e).own(other)  # the agent's own part: refused for crossing parts
     with pytest.raises(NXToolError) as error:
-        rig.e._undo()
-    assert error.value.code == "NX_CROSS_PART_ROLLBACK"
+        call("nx_undo_operation")
+    assert error.value.code == "NX_CROSS_PART"
     with pytest.raises(NXToolError) as error:
-        rig.e._rollback_checkpoint(cp["checkpoint_id"])
-    assert error.value.code == "NX_CROSS_PART_ROLLBACK"
+        call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
+    assert error.value.code == "NX_CROSS_PART"
     assert len(rig.part.Bodies) == 1 and not other.Bodies
+
+
+def test_set_name_renames_by_reference_and_refreshes_references(rig, call):
+    body = rig.part.Bodies[0] if rig.part.Bodies else None
+    add = mutation(rig)
+    created = add()["changes"]["created"][0]["id"]
+    renamed = call("nx_set_name", object=created, name="Renamed")
+    assert renamed["name"] == "Renamed" and renamed["object"]["id"] != created
+    with pytest.raises(NXToolError):
+        rig.e.objects.resolve(created)
+    assert body is None or body in rig.part.Bodies
 
 
 def test_failed_update_rolls_back_and_rejects_retry(rig):
@@ -139,7 +163,8 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     opened = rig.e.execute("nx_open_part", {"path": part.FullPath})
     assert opened["data"]["already_loaded"]
     assert rig.e._activate_part(part.Name, False, False)["part"]["id"] == p
-    cp = rig.e._checkpoint()
+    key = "cp_" + "0" * 32
+    rig.e._checkpoints[key] = {"mark": 1, "part_id": rig.e._part_id(part), "index": 0}
     closed = rig.e.execute("nx_close_part", {"part": p, "save": True})
     assert closed["data"]["closed_count"] == 1
     assert not rig.session.Parts and not rig.e._checkpoints
@@ -157,7 +182,7 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
         rig.e.execute("nx_open_part", {"path": str(tmp_path / "missing.prt")})
     with pytest.raises(NXToolError):
         rig.e._activate_part("missing")
-    assert cp["checkpoint_id"] not in rig.e._checkpoints
+    assert key not in rig.e._checkpoints
 
 
 def test_snapshot_invalidation_preserves_topology_for_display_only(rig):
@@ -195,7 +220,7 @@ def test_lookup_ambiguity_ownership_and_kind_guards(rig, tmp_path):
 
 def test_guard_failures_never_create_undo_marks(rig):
     with pytest.raises(NXToolError):
-        rig.e.execute("nx_checkpoint", {"unexpected": 1})
+        rig.e.execute("nx_list_topology", {"unexpected": 1})
     with pytest.raises(NXToolError, match="NX_TOOL_NOT_FOUND|nx_no_such_tool"):
         rig.e.execute("nx_no_such_tool", {})
     assert not rig.session.marks
@@ -206,12 +231,12 @@ def test_capability_filters_and_unit_conventions(rig):
 
     rig.session.DexManager = SimpleNamespace()
     rig.session.Measurement = SimpleNamespace()
-    one = rig.e._capabilities(tool="nx_rollback")
-    assert list(one["tools"]) == ["nx_rollback"] and one["units"] is None
+    one = rig.e._capabilities(tool="nx_list_topology")
+    assert list(one["tools"]) == ["nx_list_topology"] and one["units"] is None
     group = rig.e._capabilities(prefix="nx_sheet")
     assert all(name.startswith("nx_sheet") for name in group["tools"])
     assert group["tool_count"] < group["total_tool_count"]
-    for params in [{"tool": "nx_missing"}, {"tool": "nx_rollback", "prefix": "nx_"}]:
+    for params in [{"tool": "nx_missing"}, {"tool": "nx_list_topology", "prefix": "nx_"}]:
         with pytest.raises(NXToolError):
             rig.e._capabilities(**params)
 

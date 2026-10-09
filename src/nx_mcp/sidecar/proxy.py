@@ -145,7 +145,7 @@ def _project(envelope: dict, store) -> dict:
         result_id = store.put(envelope)
     except Exception:
         return envelope  # A storage fault never changes a finished call's answer.
-    projected.update(result_id=result_id, omitted=omitted)
+    projected.update(result_id=result_id, omitted=omitted, expand_with="nx_get_result")
     return projected
 
 
@@ -239,6 +239,8 @@ class CatalogueProxy:
                 problem = evidence.check(spec, build, args)
         if problem is not None:
             return result(failure(spec.name, problem, "not_started", operation_id=operation_id))
+        if "detail" in spec.params:  # nx_get_result: the call's detail is its own argument
+            args["detail"] = detail
         if operation_id is None and spec.effect != "read":
             # Known before sending, so an unknown outcome can always be queried.
             operation_id = new_operation_id()

@@ -185,7 +185,6 @@ def _capabilities(p, c):
 
 
 _READ_ONLY_FIXED = {
-    "nx_checkpoint_state": "List undo checkpoints",
     "nx_list_bodies": "List bodies in the work part",
     "nx_list_features": "List features in the work part",
     "nx_list_sketches": "List sketches in the work part",
@@ -195,17 +194,9 @@ _READ_ONLY_FIXED = {
     "nx_list_drawings": "List drawing sheets and views",
 }
 
-_ACTION_FIXED = {
-    "nx_undo": "Undo the agent's last operation",
-    "nx_rollback": "Roll back to an earlier checkpoint",
-    "nx_read_result": "Read a stored result",
-}
-
 _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     # Files, parts and session
     "nx_capabilities": _capabilities,
-    "nx_checkpoint": lambda p, c: f'Create undo checkpoint "{p.get("label", "checkpoint")}"',
-    "nx_rename_object": lambda p, c: f'Rename {c.obj(p.get("object_id"))} to "{p.get("name")}"',
     # Measurements and inspections
     "nx_list_topology": lambda p, c: (
         f"List faces and edges of {c.obj(p.get('face') or p.get('body'))}"
@@ -223,7 +214,6 @@ def _fixed(text: str) -> Callable[[dict[str, Any], _Context], str]:
 
 
 _TEMPLATES.update({name: _fixed(text) for name, text in _READ_ONLY_FIXED.items()})
-_TEMPLATES.update({name: _fixed(text) for name, text in _ACTION_FIXED.items()})
 
 
 def _group_templates():

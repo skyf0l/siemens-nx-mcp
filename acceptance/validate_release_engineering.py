@@ -647,14 +647,14 @@ async def run_suite(call, reject, artifact, upload, output):
         await call("nx_save_part")
         face = await near("face", [0, 0, 0], geometry_type="plane")
         anchor = (await call("nx_geometry_anchor", object=face))["anchor"]
-        checkpoint = (await call("nx_checkpoint", label="vendor repair"))["checkpoint_id"]
+        checkpoint = (await call("nx_create_checkpoint", label="vendor repair"))["checkpoint_id"]
         prior = await call("nx_get_bounding_box")
         # Large offsets may be invalid for this topology: require a clear outcome,
         # then rollback any accepted edit and compare geometry independently.
         repaired = await call("nx_edit_faces", faces=[face], action="offset", distance=0.01)
         assert (await call("nx_model_health"))["healthy"]
         receipt["vendor"]["repair"] = repaired
-        await call("nx_rollback", checkpoint_id=checkpoint)
+        await call("nx_restore_checkpoint", checkpoint_id=checkpoint)
         after = await call("nx_get_bounding_box")
         assert all(
             math.isclose(a, b, abs_tol=1e-6)

@@ -3,38 +3,6 @@
   "nx_version": "v2606",
   "bridge_protocol": 1,
   "tools": {
-    "nx_rollback": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "Explicit checkpoint rollback; stale references rejected afterward",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_undo": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "Undo after read-only inspection; save boundary explicitly inspected",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_rename_object": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native extrusion rename resolved again by returned name after Save As. Other object kinds are not independently covered by this fixture.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_checkpoint": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "In-session model checkpoint and available-state inspection",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_list_bodies": {
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
@@ -75,14 +43,6 @@
         "v2406"
       ]
     },
-    "nx_checkpoint_state": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "Checks actual NX mark availability, including save expiration",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_list_expressions": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
@@ -119,14 +79,6 @@
       "status": "tested",
       "evidence_type": "real_NX_v2606_scoped",
       "scope": "Native owned datum planes/axes and coordinate-system enumeration on template part.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_read_result": {
-      "status": "tested",
-      "evidence_type": "local_contract_tests",
-      "scope": "Immutable bounded bridge snapshots, JSON-pointer pagination, result cardinality and committed-outcome preservation on storage failure; 2032-object response fixture.",
       "verified_versions": [
         "v2406"
       ]

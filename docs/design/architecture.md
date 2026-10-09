@@ -605,9 +605,10 @@ step.
   `http.py` yet: the artifact resource, result store and compact presentation stay in
   `agent_surface.py` and `http_surface.py` serves both profiles, reused until F4.
 - `agent` lists the 4 gateways plus the core tools that exist in the catalogue (today only
-  `nx_list_objects`); `full` lists gateways, catalogue tools, every legacy tool and the legacy
-  helpers `nx_result`, `nx_inspect`, `nx_result_cleanup` (stand-ins for `nx_get_result` and
-  `nx_delete_results`, kept in their own tool manager so the legacy registry stays the manifest).
+  `nx_list_objects`); `full` lists gateways, catalogue tools and every legacy tool. The former
+  helpers `nx_result`, `nx_inspect` and `nx_result_cleanup` are replaced by the sidecar catalogue
+  tools `nx_get_result` and `nx_delete_results` (`domains/session/results.py`), which read and
+  prune both snapshot folders (`agent-results`, `bridge-results`).
   `nx_discover_tools` and the 13-entry agent surface are gone; `scripts/validate_agent_ux.py`
   still calls `nx_discover_tools` and needs `nx_find_tools` + `nx_get_tool_schemas`.
 - Legacy tools stay callable directly (both profiles) and through both gateways; discovery rows

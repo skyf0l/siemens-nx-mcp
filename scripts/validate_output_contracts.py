@@ -49,7 +49,7 @@ async def validate(url, output):
                 }
                 await call("nx_measure_distance", pair)
                 await call("nx_check_interference", pair)
-            await call("nx_checkpoint_state")
+            await call("nx_list_checkpoints")
             await call("nx_get_operation", {"operation": "contract_unknown_20260906"})
             await call("nx_revolve", error=True)
             report["passed"] = True

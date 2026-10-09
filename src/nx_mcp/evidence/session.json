@@ -19,6 +19,16 @@
       "variants": []
     }
   },
+  "nx_create_checkpoint": {
+    "v2406": {
+      "checks": 44,
+      "recorded": "2026-10-09T16:24:52Z",
+      "scenario": "acceptance/session/history.json",
+      "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
+      "source_sha256": "f7d7d08d9870c7a082c2bc794dfee3cd0070563a036d0273b9ed92ee1917e65b",
+      "variants": []
+    }
+  },
   "nx_delete_objects": {
     "v2406": {
       "checks": 30,
@@ -26,6 +36,16 @@
       "scenario": "acceptance/session/delete_objects.json",
       "scenario_sha256": "e4fdaf4870141538cf219ae8ea1a00cd343c204346a3465fbe5d78709ee7c972",
       "source_sha256": "f8c4df79959444b40ad26d4a70aecffc753692f03830e70c97068d60ebdd1281",
+      "variants": []
+    }
+  },
+  "nx_delete_results": {
+    "v2406": {
+      "checks": 57,
+      "recorded": "2026-10-09T16:22:36Z",
+      "scenario": "acceptance/session/results.json",
+      "scenario_sha256": "d39cd65b428cb83f9f094b20f8b71722f080ea2d6e38e896db825b0fbc529973",
+      "source_sha256": "cad599a1655b687ad5b0d5cffaf031f904cf77410300c31df39dc6cab7225ffe",
       "variants": []
     }
   },
@@ -52,6 +72,16 @@
       "variants": []
     }
   },
+  "nx_get_result": {
+    "v2406": {
+      "checks": 57,
+      "recorded": "2026-10-09T16:22:36Z",
+      "scenario": "acceptance/session/results.json",
+      "scenario_sha256": "d39cd65b428cb83f9f094b20f8b71722f080ea2d6e38e896db825b0fbc529973",
+      "source_sha256": "cad599a1655b687ad5b0d5cffaf031f904cf77410300c31df39dc6cab7225ffe",
+      "variants": []
+    }
+  },
   "nx_get_status": {
     "v2406": {
       "checks": 38,
@@ -62,6 +92,16 @@
       "variants": []
     }
   },
+  "nx_list_checkpoints": {
+    "v2406": {
+      "checks": 44,
+      "recorded": "2026-10-09T16:24:52Z",
+      "scenario": "acceptance/session/history.json",
+      "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
+      "source_sha256": "f7d7d08d9870c7a082c2bc794dfee3cd0070563a036d0273b9ed92ee1917e65b",
+      "variants": []
+    }
+  },
   "nx_preview_changes": {
     "v2406": {
       "checks": 46,
@@ -69,6 +109,16 @@
       "scenario": "acceptance/session/preview_changes.json",
       "scenario_sha256": "2214097144adb1df5dd8f7e99e802c5bac7fa922b88a306b94ec0215abe8a42a",
       "source_sha256": "99281d17987744a30287f8949682208a3265321197c0739377aa59b954a96486",
+      "variants": []
+    }
+  },
+  "nx_restore_checkpoint": {
+    "v2406": {
+      "checks": 44,
+      "recorded": "2026-10-09T16:24:52Z",
+      "scenario": "acceptance/session/history.json",
+      "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
+      "source_sha256": "f7d7d08d9870c7a082c2bc794dfee3cd0070563a036d0273b9ed92ee1917e65b",
       "variants": []
     }
   },
@@ -96,6 +146,26 @@
         "manual",
         "status"
       ]
+    }
+  },
+  "nx_set_name": {
+    "v2406": {
+      "checks": 44,
+      "recorded": "2026-10-09T16:24:52Z",
+      "scenario": "acceptance/session/history.json",
+      "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
+      "source_sha256": "efc501dce87aef9a9c6a2f48653ec417249e64db1aced2bbaf5d0fcc0dd8b3e6",
+      "variants": []
+    }
+  },
+  "nx_undo_operation": {
+    "v2406": {
+      "checks": 44,
+      "recorded": "2026-10-09T16:24:52Z",
+      "scenario": "acceptance/session/history.json",
+      "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
+      "source_sha256": "f7d7d08d9870c7a082c2bc794dfee3cd0070563a036d0273b9ed92ee1917e65b",
+      "variants": []
     }
   }
 }

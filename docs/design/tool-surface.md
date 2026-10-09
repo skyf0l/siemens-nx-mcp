@@ -338,7 +338,7 @@ Every row's "Replaces" lists current tools; each of the 227 appears exactly once
 | `nx_get_operation` | Durable state of an operation: running, committed, failed, unknown | `operation_id` | read | `nx_operation_status` |
 | `nx_cancel_operation` | Cooperative cancel between batch steps | `operation_id` | session | `nx_cancel_operation` |
 | `nx_get_result` | Page or expand a stored result (one store for bridge and sidecar snapshots) | `result_id, field?: JSON pointer, Page, detail` | read | `nx_read_result` |
-| `nx_delete_results` | Preview or prune stored result snapshots | `dry_run=true, max_age_seconds?, max_bytes?` | file | — |
+| `nx_delete_results` | Preview or prune stored result snapshots | `dry_run=true, max_age_seconds?, max_bytes?, result_ids?` | file | — |
 | `nx_run_batch` | 1-100 batchable calls under one undo mark; `"$2.data.feature"` refers to an earlier step's result | `operations[1..100]: {tool, arguments}` | model | `nx_batch` |
 | `nx_preview_changes` | Apply 1-25 previewable calls, report before/after bounds, volume, health and an optional image, then roll back | `operations[1..25], capture=false` | session | `nx_preview_change` |
 | `nx_finish_preview` | Re-apply a preview if the part is unchanged, or discard it | `preview_id, action: accept/discard` | model | `nx_finish_preview` |

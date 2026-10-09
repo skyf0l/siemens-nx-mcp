@@ -61,15 +61,10 @@ READ_ONLY = {
     "nx_list_features",
     "nx_list_bodies",
     "nx_list_topology",
-    "nx_checkpoint_state",
     "nx_capabilities",
 }
-# Files, session lifecycle, and undo itself cannot be reversed by a model undo mark.
-NON_MODEL = {
-    "nx_undo",
-    "nx_checkpoint",
-    "nx_rollback",
-}
+# Files and session lifecycle cannot be reversed by a model undo mark.
+NON_MODEL: set[str] = set()
 
 
 READ_ONLY.update(
@@ -144,12 +139,8 @@ class HardenedExecutor(
             {
                 "nx_list_datums": self._list_datums,
                 "nx_list_expressions": self._list_expressions,
-                "nx_checkpoint": self._checkpoint,
-                "nx_checkpoint_state": self._checkpoint_state,
-                "nx_rollback": self._rollback_checkpoint,
                 "nx_list_topology": self._list_topology,
                 "nx_capabilities": self._capabilities,
-                "nx_rename_object": self._rename_object,
             }
         )
 
@@ -462,89 +453,6 @@ class HardenedExecutor(
             "coordinate_frame": "part",
         }
 
-    def _checkpoint(self, label="checkpoint"):
-        part = self._work_part()
-        key = "cp_" + uuid.uuid4().hex
-        mark = self.session.SetUndoMark(
-            self.nxopen.Session.MarkVisibility.Visible, "NX MCP checkpoint: " + label
-        )
-        self._checkpoints[key] = {
-            "mark": mark,
-            "part_id": self._part_id(part),
-            "index": len(self._history),
-            "label": label,
-        }
-        return {
-            "checkpoint_id": key,
-            "message": "In-session checkpoint created; disk saves are not rolled back",
-        }
-
-    def _checkpoint_state(self):
-        return {
-            "checkpoints": [
-                {k: v for k, v in c.items() if k != "mark"}
-                | {
-                    "checkpoint_id": key,
-                    "available": self.session.DoesUndoMarkExist(c["mark"], None),
-                }
-                for key, c in self._checkpoints.items()
-            ],
-            "undo_depth": sum(
-                self.session.DoesUndoMarkExist(h["mark"], None) for h in self._history
-            ),
-            "save_semantics": "NX save removes native marks. Expired checkpoints cannot be rolled back; create a new checkpoint after save.",
-            "retention": "Current NX process only; cross-part rollback is rejected if it would undo another part.",
-        }
-
-    def _rollback_checkpoint(self, checkpoint_id):
-        if checkpoint_id not in self._checkpoints:
-            raise NXToolError("NX_CHECKPOINT_STALE", "Checkpoint is not in this session")
-        cp = self._checkpoints[checkpoint_id]
-        if not self.session.DoesUndoMarkExist(cp["mark"], None):
-            raise NXToolError(
-                "NX_CHECKPOINT_STALE",
-                "Native NX checkpoint expired, commonly at save or part activation",
-            )
-        pid = self._part_id(self._work_part())
-        if cp["part_id"] != pid or any(h["part_id"] != pid for h in self._history[cp["index"] :]):
-            raise NXToolError(
-                "NX_CROSS_PART_ROLLBACK",
-                "Rollback would affect a different part; activate the checkpoint part or reconcile intervening changes",
-            )
-        self.session.UndoToMark(cp["mark"], None)
-        self.objects.invalidate_part(pid)
-        self._record_reverted(self._history[cp["index"] :], checkpoint_id)
-        self._history = self._history[: cp["index"]]
-        self._checkpoints = {k: v for k, v in self._checkpoints.items() if v["index"] < cp["index"]}
-        return {
-            "message": "Rolled back checkpoint; reacquire object references",
-            "checkpoint_id": checkpoint_id,
-        }
-
-    def _undo(self):
-        if not self._history or not self.session.DoesUndoMarkExist(self._history[-1]["mark"], None):
-            raise NXToolError(
-                "NX_UNDO_UNAVAILABLE",
-                "No native undo mark remains; save and part lifecycle changes can expire history",
-            )
-        last = self._history[-1]
-        pid = self._part_id(self._work_part())
-        if last["part_id"] != pid:
-            raise NXToolError(
-                "NX_CROSS_PART_ROLLBACK", "Activate the part owning the latest mutation"
-            )
-        self.session.UndoToMark(last["mark"], None)
-        self._record_reverted([last], self._current_operation)
-        self._history.pop()
-        self.objects.invalidate_part(pid)
-        self._checkpoints = {
-            k: v for k, v in self._checkpoints.items() if v["index"] <= len(self._history)
-        }
-        return {
-            "message": "Undone; reacquire object references",
-            "undone_operation_id": last["operation_id"],
-        }
-
     def _nx_matrix(self, m):
         matrix = self.nxopen.Matrix3x3()
         for i, prefix in enumerate("XYZ"):
@@ -606,33 +514,6 @@ class HardenedExecutor(
                 for e in edges
             ]
         return result
-
-    def _rename_object(self, object_id, name):
-        if not name or len(name) > 132:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Name must contain 1–132 characters")
-        value = self._resolve(object_id)
-        entry = self.objects._objects.get(object_id)
-        if entry is not None:
-            kind, part_id = entry.reference.kind, entry.reference.part_id
-        else:  # A unique feature/body/sketch/section/component name, not an opaque ID.
-            part = self._work_part()
-            pools = (
-                ("feature", part.Features),
-                ("body", part.Bodies),
-                ("sketch", part.Sketches),
-                ("section", part.DynamicSections),
-            )
-            kind = next(
-                (k for k, pool in pools if any(int(v.Tag) == int(value.Tag) for v in pool)),
-                "component",
-            )
-            part_id = self._part_id(part)
-        value.SetName(name)
-        self.objects.invalidate_part(part_id)
-        return {
-            "object": self._reference(value, kind, self._work_part(), name),
-            "message": "Renamed; references refreshed",
-        }
 
     def _geometry(self, ref=None, scope="auto"):
         part = self._work_part()
@@ -924,13 +805,6 @@ class HardenedExecutor(
         self.objects._identities = {
             k: v for k, v in self.objects._identities.items() if v in self.objects._objects
         }
-
-    def _record_reverted(self, history, by):
-        for item in history:
-            record = self.store.get(item["operation_id"])
-            if "fingerprint" in record:
-                record["reverted_by"] = by
-                self.store.put(record)
 
     def _measure_volume(self, body=None, scope="auto"):
         part = self._work_part()

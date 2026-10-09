@@ -7,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from nx_mcp.runtime import NXToolError
-from tests.fakes import Component, Curve, Feature, Sketch, point
+from tests.fakes import Curve, Feature, Sketch, point
 
 pytestmark = pytest.mark.fake_nx
 
@@ -83,17 +83,6 @@ def feature_builders(rig):
     rig.part.Directions = NS(CreateDirection=lambda p, v, _: v)
     rig.e._active_mark = 1
     return f, b
-
-
-def test_rename_object_returns_a_fresh_reference(rig):
-    root = Component("root")
-    c = Component("instance", parent=root)
-    rig.part.ComponentAssembly.RootComponent = root
-    ref = rig.ref(c, "component")
-    new = rig.e._rename_object(ref, "renamed")["object"]["id"]
-    assert new != ref and c.Name == "renamed"
-    with pytest.raises(NXToolError):
-        rig.e._rename_object(new, "")
 
 
 @pytest.mark.parametrize("rotation", [[], [[1, 0, 0]] * 3, [[1, 0, 0], [0, 1, 0], [0, 0, -1]]])

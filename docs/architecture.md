@@ -25,7 +25,7 @@ reject unknown, stale, or wrong-kind IDs instead of guessing by display name.
 
 Model mutations are serialized. Each mutation creates a visible undo mark and
 rolls back to it when execution fails. Successful marks are tracked so
-`nx_undo` affects the last NX MCP mutation rather than an unrelated user
+`nx_undo_operation` affects the last NX MCP mutation rather than an unrelated user
 operation; saving clears these native marks. Builders are destroyed from
 `finally` blocks. File operations are independently confined to the configured
 workspace on both sides of the process boundary.

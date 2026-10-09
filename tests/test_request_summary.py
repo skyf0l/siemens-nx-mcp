@@ -33,14 +33,14 @@ def describe(method, params, **kwargs):
     ("method", "params", "expected"),
     [
         (
-            "nx_rename_object",
-            {"object_id": "obj_gone", "name": "A"},
-            'Rename an object from before the last handover to "A"',
+            "nx_list_topology",
+            {"body": "obj_gone"},
+            "List faces and edges of an object from before the last handover",
         ),
         (
-            "nx_rename_object",
-            {"object_id": "obj_extrude", "name": "A"},
-            'Rename "EXTRUDE(2)" to "A"',
+            "nx_list_topology",
+            {"body": "obj_extrude"},
+            'List faces and edges of "EXTRUDE(2)"',
         ),
     ],
 )
@@ -56,9 +56,9 @@ def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
 
 
 def test_summaries_never_raise_and_stay_short():
-    assert describe("nx_rename_object", {"object_id": object()}).startswith("Rename")
-    assert describe("nx_rename_object", "not a dict") == "Rename object"
-    assert len(describe("nx_rename_object", {"object_id": "x" * 300})) == MAX_LENGTH
+    assert describe("nx_list_topology", {"body": object()}).startswith("List faces")
+    assert describe("nx_list_topology", "not a dict") == "List topology"
+    assert len(describe("nx_list_topology", {"body": "x" * 300})) == MAX_LENGTH
     assert humanize("nx_measure_distance") == "Measure distance"
 
 
@@ -99,14 +99,14 @@ async def test_invoke_intent_reaches_the_bridge_but_not_the_tool_arguments(tmp_p
     server = create_server(bridge, Workspace(tmp_path), surface="agent")
     await server.call_tool(
         "nx_invoke",
-        {"tool": "nx_checkpoint", "arguments": {}, "intent": "  Frame the   new boss  "},
+        {"tool": "nx_list_bodies", "arguments": {}, "intent": "  Frame the   new boss  "},
     )
     method, params = bridge.call.call_args.args
-    assert method == "nx_checkpoint" and params["intent"] == "Frame the new boss"
-    await server.call_tool("nx_invoke", {"tool": "nx_checkpoint", "arguments": {}})
+    assert method == "nx_list_bodies" and params["intent"] == "Frame the new boss"
+    await server.call_tool("nx_invoke", {"tool": "nx_list_bodies", "arguments": {}})
     assert "intent" not in bridge.call.call_args.args[1]  # Never leaks into a later call.
     too_long = await server.call_tool(
-        "nx_invoke", {"tool": "nx_checkpoint", "arguments": {}, "intent": "x" * 121}
+        "nx_invoke", {"tool": "nx_list_bodies", "arguments": {}, "intent": "x" * 121}
     )
     assert too_long.isError
 

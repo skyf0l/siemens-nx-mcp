@@ -11,7 +11,6 @@ from mcp.server.fastmcp.exceptions import ToolError as MCPToolError
 from nx_mcp.contracts import (
     NXToolError,
     ObjectListResult,
-    OperationResult,
 )
 from nx_mcp.workspace import Workspace
 
@@ -24,7 +23,6 @@ CERTIFIED_TOOL_NAMES = {
     "nx_list_sketches",
     "nx_list_bodies",
     "nx_list_features",
-    "nx_undo",
 }
 
 
@@ -57,11 +55,6 @@ def create_certified_server(
     async def nx_list_features() -> ObjectListResult:
         """List features in the active work part."""
         return ObjectListResult(**await call("nx_list_features", {}))
-
-    @mcp.tool()
-    async def nx_undo() -> OperationResult:
-        """Undo the last visible NX MCP operation."""
-        return OperationResult(**await call("nx_undo", {}))
 
     # Part and file tools are catalogue tools (domains/parts_files); nx_extrude's
     # single public schema lives in authoring_server.py (configure() rejects duplicates).

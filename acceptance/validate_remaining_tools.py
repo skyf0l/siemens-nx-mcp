@@ -91,7 +91,7 @@ async def main():
             sketches = await call("nx_list_sketches")
             assert len(sketches["objects"]) == 2
             feature = e["feature"]["id"]
-            await call("nx_rename_object", object_id=feature, name="ProbeExtrusion")
+            await call("nx_set_name", object=feature, name="ProbeExtrusion")
             for v in ["Top", "Back", "Isometric"]:
                 view = await call("nx_set_view", orientation=v)
                 assert view["orientation"] == v.lower() and view["viewport_available"]

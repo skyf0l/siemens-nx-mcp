@@ -33,8 +33,14 @@ NXList.__module__ = "NXOpen.Fake"
 
 
 def _outcome(rig, handler):
-    rig.e._handlers["nx_checkpoint"] = handler  # NON_MODEL: no undo mark
-    error = _error(rig, "nx_checkpoint", {})
+    from nx_mcp import hardened
+
+    rig.e._handlers["nx_test_session"] = handler
+    hardened.NON_MODEL.add("nx_test_session")  # a session call: no undo mark
+    try:
+        error = _error(rig, "nx_test_session", {})
+    finally:
+        hardened.NON_MODEL.discard("nx_test_session")
     assert sys.getprofile() is None
     return error.details["mutation_outcome"]
 

@@ -194,14 +194,14 @@ async def main():
             )
             ex = (await call("nx_list_explosions"))["explosions"][0]["object"]["id"]
             assert (await poses(ex))["CAP"]["translation"] == [120, 0, 50]
-            checkpoint = await call("nx_checkpoint", label="explosion before edit")
+            checkpoint = await call("nx_create_checkpoint", label="explosion before edit")
             cap = (await poses(ex))["CAP"]["component"]["id"]
             await call(
                 "nx_edit_explosion",
                 explosion=ex,
                 placements=[{"component": cap, "translation": [300, 0, 0]}],
             )
-            await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+            await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
             ex = (await call("nx_list_explosions"))["explosions"][0]["object"]["id"]
             assert (await poses(ex))["CAP"]["translation"] == [120, 0, 50]
             views = (await call("nx_explosion_info", explosion=ex))["views"]

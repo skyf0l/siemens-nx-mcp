@@ -38,7 +38,7 @@ async def main():
         try:
             await call("nx_open_part", path=fixture + "/bracket.prt")
             await call("nx_activate_drawing")
-            checkpoint = await call("nx_checkpoint", label="automatic annotation acceptance")
+            checkpoint = await call("nx_create_checkpoint", label="automatic annotation acceptance")
             expressions = (await call("nx_list_expressions", limit=200))["items"]
             angles = [x for x in expressions if x["units"] == "°" and x["value"] == 80]
             assert len(angles) == 1
@@ -88,7 +88,7 @@ async def main():
                 for x in notes
             )
             result["disable_preserves_measured_snapshot"] = True
-            await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+            await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
             checkpoint = None
             notes = (await call("nx_list_annotations"))["items"]
             assert any(
@@ -102,7 +102,7 @@ async def main():
             raise
         finally:
             if checkpoint:
-                await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+                await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
             await call("nx_open_part", path=original["path"])
             parts = (await call("nx_list_open_parts"))["parts"]
             for p in parts:

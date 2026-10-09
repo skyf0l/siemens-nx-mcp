@@ -538,6 +538,7 @@ def output_schema(spec) -> dict:
             },
             "result_id": {"type": "string"},
             "omitted": {"type": "object"},
+            "expand_with": {"const": "nx_get_result"},
         },
         "required": ["ok", "tool", "mutation_outcome"],
     }

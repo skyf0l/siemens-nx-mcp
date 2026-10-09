@@ -7,10 +7,10 @@ import json
 import sys
 import uuid
 from contextvars import ContextVar
-from typing import Annotated, Literal
+from typing import Literal
 
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from nx_mcp import (
     assembly_documentation_server,
@@ -37,47 +37,18 @@ def nx_list_datums():
 # and nx_bridge.py. Descriptions come from DESCRIPTIONS
 # where one exists.
 # Signature-only definitions are used to publish the actual bridge arguments.
-def nx_checkpoint(label: str = "checkpoint"):
-    pass
-
-
-def nx_checkpoint_state():
-    pass
-
-
-def nx_rollback(checkpoint_id: str):
-    pass
-
-
 def nx_list_topology(
     body: str, face: str | None = None, include_adjacency: bool = False, compact: bool = False
 ):
     pass
 
 
-def nx_read_result(
-    result_id: str,
-    field: str = "",
-    offset: Annotated[int, Field(ge=0)] = 0,
-    limit: Annotated[int, Field(ge=1, le=100)] = 20,
-):
-    """Read a stored oversized bridge result without repeating its operation. field is a JSON pointer; arrays/strings are paged. Nested omissions remain explicit. Snapshot expiry does not delete operation receipts."""
-
-
 def nx_capabilities(tool: str | None = None, prefix: str | None = None):
     pass
 
 
-def nx_rename_object(object_id: str, name: str):
-    pass
-
-
 DESCRIPTIONS = {
-    "nx_checkpoint": "Create an in-session model undo checkpoint. NX v2606 saves expire native marks; create a new checkpoint after save. Restart/close also invalidates checkpoints.",
-    "nx_checkpoint_state": "Inspect available checkpoint IDs and retained model-operation history. Read-only calls retain marks. Native NX save can expire them; availability is checked against NX.",
-    "nx_rollback": "Rollback to an in-session checkpoint. Rejects rollback across mutations to unrelated parts. Reacquire object IDs afterward; save explicitly to persist.",
     "nx_list_topology": "Enumerate body topology. Optional face restricts results to that face and its boundary edges; include_adjacency returns face_edges and edge_faces ID mappings. compact retains minimal typed IDs. Use current upward-face boundary edges for flat-pattern orientation rather than guessing a former outer edge. Reacquire after edits/rollback/close.",
-    "nx_rename_object": "Rename a referenced object and return its actual NX-normalized display name. Reacquire references afterward.",
     "nx_capabilities": "Inspect NX-version-specific tested scope. Use tool=exact_name or prefix=nx_sheet to limit response size; omit both for all tools. API detection is separate from native test evidence. Batch NX has no model viewport.",
 }
 
@@ -87,9 +58,7 @@ READ_ONLY = {
     "nx_list_features",
     "nx_list_bodies",
     "nx_list_topology",
-    "nx_checkpoint_state",
     "nx_capabilities",
-    "nx_read_result",
 }
 READ_ONLY.update(
     authoring_server.READ_ONLY
@@ -114,7 +83,6 @@ DESCRIPTIONS.update(
     }
 )
 
-SIDE = {"nx_read_result"}
 PATHS: dict[str, str] = {}
 
 
@@ -199,7 +167,7 @@ def configure(mcp, bridge, workspace):
         parameters = [
             p.replace(annotation=hints.get(p.name, p.annotation)) for p in sig.parameters.values()
         ]
-        if name not in READ_ONLY and name not in SIDE:
+        if name not in READ_ONLY:
             parameters.append(
                 inspect.Parameter(
                     "operation_id",
@@ -225,16 +193,12 @@ def configure(mcp, bridge, workspace):
                         params["operation_id"] = params["operation_id"] or (
                             "op_" + uuid.uuid4().hex
                         )
-                    if method in SIDE:
-                        forwarded = True
-                        result = artifact_call(method, params, workspace)
-                    else:
-                        if (path_key := PATHS.get(method)) and params.get(path_key) is not None:
-                            params[path_key] = str(workspace.resolve(params[path_key]))
-                        if intent := REQUEST_INTENT.get():
-                            params["intent"] = intent
-                        forwarded = bridged = True
-                        result = await bridge.call(method, params)
+                    if (path_key := PATHS.get(method)) and params.get(path_key) is not None:
+                        params[path_key] = str(workspace.resolve(params[path_key]))
+                    if intent := REQUEST_INTENT.get():
+                        params["intent"] = intent
+                    forwarded = bridged = True
+                    result = await bridge.call(method, params)
                     return envelope(result, error=result.get("status") == "error")
                 except Exception as e:
                     operation_id = params.get("operation_id") if "params" in locals() else None
@@ -333,11 +297,3 @@ def configure(mcp, bridge, workspace):
     mcp.call_tool = uniform_call
     mcp._mcp_server.call_tool(validate_input=False)(uniform_call)
     mcp._mcp_server.instructions = "Siemens NX v2606 integration. Use nx_capabilities for tested scope. Discover the host root with nx_get_status. File paths are workspace-relative or absolute inside that root; use explicit project subfolders on every file call. Use client-supplied operation_id for mutation retry; query receipts after transport failure. No general certification is claimed."
-
-
-def artifact_call(method, p, workspace):
-    if method == "nx_read_result":
-        from nx_mcp.result_transport import read_result
-
-        return read_result(workspace.root / ".nx-mcp" / "bridge-results", **p)
-    raise NXToolError("NX_TOOL_NOT_FOUND", f"{method} is not a sidecar tool")

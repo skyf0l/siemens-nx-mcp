@@ -350,6 +350,9 @@ def run(spec, args, ctx: Context) -> dict:
             services.invalidate(before, after, spec.invalidates == "topology")  # 12
             refreshed = _refresh(spec, services, tx) if spec.refresh_annotations else []  # 13
             changes = _changes(services, before, after, spec, refreshed)
+            if tx.references:  # the handler invalidated more (undo, restore, rename)
+                changes["references"] = tx.references
+                changes.pop("stale_kinds", None)
             services.record_history(mark, part, operation_id, spec.name)
         envelope.update(ok=True)  # 14
         envelope["mutation_outcome"] = tx.outcome or (

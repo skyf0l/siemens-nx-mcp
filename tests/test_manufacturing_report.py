@@ -2,8 +2,10 @@
 
 import pytest
 
-from nx_mcp.result_transport import bound_result, encoded, read_result
+from nx_mcp.domains.session.results import nx_get_result
+from nx_mcp.result_transport import bound_result, encoded
 from nx_mcp.runtime import NXToolError
+from tests.unit.parts_files.support import side
 
 
 def test_result_storage_failure_preserves_commit_and_restore(tmp_path, monkeypatch):
@@ -36,14 +38,14 @@ def test_nested_oversize_pages_remain_bounded_and_addressable(tmp_path):
         "mutation_outcome": "committed",
         "objects": value,
     }
-    receipt = bound_result(full, tmp_path)
+    receipt = bound_result(full, tmp_path / ".nx-mcp" / "bridge-results")
     key = receipt["full_result"]["id"]
-    page = read_result(tmp_path, key, "/objects", offset=100, limit=20)
-    assert list(page["value"]) == [str(i) for i in range(100, 120)]
-    assert page["total_count"] == 120 and page["next_offset"] is None
-    assert len(encoded(page)) < 512 * 1024
-    child = read_result(tmp_path, key, "/objects/101", offset=140, limit=10)
-    assert len(child["value"]) == 10 and child["value"][0] == "x" * 2048
+    page = side(tmp_path, nx_get_result, result_id=key, field="/objects", offset=100, limit=20)
+    assert list(page.data["value"]) == [str(i) for i in range(100, 120)]
+    assert page.envelope["page"]["total"] == 120 and page.envelope["page"]["next_offset"] is None
+    assert len(encoded(page.envelope)) < 512 * 1024
+    child = side(tmp_path, nx_get_result, result_id=key, field="/objects/101", offset=140, limit=10)
+    assert len(child.data["items"]) == 10 and child.data["items"][0] == "x" * 2048
 
 
 @pytest.fixture

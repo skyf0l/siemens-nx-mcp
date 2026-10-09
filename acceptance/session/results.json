@@ -1,0 +1,633 @@
+{
+ "covers": {
+  "nx_get_result": [],
+  "nx_delete_results": []
+ },
+ "part": "new",
+ "fixture": null,
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    },
+    "name": "COMB"
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       2,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       3,
+       0
+      ],
+      "end": [
+       5,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       6,
+       0
+      ],
+      "end": [
+       8,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       9,
+       0
+      ],
+      "end": [
+       11,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       12,
+       0
+      ],
+      "end": [
+       14,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       15,
+       0
+      ],
+      "end": [
+       17,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       18,
+       0
+      ],
+      "end": [
+       20,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       21,
+       0
+      ],
+      "end": [
+       23,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       24,
+       0
+      ],
+      "end": [
+       26,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       27,
+       0
+      ],
+      "end": [
+       29,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       30,
+       0
+      ],
+      "end": [
+       32,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       33,
+       0
+      ],
+      "end": [
+       35,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       36,
+       0
+      ],
+      "end": [
+       38,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       39,
+       0
+      ],
+      "end": [
+       41,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       42,
+       0
+      ],
+      "end": [
+       44,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       45,
+       0
+      ],
+      "end": [
+       47,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       48,
+       0
+      ],
+      "end": [
+       50,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       51,
+       0
+      ],
+      "end": [
+       53,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       54,
+       0
+      ],
+      "end": [
+       56,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       57,
+       0
+      ],
+      "end": [
+       59,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       60,
+       0
+      ],
+      "end": [
+       62,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       63,
+       0
+      ],
+      "end": [
+       65,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       66,
+       0
+      ],
+      "end": [
+       68,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       69,
+       0
+      ],
+      "end": [
+       71,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       72,
+       0
+      ],
+      "end": [
+       74,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       75,
+       0
+      ],
+      "end": [
+       77,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       78,
+       0
+      ],
+      "end": [
+       80,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       81,
+       0
+      ],
+      "end": [
+       83,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       84,
+       0
+      ],
+      "end": [
+       86,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       87,
+       0
+      ],
+      "end": [
+       89,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_get_sketch",
+   "detail": "compact",
+   "save": "inv",
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "include": [
+     "geometry"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.curves": {
+     "count": 20
+    },
+    "result_id": {
+     "matches": "^result_[0-9a-f]{32}$"
+    },
+    "expand_with": "nx_get_result",
+    "omitted./data/curves.total": 30,
+    "omitted./data/curves.returned": 20
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "detail": "compact",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves",
+    "offset": 20,
+    "limit": 20
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.kind": "list",
+    "data.items": {
+     "count": 10
+    },
+    "page.total": 30,
+    "page.returned": 10,
+    "page.offset": 20,
+    "page.next_offset": null,
+    "data.items.0.type": "line",
+    "data.items.0.start": {
+     "close": [
+      60,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.items.9.end": {
+     "close": [
+      89,
+      5
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves",
+    "limit": 5
+   },
+   "expect": {
+    "data.items": {
+     "count": 5
+    },
+    "page.next_offset": 5,
+    "data.items.4.start": {
+     "close": [
+      12,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves/27/end"
+   },
+   "expect": {
+    "data.kind": "list",
+    "data.items": {
+     "close": [
+      83,
+      5
+     ],
+     "tol": 1e-09
+    },
+    "page.total": 2
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves/29/type"
+   },
+   "expect": {
+    "data.kind": "text",
+    "data.value": "line"
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/sketch"
+   },
+   "expect": {
+    "data.kind": "object",
+    "data.value.id": {
+     "matches": "."
+    },
+    "data.value.name": {
+     "matches": "(?i)^comb$"
+    }
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id"
+   },
+   "expect": {
+    "data.kind": "object",
+    "data.value.ok": true,
+    "data.value.tool": "nx_get_sketch"
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves/30"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/field",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves",
+    "limit": 101
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/limit"
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "result_00000000000000000000000000000000"
+   },
+   "expect": {
+    "error.code": "NX_RESULT_EXPIRED",
+    "error.category": "not_found",
+    "error.field": "/result_id",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "../operations/x"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/result_id"
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "result_ids": [
+     "$inv.result_id",
+     "result_00000000000000000000000000000000"
+    ]
+   },
+   "intent": "Acceptance: preview deleting this scenario's stored result",
+   "expect": {
+    "data.applied": false,
+    "data.selected_count": 1,
+    "data.missing": [
+     "result_00000000000000000000000000000000"
+    ]
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
+    "field": "/data/curves/0/type"
+   },
+   "expect": {
+    "data.value": "line"
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "result_ids": [
+     "$inv.result_id"
+    ],
+    "dry_run": false
+   },
+   "intent": "Acceptance: delete this scenario's stored result",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.applied": true,
+    "data.selected_count": 1,
+    "data.missing": []
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id"
+   },
+   "expect": {
+    "error.code": "NX_RESULT_EXPIRED",
+    "error.field": "/result_id"
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "max_age_seconds": 31536000
+   },
+   "intent": "Acceptance: preview pruning snapshots older than a year",
+   "expect": {
+    "data.applied": false,
+    "data.policy.max_age_seconds": 31536000,
+    "data.missing": []
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "max_bytes": 0
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/max_bytes",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

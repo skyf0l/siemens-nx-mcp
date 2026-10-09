@@ -204,7 +204,7 @@ DESCRIPTIONS = {
     "nx_invoke": (
         "Call any NX tool with its exact arguments; the kernel checks and undoes failures. Put "
         "operation_id inside arguments to retry safely. intent is shown to the engineer in the "
-        "NX panel. Compact results keep result_id (expand with nx_result)."
+        "NX panel. Compact results keep result_id (expand with nx_get_result)."
     ),
     "nx_invoke_read": (
         "Call a read-only NX tool (effect read) with its exact arguments; any other tool is "

@@ -3,7 +3,9 @@
 import pytest
 
 from nx_mcp.bridge import BridgeClient, BridgeServer
-from nx_mcp.result_transport import bound_result, read_result
+from nx_mcp.domains.session.results import nx_get_result
+from nx_mcp.result_transport import bound_result
+from tests.unit.parts_files.support import side
 
 
 def test_large_result_pages_preserve_requested_cardinality(tmp_path):
@@ -14,12 +16,14 @@ def test_large_result_pages_preserve_requested_cardinality(tmp_path):
         "restore_id": "display_test",
         "objects": [{"id": str(i), "data": "x" * 2000} for i in range(2032)],
     }
-    bounded = bound_result(full, tmp_path)
+    bounded = bound_result(full, tmp_path / ".nx-mcp" / "bridge-results")
     assert bounded["mutation_outcome"] == "committed" and bounded["restore_id"] == "display_test"
     key = bounded["full_result"]["id"]
-    page = read_result(tmp_path, key, "/objects", offset=100, limit=20)
-    assert len(page["value"]) == 20 and page["next_offset"] == 120 and page["total_count"] == 2032
-    assert page["value"][0]["id"] == "100"
+    read = side(tmp_path, nx_get_result, result_id=key, field="/objects", offset=100, limit=20)
+    assert read.ok and read.mutation_outcome == "not_applicable"
+    page = read.envelope["page"]
+    assert len(read.data["items"]) == 20 and page["next_offset"] == 120 and page["total"] == 2032
+    assert read.data["items"][0]["id"] == "100"
 
 
 @pytest.mark.asyncio
@@ -42,7 +46,7 @@ async def test_bridge_bounds_large_native_commit(tmp_path):
         result = await client.call("mutate", {})
         assert (
             result["mutation_outcome"] == "committed"
-            and result["full_result"]["tool"] == "nx_read_result"
+            and result["full_result"]["tool"] == "nx_get_result"
         )
         assert calls == ["mutate"]
     finally:

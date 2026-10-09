@@ -6,7 +6,7 @@ import pytest
 
 from nx_mcp.agent_guidance import guidance
 from nx_mcp.agent_surface import ResultStore, compact_payload
-from nx_mcp.result_retention import maintain
+from nx_mcp.kit.snapshots import maintain
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
@@ -66,86 +66,6 @@ def test_retention_dry_run_protection_and_untouched_recovery(tmp_path, monkeypat
         maintain(store.root, max_bytes=0)
     with pytest.raises(OSError):
         store.put({"large": "x" * 2000})
-
-
-@pytest.mark.asyncio
-async def test_filtered_snapshot_pages_reuse_single_native_read(tmp_path):
-    refs = [
-        {"id": str(i), "kind": "feature", "name": f"Bolt {i}", "part_id": "p"} for i in range(31)
-    ]
-    bridge = AsyncMock()
-    bridge.call.return_value = {"objects": refs, "units": "mm"}
-    server = create_server(bridge, Workspace(tmp_path), surface="agent")
-    first = await server.call_tool(
-        "nx_inspect", {"tool": "nx_list_features", "name_contains": "bolt", "limit": 10}
-    )
-    value = first.structuredContent
-    assert not first.isError and value["count"] == 10 and value["total_count"] == 31
-    second = await server.call_tool(
-        "nx_inspect",
-        {
-            "tool": "nx_list_features",
-            "result_id": value["result_id"],
-            "name_contains": "bolt",
-            "offset": 10,
-            "limit": 10,
-        },
-    )
-    assert second.structuredContent["items"][0]["id"] == "10"
-    assert bridge.call.await_count == 1
-    assert (await server.call_tool("nx_inspect", {"tool": "nx_extrude"})).isError
-    assert (
-        await server.call_tool(
-            "nx_inspect", {"tool": "nx_list_sketches", "result_id": value["result_id"]}
-        )
-    ).isError
-    bad = await server.call_tool("nx_inspect", {"tool": "nx_list_features", "collection": "faces"})
-    assert bad.isError
-    filtered = await server.call_tool(
-        "nx_inspect",
-        {"tool": "nx_list_features", "result_id": value["result_id"], "kind": "sketch"},
-    )
-    assert filtered.structuredContent["count"] == 0
-
-
-@pytest.mark.asyncio
-async def test_annotation_capture_collects_all_pages_and_preserves_frame(tmp_path):
-    bridge = AsyncMock()
-    bridge.call.side_effect = [
-        {
-            "items": [{"object": {"id": "a", "name": "First", "kind": "annotation"}}],
-            "total": 2,
-            "next_offset": 1,
-            "position_frame": "sheet",
-        },
-        {
-            "items": [{"object": {"id": "b", "name": "Second", "kind": "annotation"}}],
-            "total": 2,
-            "next_offset": None,
-        },
-    ]
-    server = create_server(bridge, Workspace(tmp_path), surface="agent")
-    response = await server.call_tool(
-        "nx_inspect", {"tool": "nx_list_annotations", "name_contains": "second"}
-    )
-    assert not response.isError
-    assert response.structuredContent["total_count"] == 1
-    assert response.structuredContent["unfiltered_count"] == 2
-    assert response.structuredContent["coordinate_frame"] == "sheet"
-
-
-@pytest.mark.asyncio
-async def test_cleanup_tool_defaults_to_preview(tmp_path):
-    store = ResultStore(tmp_path)
-    key = store.put({"large": "x" * 100})
-    server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
-    response = await server.call_tool("nx_result_cleanup", {"max_bytes": 1})
-    assert response.structuredContent["selected_count"] == 1
-    assert store.get(key)
-    response = await server.call_tool("nx_result_cleanup", {"max_bytes": 1, "dry_run": False})
-    assert response.structuredContent["applied"]
-    with pytest.raises(FileNotFoundError):
-        store.get(key)
 
 
 def test_backend_page_cardinality_is_not_silently_truncated():

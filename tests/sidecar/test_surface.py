@@ -18,6 +18,7 @@ TESTED = {
     "nx_create_datum_plane": {"v2406": {"variants": ["offset"]}},
     "nx_list_objects": {"v2406": {"variants": []}},
     "nx_create_blend": {"v2406": {"variants": []}},
+    "nx_get_result": {"v2406": {"variants": []}},
 }
 
 
@@ -60,7 +61,7 @@ OFFSET = {"method": "offset", "reference": "fc:7", "distance": "15 mm"}
 async def test_agent_profile_lists_gateways_and_existing_core_tools(tmp_path, tested):
     async with create_connected_server_and_client_session(server(tmp_path)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
-    assert list(tools) == [*gateways.NAMES, "nx_list_objects"]
+    assert list(tools) == [*gateways.NAMES, "nx_get_result", "nx_list_objects"]
     assert tools["nx_invoke_read"].annotations.readOnlyHint is True
     assert tools["nx_invoke"].annotations.destructiveHint is True
     listed = tools["nx_list_objects"]
@@ -82,7 +83,8 @@ async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_pa
     assert set(gateways.NAMES) | tested <= set(tools)
     assert not untested & set(tools)  # decision 11: untested tools are hidden
     assert set(full.nx_surface.legacy) <= set(tools)
-    assert {"nx_capabilities", "nx_result", "nx_inspect"} <= set(tools)
+    assert "nx_capabilities" in set(tools)
+    assert not {"nx_result", "nx_inspect", "nx_result_cleanup", "nx_read_result"} & set(tools)
     datum = tools["nx_create_datum_plane"]
     assert datum.annotations.readOnlyHint is False and datum.annotations.destructiveHint is True
     assert {"operation_id", "intent"} <= set(datum.inputSchema["properties"])
@@ -122,8 +124,8 @@ async def test_find_ranks_catalogue_above_legacy_and_marks_legacy_rows(tmp_path,
     rows = body(await agent.call_tool("nx_find_tools", {"query": "fillet"}))["data"]["tools"]
     names = [r["name"] for r in rows]
     assert names[0] == "nx_create_blend"  # synonym fillet -> blend, catalogue above legacy
-    exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_rename_object"}))["data"]
-    assert exact["tools"][0]["name"] == "nx_rename_object"
+    exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_list_topology"}))["data"]
+    assert exact["tools"][0]["name"] == "nx_list_topology"
     none = body(await agent.call_tool("nx_find_tools", {"query": "fillet zebra"}))
     assert none["data"]["tools"] == [] and none["page"]["total"] == 0
     reads = body(await agent.call_tool("nx_find_tools", {"query": "list", "effect": "read"}))
@@ -172,7 +174,7 @@ async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
             {
                 "names": [
                     "nx_create_datum_plane#offset",
-                    "nx_rollback",
+                    "nx_list_topology",
                     "nx_nope",
                     "nx_list_objects",
                 ],
@@ -186,7 +188,7 @@ async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
     assert datum["requires"] == ["work_part", "no_active_sketch"]
     assert "operation_id" not in datum["input_schema"]["properties"]
     assert "data" in datum["output_schema"]["properties"]
-    assert legacy["legacy"] is True and "checkpoint_id" in legacy["input_schema"]["properties"]
+    assert legacy["legacy"] is True and "body" in legacy["input_schema"]["properties"]
     assert legacy["prerequisites"]
     assert listing["evidence"] == {"v2406": True}
     assert [m["name"] for m in data["not_found"]] == ["nx_nope"]
@@ -339,7 +341,7 @@ async def test_sidecar_fault_after_forwarding_is_unknown(tmp_path, tested):
 async def test_invoke_read_refuses_other_effects_before_validation(tmp_path, tested):
     bridge = AsyncMock()
     agent = server(tmp_path, bridge)
-    for tool in ("nx_create_datum_plane", "nx_rename_object"):
+    for tool in ("nx_create_datum_plane",):
         failure = body(
             await agent.call_tool("nx_invoke_read", {"tool": tool, "arguments": {"bogus": 1}})
         )
@@ -370,16 +372,18 @@ async def test_compact_detail_moves_long_arrays_to_the_result_store(tmp_path, te
     assert len(compact["data"]["items"]) == 30  # a requested page is never cut
     assert len(compact["data"]["extra"]) == 20
     assert compact["omitted"] == {"/data/extra": {"total": 25, "returned": 20}}
+    assert compact["expand_with"] == "nx_get_result"
     expanded = body(
         await agent.call_tool(
             "nx_invoke_read",
             {
-                "tool": "nx_result",
+                "tool": "nx_get_result",
                 "arguments": {"result_id": compact["result_id"], "field": "/data/extra"},
             },
         )
     )
-    assert expanded["total_count"] == 25
+    assert expanded["page"]["total"] == 25 and expanded["data"]["items"][:2] == [0, 1]
+    assert bridge.call.await_count == 1  # expanding never reaches NX
     full = body(
         await agent.call_tool(
             "nx_invoke_read",
@@ -412,13 +416,12 @@ def test_paths_are_resolved_inside_the_workspace(tmp_path):
 async def test_legacy_tools_stay_callable_in_both_profiles(tmp_path, tested):
     for surface in ("agent", "full"):
         bridge = AsyncMock()
-        bridge.call.return_value = {"status": "success", "object": {"id": "obj_x", "kind": "body"}}
+        bridge.call.return_value = {"status": "success", "objects": [], "message": "none"}
         legacy = server(tmp_path, bridge, surface=surface)
-        direct = await legacy.call_tool("nx_rename_object", {"object_id": "obj_s", "name": "A"})
+        direct = await legacy.call_tool("nx_list_bodies", {})
         via = await legacy.call_tool(
             "nx_invoke",
-            {"tool": "nx_rename_object", "arguments": {"object_id": "obj_s", "name": "A"},
-             "intent": "Pad the base"},
+            {"tool": "nx_list_bodies", "arguments": {}, "intent": "Pad the base"},
         )  # fmt: skip
         assert not direct.isError and not via.isError
         assert bridge.call.call_args.args[1]["intent"] == "Pad the base"

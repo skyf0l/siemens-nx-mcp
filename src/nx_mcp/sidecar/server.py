@@ -55,7 +55,7 @@ AGENT_INSTRUCTIONS = (
     "{category, code, retry, hint, field}. Put operation_id inside arguments for mutations you "
     "may retry; after an unknown outcome query nx_get_operation before retrying. Rows marked "
     "legacy are older tools with the previous result shape. Compact results keep result_id; "
-    "expand with nx_result. Never paste base64 file content into the conversation."
+    "expand the omitted fields with nx_get_result. Never paste base64 file content into the conversation."
 )
 FULL_NOTE = (
     " Catalogue tools return {ok, mutation_outcome, data | error}; legacy tools keep their "
@@ -85,9 +85,9 @@ class Surface:
         self.profile = profile
         self.legacy_call = mcp.call_tool  # the uniform legacy proxy
         self.legacy_list = mcp.list_tools
-        self.helpers = agent_surface.install(mcp, workspace, self.legacy_call)
+        self.helpers = agent_surface.install(mcp, workspace)
         self.specs = dict(catalogue.load())
-        self.legacy = legacy.registry(mcp, self.helpers)
+        self.legacy = legacy.registry(mcp)
         clashes = sorted((set(self.specs) | set(gateways.NAMES)) & set(self.legacy))
         if clashes:
             raise CatalogueError(
@@ -149,12 +149,11 @@ class Surface:
         tools += [self.catalogue_tool(s) for s in listed if self.proxy.visible(s)]
         if self.profile == "full":
             tools += await self.legacy_list()
-            tools += self.helpers.listed()
         return tools
 
     def added_names(self) -> set[str]:
         """Names this surface adds to the legacy manifest tools."""
-        return {*gateways.NAMES, *self.specs, *self.helpers.names}
+        return {*gateways.NAMES, *self.specs}
 
     # -- dispatch --------------------------------------------------------------
 
@@ -181,8 +180,6 @@ class Surface:
         if tool is None:
             error = gateways.unknown_tool(name, self.known(), field=None if direct else "/tool")
             return result(failure(str(name), error, "not_started"))
-        if tool.helper:
-            return await self.helpers.call(name, arguments)
         if direct and self.profile == "full":
             return await self.legacy_call(name, arguments)
         params = {**agent_surface.DEFAULTS.get(name, {}), **arguments}

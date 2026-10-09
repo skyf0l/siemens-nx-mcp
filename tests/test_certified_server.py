@@ -42,7 +42,7 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
     names -= server.nx_surface.added_names()  # Gateways, catalogue and helper tools.
     assert names == set(MANIFEST["tools"])  # Manifest lists exactly the legacy tools.
     assert names > CERTIFIED_TOOL_NAMES
-    assert {"nx_rename_object", "nx_checkpoint"} <= names
+    assert {"nx_list_topology", "nx_capabilities"} <= names
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 

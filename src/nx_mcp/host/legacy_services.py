@@ -455,6 +455,8 @@ class LegacyServices:
         return self.x._save_display_snapshot([r for _, r in records], camera=camera)
 
     def record_history(self, mark, part, operation_id: str, tool: str) -> None:
+        if not self.mark_exists(mark):  # an undo or restore went back past its own mark
+            return
         self.x._history.append(
             {
                 "mark": mark,
@@ -463,6 +465,19 @@ class LegacyServices:
                 "method": tool,
             }
         )
+
+    def undo_history(self) -> list:
+        """The executor's history: ``interactive`` clears it on engineer changes."""
+        return self.x._history
+
+    def undo_checkpoints(self) -> dict:
+        return self.x._checkpoints
+
+    def mark_exists(self, mark) -> bool:
+        try:
+            return bool(self.x.session.DoesUndoMarkExist(mark, None))
+        except Exception:
+            return mark is not None
 
     # -- the NX MCP panel (nx_set_control) -------------------------------------
     def _panel(self):

@@ -11,19 +11,12 @@ GUIDANCE = {
         ["body", "face"],
         {"body": "<body_id>", "include_adjacency": True},
     ),
-    "nx_rollback": (["Live explicit checkpoint; no intervening manual edits"], [], None),
 }
-GEOMETRY = {
-    "nx_rollback",
-}
+GEOMETRY: set[str] = set()
 VISIBILITY: set[str] = set()
 SAVES: set[str] = set()
 FILES: set[str] = set(SAVES)
-INVALIDATES = {
-    "nx_rollback",
-    "nx_undo",
-    "nx_rename_object",
-}
+INVALIDATES: set[str] = set()
 
 
 def guidance(tool):
@@ -53,7 +46,7 @@ def guidance(tool):
             "writes_files": effect(FILES),
             "invalidates_references": effect(INVALIDATES),
             "expires_undo_checkpoints": effect(SAVES),
-            "recovery": "Saves and part lifecycle changes can expire native undo marks. Inspect nx_checkpoint_state and create a new checkpoint after these operations; durable operation receipts remain available.",
+            "recovery": "Saves and part lifecycle changes can expire native undo marks. Inspect nx_list_checkpoints and create a new checkpoint after these operations; durable operation receipts remain available.",
             "unknown_semantics": "null means not reviewed; true can be conditional on arguments. Read the exact tool description.",
         },
     }

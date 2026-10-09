@@ -6,7 +6,7 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.agent_surface import HELPERS, ResultStore, compact
+from nx_mcp.agent_surface import ResultStore, compact
 from nx_mcp.core import catalogue
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
@@ -62,12 +62,12 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
             if catalogue.get(n) and catalogue.get(n).effect in ("read", "view")
         }  # an unknown build shows only read and view tools
         assert "nx_list_objects" in listed and listed == set(gateways.NAMES) | core
-        assert "nx_rename_object" not in {t.name for t in tools}
-        result = await client.call_tool("nx_find_tools", {"query": "nx_rename_object"})
-        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_rename_object"
-        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_rename_object"]})
+        assert "nx_list_topology" not in {t.name for t in tools}
+        result = await client.call_tool("nx_find_tools", {"query": "nx_list_topology"})
+        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_list_topology"
+        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_list_topology"]})
         schema = result.structuredContent["data"]["tools"][0]["input_schema"]
-        assert "object_id" in schema["properties"]
+        assert "body" in schema["properties"]
         # A legacy tool stays callable directly, with compact agent defaults.
         result = await client.call_tool("nx_list_topology", {"body": "obj_body"})
         assert not result.isError
@@ -75,17 +75,17 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
         snapshot = await client.call_tool(
             "nx_invoke_read",
             {
-                "tool": "nx_result",
+                "tool": "nx_get_result",
                 "arguments": {
                     "result_id": result.structuredContent["result_id"],
                     "field": "/parts",
                 },
             },
         )
-        assert snapshot.structuredContent["items"] == []
+        assert snapshot.structuredContent["data"]["items"] == []
         bridge.call.reset_mock()
         bad = await client.call_tool(
-            "nx_invoke", {"tool": "nx_rename_object", "arguments": {"bogus": True}}
+            "nx_invoke", {"tool": "nx_list_topology", "arguments": {"bogus": True}}
         )
         assert bad.isError and not bridge.call.called
         good = await client.call_tool(
@@ -109,93 +109,6 @@ async def test_artifact_metadata_resource_and_reserved_path(tmp_path):
         assert len((await client.list_resource_templates()).resourceTemplates) == 1
         bad = await client.call_tool("nx_download_file", {"path": ".nx-mcp/secret"})
         assert bad.isError
-
-
-@pytest.mark.asyncio
-async def test_failed_mutation_retains_outcome_and_operation_id(tmp_path):
-    bridge = AsyncMock()
-    bridge.call.return_value = {
-        "status": "error",
-        "code": "NX_TEST",
-        "message": "failed",
-        "warnings": ["important"],
-        "operation_id": "test_operation",
-        "mutation_outcome": "rolled_back",
-    }
-    server = create_server(bridge, Workspace(tmp_path), surface="agent")
-    result = await server.call_tool(
-        "nx_invoke",
-        {
-            "tool": "nx_rename_object",
-            "arguments": {"object_id": "x", "name": "A", "operation_id": "test_operation"},
-        },
-    )
-    assert result.isError and result.structuredContent["mutation_outcome"] == "rolled_back"
-    assert result.structuredContent["operation_id"] == "test_operation"
-
-
-@pytest.mark.asyncio
-async def test_compact_success_replay_receipt_and_full_snapshot(tmp_path):
-    bridge = AsyncMock()
-    ref = {"id": "a", "kind": "body", "part_id": "p", "session_id": "s"}
-    bridge.call.return_value = {
-        "status": "success",
-        "units": "mm",
-        "warnings": ["check"],
-        "operation_id": "operation_123",
-        "mutation_outcome": "committed",
-        "bodies": [ref] * 25,
-        "changes": {"created": [ref] * 25, "modified": None, "deleted": []},
-    }
-    server = create_server(bridge, Workspace(tmp_path), surface="agent")
-    result = await server.call_tool(
-        "nx_invoke",
-        {
-            "tool": "nx_rename_object",
-            "arguments": {"object_id": "s", "name": "A", "operation_id": "operation_123"},
-        },
-    )
-    payload = result.structuredContent
-    assert payload["change_counts"] == {"created": 25, "modified": None, "deleted": 0}
-    assert payload["mutation_outcome"] == "committed" and payload["warnings"] == ["check"]
-    bridge.call.reset_mock()
-    expanded = await server.call_tool(
-        "nx_result", {"result_id": payload["result_id"], "field": "/bodies", "offset": 20}
-    )
-    assert len(expanded.structuredContent["items"]) == 5
-    assert expanded.structuredContent["items"][0]["session_id"] == "s"
-    expanded = await server.call_tool(
-        "nx_result", {"result_id": payload["result_id"], "detail": "full"}
-    )
-    assert len(expanded.structuredContent["value"]["bodies"]) == 25
-    assert not bridge.call.called
-    for args in [{"field": "bodies"}, {"field": "/absent"}, {"offset": -1}, {"limit": 101}]:
-        bad = await server.call_tool("nx_result", {"result_id": payload["result_id"], **args})
-        assert bad.isError
-
-
-@pytest.mark.asyncio
-async def test_storage_failure_does_not_relabel_committed_mutation(tmp_path, monkeypatch):
-    bridge = AsyncMock()
-    bridge.call.return_value = {
-        "status": "success",
-        "mutation_outcome": "committed",
-        "operation_id": "operation_123",
-    }
-    server = create_server(bridge, Workspace(tmp_path), surface="agent")
-
-    def fail(*args):
-        raise OSError("full disk")
-
-    monkeypatch.setattr(ResultStore, "put", fail)
-    result = await server.call_tool(
-        "nx_invoke",
-        {
-            "tool": "nx_rename_object",
-            "arguments": {"object_id": "s", "name": "A", "operation_id": "operation_123"},
-        },
-    )
-    assert not result.isError and result.structuredContent["mutation_outcome"] == "committed"
 
 
 @pytest.mark.asyncio
@@ -230,7 +143,7 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         # Without a bridge descriptor the build is unknown: only read/view catalogue tools show.
         readable = [s for s in catalogue.load().values() if s.effect in ("read", "view")]
-        extra = len(gateways.NAMES) + len(readable) + len(HELPERS)
+        extra = len(gateways.NAMES) + len(readable)
         core = [n for n in CORE_TOOLS if n in {s.name for s in readable}]
         agent = len(gateways.NAMES) + len(core)
         for path, count in [("/mcp", len(MANIFEST["tools"]) + extra), ("/agent/mcp", agent)]:
@@ -269,8 +182,8 @@ async def test_gateway_rejects_ignored_top_level_arguments(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_rename_object",
-            "arguments": {"object_id": "s", "name": "A"},
+            "tool": "nx_list_bodies",
+            "arguments": {},
             "operation_id": "wrong_place",
         },
     )

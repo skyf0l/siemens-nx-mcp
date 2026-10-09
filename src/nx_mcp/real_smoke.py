@@ -64,7 +64,7 @@ async def run_iteration(
         await _call(client, "nx_set_camera", {"fit": True})
         # Exercise undo, then recreate the solid for export. The STEP export
         # writes the part as it is in memory and never saves it.
-        await _call(client, "nx_undo", {})
+        await _call(client, "nx_undo_operation", {})
         after_undo = await _call(client, "nx_list_bodies", {})
         sketches = await _call(client, "nx_list_sketches", {})
         sketch_id = next(

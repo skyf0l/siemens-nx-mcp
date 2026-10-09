@@ -139,18 +139,17 @@ async def test_uniform_structured_success_failure_and_schema(tmp_path):
 
     server = create_server(Caller(), Workspace(tmp_path), surface="full")
     tools = await server.list_tools()
-    move = next(t for t in tools if t.name == "nx_rename_object")
-    assert "name" in move.inputSchema["required"]
-    assert "operation_id" in move.inputSchema["properties"]
+    topology = next(t for t in tools if t.name == "nx_list_topology")
+    assert "body" in topology.inputSchema["required"]
     success = await server.call_tool("nx_capabilities", {})
     assert success.structuredContent["status"] == "success" and not success.isError
     for name, args in [
         ("nx_list_topology", {"body": "a"}),
-        ("nx_rename_object", {"object_id": "c", "ignored": 123}),
+        ("nx_list_topology", {"body": "c", "ignored": 123}),
     ]:
         result = await server.call_tool(name, args)
         assert result.isError and result.structuredContent["status"] == "error"
-    assert not next(t for t in tools if t.name == "nx_rename_object").annotations.readOnlyHint
+    assert topology.annotations.readOnlyHint
 
 
 def test_reference_namespace_rejects_previous_session(executor, tmp_path):

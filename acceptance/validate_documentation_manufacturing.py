@@ -191,7 +191,9 @@ async def main():
                     math.isclose(a, b, abs_tol=1e-6)
                     for a, b in zip(original_bounds[key], imported_bounds[key], strict=True)
                 )
-            checkpoint = await call("nx_checkpoint", label="imported housing before local edit")
+            checkpoint = await call(
+                "nx_create_checkpoint", label="imported housing before local edit"
+            )
             await call(
                 "nx_edit_faces",
                 faces=[await nearest(body, "face", [0, 0, 2])],
@@ -199,7 +201,7 @@ async def main():
                 distance=1,
             )
             assert not math.isclose(await volume(body), expected, rel_tol=1e-7)
-            await call("nx_rollback", checkpoint_id=checkpoint["checkpoint_id"])
+            await call("nx_restore_checkpoint", checkpoint_id=checkpoint["checkpoint_id"])
             body = (await call("nx_list_bodies"))["objects"][0]["id"]
             assert math.isclose(await volume(body), expected, rel_tol=1e-7)
             await call(

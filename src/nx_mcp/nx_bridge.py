@@ -37,12 +37,10 @@ class NXOpenExecutor:
         self.nx_version = nx_version
         self.workspace = workspace
         self.objects = ObjectRegistry()
-        self._undo_marks: list[Any] = []
         self._handlers: dict[str, Callable[..., dict[str, Any]]] = {
             "nx_list_sketches": lambda: self._list_objects("Sketches", "sketch"),
             "nx_list_bodies": lambda: self._list_objects("Bodies", "body"),
             "nx_list_features": lambda: self._list_objects("Features", "feature"),
-            "nx_undo": self._undo,
         }
 
     def execute(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -57,10 +55,7 @@ class NXOpenExecutor:
                     self.nxopen.Session.MarkVisibility.Visible,
                     f"NX MCP: {method}",
                 )
-            result = handler(**params)
-            if undo_mark is not None:
-                self._undo_marks.append(undo_mark)
-            return result
+            return handler(**params)
         except NXToolError as error:
             if undo_mark is not None:
                 self._rollback(undo_mark, error)
@@ -116,14 +111,6 @@ class NXOpenExecutor:
             "objects": [self._reference(value, kind, part, kind.title()) for value in values],
             "message": f"Found {len(values)} {kind}(s).",
         }
-
-    def _undo(self) -> dict[str, Any]:
-        if not self._undo_marks:
-            raise NXToolError("NX_UNDO_UNAVAILABLE", "No NX MCP operation is available to undo")
-        part = self._work_part()
-        self.session.UndoToMark(self._undo_marks.pop(), None)
-        self.objects.invalidate_part(self._part_id(part))
-        return {"message": "Undo successful"}
 
     def _find_sketch(self, name: str) -> Any:
         part = self._work_part()
