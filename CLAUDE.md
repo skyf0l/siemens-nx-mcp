@@ -38,7 +38,7 @@ in `acceptance/`.
 
 ## Live NX development loop
 
-With `examples/start_nx_interactive_dev.py` playing in NX (development machine
+With `examples/start_nx_interactive_dev_2406.py` playing in NX (development machine
 only), edit code, then `python scripts/dev_reload.py --wait-agent` reloads the
 NX-side host from disk (exit 1 prints the import traceback). Drive the new
 tool through a fresh `python -m nx_mcp.server` stdio client with

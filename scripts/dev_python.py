@@ -1,6 +1,6 @@
 """Run a Python snippet inside NX through the development launcher's bridge.
 
-Development only (examples/start_nx_interactive_dev.py); hold the NX lock
+Development only (examples/start_nx_interactive_dev_2406.py); hold the NX lock
 (scripts/dev_lock.py). Names available: NXOpen, session, part (work part),
 executor, resolve(object_id). print() output and `result` are returned. The
 snippet runs under an undo mark: an exception rolls its model changes back.

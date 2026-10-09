@@ -37,7 +37,7 @@ that points at geometry you have since edited fails safely as stale.
 
 ## Development loop (never for production work)
 
-`examples/start_nx_interactive_dev.py` is the 2406 resident host for a
+`examples/start_nx_interactive_dev_2406.py` is the 2406 resident host for a
 development machine. Played once, it gives the agent control without a click
 and reloads the whole NX-side MCP code from disk when
 `<workspace>/.nx-mcp/dev-restart` appears: it stops the host, drops every

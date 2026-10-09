@@ -1,6 +1,6 @@
 """DEVELOPMENT ONLY: a resident NX journal that reloads the MCP host from disk.
 
-Played once in graphical NX (examples/start_nx_interactive_dev.py), it hosts the
+Played once in graphical NX (examples/start_nx_interactive_dev_2406.py), it hosts the
 bridge like the 2406 launcher and additionally:
 
 - gives the agent control as soon as NX allows it, without a click;

@@ -1,4 +1,4 @@
-"""DEVELOPMENT ONLY. Play once in graphical NX (Alt+F8) on a development machine.
+"""DEVELOPMENT ONLY, NX 2406. Play once in graphical NX (Alt+F8) on a development machine.
 
 Like start_nx_interactive_2406.py, but the agent gets control immediately (no
 click) and the host reloads from disk whenever <workspace>/.nx-mcp/dev-restart
