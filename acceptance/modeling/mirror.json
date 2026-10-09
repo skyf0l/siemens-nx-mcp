@@ -84,13 +84,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$m1.data.bodies.0.id",
+    "bodies": [
+     "$m1.data.bodies.0.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       -40,
       0,
@@ -98,7 +100,7 @@
      ],
      "tol": 0.0001
     },
-    "max": {
+    "data.max": {
      "close": [
       0,
       20,
@@ -143,13 +145,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$m2.data.bodies.0.id",
+    "bodies": [
+     "$m2.data.bodies.0.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       60,
       0,
@@ -157,7 +161,7 @@
      ],
      "tol": 0.0001
     },
-    "max": {
+    "data.max": {
      "close": [
       100,
       20,
@@ -195,13 +199,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$m3.data.bodies.0.id",
+    "bodies": [
+     "$m3.data.bodies.0.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       30,
       10,
@@ -209,7 +215,7 @@
      ],
      "tol": 0.0001
     },
-    "max": {
+    "data.max": {
      "close": [
       50,
       50,
@@ -259,13 +265,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$m4.data.bodies.0.id",
+    "bodies": [
+     "$m4.data.bodies.0.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       0,
       20,
@@ -273,7 +281,7 @@
      ],
      "tol": 0.0001
     },
-    "max": {
+    "data.max": {
      "close": [
       40,
       40,
@@ -321,10 +329,10 @@
    }
   },
   {
-   "call": "nx_model_health",
+   "call": "nx_check_model",
    "args": {},
    "expect": {
-    "healthy": true
+    "data.healthy": true
    }
   }
  ]

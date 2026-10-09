@@ -63,7 +63,7 @@ and `ruff format <files>`.
 - Use `dev_python.py` to discover real builder members/enums before guessing.
 - Work in your own scratch parts: `smoke/<group>/...prt` (nx_create_part). You
   may modify anything in NX, but do not close or save other agents' parts.
-- Verify numerically: nx_measure_volume, nx_get_bounding_box, nx_list_topology,
+- Verify numerically: nx_measure_mass, nx_measure_bounds, nx_list_topology,
   nx_measure_distance/angle, nx_sketch_info, nx_list_dimensions,
   nx_list_annotations, nx_feature_parameters. For drawings also nx_screenshot
   (look at the PNG with the Read tool) or nx_export_drawing_pdf.

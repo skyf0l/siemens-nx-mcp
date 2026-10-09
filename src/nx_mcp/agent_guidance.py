@@ -11,11 +11,6 @@ GUIDANCE = {
         ["body", "face"],
         {"body": "<body_id>", "include_adjacency": True},
     ),
-    "nx_measure_volume": (
-        ["Active part or assembly with solid geometry"],
-        ["body", "part", "component"],
-        {},
-    ),
     "nx_rollback": (["Live explicit checkpoint; no intervening manual edits"], [], None),
 }
 GEOMETRY = {

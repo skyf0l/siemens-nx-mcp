@@ -32,15 +32,12 @@ def describe(method, params, **kwargs):
 @pytest.mark.parametrize(
     ("method", "params", "expected"),
     [
-        ("nx_ui_control", {"mode": "agent"}, "Take control of NX"),
         (
             "nx_delete_feature",
             {"name": "obj_gone"},
             "Delete feature an object from before the last handover",
         ),
         ("nx_delete_feature", {"name": "EXTRUDE(2)"}, 'Delete feature "EXTRUDE(2)"'),
-        ("nx_measure_volume", {"scope": "assembly"}, "Measure volume of the whole assembly"),
-        ("nx_ui_control", {"mode": "status"}, "Check who controls NX"),
     ],
 )
 def test_summaries_use_real_arguments_and_names(method, params, expected):

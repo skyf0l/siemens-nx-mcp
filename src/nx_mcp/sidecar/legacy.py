@@ -20,7 +20,6 @@ _SESSION = {
     "nx_workspace_info",
     "nx_operation_status",
     "nx_cancel_operation",
-    "nx_ui_control",
     "nx_capabilities",
     "nx_read_result",
     "nx_batch",
@@ -56,7 +55,7 @@ def effect_of(name: str) -> str:
     """read, view, file or model, from the legacy lists (never guessed as read)."""
     if name in agent_surface.HELPERS:
         return agent_surface.HELPERS[name]
-    if name in integration_server.READ_ONLY and name != "nx_ui_control":
+    if name in integration_server.READ_ONLY:
         return "read"
     if name in agent_guidance.GEOMETRY:
         return "model"

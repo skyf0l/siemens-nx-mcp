@@ -50,21 +50,6 @@ def test_recovery_states_and_unknown_are_typed_without_inventing_failure():
     )
 
 
-def test_geometry_cardinality_units_and_closest_points():
-    ref = {"id": "body123", "kind": "body", "name": "", "part_id": "part123"}
-    volume = {
-        "bodies": [{"body": ref, "volume_mm3": 12}],
-        "body_count": 1,
-        "volume_mm3": 12,
-        "volume_units": "mm^3",
-        "semantics": "sum_of_included_bodies",
-        "scope": "part",
-    }
-    validate("nx_measure_volume", volume)
-    with pytest.raises(ValidationError):
-        validate("nx_measure_volume", {**volume, "volume_units": "in^3"})
-
-
 @pytest.mark.asyncio
 async def test_fresh_mcp_client_gets_structured_errors(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")

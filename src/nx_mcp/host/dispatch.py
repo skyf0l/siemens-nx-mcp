@@ -58,7 +58,7 @@ LEGACY_VIEW = frozenset(
 )
 # Legacy calls that never change an existing part although they are not read-only.
 # (Saving and closing parts are catalogue tools; they call tx.require_owned.)
-LEGACY_UNGATED = frozenset({"nx_dev_python", "nx_ui_control"})
+LEGACY_UNGATED = frozenset({"nx_dev_python"})
 
 
 class KernelError(NXToolError):

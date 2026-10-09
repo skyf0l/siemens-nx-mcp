@@ -11,14 +11,6 @@
         "v2406"
       ]
     },
-    "nx_measure_volume": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "Part and nested assembly sum, returned in mm^3; no union/mass claim Inch-part 0.5 cubic inch volume independently checked as 8193.532 mm3 using explicit native AnalysisUnit.",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_batch": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
@@ -131,31 +123,7 @@
         "v2406"
       ]
     },
-    "nx_get_bounding_box": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "Part and two-level assembly; conservative and exact with axis-aligned WCS",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_ui_control": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606_interactive",
-      "scope": "UI-thread identity, visible model mutations, manual pause rejection and resume; native panel",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_list_expressions": {
-      "status": "tested",
-      "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
-      "evidence_type": "real_NX_v2606_and_local_stateful_seams",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_model_health": {
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
       "evidence_type": "real_NX_v2606_and_local_stateful_seams",

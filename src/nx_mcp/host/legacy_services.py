@@ -464,6 +464,27 @@ class LegacyServices:
             }
         )
 
+    # -- the NX MCP panel (nx_set_control) -------------------------------------
+    def _panel(self):
+        return getattr(self.x, "_interactive_host", None)
+
+    def control_status(self) -> dict | None:
+        host = self._panel()
+        return None if host is None else host.status()
+
+    def control(self, mode: str) -> dict:
+        host = self._panel()
+        if host is None:
+            from nx_mcp.core.tx import Services
+
+            return Services.control(self, mode)
+        try:
+            return host.agent_control(mode)
+        except Exception as exc:
+            from nx_mcp.core.errors import classify
+
+            raise classify(exc) from exc
+
     def after_commit(self, spec) -> None:
         if spec.effect != "read":
             self.x._review_epoch = getattr(self.x, "_review_epoch", 0) + 1

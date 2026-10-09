@@ -65,28 +65,6 @@ META = {"path": S, "size": COUNT, "sha256": HASH}
 
 # Required fields follow actual bridge implementations; optional metadata remains typed.
 PAYLOADS: dict[str, dict[str, Any]] = {
-    "nx_get_bounding_box": obj(
-        {
-            "min": VEC,
-            "max": VEC,
-            "dimensions": VEC,
-            "coordinate_frame": S,
-            "bounds_type": {"enum": ["exact", "conservative"]},
-            "body_count": COUNT,
-            "scope": S,
-            "bodies": arr(obj({"body": REF, "box": arr(N, 6), "solid": B})),
-        }
-    ),
-    "nx_measure_volume": obj(
-        {
-            "volume_mm3": N,
-            "volume_units": {"const": "mm^3"},
-            "semantics": {"const": "sum_of_included_bodies"},
-            "body_count": COUNT,
-            "scope": S,
-            "bodies": arr(obj({"body": REF, "volume_mm3": N})),
-        }
-    ),
     "nx_list_topology": obj({"body": REF, "faces": arr(REF), "edges": arr(REF), "solid": B}),
     "nx_operation_status": obj(
         {

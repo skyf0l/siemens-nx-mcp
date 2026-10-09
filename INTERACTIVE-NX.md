@@ -93,12 +93,13 @@ quoted and labelled as the agent's note. You then choose:
 Picking Ask me first while the agent works pauses after the current step.
 
 **What the agent may change itself.** Status reads never wait. The agent may
-always give you more control (`nx_ui_control(mode="auto")` from Agent drives,
+always give you more control (`nx_set_control(mode="auto")` from Agent drives,
 `mode="ask"` from anywhere; `mode="manual"` is the old name of ask). A request
 for more control (`mode="auto"` from Ask me first, `mode="agent"` from Auto or
 Ask me first) shows the request card like any other step, so the agent can never
-leave Ask me first, or lock NX, without your click. `nx_ui_control(mode="status")`
-reports `mode` (`auto`, `agent` or `ask`), `activity` and `engineer_busy`.
+leave Ask me first, or lock NX, without your click. `nx_set_control(mode="status")`
+reports `mode` (`auto`, `agent` or `ask`), `owner` (agent or engineer), `busy`
+(you are in an NX command), `waiting` (steps on the request card) and `activity`.
 
 The mode you pick is kept when the bridge restarts in the same NX session
 (development reloads, `.nx-mcp/ui-mode.json`); a mode the agent picked is not. A

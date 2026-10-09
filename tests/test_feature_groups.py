@@ -39,7 +39,7 @@ def test_capabilities_report_evidence_for_the_running_nx_version():
     from nx_mcp.manifest import load_manifest, scope_to_version
 
     tools = scope_to_version(load_manifest(), "v2406")["tools"]
-    assert tools["nx_measure_volume"]["status"] == "tested"  # verified_versions includes v2406
+    assert tools["nx_rollback"]["status"] == "tested"  # verified_versions includes v2406
     real_2406 = {"tools": {"t": {"status": "tested", "evidence_type": "real_NX_v2406_scoped"}}}
     assert scope_to_version(real_2406, "v2406")["tools"]["t"]["status"] == "tested"
 

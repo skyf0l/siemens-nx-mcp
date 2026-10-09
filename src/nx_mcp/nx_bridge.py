@@ -45,8 +45,6 @@ class NXOpenExecutor:
             "nx_list_bodies": lambda: self._list_objects("Bodies", "body"),
             "nx_list_features": lambda: self._list_objects("Features", "feature"),
             "nx_undo": self._undo,
-            "nx_get_bounding_box": self._get_bounding_box,
-            "nx_measure_volume": self._measure_volume,
         }
 
     def execute(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -165,63 +163,6 @@ class NXOpenExecutor:
             if value in names:
                 return body
         raise NXToolError("NX_NOT_FOUND", f"Body not found: {value}")
-
-    def _get_bounding_box(self, body=None):
-        import NXOpen.UF
-
-        part = self._work_part()
-        bodies = [self._resolve_body(body, part)] if body else list(part.Bodies)
-        uf = NXOpen.UF.UFSession.GetUFSession()
-        rows = []
-        for item in bodies:
-            box = list(uf.ModlGeneral.AskBoundingBox(item.Tag))
-            rows.append(
-                {
-                    "body": self._reference(item, "body", part, "Body"),
-                    "solid": bool(item.IsSolidBody),
-                    "box": box,
-                }
-            )
-        if not rows:
-            raise NXToolError("NX_NO_TARGET_BODY", "No bodies in work part")
-        low = [min(row["box"][i] for row in rows) for i in range(3)]
-        high = [max(row["box"][i + 3] for row in rows) for i in range(3)]
-        return {
-            "min": low,
-            "max": high,
-            "dimensions": [b - a for a, b in zip(low, high, strict=False)],
-            "units": str(part.PartUnits),
-            "bodies": rows,
-            "message": "UF bounding boxes; may be conservative for curved geometry",
-        }
-
-    def _measure_volume(self, body=None):
-        part = self._work_part()
-        bodies = [self._resolve_body(body, part)] if body else list(part.Bodies)
-        units = [
-            part.UnitCollection.FindObject(n)
-            for n in ["SquareMilliMeter", "CubicMilliMeter", "Kilogram", "MilliMeter", "Newton"]
-        ]
-        rows = []
-        for item in bodies:
-            if not item.IsSolidBody:
-                raise NXToolError("NX_NOT_SOLID", "Volume measurement requires solid bodies")
-            props = part.MeasureManager.NewMassProperties(units, 0.999, [item])
-            try:
-                props.InformationUnit = self.nxopen.MeasureBodies.AnalysisUnit.KilogramMillimeter
-                rows.append(
-                    {
-                        "body": self._reference(item, "body", part, "Body"),
-                        "volume_mm3": float(props.Volume),
-                    }
-                )
-            finally:
-                props.Dispose()
-        return {
-            "bodies": rows,
-            "volume_mm3": sum(r["volume_mm3"] for r in rows),
-            "message": "Sum of solid body volumes; overlapping bodies are counted separately",
-        }
 
 
 @dataclass

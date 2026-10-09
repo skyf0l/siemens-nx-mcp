@@ -75,6 +75,8 @@ def host(rig, tmp_path, monkeypatch):
         KillTimer=Mock(),
     )
     h.lock, h.enabled = lock, enabled  # test handles
+    rig.e._interactive_host = h  # nx_set_control reaches the host through the kernel
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # nx_set_control has no v2606 evidence
     rig.e._units = lambda: "mm"
     monkeypatch.setattr(
         ctypes, "windll", NS(kernel32=NS(GetCurrentThreadId=lambda: 123)), raising=False
@@ -280,21 +282,21 @@ def test_tick_modes_status_persistence_and_exception_handoff(host):
 
 def test_agent_can_lower_but_never_raise_its_own_control(host):
     queue = _queue(host, "ask")
-    raise_ = queue.submit("nx_ui_control", {"mode": "agent"})
+    raise_ = queue.submit("nx_set_control", {"mode": "agent"})
     host.tick()
     assert not raise_.complete.is_set() and host.waiting_count == 1  # on the card
     assert "Take control of NX" in host.panel_text()
     with pytest.raises(NXToolError, match="Only the engineer"):
-        host.execute("nx_ui_control", {"mode": "auto"})  # never around the card
+        host.execute("nx_set_control", {"mode": "auto"})  # never around the card
     host.answer_requested = "decline"
     host.tick()
     assert raise_.error.code == "NX_UI_DECLINED" and host.mode == "ask"
     host.control("agent")
-    lower = queue.submit("nx_ui_control", {"mode": "auto"})
+    lower = queue.submit("nx_set_control", {"mode": "auto"})
     host.tick()
     assert lower.complete.is_set() and lower.error is None and host.mode == "auto"
     assert host.enabled["value"] and not host.owns_lock
-    legacy = queue.submit("nx_ui_control", {"mode": "manual"})  # manual = Ask me first
+    legacy = queue.submit("nx_set_control", {"mode": "manual"})  # manual = Ask me first
     host.tick()
     assert legacy.error is None and host.mode == "ask"
     # Only the engineer's choice is remembered for a reload.
@@ -303,7 +305,7 @@ def test_agent_can_lower_but_never_raise_its_own_control(host):
 
 def test_approved_control_request_switches_mode(host):
     queue = _queue(host, "auto")
-    pending = queue.submit("nx_ui_control", {"mode": "agent"})
+    pending = queue.submit("nx_set_control", {"mode": "agent"})
     host.tick()
     assert host.waiting_count == 1 and host.panel_state()[3] == "auto"
     host.answer_requested = "run_once"
@@ -350,8 +352,9 @@ def test_auto_runs_each_call_with_the_light_take(host, rig):
     assert host.enabled["value"] and not host.window_disabled
     host.ui.LockAccess.assert_not_called()
     # The agent's next health read (a worker-thread snapshot) already sees NX released.
-    snapshot = host.dispatch("nx_ui_control", {"mode": "status"})
-    assert snapshot["nx_window_input_enabled"] and snapshot["mode"] == "auto"
+    snapshot = host.dispatch("nx_set_control", {"mode": "status"})
+    assert snapshot["ok"] and snapshot["data"]["mode"] == "auto"
+    assert snapshot["data"]["owner"] == "engineer" and not host.owns_lock
     host.panel.wake.assert_called()  # tick again at once for a queued follow-up
 
 
@@ -495,7 +498,7 @@ def test_ask_run_and_switch_to_auto(host):
 def test_not_now_declines_every_waiting_request(host):
     queue = _queue(host, "ask")
     first = queue.submit("nx_fit_view")
-    second = queue.submit("nx_ui_control", {"mode": "agent"})  # agent asking for control
+    second = queue.submit("nx_set_control", {"mode": "agent"})  # agent asking for control
     host.tick()
     assert host.waiting_count == 2 and "(+1 more)" in host.panel_text()
     host.answer_requested = "decline"
@@ -518,7 +521,7 @@ def test_unanswered_request_expires_without_running(host):
 
 def test_handing_control_back_never_waits(host):
     queue = _queue(host, "ask")
-    pending = queue.submit("nx_ui_control", {"mode": "manual"})
+    pending = queue.submit("nx_set_control", {"mode": "manual"})
     host.tick()
     assert pending.complete.is_set() and pending.error is None and host.waiting_count == 0
 
@@ -713,7 +716,7 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
 
     def operation():
         def reader():
-            observed.append(host.dispatch("nx_ui_control", {"mode": "status"}))
+            observed.append(host.dispatch("nx_set_control", {"mode": "status"}))
 
         thread = threading.Thread(target=reader)
         thread.start()
@@ -730,9 +733,10 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
 
     rig.e._handlers["nx_test_busy"] = operation
     host.execute("nx_test_busy", {})
-    assert observed[0]["activity"] == "running"
-    assert observed[0]["snapshot_only"] is True
-    assert observed[0]["operation_elapsed_seconds"] >= 0
+    assert observed[0]["ok"] and observed[0]["mutation_outcome"] == "not_applicable"
+    assert observed[0]["data"]["activity"] == "running"
+    assert observed[0]["data"]["running"] == "nx_test_busy"
+    assert observed[0]["data"]["owner"] == "agent"
     host.dispatcher.drain.assert_not_called()
     assert host.status()["activity"] == "reserved_idle"
     assert host.status()["last_duration_seconds"] >= 0

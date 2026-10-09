@@ -217,22 +217,24 @@
    }
   },
   {
-   "call": "nx_measure_volume",
+   "call": "nx_measure_mass",
    "args": {
-    "body": "$blk.data.bodies.0.id"
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
    },
    "expect": {
-    "volume_mm3": {
+    "data.volume": {
      "close": 7947.064880304703,
      "tol": 0.01
     }
    }
   },
   {
-   "call": "nx_model_health",
+   "call": "nx_check_model",
    "args": {},
    "expect": {
-    "healthy": true
+    "data.healthy": true
    }
   },
   {
@@ -276,12 +278,14 @@
    }
   },
   {
-   "call": "nx_measure_volume",
+   "call": "nx_measure_mass",
    "args": {
-    "body": "$bl.data.items.0.id"
+    "bodies": [
+     "$bl.data.items.0.id"
+    ]
    },
    "expect": {
-    "volume_mm3": {
+    "data.volume": {
      "close": 7947.064880304703,
      "tol": 0.01
     }
@@ -311,10 +315,10 @@
    }
   },
   {
-   "call": "nx_model_health",
+   "call": "nx_check_model",
    "args": {},
    "expect": {
-    "healthy": true
+    "data.healthy": true
    }
   }
  ]

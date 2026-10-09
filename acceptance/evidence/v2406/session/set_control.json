@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "scenario": "acceptance/session/set_control.json",
+  "scenario_sha256": "04653bcb77af0e003384e160efd71c9bf9b201789e36eeefb7021381db44e448",
+  "domain": "session",
+  "covers": {
+    "nx_set_control": [
+      "status",
+      "auto",
+      "ask",
+      "manual",
+      "agent"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "5801c0f30d31db48777dc0b4299c21265af98bce",
+  "sources": {
+    "nx_set_control": "33fb6329096dde0fb6b8d875038a8a8d94fdfe4caa59751e44fb1c7cb04f3d41"
+  },
+  "run_id": "20261009-193015-85a5a6",
+  "owner": "s1_control",
+  "part": null,
+  "started": "2026-10-09T15:30:15Z",
+  "finished": "2026-10-09T15:31:22Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.0,
+      "result_sha256": "8291dacd0d8c584b4ab3ea110edf9f8eaf0e09bccb294963ea128f81caf7aaf2"
+    },
+    {
+      "index": 2,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.031,
+      "result_sha256": "509ed8167a178aeb0bec8c81199bca2d62b3b7be002d41bea2ab6bab87bd5ea2"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.016,
+      "result_sha256": "1c2c0d418e64356782b305afb86ba4bf856bc1fea694a31e2bf46324de3dc0b8"
+    },
+    {
+      "index": 4,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "0b377f836c911a044c74875dbdffd47bb3014fd81f1fe4ab3db4b1fae800784f"
+    },
+    {
+      "index": 5,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 60.031,
+      "result_sha256": "5e36fb1be61397f725e1dbaa2c25e37b8d7d8c0d951f8790307c5508518a205c"
+    },
+    {
+      "index": 6,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 7.156,
+      "result_sha256": "809dba3334117163d1d510f69bd302c4bba3bb3165da51cded04f6e27f8a2264"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

@@ -133,7 +133,7 @@ async def test_transport_timeout_does_not_duplicate_mutation(executor):
 async def test_uniform_structured_success_failure_and_schema(tmp_path):
     class Caller:
         async def call(self, method, params):
-            if method == "nx_measure_volume":
+            if method == "nx_list_topology":
                 raise NXToolError("NX_UNSUPPORTED_EDIT", "unsupported edit")
             return {"status": "success", "method": method, "params": params}
 
@@ -145,7 +145,7 @@ async def test_uniform_structured_success_failure_and_schema(tmp_path):
     success = await server.call_tool("nx_status", {})
     assert success.structuredContent["status"] == "success" and not success.isError
     for name, args in [
-        ("nx_measure_volume", {"body": "a"}),
+        ("nx_list_topology", {"body": "a"}),
         ("nx_rename_object", {"object_id": "c", "ignored": 123}),
     ]:
         result = await server.call_tool(name, args)

@@ -42,9 +42,11 @@
   "save": "e1"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$e1.body.id"
+   "bodies": [
+    "$e1.body.id"
+   ]
   },
   "intent": "hexagon area 1039.2305 * 10 = 10392.305",
   "mutation": false
@@ -87,9 +89,11 @@
   "save": "e2"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$e2.body.id"
+   "bodies": [
+    "$e2.body.id"
+   ]
   },
   "intent": "20*20*10 = 4000",
   "mutation": false
@@ -131,9 +135,11 @@
   "save": "e3"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$e3.body.id"
+   "bodies": [
+    "$e3.body.id"
+   ]
   },
   "intent": "pi*20*10*10 = 6283.19",
   "mutation": false
@@ -249,9 +255,11 @@
   "save": "e4"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$e4.body.id"
+   "bodies": [
+    "$e4.body.id"
+   ]
   },
   "intent": "(1200 - 25*(1-pi/4) - 4*6/2) * 10 = 11826.35",
   "mutation": false
@@ -513,9 +521,11 @@
   "mutation": false
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$e2.body.id"
+   "bodies": [
+    "$e2.body.id"
+   ]
   },
   "intent": "20*20*15 = 6000",
   "mutation": false

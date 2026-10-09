@@ -56,7 +56,8 @@ MODE_LABELS = {"auto": "Auto", "agent": "Agent drives", "ask": "Ask me first"}
 # How much control a mode gives the agent. The agent may lower it itself; only
 # the engineer can raise it (a request to raise it waits for the panel's answer).
 _RANK = {"ask": 0, "auto": 1, "agent": 2}
-LEGACY_MODES = {"manual": "ask"}  # nx_ui_control(mode="manual") = hand NX back
+LEGACY_MODES = {"manual": "ask"}  # nx_set_control(mode="manual") = hand NX back
+CONTROL_TOOL = "nx_set_control"  # the panel-mode tool (domains/session/control.py)
 
 # Panel window messages: the bridge's listening socket has a connection
 # (WSAAsyncSelect), and "tick again now" (posted by the host itself).
@@ -124,7 +125,7 @@ def _span(seconds):
 
 
 def control_target(params):
-    """The mode an nx_ui_control call asks for ("status" for a read)."""
+    """The mode an nx_set_control call asks for ("status" for a read)."""
     mode = params.get("mode", "status")
     return LEGACY_MODES.get(mode, mode)
 
@@ -133,7 +134,7 @@ def runs_while_engineer_has_control(pending):
     """Status reads and handing NX back never wait for the engineer."""
     if pending.method == "nx_status":
         return True
-    if pending.method == "nx_ui_control":
+    if pending.method == CONTROL_TOOL:
         return control_target(pending.params) in ("status", "ask")
     return False
 
@@ -458,7 +459,7 @@ class InteractiveHost:
     owns_lock = False
     _activity = None
     _light = False  # A call runs with NX taken for that call only (Auto, approved).
-    _control_approved = False  # The engineer approved an nx_ui_control call.
+    _control_approved = False  # The engineer approved an nx_set_control call.
     _engineer_had_nx = True  # The engineer could edit since the agent's last call.
     _has_fingerprint = False
     _fingerprint = None
@@ -523,7 +524,7 @@ class InteractiveHost:
             nx_bridge._detect_nx_version(self.session),
             Workspace(self.root),
         )
-        self.executor._handlers["nx_ui_control"] = self.control
+        self.executor._interactive_host = self  # LegacyServices.control (nx_set_control)
         token = secrets.token_hex(32)
         progress = threading.Event()  # Set by bridge workers: a call queued or answered.
         self.dispatcher = MainThreadDispatcher(
@@ -652,17 +653,10 @@ class InteractiveHost:
         # Bridge-worker health reads use an immutable UI-thread snapshot only.
         # They must not wait behind the native operation they are diagnosing.
         snapshot = getattr(self, "_snapshot", None)
-        if method == "nx_ui_control" and params.get("mode", "status") == "status" and snapshot:
-            result = dict(snapshot)
-            result["snapshot_age_seconds"] = max(
-                0, time.monotonic() - result.pop("_sample_monotonic")
-            )
-            result["snapshot_only"] = True
-            started = result.pop("_operation_monotonic", None)
-            result["operation_elapsed_seconds"] = (
-                max(0, time.monotonic() - started) if started is not None else None
-            )
-            return result
+        if method == CONTROL_TOOL and control_target(params) == "status" and snapshot:
+            from nx_mcp.domains.session.control import envelope_from_snapshot
+
+            return envelope_from_snapshot(snapshot, params)
         return self.dispatcher.call(method, params)
 
     # -- panel -----------------------------------------------------------------
@@ -912,10 +906,10 @@ class InteractiveHost:
             self._record_release_error("Status after mode change", exc)
             return {"interactive": True, "mode": self.mode, "last_error": self.last_error}
 
-    def _agent_control(self, params):
-        """nx_ui_control from the agent: it may lower its control, never raise it
+    def agent_control(self, mode):
+        """nx_set_control from the agent: it may lower its control, never raise it
         unless the engineer approved the request on the panel."""
-        target = control_target(params)
+        target = LEGACY_MODES.get(mode, mode)
         if (
             target in _RANK
             and _RANK[target] > _RANK.get(self.mode, 0)
@@ -1161,8 +1155,8 @@ class InteractiveHost:
     def execute(self, method, params):
         if threading.get_ident() != self.thread:
             raise RuntimeError("NX request called off registering UI thread")
-        if method == "nx_ui_control":
-            return self._agent_control(params)
+        if method == CONTROL_TOOL:  # the kernel calls agent_control (LegacyServices)
+            return self.executor.execute(method, params)
         if method == "nx_status":
             return {**self.executor.execute(method, params), "ui": self.status()}
         reserved = self.mode == "agent" and self.owns_lock
@@ -1325,7 +1319,7 @@ class InteractiveHost:
         """Status reads and mode changes that do not give the agent more control."""
         if pending.method == "nx_status":
             return True
-        if pending.method == "nx_ui_control":
+        if pending.method == CONTROL_TOOL:
             target = control_target(pending.params)
             return target not in _RANK or _RANK[target] <= _RANK.get(self.mode, 0)
         return False
@@ -1334,7 +1328,7 @@ class InteractiveHost:
         """Waits for the engineer's answer on the request card."""
         if pending.approved:
             return False
-        if pending.method == "nx_ui_control":
+        if pending.method == CONTROL_TOOL:
             return True  # Only control raises reach here (_never_waits).
         if self.mode == "ask":
             return True
@@ -1377,7 +1371,7 @@ class InteractiveHost:
         if self._needs_answer(first) or first.complete.is_set():
             self.busy_wait = None
             return False  # Calls run in order: the rest waits behind the card.
-        if first.method == "nx_ui_control":
+        if first.method == CONTROL_TOOL:
             return self._run_approved_control(first)
         if not _read_only(first.method) and self.engineer_busy():
             return self._wait_for_engineer([first])
@@ -1386,7 +1380,7 @@ class InteractiveHost:
 
     def _unasked_read(self, pending):
         return (
-            pending.method != "nx_ui_control"
+            pending.method != CONTROL_TOOL
             and not pending.complete.is_set()
             and _read_only(pending.method)
             and not self._needs_answer(pending)

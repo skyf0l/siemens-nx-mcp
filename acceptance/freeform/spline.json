@@ -340,10 +340,10 @@
    }
   },
   {
-   "call": "nx_model_health",
+   "call": "nx_check_model",
    "args": {},
    "expect": {
-    "healthy": true
+    "data.healthy": true
    }
   }
  ]

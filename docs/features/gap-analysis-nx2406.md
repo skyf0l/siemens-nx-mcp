@@ -143,7 +143,7 @@ Suggested order inside the wave:
 
 | Capability | Value | Difficulty | Route [bin] | Note |
 |---|---|---|---|---|
-| Model validation (Check-Mate-like rules: unconstrained sketches, unparameterized features, missing material or attributes) | M | Med | `NXOpen.ValidationManager`, `Validate.CreateRequirementBuilder`, `CreateRequirementCheck` | `nx_model_health` covers feature errors only |
+| Model validation (Check-Mate-like rules: unconstrained sketches, unparameterized features, missing material or attributes) | M | Med | `NXOpen.ValidationManager`, `Validate.CreateRequirementBuilder`, `CreateRequirementCheck` | `nx_check_model` covers feature errors only |
 | Draft analysis, minimum-radius and AM printability checks | M | Med | `GeometricAnalysis.CreateDraftAnalysisBuilder`, `Validate.CreateCheckMinimumRadiusBuilder`, `CreateCheckMinimumWallThicknessBuilder`, `CreateCheckMaximumOverhangAngleBuilder` | `nx_face_analysis` samples draft only |
 | Deviation gauge (scan or import vs. CAD) | M | Med | `GeometricAnalysis.CreateDeviationGaugeBuilder` | Inspection use |
 | 3D PMI completeness: PMI linear/radial/angular dimensions, notes, surface finish, thickness, model views | M | Med | `Annotations.CreatePmiLinearDimensionBuilder`, `CreatePmiRadialDimensionBuilder`, `CreatePmiNoteBuilder`, `CreatePmiSurfaceFinishSymbolBuilder`, `CreatePmiThicknessDimensionBuilder` | High for MBD shops |

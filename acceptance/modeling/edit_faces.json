@@ -244,13 +244,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$a.data.bodies.0.id",
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       0,
       0,
@@ -258,7 +260,7 @@
      ],
      "tol": 0.0001
     },
-    "max": {
+    "data.max": {
      "close": [
       45,
       20,
@@ -375,10 +377,10 @@
    }
   },
   {
-   "call": "nx_model_health",
+   "call": "nx_check_model",
    "args": {},
    "expect": {
-    "healthy": true
+    "data.healthy": true
    }
   }
  ]

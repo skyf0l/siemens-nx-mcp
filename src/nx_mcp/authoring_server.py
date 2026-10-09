@@ -6,7 +6,6 @@ from typing import Any, Literal
 
 READ_ONLY = {
     "nx_list_expressions",
-    "nx_model_health",
 }
 NON_MODEL = {
     "nx_preview_change",
@@ -15,10 +14,6 @@ NON_MODEL = {
 
 def nx_list_expressions(name_contains: str | None = None, offset: int = 0, limit: int = 50):
     """Paginate work-part expressions, formulas, numeric values in expression units, editability and stored immediate dependencies. Names are case-sensitive. Non-numeric values are null. Conditional dependencies may be incomplete."""
-
-
-def nx_model_health(scope: Literal["part", "assembly"] = "part", offset: int = 0, limit: int = 50):
-    """Inspect native feature errors/warnings, suppression, unloaded prototype availability and UF body consistency. Assembly scope checks unique loaded unsuppressed prototypes. Does not force rebuild or certify design intent. Paginate issues; counts cover the whole query."""
 
 
 def nx_preview_change(operations: list[dict[str, Any]], capture: bool = True):

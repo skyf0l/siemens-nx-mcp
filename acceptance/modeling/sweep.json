@@ -161,13 +161,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$tube.data.bodies.0.id",
+    "bodies": [
+     "$tube.data.bodies.0.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       -5,
       9,
@@ -175,7 +177,7 @@
      ],
      "tol": 0.0001
     },
-    "max": {
+    "data.max": {
      "close": [
       45,
       11,

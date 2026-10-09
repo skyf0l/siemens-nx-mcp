@@ -40,8 +40,8 @@ async def validate(url, output):
         try:
             await call("nx_status")
             components = (await call("nx_list_components"))["components"]
-            await call("nx_get_bounding_box")
-            await call("nx_measure_volume")
+            await call("nx_measure_bounds")
+            await call("nx_measure_mass")
             if len(components) >= 2:
                 pair = {
                     "obj1": components[0]["object"]["id"],

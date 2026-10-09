@@ -24,7 +24,7 @@ async def test_guidance_examples_match_real_input_schemas(tmp_path):
         result = guidance(tool)
         assert result["native_evidence"]["status"] in {"tested", "experimental", "unavailable"}
     assert (
-        guidance(server._tool_manager.get_tool("nx_measure_volume"))["effects"][
+        guidance(server._tool_manager.get_tool("nx_list_topology"))["effects"][
             "geometry_or_assembly"
         ]
         is False

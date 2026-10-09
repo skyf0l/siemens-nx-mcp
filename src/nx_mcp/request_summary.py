@@ -25,7 +25,7 @@ def _number(value: Any) -> str:
 
 
 def humanize(method: str) -> str:
-    """nx_measure_volume -> Measure volume."""
+    """nx_list_topology -> List topology."""
     words = method.removeprefix("nx_").replace("_", " ").strip()
     return words[:1].upper() + words[1:] if words else method
 
@@ -147,11 +147,6 @@ class _Context:
     def sketch(self, value: Any) -> str:
         return f"sketch {self.obj(value)}" if value else "the active sketch"
 
-    def scope(self, body: Any, scope: Any = None) -> str:
-        if body:
-            return self.obj(body)
-        return "the whole assembly" if scope == "assembly" else "the work part"
-
     def key(self, value: Any) -> str:
         """Expression or parameter key: an ID by its name, a name as typed."""
         text = str(value)
@@ -172,14 +167,6 @@ class _Context:
         tail = _more(len(operations) - 1)
         text = self.describe(str(first.get("method", "")), first.get("params") or {})
         return head + _clip(text or "an unknown step", MAX_LENGTH - len(head) - len(tail)) + tail
-
-
-_CONTROL = {
-    "agent": "Take control of NX",
-    "manual": "Hand control of NX back to the engineer",
-    "ask": "Switch NX MCP to Ask me first",
-    "auto": "Switch NX MCP to Auto",
-}
 
 
 # --- Formatting details ---------------------------------------------------------
@@ -229,7 +216,6 @@ _ACTION_FIXED = {
 _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     # Files, parts and session
     "nx_capabilities": _capabilities,
-    "nx_ui_control": lambda p, c: _CONTROL.get(p.get("mode"), "Check who controls NX"),
     "nx_checkpoint": lambda p, c: f'Create undo checkpoint "{p.get("label", "checkpoint")}"',
     "nx_rename_object": lambda p, c: f'Rename {c.obj(p.get("object_id"))} to "{p.get("name")}"',
     "nx_batch": lambda p, c: (
@@ -250,13 +236,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     # Assemblies
     "nx_delete_explosion": lambda p, c: f"Delete explosion {c.obj(p.get('explosion'))}",
     # Measurements and inspections
-    "nx_measure_volume": lambda p, c: f"Measure volume of {c.scope(p.get('body'), p.get('scope'))}",
-    "nx_get_bounding_box": lambda p, c: (
-        f"Measure the bounding box of {c.scope(p.get('body'), p.get('scope'))}"
-    ),
-    "nx_model_health": lambda p, c: (
-        "Check model health" + (" of the assembly" if p.get("scope") == "assembly" else "")
-    ),
     "nx_list_topology": lambda p, c: (
         f"List faces and edges of {c.obj(p.get('face') or p.get('body'))}"
     ),

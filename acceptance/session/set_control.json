@@ -1,0 +1,66 @@
+{
+ "covers": {
+  "nx_set_control": ["status", "auto", "ask", "manual", "agent"]
+ },
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {
+   "call": "nx_set_control",
+   "args": {"mode": "status"},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.mode": "agent",
+    "data.mode_label": "Agent drives",
+    "data.owner": "agent",
+    "data.waiting": 0
+   }
+  },
+  {
+   "call": "nx_set_control",
+   "args": {"mode": "auto"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mode": "auto",
+    "data.owner": "engineer"
+   }
+  },
+  {
+   "call": "nx_set_control",
+   "args": {"mode": "ask"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mode": "ask",
+    "data.mode_label": "Ask me first",
+    "data.owner": "engineer"
+   }
+  },
+  {
+   "call": "nx_set_control",
+   "args": {"mode": "manual"},
+   "expect": {
+    "data.mode": "ask",
+    "data.owner": "engineer"
+   }
+  },
+  {
+   "call": "nx_set_control",
+   "args": {"mode": "agent"},
+   "intent": "Acceptance: ask for more control with nobody at the panel (expires after 60 s)",
+   "expect": {
+    "error.code": "NX_CONTROL_PAUSED",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_control",
+   "args": {"mode": "agent"},
+   "intent": "Acceptance: restore Agent drives once the engineer approves on the panel",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mode": "agent",
+    "data.owner": "agent"
+   }
+  }
+ ]
+}

@@ -19,7 +19,12 @@ from nx_mcp.workspace import Workspace
 
 CHARS_PER_TOKEN = 3.8
 AGENT_LISTING = 15_000
-FULL_CATALOGUE = 110_000
+# Full profile cap (tool-surface 2.2): 152 tools at about 750 characters each (the large
+# union schemas of patterns, holes and sheet metal lift the mean above the 700 median)
+# plus the 87-character call keys (operation_id, intent) on about 111 changing tools.
+# The earlier 110,000 left the call keys out. The full profile is opt-in, for clients
+# that index tools and load schemas on demand; the default agent profile keeps 15,000.
+FULL_CATALOGUE = 125_000
 LEGACY_TODAY = 218_951  # tool-surface 2.2: the legacy full listing before F3
 FIND_PAGE = 1_400
 SCHEMA_PER_TOOL = 900

@@ -43,9 +43,11 @@
   "intent": "40x20x10 block, volume 8000"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v0",
   "mutation": false,
@@ -298,9 +300,11 @@
   "save": "pt"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v_datums",
   "mutation": false,
@@ -368,9 +372,11 @@
   "save": "boss_ext"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v1",
   "mutation": false,
@@ -416,9 +422,11 @@
   "save": "post_ext"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v2",
   "mutation": false,
@@ -466,9 +474,11 @@
   "save": "xdir_ext"
  },
  {
-  "tool": "nx_get_bounding_box",
+  "tool": "nx_measure_bounds",
   "args": {
-   "body": "$xdir_ext.body.id",
+   "bodies": [
+    "$xdir_ext.body.id"
+   ],
    "precision": "exact"
   },
   "save": "bb_x",
@@ -537,9 +547,11 @@
   "save": "seed_ext"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v3",
   "mutation": false,
@@ -559,9 +571,11 @@
   "intent": "6 x 60 deg about datum axis"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v4",
   "mutation": false,
@@ -629,9 +643,11 @@
   "save": "hole_ext"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v5",
   "mutation": false,
@@ -660,16 +676,18 @@
   "intent": "6 x 60 deg about explicit axis"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {
-   "body": "$ext.body.id"
+   "bodies": [
+    "$ext.body.id"
+   ]
   },
   "save": "v6",
   "mutation": false,
   "intent": "expect v5 - 5*pi*4 = 8424.1150"
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {},
   "save": "total_before",
   "mutation": false,
@@ -736,7 +754,7 @@
   "expect_error": true
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {},
   "save": "total_after",
   "mutation": false,
@@ -784,14 +802,14 @@
   }
  },
  {
-  "tool": "nx_measure_volume",
+  "tool": "nx_measure_mass",
   "args": {},
   "save": "total_final",
   "intent": "unchanged: 8445.3208",
   "mutation": false
  },
  {
-  "tool": "nx_model_health",
+  "tool": "nx_check_model",
   "args": {},
   "save": "health",
   "mutation": false

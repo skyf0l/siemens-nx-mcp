@@ -62,8 +62,6 @@ READ_ONLY = {
     "nx_list_sketches",
     "nx_list_features",
     "nx_list_bodies",
-    "nx_get_bounding_box",
-    "nx_measure_volume",
     "nx_list_topology",
     "nx_checkpoint_state",
     "nx_capabilities",
@@ -151,7 +149,6 @@ class HardenedExecutor(
                 "nx_list_datums": self._list_datums,
                 "nx_delete_explosion": self._delete_explosion,
                 "nx_list_expressions": self._list_expressions,
-                "nx_model_health": self._model_health,
                 "nx_preview_change": self._preview_change,
                 "nx_finish_preview": self._finish_preview,
                 "nx_checkpoint": self._checkpoint,
@@ -866,11 +863,6 @@ class HardenedExecutor(
                 "sketch_XZ_normal": [0, -1, 0],
             },
         )
-        if self.session.IsBatch:
-            for name in ("nx_ui_control",):
-                manifest["tools"][name].update(
-                    status="unavailable", scope="Requires the interactive NX host"
-                )
         scope_to_version(manifest, self.nx_version)
         if tool is not None and prefix is not None:
             raise NXToolError("NX_INVALID_ARGUMENT", "Use tool or prefix, not both")

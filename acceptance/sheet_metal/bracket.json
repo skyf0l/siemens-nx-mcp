@@ -100,13 +100,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$tab.data.body.id",
+    "bodies": [
+     "$tab.data.body.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       0,
       0,
@@ -114,7 +116,7 @@
      ],
      "tol": 1e-06
     },
-    "max": {
+    "data.max": {
      "close": [
       100,
       80,
@@ -174,13 +176,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$tab.data.body.id",
+    "bodies": [
+     "$tab.data.body.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       0,
       0,
@@ -188,7 +192,7 @@
      ],
      "tol": 1e-06
     },
-    "max": {
+    "data.max": {
      "close": [
       100,
       80,

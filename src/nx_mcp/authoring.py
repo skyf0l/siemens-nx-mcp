@@ -231,7 +231,7 @@ class AuthoringMixin:
                                 self._consistency_fault(owner, code, tag)
                                 for code, tag in zip(codes, tags, strict=False)
                             ],
-                            "repair_guidance": "Inspect the identified native entities. Self-intersection requires repairing or replacing the source face; nx_edit_faces heal is an explicit local edit, not a guaranteed body repair. Re-run nx_model_health after any repair and compare bounds/volume before acceptance.",
+                            "repair_guidance": "Inspect the identified native entities. Self-intersection requires repairing or replacing the source face; nx_edit_faces heal is an explicit local edit, not a guaranteed body repair. Re-run nx_check_model after any repair and compare bounds/volume before acceptance.",
                             "fault_codes": list(codes),
                             "native_fault_tags": [int(t) for t in tags],
                         }

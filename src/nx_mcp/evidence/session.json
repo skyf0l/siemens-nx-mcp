@@ -8,5 +8,21 @@
       "source_sha256": "9f9cab4235b4303e7ceb11971d1861a8e08e2a7ce288ac40716951eb17a396dd",
       "variants": []
     }
+  },
+  "nx_set_control": {
+    "v2406": {
+      "checks": 19,
+      "recorded": "2026-10-09T15:31:22Z",
+      "scenario": "acceptance/session/set_control.json",
+      "scenario_sha256": "04653bcb77af0e003384e160efd71c9bf9b201789e36eeefb7021381db44e448",
+      "source_sha256": "33fb6329096dde0fb6b8d875038a8a8d94fdfe4caa59751e44fb1c7cb04f3d41",
+      "variants": [
+        "agent",
+        "ask",
+        "auto",
+        "manual",
+        "status"
+      ]
+    }
   }
 }

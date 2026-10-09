@@ -158,12 +158,14 @@
    }
   },
   {
-   "call": "nx_measure_volume",
+   "call": "nx_measure_mass",
    "args": {
-    "body": "$blk.data.bodies.0.id"
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
    },
    "expect": {
-    "volume_mm3": {
+    "data.volume": {
      "close": 8000,
      "tol": 0.001
     }
@@ -182,12 +184,14 @@
    }
   },
   {
-   "call": "nx_measure_volume",
+   "call": "nx_measure_mass",
    "args": {
-    "body": "$blk.data.bodies.0.id"
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
    },
    "expect": {
-    "volume_mm3": {
+    "data.volume": {
      "close": 8392.699081698724,
      "tol": 0.001
     }
@@ -204,22 +208,24 @@
    }
   },
   {
-   "call": "nx_measure_volume",
+   "call": "nx_measure_mass",
    "args": {
-    "body": "$blk.data.bodies.0.id"
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
    },
    "expect": {
-    "volume_mm3": {
+    "data.volume": {
      "close": 8386.258351720988,
      "tol": 0.0001
     }
    }
   },
   {
-   "call": "nx_model_health",
+   "call": "nx_check_model",
    "args": {},
    "expect": {
-    "healthy": true
+    "data.healthy": true
    }
   }
  ]

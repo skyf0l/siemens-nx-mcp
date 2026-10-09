@@ -117,13 +117,15 @@
    "save": "cf"
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$cf.data.body.id",
+    "bodies": [
+     "$cf.data.body.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       0,
       -40,
@@ -131,7 +133,7 @@
      ],
      "tol": 1e-06
     },
-    "max": {
+    "data.max": {
      "close": [
       32,
       0,
@@ -271,13 +273,15 @@
    }
   },
   {
-   "call": "nx_get_bounding_box",
+   "call": "nx_measure_bounds",
    "args": {
-    "body": "$tab.data.body.id",
+    "bodies": [
+     "$tab.data.body.id"
+    ],
     "precision": "exact"
    },
    "expect": {
-    "min": {
+    "data.min": {
      "close": [
       100,
       0,
@@ -285,7 +289,7 @@
      ],
      "tol": 1e-06
     },
-    "max": {
+    "data.max": {
      "close": [
       200,
       80,

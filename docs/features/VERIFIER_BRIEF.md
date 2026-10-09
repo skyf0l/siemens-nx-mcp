@@ -23,7 +23,7 @@ command and release it after each session (sessions under ~15 minutes).
    part, stale IDs) check the result numerically (volumes, bounding boxes,
    read-back geometry, dimension values, nx_list_* inventories). Confirm that
    rejected calls leave the model unchanged (volume, feature list,
-   nx_model_health) and return a stable error code. Check that the NX panel
+   nx_check_model) and return a stable error code. Check that the NX panel
    summary for the tool reads correctly (`from nx_mcp.request_summary import summarize`).
 4. Verdict per tool: PASS (with your evidence numbers) or FAIL (exact repro).
 

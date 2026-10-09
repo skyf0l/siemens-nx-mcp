@@ -65,7 +65,7 @@ The release includes native-probe, public-MCP and local-test evidence separately
 
 ### Health and local editing
 
-`nx_model_health` reports native feature errors/warnings, suppression, unavailable prototypes and UF body-consistency faults. Assembly scope checks unique loaded unsuppressed prototypes. A sheet body is informational rather than automatically invalid. `healthy` only describes the listed checks; no design-intent, manufacturing, solver-conflict or unloaded-file certification is implied. `nx_rebuild_model` runs native DoUpdate for pending updates; it does not force every current feature to regenerate.
+`nx_check_model` reports native feature errors/warnings, suppression, unavailable prototypes and UF body-consistency faults. Assembly scope checks unique loaded unsuppressed prototypes. `healthy` only describes the listed checks; no design-intent, manufacturing, solver-conflict or unloaded-file certification is implied. `nx_rebuild_model` runs native DoUpdate for pending updates; it does not force every current feature to regenerate.
 
 `nx_edit_sketch` reopens an existing sketch, preflights ownership and operation structure, and applies up to 100 edits under one rollback mark. It preserves the prior active/inactive state and returns whole-sketch diagnostics. It supports line endpoints, arc center/radius/angles, adding lines, deleting owned curves/constraints, and adding fixed/horizontal/vertical constraints. Points are local `[x,y]`; arc angles are degrees. Another active sketch is rejected. Constraints are never silently removed to permit an edit. Edit a dimensional constraint through the associated expression reported by diagnostics; more constraint types remain future work.
 
@@ -243,7 +243,7 @@ mocked failure injection is not evidence of native transport interruption.
 5. Call `nx_sheet_metal_feature(operation, parameters, feature?)`. References must
    belong to the work part. A feature ID requests an edit. Unknown fields are errors.
 6. Inspect actual thickness and bend data with `nx_sheet_metal_info`, and check
-   native feature/body consistency with `nx_model_health`.
+   native feature/body consistency with `nx_check_model`.
 7. Create a `flat_pattern` feature; export it with `nx_export_flat_pattern` or place
    its native named view on a drawing with `nx_add_flat_pattern_view`.
 
@@ -487,7 +487,7 @@ Midpoint is explicitly unsupported. The input schema publishes the supported enu
 
 ## Manufacturing imports, drawings and planar export
 
-`nx_import_geometry(target="new_part", output_path="vendor/model.prt")` creates a millimeter part without requiring an existing work part. It uses installed STEP import settings (`step214ug.def`), preserves source bytes in an operation-specific staging directory and reports settings, output paths and translator log excerpts. Failed new-part imports close their newly created parts and restore the previous work/display selection. Retained diagnostic files are separate from model rollback. Translation success alone does not establish geometry health: run `nx_model_health`. Faults include decoded messages and typed face/edge/body references when resolvable. Self-intersecting vendor faces may require supplier repair; `nx_edit_faces(action="heal")` is not a general STEP repair guarantee.
+`nx_import_geometry(target="new_part", output_path="vendor/model.prt")` creates a millimeter part without requiring an existing work part. It uses installed STEP import settings (`step214ug.def`), preserves source bytes in an operation-specific staging directory and reports settings, output paths and translator log excerpts. Failed new-part imports close their newly created parts and restore the previous work/display selection. Retained diagnostic files are separate from model rollback. Translation success alone does not establish geometry health: run `nx_check_model`. Faults include decoded messages and typed face/edge/body references when resolvable. Self-intersecting vendor faces may require supplier repair; `nx_edit_faces(action="heal")` is not a general STEP repair guarantee.
 
 Drawing creation assigns and verifies the sheet scale. New body and assembly base views use it explicitly. `nx_edit_drawing_view(style=...)` controls hidden/visible fonts and widths, smooth/tangent edges, and wireframe/partial/full shading. Fonts 1..7 are solid, dashed, phantom, centerline, dotted, long dashed and dotted dashed. Widths are `thin`, `normal`, `thick` or native numbered widths `"1"`..`"9"`. New base views distinguish dashed hidden edges from solid visible edges. Centerline visibility remains read-only because the exercised NX v2606 setter did not persist; unsupported edits are rejected.
 

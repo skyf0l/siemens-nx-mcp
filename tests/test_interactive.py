@@ -136,7 +136,7 @@ async def test_interactive_transport_services_health_during_blocked_request():
         client = BridgeClient("127.0.0.1", server.port, token="test", timeout=2)
         running = asyncio.create_task(client.call("work", {}))
         assert await asyncio.to_thread(entered.wait, 1)
-        status = await asyncio.wait_for(client.call("nx_ui_control", {}), 1)
+        status = await asyncio.wait_for(client.call("nx_set_control", {}), 1)
         assert status["snapshot_only"] and not running.done()
         release.set()
         assert (await running)["done"]

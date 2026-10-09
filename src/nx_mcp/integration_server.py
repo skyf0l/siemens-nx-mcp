@@ -41,19 +41,7 @@ def nx_delete_feature(name: str):
     """Delete a feature."""
 
 
-def nx_ui_control(mode: Literal["status", "auto", "agent", "ask", "manual"] = "status"):
-    pass
-
-
 # Signature-only definitions are used to publish the actual bridge arguments.
-def nx_get_bounding_box(
-    body: str | None = None,
-    scope: Literal["auto", "part", "assembly"] = "auto",
-    precision: Literal["conservative", "exact"] = "conservative",
-):
-    pass
-
-
 def nx_checkpoint(label: str = "checkpoint"):
     pass
 
@@ -78,10 +66,6 @@ def nx_list_topology(
     body: str, face: str | None = None, include_adjacency: bool = False, compact: bool = False
 ):
     pass
-
-
-def nx_measure_volume(body: str | None = None, scope: Literal["auto", "part", "assembly"] = "auto"):
-    """Measure the volume of a body or all bodies."""
 
 
 def nx_read_result(
@@ -121,8 +105,6 @@ def nx_workspace_info():
 DESCRIPTIONS = {
     "nx_workspace_info": "Discover the NX host workspace root and path rules. Paths refer to the NX machine, not the MCP client's filesystem. No session-wide current directory is changed.",
     "nx_delete_feature": "Delete a work-part feature by typed ID or unambiguous name using native update/undo. Dependent geometry may be deleted; inspect changes.deleted and reacquire topology afterward.",
-    "nx_ui_control": "Read the NX MCP panel mode and UI activity without queueing behind native work, or change the mode. auto: the engineer works in NX; your steps run between their commands (waiting up to 2 min while they are busy, then NX_UI_BUSY: retry later; long steps ask first). agent: NX stays locked for you. ask (= manual): each step waits for the engineer's OK. Lowering your control is immediate; asking for more waits up to 60 s for the engineer (NX_UI_DECLINED: ask in chat). Engineer edits between steps invalidate references/checkpoints.",
-    "nx_get_bounding_box": "Native UF bounds; precision selects conservative or exact (exact requires axis-aligned WCS). auto includes recursive assembly geometry when present; part includes directly owned bodies; assembly includes both. Coordinates and units are work-part absolute.",
     "nx_checkpoint": "Create an in-session model undo checkpoint. NX v2606 saves expire native marks; create a new checkpoint after save. Restart/close also invalidates checkpoints.",
     "nx_checkpoint_state": "Inspect available checkpoint IDs and retained model-operation history. Read-only calls retain marks. Native NX save can expire them; availability is checked against NX.",
     "nx_rollback": "Rollback to an in-session checkpoint. Rejects rollback across mutations to unrelated parts. Reacquire object IDs afterward; save explicitly to persist.",
@@ -136,13 +118,10 @@ DESCRIPTIONS = {
 
 READ_ONLY = {
     "nx_list_datums",
-    "nx_ui_control",
     "nx_status",
     "nx_list_sketches",
     "nx_list_features",
     "nx_list_bodies",
-    "nx_get_bounding_box",
-    "nx_measure_volume",
     "nx_list_topology",
     "nx_checkpoint_state",
     "nx_capabilities",
@@ -358,7 +337,7 @@ def configure(mcp, bridge, workspace):
             description=description,
             structured_output=False,
             annotations=ToolAnnotations(
-                readOnlyHint=name in READ_ONLY and name != "nx_ui_control",
+                readOnlyHint=name in READ_ONLY,
                 idempotentHint=name in READ_ONLY,
             ),
         )
