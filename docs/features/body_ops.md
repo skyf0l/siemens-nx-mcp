@@ -61,8 +61,13 @@ from the acceptance run.
 - **API:** `EdgeBlendBuilder.AddChainset` followed by
   `AddVariableRadiusDataNew(edge, "<percent>", "<radius>", point, False, False)`.
   The point is created with `PointOnCurveLocationOption.PercentArcLength`.
-- **Limits:** the radius at each point is not read back individually. Curved
-  edges were not tested.
+- **Independent verification:** radii 1→3 on a 40 mm edge removed 37.200,
+  which equals the linear-radius value. On a closed R10 circle edge, p=0 r=1
+  and p=0.5 r=2 removed 30.827, with p=0.5 placed diametrically opposite.
+- **Limits:** the radius at each point is not read back individually. On a
+  closed edge p=0 and p=1 are the same point; using both fails with NX 670075.
+  A radius too large for the adjacent faces fails with NX 3620008. The model
+  is unchanged after either failure.
 
 ## nx_mirror_body_about(body, plane, keep_original=True)
 - **Purpose:** native Mirror Body about a datum plane ID (associative) or a planar

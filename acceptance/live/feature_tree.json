@@ -292,5 +292,102 @@
   "save": "v_end",
   "mutation": false,
   "intent": "after the rolled-back reject: expect 50901.571 (all IDs of the part are stale after a rollback)"
+ },
+ {
+  "tool": "nx_suppress_features",
+  "args": {
+   "features": [
+    "$tl2.objects.3.id"
+   ],
+   "suppress": true
+  },
+  "save": "sroot",
+  "intent": "suppress the root block: every feature built on it is suppressed; no bodies remain"
+ },
+ {
+  "tool": "nx_suppress_features",
+  "args": {
+   "features": [
+    "$tl2.objects.3.id"
+   ],
+   "suppress": false
+  },
+  "save": "uroot",
+  "intent": "unsuppress root only: still_suppressed_dependents = EXTRUDE(4), BLEND(5), CYLINDER(6) via GetParents"
+ },
+ {
+  "tool": "nx_measure_volume",
+  "args": {},
+  "mutation": false,
+  "intent": "expect 48000 (block only)"
+ },
+ {
+  "tool": "nx_suppress_features",
+  "args": {
+   "features": [
+    "$tl2.objects.6.id",
+    "$tl2.objects.7.id",
+    "$tl2.objects.8.id"
+   ],
+   "suppress": false
+  },
+  "intent": "restore the dependents; still_suppressed_dependents empty"
+ },
+ {
+  "tool": "nx_measure_volume",
+  "args": {},
+  "mutation": false,
+  "intent": "expect 50901.571"
+ },
+ {
+  "tool": "nx_reorder_feature",
+  "args": {
+   "feature": "$tl2.objects.3.id",
+   "target": "$tl2.objects.6.id",
+   "position": "after"
+  },
+  "expect_error": true,
+  "intent": "block after the boss united into it: NX_REORDER_DEPENDENCY (child), not native 670529"
+ },
+ {
+  "tool": "nx_list_features",
+  "args": {},
+  "save": "tl3",
+  "mutation": false
+ },
+ {
+  "tool": "nx_make_current_feature",
+  "args": {
+   "feature": "$tl3.objects.3.id"
+  },
+  "intent": "roll back to the block"
+ },
+ {
+  "tool": "nx_suppress_features",
+  "args": {
+   "features": [
+    "$tl3.objects.8.id"
+   ],
+   "suppress": true
+  },
+  "expect_error": true,
+  "intent": "inactive cylinder: NX_INVALID_ARGUMENT (NX would flag it but still cut the hole)"
+ },
+ {
+  "tool": "nx_make_current_feature",
+  "args": {},
+  "intent": "all active again (no ID needed)"
+ },
+ {
+  "tool": "nx_measure_volume",
+  "args": {},
+  "mutation": false,
+  "intent": "expect 50901.571, nothing suppressed"
+ },
+ {
+  "tool": "nx_model_health",
+  "args": {},
+  "mutation": false,
+  "intent": "healthy"
  }
 ]
