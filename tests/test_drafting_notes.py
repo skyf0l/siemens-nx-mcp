@@ -200,3 +200,15 @@ def test_annotation_inventory_includes_drafting_symbols(rig):
     )
     tags = {int(a.Tag) for a in rig.e._documentation_annotations(part)}
     assert tags == {1, 101, 102, 201, 301}
+
+
+def test_center_mark_true_shape_check():
+    # Regression: a center mark was created on a hole circle seen edge-on in a side view.
+    from nx_mcp.drafting_notes import arc_plane_normal, seen_true_shape
+
+    center = [30.0, 25.0, 20.0]
+    points = [[40.0, 25.0, 20.0], [25.0, 33.66, 20.0], [25.0, 16.34, 20.0]]
+    normal = arc_plane_normal(center, points)
+    assert seen_true_shape(normal, [0.0, 0.0, 1.0])
+    assert not seen_true_shape(normal, [0.0, 1.0, 0.0])
+    assert arc_plane_normal(center, [[40.0, 25.0, 20.0], [20.0, 25.0, 20.0]]) is None

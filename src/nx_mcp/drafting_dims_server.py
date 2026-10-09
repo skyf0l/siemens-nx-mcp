@@ -43,7 +43,7 @@ def nx_add_radial_dimension(
     kind: Literal["radius", "diameter"] = "radius",
     origin: Point2 | None = None,
 ):
-    """Create a native associative radius (R) or diameter (Ø) dimension on a circular or arc edge shown in a drawing view. view is a drawing-view ID; edge is an owned (or work-assembly occurrence) circular edge ID, e.g. from nx_find_geometry(kind="edge", geometry_type="circle"). origin=[x,y] places the dimension text in sheet units (default: up-right of the arc center at 45 degrees, about 12 mm (drawing scale 1) outside the arc). Returns the dimension ID, NX's computed value in model units (radius or diameter), the edge's model radius and the placement; the value is verified against the edge geometry."""
+    """Create a native associative radius (R) or diameter (Ø) dimension on a circular or arc edge shown in a drawing view. view is a drawing-view ID; edge is an owned (or work-assembly occurrence) circular edge ID, e.g. from nx_find_geometry(kind="edge", geometry_type="circle"), seen true-shape in the view (the view looks along the arc's axis; otherwise NX_UNSUPPORTED_ARGUMENT). origin=[x,y] places the dimension text in sheet units (default: up-right of the arc center at 45 degrees, about 12 mm (drawing scale 1) outside the arc). Returns the dimension ID, NX's computed value in model units (radius or diameter), the edge's model radius and the placement; the value is verified against the edge geometry."""
 
 
 def nx_add_angular_dimension(
@@ -64,7 +64,7 @@ def nx_add_ordinate_dimensions(
     object_snap: Literal["auto", "start", "end", "center"] = "auto",
     margin: float | None = None,
 ):
-    """Create native associative ordinate dimensions in a drawing view, all measured from one new ordinate origin (datum) along the view's horizontal or vertical axis. origin_object is an edge ID; origin_snap picks its start/end vertex or its arc center as the datum point. objects are 1-50 unique edge IDs; object_snap auto measures circular edges at their center and other edges at their start vertex (or force start/end/center). The dimensions sit on one ordinate margin line: for horizontal ordinates margin is the line's sheet y (default 15 sheet units above the view border), for vertical ordinates its sheet x (default 15 left of the view). Returns the ordinate origin ID, the margin and, per object, the dimension ID, snap, model point and NX's computed ordinate (model units, unsigned) verified against the model geometry."""
+    """Create native associative ordinate dimensions in a drawing view, all measured from one new ordinate origin (datum) along the view's horizontal or vertical axis. origin_object is an edge ID; origin_snap picks its start/end vertex or its arc center as the datum point (a full circle has no end vertices: use center). objects are 1-50 unique edge IDs; object_snap auto measures circular edges at their center and other edges at their start vertex (or force start/end/center; start/end are rejected on full circles). The dimensions sit on one ordinate margin line: for horizontal ordinates margin is the line's sheet y in sheet units (default 15 mm above the view border), for vertical ordinates its sheet x (default 15 mm left of the view). Returns the ordinate origin ID, the margin and, per object, the dimension ID, snap, model point and NX's computed ordinate (model units, unsigned) verified against the model geometry."""
 
 
 def nx_create_drawing_sheet(

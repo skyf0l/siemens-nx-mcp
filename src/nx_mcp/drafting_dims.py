@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 
 from nx_mcp.runtime import NXToolError
+from nx_mcp.workspace import WorkspaceViolation
 
 SHEET_SIZES = {
     "A0": (1189.0, 841.0),
@@ -28,7 +29,10 @@ SHEET_SIZES = {
 PROJECTIONS = {"first_angle": "First", "third_angle": "Third"}
 MAX_ORDINATES = 50
 ANGLE_TOL_DEG = 1e-3
-MARGIN_GAP = 15.0  # Sheet units between the view border and a default ordinate margin.
+TRUE_SHAPE_TOL_DEG = 0.01  # Max tilt of an arc plane against the drawing plane.
+MARGIN_GAP_MM = 15.0  # Between the view border and a default ordinate margin.
+RADIAL_GAP_MM = 12.0  # Default radial text distance outside the arc.
+ANGULAR_OFFSET_MM = 10.0  # Default angular text offset from the edges' mid-point.
 
 
 # ---- pure helpers (unit tested) ---------------------------------------------
@@ -100,13 +104,57 @@ def template_candidates(template, base_dir):
     return [root / name]
 
 
-def ordinate_snap(kind, snap, label):
+def default_radial_origin(center, sheet_radius, mm):
+    """Up-right of the arc center at 45 degrees, RADIAL_GAP_MM outside the arc (sheet units)."""
+    reach = (sheet_radius + RADIAL_GAP_MM * mm) * math.sqrt(0.5)
+    return [center[0] + reach, center[1] + reach]
+
+
+def default_ordinate_margin(bounds, horizontal, mm):
+    """Margin line (sheet units) MARGIN_GAP_MM above / left of view borders [x0, y0, x1, y1]."""
+    gap = MARGIN_GAP_MM * mm
+    return bounds[3] + gap if horizontal else bounds[0] - gap
+
+
+def is_unit_transfer_error(error):
+    """NX refuses to copy template objects into a part with other base units."""
+    return "units are different" in str(error)
+
+
+def ordinate_snap(kind, snap, label, closed=False):
     """Resolve auto snap and validate it for a curve kind ("line", "arc", "other")."""
     if snap == "auto":
         snap = "center" if kind == "arc" else "start"
     if snap == "center" and kind != "arc":
         raise NXToolError("NX_OBJECT_TYPE_MISMATCH", f"{label}: center needs a circular edge")
+    if closed and snap in {"start", "end"}:
+        # NX measures a closed circle at its center whatever end point is requested.
+        raise NXToolError(
+            "NX_OBJECT_TYPE_MISMATCH",
+            f"{label}: a full circle has no end vertices; use center (or auto)",
+        )
     return snap
+
+
+def arc_plane_normal(center, points):
+    """Unit normal of an arc's plane from points on it; None if they are degenerate."""
+    vectors = [[p[i] - center[i] for i in range(3)] for p in points]
+    best = (0.0, None)
+    for i, a in enumerate(vectors):
+        for b in vectors[i + 1 :]:
+            c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+            norm = math.sqrt(sum(x * x for x in c))
+            if norm > best[0]:
+                best = (norm, c)
+    if best[1] is None or best[0] <= 1e-12:
+        return None
+    return [x / best[0] for x in best[1]]
+
+
+def seen_true_shape(normal, view_z, tol_deg=TRUE_SHAPE_TOL_DEG):
+    """True if a plane with this normal is parallel to the drawing plane of the view."""
+    dot = abs(sum(a * b for a, b in zip(normal, view_z, strict=True)))
+    return math.degrees(math.acos(min(1.0, dot))) <= tol_deg
 
 
 # ---- NX-side mixin --------------------------------------------------------------
@@ -133,18 +181,35 @@ class DraftingDimsMixin:
             facts["kind"] = "line"
         elif uf.Eval.IsArc(evaluator):
             arc = uf.Eval.AskArc(evaluator)
+            radius = float(arc.Radius)
             facts.update(
                 kind="arc",
                 center=[float(v) for v in arc.Center],
-                radius=float(arc.Radius),
+                radius=radius,
                 x_axis=[float(v) for v in arc.XAxis],
+                samples=[
+                    [float(v) for v in uf.Eval.EvaluateUnitVectors(evaluator, t)[0]]
+                    for t in (
+                        limits[0] + (limits[1] - limits[0]) / 3.0,
+                        limits[0] + 2.0 * (limits[1] - limits[0]) / 3.0,
+                    )
+                ],
+                closed=math.dist(start, end) <= 1e-6 * max(1.0, radius),
             )
         return facts
 
     def _dd_to_sheet(self, view, point):
-        """Model point -> native drawing coordinates (part units) in a drawing view."""
+        """Model point -> drawing-sheet coordinates (sheet units) in a drawing view.
+
+        UF_VIEW_map_model_to_drawing (like UF_DRAW_ask_view_borders) answers in the
+        sheet's units; NXOpen origins and UF_DRF placement points take part units.
+        """
         mapped = self._dd_uf().View.MapModelToDrawing(view.Tag, [float(v) for v in point])
         return [float(mapped[0]), float(mapped[1])]
+
+    def _dd_mm(self, sheet):
+        """Sheet units per millimetre."""
+        return 1.0 / 25.4 if self._sheet_units(sheet) == "in" else 1.0
 
     def _dd_sheet_factor(self, sheet):
         """Sheet units per native drawing (part) unit."""
@@ -154,7 +219,7 @@ class DraftingDimsMixin:
 
     def _dd_view_axes(self, view):
         m = view.Matrix
-        return [m.Xx, m.Xy, m.Xz], [m.Yx, m.Yy, m.Yz]
+        return [m.Xx, m.Xy, m.Xz], [m.Yx, m.Yy, m.Yz], [m.Zx, m.Zy, m.Zz]
 
     def _dd_dimension_result(self, result, drawing_view, view, point, **extra):
         sheet = self._view_sheet(drawing_view)
@@ -180,13 +245,19 @@ class DraftingDimsMixin:
         if curve["kind"] != "arc":
             raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "edge must be a circular edge or arc")
         center, radius = curve["center"], curve["radius"]
+        normal = arc_plane_normal(center, [curve["start"], *curve["samples"]])
+        if normal is None or not seen_true_shape(normal, self._dd_view_axes(drawing_view)[2]):
+            raise NXToolError(
+                "NX_UNSUPPORTED_ARGUMENT",
+                "The arc is not seen true-shape in this view (its plane is not parallel to the "
+                "drawing plane); use a view that looks along the arc's axis",
+            )
         on_arc = [c + radius * a for c, a in zip(center, curve["x_axis"], strict=True)]
         sheet = self._view_sheet(drawing_view)
         if point is None:
-            factor = self._dd_sheet_factor(sheet)
             c2 = self._dd_to_sheet(drawing_view, center)
-            reach = (math.dist(c2, self._dd_to_sheet(drawing_view, on_arc)) + 12.0) * math.sqrt(0.5)
-            point = [(c2[0] + reach) * factor, (c2[1] + reach) * factor]
+            sheet_radius = math.dist(c2, self._dd_to_sheet(drawing_view, on_arc))
+            point = default_radial_origin(c2, sheet_radius, self._dd_mm(sheet))
         builder = self._work_part().Dimensions.CreateRadialDimensionBuilder(None)
         try:
             methods = builder.Measurement.MeasurementMethod
@@ -253,9 +324,9 @@ class DraftingDimsMixin:
             raise NXToolError("NX_INVALID_ARGUMENT", "The edges are parallel in this view")
         sheet = self._view_sheet(drawing_view)
         if point is None:
-            factor = self._dd_sheet_factor(sheet)
+            offset = ANGULAR_OFFSET_MM * self._dd_mm(sheet)
             mids = [[(p[i] + q[i]) / 2.0 for i in range(2)] for p, q in flat]
-            point = [((mids[0][i] + mids[1][i]) / 2.0 + 10.0) * factor for i in range(2)]
+            point = [(mids[0][i] + mids[1][i]) / 2.0 + offset for i in range(2)]
         mids3 = [[(u + v) / 2.0 for u, v in zip(c["start"], c["end"], strict=True)] for c in curves]
         builder = self._work_part().Dimensions.CreateAngularDimensionBuilder(None)
         try:
@@ -293,7 +364,7 @@ class DraftingDimsMixin:
     def _dd_ordinate_target(self, ref, snap, label):
         edge = self._drawing_dimension_edge(ref)
         curve = self._dd_curve(edge)
-        snap = ordinate_snap(curve["kind"], snap, label)
+        snap = ordinate_snap(curve["kind"], snap, label, curve.get("closed", False))
         if snap == "center":
             return edge, snap, curve["center"], ("ARC_CENTER", 0)
         return edge, snap, curve[snap], ("END_POINT", 1 if snap == "start" else 2)
@@ -345,14 +416,13 @@ class DraftingDimsMixin:
         ]
         horizontal = direction == "horizontal"
         axis = self._dd_view_axes(drawing_view)[0 if horizontal else 1]
-        origin_at = self._dd_to_sheet(drawing_view, origin_xyz)
         uf = self._dd_uf()
         if margin is None:  # Above the view for horizontal, left of it for vertical ordinates.
-            bounds = [float(v) for v in uf.Draw.AskViewBorders(drawing_view.Tag)]
-            gap = MARGIN_GAP / factor
-            line = bounds[3] + gap if horizontal else bounds[0] - gap
-        else:
-            line = margin / factor
+            bounds = [float(v) for v in uf.Draw.AskViewBorders(drawing_view.Tag)]  # Sheet units.
+            margin = default_ordinate_margin(bounds, horizontal, self._dd_mm(sheet))
+        # UF_DRF placement points are in part units; the mapped points are in sheet units.
+        line = margin / factor
+        origin_at = [v / factor for v in self._dd_to_sheet(drawing_view, origin_xyz)]
         import NXOpen.UF as U
 
         origin_tag = uf.Drf.CreateOrdorigin(
@@ -370,7 +440,7 @@ class DraftingDimsMixin:
         part = self._work_part()
         results = []
         for ref, edge, snap, xyz, assoc in targets:
-            at = self._dd_to_sheet(drawing_view, xyz)
+            at = [v / factor for v in self._dd_to_sheet(drawing_view, xyz)]
             tag = uf.Drf.CreateOrddimension(
                 margin_tag,
                 1 if horizontal else 2,
@@ -412,7 +482,7 @@ class DraftingDimsMixin:
             "direction": direction,
             "measurement_axis": axis,
             "view": view,
-            "margin": line * factor,
+            "margin": margin,
             "dimensions": results,
             "count": len(results),
             "units": self._units(),
@@ -424,7 +494,10 @@ class DraftingDimsMixin:
     def _dd_template_path(self, template):
         text = template.strip()
         if "/" in text or "\\" in text:
-            path = self.workspace.ensure_inside(text)
+            try:  # Workspace-relative (or absolute inside the workspace), like other file tools.
+                path = self.workspace.resolve(text)
+            except WorkspaceViolation as error:
+                raise NXToolError("NX_PATH_OUTSIDE_WORKSPACE", str(error)) from None
             if path.suffix.lower() != ".prt" or not path.is_file():
                 raise NXToolError("NX_FILE_NOT_FOUND", f"Template part not found: {text}")
             return path
@@ -489,7 +562,18 @@ class DraftingDimsMixin:
             b.ScaleNumerator = scale
             b.ScaleDenominator = 1.0
             b.ProjectionAngle = getattr(b.SheetProjectionAngle, PROJECTIONS[projection])
-            b.Commit()
+            try:
+                b.Commit()
+            except Exception as error:
+                if template_path is None or not is_unit_transfer_error(error):
+                    raise
+                raise NXToolError(
+                    "NX_UNSUPPORTED_ARGUMENT",
+                    "The template part's units differ from the work part's: use a metric "
+                    "template (e.g. A0-A4) in a mm part and an inch template (e.g. "
+                    "Drawing-B-Size2D-template) in an inch part",
+                    nx_code=getattr(error, "ErrorCode", None),
+                ) from None
         finally:
             b.Destroy()
         created = [s for s in part.DrawingSheets if int(s.Tag) not in before]

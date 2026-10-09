@@ -4,6 +4,7 @@ Native behaviour is validated live on NX 2406 (acceptance/live/drafting_dims.jso
 these tests cover pure geometry helpers, argument validation and public schemas.
 """
 
+import math
 from pathlib import Path
 
 import pytest
@@ -151,3 +152,77 @@ async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path
     assert "required" not in sheet or sheet["required"] == []
     for name in NEW_TOOLS:
         assert MANIFEST["tools"][name]["status"] in {"experimental", "tested"}
+
+
+def test_workspace_template_paths_resolve_against_the_workspace_root(tmp_path, monkeypatch):
+    # Regression: relative template paths were resolved against NX's working directory.
+    from types import SimpleNamespace
+
+    from nx_mcp.drafting_dims import DraftingDimsMixin
+
+    (tmp_path / "templates").mkdir()
+    (tmp_path / "templates" / "my_a2.prt").write_bytes(b"prt")
+    monkeypatch.chdir(tmp_path.parent)
+    host = SimpleNamespace(workspace=Workspace(tmp_path))
+    resolve = DraftingDimsMixin._dd_template_path
+    expected = (tmp_path / "templates" / "my_a2.prt").resolve()
+    assert resolve(host, "templates/my_a2.prt") == expected
+    assert resolve(host, r"templates\my_a2.prt") == expected
+    with pytest.raises(NXToolError) as error:
+        resolve(host, "templates/missing.prt")
+    assert error.value.code == "NX_FILE_NOT_FOUND"
+    with pytest.raises(NXToolError) as error:
+        resolve(host, "../outside/x.prt")
+    assert error.value.code == "NX_PATH_OUTSIDE_WORKSPACE"
+
+
+def test_template_unit_transfer_error_is_recognized():
+    from nx_mcp.drafting_dims import is_unit_transfer_error
+
+    native = "Cannot transfer objects whose units are different from those of the displayed part."
+    assert is_unit_transfer_error(RuntimeError(native))
+    assert not is_unit_transfer_error(RuntimeError("File not found"))
+
+
+def test_full_circles_reject_end_point_snaps():
+    # Regression: NX measured a full circle at its center for object_snap="start" (30 vs 38).
+    from nx_mcp.drafting_dims import ordinate_snap
+
+    assert ordinate_snap("arc", "auto", "o", closed=True) == "center"
+    assert ordinate_snap("arc", "start", "o", closed=False) == "start"
+    for snap in ("start", "end"):
+        with pytest.raises(NXToolError, match="full circle") as error:
+            ordinate_snap("arc", snap, "objects[0]", closed=True)
+        assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"
+
+
+def test_arc_true_shape_check():
+    # Regression: a radius dimension was accepted on a hole seen edge-on in a side view.
+    from nx_mcp.drafting_dims import arc_plane_normal, seen_true_shape
+
+    center = [30.0, 25.0, 20.0]
+    full = [[38.0, 25.0, 20.0], [26.0, 31.928, 20.0], [26.0, 18.072, 20.0]]
+    normal = arc_plane_normal(center, full)
+    assert normal is not None and abs(abs(normal[2]) - 1.0) < 1e-9
+    assert seen_true_shape(normal, [0.0, 0.0, 1.0]) and seen_true_shape(normal, [0, 0, -1])
+    assert not seen_true_shape(normal, [0.0, -1.0, 0.0])  # front view: edge-on
+    assert not seen_true_shape(normal, [0.577350269, -0.577350269, 0.577350269])
+    quarter = [[22.0, 25.0, 20.0], [26.0, 31.928, 20.0], [30.0, 33.0, 20.0]]
+    assert seen_true_shape(arc_plane_normal(center, quarter), [0.0, 0.0, 1.0])
+    assert arc_plane_normal(center, [[38.0, 25.0, 20.0], [22.0, 25.0, 20.0]]) is None
+
+
+def test_default_placements_stay_in_sheet_units():
+    # Regression: on an inch sheet the defaults were converted twice (radial text at
+    # [0.50, 0.54] in for a view at [4, 5] in; ordinate margin 15.2 in on an 8.3 in sheet).
+    from nx_mcp.drafting_dims import default_ordinate_margin, default_radial_origin
+
+    inch = 1 / 25.4
+    x, y = default_radial_origin([4.0, 5.0], 0.157, inch)
+    assert x == pytest.approx(4.0 + (0.157 + 12 * inch) * math.sqrt(0.5))
+    assert y == pytest.approx(5.0 + (0.157 + 12 * inch) * math.sqrt(0.5))
+    assert default_radial_origin([110.0, 180.0], 8.0, 1.0)[0] == pytest.approx(124.142, abs=1e-3)
+    borders = [3.159, 4.258, 5.234, 5.742]
+    assert default_ordinate_margin(borders, True, inch) == pytest.approx(5.742 + 15 * inch)
+    assert default_ordinate_margin(borders, False, inch) == pytest.approx(3.159 - 15 * inch)
+    assert default_ordinate_margin([73.65, 148.65, 166.35, 211.35], True, 1.0) == 226.35

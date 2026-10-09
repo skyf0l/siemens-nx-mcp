@@ -30,6 +30,7 @@ SIDES = {"arrow": ("arrow",), "other": ("other",), "both": ("arrow", "other")}
 CENTERLINE_KINDS = {"2d", "3d"}
 # UF face types accepted by a 3D centerline (cylinder, cone).
 AXIAL_FACE_TYPES = {16: "cylinder", 17: "cone"}
+TRUE_SHAPE_TOL_DEG = 0.01  # Max tilt of a center-marked circle against the drawing plane.
 
 
 def _invalid(message):
@@ -129,6 +130,27 @@ def uv_samples(steps=8):
     values = [i / steps for i in range(1, steps)]
     grid = [(u, v) for u in values for v in values]
     return sorted(grid, key=lambda uv: ((uv[0] - 0.5) ** 2 + (uv[1] - 0.5) ** 2, uv))
+
+
+def arc_plane_normal(center, points):
+    """Unit normal of an arc's plane from points on it; None if they are degenerate."""
+    vectors = [[p[i] - center[i] for i in range(3)] for p in points]
+    best = (0.0, None)
+    for i, a in enumerate(vectors):
+        for b in vectors[i + 1 :]:
+            c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+            norm = math.sqrt(sum(x * x for x in c))
+            if norm > best[0]:
+                best = (norm, c)
+    if best[1] is None or best[0] <= 1e-12:
+        return None
+    return [x / best[0] for x in best[1]]
+
+
+def seen_true_shape(normal, view_z, tol_deg=TRUE_SHAPE_TOL_DEG):
+    """True if a plane with this normal is parallel to the drawing plane of the view."""
+    dot = abs(sum(a * b for a, b in zip(normal, view_z, strict=True)))
+    return math.degrees(math.acos(min(1.0, dot))) <= tol_deg
 
 
 def close2(a, b, tol=1e-3):
@@ -411,6 +433,17 @@ class DraftingNotesMixin:
         circular = NXOpen.Edge.EdgeType.Circular
         if any(e.SolidEdgeType != circular for e in targets):
             raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "Center marks need circular edges")
+        m = target_view.Matrix
+        view_z = [m.Zx, m.Zy, m.Zz]
+        for ref, edge in zip(refs, targets, strict=True):
+            normal = arc_plane_normal(self._dn_arc_center(edge), self._dn_arc_points(edge))
+            if normal is None or not seen_true_shape(normal, view_z):
+                raise NXToolError(
+                    "NX_UNSUPPORTED_ARGUMENT",
+                    f"Edge {ref} is not seen along its axis in this view (the circle appears "
+                    "as a line or ellipse); use a view that looks along the hole/boss axis, "
+                    "or nx_add_centerline(kind='3d') in a side view",
+                )
         import NXOpen.Annotations as A
 
         part = self._work_part()
@@ -465,6 +498,14 @@ class DraftingNotesMixin:
             "sheet_units": self._sheet_units(sheet),
             "coordinate_frame": "drawing_sheet",
         }
+
+    def _dn_arc_points(self, edge):
+        import NXOpen.UF as U
+
+        general = U.UFSession.GetUFSession().ModlGeneral
+        return [
+            [float(v) for v in general.AskCurveProps(edge.Tag, t)[0]] for t in (0.0, 1 / 3, 2 / 3)
+        ]
 
     def _dn_arc_center(self, edge):
         import NXOpen.UF as U

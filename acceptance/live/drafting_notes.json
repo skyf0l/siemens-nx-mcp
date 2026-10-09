@@ -540,5 +540,32 @@
    "kind": "3d"
   },
   "expect_error": true
+ },
+ {
+  "tool": "nx_find_geometry",
+  "args": {
+   "owner": "$b.objects.0.id",
+   "limit": 1,
+   "kind": "edge",
+   "geometry_type": "circle",
+   "near": [
+    30,
+    15,
+    20
+   ]
+  },
+  "mutation": false,
+  "save": "hole_edge"
+ },
+ {
+  "tool": "nx_add_center_mark",
+  "args": {
+   "view": "$front.object.id",
+   "edges": [
+    "$hole_edge.items.0.object.id"
+   ]
+  },
+  "expect_error": true,
+  "intent": "Hole circle seen edge-on in the side view: NX_UNSUPPORTED_ARGUMENT"
  }
 ]

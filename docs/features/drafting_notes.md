@@ -41,7 +41,8 @@ attached to the requested object in the requested view.
 ## nx_add_center_mark
 
 `nx_add_center_mark(view, edges)` - one native `CenterMark` per circular edge
-(1-50). Each mark is matched to its edge through native associativity and its
+(1-50) seen true-shape in the view (looking along its axis); a circle seen
+edge-on or oblique returns `NX_UNSUPPORTED_ARGUMENT`. Each mark is matched to its edge through native associativity and its
 center is checked against the arc center mapped into the view. Marks are
 associative (verified: blend radius 8 -> 12 moved the mark from [162,207] to
 [158,203]). Note: NX drafting preferences may already create automatic center
@@ -87,6 +88,10 @@ tools verified with numeric readback and an exported PDF (all symbols placed at
 the requested origins, leaders on the intended geometry, text readable).
 
 ## Known limits / NX quirks
+
+- `nx_edit_annotation(position=...)` on an associative center mark reports
+  success, but NX keeps the mark at its edge's center (the shared tool does not
+  read the position back).
 
 - Leader/selection points passed to `SelectObject.SetValue(obj, view, point)`
   are **model coordinates**, not sheet coordinates; sheet coordinates make NX

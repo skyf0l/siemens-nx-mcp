@@ -60,7 +60,7 @@ def nx_add_note(
 
 
 def nx_add_center_mark(view: str, edges: Annotated[list[str], Field(min_length=1, max_length=50)]):
-    """Create native drafting center marks in a drawing view: one center mark per circular model edge (1-50 distinct owned edge IDs whose circle is visible in the view, typically a hole or boss edge seen along its axis). Returns one annotation ID per mark with its actual center on the sheet (sheet units) and the edge it is associated with; the marks follow the edges when the model changes."""
+    """Create native drafting center marks in a drawing view: one center mark per circular model edge (1-50 distinct owned edge IDs whose circle is seen true-shape in the view, i.e. a hole or boss edge seen along its axis; a circle seen edge-on or oblique returns NX_UNSUPPORTED_ARGUMENT). Returns one annotation ID per mark with its actual center on the sheet (sheet units) and the edge it is associated with; the marks follow the edges when the model changes."""
 
 
 def nx_add_centerline(

@@ -2,26 +2,26 @@
   "nx_add_note": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406, mm part and A3 mm sheet at scale 1: 3-line Note at origin [250,270] and 1-line Label with a filled-arrow leader to the top planar face in a Top base view; text and origins read back exactly, leader reopened through the native builder and confirmed attached to that face in that view (anchor [140,183.75], clear of the hole); IDs listed by nx_list_annotations and moved by nx_edit_annotation ([250,275]); PDF shows both notes."
+    "scope": "NX 2406, mm part and A3 mm sheet at scale 1: 3-line Note at origin [250,270] and 1-line Label with a filled-arrow leader to the top planar face in a Top base view; text and origins read back exactly, leader reopened through the native builder and confirmed attached to that face in that view (anchor [140,183.75], clear of the hole); IDs listed by nx_list_annotations and moved by nx_edit_annotation ([250,275]); PDF shows both notes. Independent verification (verify_d): sheet by name and by ID while another sheet is current, blank middle line, <$s> control codes and unicode (\u00d8, \u00b1) stored verbatim, leader to an edge, inch sheet origin [1,7.5] in exact; invalid text/origin/leader/view/sheet combinations rejected with stable codes and no inventory change."
   },
   "nx_add_center_mark": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406 Top base view: one call with two circular edges (diameter-20 hole, R8 blend arc) made two CenterMarks at sheet [120,190] and [162,207], each verified against UF_VIEW_map_model_to_drawing of the arc center and its native associativity; after the blend radius changed 8 -> 12 the blend mark followed to [158,203]. Visible in exported PDF."
+    "scope": "NX 2406 Top base view: one call with two circular edges (diameter-20 hole, R8 blend arc) made two CenterMarks at sheet [120,190] and [162,207], each verified against UF_VIEW_map_model_to_drawing of the arc center and its native associativity; after the blend radius changed 8 -> 12 the blend mark followed to [158,203]. Visible in exported PDF. Independent verification: inch sheet center [4.80,5.00] in; line edge/annotation IDs NX_OBJECT_TYPE_MISMATCH, duplicates NX_INVALID_ARGUMENT; a circle seen edge-on in a side view was accepted before the fix and is now NX_UNSUPPORTED_ARGUMENT; listed, deleted via nx_edit_annotation."
   },
   "nx_add_centerline": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406: kind=3d on the hole's cylindrical face in a projected side view -> Centerline3d on the projected axis (x=120); kind=2d between two parallel linear top edges (y=0, y=50) in the Top view -> Centerline2d on the mid-line y=190 (origin [128,190]); both checked against the projected axis/mid-line and associativity; 3d on a face whose axis points out of the view is rejected with NX_UNSUPPORTED_ARGUMENT and rolled back. Visible in PDF."
+    "scope": "NX 2406: kind=3d on the hole's cylindrical face in a projected side view -> Centerline3d on the projected axis (x=120); kind=2d between two parallel linear top edges (y=0, y=50) in the Top view -> Centerline2d on the mid-line y=190 (origin [128,190]); both checked against the projected axis/mid-line and associativity; 3d on a face whose axis points out of the view is rejected with NX_UNSUPPORTED_ARGUMENT and rolled back. Visible in PDF. Independent verification: 2d in a side view between z=20 and z=0 edges -> mid-line; 3d on an inch sheet; perpendicular/coincident edges NX_INVALID_ARGUMENT, planar face and arc NX_OBJECT_TYPE_MISMATCH; listed, renamed and deleted via nx_edit_annotation."
   },
   "nx_add_surface_finish": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406 DraftingSurfaceFinishSymbol: material_removal_required Ra 3.2 (leader to planar face, Top view), basic Ra 0.8 (leader to blend face, side view), material_removal_prohibited Ra 12.5 (leader to linear edge, side view); symbol type, 'Ra <value>' text in field a2, origin and leader attachment read back from the native builder. Readable in exported PDF."
+    "scope": "NX 2406 DraftingSurfaceFinishSymbol: material_removal_required Ra 3.2 (leader to planar face, Top view), basic Ra 0.8 (leader to blend face, side view), material_removal_prohibited Ra 12.5 (leader to linear edge, side view); symbol type, 'Ra <value>' text in field a2, origin and leader attachment read back from the native builder. Readable in exported PDF. Independent verification: Ra 1000 (boundary) and Ra 0.025 read back; 0, -1, 1000.5 NX_INVALID_ARGUMENT; body NX_OBJECT_TYPE_MISMATCH; inch sheet [3,6.5] in exact; moved and deleted via nx_edit_annotation."
   },
   "nx_add_weld_symbol": {
     "status": "tested",
     "evidence_type": "real_NX_v2406_scoped",
-    "scope": "NX 2406 LineWeld with leader in a Top view: fillet 5 both sides (leader to R8 blend arc), v_butt 4 other side and square_butt 3 arrow side (leaders to linear edges); per-side symbol/size, origin and leader attachment read back from the native builder (unused side reads None/empty). Readable in exported PDF. Weld standard is the part's native default."
+    "scope": "NX 2406 LineWeld with leader in a Top view: fillet 5 both sides (leader to R8 blend arc), v_butt 4 other side and square_butt 3 arrow side (leaders to linear edges); per-side symbol/size, origin and leader attachment read back from the native builder (unused side reads None/empty). Readable in exported PDF. Weld standard is the part's native default. Independent verification: fillet other 2.5 (to a face), square_butt both 6, v_butt arrow 1, inch-sheet fillet both 3; per-side readback exact; size 0 rejected; moved/renamed/deleted via nx_edit_annotation."
   }
 }
