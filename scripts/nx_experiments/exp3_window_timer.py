@@ -87,8 +87,18 @@ user32.DefWindowProcW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
 user32.DefWindowProcW.restype = ctypes.c_ssize_t
 user32.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASS)]
 user32.CreateWindowExW.argtypes = [
-    w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, ctypes.c_int, ctypes.c_int,
-    ctypes.c_int, ctypes.c_int, w.HWND, w.HMENU, w.HINSTANCE, ctypes.c_void_p,
+    w.DWORD,
+    w.LPCWSTR,
+    w.LPCWSTR,
+    w.DWORD,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    w.HWND,
+    w.HMENU,
+    w.HINSTANCE,
+    ctypes.c_void_p,
 ]
 user32.CreateWindowExW.restype = w.HWND
 user32.SetTimer.argtypes = [w.HWND, ctypes.c_size_t, ctypes.c_uint, ctypes.c_void_p]
@@ -129,9 +139,13 @@ cls = WNDCLASS()
 cls.lpfnWndProc = proc
 cls.lpszClassName = f"NxMcpExp3_{os.getpid()}_{int(START)}"
 atom = user32.RegisterClassW(ctypes.byref(cls))
-hwnd = user32.CreateWindowExW(0, cls.lpszClassName, "nx-mcp exp3", 0, 0, 0, 0, 0, HWND_MESSAGE, None, None, None)
+hwnd = user32.CreateWindowExW(
+    0, cls.lpszClassName, "nx-mcp exp3", 0, 0, 0, 0, 0, HWND_MESSAGE, None, None, None
+)
 timer = user32.SetTimer(hwnd, 1, 500, None)
-log(f"journal: class atom {atom}, hwnd {hwnd}, window timer {timer}, error {ctypes.get_last_error()}")
+log(
+    f"journal: class atom {atom}, hwnd {hwnd}, window timer {timer}, error {ctypes.get_last_error()}"
+)
 
 # ---- (b) NX-native callback ----------------------------------------------
 

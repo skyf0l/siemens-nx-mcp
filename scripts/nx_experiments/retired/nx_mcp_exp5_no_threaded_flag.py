@@ -46,8 +46,18 @@ user32.KillTimer.argtypes = [w.HWND, ctypes.c_size_t]
 user32.DefWindowProcW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
 user32.DefWindowProcW.restype = LONG_PTR
 user32.CreateWindowExW.argtypes = [
-    w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, ctypes.c_int, ctypes.c_int,
-    ctypes.c_int, ctypes.c_int, w.HWND, w.HMENU, w.HINSTANCE, ctypes.c_void_p,
+    w.DWORD,
+    w.LPCWSTR,
+    w.LPCWSTR,
+    w.DWORD,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    w.HWND,
+    w.HMENU,
+    w.HINSTANCE,
+    ctypes.c_void_p,
 ]
 user32.CreateWindowExW.restype = w.HWND
 user32.GetWindowThreadProcessId.argtypes = [w.HWND, ctypes.POINTER(w.DWORD)]
@@ -116,7 +126,9 @@ def first_part_test(source):
         builder.Commit()
     finally:
         builder.Destroy()
-    log(f"{source}: FIRST PART CREATED in {time.time() - t0:.2f}s -> {path.name}, app now {session.ApplicationName}")
+    log(
+        f"{source}: FIRST PART CREATED in {time.time() - t0:.2f}s -> {path.name}, app now {session.ApplicationName}"
+    )
 
 
 def on_tick(source):
@@ -178,9 +190,13 @@ def arm(entry_point):
     cls.lpszClassName = f"NxMcpExp5_{os.getpid()}"
     KEEP.append(cls)
     user32.RegisterClassW(ctypes.byref(cls))
-    hwnd = user32.CreateWindowExW(0, cls.lpszClassName, "nx-mcp exp5", 0, 0, 0, 0, 0, HWND_MESSAGE, None, None, None)
+    hwnd = user32.CreateWindowExW(
+        0, cls.lpszClassName, "nx-mcp exp5", 0, 0, 0, 0, 0, HWND_MESSAGE, None, None, None
+    )
     wid = user32.SetTimer(hwnd, 1, 500, None)
-    log(f"armed: thread timer {tid}, hidden window {hwnd} timer {wid}, error {ctypes.get_last_error()}")
+    log(
+        f"armed: thread timer {tid}, hidden window {hwnd} timer {wid}, error {ctypes.get_last_error()}"
+    )
     return 0
 
 

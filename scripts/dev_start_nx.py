@@ -26,7 +26,9 @@ def nx_pids() -> list[int]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--user-dir", type=Path, help="UGII_USER_DIR for this NX session")
     parser.add_argument("--env", action="append", default=[], help="extra NAME=VALUE")
     parser.add_argument("--wait", type=float, default=90, help="seconds to wait for the NX process")
@@ -42,11 +44,16 @@ def main() -> int:
         name, _, value = item.partition("=")
         env[name] = value
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-    subprocess.Popen([str(base / "NXBIN" / "ugraf.exe")], env=env, creationflags=flags, close_fds=True)
+    subprocess.Popen(
+        [str(base / "NXBIN" / "ugraf.exe")], env=env, creationflags=flags, close_fds=True
+    )
     deadline = time.monotonic() + args.wait
     while time.monotonic() < deadline:
         if nx_pids():
-            print(f"NX started: pid {nx_pids()[0]}" + (f", UGII_USER_DIR={env['UGII_USER_DIR']}" if args.user_dir else ""))
+            print(
+                f"NX started: pid {nx_pids()[0]}"
+                + (f", UGII_USER_DIR={env['UGII_USER_DIR']}" if args.user_dir else "")
+            )
             return 0
         time.sleep(1)
     print("NX did not start in time")

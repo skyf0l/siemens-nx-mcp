@@ -42,12 +42,18 @@ def GetUnloadOption(_):  # noqa: N802 - NX looks this name up after the journal 
 # A module only the journal's interpreter knows about.
 sys.modules["nx_exp1_marker"] = type(sys)("nx_exp1_marker")
 LOG.write_text("", encoding="utf-8")
-log(f"journal start: python {sys.version.split()[0]}, nx {NXOpen.Session.GetSession().GetEnvironmentVariableValue('NX_VERSION') if hasattr(NXOpen.Session.GetSession(), 'GetEnvironmentVariableValue') else '?'}")
-log(f"journal: parts loaded = {sum(1 for _ in NXOpen.Session.GetSession().Parts)}, application = {NXOpen.Session.GetSession().ApplicationName}")
+log(
+    f"journal start: python {sys.version.split()[0]}, nx {NXOpen.Session.GetSession().GetEnvironmentVariableValue('NX_VERSION') if hasattr(NXOpen.Session.GetSession(), 'GetEnvironmentVariableValue') else '?'}"
+)
+log(
+    f"journal: parts loaded = {sum(1 for _ in NXOpen.Session.GetSession().Parts)}, application = {NXOpen.Session.GetSession().ApplicationName}"
+)
 
 state = {"ticks": 0, "created": False, "stop": False}
 user32 = ctypes.WinDLL("user32", use_last_error=True)
-TIMERPROC = ctypes.WINFUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_uint32)
+TIMERPROC = ctypes.WINFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_uint32
+)
 user32.SetTimer.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint, TIMERPROC]
 user32.SetTimer.restype = ctypes.c_size_t
 user32.KillTimer.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
@@ -82,14 +88,18 @@ def tick(*_):
                 builder.Commit()
             finally:
                 builder.Destroy()
-            log(f"tick 10: part created in {time.time() - t0:.2f}s, app now {session.ApplicationName}")
+            log(
+                f"tick 10: part created in {time.time() - t0:.2f}s, app now {session.ApplicationName}"
+            )
         if n >= 80 or state["stop"]:
             user32.KillTimer(None, state["timer"])
             log(f"tick {n}: timer stopped; experiment finished")
     except BaseException as error:  # Log everything; never let an exception reach NX.
         import traceback
 
-        log(f"tick {state['ticks']}: ERROR {type(error).__name__}: {error}\n{traceback.format_exc()}")
+        log(
+            f"tick {state['ticks']}: ERROR {type(error).__name__}: {error}\n{traceback.format_exc()}"
+        )
 
 
 callback = TIMERPROC(tick)
