@@ -9,7 +9,6 @@ import pytest
 from nx_mcp.bridge import BridgeClient, BridgeServer
 from nx_mcp.hardened import HardenedExecutor
 from nx_mcp.runtime import NXToolError
-from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
 
@@ -127,29 +126,6 @@ async def test_transport_timeout_does_not_duplicate_mutation(executor):
         first.cancel()
         await asyncio.gather(first, return_exceptions=True)
         server.stop()
-
-
-@pytest.mark.asyncio
-async def test_uniform_structured_success_failure_and_schema(tmp_path):
-    class Caller:
-        async def call(self, method, params):
-            if method == "nx_list_topology":
-                raise NXToolError("NX_UNSUPPORTED_EDIT", "unsupported edit")
-            return {"status": "success", "method": method, "params": params}
-
-    server = create_server(Caller(), Workspace(tmp_path), surface="full")
-    tools = await server.list_tools()
-    topology = next(t for t in tools if t.name == "nx_list_topology")
-    assert "body" in topology.inputSchema["required"]
-    success = await server.call_tool("nx_capabilities", {})
-    assert success.structuredContent["status"] == "success" and not success.isError
-    for name, args in [
-        ("nx_list_topology", {"body": "a"}),
-        ("nx_list_topology", {"body": "c", "ignored": 123}),
-    ]:
-        result = await server.call_tool(name, args)
-        assert result.isError and result.structuredContent["status"] == "error"
-    assert topology.annotations.readOnlyHint
 
 
 def test_reference_namespace_rejects_previous_session(executor, tmp_path):

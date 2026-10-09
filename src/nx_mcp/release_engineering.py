@@ -162,21 +162,3 @@ class ReleaseEngineeringMixin:
                     builder.Commit()
                 finally:
                     builder.Destroy()
-
-    def _list_dimensions(self):
-        part = self._work_part()
-        return {
-            "dimensions": [
-                {
-                    "object": self._reference(d, "dimension", part, "Dimension"),
-                    "native_type": type(d).__name__,
-                    "computed_value": d.ComputedSize,
-                    "retained": bool(d.IsRetained),
-                    "measurement_valid": not bool(d.IsRetained),
-                    "origin": xyz(d.AnnotationOrigin),
-                }
-                for d in part.Dimensions
-            ],
-            "units": self._units(),
-            "coordinate_frame": "native annotation frame",
-        }

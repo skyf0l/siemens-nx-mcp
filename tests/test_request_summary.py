@@ -23,29 +23,11 @@ NAMES = {
     "obj_flange": "SB_FLANGE(4)",
     "obj_extrude": "EXTRUDE(2)",
 }
+BODIES = {"kind": "body"}
 
 
 def describe(method, params, **kwargs):
     return summarize(method, params, name_of=NAMES.get, units="mm", **kwargs)
-
-
-@pytest.mark.parametrize(
-    ("method", "params", "expected"),
-    [
-        (
-            "nx_list_topology",
-            {"body": "obj_gone"},
-            "List faces and edges of an object from before the last handover",
-        ),
-        (
-            "nx_list_topology",
-            {"body": "obj_extrude"},
-            'List faces and edges of "EXTRUDE(2)"',
-        ),
-    ],
-)
-def test_summaries_use_real_arguments_and_names(method, params, expected):
-    assert describe(method, params) == expected
 
 
 def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
@@ -56,9 +38,8 @@ def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
 
 
 def test_summaries_never_raise_and_stay_short():
-    assert describe("nx_list_topology", {"body": object()}).startswith("List faces")
-    assert describe("nx_list_topology", "not a dict") == "List topology"
-    assert len(describe("nx_list_topology", {"body": "x" * 300})) == MAX_LENGTH
+    assert describe("nx_list_objects", "not a dict") == "List objects"
+    assert len(describe("nx_" + "x" * 300, {})) == MAX_LENGTH
     assert humanize("nx_measure_distance") == "Measure distance"
 
 
@@ -99,18 +80,18 @@ async def test_invoke_intent_reaches_the_bridge_but_not_the_tool_arguments(tmp_p
     server = create_server(bridge, Workspace(tmp_path), surface="agent")
     await server.call_tool(
         "nx_invoke",
-        {"tool": "nx_list_bodies", "arguments": {}, "intent": "  Frame the   new boss  "},
+        {"tool": "nx_list_objects", "arguments": BODIES, "intent": "  Frame the   new boss  "},
     )
     method, params = bridge.call.call_args.args
-    assert method == "nx_list_bodies" and params["intent"] == "Frame the new boss"
-    await server.call_tool("nx_invoke", {"tool": "nx_list_bodies", "arguments": {}})
+    assert method == "nx_list_objects" and params["intent"] == "Frame the new boss"
+    await server.call_tool("nx_invoke", {"tool": "nx_list_objects", "arguments": BODIES})
     assert "intent" not in bridge.call.call_args.args[1]  # Never leaks into a later call.
     too_long = await server.call_tool(
-        "nx_invoke", {"tool": "nx_list_bodies", "arguments": {}, "intent": "x" * 121}
+        "nx_invoke", {"tool": "nx_list_objects", "arguments": BODIES, "intent": "x" * 121}
     )
     assert too_long.isError
 
 
 def test_executor_ignores_intent(rig):
-    result = rig.e.execute("nx_list_bodies", {"intent": "Check bodies"})
-    assert result["status"] == "success"
+    result = rig.e.execute("nx_list_objects", {**BODIES, "intent": "Check bodies"})
+    assert result["ok"]

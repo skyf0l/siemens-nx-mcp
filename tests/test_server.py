@@ -11,7 +11,6 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.certified import CERTIFIED_TOOL_NAMES
 from nx_mcp.server import create_server
 
 pytestmark = pytest.mark.integration
@@ -49,9 +48,10 @@ def test_server_lists_every_tool_without_nx_imports(tmp_path):
         async def main():
             server = create_server(surface="full")
             added = server.nx_surface.added_names()
-            tools = [t for t in await server.list_tools() if t.name not in added]
+            tools = [t.name for t in await server.list_tools()]
+            legacy = [name for name in tools if name not in added]
             forbidden = [name for name in ("NXOpen",) if name in sys.modules]
-            print(json.dumps({"tools": [tool.name for tool in tools], "forbidden": forbidden}))
+            print(json.dumps({"tools": tools, "legacy": legacy, "forbidden": forbidden}))
 
         asyncio.run(main())
         """
@@ -68,10 +68,8 @@ def test_server_lists_every_tool_without_nx_imports(tmp_path):
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert (
-        len(payload["tools"]) == len(MANIFEST["tools"])
-        and set(payload["tools"]) > CERTIFIED_TOOL_NAMES
-    )
+    assert "nx_list_objects" in payload["tools"]
+    assert payload["legacy"] == list(MANIFEST["tools"]) == []  # every legacy tool is migrated
     assert payload["forbidden"] == []
 
 
@@ -112,7 +110,7 @@ async def test_removed_profile_flags_have_no_effect(monkeypatch: pytest.MonkeyPa
         names = {tool.name for tool in (await client.list_tools()).tools}
 
     names -= server.nx_surface.added_names()
-    assert names == set(MANIFEST["tools"]) and names > CERTIFIED_TOOL_NAMES
+    assert names == set(MANIFEST["tools"]) == set()
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 

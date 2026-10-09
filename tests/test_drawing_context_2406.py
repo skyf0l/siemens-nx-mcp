@@ -168,22 +168,6 @@ def test_datums_sharing_a_body_layer_stay_visible_and_are_reported(rig, monkeypa
     assert error.value.details["layers"] == [61]
 
 
-def test_expanded_member_view_is_not_reported_as_modeling(rig):
-    """An expanded member view leaves no current sheet but no model work view either."""
-    sheets, sheet = sheet_part(rig)
-    sheet.Length, sheet.Height, sheet.GetScale = 420.0, 297.0, lambda: (1.0, 1.0)
-    sheet.GetDraftingViews = lambda: []
-    rig.e._sheet_units = lambda _: "mm"
-
-    class Views:
-        @property
-        def WorkView(self):
-            raise RuntimeError("The view is not a model view")
-
-    rig.part.ModelingViews = Views()
-    assert rig.e._list_drawings()["modeling_active"] is False
-
-
 def projection_rig(rig):
     sheets, sheet = sheet_part(rig)
     sheet.Length, sheet.Height = 420.0, 297.0

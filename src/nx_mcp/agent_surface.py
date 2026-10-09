@@ -64,9 +64,7 @@ DOMAINS = {
         "package",
     ),
 }
-DEFAULTS: dict[str, dict[str, Any]] = {
-    "nx_list_topology": {"compact": True},
-}
+DEFAULTS: dict[str, dict[str, Any]] = {}
 
 
 def category(name):

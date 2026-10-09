@@ -9,6 +9,8 @@ is ``fn(tx, owner, owner_kind) -> [(obj, kind, extra)]``; ``@deleter(kind)`` is
 
 from __future__ import annotations
 
+import contextlib
+
 from nx_mcp.core.catalogue import deleter, lister, refresher, sheet_locator
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing import views
@@ -88,6 +90,18 @@ def _whole_part(owner):
              field="/owner")  # fmt: skip
 
 
+def _sheet_scale(sheet):
+    try:
+        return [float(x) for x in sheet.GetScale()]
+    except Exception:  # a sheet whose scale NX cannot report
+        return None
+
+
+def _origin(obj):
+    point = getattr(obj, "AnnotationOrigin", None)
+    return None if point is None else [float(point.X), float(point.Y), float(point.Z)]
+
+
 @lister("drawing_sheet")
 def list_sheets(tx, owner, owner_kind):
     _whole_part(owner)
@@ -100,6 +114,7 @@ def list_sheets(tx, owner, owner_kind):
                 "details": {
                     "active": current is not None and int(current.Tag) == int(s.Tag),
                     "size": drawing.size(s),
+                    "scale": _sheet_scale(s),
                 }
             },  # fmt: skip
         )
@@ -130,7 +145,11 @@ def list_dimensions(tx, owner, owner_kind):
             "dimension",
             {
                 "type": type(d).__name__,
-                "details": {"value": float(d.ComputedSize), "valid": not bool(d.IsRetained)},
+                "details": {
+                    "value": float(d.ComputedSize),
+                    "valid": not bool(d.IsRetained),
+                    "origin": _origin(d),
+                },
             },
         )  # fmt: skip
         for d in tx.part.Dimensions
@@ -158,7 +177,16 @@ def _annotations(part):
 @lister("annotation")
 def list_annotations(tx, owner, owner_kind):
     _whole_part(owner)
-    return [(a, "annotation", {"type": type(a).__name__}) for a in _annotations(tx.part)]
+    out = []
+    for a in _annotations(tx.part):
+        details = {"origin": _origin(a)}
+        if hasattr(a, "GetText"):
+            with contextlib.suppress(Exception):  # an annotation without readable text
+                details["text"] = [str(t) for t in a.GetText()]
+        if hasattr(a, "IsRetained"):
+            details["retained"] = bool(a.IsRetained)
+        out.append((a, "annotation", {"type": type(a).__name__, "details": details}))
+    return out
 
 
 @lister("drawing_table")

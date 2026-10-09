@@ -88,48 +88,6 @@ class AuthoringMixin:
             )
         return matches[0]
 
-    def _expression_record(self, exp):
-        part = self._work_part()
-        return {
-            "object": self._reference(exp, "expression", part, "Expression"),
-            "name": exp.Name,
-            "formula": exp.RightHandSide,
-            "type": exp.Type,
-            "value": (
-                exp.GetValueUsingUnits(self.nxopen.Expression.UnitsOption.Expression)
-                if exp.Type == "Number"
-                else exp.IntegerValue
-                if exp.Type == "Integer"
-                else None
-            ),
-            "units": exp.Units.Abbreviation if exp.Units else "unitless",
-            "editable": not (
-                exp.IsNoEdit or exp.IsRightHandSideLockedFromEdit or exp.IsInterpartExpression
-            ),
-            # NX 2406 lacks GetExpressionParents; dependents are still available.
-            "parents": [
-                self._reference(e, "expression", part, "Expression")
-                for e in _expression_list(exp, "GetExpressionParents")
-            ],
-            "dependents": [
-                self._reference(e, "expression", part, "Expression")
-                for e in _expression_list(exp, "GetReferencingExpressions")
-            ],
-            "dependency_scope": (
-                "stored immediate expression dependencies; conditional branches may be incomplete"
-                if hasattr(exp, "GetExpressionParents")
-                else "parents unavailable in this NX version; dependents are immediate referencing expressions"
-            ),
-        }
-
-    def _list_expressions(self, name_contains=None, offset=0, limit=50):
-        values = sorted(self._work_part().Expressions, key=lambda e: e.Name)
-        if name_contains is not None:
-            values = [e for e in values if name_contains.casefold() in e.Name.casefold()]
-        result = page(values, offset, limit)
-        result["items"] = [self._expression_record(e) for e in result["items"]]
-        return result
-
     def _highlight_objects(self, objects):
         self._visual_part()
         values = self._display_targets(objects)

@@ -41,7 +41,7 @@ async def run_iteration(
 
     try:
         await _call(client, "nx_create_part", {"path": part_path, "units": "mm"})
-        before = await _call(client, "nx_list_bodies", {})
+        before = await _call(client, "nx_list_objects", {"kind": "body"})
         sketch = await _call(
             client, "nx_create_sketch", {"placement": {"principal": "xy"}, "name": "PROFILE"}
         )
@@ -60,16 +60,16 @@ async def run_iteration(
             "nx_create_extrude",
             {"sketch": sketch_id, "end": {"type": "distance", "value": 12.5}},
         )
-        after = await _call(client, "nx_list_bodies", {})
+        after = await _call(client, "nx_list_objects", {"kind": "body"})
         await _call(client, "nx_set_camera", {"fit": True})
         # Exercise undo, then recreate the solid for export. The STEP export
         # writes the part as it is in memory and never saves it.
         await _call(client, "nx_undo_operation", {})
-        after_undo = await _call(client, "nx_list_bodies", {})
-        sketches = await _call(client, "nx_list_sketches", {})
+        after_undo = await _call(client, "nx_list_objects", {"kind": "body"})
+        sketches = await _call(client, "nx_list_objects", {"kind": "sketch"})
         sketch_id = next(
             item["id"]
-            for item in sketches["objects"]
+            for item in sketches["data"]["items"]
             if item["name"] == sketch["data"]["sketch"]["name"]
         )
         extruded = await _call(
@@ -86,18 +86,20 @@ async def run_iteration(
             await _call(client, "nx_close_part", {"save": False})
         raise
 
-    if len(after["objects"]) != len(before["objects"]) + 1:
+    count = {k: v["data"]["page"]["total"] for k, v in
+             {"before": before, "after": after, "after_undo": after_undo}.items()}  # fmt: skip
+    if count["after"] != count["before"] + 1:
         raise RuntimeError("Extrude did not add exactly one body")
-    if len(after_undo["objects"]) != len(before["objects"]):
+    if count["after_undo"] != count["before"]:
         raise RuntimeError(
             "Undo did not restore the original body count "
-            f"(before={len(before['objects'])}, after_undo={len(after_undo['objects'])})"
+            f"(before={count['before']}, after_undo={count['after_undo']})"
         )
     if not (workspace / exported["path"]).is_file() and not Path(exported["path"]).is_file():
         raise RuntimeError("STEP export file was not created")
     return {
         "iteration": index,
-        "nx_version": status["nx_version"],
+        "nx_version": status["data"]["bridge"]["nx_version"],
         "feature_id": extruded["data"]["feature"]["id"],
         "body_id": extruded["data"]["bodies"][0]["id"],
     }

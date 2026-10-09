@@ -1,16 +1,11 @@
 """Contract acceptance and rejection, including MCP image/error transport."""
 
-from unittest.mock import AsyncMock
-
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
-from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.integration_server import IntegrationEnvelope, envelope
-from nx_mcp.output_schemas import PAYLOADS, output_schema
+from nx_mcp.output_schemas import COUNT, PAYLOADS, S, arr, obj, output_schema
 from nx_mcp.runtime import NXToolError
-from nx_mcp.server import create_server
-from nx_mcp.workspace import Workspace
 
 
 def validate(name, payload):
@@ -19,8 +14,9 @@ def validate(name, payload):
     Draft202012Validator(schema).validate(envelope(payload).structuredContent)
 
 
-@pytest.mark.parametrize("name", list(PAYLOADS))
-def test_success_requires_payload_but_error_has_independent_contract(name):
+def test_success_requires_payload_but_error_has_independent_contract(monkeypatch):
+    name = "nx_test_list"
+    monkeypatch.setitem(PAYLOADS, name, obj({"items": arr(S), "count": COUNT}))
     with pytest.raises(ValidationError):
         validate(name, {})
     validate(
@@ -31,28 +27,3 @@ def test_success_requires_payload_but_error_has_independent_contract(name):
     )
     with pytest.raises(ValidationError):
         validate(name, {"status": "error", "message": "missing code and retry guidance"})
-
-
-@pytest.mark.asyncio
-async def test_fresh_mcp_client_gets_structured_errors(tmp_path):
-    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
-    async with create_connected_server_and_client_session(server) as client:
-        tools = {t.name: t for t in (await client.list_tools()).tools}
-        assert "body" in tools["nx_list_topology"].inputSchema["required"]
-        bad = await client.call_tool("nx_list_topology", {})
-        assert bad.isError and bad.structuredContent["code"] == "NX_INVALID_ARGUMENT"
-
-
-@pytest.mark.asyncio
-async def test_new_inspection_tools_publish_actionable_docstrings(tmp_path):
-    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
-    tools = {t.name: t for t in await server.list_tools()}
-    expected = {
-        "nx_list_datums": "coordinate systems",
-    }
-    for name, guidance in expected.items():
-        assert guidance in tools[name].description
-        assert (
-            "semantics and installed API support have not been validated"
-            not in tools[name].description
-        )

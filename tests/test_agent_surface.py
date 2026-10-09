@@ -41,7 +41,7 @@ def test_snapshot_persistence_and_path_rejection(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
+async def test_discovery_lists_gateways_and_core_tools(tmp_path):
     bridge = AsyncMock()
     bridge.call.return_value = {
         "status": "success",
@@ -62,38 +62,11 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
             if catalogue.get(n) and catalogue.get(n).effect in ("read", "view")
         }  # an unknown build shows only read and view tools
         assert "nx_list_objects" in listed and listed == set(gateways.NAMES) | core
-        assert "nx_list_topology" not in {t.name for t in tools}
-        result = await client.call_tool("nx_find_tools", {"query": "nx_list_topology"})
-        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_list_topology"
-        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_list_topology"]})
+        result = await client.call_tool("nx_find_tools", {"query": "nx_list_objects"})
+        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_list_objects"
+        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_list_objects"]})
         schema = result.structuredContent["data"]["tools"][0]["input_schema"]
-        assert "body" in schema["properties"]
-        # A legacy tool stays callable directly, with compact agent defaults.
-        result = await client.call_tool("nx_list_topology", {"body": "obj_body"})
-        assert not result.isError
-        assert bridge.call.call_args.args[1]["compact"] is True
-        snapshot = await client.call_tool(
-            "nx_invoke_read",
-            {
-                "tool": "nx_get_result",
-                "arguments": {
-                    "result_id": result.structuredContent["result_id"],
-                    "field": "/parts",
-                },
-            },
-        )
-        assert snapshot.structuredContent["data"]["items"] == []
-        bridge.call.reset_mock()
-        bad = await client.call_tool(
-            "nx_invoke", {"tool": "nx_list_topology", "arguments": {"bogus": True}}
-        )
-        assert bad.isError and not bridge.call.called
-        good = await client.call_tool(
-            "nx_invoke",
-            {"tool": "nx_list_topology", "arguments": {"body": "obj_body"}, "detail": "full"},
-        )
-        assert "result_id" not in good.structuredContent
-        assert bridge.call.call_args.args[1]["compact"] is False
+        assert "include" in schema["properties"]
 
 
 @pytest.mark.asyncio
@@ -118,7 +91,7 @@ async def test_discovery_paging_and_argument_errors(tmp_path):
         bad = await server.call_tool("nx_find_tools", args)
         assert bad.isError and bad.structuredContent["error"]["code"] == "NX_INVALID_ARGUMENT"
     result = await server.call_tool(
-        "nx_find_tools", {"limit": 2, "offset": 2, "domain": "modeling"}
+        "nx_find_tools", {"limit": 2, "offset": 2, "domain": "inspection"}
     )
     assert len(result.structuredContent["data"]["tools"]) == 2
     assert result.structuredContent["page"]["next_offset"] == 4

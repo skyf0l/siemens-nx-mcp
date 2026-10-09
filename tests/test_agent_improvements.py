@@ -23,12 +23,6 @@ async def test_guidance_examples_match_real_input_schemas(tmp_path):
             tool.fn_metadata.arg_model.model_validate(example)
         result = guidance(tool)
         assert result["native_evidence"]["status"] in {"tested", "experimental", "unavailable"}
-    assert (
-        guidance(server._tool_manager.get_tool("nx_list_topology"))["effects"][
-            "geometry_or_assembly"
-        ]
-        is False
-    )
 
 
 def test_next_actions_use_returned_ids_without_fabrication():
@@ -38,7 +32,11 @@ def test_next_actions_use_returned_ids_without_fabrication():
         "result_id",
         "nx_extrude",
     )
-    assert result["next_actions"][0]["arguments"] == {"body": "body_live"}
+    assert result["next_actions"][0] == {
+        "tool": "nx_list_objects",
+        "arguments": {"kind": "face", "owner": "body_live"},
+        "purpose": "Inspect current faces and edges before selecting geometry",
+    }
     assert result["warnings"] == ["review"]
     assert "next_actions" not in compact_payload({"status": "error"}, "result_id")
 
@@ -82,19 +80,20 @@ def test_backend_page_cardinality_is_not_silently_truncated():
 def test_next_action_does_not_repeat_the_current_inspection():
     from nx_mcp.agent_guidance import next_actions
 
-    assert not next_actions("nx_list_topology", {"body": {"id": "body", "kind": "body"}})
+    rows = [{"id": "b:1", "kind": "body"}]
+    assert not next_actions("nx_list_objects", {"kind": "body", "items": rows})
 
 
 @pytest.mark.asyncio
 async def test_spaced_discovery_and_optional_output_schema(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
-    result = await server.call_tool("nx_find_tools", {"query": "list topology"})
+    result = await server.call_tool("nx_find_tools", {"query": "list   topology"})
     rows = result.structuredContent["data"]["tools"]
-    assert rows[0]["name"] == "nx_list_topology" and rows[0]["legacy"] is True
-    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_list_topology"]})
+    assert rows[0]["name"] == "nx_list_objects" and "legacy" not in rows[0]
+    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_list_objects"]})
     described = result.structuredContent["data"]["tools"][0]
     assert "input_schema" in described and "output_schema" not in described
     result = await server.call_tool(
-        "nx_get_tool_schemas", {"names": ["nx_list_topology"], "include_output": True}
+        "nx_get_tool_schemas", {"names": ["nx_list_objects"], "include_output": True}
     )
     assert "output_schema" in result.structuredContent["data"]["tools"][0]

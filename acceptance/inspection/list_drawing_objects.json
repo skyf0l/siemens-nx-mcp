@@ -1,0 +1,32 @@
+{
+  "covers": {"nx_list_objects": []},
+  "fixture": "fixtures/drawing_block_mm.prt",
+  "part": null,
+  "steps": [
+    {"call": "nx_open_part", "setup": true, "save": "part", "args": {"path": "$fixture"}},
+    {"call": "nx_find_geometry", "setup": true, "save": "h1",
+     "args": {"kind": "edge", "geometry_type": "circle", "near": [25, 25, 20], "limit": 1, "radius": 8}},
+    {"call": "nx_create_drawing_sheet", "setup": true, "save": "sh",
+     "args": {"name": "LSHT1", "size": "a3", "projection": "first_angle"}},
+    {"call": "nx_create_drawing_view", "setup": true, "save": "top",
+     "args": {"type": "base", "sheet": "$sh.data.sheet.id", "orientation": "top", "position": [120, 200]}},
+    {"call": "nx_create_note", "setup": true, "save": "note", "args": {"text": ["LIST ME"], "origin": [40, 40]}},
+    {"call": "nx_create_drawing_dimension", "setup": true, "save": "dim",
+     "args": {"view": "$top.data.view.id", "kind": "radius", "first": "$h1.data.items.0.id"}},
+    {"call": "nx_list_objects", "args": {"kind": "drawing_sheet", "name_contains": "LSHT1", "include": "views"},
+     "expect": {"page.total": 1, "data.items.0.details.active": true,
+                "data.items.0.details.size": {"close": [420, 297], "tol": 1e-6},
+                "data.items.0.details.scale": {"count": 2},
+                "data.items.0.details.views": {"count": 1}, "data.items.0.details.views.0.kind": "drawing_view"}},
+    {"call": "nx_list_objects", "args": {"kind": "drawing_view"},
+     "expect": {"page.total": 1, "data.items.0.kind": "drawing_view", "data.items.0.type": "base"}},
+    {"call": "nx_list_objects", "args": {"kind": "dimension"},
+     "expect": {"page.total": 1, "data.items.0.kind": "dimension",
+                "data.items.0.details.value": {"close": 8, "tol": 1e-6},
+                "data.items.0.details.valid": true, "data.items.0.details.origin": {"count": 3}}},
+    {"call": "nx_list_objects", "args": {"kind": "annotation"},
+     "expect": {"data.items": {"contains": {"kind": "annotation", "details": {"text": ["LIST ME"]}}}}},
+    {"call": "nx_list_objects", "args": {"kind": "drawing_sheet", "include": "adjacency"},
+     "expect": {"error.code": "NX_UNSUPPORTED_OPTION", "error.field": "/include"}}
+  ]
+}

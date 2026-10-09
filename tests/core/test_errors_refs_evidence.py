@@ -142,13 +142,17 @@ def test_nx_error_is_a_legacy_error_with_both_shapes():
     assert error.hint is None and error.error_dict()["hint"]  # category default hint
 
 
-def test_legacy_executor_reports_kit_errors_by_code(rig):
+def test_legacy_executor_reports_kit_errors_by_code(rig, monkeypatch):
+    from nx_mcp import hardened
+
+    monkeypatch.setattr(hardened, "READ_ONLY", {*hardened.READ_ONLY, "nx_test_read"})
+
     # A kit NXError raised inside a legacy handler keeps its code (not NX_API_ERROR).
     def handler():
         errors.fail("NX_WRONG_GEOMETRY", "Select a planar face", nx_code=12)
 
-    rig.e._handlers["nx_list_bodies"] = handler
+    rig.e._handlers["nx_test_read"] = handler
     with pytest.raises(NXToolError) as e:
-        rig.e.execute("nx_list_bodies", {})
+        rig.e.execute("nx_test_read", {})
     assert e.value.code == "NX_WRONG_GEOMETRY" and e.value.nx_code == 12
     assert e.value.details["mutation_outcome"] == "not_started"

@@ -23,7 +23,6 @@ from nx_mcp.authoring import AuthoringMixin
 from nx_mcp.authoring_server import NON_MODEL as AUTHORING_NON_MODEL
 from nx_mcp.authoring_server import READ_ONLY as AUTHORING_READ_ONLY
 from nx_mcp.datum_features import DatumFeaturesMixin
-from nx_mcp.documentation_editing import DocumentationEditingMixin
 from nx_mcp.drawing_preferences import DrawingPreferencesMixin
 from nx_mcp.engineering import EngineeringMixin
 from nx_mcp.exploded_views import ExplodedViewsMixin
@@ -31,7 +30,6 @@ from nx_mcp.feature_groups import server_modules as feature_group_modules
 from nx_mcp.freeform import FreeformMixin
 from nx_mcp.host import dispatch
 from nx_mcp.inspection import InspectionMixin
-from nx_mcp.inventory import compact_reference
 
 # Vector math lives in nx_mcp.kit.geom; these names stay importable from here.
 from nx_mcp.kit.geom import (  # noqa: F401
@@ -55,14 +53,7 @@ from nx_mcp.review_tools import ReviewToolsMixin
 from nx_mcp.runtime import NXToolError, api_error
 from nx_mcp.visual_tools import VisualToolsMixin
 
-READ_ONLY = {
-    "nx_list_datums",
-    "nx_list_sketches",
-    "nx_list_features",
-    "nx_list_bodies",
-    "nx_list_topology",
-    "nx_capabilities",
-}
+READ_ONLY: set[str] = set()
 # Files and session lifecycle cannot be reversed by a model undo mark.
 NON_MODEL: set[str] = set()
 
@@ -98,7 +89,6 @@ class HardenedExecutor(
     DrawingPreferencesMixin,
     ReleaseEngineeringMixin,
     ReferenceGeometryMixin,
-    DocumentationEditingMixin,
     AnnotationUpdatesMixin,
     FreeformMixin,
     ManufacturingMixin,
@@ -135,14 +125,6 @@ class HardenedExecutor(
         for name, fn in vars(documentation_editing_server).items():
             if name.startswith("nx_") and inspect.isfunction(fn):
                 self._handlers[name] = getattr(self, "_" + name[3:])
-        self._handlers.update(
-            {
-                "nx_list_datums": self._list_datums,
-                "nx_list_expressions": self._list_expressions,
-                "nx_list_topology": self._list_topology,
-                "nx_capabilities": self._capabilities,
-            }
-        )
 
     @property
     def session(self):
@@ -471,50 +453,6 @@ class HardenedExecutor(
 
         return list(walk(root, [])) if root else []
 
-    def _list_topology(self, body, face=None, include_adjacency=False, compact=False):
-        b = self._resolve(body, {"body"})
-        part = self._work_part()
-        faces = list(b.GetFaces())
-        if face is not None:
-            selected = self._resolve(face, {"face"})
-            if selected not in faces:
-                raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "face must belong to body")
-            faces = [selected]
-        edges = (
-            list({int(e.Tag): e for f in faces for e in f.GetEdges()}.values())
-            if face
-            else list(b.GetEdges())
-        )
-
-        def ref(value, kind):
-            r = self._reference(value, kind, part, kind.title())
-            return compact_reference(r) if compact else r
-
-        result = {
-            "body": ref(b, "body"),
-            "faces": [ref(f, "face") for f in faces],
-            "edges": [ref(e, "edge") for e in edges],
-            "solid": b.IsSolidBody,
-            "face_count": len(faces),
-            "edge_count": len(edges),
-        }
-        if include_adjacency:
-            result["face_edges"] = [
-                {
-                    "face": ref(f, "face")["id"],
-                    "edges": [ref(e, "edge")["id"] for e in f.GetEdges()],
-                }
-                for f in faces
-            ]
-            result["edge_faces"] = [
-                {
-                    "edge": ref(e, "edge")["id"],
-                    "faces": [ref(f, "face")["id"] for f in e.GetFaces()],
-                }
-                for e in edges
-            ]
-        return result
-
     def _geometry(self, ref=None, scope="auto"):
         part = self._work_part()
         if scope not in {"auto", "part", "assembly"}:
@@ -640,62 +578,6 @@ class HardenedExecutor(
                 "NX_INVALID_ARGUMENT", "rotation_matrix must be a right-handed orthonormal matrix"
             )
         return m
-
-    def _capabilities(self, tool=None, prefix=None):
-
-        from nx_mcp.manifest import load_manifest, scope_to_version
-
-        manifest = load_manifest()
-        part = self._work_part(required=False)
-        manifest.update(
-            session_id=self.session_id,
-            # The manifest's own nx_version is the evidence baseline, not this session.
-            manifest_baseline_nx_version=manifest.get("nx_version"),
-            nx_version=self.nx_version,
-            actual_nx_version=self.nx_version,
-            execution=(
-                "serialized NX batch journal thread"
-                if self.session.IsBatch
-                else "serialized NX UI thread; visible model viewport"
-            ),
-            interactive=not self.session.IsBatch,
-            api_detection={
-                "native_display_modification": hasattr(
-                    self.session.DisplayManager, "NewDisplayModification"
-                ),
-                "dynamic_sections": bool(part and hasattr(part, "DynamicSections")),
-                "sketch_solver_status": hasattr(self.nxopen.Sketch, "CalculateStatus"),
-                "step_import": hasattr(self.session.DexManager, "CreateStep214Importer"),
-                "native_pattern": bool(
-                    part and hasattr(part.Features, "CreatePatternFeatureBuilder")
-                ),
-                "minimum_distance": hasattr(self.session.Measurement, "GetMinimumDistance"),
-                "native_component_pattern": bool(
-                    part and hasattr(part.ComponentAssembly, "CreateComponentPatternBuilder")
-                ),
-                "sketch_dimensions": hasattr(self.nxopen.Sketch, "CreateDimension"),
-            },
-            coordinate_conventions={
-                "lengths": "work-part units unless explicitly named mm3",
-                "angles": "degrees",
-                "rotation_order": "Rz * Ry * Rx",
-                "matrix": "row-major 3x3; p_parent = R*p_local + t",
-                "legacy_rotation_list": "NX axis vectors X,Y,Z, not row-major",
-                "sketch_XZ_normal": [0, -1, 0],
-            },
-        )
-        scope_to_version(manifest, self.nx_version)
-        if tool is not None and prefix is not None:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Use tool or prefix, not both")
-        total = len(manifest["tools"])
-        if tool is not None:
-            if tool not in manifest["tools"]:
-                raise NXToolError("NX_NOT_FOUND", "Tool is not in the capability manifest")
-            manifest["tools"] = {tool: manifest["tools"][tool]}
-        elif prefix is not None:
-            manifest["tools"] = {k: v for k, v in manifest["tools"].items() if k.startswith(prefix)}
-        manifest.update(tool_count=len(manifest["tools"]), total_tool_count=total, units=None)
-        return manifest
 
     def _clear_update_errors(self):
         """Drop NX update errors left by a rolled-back commit.

@@ -15,9 +15,7 @@ from nx_mcp import agent_guidance, agent_surface, integration_server
 
 # Legacy agent categories -> catalogue domains.
 _DOMAINS = {"files": "parts_files", "manufacturing": "sheet_metal"}
-_SESSION = {
-    "nx_capabilities",
-}
+_SESSION: set[str] = set()
 
 
 @dataclass(frozen=True)

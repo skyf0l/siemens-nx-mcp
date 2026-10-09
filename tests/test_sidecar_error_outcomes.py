@@ -5,11 +5,10 @@ import types
 from unittest.mock import AsyncMock
 
 import pytest
-from mcp.server.fastmcp import FastMCP
 
 from nx_mcp import bridge as bridge_module
 from nx_mcp.bridge import CLIENT_TIMEOUT, DISPATCHER_TIMEOUT, BridgeClient, MainThreadDispatcher
-from nx_mcp.integration_server import configure, tool_definitions
+from nx_mcp.integration_server import tool_definitions
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -20,34 +19,14 @@ def payload(result):
     return result.structuredContent
 
 
-# ---- 1. failures after forwarding are internal errors with unknown outcome ----
-async def test_failure_after_bridge_success_is_internal_and_unknown(tmp_path):
-    bridge = AsyncMock()
-    bridge.call.return_value = None  # e.g. a malformed bridge result
-    server = create_server(bridge, Workspace(tmp_path), surface="full")
-    error = payload(await server.call_tool("nx_list_topology", {"body": "obj_f"}))
-    bridge.call.assert_awaited_once()
-    assert error["code"] == "NX_INTERNAL_ERROR"
-    assert error["retryable"] is False
-    assert error["details"]["mutation_outcome"] == "unknown"
-
-
-async def test_schema_validation_failure_is_not_started(tmp_path):
-    bridge = AsyncMock()
-    server = create_server(bridge, Workspace(tmp_path), surface="full")
-    error = payload(await server.call_tool("nx_list_topology", {"body": 1}))
-    assert error["code"] == "NX_INVALID_ARGUMENT"
-    assert error["details"]["mutation_outcome"] == "not_started"
-    bridge.call.assert_not_called()
-
-
+# ---- 1. unknown tools never reach NX ----
 async def test_unknown_tool_on_full_surface_is_tool_not_found(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
-    error = payload(await server.call_tool("nx_list_topolog", {}))
+    error = payload(await server.call_tool("nx_list_objectz", {}))
     assert error["mutation_outcome"] == "not_started"
     assert error["error"]["code"] == "NX_UNKNOWN_TOOL"
     assert error["error"]["category"] == "not_found"
-    assert "nx_list_topology" in error["error"]["details"]["close_matches"]
+    assert "nx_list_objects" in error["error"]["details"]["close_matches"]
 
 
 # ---- 2. bridge transport: before vs after the request was written ----
@@ -124,26 +103,20 @@ async def test_agent_invoke_unknown_tool_is_tool_not_found(tmp_path):
     bridge = AsyncMock()
     server = create_server(bridge, Workspace(tmp_path), surface="agent")
     error = payload(
-        await server.call_tool("nx_invoke", {"tool": "nx_list_topolog", "arguments": {"body": "A"}})
+        await server.call_tool(
+            "nx_invoke", {"tool": "nx_list_objectz", "arguments": {"kind": "body"}}
+        )
     )
     assert error["error"]["code"] == "NX_UNKNOWN_TOOL" and error["error"]["field"] == "/tool"
     assert error["mutation_outcome"] == "not_started"
-    assert "nx_list_topology" in error["error"]["details"]["close_matches"]
-    assert "nx_list_topology" in error["error"]["hint"]
+    assert "nx_list_objects" in error["error"]["details"]["close_matches"]
+    assert "nx_list_objects" in error["error"]["hint"]
     error = payload(await server.call_tool("nx_no_such_tool_at_all", {}))
     assert error["error"]["code"] == "NX_UNKNOWN_TOOL"
     bridge.call.assert_not_called()
 
 
 # ---- 6. one schema per tool ----
-async def test_each_tool_has_one_definition_with_strict_arguments(tmp_path):
-    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
-    tools = {t.name: t for t in await server.list_tools()}
-    topology = tools["nx_list_topology"].inputSchema
-    assert {"body", "face", "include_adjacency"} <= set(topology["properties"])
-    assert topology["required"] == ["body"]
-
-
 def test_duplicate_tool_definitions_are_rejected(tmp_path):
     def nx_twice():
         pass
@@ -159,12 +132,3 @@ def test_duplicate_tool_definitions_are_rejected(tmp_path):
     # A re-export of the same function is one definition.
     second.nx_twice = nx_twice
     assert tool_definitions([first, second]) == {"nx_twice": nx_twice}
-
-    mcp = FastMCP("dup")
-
-    @mcp.tool()
-    async def nx_list_topology(body: str) -> dict:
-        return {}
-
-    with pytest.raises(RuntimeError, match="nx_list_topology"):
-        configure(mcp, AsyncMock(), Workspace(tmp_path))

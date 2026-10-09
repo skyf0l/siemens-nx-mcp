@@ -37,11 +37,7 @@ class NXOpenExecutor:
         self.nx_version = nx_version
         self.workspace = workspace
         self.objects = ObjectRegistry()
-        self._handlers: dict[str, Callable[..., dict[str, Any]]] = {
-            "nx_list_sketches": lambda: self._list_objects("Sketches", "sketch"),
-            "nx_list_bodies": lambda: self._list_objects("Bodies", "body"),
-            "nx_list_features": lambda: self._list_objects("Features", "feature"),
-        }
+        self._handlers: dict[str, Callable[..., dict[str, Any]]] = {}
 
     def execute(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         params = {k: v for k, v in params.items() if k != "intent"}
@@ -102,15 +98,6 @@ class NXOpenExecutor:
             name=self._name(value, fallback),
             part_id=self._part_id(part),
         ).model_dump()
-
-    def _list_objects(self, collection_name: str, kind: ObjectKind) -> dict[str, Any]:
-        part = self._work_part()
-        collection = getattr(part, collection_name)
-        values = list(collection)
-        return {
-            "objects": [self._reference(value, kind, part, kind.title()) for value in values],
-            "message": f"Found {len(values)} {kind}(s).",
-        }
 
     def _find_sketch(self, name: str) -> Any:
         part = self._work_part()

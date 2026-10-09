@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any, Protocol
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.exceptions import ToolError as MCPToolError
 
-from nx_mcp.contracts import (
-    NXToolError,
-    ObjectListResult,
-)
 from nx_mcp.workspace import Workspace
 
 
@@ -19,11 +13,8 @@ class BridgeCaller(Protocol):
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
-CERTIFIED_TOOL_NAMES = {
-    "nx_list_sketches",
-    "nx_list_bodies",
-    "nx_list_features",
-}
+# The inventories that were certified here are catalogue tools now (nx_list_objects).
+CERTIFIED_TOOL_NAMES: set[str] = set()
 
 
 def create_certified_server(
@@ -34,27 +25,6 @@ def create_certified_server(
         "nx-mcp",
         instructions="Siemens NX integration. Runtime support varies by NX version; no general certification is claimed.",
     )
-
-    async def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
-        try:
-            return await bridge.call(method, params)
-        except NXToolError as error:
-            raise MCPToolError(json.dumps(error.as_dict(), ensure_ascii=False)) from error
-
-    @mcp.tool()
-    async def nx_list_sketches() -> ObjectListResult:
-        """List sketches in the active work part."""
-        return ObjectListResult(**await call("nx_list_sketches", {}))
-
-    @mcp.tool()
-    async def nx_list_bodies() -> ObjectListResult:
-        """List bodies in the active work part."""
-        return ObjectListResult(**await call("nx_list_bodies", {}))
-
-    @mcp.tool()
-    async def nx_list_features() -> ObjectListResult:
-        """List features in the active work part."""
-        return ObjectListResult(**await call("nx_list_features", {}))
 
     # Part and file tools are catalogue tools (domains/parts_files); nx_extrude's
     # single public schema lives in authoring_server.py (configure() rejects duplicates).

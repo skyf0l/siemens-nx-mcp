@@ -58,7 +58,7 @@ def test_legacy_model_tool_is_refused_on_the_engineers_part(engineer):
 
 
 def test_reads_and_view_tools_still_run_on_the_engineers_part(engineer):
-    assert engineer.e.execute("nx_list_bodies", {})["status"] == "success"
+    assert engineer.e.execute("nx_list_objects", {"kind": "body"})["ok"]
     engineer.e._handlers["nx_fit_view"] = lambda: {"fitted": True}
     assert engineer.e.execute("nx_fit_view", {})["fitted"] is True
 

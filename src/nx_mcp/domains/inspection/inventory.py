@@ -4,6 +4,8 @@ Each domain registers ``@lister(kind)`` hooks for its own kinds. A lister is
 ``fn(tx, owner, owner_kind) -> [(obj, kind, extra)]``; ``extra`` holds the
 kind-specific summary (``type`` is used by the ``type`` filter). Rows are only
 built for the requested page, so large inventories register few references.
+``include`` adds per-row detail to the page: ``adjacency`` (a face's edge ids, an edge's
+face ids) or ``views`` (a drawing sheet's views).
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ ListKind = Literal[
     "edge",
     "datum",
     "feature",
+    "expression",
     "sketch",
     "drawing_sheet",
     "drawing_view",
@@ -36,6 +39,10 @@ ListKind = Literal[
     "assembly_constraint",
     "section_view",
 ]
+
+Include = Literal["adjacency", "views"]
+# include value -> the kinds it applies to
+_INCLUDE_KINDS = {"adjacency": ("face", "edge"), "views": ("drawing_sheet",)}
 
 
 class ObjectRow(result.Row, total=False):
@@ -53,11 +60,29 @@ def _name(obj) -> str:
     return str(getattr(obj, "Name", "") or getattr(obj, "JournalIdentifier", "") or "")
 
 
+def _expand(tx, obj, kind: str) -> dict:
+    """The extra details ``include`` asks for on one row (its kind was checked)."""
+    if kind == "face":
+        return {"edges": [tx.ref(e, kind="edge")["id"] for e in obj.GetEdges()]}
+    if kind == "edge":
+        return {"faces": [tx.ref(f, kind="face")["id"] for f in obj.GetFaces()]}
+    return {"views": [tx.ref(v, kind="drawing_view") for v in obj.GetDraftingViews()]}
+
+
 @tool(
     effect="read",
     label="List objects",
     summary="List {kind} objects",
-    keywords=("inventory", "list bodies", "list faces", "list features", "part navigator"),
+    keywords=(
+        "inventory",
+        "list bodies",
+        "list faces",
+        "list features",
+        "list expressions",
+        "topology",
+        "adjacency",
+        "part navigator",
+    ),
     requires=("work_part",),
     cost="light",
     example={"kind": "body"},
@@ -70,14 +95,18 @@ def nx_list_objects(
     name_contains: Annotated[str, Text(64), Doc("Case-insensitive name filter")] | None = None,
     type: Annotated[str, Text(32, r"^[a-z_]+$"), Doc("Kind-specific type, e.g. plane")]
     | None = None,
+    include: Include | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> ListData:
-    """List objects of one kind in the work part, optionally of one owner, filtered by name or
-    type, one page at a time. Rows carry a reference and a short kind-specific summary."""
+    """List work-part objects of one kind, filtered by owner, name or type, paged.
+    Rows: a reference and a kind-specific summary."""
     lister = hooks("lister").get(kind)
     if lister is None:
         fail("NX_UNSUPPORTED_OPTION", f"No lister for {kind}", field="/kind")
+    if include is not None and kind not in _INCLUDE_KINDS[include]:
+        fail("NX_UNSUPPORTED_OPTION", f"include={include} applies to "
+             f"{'/'.join(_INCLUDE_KINDS[include])}, not {kind}", field="/include")  # fmt: skip
     owner_obj = owner_kind = None
     if owner is not None:
         owner_obj = tx.resolve(owner, "body", "face", "feature", work_part=True)
@@ -89,5 +118,10 @@ def nx_list_objects(
     if type:
         found = [f for f in found if f[2].get("type") == type]
     selected, page = result.page(found, offset, limit)
-    items = [{**tx.ref(obj, kind=k), **extra} for obj, k, extra in selected]
+    items = []
+    for obj, k, extra in selected:
+        row = {**tx.ref(obj, kind=k), **extra}
+        if include is not None:
+            row["details"] = {**(row.get("details") or {}), **_expand(tx, obj, k)}
+        items.append(row)
     return {"kind": kind, "items": items, "page": page}

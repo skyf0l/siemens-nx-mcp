@@ -313,21 +313,6 @@ FAKE_NXOPEN = SimpleNamespace(
 )
 
 
-def test_query_commands_return_typed_stable_object_references(tmp_path: Path):
-    executor = NXOpenExecutor(FakeSession(), FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-
-    sketches = executor.execute("nx_list_sketches", {})["objects"]
-    bodies = executor.execute("nx_list_bodies", {})["objects"]
-    features = executor.execute("nx_list_features", {})["objects"]
-
-    assert [item["kind"] for item in sketches + bodies + features] == [
-        "sketch",
-        "body",
-        "feature",
-    ]
-    assert executor.execute("nx_list_bodies", {})["objects"][0]["id"] == bodies[0]["id"]
-
-
 def test_failed_model_mutation_rolls_back_its_undo_mark(tmp_path: Path):
     session = FakeSession()
     executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))

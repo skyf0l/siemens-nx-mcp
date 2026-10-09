@@ -5,13 +5,7 @@ from nx_mcp.manifest import load_manifest
 MANIFEST = load_manifest()
 
 # Reviewed contracts; omitted tools retain their descriptions and unknown effects.
-GUIDANCE = {
-    "nx_list_topology": (
-        ["Current body reference; reacquire topology after edits"],
-        ["body", "face"],
-        {"body": "<body_id>", "include_adjacency": True},
-    ),
-}
+GUIDANCE: dict[str, tuple] = {}
 GEOMETRY: set[str] = set()
 VISIBILITY: set[str] = set()
 SAVES: set[str] = set()
@@ -54,8 +48,6 @@ def guidance(tool):
 
 def next_actions(method, payload):
     """Only suggest actions with already returned IDs, never new mutations."""
-    if method == "nx_list_topology":
-        return []
     actions = []
 
     def identity(value):
@@ -69,8 +61,8 @@ def next_actions(method, payload):
     if body:
         actions.append(
             {
-                "tool": "nx_list_topology",
-                "arguments": {"body": body},
+                "tool": "nx_list_objects",
+                "arguments": {"kind": "face", "owner": body},
                 "purpose": "Inspect current faces and edges before selecting geometry",
             }
         )

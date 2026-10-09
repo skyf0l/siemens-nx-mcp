@@ -101,11 +101,11 @@
   },
   "nx_list_objects": {
     "v2406": {
-      "checks": 20,
-      "recorded": "2026-10-09T15:30:07Z",
+      "checks": 38,
+      "recorded": "2026-10-09T16:44:01Z",
       "scenario": "acceptance/inspection/list_objects.json",
-      "scenario_sha256": "23469f921506fe48b4548145893d1367d8061ab207ea1c6cea267921b4d1dbd1",
-      "source_sha256": "c9a98cf1ced7808f3fab68d35c36af04886839310bcd371bfb8e82b276fca32e",
+      "scenario_sha256": "7008f0db837d6c41793b92e440b307d150f3441b87c9b8374019befd84a044fc",
+      "source_sha256": "0c3a6650317a77cfbd99be5bd50004a79fdedf35b57d7821c2ba4dc8a431e5ec",
       "variants": []
     }
   },

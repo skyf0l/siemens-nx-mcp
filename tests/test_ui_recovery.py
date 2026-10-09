@@ -18,6 +18,7 @@ from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Collection
 
 pytestmark = pytest.mark.fake_nx
+BODIES = {"kind": "body"}  # a catalogue read
 
 
 @pytest.fixture
@@ -122,7 +123,7 @@ def test_agent_drives_holds_nx_without_per_call_unlock(host, rig):
     assert host.owns_lock and host.window_disabled and host.lock["value"] == 1
     host.ui.LockAccess.reset_mock()
     host.ui.UnlockAccess.reset_mock()
-    host.execute("nx_list_bodies", {})  # a read keeps NX locked during the call
+    host.execute("nx_list_objects", BODIES)  # a read keeps NX locked during the call
     rig.e._handlers["nx_test_edit"] = lambda: {}
     host.execute("nx_test_edit", {})  # legacy edits keep today's unlocked call
     assert host.ui.UnlockAccess.call_count == 1 and host.ui.LockAccess.call_count == 1
@@ -132,7 +133,7 @@ def test_agent_drives_holds_nx_without_per_call_unlock(host, rig):
 def test_agent_ui_lock_is_not_nested_and_file_steps_run_unlocked():
     from nx_mcp.interactive import runs_under_ui_lock
 
-    assert runs_under_ui_lock("nx_list_bodies")  # legacy read
+    assert runs_under_ui_lock("nx_list_objects")  # catalogue read
     assert not runs_under_ui_lock("nx_create_part")  # FileNew must not run inside LockAccess
     assert not runs_under_ui_lock("nx_extrude")  # legacy model tools: unchanged
     assert runs_under_ui_lock("nx_create_datum_plane")  # catalogue model edit, no file
@@ -147,7 +148,7 @@ def test_agent_drives_waits_for_a_busy_engineer_before_locking(host):
     assert host.mode == "agent" and not host.owns_lock and host.enabled["value"]
     assert host.status()["activity"] == "reserving"
     assert host.panel_text().startswith("⏸  Waiting until you finish your command")
-    pending = queue.submit("nx_list_bodies")
+    pending = queue.submit("nx_list_objects", BODIES)
     host.tick()
     assert not pending.complete.is_set() and host.busy_wait is pending
     assert host.panel_state()[1] == "NX MCP — Agent drives · agent waiting for you"
@@ -158,7 +159,7 @@ def test_agent_drives_waits_for_a_busy_engineer_before_locking(host):
 
 def test_operation_failure_relocks_ui_and_refresh_failure_is_warning(host, rig):
     with pytest.raises(NXToolError, match="NX MCP panel"):
-        host.execute("nx_list_bodies", {})
+        host.execute("nx_list_objects", BODIES)
     host.control("agent")
     assert host.status()["mode"] == "agent"
     rig.e._handlers["nx_test_fail"] = Mock(side_effect=RuntimeError("native error"))
@@ -166,7 +167,7 @@ def test_operation_failure_relocks_ui_and_refresh_failure_is_warning(host, rig):
         host.execute("nx_test_fail", {})
     assert host.ui.AskLockStatus() == 1
     rig.part.ModelingViews.WorkView.UpdateDisplay.side_effect = RuntimeError("refresh")
-    result = host.execute("nx_list_bodies", {})
+    result = host.execute("nx_list_objects", BODIES)
     assert not any("View refresh" in w for w in result["warnings"])
     rig.e._handlers["nx_test_edit"] = lambda: {}
     edited = host.execute("nx_test_edit", {})
@@ -189,13 +190,13 @@ def test_leaving_agent_drives_releases_nx_and_keeps_references_without_edits(hos
     rig.part.Bodies.append(body)
     host.control("agent")
     ref = rig.ref(body)
-    host.execute("nx_list_bodies", {})
+    host.execute("nx_list_objects", BODIES)
     rig.e._checkpoints["cp_" + "0" * 32] = {"mark": 1, "part_id": "p", "index": 0}
     host.control("ask")
     assert not host.owns_lock and host.status()["nx_window_input_enabled"]
     host.mode = "auto"
     host._light = True  # as the scheduler runs an Auto step
-    host.execute("nx_list_bodies", {})  # the engineer changed nothing in between
+    host.execute("nx_list_objects", BODIES)  # the engineer changed nothing in between
     assert rig.e.objects.resolve(ref) is body and rig.e._checkpoints
     with pytest.raises(NXToolError):
         host.control("bad")
@@ -216,11 +217,11 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     ref = rig.ref(body)
     rig.e._handlers["nx_test_add"] = lambda: rig.part.Bodies.append(Body()) or {}
     rig.e.execute("nx_test_add", {})  # an agent operation nx_undo_operation could undo
-    host.execute("nx_list_bodies", {})
+    host.execute("nx_list_objects", BODIES)
     checkpoint = rig.e.execute("nx_create_checkpoint", {})["data"]["checkpoint_id"]
     host._engineer_had_nx = True  # NX was released after the call
     model["marks"] = 6  # the engineer added a feature (an undo mark)
-    host.execute("nx_list_bodies", {})
+    host.execute("nx_list_objects", BODIES)
     with pytest.raises(NXToolError):
         rig.e.objects.resolve(ref)
     assert not rig.e._checkpoints and not rig.e._history
@@ -231,7 +232,7 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     ref = rig.ref(body)
     host._engineer_had_nx = False  # Agent drives: NX stayed locked in between
     model["marks"] = 7
-    host.execute("nx_list_bodies", {})
+    host.execute("nx_list_objects", BODIES)
     assert rig.e.objects.resolve(ref) is body
     # Neither undo nor restore reaches back across the engineer's edit.
     with pytest.raises(NXToolError) as undo:
@@ -423,7 +424,7 @@ def test_auto_reads_never_wait_and_leave_a_busy_engineers_window_alone(host):
     queue = _queue(host, "auto")
     _busy(host)
     host.enabled["value"] = False  # a modal dialog is open
-    pending = queue.submit("nx_list_bodies")
+    pending = queue.submit("nx_list_objects", BODIES)
     host.tick()
     assert pending.complete.is_set() and pending.error is None
     host.user.EnableWindow.assert_not_called()  # never re-enabled under the dialog
@@ -436,7 +437,7 @@ def test_auto_asks_before_a_long_step(host, rig, monkeypatch):
     rig.e._handlers["nx_test_edit"] = Mock(return_value={})
     long_step = queue.submit("nx_test_long", {"intent": "Export the STEP"})
     after = queue.submit("nx_test_edit")
-    read = queue.submit("nx_list_bodies")
+    read = queue.submit("nx_list_objects", BODIES)
     host.tick()
     assert read.complete.is_set()  # reads do not wait behind the card
     host.tick()
@@ -474,13 +475,13 @@ def test_auto_idle_and_running_lines(host):
 def test_ask_run_once_runs_only_the_waiting_steps_and_stays(host, monkeypatch):
     queue = _queue(host, "ask")
     status = queue.submit("nx_get_status")
-    held = queue.submit("nx_list_bodies", {"intent": "Check the boss body"})
+    held = queue.submit("nx_list_objects", {**BODIES, "intent": "Check the boss body"})
     host.tick()
     assert status.complete.is_set() and not held.complete.is_set()  # status never waits
     host.tick()
     text, title, mode, card = host.panel_state()
     assert title == "NX MCP — Agent is waiting" and card == "ask" and mode == "ask"
-    assert "Agent wants to: List bodies" in text
+    assert "Agent wants to: List body objects" in text
     assert "“Check the boss body”  (agent's note)" in text and "Answer within" in text
     host._flash_nx.assert_called_once()
     assert host.status()["waiting_for_engineer"] == 1
@@ -488,20 +489,20 @@ def test_ask_run_once_runs_only_the_waiting_steps_and_stays(host, monkeypatch):
     host.tick()
     assert held.complete.is_set() and held.error is None and host.mode == "ask"
     assert host.waiting_count == 0 and host.enabled["value"]
-    later = queue.submit("nx_list_bodies")
+    later = queue.submit("nx_list_objects", BODIES)
     host.tick()
     assert not later.complete.is_set() and host.waiting_count == 1  # asks again
 
 
 def test_ask_run_and_switch_to_auto(host):
     queue = _queue(host, "ask")
-    held = queue.submit("nx_list_bodies")
+    held = queue.submit("nx_list_objects", BODIES)
     host.tick()
     host.answer_requested = "run_auto"
     host.tick()
     assert held.error is None and host.mode == "auto"
     assert json.loads((host.state_dir / "ui-mode.json").read_text())["mode"] == "auto"
-    later = queue.submit("nx_list_bodies")
+    later = queue.submit("nx_list_objects", BODIES)
     host.tick()
     assert later.error is None and host.waiting_count == 0  # Auto: no card
 
@@ -764,8 +765,8 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
 def test_diagnostic_write_failure_does_not_fail_committed_operation(host, rig):
     host.control("agent")
     host.publish = Mock(side_effect=OSError("disk full"))
-    result = host.execute("nx_list_bodies", {})
-    assert result["status"] == "success"
+    result = host.execute("nx_list_objects", BODIES)
+    assert result["ok"]
     assert host.running_method is None and host.operation_started is None
     assert host.owns_lock
 
@@ -782,7 +783,7 @@ def test_history_idle_text_and_recap_follow_real_operations(host, rig):
 
     rig.e._handlers["nx_test_fail"] = fail
     host.execute("nx_test_make", {"intent": "Add the boss"})
-    host.execute("nx_list_bodies", {})
+    host.execute("nx_list_objects", BODIES)
     with pytest.raises(NXToolError):
         host.execute("nx_test_fail", {})
     # One list, newest first, under the idle line; no separate status block.

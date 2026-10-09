@@ -60,7 +60,7 @@ The release includes native-probe, public-MCP and local-test evidence separately
 
 `nx_find_geometry` enumerates faces or edges within a body, feature, component or full assembly. Filter planar faces by oriented normal, cylinders and circular edges by radius, and order by exact BREP nearest distance (dev6) or highest/lowest conservative bounding-box center. Coordinates and radii use work-part units. Nearest results include the closest point and native accuracy. Candidate results are paginated; use `nx_highlight_objects` to inspect choices, then `nx_clear_highlights`.
 
-`nx_list_expressions` returns formulas, numeric values, units, editability and stored immediate dependencies. Conditional formulas can have incomplete stored dependencies. `nx_set_expression` creates named Number expressions with mm/inch/degree/radian/unitless units or edits existing local, unlocked Number expressions. Edits preserve units. NX formula errors and failed updates roll back. `nx_bind_parameter` connects an existing expression to EXTRUDE start/end or PATTERN_FEATURE count/spacing. Units and dimensional compatibility are enforced by NX. This is not a general interface to every feature builder.
+`nx_list_objects(kind=expression)` returns formulas, numeric values, units and editability (owner=<feature> for one feature's parameters). Conditional formulas can have incomplete stored dependencies. `nx_set_expression` creates named Number expressions with mm/inch/degree/radian/unitless units or edits existing local, unlocked Number expressions. Edits preserve units. NX formula errors and failed updates roll back. `nx_bind_parameter` connects an existing expression to EXTRUDE start/end or PATTERN_FEATURE count/spacing. Units and dimensional compatibility are enforced by NX. This is not a general interface to every feature builder.
 
 
 ### Health and local editing
@@ -418,8 +418,8 @@ Native sheet-metal flat patterns and DXF/GEO export remain available from [dev10
 
 ### Drawing and assembly documentation
 
-- `nx_list_drawings` enumerates work-part sheets, their sizes, scales and drafting views without activating them. `nx_activate_drawing` opens a sheet; a null drawing returns to modeling. Work/display parts must match and no sketch may be active.
-- `nx_list_annotations` paginates notes, PMI, BOMs, balloons, bend tables and explosion traces, returning native subtypes and available text/positions. Drafting positions use sheet coordinates; PMI positions use part coordinates.
+- `nx_list_objects(kind=drawing_sheet, include=views)` enumerates work-part sheets, their sizes, scales and drafting views without activating them. `nx_activate_drawing` opens a sheet; a null drawing returns to modeling. Work/display parts must match and no sketch may be active.
+- `nx_list_objects(kind=annotation)` pages notes, PMI, balloons and symbols, returning native subtypes and available text/positions. Drafting positions use sheet coordinates; PMI positions use part coordinates.
 - `nx_edit_annotation` moves or renames annotations, or explicitly deletes one. Balloon movement retains native callout associations. Use the dedicated trace tool to change trace geometry.
 - `nx_parts_list_column` edits, appends or removes zero-based BOM columns. Inspect existing `columns` first: `field` is the native default expression, such as `<W$=@$PART_NAME>`. An appended general column requires a title, width and field. Callout and quantity columns retain their native types. Widths use sheet units.
 - `nx_edit_explosion_trace` changes managed trace endpoint percentages along the anchored edges and native endpoint offsets. Persistent component/edge handles remain attached to the named explosion. Offsets use assembly units. This does not change assembled component placement.
@@ -444,7 +444,7 @@ Manual NX edits do not run the MCP transaction hook. Call `nx_refresh_annotation
 ### Drawings and units
 
 - `nx_drawing_view_info`: actual view scale, sheet position, native border and sheet containment. Borders exclude separately placed annotations.
-- `nx_list_dimensions`: computed native values and typed dimension references, including PMI and drawing dimensions, native retention status and whether the computed value remains valid. Linear drafting dimensions can reference assembly occurrence edges.
+- `nx_list_objects(kind=dimension)`: computed native values and typed dimension references, including PMI and drawing dimensions, native retention status and whether the computed value remains valid. Linear drafting dimensions can reference assembly occurrence edges.
 - `nx_edit_drawing_view`: absolute position and/or positive scale, with native readback. Aligned views can reject incompatible moves, which roll back.
 - `nx_add_section_drawing_view`: a simple native section and section line. Select an owned edge and `cut_association` of `start`, `end`, or `arc_center`. Step and arrow directions are perpendicular vectors in the sheet XY plane. The scale is assigned explicitly; NX's creation API may otherwise inherit the parent's scale.
 - `nx_add_detail_drawing_view`: a circular native detail. Center and radius use model coordinates/part units; the bridge maps them into the parent view. Managed boundary coordinates refresh with parent-view edits. The center is an explicit model coordinate, not a selected material point that moves with arbitrary geometry edits.

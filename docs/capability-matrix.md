@@ -4,13 +4,13 @@ Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evide
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
 Manifest revision: **2606-manufacturing-r1**. NX: **v2606**. Bridge protocol: **1**.
-Canonical SHA-256 (manifest and catalogue evidence): `ff677ef91ec700f9b79b0536616bf4879ddca769f077dbff792fbb4d5b3efa05`.
+Canonical SHA-256 (manifest and catalogue evidence): `453a010ebbadee53163affca4eb03c0ad22a298c73f84c20c0d4b2a21fbcec06`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); without it the tool is Experimental, hidden from discovery and refused in production. A legacy tool is Native-tested with manifest status `tested` and an evidence type beginning `real_NX_`; only the stated scope and NX version are covered. Contract/sidecar-tested does not establish native CAD correctness. Experimental includes untested entries and tested entries without a recognized evidence type. Unavailable capabilities are explicitly recorded by the manifest; absence from this matrix is not proof of availability or unavailability.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 157 |
+| Native-tested | 147 |
 | Contract/sidecar-tested | 0 |
 | Experimental | 1 |
 | Unavailable | 0 |
@@ -132,7 +132,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_list_checkpoints | Native-tested | session | read | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_list_components | Native-tested | assembly | read | v2406: tested; 108 checks in acceptance/assembly/components.json |
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 20 checks in acceptance/parts_files/list_files.json |
-| nx_list_objects | Native-tested | inspection | read | v2406: tested; 20 checks in acceptance/inspection/list_objects.json |
+| nx_list_objects | Native-tested | inspection | read | v2406: tested; 38 checks in acceptance/inspection/list_objects.json |
 | nx_list_parts | Native-tested | parts_files | read | v2406: tested; 17 checks in acceptance/parts_files/list_parts.json |
 | nx_list_thread_sizes | Native-tested | modeling | read | v2406: tested; 19 checks in acceptance/modeling/thread.json |
 | nx_measure_angle | Native-tested | inspection | read | v2406: tested; 51 checks in acceptance/inspection/measure.json |
@@ -172,16 +172,6 @@ These labels report recorded evidence, not certification or independent verifica
 
 | Tool | Classification | Manifest status | Evidence type | Tested scope / caveat |
 | --- | --- | --- | --- | --- |
-| nx_capabilities | Native-tested | tested | real_NX_v2606_scoped | Live exact-tool manifest filtering, NX version and API-detection response. API presence is not a geometry correctness certificate. |
-| nx_list_annotations | Native-tested | tested | real_NX_v2606_scoped | Native BOM, balloon and managed sheet-metal PMI enumeration and text. |
-| nx_list_bodies | Native-tested | tested | real_NX_v2606_scoped | Native work-part inventory reports one extruded body and zero after feature deletion. |
-| nx_list_datums | Native-tested | tested | real_NX_v2606_scoped | Native owned datum planes/axes and coordinate-system enumeration on template part. |
-| nx_list_dimensions | Native-tested | tested | real_NX_v2606_scoped | Native computed size and retention diagnostics; occurrence-edge dimension follows extrusion resize and explicitly rebinds after replacement. |
-| nx_list_drawings | Native-tested | tested | real_NX_v2606_scoped | Native A3 sheet/view enumeration, dimensions, scale and active state. |
-| nx_list_expressions | Native-tested | tested | real_NX_v2606_and_local_stateful_seams | Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits. |
-| nx_list_features | Native-tested | tested | real_NX_v2606_scoped | Native sketch/extrusion inventory and reacquisition of a renamed feature following Save As. |
-| nx_list_sketches | Native-tested | tested | real_NX_v2606_scoped | Native two-sketch work-part inventory with typed references. |
-| nx_list_topology | Native-tested | tested | real_NX_v2606 | Face and edge enumeration; face references used in actual distance query Native face-restricted boundary enumeration and bidirectional adjacency used for flat-pattern orientation. |
 
 ## Explicitly unavailable capabilities
 

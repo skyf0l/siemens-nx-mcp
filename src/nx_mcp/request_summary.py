@@ -25,7 +25,7 @@ def _number(value: Any) -> str:
 
 
 def humanize(method: str) -> str:
-    """nx_list_topology -> List topology."""
+    """nx_list_objects -> List objects."""
     words = method.removeprefix("nx_").replace("_", " ").strip()
     return words[:1].upper() + words[1:] if words else method
 
@@ -176,44 +176,8 @@ def _tolerance(p, c):
     return f"{kind} tolerance" if kind else ""
 
 
-def _capabilities(p, c):
-    if p.get("tool"):
-        return f"Check what {p['tool']} supports on this NX"
-    if p.get("prefix"):
-        return f"Check tested scope of {p['prefix']}* tools"
-    return "Check tested scope of all tools"
-
-
-_READ_ONLY_FIXED = {
-    "nx_list_bodies": "List bodies in the work part",
-    "nx_list_features": "List features in the work part",
-    "nx_list_sketches": "List sketches in the work part",
-    "nx_list_datums": "List datums in the work part",
-    "nx_list_annotations": "List annotations in the work part",
-    "nx_list_dimensions": "List dimensions in the work part",
-    "nx_list_drawings": "List drawing sheets and views",
-}
-
-_TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
-    # Files, parts and session
-    "nx_capabilities": _capabilities,
-    # Measurements and inspections
-    "nx_list_topology": lambda p, c: (
-        f"List faces and edges of {c.obj(p.get('face') or p.get('body'))}"
-    ),
-    "nx_list_expressions": lambda p, c: (
-        f'List expressions named like "{p["name_contains"]}"'
-        if p.get("name_contains")
-        else "List expressions in the work part"
-    ),
-}
-
-
-def _fixed(text: str) -> Callable[[dict[str, Any], _Context], str]:
-    return lambda p, c: text
-
-
-_TEMPLATES.update({name: _fixed(text) for name, text in _READ_ONLY_FIXED.items()})
+# Catalogue tools describe themselves (``summary`` on each tool); legacy templates are gone.
+_TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {}
 
 
 def _group_templates():

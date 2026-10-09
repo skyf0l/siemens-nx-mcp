@@ -7,7 +7,6 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.core import catalogue, evidence
-from nx_mcp.core.catalogue import CatalogueError
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
@@ -66,7 +65,9 @@ async def test_agent_profile_lists_gateways_and_existing_core_tools(tmp_path, te
     assert tools["nx_invoke"].annotations.destructiveHint is True
     listed = tools["nx_list_objects"]
     assert listed.annotations.readOnlyHint and listed.annotations.idempotentHint
-    assert listed.title == "List objects" and listed.description.startswith("List objects")
+    assert listed.title == "List objects" and listed.description.startswith(
+        "List work-part objects"
+    )
     assert listed.inputSchema["properties"]["limit"]["maximum"] == 200
 
 
@@ -82,8 +83,7 @@ async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_pa
     assert "nx_create_datum_plane" in tested  # the real evidence is loaded
     assert set(gateways.NAMES) | tested <= set(tools)
     assert not untested & set(tools)  # decision 11: untested tools are hidden
-    assert set(full.nx_surface.legacy) <= set(tools)
-    assert "nx_capabilities" in set(tools)
+    assert not full.nx_surface.legacy  # every legacy tool is migrated
     assert not {"nx_result", "nx_inspect", "nx_result_cleanup", "nx_read_result"} & set(tools)
     datum = tools["nx_create_datum_plane"]
     assert datum.annotations.readOnlyHint is False and datum.annotations.destructiveHint is True
@@ -100,18 +100,10 @@ def test_profile_defaults_to_agent_and_rejects_typos(tmp_path, monkeypatch):
         create_server(AsyncMock(), Workspace(tmp_path))
 
 
-def test_a_catalogue_name_colliding_with_a_legacy_tool_stops_the_sidecar(tmp_path, monkeypatch):
-    clash = dict(catalogue.load())
-    clash["nx_capabilities"] = clash["nx_list_objects"]
-    monkeypatch.setattr(catalogue, "load", lambda: clash)
-    with pytest.raises(CatalogueError, match="nx_capabilities"):
-        server(tmp_path)
-
-
 # ---- discovery --------------------------------------------------------------
 
 
-async def test_find_ranks_catalogue_above_legacy_and_marks_legacy_rows(tmp_path, tested):
+async def test_find_ranks_by_name_keywords_and_synonyms(tmp_path, tested):
     agent = server(tmp_path)
     rows = body(await agent.call_tool("nx_find_tools", {"query": "list faces"}))["data"]["tools"]
     assert rows[0] == {
@@ -120,12 +112,12 @@ async def test_find_ranks_catalogue_above_legacy_and_marks_legacy_rows(tmp_path,
         "effect": "read",
         "domain": "inspection",
     }
-    assert all(r.get("legacy") for r in rows[1:])
+    assert not any(r.get("legacy") for r in rows)
     rows = body(await agent.call_tool("nx_find_tools", {"query": "fillet"}))["data"]["tools"]
     names = [r["name"] for r in rows]
     assert names[0] == "nx_create_blend"  # synonym fillet -> blend, catalogue above legacy
-    exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_list_topology"}))["data"]
-    assert exact["tools"][0]["name"] == "nx_list_topology"
+    exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_list_objects"}))["data"]
+    assert exact["tools"][0]["name"] == "nx_list_objects"
     none = body(await agent.call_tool("nx_find_tools", {"query": "fillet zebra"}))
     assert none["data"]["tools"] == [] and none["page"]["total"] == 0
     reads = body(await agent.call_tool("nx_find_tools", {"query": "list", "effect": "read"}))
@@ -174,7 +166,6 @@ async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
             {
                 "names": [
                     "nx_create_datum_plane#offset",
-                    "nx_list_topology",
                     "nx_nope",
                     "nx_list_objects",
                 ],
@@ -182,14 +173,12 @@ async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
             },
         )
     )["data"]
-    datum, legacy, listing = data["tools"]
+    datum, listing = data["tools"]
     assert datum["input_schema"]["properties"]["method"] == {"const": "offset"}
     assert datum["example"] == OFFSET and datum["evidence"] == {"v2406": ["offset"]}
     assert datum["requires"] == ["work_part", "no_active_sketch"]
     assert "operation_id" not in datum["input_schema"]["properties"]
     assert "data" in datum["output_schema"]["properties"]
-    assert legacy["legacy"] is True and "body" in legacy["input_schema"]["properties"]
-    assert legacy["prerequisites"]
     assert listing["evidence"] == {"v2406": True}
     assert [m["name"] for m in data["not_found"]] == ["nx_nope"]
     wrong = body(
@@ -352,8 +341,6 @@ async def test_invoke_read_refuses_other_effects_before_validation(tmp_path, tes
         "nx_invoke_read", {"tool": "nx_list_objects", "arguments": {"kind": "body"}}
     )
     assert not ok.isError
-    bridge.call.return_value = {"status": "success", "connected": True}
-    assert not (await agent.call_tool("nx_invoke_read", {"tool": "nx_capabilities"})).isError
     nested = body(await agent.call_tool("nx_invoke", {"tool": "nx_invoke", "arguments": {}}))
     assert nested["error"]["code"] == "NX_UNSUPPORTED_OPTION"
 
@@ -408,23 +395,6 @@ def test_paths_are_resolved_inside_the_workspace(tmp_path):
     reserved = proxy._resolve_paths(Spec, {"path": ".nx-mcp/receipts.json"})
     assert reserved.code in ("NX_PATH_RESERVED", None) or reserved is None
     assert _walk_paths({"items": []}, "/items/*/path") == []
-
-
-# ---- legacy coexistence -----------------------------------------------------------
-
-
-async def test_legacy_tools_stay_callable_in_both_profiles(tmp_path, tested):
-    for surface in ("agent", "full"):
-        bridge = AsyncMock()
-        bridge.call.return_value = {"status": "success", "objects": [], "message": "none"}
-        legacy = server(tmp_path, bridge, surface=surface)
-        direct = await legacy.call_tool("nx_list_bodies", {})
-        via = await legacy.call_tool(
-            "nx_invoke",
-            {"tool": "nx_list_bodies", "arguments": {}, "intent": "Pad the base"},
-        )  # fmt: skip
-        assert not direct.isError and not via.isError
-        assert bridge.call.call_args.args[1]["intent"] == "Pad the base"
 
 
 async def test_agent_presentation_never_relabels_a_finished_call(tmp_path, tested, monkeypatch):

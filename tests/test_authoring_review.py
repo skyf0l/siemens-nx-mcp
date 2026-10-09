@@ -216,15 +216,6 @@ def test_temporary_presentation_cleanup_failure_is_partial(author):
     assert err.value.details["mutation_outcome"] == "partial"
 
 
-def test_expression_value_uses_its_declared_unit_not_part_unit(author):
-    exp = author.expression
-    exp.Units = NS(Abbreviation="in")
-    exp.Value = 25.4
-    exp.expression_value = 1.0
-    record = author.e._expression_record(exp)
-    assert record["value"] == 1 and record["units"] == "in"
-
-
 @pytest.mark.asyncio
 async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path, monkeypatch):
     from unittest.mock import AsyncMock

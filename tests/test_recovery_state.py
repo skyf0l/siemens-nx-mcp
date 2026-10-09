@@ -220,25 +220,10 @@ def test_lookup_ambiguity_ownership_and_kind_guards(rig, tmp_path):
 
 def test_guard_failures_never_create_undo_marks(rig):
     with pytest.raises(NXToolError):
-        rig.e.execute("nx_list_topology", {"unexpected": 1})
+        rig.e.execute("nx_list_objects", {"unexpected": 1})
     with pytest.raises(NXToolError, match="NX_TOOL_NOT_FOUND|nx_no_such_tool"):
         rig.e.execute("nx_no_such_tool", {})
     assert not rig.session.marks
-
-
-def test_capability_filters_and_unit_conventions(rig):
-    from types import SimpleNamespace
-
-    rig.session.DexManager = SimpleNamespace()
-    rig.session.Measurement = SimpleNamespace()
-    one = rig.e._capabilities(tool="nx_list_topology")
-    assert list(one["tools"]) == ["nx_list_topology"] and one["units"] is None
-    group = rig.e._capabilities(prefix="nx_sheet")
-    assert all(name.startswith("nx_sheet") for name in group["tools"])
-    assert group["tool_count"] < group["total_tool_count"]
-    for params in [{"tool": "nx_missing"}, {"tool": "nx_list_topology", "prefix": "nx_"}]:
-        with pytest.raises(NXToolError):
-            rig.e._capabilities(**params)
 
 
 def test_rejected_call_keeps_references_unless_something_was_created(rig):

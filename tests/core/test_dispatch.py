@@ -67,7 +67,8 @@ def test_model_tool_in_dev_uses_one_visible_mark_and_legacy_history(rig, monkeyp
 
 def test_legacy_tools_keep_their_shape_and_record_ownership(rig, monkeypatch):
     monkeypatch.setenv("NX_MCP_DEV", "1")  # tracking runs in development too
-    legacy = rig.e.execute("nx_list_bodies", {})
+    rig.e._handlers["nx_test_read"] = lambda: {"objects": []}
+    legacy = rig.e.execute("nx_test_read", {})
     assert legacy["status"] == "success" and "ok" not in legacy
     services = dispatch.services_for(rig.e)
     rig.e._owned_parts.clear()
@@ -87,10 +88,10 @@ def test_panel_summary_comes_from_the_spec(rig):
         rig.e, "nx_create_datum_plane", {"method": "offset", "reference": "fc:7", "distance": 15}
     )
     assert line == "Datum plane 15 mm from fc:7"
-    assert dispatch.render_summary(rig.e, "nx_list_bodies", {}) is None
+    assert dispatch.render_summary(rig.e, "nx_test_read", {}) is None
     assert dispatch.is_read_only("nx_list_objects") is True
     assert dispatch.is_read_only("nx_create_datum_plane") is False
-    assert dispatch.is_read_only("nx_list_bodies") is None
+    assert dispatch.is_read_only("nx_test_read") is None
 
 
 def test_legacy_tools_receive_the_legacy_id_of_a_catalogue_ref(rig):

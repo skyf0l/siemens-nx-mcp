@@ -1,11 +1,12 @@
-"""Modeling listers for ``nx_list_objects`` (bodies, faces, edges, features, datums) and the
+"""Modeling listers for ``nx_list_objects`` (bodies, faces, edges, features, datums,
+expressions) and the
 feature deleter for ``nx_delete_objects`` (``fn(tx, objects)``, inside the caller's mark)."""
 
 from __future__ import annotations
 
 from nx_mcp.core.catalogue import deleter, lister
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import geom, model, result, select
+from nx_mcp.kit import expr, geom, model, result, select
 
 FACE_TYPES = {22: "plane", 16: "cylinder", 17: "cone", 18: "sphere", 19: "torus"}
 EDGE_TYPES = {"Linear": "line", "Circular": "circle", "Elliptical": "ellipse"}
@@ -59,14 +60,44 @@ def edges(tx, owner, owner_kind):
 def features(tx, owner, owner_kind):
     if owner is not None:
         fail("NX_UNSUPPORTED_OPTION", "features are listed for the whole part", field="/owner")
-    return [
-        (
-            f,
-            "feature",
-            {"type": str(f.FeatureType).lower(), "details": {"suppressed": bool(f.Suppressed)}},
-        )
-        for f in tx.part.Features
-    ]
+    from nx_mcp.domains.modeling.tree import feature_messages
+
+    out = []
+    for f in tx.part.Features:
+        stamp = getattr(f, "Timestamp", None)
+        details = {
+            "suppressed": bool(f.Suppressed),
+            "timestamp": None if stamp is None else int(stamp),
+            "errors": feature_messages(f),
+        }
+        out.append((f, "feature", {"type": str(f.FeatureType).lower(), "details": details}))
+    return out
+
+
+@lister("expression")
+def expressions(tx, owner, owner_kind):
+    """Work-part expressions by name, or the parameters of one feature (owner)."""
+    if owner_kind == "feature":
+        values = list(owner.GetExpressions())
+    elif owner is None:
+        values = list(tx.part.Expressions)
+    else:
+        fail("NX_WRONG_KIND", "owner must be a feature here", field="/owner")
+    out = []
+    for e in sorted(values, key=lambda e: str(e.Name)):
+        try:
+            value = expr.value(tx, e)
+        except Exception:  # a string or list expression has no numeric value
+            value = None
+        details = {
+            "formula": str(e.RightHandSide),
+            "value": value,
+            "units": expr.units(e),
+            "editable": expr.editable(e),
+        }
+        out.append((e, "expression", {"type": str(getattr(e, "Type", "")).lower(),
+                                      "details": details}))  # fmt: skip
+    return out
 
 
 @lister("datum")
@@ -74,15 +105,15 @@ def datums(tx, owner, owner_kind):
     if owner is not None:
         fail("NX_UNSUPPORTED_OPTION", "datums are listed for the whole part", field="/owner")
     out = []
-    for datum in tx.part.Datums:
+    # Datum CSYS frames live in CoordinateSystems, not in Datums.
+    found = [*tx.part.Datums, *(getattr(tx.part, "CoordinateSystems", None) or [])]
+    for datum in {int(d.Tag): d for d in found}.values():
         kind = tx.kind_of(datum)
-        extra = {"type": kind.removeprefix("datum_")}
+        details = {"blanked": bool(getattr(datum, "IsBlanked", False))}
         if kind == "datum_plane":
-            extra["details"] = {
-                "origin": geom.xyz(datum.Origin),
-                "normal": geom.unit(geom.xyz(datum.Normal)),
-            }
-        out.append((datum, kind, extra))
+            details["origin"] = geom.xyz(datum.Origin)
+            details["normal"] = geom.unit(geom.xyz(datum.Normal))
+        out.append((datum, kind, {"type": kind.removeprefix("datum_"), "details": details}))
     return out
 
 

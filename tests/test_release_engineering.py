@@ -100,15 +100,3 @@ def test_native_mass_unit_is_explicit(ff):
     assert props.InformationUnit == ff.nx.MeasureBodies.AnalysisUnit.KilogramMillimeter
     assert result["volume_mm3"] == 8193.532
     props.Dispose.assert_called_once()
-
-
-def test_retained_dimensions_are_not_valid_measurements(drawing):
-    from tests.fakes import Object, point
-
-    d = Object("Retained dimension")
-    d.ComputedSize, d.IsRetained, d.AnnotationOrigin = 8, True, point(0, 0, 0)
-    drawing.part.Dimensions = [d]
-    result = drawing.e._list_dimensions()["dimensions"][0]
-    assert result["retained"] and not result["measurement_valid"]
-    d.IsRetained = False
-    assert drawing.e._list_dimensions()["dimensions"][0]["measurement_valid"]

@@ -1,0 +1,131 @@
+{
+  "format": 1,
+  "scenario": "acceptance/inspection/list_drawing_objects.json",
+  "scenario_sha256": "332f893113325b3038dfba3d1d87439ff06ffe736574fc155ef3fdf9e27f5422",
+  "domain": "inspection",
+  "covers": {
+    "nx_list_objects": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "31182748e3045c4bab3bec2e6fc4000ce455ac38",
+  "sources": {
+    "nx_list_objects": "0c3a6650317a77cfbd99be5bd50004a79fdedf35b57d7821c2ba4dc8a431e5ec"
+  },
+  "run_id": "20261009-204359-9abe74",
+  "owner": "cl1_lists",
+  "part": null,
+  "started": "2026-10-09T16:44:01Z",
+  "finished": "2026-10-09T16:44:03Z",
+  "passed": true,
+  "checks": 17,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.75,
+      "result_sha256": "b596834d60f9ddf08432541c09983532e693886b49f52b52c691a15ea56efcbb"
+    },
+    {
+      "index": 2,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.032,
+      "result_sha256": "69dfc5c6d48e7349e0a25b0d2ce4d11ed43b24cfb3f506d57bc5d54c20eaf47e"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "8ad3fac839b05deb602b324e693f9ce01db4aa023e904128a0eb29458a36ac7f"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.343,
+      "result_sha256": "6620610c489a7db85a08ee5de319fb88f5a9eafdb71b5f5faf20378730519755"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_note",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.047,
+      "result_sha256": "66106daf00ddb2a6670faef108cc8f9c32a20358a9e862ca75f1665bc2382838"
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.141,
+      "result_sha256": "e2bacc32662512db0bb6f9b6fae19ee2335600519cfb8822b9641f8dd062856f"
+    },
+    {
+      "index": 7,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.016,
+      "result_sha256": "a9b87f2c1c581554d78abaa16c9a55617c8358495aa411ed61508045b7928518"
+    },
+    {
+      "index": 8,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.015,
+      "result_sha256": "2517e29c31ba774eb5a479ac5ac2e3f99c93acab4d0e935bb58de3f5d7e40706"
+    },
+    {
+      "index": 9,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.031,
+      "result_sha256": "fc86e585547afef71f394eb678627702b0d355a0a3c294248adbb2cb2d68b852"
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.016,
+      "result_sha256": "371a18b95cad5560293a7f7649d42a7d42c13b008a4281ae1ba42e7afc11f6e3"
+    },
+    {
+      "index": 11,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.016,
+      "result_sha256": "448f45b9da56d10fd4260a65ff3e830714bacf619741987f593fa84c761082f1"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-204359-9abe74/inspection_list_drawing_objects_drawing_block_mm.prt"
+    ],
+    "failed": []
+  }
+}

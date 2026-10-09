@@ -72,3 +72,55 @@ def test_drawing_sheets_and_views_are_listed_through_their_hooks():
     assert [r["kind"] for r in sheets.data["items"]] == ["drawing_sheet"]
     views = run(nx, "nx_list_objects", kind="drawing_view")
     assert views.ok and [r["name"] for r in views.data["items"]] == ["Top@1"], views
+    with_views = run(nx, "nx_list_objects", kind="drawing_sheet", include="views")
+    assert [v["name"] for v in with_views.data["items"][0]["details"]["views"]] == ["Top@1"]
+
+
+def _adjacent(body):
+    """Give the fake block NX's face<->edge adjacency (an edge lies in a face's plane)."""
+
+    def on(face, edge):
+        n, o = face.normal, face.origin
+        return all(
+            abs(sum(n[i] * (getattr(v, "XYZ"[i]) - o[i]) for i in range(3))) < 1e-9
+            for v in edge.GetVertices()
+        )
+
+    for face in body.faces:
+        face.GetEdges = lambda f=face: [e for e in body.edges if on(f, e)]
+    for edge in body.edges:
+        edge.GetFaces = lambda e=edge: [f for f in body.faces if on(f, e)]
+
+
+def test_face_and_edge_adjacency():
+    nx = fake_nx()
+    body = nx.block(40, 20, 10)
+    _adjacent(body)
+    faces = run(nx, "nx_list_objects", kind="face", owner=body.ref, include="adjacency")
+    assert faces.ok, faces
+    assert all(len(r["details"]["edges"]) == 4 for r in faces.data["items"])
+    assert faces.data["items"][0]["details"]["normal"]  # the summary is kept
+    edges = run(nx, "nx_list_objects", kind="edge", owner=body.ref, include="adjacency", limit=1)
+    assert len(edges.data["items"][0]["details"]["faces"]) == 2
+    bad = run(nx, "nx_list_objects", kind="body", include="adjacency")
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/include"
+
+
+def test_feature_rows_carry_timestamp_and_errors_and_expressions_are_listed():
+    from tests.kit.objects import Feature
+
+    nx = fake_nx()
+    feature = Feature("EXTRUDE(1)")
+    feature.Suppressed, feature.Timestamp = False, 3
+    feature.GetFeatureErrorMessages = lambda: ["Section is open"]
+    nx.part.Features.append(nx._own(feature, "feature"))
+    nx.expression("p2", "20", 20.0)
+    nx.expression("p1", "10", 10.0)
+    features = run(nx, "nx_list_objects", kind="feature")
+    assert features.ok, features
+    details = features.data["items"][0]["details"]
+    assert details == {"suppressed": False, "timestamp": 3, "errors": ["Section is open"]}
+    exprs = run(nx, "nx_list_objects", kind="expression", name_contains="p")
+    assert exprs.ok, exprs
+    assert [r["name"] for r in exprs.data["items"]] == ["p1", "p2"]
+    assert {"formula", "value", "units"} <= set(exprs.data["items"][0]["details"])

@@ -29,37 +29,9 @@ from nx_mcp.workspace import WorkspaceViolation
 REQUEST_INTENT: ContextVar[str | None] = ContextVar("nx_mcp_request_intent", default=None)
 
 
-def nx_list_datums():
-    """List work-part datum planes, axes and coordinate systems with IDs and blanked state. Does not recurse into component prototypes."""
+DESCRIPTIONS: dict[str, str] = {}
 
-
-# Public schemas for tools whose NX handlers live in hardened.py
-# and nx_bridge.py. Descriptions come from DESCRIPTIONS
-# where one exists.
-# Signature-only definitions are used to publish the actual bridge arguments.
-def nx_list_topology(
-    body: str, face: str | None = None, include_adjacency: bool = False, compact: bool = False
-):
-    pass
-
-
-def nx_capabilities(tool: str | None = None, prefix: str | None = None):
-    pass
-
-
-DESCRIPTIONS = {
-    "nx_list_topology": "Enumerate body topology. Optional face restricts results to that face and its boundary edges; include_adjacency returns face_edges and edge_faces ID mappings. compact retains minimal typed IDs. Use current upward-face boundary edges for flat-pattern orientation rather than guessing a former outer edge. Reacquire after edits/rollback/close.",
-    "nx_capabilities": "Inspect NX-version-specific tested scope. Use tool=exact_name or prefix=nx_sheet to limit response size; omit both for all tools. API detection is separate from native test evidence. Batch NX has no model viewport.",
-}
-
-READ_ONLY = {
-    "nx_list_datums",
-    "nx_list_sketches",
-    "nx_list_features",
-    "nx_list_bodies",
-    "nx_list_topology",
-    "nx_capabilities",
-}
+READ_ONLY: set[str] = set()
 READ_ONLY.update(
     authoring_server.READ_ONLY
     | freeform_server.READ_ONLY
@@ -296,4 +268,4 @@ def configure(mcp, bridge, workspace):
 
     mcp.call_tool = uniform_call
     mcp._mcp_server.call_tool(validate_input=False)(uniform_call)
-    mcp._mcp_server.instructions = "Siemens NX v2606 integration. Use nx_capabilities for tested scope. Discover the host root with nx_get_status. File paths are workspace-relative or absolute inside that root; use explicit project subfolders on every file call. Use client-supplied operation_id for mutation retry; query receipts after transport failure. No general certification is claimed."
+    mcp._mcp_server.instructions = "Siemens NX v2606 integration. Use nx_get_tool_schemas for tested scope. Discover the host root with nx_get_status. File paths are workspace-relative or absolute inside that root; use explicit project subfolders on every file call. Use client-supplied operation_id for mutation retry; query receipts after transport failure. No general certification is claimed."
