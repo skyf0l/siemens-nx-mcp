@@ -158,6 +158,20 @@ async def test_mcp_paths_are_validated_before_bridge_dispatch(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_drawing_template_paths_are_validated_in_the_sidecar(tmp_path):
+    bridge = AsyncMock()
+    bridge.call.return_value = {"status": "success"}
+    server = create_server(bridge, Workspace(tmp_path))
+    result = await server.call_tool("nx_create_drawing_sheet", {"template": "../a3.prt"})
+    assert result.isError and result.structuredContent["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
+    bridge.call.assert_not_called()
+    await server.call_tool("nx_create_drawing_sheet", {"template": "templates/a3.prt"})
+    assert Path(bridge.call.call_args.args[1]["template"]) == tmp_path / "templates" / "a3.prt"
+    await server.call_tool("nx_create_drawing_sheet", {"template": "A3-noviews-template"})
+    assert bridge.call.call_args.args[1]["template"] == "A3-noviews-template"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["valid", "changed", "large"])
 @pytest.mark.parametrize("method", ["nx_screenshot", "nx_render_view"])
 async def test_inline_capture_delivery_checks_committed_artifact(tmp_path, kind, method):

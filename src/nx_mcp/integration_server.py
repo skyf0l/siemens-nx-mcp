@@ -750,6 +750,12 @@ def configure(mcp, bridge, workspace):
                             params[path_key] = str(workspace.resolve(params[path_key]))
                         if method == "nx_import_geometry" and params.get("output_path"):
                             params["output_path"] = str(workspace.resolve(params["output_path"]))
+                        template = (
+                            params.get("template") if method == "nx_create_drawing_sheet" else None
+                        )
+                        if template and ("/" in template or "\\" in template):
+                            # A bare name is an NX-installed template; a path is a workspace file.
+                            params["template"] = str(workspace.resolve(template.strip()))
                         if method == "nx_batch":
                             for op in params["operations"]:
                                 if op.get("method") == "nx_add_component" and "part_path" in op.get(

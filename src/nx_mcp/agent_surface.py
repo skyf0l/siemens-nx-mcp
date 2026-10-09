@@ -31,7 +31,19 @@ CORE = {
 DOMAINS = {
     "sketch": ("sketch", "constraint"),
     "assembly": ("component", "assembly", "explosion", "reference_set", "mate"),
-    "drawing": ("drawing", "balloon", "bom", "pmi", "annotation"),
+    "drawing": (
+        "drawing",
+        "balloon",
+        "bom",
+        "pmi",
+        "annotation",
+        "dimension",
+        "note",
+        "center_mark",
+        "centerline",
+        "surface_finish",
+        "weld",
+    ),
     "manufacturing": ("sheet_metal", "flat_pattern", "thread", "draft_analysis", "thickness"),
     "inspection": ("measure", "bounding", "interference", "collision", "topology", "diagnostic"),
     "display": (

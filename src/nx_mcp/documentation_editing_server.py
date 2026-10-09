@@ -20,7 +20,7 @@ def nx_activate_drawing(drawing: str | None = None):
 
 
 def nx_list_annotations(offset: int = 0, limit: int = 100):
-    """Enumerate native notes, PMI, BOMs, balloons and explosion traces in the work part. Returns subtype, typed references, position/text where available, and managed-refresh metadata. Paged, maximum 200 items per call."""
+    """Enumerate native notes, PMI, BOMs, balloons, explosion traces, center marks, centerlines, surface finish and weld symbols in the work part. Returns subtype, typed references, position/text where available, and managed-refresh metadata. Paged, maximum 200 items per call."""
 
 
 def nx_edit_annotation(
