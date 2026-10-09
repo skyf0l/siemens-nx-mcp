@@ -29,5 +29,7 @@ def ugii(tmp_path, monkeypatch):
     (base / "STEP214UG").mkdir(parents=True)
     (base / "STEP214UG" / "ugstep214.def").write_text("export settings")
     (base / "STEP214UG" / "step214ug.def").write_text("import settings")
+    (base / "IGES").mkdir()
+    (base / "IGES" / "igesexport.def").write_text("iges export settings")
     monkeypatch.setenv("UGII_BASE_DIR", str(base))
     return base

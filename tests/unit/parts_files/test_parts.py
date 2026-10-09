@@ -205,6 +205,14 @@ def test_close_part_without_saving_forgets_its_references(nx):
     assert nx.forgotten == [f"part_{part.Tag}"]
 
 
+def test_close_part_needs_an_explicit_part_never_the_work_part(nx):
+    part = nx.new_part("work.prt")
+    assert tools.nx_close_part.spec.params["part"].required
+    refused = call(nx, tools.nx_close_part, save=False)
+    assert refused.error["code"] == "NX_INVALID_ARGUMENT" and refused.error["field"] == "/part"
+    assert refused.mutation_outcome == "not_started" and part in nx.session.Parts
+
+
 def test_close_part_refuses_a_prototype_in_use_and_closes_the_assembly(nx):
     blk = nx.new_part("blk.prt")
     asm = nx.new_part("asm.prt")
@@ -212,7 +220,7 @@ def test_close_part_refuses_a_prototype_in_use_and_closes_the_assembly(nx):
     busy = call(nx, tools.nx_close_part, part=nx.ref_of(blk, "part"), save=False)
     assert busy.error["code"] == "NX_PART_IN_USE" and busy.mutation_outcome == "not_started"
     assert busy.error["details"]["parent_assemblies"] == ["asm.prt"]
-    ok = call(nx, tools.nx_close_part, save=True)
+    ok = call(nx, tools.nx_close_part, part=nx.ref_of(asm, "part"), save=True)
     assert ok.ok and ok.data["closed_count"] == 2  # NX unloaded the unused prototype too
     assert {r["name"] for r in ok.data["closed"]} == {"asm", "blk"}
 

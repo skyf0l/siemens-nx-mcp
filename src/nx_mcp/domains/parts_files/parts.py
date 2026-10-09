@@ -348,19 +348,24 @@ def nx_save_part(
     effect="session",
     label="Close part",
     summary=lambda a, say: (
-        f"Close {say('part') if a.get('part') else 'work part'}"
-        + ("" if a.get("save", True) else " without saving")
+        f"Close {say('part')}" + ("" if a.get("save", True) else " without saving")
     ),
     keywords=("close", "unload part", "close file", "discard part", "close without saving"),
     cost="heavy",
     example={"part": "p:1", "save": False},
 )
-def nx_close_part(tx: Tx, *, part: PartRef | None = None, save: bool = True) -> CloseData:
-    """Close a loaded part (default the work part), saving it first unless save is false.
-    Refused while a loaded assembly uses it; NX may also unload prototypes nobody uses."""
+def nx_close_part(
+    tx: Tx,
+    *,
+    part: Annotated[PartRef, Doc("The part to close: its Ref from nx_list_parts or nx_open_part")],
+    save: bool = True,
+) -> CloseData:
+    """Close one loaded part, named by its Ref (never implicitly the work part), saving it
+    first unless save is false. Refused while a loaded assembly uses it; NX may also
+    unload prototypes nobody uses."""
     with tx.checks():
-        target = tx.resolve(part, "part") if part else tx.part
-        field = "/part" if part else None
+        target = tx.resolve(part, "part")
+        field = "/part"
         parts.in_workspace(tx, target, field=field)
         tx.require_owned(target, field=field)
         parents = parts.dependents(tx, target)

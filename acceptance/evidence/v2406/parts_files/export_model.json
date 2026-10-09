@@ -1,7 +1,7 @@
 {
   "format": 1,
   "scenario": "acceptance/parts_files/export_model.json",
-  "scenario_sha256": "ef5a0e21916f1c6e745a5136bcedfa681fed8573267ef8b9a51b9fbd577ab993",
+  "scenario_sha256": "084028bb266effe1237cffee76a5195e0e6fb9f2583fac252dc85569884eb0b7",
   "domain": "parts_files",
   "covers": {
     "nx_export_model": [
@@ -10,17 +10,17 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "8688e85c1dbb60c695c72f6250febe11962321af",
   "sources": {
-    "nx_export_model": "9579ec43fee37694d7affe6b26a6aae4bbd6debacb3ea8d53dd4a1c08d7d1d35"
+    "nx_export_model": "d492a2588d7276a7a3fcc24e81e4ef5adf4a7462b4c7aabab84ae319468e9e7e"
   },
-  "run_id": "20261009-215551-50bce1",
-  "owner": "reg_final_1",
+  "run_id": "20261010-001219-613ec2",
+  "owner": "wa_export",
   "part": null,
-  "started": "2026-10-09T17:56:01Z",
-  "finished": "2026-10-09T17:56:39Z",
+  "started": "2026-10-09T20:12:35Z",
+  "finished": "2026-10-09T20:13:14Z",
   "passed": true,
-  "checks": 35,
+  "checks": 38,
   "failed_checks": 0,
   "steps": [
     {
@@ -29,8 +29,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.921,
-      "result_sha256": "5cff00825de676675d492946d5f4618a682916b5e6ba6a92cc35bfe2239d0cef"
+      "seconds": 0.469,
+      "result_sha256": "9ae02202f23020f5d143fa7f9b30ad7dc5ab0c7da57d20a59923b0bd86558b5a"
     },
     {
       "index": 2,
@@ -38,17 +38,17 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.032,
-      "result_sha256": "ba7210d9035afddb74db38b530a2ebb584ac2e31186e1d0edf1622d818f5aefb"
+      "seconds": 0.031,
+      "result_sha256": "909350bfae593ff0fd8e3ec480f427aab742de59a5a734f4c790e6d9ba719784"
     },
     {
       "index": 3,
       "call": "nx_export_model",
       "setup": false,
       "passed": true,
-      "checks": 9,
-      "seconds": 11.718,
-      "result_sha256": "0af4761a880e785b7034c18e1469ab595100606acd190bc080395b919238c411"
+      "checks": 10,
+      "seconds": 11.734,
+      "result_sha256": "1f79d8ab2b6dd3ba3e5a0f5a892be6dff9e3c4a345c138a018b8853b49008049"
     },
     {
       "index": 4,
@@ -56,8 +56,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 11.375,
-      "result_sha256": "8bfcb5fb7f09f7bb23cf9678be85518172c232f373cd849e3883d20bd9ab64cc"
+      "seconds": 11.547,
+      "result_sha256": "2cef3f14faa454e30fcc3eef7c251a8b2b74a7b88657ac7695284098f9dcff0d"
     },
     {
       "index": 5,
@@ -65,8 +65,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.032,
-      "result_sha256": "c9f27043a97ff4e2be33597ba2b8fd6d1df19bbe5dc593387dcf5d0c1eac184e"
+      "seconds": 0.031,
+      "result_sha256": "2cfdbf487c86153396519b79e4491ed6760a929f16644b3ff868c495dd654499"
     },
     {
       "index": 6,
@@ -74,8 +74,8 @@
       "setup": false,
       "passed": true,
       "checks": 5,
-      "seconds": 0.75,
-      "result_sha256": "8b41d632a050883f474fa18a85f8d509df99fbfc190727d1152cfca67e26d64a"
+      "seconds": 0.719,
+      "result_sha256": "b1836b8eb27ca72142261f7eca37785213ba5a50efd31950a79799cc2b77e7cf"
     },
     {
       "index": 7,
@@ -84,7 +84,7 @@
       "passed": true,
       "checks": 1,
       "seconds": 0.031,
-      "result_sha256": "cf86fa0eba2f26fd6191c299f3bdfe264c3020b517e5b18b174f80dd62533587"
+      "result_sha256": "0e1852a448f8cbec75ef7d9ebe3e6520be1a8e3f476798d1b5a3598872e7cfa7"
     },
     {
       "index": 8,
@@ -92,8 +92,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 11.578,
-      "result_sha256": "a27360114b9815f16f0bd5e8b27aec3bc49e21327cb7ed5ab80a2dc62b89f424"
+      "seconds": 13.094,
+      "result_sha256": "c1d9d909b21d9810a539b5bb0380213515ce4fb68aa4104eb23f7bbfc579a174"
     },
     {
       "index": 9,
@@ -102,7 +102,7 @@
       "passed": true,
       "checks": 1,
       "seconds": 0.0,
-      "result_sha256": "ae7a070441c440943f0f8aed8915d94ffc8e327a978dda0397fc7aa0b98c84f2"
+      "result_sha256": "b258f35faf9b4b14532f24efa32abc588d0ecc9861fbcab6c0acb6a45d7e7b85"
     },
     {
       "index": 10,
@@ -111,7 +111,7 @@
       "passed": true,
       "checks": 3,
       "seconds": 0.047,
-      "result_sha256": "5526d149eace9323f0947cc947e1168159752790ce54d142c1df8dd4e690f387"
+      "result_sha256": "412250e05cdae6d467132af07fae7cb4e5fd6437682b5d63637f9608568ae125"
     },
     {
       "index": 11,
@@ -119,8 +119,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "b576c948646e987d73597593c7eb9001ba136a6112223881a4eae428c50b2bfe"
+      "seconds": 0.047,
+      "result_sha256": "a859a6f9a2fa414a9a35f45f588e0ec1ef38d73b5a439131ae9b2d8ff02bdba9"
     },
     {
       "index": 12,
@@ -128,8 +128,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "bd3a9acd01eba635b321d88b9cb3cdeb3cd4aacd768a87d62b3181a6f8f36fde"
+      "seconds": 0.047,
+      "result_sha256": "d4a564942e2496e30aa030356dc1242077de1af44459c578042c0a3308b27838"
     },
     {
       "index": 13,
@@ -137,11 +137,20 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "5d9b3d3eb0af6f56b6bd92a6aa2f5dd6c60467dc1cb5bc8955c0c12d78be46ea"
+      "seconds": 0.031,
+      "result_sha256": "4e359cb2aa229cb1e1fec49b25fee44faa892e3d2e4da69350bf1f98930579ae"
     },
     {
       "index": 14,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.016,
+      "result_sha256": "1596c04340d5de3717a86bc2a30a925a6fdd5151ee7341b2ce240b73c296af17"
+    },
+    {
+      "index": 15,
       "call": "nx_export_model",
       "setup": false,
       "passed": true,
@@ -150,56 +159,56 @@
       "result_sha256": "041351763e9f7ceaa7f38b7f37bced18a6f3f362c5fea24210fa2b2ec4ab68e8"
     },
     {
-      "index": 15,
+      "index": 16,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.235,
-      "result_sha256": "7cc3efca50ebd835f6ae5f7f7b82d1bc66543abc502c02975c32c05cc27a78ae"
+      "seconds": 0.234,
+      "result_sha256": "03689be970b541ce945d856c10a0c751750c0c624e29ab0a0e6b09c1d3032b34"
     },
     {
-      "index": 16,
+      "index": 17,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
       "checks": 0,
       "seconds": 0.078,
-      "result_sha256": "ee5549083ccfc3ae18f9e19f767bcf5baf12f67c7e1793b4b029d8d730d60b2e"
+      "result_sha256": "80368e0fa7bb9ab93c9d8cc5e583821eb5686e165ea69c682cfc12f598725a62"
     },
     {
-      "index": 17,
+      "index": 18,
       "call": "nx_activate_part",
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "2a18437be69991b147a27a321fa2fc35a4645313da0c74fe416d71665b9343bf"
+      "seconds": 0.063,
+      "result_sha256": "d6fd63bcd2bf88cdad26f1ce04493c178fe6b409fda964552ce740d3b9124208"
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_export_model",
       "setup": false,
       "passed": true,
       "checks": 2,
       "seconds": 0.047,
-      "result_sha256": "4a9e78310b4615e80a20072714e7f5959ff4f33792880e1edfe9679c9a6cc9fa"
+      "result_sha256": "46801bf879ca91250930931f47778c7dba293712b09cdbff20b8387ed465e481"
     },
     {
-      "index": 19,
+      "index": 20,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.0,
-      "result_sha256": "9e6bffcfef74816ea84fab2f0b84f659688e68de5c07c3212df294b5cca8390a"
+      "seconds": 0.015,
+      "result_sha256": "653d6901038bd98ca61e78eb53870a9d63bdd7a029e59e920a103353404ffff4"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-215551-50bce1/em/pf_export_asm.prt",
-      "smoke/20261009-215551-50bce1/parts_files_export_model_parts_files_block_mm.prt"
+      "smoke/20261010-001219-613ec2/em/pf_export_asm.prt",
+      "smoke/20261010-001219-613ec2/parts_files_export_model_parts_files_block_mm.prt"
     ],
     "failed": []
   }

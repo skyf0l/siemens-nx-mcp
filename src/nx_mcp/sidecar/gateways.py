@@ -43,7 +43,7 @@ SYNONYMS = {
     "inventory": ("list",),
     "show": ("list", "get"),
 }
-WEIGHTS = {"name": 8, "keyword": 4, "label": 2, "description": 1}
+WEIGHTS = {"name": 8, "keyword": 4, "variant": 4, "label": 2, "description": 1}
 
 
 def stem(word: str) -> str:
@@ -77,13 +77,16 @@ class Entry:
             "description": set(words(description)),
         }
 
-    def score(self, query: list[str]) -> int | None:
-        """Sum of the best field weight per query word; None when a word is missing."""
+    def score(self, query: list[str], variants=()) -> int | None:
+        """Sum of the best field weight per query word; None when a word is missing.
+        ``variants``: the tool's variant values offered on this build (searchable too)."""
+        fields = dict(self.fields)
+        fields["variant"] = {w for v in variants for w in words(v)}
         total = 0
         for word in query:
             synonyms = [stem(s) for s in SYNONYMS.get(word, ())]
             best = 0
-            for field, tokens in self.fields.items():
+            for field, tokens in fields.items():
                 if any(_match(word, t) for t in tokens):
                     best = max(best, WEIGHTS[field])
                 elif any(_match(s, t) for s in synonyms for t in tokens):
@@ -103,7 +106,8 @@ def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def search(entries, query: str, domain=None, effect=None) -> list:
+def search(entries, query: str, domain=None, effect=None, variants=None) -> list:
+    """``variants(entry)``: the entry's offered variant values (None: not searched)."""
     query_words = words(query)
     exact = query.strip()
     ranked = []
@@ -113,7 +117,7 @@ def search(entries, query: str, domain=None, effect=None) -> list:
         if entry.name == exact:
             ranked.append(((0, 0), entry))
             continue
-        score = entry.score(query_words)
+        score = entry.score(query_words, variants(entry) if variants else ())
         if score is not None:
             ranked.append(((1, -score), entry))
     ranked.sort(key=lambda item: (item[0], item[1].name))

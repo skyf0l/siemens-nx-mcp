@@ -1,0 +1,23 @@
+{
+  "covers": {},
+  "fixture": "fixtures/parts_files_block_mm.prt",
+  "part": null,
+  "steps": [
+    {"call": "nx_open_part", "setup": true, "args": {"path": "$fixture"}},
+    {"call": "nx_list_objects", "setup": true, "save": "bodies", "args": {"kind": "body"}},
+    {"call": "nx_export_model", "args": {"path": "$run/ap242/saved.step", "format": "step_ap242"},
+     "expect": {"error.code": "NX_EXPORT_FAILED", "error.hint": {"matches": "AP242 needs its own NX translator license"},
+                "mutation_outcome": "rolled_back"}},
+    {"call": "nx_create_transform", "setup": true,
+     "args": {"bodies": ["$bodies.data.items.0.id"], "transform": {"translation": [200, 0, 0]}, "copy": true}},
+    {"call": "nx_export_model", "args": {"path": "$run/ap242/memory.step", "format": "step_ap242"},
+     "expect": {"error.code": "NX_LICENSE_UNAVAILABLE", "error.category": "unavailable",
+                "error.nx_code": 2, "mutation_outcome": "rolled_back"}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$fixture", "modified": true},
+     "expect": {"page.total": 1}},
+    {"call": "nx_export_model", "args": {"path": "$run/ap242/memory.step", "format": "step"},
+     "expect": {"mutation_outcome": "committed", "data.schema": "AP214", "data.solids": 2}},
+    {"call": "nx_list_files", "args": {"path": "$run/ap242"},
+     "expect": {"page.total": 1}}
+  ]
+}

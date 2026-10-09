@@ -16,6 +16,7 @@ import base64
 import hashlib
 import json
 import os
+import time
 from typing import Any
 from urllib.parse import quote
 
@@ -148,6 +149,10 @@ def _project(envelope: dict, store) -> dict:
     return projected
 
 
+STATUS_TTL = 30.0  # seconds a listing trusts the session state read from nx_get_status
+STATUS_TIMEOUT = 5.0
+
+
 class CatalogueProxy:
     def __init__(self, bridge, workspace, store, *, build=None) -> None:
         self.bridge = bridge
@@ -155,31 +160,116 @@ class CatalogueProxy:
         self.store = store
         self._build = build
         self._services = None  # sidecar/local.py services, made on first use
+        # Session state of the connected NX, from nx_get_status: the license failures
+        # it remembers. ``_key`` is the bridge descriptor it was read for.
+        self._key: tuple | None = None
+        self._read_at = 0.0
+        self.licenses: list[dict] = []
+
+    def _descriptor(self):
+        path = getattr(self.bridge, "descriptor_path", None)
+        if not isinstance(path, (str, os.PathLike)):
+            return None
+        try:
+            from nx_mcp.bridge import BridgeDescriptor
+
+            return BridgeDescriptor.read(path)
+        except (OSError, ValueError, TypeError):
+            return None
 
     # The build of the connected NX, from the bridge descriptor (None when unknown).
     def build(self) -> str | None:
         if self._build is not None:
             return self._build() if callable(self._build) else self._build
-        path = getattr(self.bridge, "descriptor_path", None)
-        if path is None:
-            return None
-        try:
-            from nx_mcp.bridge import BridgeDescriptor
+        descriptor = self._descriptor()
+        return evidence.build_key(descriptor.nx_version) if descriptor else None
 
-            return evidence.build_key(BridgeDescriptor.read(path).nx_version)
-        except (OSError, ValueError):
+    def listing(self) -> tuple[str | None, bool]:
+        """``(build, assumed)`` that listings follow: the connected build, or the default
+        supported build while no NX is connected (no bridge descriptor)."""
+        build = self.build()
+        if build is None and self._build is None and self._descriptor() is None:
+            return evidence.DEFAULT_BUILD, True
+        return build, False
+
+    def connected_key(self) -> tuple | None:
+        descriptor = self._descriptor()
+        if descriptor is None:
             return None
+        return (descriptor.pid, descriptor.port, descriptor.token, descriptor.nx_version)
+
+    async def refresh(self, *, force: bool = False) -> None:
+        """Read the session state from nx_get_status when NX (re)connected, when the
+        last read is older than STATUS_TTL, or when ``force``; never raises."""
+        key = self.connected_key()
+        if key is None:
+            self._key, self.licenses = None, []
+            return
+        fresh = time.monotonic() - self._read_at < STATUS_TTL
+        if key == self._key and fresh and not force:
+            return
+        if key != self._key:
+            self.licenses = []  # a new NX session remembers nothing yet
+        self._key, self._read_at = key, time.monotonic()
+        try:
+            answer = await asyncio.wait_for(
+                self.bridge.call("nx_get_status", {"include": ["bridge"]}), STATUS_TIMEOUT
+            )
+            rows = ((answer or {}).get("data") or {}).get("bridge", {}).get("license_unavailable")
+        except Exception:
+            return  # NX busy or down: keep what is known
+        if isinstance(rows, list):
+            self.licenses = [r for r in rows if isinstance(r, dict) and r.get("tool")]
+
+    def signature(self) -> tuple:
+        """What listings depend on; a change sends tools/list_changed."""
+        rows = frozenset((r.get("tool"), r.get("variant")) for r in self.licenses)
+        return (*self.listing(), self.dev(), rows)
 
     @staticmethod
     def dev() -> bool:
         return os.environ.get("NX_MCP_DEV") == "1"
 
+    def remembered(self, spec, variant: str | None = None) -> dict | None:
+        """The license failure NX remembers for this tool (``variant``: or that variant)."""
+        return evidence.remembered(self.licenses, spec.name, variant)
+
+    def variants(self, spec) -> tuple[str, ...]:
+        """The variant values listed for ``spec``: tested on the listing build and not
+        refused for a license; development mode lists every value."""
+        values = spec.variant_values()
+        if not values:
+            return values
+        build, _ = self.listing()
+        usable = values if self.dev() else evidence.variants_for(spec, build)
+        if not isinstance(spec.variants, str):
+            return usable
+        return tuple(v for v in usable if not self.remembered(spec, v))
+
+    def unavailable(self, spec, variant: str | None = None) -> str | None:
+        """Why ``spec`` (or its ``variant``) is not offered on this build, or None.
+        Development mode offers untested tools and variants (marked tested: false)."""
+        entry = self.remembered(spec, variant if isinstance(spec.variants, str) else None)
+        if entry is not None:
+            return f"no NX license on this seat (remembered from {entry.get('since')})"
+        if self.dev():
+            return None
+        build, assumed = self.listing()
+        where = f"NX build {build}" + (" (assumed: NX not connected)" if assumed else "")
+        if not evidence.visible(spec, build):
+            return f"not tested on {where}"
+        if variant is not None and variant not in evidence.variants_for(spec, build):
+            return f"variant {variant!r} is not tested on {where}"
+        if spec.variant_values() and not self.variants(spec):
+            return f"no variant is available on {where}"
+        return None
+
     def visible(self, spec) -> bool:
         """Discovery filter (decision 11); development mode shows untested tools."""
-        return self.dev() or evidence.visible(spec, self.build())
+        return self.unavailable(spec) is None
 
     def tested(self, spec) -> bool:
-        return evidence.available(spec, self.build())
+        return evidence.available(spec, self.listing()[0])
 
     def _invalid(self, spec, args) -> NXError | None:
         try:
@@ -236,6 +326,10 @@ class CatalogueProxy:
             build = self.build()
             if build is not None:
                 problem = evidence.check(spec, build, args)
+        if problem is None:  # 3: the license NX remembers failing this session
+            entry = self.remembered(spec, spec.variant_of(args))
+            if entry is not None:
+                problem = evidence.license_error(entry)
         if problem is not None:
             return result(failure(spec.name, problem, "not_started", operation_id=operation_id))
         if "detail" in spec.params:  # nx_get_result: the call's detail is its own argument

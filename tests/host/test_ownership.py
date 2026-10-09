@@ -64,7 +64,11 @@ def test_reads_still_run_on_the_engineers_part(engineer):
 
 @pytest.mark.parametrize(
     ("method", "args"),
-    [("nx_save_part", {}), ("nx_save_part", {"path": "copy.prt"}), ("nx_close_part", {})],
+    [
+        ("nx_save_part", {}),
+        ("nx_save_part", {"path": "copy.prt"}),
+        ("nx_close_part", {"part": "WORK"}),
+    ],
 )
 def test_save_and_close_need_ownership(engineer, method, args, monkeypatch):
     # The parts_files catalogue tools call tx.require_owned before saving or closing.
@@ -72,6 +76,8 @@ def test_save_and_close_need_ownership(engineer, method, args, monkeypatch):
     engineer.part.Save = Mock()
     engineer.part.SaveAs = Mock()
     engineer.part.Close = Mock()
+    if args.get("part") == "WORK":  # nx_close_part names the part by its Ref
+        args = {"part": engineer.e.register(engineer.part, "part", engineer.part, "Part")["id"]}
     with pytest.raises(dispatch.KernelError) as error:
         engineer.run(method, args)
     assert error.value.code == "NX_PART_NOT_GRANTED"

@@ -3,6 +3,14 @@
 ``src/nx_mcp/evidence/<domain>.json`` maps tool -> build key (``v2406``) -> the
 variants that passed machine-checked acceptance scenarios. Only the acceptance
 runner writes these files (``record``). A build key present means tested.
+
+Listings show only what can run: a tool's untested variants leave its schema enum
+and its ``tool#variant`` schemas, and a tool with no variant left is hidden
+(``variants_for``). Session license memory: a tested tool or variant that failed
+with ``NX_LICENSE_UNAVAILABLE`` is refused before NX for the rest of the NX
+session (``remember_license`` / ``license_refusal``); ``nx_get_status`` reports
+the list so the sidecar hides it too. The memory lives in the NX process and is
+kept across development host reloads, so only an NX restart clears it.
 """
 
 from __future__ import annotations
@@ -10,12 +18,18 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
+import time
+import types
 from pathlib import Path
 
 from nx_mcp.core.errors import NXError
 
 EVIDENCE_DIR = Path(__file__).resolve().parent.parent / "evidence"
+# The supported build listings assume while no NX is connected (no bridge descriptor).
+DEFAULT_BUILD = "v2406"
 _CACHE: dict[str, dict] | None = None
+_MEMORY_MODULE = "_nx_mcp_session_memory"  # not under nx_mcp: survives a host reload
 
 
 def build_key(nx_version: str | None) -> str | None:
@@ -68,10 +82,29 @@ def available(spec, build: str | None, variant: str | None = None) -> bool:
     return variant in (entry.get("variants") or [])
 
 
+def variants_for(spec, build: str | None) -> tuple[str, ...]:
+    """The variant values usable on ``build``: tested ones (all of a read/view tool on an
+    unknown build). A tool whose variants are sub-schemas (no variant field) is gated
+    as a whole, so all its values count once the tool is tested."""
+    values = spec.variant_values()
+    if not values:
+        return ()
+    if not known_build(build):
+        return values if spec.effect in ("read", "view") else ()
+    if not available(spec, build):
+        return ()
+    if not isinstance(spec.variants, str):
+        return values
+    return tuple(v for v in values if available(spec, build, v))
+
+
 def visible(spec, build: str | None) -> bool:
-    """Discovery filter: tested on this build, or a read/view tool on an unknown build."""
+    """Discovery filter: tested on this build (at least one variant), or a read/view
+    tool on an unknown build."""
     if known_build(build):
-        return available(spec, build)
+        return available(spec, build) and (
+            not spec.variant_values() or bool(variants_for(spec, build))
+        )
     return spec.effect in ("read", "view")
 
 
@@ -97,6 +130,81 @@ def check(spec, build: str | None, args: dict, *, dev: bool = False) -> NXError 
         f"{spec.name} is not available on NX build {build or 'unknown'}: {reason}",
         details={"tool": spec.name, "build": build, "variant": spec.variant_of(args)},
     )
+
+
+# ---------------------------------------------------------------------------
+# Session license memory (NX process)
+
+
+def _memory() -> dict:
+    holder = sys.modules.get(_MEMORY_MODULE)
+    if holder is None:
+        holder = types.ModuleType(_MEMORY_MODULE)
+        holder.licenses = {}  # type: ignore[attr-defined]
+        sys.modules[_MEMORY_MODULE] = holder
+    return holder.licenses  # type: ignore[attr-defined]
+
+
+def remember_license(spec, build: str | None, args, error) -> dict | None:
+    """Remember a license failure of a tested tool/variant for this NX session."""
+    if getattr(error, "code", None) != "NX_LICENSE_UNAVAILABLE":
+        return None
+    details = getattr(error, "details", None) or {}
+    if details.get("remembered_from") or details.get("child_tool"):
+        return None  # a remembered refusal, or a batch child (recorded on its own spec)
+    variant = spec.variant_of(args if isinstance(args, dict) else {})
+    if not available(spec, build_key(build), variant):
+        return None  # untested: evidence already hides it
+    entry = {
+        "tool": spec.name,
+        "variant": variant,
+        "nx_code": getattr(error, "nx_code", None),
+        "since": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "message": str(getattr(error, "message", error))[:300],
+    }
+    _memory().setdefault((spec.name, variant), entry)
+    return entry
+
+
+def licenses() -> list[dict]:
+    """The remembered license failures of this NX session (for ``nx_get_status``)."""
+    return [
+        dict(e) for _, e in sorted(_memory().items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))
+    ]
+
+
+def forget_licenses() -> None:
+    _memory().clear()
+
+
+def remembered(entries, tool: str, variant: str | None) -> dict | None:
+    """The entry of ``entries`` (status rows) that blocks ``tool``/``variant``, or None."""
+    for entry in entries or ():
+        if entry.get("tool") == tool and entry.get("variant") in (None, variant):
+            return entry
+    return None
+
+
+def license_error(entry: dict) -> NXError:
+    name = entry["tool"] + (f"#{entry['variant']}" if entry.get("variant") else "")
+    return NXError(
+        "NX_LICENSE_UNAVAILABLE",
+        f"{name}: no NX license on this seat (remembered from {entry.get('since')}); "
+        "refused until NX restarts",
+        hint="Tell the engineer which license is missing; use an alternative",
+        nx_code=entry.get("nx_code"),
+        details={
+            "tool": entry["tool"],
+            "variant": entry.get("variant"),
+            "remembered_from": entry.get("since"),
+        },
+    )
+
+
+def license_refusal(spec, args) -> NXError | None:
+    """Gate 3, NX side: the remembered license refusal of this call, or None."""
+    entry = remembered(licenses(), spec.name, spec.variant_of(args))
+    return license_error(entry) if entry else None
 
 
 def record(

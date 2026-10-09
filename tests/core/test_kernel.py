@@ -434,3 +434,30 @@ def test_publish_copies_exclusively_where_hard_links_fail(svc, monkeypatch):
     ok = run(svc, "nx_export_note", path="out/d.txt")
     assert ok["ok"] and (svc.root / "out" / "d.txt").read_text(encoding="utf-8") == "hello"
     assert not (svc.root / ".nx-mcp" / "staging").exists()
+
+
+# -- session license memory ---------------------------------------------------------
+
+
+def test_license_failure_of_a_tested_tool_is_remembered_until_restart(svc, monkeypatch):
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
+    first = run(svc, "nx_create_block", size=1, fail_with="NX_LICENSE_UNAVAILABLE")
+    assert first["error"]["code"] == "NX_LICENSE_UNAVAILABLE"
+    assert first["mutation_outcome"] == "rolled_back"
+    [entry] = evidence.licenses()
+    assert entry["tool"] == "nx_create_block" and entry["variant"] is None and entry["since"]
+    again = run(svc, "nx_create_block", size=1)
+    assert again["error"]["code"] == "NX_LICENSE_UNAVAILABLE"
+    assert again["mutation_outcome"] == "not_started"
+    assert f"remembered from {entry['since']}" in again["error"]["message"]
+    assert again["error"]["details"]["remembered_from"] == entry["since"]
+    assert len(evidence.licenses()) == 1
+    evidence.forget_licenses()  # an NX restart
+    assert run(svc, "nx_create_block", size=1)["ok"]
+
+
+def test_license_failure_of_an_untested_tool_is_not_remembered(svc, monkeypatch):
+    monkeypatch.setattr(evidence, "_CACHE", {})  # development mode runs untested tools
+    run(svc, "nx_create_block", size=1, fail_with="NX_LICENSE_UNAVAILABLE")
+    assert evidence.licenses() == []
+    assert run(svc, "nx_create_block", size=1)["ok"]

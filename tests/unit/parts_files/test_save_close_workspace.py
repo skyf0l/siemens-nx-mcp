@@ -12,7 +12,11 @@ pytestmark = pytest.mark.fake_nx
 
 @pytest.mark.parametrize(
     ("method", "params"),
-    [("nx_save_part", {}), ("nx_save_part", {"path": "copy.prt"}), ("nx_close_part", {})],
+    [
+        ("nx_save_part", {}),
+        ("nx_save_part", {"path": "copy.prt"}),
+        ("nx_close_part", {"part": "WORK"}),
+    ],
 )
 def test_save_and_close_refuse_parts_outside_the_workspace(
     rig, tmp_path, method, params, monkeypatch
@@ -26,6 +30,8 @@ def test_save_and_close_refuse_parts_outside_the_workspace(
     rig.part.Save = Mock()
     rig.part.SaveAs = Mock()
     rig.part.Close = Mock()
+    if params.get("part") == "WORK":  # nx_close_part names the part by its Ref
+        params = {"part": rig.e.register(rig.part, "part", rig.part, "Part")["id"]}
     with pytest.raises(KernelError) as error:
         rig.run(method, params)
     assert error.value.code == "NX_PATH_OUTSIDE_WORKSPACE"
@@ -46,9 +52,10 @@ def test_unsaved_part_without_a_file_may_only_be_saved_as_into_the_workspace(
     monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
     rig.part.FullPath = "model1"
     rig.e.own(rig.part)  # a new part the agent created (gate 6)
-    for method in ["nx_save_part", "nx_close_part"]:
+    ref = rig.e.register(rig.part, "part", rig.part, "Part")["id"]
+    for method, params in [("nx_save_part", {}), ("nx_close_part", {"part": ref})]:
         with pytest.raises(KernelError) as error:
-            rig.run(method, {})
+            rig.run(method, params)
         assert error.value.code == "NX_PATH_OUTSIDE_WORKSPACE"
     with pytest.raises(KernelError) as error:
         rig.run("nx_save_part", {"path": str(tmp_path.parent / "elsewhere.prt")})

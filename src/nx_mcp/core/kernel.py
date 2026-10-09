@@ -129,8 +129,17 @@ def _gate_evidence(spec, checked: Checked, services: Services) -> None:  # gate 
     refusal = evidence.check(
         spec, evidence.build_key(services.build), checked.args, dev=bool(services.dev)
     )
+    if refusal is None:
+        # Session license memory: a tested tool/variant that NX refused for a missing
+        # license is refused before NX until NX restarts (also in development mode).
+        refusal = evidence.license_refusal(spec, checked.args)
     if refusal is not None:
         raise refusal
+
+
+def _remember_license(spec, args, services: Services, error) -> None:
+    with contextlib.suppress(Exception):
+        evidence.remember_license(spec, services.build, args, error)
 
 
 def _gate_requires(spec, services: Services) -> None:  # gate 4
@@ -377,6 +386,7 @@ def run(spec, args, ctx: Context) -> dict:
         return envelope
     except Exception as exc:  # 15
         error = classify(exc)
+        _remember_license(spec, raw_args, services, error)
         touched = bool(
             handler_started
             and (
@@ -544,6 +554,7 @@ def run_child(
         return result
     except Exception as exc:
         error = classify(exc)
+        _remember_license(spec, args, services, error)
         error.details.setdefault("child_index", index)
         error.details.setdefault("child_tool", spec.name)
         if error.field == "/tool":

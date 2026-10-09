@@ -152,8 +152,21 @@ def test_import_refuses_loaded_product_names_without_flatten(nx, root, ugii):
     assert not nx.step_importers
 
 
-@pytest.mark.parametrize("fmt", ["iges", "stl"])
-def test_reserved_formats_are_not_accepted_yet(nx, root, fmt):
+@pytest.mark.parametrize(
+    ("fmt", "path"), [("iges", "a.step"), ("stl", "a.igs"), ("parasolid", "a.jt"), ("jt", "a.x_t")]
+)
+def test_export_suffix_must_match_the_format(nx, root, fmt, path):
     nx.new_part("w.prt")
-    bad = call(nx, exchange.nx_export_model, path="a.step", format=fmt)
-    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/format"
+    bad = call(nx, exchange.nx_export_model, path=path, format=fmt)
+    assert bad.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and bad.error["field"] == "/path"
+    assert bad.mutation_outcome == "not_started" and not nx.exporters
+
+
+def test_unknown_format_and_foreign_options_are_refused(nx):
+    nx.new_part("w.prt")
+    bad = call(nx, exchange.nx_export_model, path="a.dxf", format="dxf")
+    assert bad.error["category"] == "invalid_argument"
+    opts = call(
+        nx, exchange.nx_export_model, path="a.step", format="step", options={"binary": True}
+    )
+    assert opts.error["code"] == "NX_INVALID_ARGUMENT" and opts.error["field"] == "/options/binary"

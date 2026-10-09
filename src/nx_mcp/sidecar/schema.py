@@ -490,6 +490,29 @@ def input_schema(spec, *, call_keys: bool = True) -> dict:
     return schema
 
 
+def narrow_variants(schema: dict, spec, allowed) -> dict:
+    """Keep only the ``allowed`` values in the variant field's enum (listings show only
+    the variants usable on the connected NX build)."""
+    if not isinstance(spec.variants, str) or allowed is None:
+        return schema
+    allowed = list(allowed)
+    if set(allowed) >= set(spec.variant_values()):
+        return schema
+
+    def cut(node):
+        if not isinstance(node, dict):
+            return
+        if isinstance(node.get("enum"), list):
+            node["enum"] = [v for v in node["enum"] if v is None or v in allowed]
+        if "$ref" in node:
+            cut(schema.get("$defs", {}).get(node["$ref"].rsplit("/", 1)[-1]))
+        for branch in node.get("anyOf", ()):
+            cut(branch)
+
+    cut(schema.get("properties", {}).get(spec.variants))
+    return schema
+
+
 def variant_schema(spec, variant: str, *, call_keys: bool = True) -> dict:
     """``nx_tool#variant``: the input schema narrowed to one variant."""
     values = spec.variant_values()

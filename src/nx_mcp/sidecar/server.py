@@ -9,22 +9,32 @@
 
 Catalogue tools are listed from their specs (schema, docstring, MCP annotations
 from ``effect``) and dispatched through :class:`CatalogueProxy`.
+
+Listings follow the connected NX build (gate 3): tools and variants without
+evidence there, and those NX refused for a missing license this session, are
+left out of tools/list, nx_find_tools and nx_get_tool_schemas. Before NX
+connects they follow the default supported build (``evidence.DEFAULT_BUILD``)
+and say so; when that changes, the server sends ``tools/list_changed``.
 """
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import os
 from typing import Any
 
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.types import CallToolResult, Tool, ToolAnnotations
 from pydantic import ValidationError
 
-from nx_mcp.core import catalogue
+from nx_mcp.core import catalogue, evidence
 from nx_mcp.core.catalogue import CatalogueError
 from nx_mcp.core.errors import NXError
 from nx_mcp.sidecar import artifacts, gateways, schema
 from nx_mcp.sidecar.proxy import CatalogueProxy, failure, result
 
+logger = logging.getLogger("nx_mcp")
 PROFILES = ("agent", "full")
 # tool-surface 2.1: core tools listed directly in the agent profile once they exist.
 CORE_TOOLS = (
@@ -84,6 +94,7 @@ class Surface:
             raise CatalogueError("catalogue tools collide with gateways: " + ", ".join(clashes))
         store = artifacts.install(mcp, workspace)
         self.proxy = CatalogueProxy(bridge, workspace, store, build=build)
+        self._listed: tuple | None = None  # proxy.signature() of the last tools/list
         self.entries = [
             gateways.Entry(
                 s.name,
@@ -115,11 +126,15 @@ class Surface:
             name=spec.name,
             title=spec.label,
             description=spec.description,
-            inputSchema=schema.input_schema(spec),
+            inputSchema=schema.narrow_variants(
+                schema.input_schema(spec), spec, self.proxy.variants(spec)
+            ),
             annotations=annotations(spec.effect, spec.name),
         )
 
     async def list_tools(self) -> list[Tool]:
+        await self.proxy.refresh()
+        self._listed = self.proxy.signature()
         tools = self.gateway_tools()
         if self.profile == "agent":
             listed = [self.specs[n] for n in CORE_TOOLS if n in self.specs]
@@ -138,17 +153,50 @@ class Surface:
 
     async def call_tool(self, name, arguments) -> CallToolResult:
         arguments = arguments if isinstance(arguments, dict) else {}
+        if self.proxy.connected_key() != self.proxy._key:
+            await self.proxy.refresh()  # NX (re)connected: its build and session state
         if name in gateways.NAMES:
-            return await self._gateway(name, arguments)
-        return await self._run(
-            name, arguments, intent=None, detail="compact" if self.profile == "agent" else "full"
-        )
+            answer = await self._gateway(name, arguments)
+        else:
+            answer = await self._run(
+                name,
+                arguments,
+                intent=None,
+                detail="compact" if self.profile == "agent" else "full",
+            )
+        error = (answer.structuredContent or {}).get("error") or {}
+        if error.get("code") == "NX_LICENSE_UNAVAILABLE":
+            details = error.get("details") or {}
+            known = details.get("remembered_from") and evidence.remembered(
+                self.proxy.licenses, details.get("tool"), details.get("variant")
+            )
+            if not known:
+                await self.proxy.refresh(force=True)  # NX now remembers it
+        await self.notify_if_changed()
+        return answer
+
+    async def notify_if_changed(self) -> None:
+        """Send tools/list_changed when the listing build or session state changed
+        since the client last listed the tools."""
+        current = self.proxy.signature()
+        if self._listed is None or current == self._listed:
+            return
+        self._listed = current
+        with contextlib.suppress(Exception):
+            session = self.mcp._mcp_server.request_context.session
+            await session.send_tool_list_changed()
+            logger.info("Tool listing changed (build %s); sent tools/list_changed", current[0])
 
     async def _run(self, name, arguments, *, intent, detail, direct=True) -> CallToolResult:
         spec = self.specs.get(name)
         if spec is not None and self.proxy.visible(spec):
             return await self.proxy.call(spec, arguments, intent=intent, detail=detail)
-        error = gateways.unknown_tool(name, self.known(), field=None if direct else "/tool")
+        args = arguments if isinstance(arguments, dict) else {}
+        entry = self.proxy.remembered(spec, spec.variant_of(args)) if spec is not None else None
+        if entry is not None:
+            error = evidence.license_error(entry)
+        else:
+            error = gateways.unknown_tool(name, self.known(), field=None if direct else "/tool")
         return result(failure(str(name), error, "not_started"))
 
     async def _gateway(self, name, arguments) -> CallToolResult:
@@ -161,10 +209,9 @@ class Surface:
                 "NX_INVALID_ARGUMENT", f"{field or 'arguments'}: {first['msg']}", field=field
             )
             return result(failure(name, problem, "not_applicable"))
-        if name == "nx_find_tools":
-            return self._find(request)
-        if name == "nx_get_tool_schemas":
-            return self._schemas(request)
+        if name in ("nx_find_tools", "nx_get_tool_schemas"):
+            await self.proxy.refresh()
+            return self._find(request) if name == "nx_find_tools" else self._schemas(request)
         target = request.tool
         if target in gateways.NAMES:
             problem = NXError(
@@ -214,9 +261,25 @@ class Surface:
             row["tested"] = False
         return row
 
+    def build_note(self) -> dict[str, Any]:
+        """The build listings follow, and whether it is assumed (NX not connected)."""
+        build, assumed = self.proxy.listing()
+        note: dict[str, Any] = {"build": build}
+        if assumed:
+            note["assumed"] = True
+            note["note"] = (
+                f"NX is not connected: tools listed for the default supported build {build}; "
+                "the list may change when NX connects"
+            )
+        return note
+
     def _find(self, request) -> CallToolResult:
         found = gateways.search(
-            self._visible_entries(), request.query, request.domain, request.effect
+            self._visible_entries(),
+            request.query,
+            request.domain,
+            request.effect,
+            variants=lambda e: self.proxy.variants(self.specs[e.name]),
         )
         selected = found[request.offset : request.offset + request.limit]
         end = request.offset + len(selected)
@@ -225,7 +288,7 @@ class Surface:
                 "ok": True,
                 "tool": "nx_find_tools",
                 "mutation_outcome": "not_applicable",
-                "data": {"tools": [self.row(e) for e in selected]},
+                "data": {"tools": [self.row(e) for e in selected], "listing": self.build_note()},
                 "page": {
                     "offset": request.offset,
                     "total": len(found),
@@ -240,13 +303,18 @@ class Surface:
         if spec is not None and self.proxy.visible(spec):
             # Call keys (operation_id) go inside nx_invoke's arguments; intent is
             # nx_invoke's own argument, so neither is repeated per tool here.
+            offered = self.proxy.variants(spec)
             if variant:
+                if variant in spec.variant_values() and variant not in offered:
+                    return None  # reported as not available (_schemas)
                 try:
                     input_schema = schema.variant_schema(spec, variant, call_keys=False)
                 except KeyError:
                     return None
             else:
-                input_schema = schema.input_schema(spec, call_keys=False)
+                input_schema = schema.narrow_variants(
+                    schema.input_schema(spec, call_keys=False), spec, offered
+                )
             out: dict[str, Any] = {
                 "name": name,
                 "description": spec.description,
@@ -254,17 +322,23 @@ class Surface:
                 "input_schema": input_schema,
             }
             example = dict(spec.example)
-            if not variant or spec.variant_of(example) == variant:
+            if spec.variant_of(example) not in (None, *offered):
+                example = {}  # the example uses a variant this build does not offer
+            if example and (not variant or spec.variant_of(example) == variant):
                 out["example"] = example
             if spec.requires:
                 out["requires"] = list(spec.requires)
-            build = self.proxy.build()
+            build = self.proxy.listing()[0]
             entry = spec.evidence.get(build) if build else None
             if entry is not None:
                 # true: the tool, and every variant it has, is tested on this build.
                 variants = entry.get("variants") or []
                 complete = set(variants) >= set(spec.variant_values())
                 out["evidence"] = {build: True if complete else variants}
+                if isinstance(spec.variants, str) and not complete:
+                    untested = [v for v in offered if v not in variants]
+                    if untested:  # development mode offers them for evidence runs
+                        out["untested_variants"] = untested
             else:
                 out["tested"] = False
             if include_output:
@@ -273,20 +347,42 @@ class Surface:
         return None
 
     def _schemas(self, request) -> CallToolResult:
-        tools, missing = [], []
+        tools, missing, unavailable = [], [], []
         for name in request.names:
             described = self.describe(name, request.include_output)
             if described is None:
-                base = name.partition("#")[0]
+                base, _, variant = name.partition("#")
+                spec = self.specs.get(base)
+                reason = None
+                if spec is not None and (not variant or variant in spec.variant_values()):
+                    reason = self.proxy.unavailable(spec, variant or None)
+                if reason is not None:
+                    unavailable.append(
+                        {"name": name, "reason": f"not available on this NX build: {reason}"}
+                    )
+                    continue
                 hint = gateways.close_matches(base, self.known())
-                if base in self.specs and "#" in name:
-                    hint = [f"{base}#{v}" for v in self.specs[base].variant_values()]
+                if spec is not None and self.proxy.visible(spec) and variant:
+                    hint = [f"{base}#{v}" for v in self.proxy.variants(spec)]
                 missing.append({"name": name, "close_matches": hint})
             else:
                 tools.append(described)
         data: dict[str, Any] = {"tools": tools}
         if missing:
             data["not_found"] = missing
+        if unavailable:
+            data["not_available"] = unavailable
+        if self.proxy.listing()[1]:
+            data["listing"] = self.build_note()
+        if not tools and unavailable and not missing:
+            problem = NXError(
+                "NX_VERSION_UNSUPPORTED",
+                "; ".join(f"{u['name']}: {u['reason']}" for u in unavailable),
+                field="/names",
+                hint="Find available tools with nx_find_tools",
+                details={"not_available": unavailable},
+            )
+            return result(failure("nx_get_tool_schemas", problem, "not_applicable"))
         if not tools:
             problem = NXError(
                 "NX_UNKNOWN_TOOL",
@@ -316,6 +412,15 @@ def profile_from_env(surface: str | None) -> str:
 def install(mcp, bridge, workspace, profile: str, *, build=None) -> Surface:
     """Replace ``mcp``'s tools/list and tools/call with the generated surface."""
     surface = Surface(mcp, bridge, workspace, profile, build=build)
+    server = mcp._mcp_server
+    plain_options = server.create_initialization_options
+
+    def options(notification_options=None, experimental_capabilities=None):
+        # Listings change when NX connects or reports a missing license.
+        notification_options = notification_options or NotificationOptions(tools_changed=True)
+        return plain_options(notification_options, experimental_capabilities)
+
+    server.create_initialization_options = options
     mcp.call_tool = surface.call_tool
     mcp.list_tools = surface.list_tools
     mcp._mcp_server.call_tool(validate_input=False)(surface.call_tool)

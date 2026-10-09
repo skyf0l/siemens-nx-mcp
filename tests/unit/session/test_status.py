@@ -39,6 +39,7 @@ def test_status_reports_bridge_parts_workspace_without_a_panel():
         "interactive": False,
         "session_id": "kit",
         "answered_from": "nx",
+        "license_unavailable": [],
     }
     work = data["parts"]["work"]
     assert work["path"].endswith("work.prt") and work["units"] == "mm"

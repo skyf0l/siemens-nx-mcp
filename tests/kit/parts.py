@@ -27,6 +27,7 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from tests.kit import neutral_files
 from tests.kit.objects import Body, Collection, NXException, Object, Part, point
 
 ENUMS = {
@@ -55,6 +56,7 @@ class FilePart(Part):
         self.Drafting = NS(ExitDraftingApplication=lambda: None)
         self.ComponentAssembly = NS(RootComponent=None, OpenOption=NS(ComponentOnly=1))
         self.ComponentAssembly.OpenComponents = lambda option, comps: (_status(), None)
+        self.WCS.CoordinateSystem.Origin = point()
 
     def _write(self):
         Path(self.FullPath).parent.mkdir(parents=True, exist_ok=True)
@@ -134,7 +136,7 @@ class StepCreator(NS):
     def __init__(self, fake):
         super().__init__(
             SettingsFile=None, ExportFrom=None, LayerMask=None, OutputFile=None,
-            FileSaveFlag=True, ProcessHoldFlag=False, InputFile=None,
+            FileSaveFlag=True, ProcessHoldFlag=False, InputFile=None, ExportAs=1,
             ObjectTypes=NS(Solids=False, Surfaces=False, Curves=True),
         )  # fmt: skip
         self._fake = fake
@@ -151,15 +153,115 @@ class StepCreator(NS):
         part = fake.session.Parts.Display
         bodies = self.selected or [b for b in part.Bodies if b.IsSolidBody]
         out = Path(self.OutputFile)
-        records = "".join(f"#{i}=MANIFOLD_SOLID_BREP('',#9);\n" for i in range(len(bodies)))
+        schema = "AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 1 }"
+        if self.ExportAs == 2:  # Ap242
+            if not fake.ap242_licensed:
+                raise NXException(2, "Interrupt")  # NX 2406 without the AP242 license
+            schema = "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }"
         if fake.export_writes:
-            out.write_text("ISO-10303-21;\nDATA;\n" + records + "ENDSEC;\nEND-ISO-10303-21;\n")
+            out.write_bytes(neutral_files.step(len(bodies), _units(fake, part), schema))
         out.with_suffix(".log").write_text("translator log\n")
         if self.FileSaveFlag:
             part.Save()
 
     def Destroy(self):
         self.destroyed = True
+
+
+def _units(fake, part):
+    return "mm" if part.PartUnits == fake.nx.BasePart.Units.Millimeters else "in"
+
+
+def _exact(box):
+    corner = list(box[:3])
+    lengths = [box[3 + i] - box[i] for i in range(3)]
+    return corner, [[1, 0, 0], [0, 1, 0], [0, 0, 1]], lengths
+
+
+class Translator(NS):
+    """IGES, Parasolid, STL and JT exporters: write ``neutral_files`` samples of the
+    display part's bodies (``body.box``) as NX would, in memory, without saving."""
+
+    def __init__(self, fake, **props):
+        super().__init__(**props)
+        self._fake = fake
+        self.selected = []
+        fake.exporters.append(self)
+
+    def _selector(self):
+        return NS(SelectionScope=None, SelectionComp=NS(Add=self._add))
+
+    def _add(self, objs):
+        self.selected.extend(objs)
+        return True
+
+    def Commit(self):
+        fake = self._fake
+        if fake.export_error is not None:
+            raise fake.export_error
+        part = fake.session.Parts.Display
+        boxes = [list(b.box) for b in (self.selected or list(part.Bodies))]
+        out = Path(self._output())
+        if fake.export_writes:
+            name, data = self._file(out, boxes, _units(fake, part))
+            Path(name).write_bytes(data)
+        out.with_suffix(".log").write_text("translator log\n")
+        if getattr(self, "FileSaveFlag", False):
+            part.Save()
+
+    def _output(self):
+        return self.OutputFile
+
+    def Destroy(self):
+        self.destroyed = True
+
+
+class IgesCreator(Translator):
+    def __init__(self, fake):
+        super().__init__(
+            fake, SettingsFile=None, ExportFrom=None, InputFile=None, LayerMask=None,
+            OutputFile=None, FileSaveFlag=True, ProcessHoldFlag=False,
+            ObjectTypes=NS(Solids=False, Surfaces=False, Curves=True),
+        )  # fmt: skip
+        self.ExportSelectionBlock = self._selector()
+
+    def _file(self, out, boxes, units):
+        return out, neutral_files.iges(boxes, units)
+
+
+class ParasolidExporter(Translator):
+    def __init__(self, fake):
+        super().__init__(
+            fake, ExportFrom=None, InputFile=None, OutputFile=None, ProcessHoldFlag=False,
+            ObjectTypes=NS(Solids=False, Surfaces=False),
+        )  # fmt: skip
+        self.ExportSelectionBlock = self._selector()
+
+    def _file(self, out, boxes, units):
+        return out, neutral_files.parasolid(boxes, binary=out.suffix == ".x_b")
+
+
+class StlCreator(Translator):
+    def __init__(self, fake):
+        super().__init__(fake, OutputType=0, ChordalTol=0.058, AngularTol=18.0, OutputFile=None)
+        self.ExportSelectionBlock = NS(Add=self._add)
+
+    def _file(self, out, boxes, units):
+        binary = self.OutputType == 0
+        name = out if binary else Path(str(out) + ".txt")  # NX appends .txt to ASCII STL
+        return name, neutral_files.stl(boxes, binary=binary)
+
+
+class JtCreator(Translator):
+    def __init__(self, fake):
+        super().__init__(fake, JtfileStructure=None, OutputJtFile="")
+        self.SelectBody = NS(Add=self._add)
+
+    def _output(self):
+        return self.OutputJtFile
+
+    def _file(self, out, boxes, units):
+        return out, neutral_files.jt(boxes, {"mm": "millimeters", "in": "inches"}[units])
 
 
 class StepImporter(NS):
@@ -274,6 +376,8 @@ def with_parts(nx, root):
     nx.export_writes = True
     nx.import_bodies = 1
     nx.step_creators = []
+    nx.exporters = []
+    nx.ap242_licensed = False
     nx.step_importers = []
     nx.structure = {}  # resolved casefold path of an assembly -> prototype paths
     nx.curves = {}
@@ -282,7 +386,14 @@ def with_parts(nx, root):
     nx.nx.BasePart = nx.BasePart
     nx.nx.Part = NS(Units=nx.nx.BasePart.Units)
     nx.nx.DisplayPartOption = NS(AllowAdditional=1)
-    nx.nx.StepCreator = NS(ExportFromOption=NS(DisplayPart=0, ExistingPart=1))
+    nx.nx.StepCreator = NS(
+        ExportFromOption=NS(DisplayPart=0, ExistingPart=1),
+        ExportAsOption=NS(Ap203=0, Ap214=1, Ap242=2, Ap242ED2=3),
+    )
+    nx.nx.IgesCreator = NS(ExportFromOption=NS(DisplayPart=0, ExistingPart=1))
+    nx.nx.ParasolidExporter = NS(ExportFromOption=NS(DisplayedPart=0, ExistingPart=1))
+    nx.nx.STLCreator = NS(OutputTypeEnum=NS(Binary=0, Text=1))
+    nx.nx.JtCreatorFileStructure = NS(Monolithic=3, PerPart=0)
     nx.nx.ObjectSelector = NS(Scope=NS(SelectedObjects=2))
     nx.nx.Step214Importer = NS(ImportToOption=NS(WorkPart=0))
     nx.nx.LoadOptions = NS(LoadMethod=NS(AsSaved="as_saved"))
@@ -316,6 +427,22 @@ def with_parts(nx, root):
     nx.session.DexManager = NS(
         CreateStepCreator=lambda: StepCreator(nx),
         CreateStep214Importer=lambda: StepImporter(nx),
+        CreateIgesCreator=lambda: IgesCreator(nx),
+        CreateParasolidExporter=lambda: ParasolidExporter(nx),
+        CreateStlCreator=lambda: StlCreator(nx),
+    )
+    nx.session.PvtransManager = NS(CreateJtCreator=lambda: JtCreator(nx))
+    boxes = {}  # tag -> box, refreshed from the loaded parts' bodies
+
+    def box_of(tag):
+        for part in nx.session.Parts:
+            for body in part.Bodies:
+                boxes[body.Tag] = body.box
+        return boxes[tag]
+
+    nx.uf.ModlGeneral = NS(
+        AskBoundingBox=lambda tag: list(box_of(tag)),
+        AskBoundingBoxExact=lambda tag, _csys: _exact(box_of(tag)),
     )
     nx.uf.Clone = Clone(nx)
     nx.uf.Eval = Evaluator(nx)

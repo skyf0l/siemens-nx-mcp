@@ -53,6 +53,9 @@ class BridgeInfo(TypedDict):
     interactive: bool  # NX with the NX MCP panel
     session_id: str | None
     answered_from: str  # nx, snapshot (NX is running a step) or sidecar (bridge down)
+    # Tested tools/variants NX refused for a missing license this session (until restart):
+    # {tool, variant, nx_code, since, message}; hidden from discovery.
+    license_unavailable: list[dict]
 
 
 class PartInfo(TypedDict):
@@ -169,7 +172,7 @@ def running_info(status: dict | None, store=None) -> RunningInfo | None:
 
 
 def _bridge(build, *, state, interactive, session_id, answered_from) -> BridgeInfo:
-    from nx_mcp.core.evidence import build_key
+    from nx_mcp.core.evidence import build_key, licenses
 
     return {
         "state": state,
@@ -178,6 +181,7 @@ def _bridge(build, *, state, interactive, session_id, answered_from) -> BridgeIn
         "interactive": interactive,
         "session_id": session_id,
         "answered_from": answered_from,
+        "license_unavailable": licenses() if answered_from != "sidecar" else [],
     }
 
 

@@ -3,13 +3,13 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `60dfd726767687c38ecd2d57a002075c1616a8b9b094d4b74b6f5a73bcbc384d`.
+Canonical SHA-256 (catalogue evidence): `36eb91cd61efb8b4cb89d60f0b9d51a8351b75d2beebba13b9e42560073521d6`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 149 |
+| Native-tested | 150 |
 | Experimental | 1 |
 
 ## Catalogue tools
@@ -27,7 +27,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_check_interference | Native-tested | inspection | read | v2406: tested; 54 checks in acceptance/inspection/interference.json |
 | nx_check_model | Native-tested | inspection | read | v2406: tested; 37 checks in acceptance/inspection/health.json |
 | nx_check_sketch | Native-tested | sketch | read | v2406: tested; 28 checks in acceptance/sketch/check_sketch.json |
-| nx_close_part | Native-tested | parts_files | session | v2406: tested; 18 checks in acceptance/parts_files/close_part.json |
+| nx_close_part | Native-tested | parts_files | session | v2406: tested; 21 checks in acceptance/parts_files/close_part.json |
 | nx_create_anchor | Native-tested | inspection | read | v2406: tested; 51 checks in acceptance/inspection/geometry.json |
 | nx_create_assembly_constraint | Native-tested | assembly | model | v2406: all variants; 82 checks in acceptance/assembly/constraints.json |
 | nx_create_balloons | Native-tested | drawing | model | v2406: tested; 36 checks in acceptance/drawing/create_balloons.json |
@@ -104,7 +104,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_export_explosion_animation | Native-tested | assembly | file | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_export_flat_pattern | Native-tested | sheet_metal | file | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_export_inspection_report | Native-tested | inspection | file | v2406: tested; 54 checks in acceptance/inspection/interference.json |
-| nx_export_model | Native-tested | parts_files | file | v2406: all variants; 35 checks in acceptance/parts_files/export_model.json |
+| nx_export_model | Native-tested | parts_files | file | v2406: iges, jt, parasolid, step, stl (untested: step_ap242); 38 checks in acceptance/parts_files/export_model.json |
 | nx_export_profile | Native-tested | parts_files | file | v2406: tested; 38 checks in acceptance/parts_files/export_profile.json |
 | nx_find_geometry | Native-tested | inspection | read | v2406: tested; 51 checks in acceptance/inspection/geometry.json |
 | nx_find_holes | Native-tested | inspection | read | v2406: tested; 51 checks in acceptance/inspection/geometry.json |
@@ -118,7 +118,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_get_drawing_view | Native-tested | drawing | read | v2406: tested; 13 checks in acceptance/drawing/get_drawing_view.json |
 | nx_get_explosion | Native-tested | assembly | read | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_get_feature | Native-tested | modeling | read | v2406: tested; 14 checks in acceptance/modeling/get_feature.json |
-| nx_get_material | Native-tested | modeling | read | v2406: tested; 14 checks in acceptance/modeling/material.json |
+| nx_get_material | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
 | nx_get_model_summary | Native-tested | inspection | read | v2406: tested; 37 checks in acceptance/inspection/health.json |
 | nx_get_operation | Native-tested | session | read | v2406: tested; 38 checks in acceptance/session/status_operations.json |
 | nx_get_result | Native-tested | session | read | v2406: tested; 57 checks in acceptance/session/results.json |
@@ -130,6 +130,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_list_checkpoints | Native-tested | session | read | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_list_components | Native-tested | assembly | read | v2406: tested; 108 checks in acceptance/assembly/components.json |
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 20 checks in acceptance/parts_files/list_files.json |
+| nx_list_materials | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
 | nx_list_objects | Native-tested | inspection | read | v2406: tested; 38 checks in acceptance/inspection/list_objects.json |
 | nx_list_parts | Native-tested | parts_files | read | v2406: tested; 17 checks in acceptance/parts_files/list_parts.json |
 | nx_list_thread_sizes | Native-tested | modeling | read | v2406: tested; 19 checks in acceptance/modeling/thread.json |
@@ -157,7 +158,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_feature_order | Native-tested | modeling | model | v2406: tested; 12 checks in acceptance/modeling/feature_order.json |
 | nx_set_feature_suppression | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/feature_suppression.json |
 | nx_set_highlight | Native-tested | display | view | v2406: tested; 10 checks in acceptance/display/highlight.json |
-| nx_set_material | Native-tested | modeling | model | v2406: tested; 14 checks in acceptance/modeling/material.json |
+| nx_set_material | Native-tested | modeling | model | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
 | nx_set_name | Native-tested | session | model | v2406: tested; 44 checks in acceptance/session/history.json |
 | nx_set_sheet_metal_defaults | Native-tested | sheet_metal | model | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_set_visibility | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |

@@ -260,11 +260,21 @@
   },
   "nx_get_material": {
     "v2406": {
-      "checks": 14,
-      "recorded": "2026-10-09T17:58:51Z",
-      "scenario": "acceptance/modeling/material.json",
-      "scenario_sha256": "c7fce5fcd508dd3cc0328adf4c4bf9abb42e46040d533644ec0b84ce51f919a9",
-      "source_sha256": "9441195b5ed4fbea0345a20e3058fe6964fc5fcc9834f8eecf14ec23e6fcbb88",
+      "checks": 42,
+      "recorded": "2026-10-09T20:04:06Z",
+      "scenario": "acceptance/modeling/material_library.json",
+      "scenario_sha256": "3b1dfd1189a1e0509f67ed6914f086fa190caa1b59a89959b3a4a039ec78f0bd",
+      "source_sha256": "7aedff2180d3ec54168c437f60280e2a371361945ba1ebe3dceed32dc2693821",
+      "variants": []
+    }
+  },
+  "nx_list_materials": {
+    "v2406": {
+      "checks": 42,
+      "recorded": "2026-10-09T20:04:06Z",
+      "scenario": "acceptance/modeling/material_library.json",
+      "scenario_sha256": "3b1dfd1189a1e0509f67ed6914f086fa190caa1b59a89959b3a4a039ec78f0bd",
+      "source_sha256": "7aedff2180d3ec54168c437f60280e2a371361945ba1ebe3dceed32dc2693821",
       "variants": []
     }
   },
@@ -320,11 +330,11 @@
   },
   "nx_set_material": {
     "v2406": {
-      "checks": 14,
-      "recorded": "2026-10-09T17:58:51Z",
-      "scenario": "acceptance/modeling/material.json",
-      "scenario_sha256": "c7fce5fcd508dd3cc0328adf4c4bf9abb42e46040d533644ec0b84ce51f919a9",
-      "source_sha256": "9441195b5ed4fbea0345a20e3058fe6964fc5fcc9834f8eecf14ec23e6fcbb88",
+      "checks": 42,
+      "recorded": "2026-10-09T20:04:06Z",
+      "scenario": "acceptance/modeling/material_library.json",
+      "scenario_sha256": "3b1dfd1189a1e0509f67ed6914f086fa190caa1b59a89959b3a4a039ec78f0bd",
+      "source_sha256": "7aedff2180d3ec54168c437f60280e2a371361945ba1ebe3dceed32dc2693821",
       "variants": []
     }
   },

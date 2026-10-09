@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from nx_mcp.core import catalogue
+from nx_mcp.core import catalogue, evidence
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
 from nx_mcp.sidecar.artifacts import ResultStore
@@ -40,8 +40,8 @@ async def test_discovery_lists_gateways_and_core_tools(tmp_path):
         core = {
             n
             for n in CORE_TOOLS
-            if catalogue.get(n) and catalogue.get(n).effect in ("read", "view")
-        }  # an unknown build shows only read and view tools
+            if catalogue.get(n) and evidence.visible(catalogue.get(n), evidence.DEFAULT_BUILD)
+        }  # no NX connected: listed for the default supported build
         assert "nx_list_objects" in listed and listed == set(gateways.NAMES) | core
         result = await client.call_tool("nx_find_tools", {"query": "nx_list_objects"})
         assert result.structuredContent["data"]["tools"][0]["name"] == "nx_list_objects"
@@ -95,8 +95,10 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
 
     app = create_app(AsyncMock(), Workspace(tmp_path))
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
-        # Without a bridge descriptor the build is unknown: only read/view catalogue tools show.
-        readable = [s for s in catalogue.load().values() if s.effect in ("read", "view")]
+        # Without a bridge descriptor (NX not connected) listings follow the default build.
+        readable = [
+            s for s in catalogue.load().values() if evidence.visible(s, evidence.DEFAULT_BUILD)
+        ]
         extra = len(gateways.NAMES) + len(readable)
         core = [n for n in CORE_TOOLS if n in {s.name for s in readable}]
         agent = len(gateways.NAMES) + len(core)

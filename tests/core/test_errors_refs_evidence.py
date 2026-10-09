@@ -151,3 +151,50 @@ def test_development_tools_report_kit_errors_by_code(rig):
         rig.run("nx_test_read", {})
     assert e.value.code == "NX_WRONG_GEOMETRY" and e.value.nx_code == 12
     assert e.value.details["mutation_outcome"] == "rolled_back"
+
+
+def _variant_spec(effect="model"):
+    from types import SimpleNamespace as NS
+
+    return NS(
+        name="nx_v",
+        effect=effect,
+        variants="kind",
+        variant_values=lambda: ("a", "b", "c"),
+        variant_of=lambda args: args.get("kind"),
+    )
+
+
+def test_variants_for_lists_only_tested_variants(monkeypatch):
+    spec = _variant_spec()
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_v": {"v2406": {"variants": ["a", "c"]}}})
+    assert evidence.variants_for(spec, "v2406") == ("a", "c")
+    assert evidence.visible(spec, "v2406")
+    assert evidence.variants_for(spec, "v2506") == ()  # unknown build: model tool hidden
+    assert evidence.variants_for(_variant_spec("read"), "v2506") == ("a", "b", "c")
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_v": {"v2406": {"variants": []}}})
+    assert not evidence.visible(spec, "v2406")  # no variant left: the tool is hidden
+
+
+def test_license_memory_keeps_tested_variants_only(monkeypatch):
+    spec = _variant_spec()
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_v": {"v2406": {"variants": ["a"]}}})
+    error = errors.NXError("NX_LICENSE_UNAVAILABLE", "no seat", nx_code=948801)
+    assert evidence.remember_license(spec, "NX 2406", {"kind": "b"}, error) is None  # untested
+    entry = evidence.remember_license(spec, "NX 2406", {"kind": "a"}, error)
+    assert entry["variant"] == "a" and entry["nx_code"] == 948801
+    other = errors.NXError("NX_INVALID_ARGUMENT", "bad")
+    assert evidence.remember_license(spec, "NX 2406", {"kind": "a"}, other) is None
+    assert evidence.license_refusal(spec, {"kind": "c"}) is None
+    refusal = evidence.license_refusal(spec, {"kind": "a"})
+    assert refusal.code == "NX_LICENSE_UNAVAILABLE" and refusal.nx_code == 948801
+    assert "nx_v#a" in refusal.message and "remembered from" in refusal.message
+    # A remembered refusal is never remembered again; memory survives a host reload.
+    assert evidence.remember_license(spec, "NX 2406", {"kind": "a"}, refusal) is None
+    import sys
+
+    holder = sys.modules[evidence._MEMORY_MODULE]  # outside nx_mcp: a reload keeps it
+    assert not holder.__name__.startswith("nx_mcp")
+    assert [e["variant"] for e in evidence.licenses()] == ["a"]
+    evidence.forget_licenses()
+    assert evidence.licenses() == []
