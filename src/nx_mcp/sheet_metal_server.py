@@ -44,18 +44,6 @@ READ_ONLY = {"nx_sheet_metal_schema", "nx_sheet_metal_info", "nx_sheet_metal_def
 NON_MODEL = {"nx_export_flat_pattern", "nx_sheet_metal_context"}
 
 
-def nx_create_path_sketch(
-    edges: list[str],
-    help_point: list[float],
-    percent: float = 0,
-    orienting_face: str | None = None,
-    reverse_normal: bool = False,
-    reverse_axis: bool = False,
-    name: str | None = None,
-):
-    """Create and activate a native sketch along a work-part edge path, normal to the path. percent is arc-length percentage 0..100 from the NX section start, not the curve's mathematical parameter. help_point=[x,y,z] anchors section selection in work-part units. Optional orienting_face controls local axes relative to a face. Return the actual origin, basis and normal; add curves in that local frame and finish the sketch. Needed for secondary contour flanges. Finish another active sketch first; work/display parts must match."""
-
-
 def nx_sheet_metal_schema(operation: SheetMetalOperation | None = None):
     """Discover native sheet-metal operations or the strict creation/edit JSON parameter schema for one operation. Every operation reports its actual native validation status; experimental does not mean geometrically verified. Lengths use work-part units, expression angles degrees, neutral factor is unitless. Use typed geometry IDs from nx_list_topology/nx_find_geometry and finished sketch IDs for sections."""
 
@@ -125,10 +113,6 @@ def nx_export_flat_pattern(
     tolerance: float = 0.01,
 ):
     """Export an existing native Flat Pattern feature to a new workspace DXF or Trumpf GEO file. File suffix must match format; existing files are never overwritten. Positive tolerance uses work-part units. Returns actual path, options, units, size and SHA-256 for nx_download_file. Inner/outer mold and DXF revision are DXF-only. This export does not create a flat pattern from a folded body."""
-
-
-def nx_add_flat_pattern_view(drawing: str, flat_pattern: str, position: list[float] | None = None):
-    """Place the native named view belonging to an existing Flat Pattern feature on a drawing sheet. Position is [x,y] in sheet units; default 100 mm, 100 mm. Uses actual developed geometry and bend lines from NX, with the existing flat pattern's settings. Returns a typed drawing-view reference for projection, dimensions and PDF export. Does not copy or move the folded solid."""
 
 
 def nx_sheet_metal_annotation(

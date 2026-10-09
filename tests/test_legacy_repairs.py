@@ -53,35 +53,6 @@ def test_zero_length_rejected():
         h._measure_angle("a", "b")
 
 
-@pytest.mark.parametrize(
-    ("kind", "targets", "value"),
-    [
-        ("midpoint", ["a"], None),
-        ("horizontal", ["a", "b"], None),
-        ("horizontal", ["a"], 5),
-        ("radius", ["a"], None),
-    ],
-)
-def test_constraint_preflight_has_no_mutation(kind, targets, value):
-    h = Harness()
-    with pytest.raises(NXToolError):
-        h._sketch_constraint(kind, targets, value)
-    assert not h.calls
-
-
-def test_fixed_constraint_routes_to_owned_sketch_editor():
-    h = Harness()
-    h._sketch_constraint("fix", ["a"])
-    assert h.calls == [("sketch", [{"action": "constraint", "curve": "a", "type": "fixed"}])]
-
-
-def test_constraint_rejects_cross_sketch_targets():
-    h = Harness()
-    h.part.Sketches = [S(GetAllGeometry=lambda: [h.a]), S(GetAllGeometry=lambda: [h.b])]
-    with pytest.raises(NXToolError, match="one sketch"):
-        h._sketch_constraint("parallel", ["a", "b"])
-
-
 def test_delete_feature_updates_native_delete_list_and_reports_reference():
     h = Harness()
     h.session = S(

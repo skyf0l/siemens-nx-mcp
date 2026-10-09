@@ -1,0 +1,242 @@
+{
+ "covers": {
+  "nx_create_sweep": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sec",
+   "args": {
+    "placement": {
+     "principal": "yz",
+     "origin": [
+      -5,
+      10,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sec.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 1
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sec.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "gd",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$gd.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       -5,
+       10
+      ],
+      "end": [
+       45,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$gd.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "save": "tube",
+   "args": {
+    "section": "$sec.data.sketch.id",
+    "guide": "$gd.data.sketch.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 157.07963267948966,
+     "tol": 0.05
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$tube.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -5,
+      9,
+      4
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      45,
+      11,
+      6
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "args": {
+    "section": "$sec.data.sketch.id",
+    "guide": "$gd.data.sketch.id",
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$blk.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7874.336293856409,
+     "tol": 0.05
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "args": {
+    "section": "$sec.data.sketch.id",
+    "guide": "$sec.data.sketch.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/guide"
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "args": {
+    "section": "$sec.data.sketch.id",
+    "guide": "$gd.data.sketch.id",
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$blk.data.bodies.0.id",
+      "$tube.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/combine/targets"
+   }
+  }
+ ]
+}

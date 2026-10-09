@@ -1,0 +1,260 @@
+{
+ "covers": {
+  "nx_set_expression": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "len",
+    "formula": "10",
+    "units": "mm"
+   },
+   "expect": {
+    "data.created": true,
+    "data.value": {
+     "close": 10,
+     "tol": 1e-12
+    },
+    "data.units": "mm",
+    "data.expression.kind": "expression"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "wall",
+    "formula": "len/4",
+    "units": "mm"
+   },
+   "expect": {
+    "data.value": {
+     "close": 2.5,
+     "tol": 1e-12
+    },
+    "data.formula": "len/4"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "wall",
+    "formula": "len/5",
+    "units": "mm"
+   },
+   "expect": {
+    "data.created": false,
+    "data.value": {
+     "close": 2,
+     "tol": 1e-12
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "ang",
+    "formula": "0.5",
+    "units": "rad"
+   },
+   "expect": {
+    "data.units": "rad"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "ratio",
+    "formula": "3"
+   },
+   "expect": {
+    "data.units": "unitless"
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "setup": true,
+   "save": "gb",
+   "args": {
+    "feature": "$blk.data.feature.id"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "setup": true,
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "distance",
+      "value": "len"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "len",
+    "formula": "20"
+   },
+   "expect": {
+    "data.value": {
+     "close": 20,
+     "tol": 1e-12
+    }
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 16000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "$gb.data.parameters.1.expression.name",
+    "formula": "12"
+   },
+   "expect": {
+    "data.value": {
+     "close": 12,
+     "tol": 1e-12
+    }
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 9600,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "wall",
+    "formula": "len +"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_FORMULA",
+    "error.field": "/formula",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "wall",
+    "formula": "3",
+    "units": "deg"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/units"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "9lives",
+    "formula": "3"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/name"
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 9600,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

@@ -19,7 +19,7 @@ def nx_spline(
 
 
 def nx_surface_mesh(primary: list[list[str]], cross: list[list[str]], tolerance: float = 0.001):
-    """Create a native associative Through Curve Mesh sheet from intersecting primary/cross curve sections. Each direction requires 2..100 ordered sections, each a list of work-part curve IDs. Curves must form a compatible intersecting network; tolerance uses part units. Returns every resulting body. Existing nx_loft remains available for through-sketch sections."""
+    """Create a native associative Through Curve Mesh sheet from intersecting primary/cross curve sections. Each direction requires 2..100 ordered sections, each a list of work-part curve IDs. Curves must form a compatible intersecting network; tolerance uses part units. Returns every resulting body. Use nx_create_loft for through-sketch sections."""
 
 
 def nx_bridge_surface(
@@ -37,16 +37,6 @@ def nx_sew(target: str, tools: list[str], tolerance: float = 0.001, solid: bool 
 
 def nx_thicken(faces: list[str], first_offset: float, second_offset: float = 0.0):
     """Thicken selected work-part sheet faces into a native solid feature between two different signed normal offsets in part units. Returns all result bodies. Face normals determine offset direction. Uses native exact offset behavior; failures roll back."""
-
-
-def nx_edit_faces(
-    faces: list[str],
-    action: Literal["move", "offset", "replace", "heal"],
-    distance: float | None = None,
-    direction: list[float] | None = None,
-    replacement: str | None = None,
-):
-    """Edit selected work-part faces, including imported solids, through native features. move requires signed distance and a work-part direction vector; offset requires signed normal distance; replace requires a replacement face ID; heal deletes selected faces and extends neighbors to close the gap. Other arguments are rejected. No partial delete is allowed. Reacquire topology IDs after edits and inspect model health. Lengths use part units."""
 
 
 def nx_trim_sheet(body: str, boundaries: list[str], region_point: list[float], keep: bool = True):

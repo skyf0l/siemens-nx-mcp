@@ -1,0 +1,30 @@
+{
+  "covers": {"nx_check_sketch": []},
+  "fixture": "fixtures/sketch_conflicts.prt",
+  "part": null,
+  "steps": [
+    {"call": "nx_open_part", "setup": true, "args": {"path": "$fixture"}},
+    {"call": "nx_list_objects", "setup": true, "save": "over", "args": {"kind": "sketch", "name_contains": "OVER"}},
+    {"call": "nx_list_objects", "setup": true, "save": "hv", "args": {"kind": "sketch", "name_contains": "HV"}},
+    {"call": "nx_list_objects", "setup": true, "save": "ok", "args": {"kind": "sketch", "name_contains": "OK"}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$over.data.items.0.id"},
+     "expect": {"mutation_outcome": "not_applicable", "data.state": "over_constrained", "data.checked": 4,
+                "data.total_constraints": 4, "data.complete": true, "data.relieving": {"count": 2},
+                "data.explicit_conflicts": {"count": 0}, "data.trials.0.constraint.kind": "sketch_constraint"}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$over.data.items.0.id", "max_checks": 1},
+     "expect": {"data.checked": 1, "data.complete": false}},
+    {"call": "nx_get_sketch", "args": {"sketch": "$over.data.items.0.id"},
+     "expect": {"data.status.state": "over_constrained", "data.constraints": {"count": 4},
+                "data.curves.0.start": {"close": [0, 0], "tol": 1e-9}, "data.curves.0.end": {"close": [10, 0], "tol": 1e-9},
+                "data.active": false}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$hv.data.items.0.id"},
+     "expect": {"data.state": "inconsistently_constrained", "data.explicit_conflicts": {"count": 1},
+                "data.explicit_conflicts.0.constraints": {"count": 2}, "data.relieving": {"count": 2}, "data.complete": true}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$ok.data.items.0.id"},
+     "expect": {"data.state": "under_constrained", "data.trials": {"count": 0}, "data.relieving": {"count": 0}}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$ok.data.items.0.id", "max_checks": 0},
+     "expect": {"error.field": "/max_checks", "error.category": "invalid_argument"}},
+    {"call": "nx_list_objects", "args": {"kind": "sketch"},
+     "expect": {"page.total": 3, "data.items.0.details.active": false, "data.items.1.details.active": false}}
+  ]
+}

@@ -2,9 +2,9 @@
   "nx_list_objects": {
     "v2406": {
       "checks": 20,
-      "recorded": "2026-10-09T11:49:47Z",
+      "recorded": "2026-10-09T13:01:13Z",
       "scenario": "acceptance/inspection/list_objects.json",
-      "scenario_sha256": "9f499d67f31e4b7dcb0912ba66f72e282e4b507d9fe4fda21288f73d47e0a4d3",
+      "scenario_sha256": "23469f921506fe48b4548145893d1367d8061ab207ea1c6cea267921b4d1dbd1",
       "source_sha256": "30b29ce453a0aadb5c7d38e7e67de1b0389363a2892c8a33a608c9a02971c153",
       "variants": []
     }

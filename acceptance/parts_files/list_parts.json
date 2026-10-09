@@ -1,0 +1,27 @@
+{
+  "covers": {"nx_list_parts": []},
+  "part": null,
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "save": "a", "args": {"path": "$run/lp/pf_list_a.prt"}},
+    {"call": "nx_save_part", "setup": true, "args": {}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lp/pf_list_b.prt", "units": "in"}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lq/pf_list_c.prt"}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
+     "expect": {"mutation_outcome": "not_applicable", "page.total": 3,
+                "data.items": {"contains": {"units": "in", "owned": true, "work": false}}}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/LP"},
+     "expect": {"page.total": 2}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/lp", "modified": false},
+     "expect": {"page.total": 1, "data.items.0.path": {"matches": "pf_list_a\\.prt$"},
+                "data.items.0.modified": false}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run", "active_only": true},
+     "expect": {"page.total": 1, "data.items.0.work": true, "data.items.0.display": true,
+                "data.items.0.path": {"matches": "pf_list_c\\.prt$"}}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run", "limit": 1, "offset": 1},
+     "expect": {"data.items": {"count": 1}, "page.next_offset": 2, "page.total": 3}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "smoke/"},
+     "expect": {"data.items": {"contains": {"part": {"kind": "part"}}}}},
+    {"call": "nx_list_parts", "args": {"limit": 201},
+     "expect": {"error.category": "invalid_argument", "error.field": "/limit"}}
+  ]
+}

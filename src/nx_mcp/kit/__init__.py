@@ -2,7 +2,8 @@
 
 Modules: ``geom`` (pure vector math), ``args`` (argument rules and value
 validators), ``units``, ``builders``, ``select``, ``sketch``, ``drawing``,
-``expr``, ``readback`` and ``result``. Errors are raised only through
+``expr``, ``readback``, ``result``, ``files`` (checksums, never-overwrite writes) and
+``parts`` (loaded parts, activation, components, saving with drawing previews). Errors are raised only through
 ``nx_mcp.core.errors`` (``fail``/``native``).
 
 Rules: stdlib only, and nothing from the package but ``nx_mcp.core``. NXOpen

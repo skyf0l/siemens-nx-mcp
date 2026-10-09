@@ -1,0 +1,131 @@
+{
+  "format": 1,
+  "scenario": "acceptance/sketch/check_sketch.json",
+  "scenario_sha256": "dcfe1b8997f246f15e873335a33d4be9ad245420654018a9b099f5a7d9530209",
+  "domain": "sketch",
+  "covers": {
+    "nx_check_sketch": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_check_sketch": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa"
+  },
+  "run_id": "20261009-172023-8de8b5",
+  "owner": "dom_sketch",
+  "part": null,
+  "started": "2026-10-09T13:20:23Z",
+  "finished": "2026-10-09T13:20:27Z",
+  "passed": true,
+  "checks": 28,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.64,
+      "result_sha256": "9d37440b8de988da80874ddb1d5bf16441cc818e8f429bfc95bf5c63944018f9"
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "d7f1710c5231145b8bd6b7fe1d58cf2172ef7257e783ef483bd3c8f0f9a5ef56"
+    },
+    {
+      "index": 3,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "70f8f1849e3b97edebee0d7a8afb7936545dca29809852e91d1129eb56da7a19"
+    },
+    {
+      "index": 4,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "c54333ae9d7015bbd9a69fcdb05bf800a963c4e60a69ad19ea81285d0db38c37"
+    },
+    {
+      "index": 5,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 8,
+      "seconds": 0.797,
+      "result_sha256": "32e5825a597eb9da5f15025a64dce26e8a573d0eb596d84d362e05803f3677ba"
+    },
+    {
+      "index": 6,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.422,
+      "result_sha256": "04b725206a0d6ceead3614f04f0207ed48333be123c833dd122b777507135fc0"
+    },
+    {
+      "index": 7,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.297,
+      "result_sha256": "086e5beb7a6c6efa851644dd01a5fbf13e07182c368e55c60ad43a21e9843123"
+    },
+    {
+      "index": 8,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.312,
+      "result_sha256": "2a2e1eccf8529894d1d5a2dfdff7c19899534b11a3a90d079c874552aea86fc0"
+    },
+    {
+      "index": 9,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.219,
+      "result_sha256": "40e330442846af7071177f700edc6c3fcf903db56e08b1e3f619b21086171cd0"
+    },
+    {
+      "index": 10,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "38fea4de45918c00f15c5234d457c5ebfbb73e7ac8a1f1e7af9275b5e5516e5b"
+    },
+    {
+      "index": 11,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.141,
+      "result_sha256": "d0ef8c60d765d4b561617af563f3fdeb7caa498747acb871bb3c6d380a004f5a"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-172023-8de8b5/sketch_check_sketch_sketch_conflicts.prt"
+    ],
+    "failed": []
+  }
+}

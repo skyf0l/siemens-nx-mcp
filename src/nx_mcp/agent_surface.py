@@ -65,11 +65,8 @@ DOMAINS = {
     ),
 }
 DEFAULTS: dict[str, dict[str, Any]] = {
-    "nx_list_open_parts": {"compact": True, "limit": 20},
     "nx_list_components": {"compact": True, "include_transforms": False, "limit": 20},
     "nx_list_topology": {"compact": True},
-    "nx_download_file": {"delivery": "metadata"},
-    "nx_workspace_list": {"limit": 20},
 }
 # Helper tools served by the sidecar itself; read helpers never change anything.
 HELPERS = {"nx_result": "read", "nx_inspect": "read", "nx_result_cleanup": "file"}

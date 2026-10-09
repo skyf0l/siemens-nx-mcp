@@ -17,6 +17,7 @@ from nx_mcp.workspace import Workspace
 TESTED = {
     "nx_create_datum_plane": {"v2406": {"variants": ["offset"]}},
     "nx_list_objects": {"v2406": {"variants": []}},
+    "nx_create_blend": {"v2406": {"variants": []}},
 }
 
 
@@ -72,7 +73,7 @@ async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_pa
     full = server(tmp_path, surface="full")
     tools = {t.name: t for t in await full.list_tools()}
     assert set(gateways.NAMES) | set(catalogue.load()) <= set(tools)
-    assert {"nx_extrude", "nx_status", "nx_result", "nx_inspect"} <= set(tools)
+    assert {"nx_thicken", "nx_status", "nx_result", "nx_inspect"} <= set(tools)
     datum = tools["nx_create_datum_plane"]
     assert datum.annotations.readOnlyHint is False and datum.annotations.destructiveHint is True
     assert {"operation_id", "intent"} <= set(datum.inputSchema["properties"])
@@ -111,9 +112,9 @@ async def test_find_ranks_catalogue_above_legacy_and_marks_legacy_rows(tmp_path,
     assert all(r.get("legacy") for r in rows[1:])
     rows = body(await agent.call_tool("nx_find_tools", {"query": "fillet"}))["data"]["tools"]
     names = [r["name"] for r in rows]
-    assert names[0] == "nx_sketch_fillet" and "nx_blend" in names  # synonym fillet -> blend
-    exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_extrude"}))["data"]
-    assert exact["tools"][0]["name"] == "nx_extrude"
+    assert names[0] == "nx_create_blend"  # synonym fillet -> blend, catalogue above legacy
+    exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_thicken"}))["data"]
+    assert exact["tools"][0]["name"] == "nx_thicken"
     none = body(await agent.call_tool("nx_find_tools", {"query": "fillet zebra"}))
     assert none["data"]["tools"] == [] and none["page"]["total"] == 0
     reads = body(await agent.call_tool("nx_find_tools", {"query": "list", "effect": "read"}))
@@ -162,7 +163,7 @@ async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
             {
                 "names": [
                     "nx_create_datum_plane#offset",
-                    "nx_extrude",
+                    "nx_add_component",
                     "nx_nope",
                     "nx_list_objects",
                 ],
@@ -170,14 +171,14 @@ async def test_schemas_for_tools_variants_and_legacy(tmp_path, tested):
             },
         )
     )["data"]
-    datum, extrude, listing = data["tools"]
+    datum, legacy, listing = data["tools"]
     assert datum["input_schema"]["properties"]["method"] == {"const": "offset"}
     assert datum["example"] == OFFSET and datum["evidence"] == {"v2406": ["offset"]}
     assert datum["requires"] == ["work_part", "no_active_sketch"]
     assert "operation_id" not in datum["input_schema"]["properties"]
     assert "data" in datum["output_schema"]["properties"]
-    assert extrude["legacy"] is True and "distance" in extrude["input_schema"]["properties"]
-    assert extrude["prerequisites"] and extrude["example"]
+    assert legacy["legacy"] is True and "part_path" in legacy["input_schema"]["properties"]
+    assert legacy["prerequisites"] and legacy["example"]
     assert listing["evidence"] == {"v2406": True}
     assert [m["name"] for m in data["not_found"]] == ["nx_nope"]
     wrong = body(
@@ -329,7 +330,7 @@ async def test_sidecar_fault_after_forwarding_is_unknown(tmp_path, tested):
 async def test_invoke_read_refuses_other_effects_before_validation(tmp_path, tested):
     bridge = AsyncMock()
     agent = server(tmp_path, bridge)
-    for tool in ("nx_create_datum_plane", "nx_extrude"):
+    for tool in ("nx_create_datum_plane", "nx_thicken"):
         failure = body(
             await agent.call_tool("nx_invoke_read", {"tool": tool, "arguments": {"bogus": 1}})
         )
@@ -404,10 +405,10 @@ async def test_legacy_tools_stay_callable_in_both_profiles(tmp_path, tested):
         bridge = AsyncMock()
         bridge.call.return_value = {"status": "success", "object": {"id": "obj_x", "kind": "body"}}
         legacy = server(tmp_path, bridge, surface=surface)
-        direct = await legacy.call_tool("nx_extrude", {"sketch_id": "obj_s", "distance": 5})
+        direct = await legacy.call_tool("nx_thicken", {"faces": ["obj_s"], "first_offset": 5})
         via = await legacy.call_tool(
             "nx_invoke",
-            {"tool": "nx_extrude", "arguments": {"sketch_id": "obj_s", "distance": 5},
+            {"tool": "nx_thicken", "arguments": {"faces": ["obj_s"], "first_offset": 5},
              "intent": "Pad the base"},
         )  # fmt: skip
         assert not direct.isError and not via.isError
@@ -416,16 +417,16 @@ async def test_legacy_tools_stay_callable_in_both_profiles(tmp_path, tested):
 
 async def test_agent_presentation_never_relabels_a_finished_call(tmp_path, tested):
     bridge = AsyncMock()
-    # A committed export whose reported path cannot be linked as an artifact.
+    # A committed file write whose reported path cannot be linked as an artifact.
     bridge.call.return_value = {
         "status": "success",
-        "path": "../outside.step",
+        "path": "../outside.json",
         "sha256": "0" * 64,
         "size": 5,
         "mutation_outcome": "committed",
     }
     result = await server(tmp_path, bridge).call_tool(
-        "nx_invoke", {"tool": "nx_export_step", "arguments": {"path": "a.step"}}
+        "nx_invoke", {"tool": "nx_save_presentation", "arguments": {"path": "a.json"}}
     )
     assert not result.isError and body(result)["mutation_outcome"] == "committed"
 

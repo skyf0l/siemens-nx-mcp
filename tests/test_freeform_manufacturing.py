@@ -155,44 +155,6 @@ def test_builder_rejection_always_destroys_and_does_not_commit(ff):
     ff.b.Destroy.assert_called_once()
 
 
-@pytest.mark.parametrize(
-    "action,kwargs",
-    [
-        ("move", {"distance": 2, "direction": [0, 0, 4]}),
-        ("offset", {"distance": -2}),
-        ("replace", {}),
-        ("heal", {}),
-    ],
-)
-def test_native_face_edit_configuration_and_cleanup(ff, action, kwargs):
-    if action == "replace":
-        kwargs["replacement"] = ff.ref(ff.faces[1], "face")
-    result = ff.e._edit_faces([ff.ref(ff.faces[0], "face")], action, **kwargs)
-    assert result["body_count"] == 1
-    ff.b.Destroy.assert_called_once()
-    if action == "move":
-        assert ff.b.Motion.DistanceValue.RightHandSide == "2.0"
-    elif action == "offset":
-        assert ff.b.Distance.RightHandSide == "2.0" and ff.b.Direction is True
-    elif action == "heal":
-        assert ff.b.Heal is True and ff.b.AllowPartialDelete is False
-
-
-@pytest.mark.parametrize(
-    "action,kwargs",
-    [
-        ("move", {}),
-        ("heal", {"distance": 2}),
-        ("replace", {"direction": [0, 0, 1]}),
-        ("unsupported", {}),
-    ],
-)
-def test_ignored_face_edit_arguments_are_rejected(ff, action, kwargs):
-    with pytest.raises(NXToolError):
-        ff.e._edit_faces([ff.ref(ff.faces[0], "face")], action, **kwargs)
-    ff.e._freeform_builder.assert_not_called()
-
-
 def test_thicken_uses_explicit_native_tolerance(ff):
     ff.e._thicken([ff.ref(ff.faces[0], "face")], 2, -1)
     assert ff.b.Tolerance == 0.001
@@ -200,25 +162,6 @@ def test_thicken_uses_explicit_native_tolerance(ff):
     assert ff.b.SecondOffset.RightHandSide == "-1.0"
     with pytest.raises(NXToolError):
         ff.e._thicken([ff.ref(ff.faces[0], "face")], 2, 2)
-
-
-@pytest.mark.parametrize("detailed,left", [(False, False), (True, True)])
-def test_thread_uses_actual_cylinder_size_and_explicit_start(ff, detailed, left):
-    result = ff.e._thread(
-        ff.ref(ff.faces[0], "face"),
-        ff.ref(ff.faces[1], "face"),
-        0.4,
-        2.4,
-        1.9,
-        4,
-        detailed=detailed,
-        left_hand=left,
-    )
-    assert result["representation"] == ("detailed" if detailed else "symbolic")
-    assert ff.b.TapDrillDiameterExp.RightHandSide == "2.0"
-    assert ff.b.CylindricalFace.Value is ff.faces[0]
-    assert ff.b.StartObject.Value is ff.faces[1]
-    ff.b.Destroy.assert_called_once()
 
 
 def test_sampled_thickness_retains_unresolved_samples(ff):
@@ -367,14 +310,6 @@ def test_bridge_explicit_continuity_and_reverse(ff):
         ff.e._bridge_surface("x", "y", continuity="C9")
 
 
-def test_heal_works_without_partial_delete_option(ff):
-    # NX 2406 DeleteFaceBuilder has no AllowPartialDelete; heal must not touch it.
-    del ff.b.AllowPartialDelete
-    result = ff.e._edit_faces([ff.ref(ff.faces[0], "face")], "heal")
-    assert result["body_count"] == 1 and ff.b.Heal is True
-    assert not hasattr(ff.b, "AllowPartialDelete")
-
-
 def _bridge_edges(ff):
     first, second = ff.body.GetEdges()[0], Edge("second")
     second.IsOccurrence, second.OwningPart = False, ff.part
@@ -495,55 +430,6 @@ def _pmi_rig(ff, monkeypatch):
     monkeypatch.setitem(sys.modules, "NXOpen.Annotations", a)
     ff.nx.Annotations = a
     return datum, fcf, db, fb
-
-
-def test_pmi_association_and_existing_edit(ff, monkeypatch):
-    datum, fcf, db, fb = _pmi_rig(ff, monkeypatch)
-    face = ff.ref(ff.faces[0], "face")
-    result = ff.e._pmi_datum([face], "A", [10, 10, 0])
-    assert result["geometry_associated"]
-    db.AssociatedObjects.Nxobjects.Add.assert_called_with([ff.faces[0]])
-    fc = ff.e._pmi_fcf([face], "Parallelism", 0.1, [10, 10, 0], datums=[result["annotation"]["id"]])
-    assert fc["datum_letters"] == ["A"]
-    assert fb.FeatureControlFrameDataList.FindItem.return_value.ToleranceValue == "0.1"
-    updated = ff.e._pmi_fcf([face], "Flatness", 0.2, [10, 10, 0], annotation=fc["annotation"]["id"])
-    assert updated["created"] == [] and len(updated["modified"]) == 1
-    with pytest.raises(NXToolError):
-        ff.e._pmi_fcf([face], "Flatness", 0.1, [0, 0, 0], datums=[result["annotation"]["id"]])
-    with pytest.raises(NXToolError):
-        ff.e._pmi_datum([face], "a", [0, 0, 0])
-    db.Validate.return_value = False
-    with pytest.raises(NXToolError):
-        ff.e._pmi_datum([face], "B", [0, 0, 0])
-
-
-def test_pmi_fcf_refuses_wrong_kinds_unlicensed_datums_and_reports_plane(ff, monkeypatch):
-    """NX 2406 regressions: raw TypeErrors, PMI datum license, projected origin."""
-    datum, fcf, db, fb = _pmi_rig(ff, monkeypatch)
-    face = ff.ref(ff.faces[0], "face")
-    note = Object("note")
-    note.OwningPart, note.IsOccurrence = ff.part, False
-    note_id = ff.ref(note, "annotation")
-    for kwargs in [{"datums": [note_id]}, {"annotation": note_id}]:
-        with pytest.raises(NXToolError) as error:
-            ff.e._pmi_fcf([face], "Position", 0.1, [10, 10, 5], **kwargs)
-        assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"
-    fb.Commit.assert_not_called()
-
-    class LicenseError(Exception):
-        ErrorCode = 948801
-
-    ff.nx.NXException = LicenseError
-    ff.part.Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder.side_effect = LicenseError()
-    with pytest.raises(NXToolError) as error:
-        ff.e._pmi_fcf([face], "Position", 0.1, [10, 10, 5], datums=[ff.ref(datum, "annotation")])
-    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION"
-    assert error.value.details["nx_code"] == 948801
-    fb.Commit.assert_not_called()
-    result = ff.e._pmi_fcf([face], "Flatness", 0.1, [10, 10, 5])
-    assert result["position"] == [10.0, 10.0, 0.0]
-    assert result["requested_position"] == [10.0, 10.0, 5.0]
-    assert result["warnings"]
 
 
 def test_animation_renders_absolute_poses_and_restores_after_failure(ff, tmp_path):

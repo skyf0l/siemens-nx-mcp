@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/update_annotations.json",
+  "scenario_sha256": "162af9c808a1c38e332103d684fb86ff568411ac64f3ec7f0c3c6f8291b7fbcf",
+  "domain": "drawing",
+  "covers": {
+    "nx_update_annotations": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_update_annotations": "cff22fa04aaf459aaf58076238726a1f3ec982fbfb9263fcea853bc994e82f6b"
+  },
+  "run_id": "20261009-172335-5674f0",
+  "owner": "dom_drawing",
+  "part": null,
+  "started": "2026-10-09T13:23:45Z",
+  "finished": "2026-10-09T13:23:49Z",
+  "passed": true,
+  "checks": 6,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.875,
+      "result_sha256": "02240731cb63f78570f18e7ab7bcec09dec7a9f1452721e0867167427a8f49f0"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "d5e1bb68dd855ce3636fb5ae8c0cca1041c7dc915b4959c5ce36cc89262c538c"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.391,
+      "result_sha256": "8ff5baa27a023662ba221e845b1b48b06d2d4dcca2ec7ce3241358b7901ba44a"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.469,
+      "result_sha256": "7fe700420f5cd6ff4e3b4929ffb3943b19e9da2ae3224956fe57ae37612aa5a3"
+    },
+    {
+      "index": 5,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.219,
+      "result_sha256": "446916e4ca997812fb81134225f7b4cc68d06552abde06a59048d72414f9dc3e"
+    },
+    {
+      "index": 6,
+      "call": "nx_edit_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "d393f814c6887a629e32d326aeeb0cb4c3c220e1a3141080b0731232b9e1bb08"
+    },
+    {
+      "index": 7,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.109,
+      "result_sha256": "2ef5158af1c620564dbd8496911f94288e2eebab5d23ec013be26c43346c1414"
+    },
+    {
+      "index": 8,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.234,
+      "result_sha256": "cf23ccec89198092f0072f04327a53d75b11ea33b5061bcd103e759b5a4e5768"
+    },
+    {
+      "index": 9,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.141,
+      "result_sha256": "32e87c2258a0a48d6031c1d2a12ef4054877eaa8e9363129f877556cace4c865"
+    },
+    {
+      "index": 10,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.406,
+      "result_sha256": "401becd0038b53446aa1c645e21c0fda470740e474095fcf6d96788ecdcd418c"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

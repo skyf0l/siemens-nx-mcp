@@ -375,73 +375,6 @@ def drawing_save(rig):
     return r
 
 
-def test_save_preserves_cgm_and_restores_modeling_without_dirtying(drawing_save):
-    r = drawing_save
-    original = r.part.Save
-
-    def save(*args):
-        assert r.part.DrawingSheets.CurrentDrawingSheet is r.sheet
-        assert r.part.SaveOptions.DrawingCgmData is True
-        return original(*args)
-
-    r.part.Save = save
-    r.e._save_part()
-    assert r.part.DrawingSheets.CurrentDrawingSheet is None
-    assert not r.part.IsModified
-    r.part.Drafting.ExitDraftingApplication.assert_called_once()
-
-
-def test_save_restores_presentation_on_save_error(drawing_save):
-    r = drawing_save
-    r.part.Save = Mock(side_effect=RuntimeError("disk error"))
-    with pytest.raises(NXToolError) as error:
-        r.e._save_part()
-    assert error.value.details["native_save_errors"] == [{"message": "disk error"}]
-    assert r.part.DrawingSheets.CurrentDrawingSheet is None
-
-
-def test_save_preserves_existing_active_drawing(drawing_save):
-    r = drawing_save
-    r.part.DrawingSheets.CurrentDrawingSheet = r.sheet
-    r.e._save_part()
-    assert r.part.DrawingSheets.CurrentDrawingSheet is r.sheet
-    r.part.Drafting.ExitDraftingApplication.assert_not_called()
-
-
-def test_save_does_not_change_disabled_cgm_preference(drawing_save):
-    r = drawing_save
-    r.part.SaveOptions.DrawingCgmData = False
-    r.e._save_part()
-    r.sheet.Open.assert_not_called()
-    assert r.part.SaveOptions.DrawingCgmData is False
-
-
-def test_save_restore_failure_is_explicitly_partial(drawing_save):
-    r = drawing_save
-    r.part.Drafting.ExitDraftingApplication.side_effect = RuntimeError("restore failure")
-    with pytest.raises(NXToolError) as error:
-        r.e.execute("nx_save_part", {})
-    assert error.value.code == "NX_SAVE_VIEW_RESTORE_FAILED"
-    assert error.value.details["mutation_outcome"] == "partial"
-
-
-def test_drawing_save_active_sketch_rejected_before_open(drawing_save):
-    r = drawing_save
-    r.session.ActiveSketch = object()
-    with pytest.raises(NXToolError):
-        r.e._save_part()
-    r.sheet.Open.assert_not_called()
-
-
-def test_save_as_and_close_use_drawing_preview_context(drawing_save, tmp_path):
-    r = drawing_save
-    r.e._save_as(str(tmp_path / "copy.prt"))
-    assert r.part.DrawingSheets.CurrentDrawingSheet is None
-    r.e._close_part(save=True)
-    assert r.sheet.Open.call_count == 2
-    assert r.part not in r.session.Parts
-
-
 def test_save_hidden_part_restores_original_work_and_display(drawing_save, monkeypatch):
     r = drawing_save
     other = Object("Original")
@@ -506,60 +439,6 @@ def assembly_drawing(explosions):
     r.builder.Commit = Mock(side_effect=commit)
     r.part.DraftingViews.CreateBaseViewBuilder = lambda _: r.builder
     return r
-
-
-def test_assembly_drawing_explosion_is_explicit_and_verified(assembly_drawing):
-    r = assembly_drawing
-    result = r.e._add_base_view(r.sheetref, scope="assembly", explosion=r.exref, position=[80, 100])
-    view = r.e._resolve(result["object"]["id"], {"drawing_view"})
-    assert r.association[view.Tag] == r.ex.Tag
-    r.part.DraftingViews.UpdateViews.assert_called_with([view])
-    r.builder.Destroy.assert_called_once()
-    assert result["scope"] == "assembly"
-    assert result["explosion"]["id"] == r.exref
-
-
-@pytest.mark.parametrize(
-    "kw",
-    [
-        {},
-        {"scope": "invalid"},
-        {"scope": "assembly", "body": "body"},
-        {"scope": "body", "body": "body", "explosion": "ex"},
-        {"scope": "assembly", "view": "unknown"},
-        {"scope": "assembly", "position": [1]},
-    ],
-)
-def test_drawing_scope_validation_precedes_builder(assembly_drawing, kw):
-    r = assembly_drawing
-    with pytest.raises(NXToolError):
-        r.e._add_base_view(r.sheetref, **kw)
-    r.builder.Commit.assert_not_called()
-
-
-def test_drawing_builder_destroyed_on_failure(assembly_drawing):
-    r = assembly_drawing
-    r.builder.Commit.side_effect = RuntimeError("native view failure")
-    with pytest.raises(RuntimeError):
-        r.e._add_base_view(r.sheetref, scope="assembly")
-    r.builder.Destroy.assert_called_once()
-
-
-def test_projected_view_inherits_explosion(assembly_drawing, monkeypatch):
-    from nx_mcp.engineering import EngineeringMixin
-
-    r = assembly_drawing
-    parent = r.e._add_base_view(r.sheetref, scope="assembly", explosion=r.exref)["object"]["id"]
-    child = Object("Projected")
-    child.OwningPart = r.part
-    r.part.DraftingViews.append(child)
-    child_ref = r.ref(child, "drawing_view")
-    monkeypatch.setattr(
-        EngineeringMixin, "_add_projection_view", lambda *args: {"object": {"id": child_ref}}
-    )
-    result = r.e._add_projection_view(parent, "right")
-    assert result["exploded"] and r.association[child.Tag] == r.ex.Tag
-    r.part.DraftingViews.UpdateViews.assert_called_with([child])
 
 
 @pytest.mark.parametrize(

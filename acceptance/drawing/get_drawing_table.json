@@ -1,0 +1,142 @@
+{
+ "covers": {
+  "nx_get_drawing_table": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "setup": true,
+   "save": "rev",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     290
+    ],
+    "rows": [
+     [
+      "A",
+      "First",
+      "TR"
+     ]
+    ],
+    "widths": [
+     10,
+     60,
+     15
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "setup": true,
+   "save": "tb",
+   "args": {
+    "kind": "title_block",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     410,
+     10
+    ],
+    "rows": [
+     [
+      "PART",
+      "BLOCK"
+     ],
+     [
+      "DRAWN",
+      "AGENT"
+     ],
+     [
+      "SCALE",
+      "1:1"
+     ]
+    ],
+    "widths": [
+     30,
+     50
+    ]
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id"
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.kind": "revision",
+    "data.rows": [
+     [
+      "A",
+      "First",
+      "TR"
+     ]
+    ],
+    "data.columns": {
+     "count": 3
+    },
+    "data.position": {
+     "close": [
+      250,
+      290
+     ],
+     "tol": 1e-06
+    },
+    "data.sheet.name": "SHT1"
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$tb.data.table.id"
+   },
+   "expect": {
+    "data.kind": "title_block",
+    "data.rows": {
+     "count": 3
+    },
+    "data.rows.2.1": "1:1"
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

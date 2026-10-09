@@ -416,10 +416,6 @@ class ReviewToolsMixin:
 
     def _preview_plan(self, operations):
         allowed = {
-            "nx_set_expression",
-            "nx_bind_parameter",
-            "nx_edit_feature",
-            "nx_edit_sketch",
             "nx_set_component_transform",
             "nx_reposition_component",
         }

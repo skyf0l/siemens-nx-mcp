@@ -149,3 +149,43 @@ def section(tx, sketch):
         options.Dispose()
     result.AddToSection([rule], None, None, None, sketch.Origin, tx.nx.Section.Mode.Create, False)
     return result
+
+
+BOOLEAN_TYPES = {"unite": "Unite", "subtract": "Subtract", "intersect": "Intersect"}
+
+
+def boolean(tx, operation, combine, field="/combine"):
+    """Configure a feature builder's ``BooleanOperation`` from a ``Combine`` argument.
+
+    ``combine`` is ``None`` (a new body) or ``{"operation", "targets"}`` with
+    target body references owned by the work part. Returns the target bodies.
+    """
+    from nx_mcp.kit import select
+
+    types = tx.nx.GeometricUtilities.BooleanOperation.BooleanType
+    if combine is None:
+        operation.Type = types.Create
+        return []
+    targets = select.bodies(tx, combine["targets"], field + "/targets")
+    operation.Type = getattr(types, BOOLEAN_TYPES[combine["operation"]])
+    operation.SetTargetBodies(targets)
+    return targets
+
+
+def matrix(tx, r):
+    """An NX ``Matrix3x3`` for a row-major rotation R (p_abs = R p_local): the matrix rows
+    X, Y, Z are the columns of R (the inverse of ``geom.rows``)."""
+    m = tx.nx.Matrix3x3()
+    for i, prefix in enumerate("XYZ"):
+        for j, suffix in enumerate("xyz"):
+            setattr(m, prefix + suffix, float(r[j][i]))
+    return m
+
+
+def fixed_plane(tx, origin, normal):
+    """A fixed (non-feature) datum plane through ``origin`` with unit ``normal``."""
+    x, y, z = geom.frame_from_normal(normal)
+    rows = [[x[i], y[i], z[i]] for i in range(3)]  # columns are the plane's axes
+    return tx.part.Datums.CreateFixedDatumPlane(
+        tx.nx.Point3d(*(float(v) for v in origin)), matrix(tx, rows)
+    )

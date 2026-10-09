@@ -1,0 +1,316 @@
+{
+ "covers": {
+  "nx_create_transform": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "a_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "a",
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_transform",
+   "save": "mv",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "transform": {
+     "translation": [
+      20,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1000,
+     "tol": 1e-06
+    },
+    "data.feature.name": {
+     "matches": "MOVE"
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$a.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      30,
+      10,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_transform",
+   "save": "cp",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "copy": true,
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      [
+       0,
+       -1,
+       0
+      ],
+      [
+       1,
+       0,
+       0
+      ],
+      [
+       0,
+       0,
+       1
+      ]
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1000,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$cp.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -10,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      0,
+      30,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$a.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      30,
+      10,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$mv.data.feature.id",
+    "definition": {
+     "transform": {
+      "translation": [
+       40,
+       0,
+       0
+      ]
+     }
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "MOVE_OBJECT"
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$a.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      40,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      50,
+      10,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_transform",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      [
+       1,
+       0,
+       0
+      ],
+      [
+       0,
+       1,
+       0
+      ],
+      [
+       0,
+       0,
+       2
+      ]
+     ]
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/transform/rotation"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$a.data.feature.id",
+    "definition": {
+     "transform": {
+      "translation": [
+       1,
+       0,
+       0
+      ]
+     }
+    }
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/definition"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

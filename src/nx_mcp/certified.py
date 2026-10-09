@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError as MCPToolError
 
 from nx_mcp.contracts import (
-    ExportResult,
     NXToolError,
     ObjectListResult,
-    ObjectResult,
     OperationResult,
-    PartResult,
-    Point2D,
     StatusResult,
 )
-from nx_mcp.workspace import Workspace, WorkspaceViolation
+from nx_mcp.workspace import Workspace
 
 
 class BridgeCaller(Protocol):
@@ -27,19 +23,9 @@ class BridgeCaller(Protocol):
 
 CERTIFIED_TOOL_NAMES = {
     "nx_status",
-    "nx_create_part",
-    "nx_open_part",
-    "nx_save_part",
-    "nx_close_part",
-    "nx_export_step",
     "nx_list_sketches",
     "nx_list_bodies",
     "nx_list_features",
-    "nx_create_sketch",
-    "nx_sketch_line",
-    "nx_sketch_rectangle",
-    "nx_finish_sketch",
-    "nx_extrude",
     "nx_undo",
     "nx_fit_view",
 }
@@ -60,34 +46,10 @@ def create_certified_server(
         except NXToolError as error:
             raise MCPToolError(json.dumps(error.as_dict(), ensure_ascii=False)) from error
 
-    def resolve_path(path: str) -> str:
-        try:
-            return str(workspace.resolve(path))
-        except WorkspaceViolation as error:
-            tool_error = NXToolError("NX_PATH_OUTSIDE_WORKSPACE", str(error))
-            raise MCPToolError(json.dumps(tool_error.as_dict(), ensure_ascii=False)) from error
-
     @mcp.tool()
     async def nx_status() -> StatusResult:
         """Report bridge, NX version, and active-part status."""
         return StatusResult(**await call("nx_status", {}))
-
-    @mcp.tool()
-    async def nx_create_part(path: str, units: Literal["mm", "inch"] = "mm") -> PartResult:
-        """Create a part inside the configured workspace."""
-        return PartResult(
-            **await call("nx_create_part", {"path": resolve_path(path), "units": units})
-        )
-
-    @mcp.tool()
-    async def nx_save_part() -> OperationResult:
-        """Save the active work part."""
-        return OperationResult(**await call("nx_save_part", {}))
-
-    @mcp.tool()
-    async def nx_export_step(path: str) -> ExportResult:
-        """Export the active work part as STEP inside the configured workspace."""
-        return ExportResult(**await call("nx_export_step", {"path": resolve_path(path)}))
 
     @mcp.tool()
     async def nx_list_sketches() -> ObjectListResult:
@@ -105,37 +67,6 @@ def create_certified_server(
         return ObjectListResult(**await call("nx_list_features", {}))
 
     @mcp.tool()
-    async def nx_sketch_line(sketch_id: str, start: Point2D, end: Point2D) -> ObjectResult:
-        """Add a line to an explicit sketch reference."""
-        return ObjectResult(
-            **await call(
-                "nx_sketch_line",
-                {"sketch_id": sketch_id, "start": start.model_dump(), "end": end.model_dump()},
-            )
-        )
-
-    @mcp.tool()
-    async def nx_sketch_rectangle(
-        sketch_id: str, corner1: Point2D, corner2: Point2D
-    ) -> ObjectListResult:
-        """Add a rectangle to an explicit sketch reference."""
-        return ObjectListResult(
-            **await call(
-                "nx_sketch_rectangle",
-                {
-                    "sketch_id": sketch_id,
-                    "corner1": corner1.model_dump(),
-                    "corner2": corner2.model_dump(),
-                },
-            )
-        )
-
-    @mcp.tool()
-    async def nx_finish_sketch(sketch_id: str) -> ObjectResult:
-        """Deactivate and finish an explicit sketch reference."""
-        return ObjectResult(**await call("nx_finish_sketch", {"sketch_id": sketch_id}))
-
-    @mcp.tool()
     async def nx_undo() -> OperationResult:
         """Undo the last visible NX MCP operation."""
         return OperationResult(**await call("nx_undo", {}))
@@ -145,9 +76,8 @@ def create_certified_server(
         """Fit the active modeling view."""
         return OperationResult(**await call("nx_fit_view", {}))
 
-    # nx_open_part, nx_close_part, nx_create_sketch and nx_extrude are certified
-    # too; their single public schemas live with the extended signatures in
-    # integration_server.py and authoring_server.py (configure() rejects duplicates).
+    # Part and file tools are catalogue tools (domains/parts_files); nx_extrude's
+    # single public schema lives in authoring_server.py (configure() rejects duplicates).
     from nx_mcp.integration_server import configure
 
     configure(mcp, bridge, workspace)

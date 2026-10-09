@@ -1,0 +1,358 @@
+{
+ "covers": {
+  "nx_edit_dimension": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     75,
+     45,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     40,
+     10,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "lin",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "linear",
+    "first": "$front.items.0.object.id",
+    "second": "$back.items.0.object.id",
+    "orientation": "vertical",
+    "origin": [
+     200,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "rad",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "radius",
+    "first": "$h1.items.0.object.id"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "format": {
+     "decimals": 2,
+     "trailing_zeros": true,
+     "decimal_separator": "period"
+    },
+    "tolerance": {
+     "type": "bilateral",
+     "upper": 0.05,
+     "lower": -0.02,
+     "decimals": 2
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.format.decimals": 2,
+    "data.format.trailing_zeros": true,
+    "data.format.decimal_separator": "period",
+    "data.tolerance.type": "bilateral",
+    "data.tolerance.upper": {
+     "close": 0.05,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.02,
+     "tol": 1e-09
+    },
+    "data.value": {
+     "close": 50,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "format": {
+     "units": "in",
+     "decimal_separator": "comma"
+    },
+    "tolerance": {
+     "type": "symmetric",
+     "upper": 0.1
+    }
+   },
+   "expect": {
+    "data.format.units": "in",
+    "data.format.decimal_separator": "comma",
+    "data.tolerance.type": "symmetric",
+    "data.value": {
+     "close": 50,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "tolerance": {
+     "type": "limits"
+    }
+   },
+   "expect": {
+    "data.tolerance.type": "limits"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "edges": [
+     "$front.items.0.object.id",
+     "$ch.items.0.object.id"
+    ]
+   },
+   "expect": {
+    "data.value": {
+     "close": 40,
+     "tol": 1e-09
+    },
+    "data.valid": true,
+    "data.associations": 2
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "edges": [
+     "$back.items.0.object.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/second"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$rad.data.dimension.id",
+    "edges": [
+     "$h2.items.0.object.id"
+    ]
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "not_started",
+    "error.field": "/edges"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "format": {
+     "decimals": 9
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/format/decimals"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "format": {
+     "units": "ft"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/format/units"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

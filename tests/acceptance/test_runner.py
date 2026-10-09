@@ -1,6 +1,7 @@
 """Acceptance runner: expect operators, resolution, a scenario run on a fake bridge, fold."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -136,27 +137,34 @@ class FakeNX:
 
     @staticmethod
     def row(path, display=False):
-        part = {"id": "obj_" + path.replace("/", "_").replace(":", "").replace(".", "_")}
+        part = {"id": "obj_" + re.sub(r"[^A-Za-z0-9_]", "_", path)}
         return {"path": path, "part": part, "work": display, "display": display}
 
+    @staticmethod
+    def ok(method, data, **extra):
+        return {"ok": True, "tool": method, "mutation_outcome": "committed", "data": data, **extra}
+
     async def call(self, method, params):
-        if method not in ("nx_list_open_parts",):
+        if method not in ("nx_list_parts",):
             self.calls.append((method, params))
-        if method == "nx_list_open_parts":
-            return {"status": "success", "parts": [dict(p) for p in self.parts]}
+        if method == "nx_list_parts":
+            items = [dict(p) for p in self.parts]
+            page = {"offset": 0, "limit": 200, "returned": len(items), "total": len(items),
+                    "next_offset": None}  # fmt: skip
+            return self.ok(method, {"items": items}, page=page)
         if method == "nx_close_part":
             assert params["save"] is False
             self.parts = [p for p in self.parts if p["part"]["id"] != params["part"]]
-            return {"status": "success"}
+            return self.ok(method, {"closed": [], "closed_count": 1})
         if method == "nx_activate_part":
             for p in self.parts:
                 p["work"] = p["display"] = p["part"]["id"] == params["part"]
-            return {"status": "success"}
+            return self.ok(method, {})
         if method == "nx_create_part":
             for p in self.parts:
                 p["work"] = p["display"] = False
             self.parts.append(self.row(params["path"], display=True))
-            return {"status": "success", "part": {"id": "obj_part", "kind": "part"}}
+            return self.ok(method, {"part": {"id": "p:1", "kind": "part"}})
         if method == "nx_find_geometry":
             return {
                 "status": "success",

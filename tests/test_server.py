@@ -80,10 +80,13 @@ async def test_server_reads_workspace_from_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("NX_MCP_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # untested catalogue tools are listed and run
     bridge = RecordingBridge(
         {
-            "part": {"id": "part-1", "kind": "part", "name": "bracket", "part_id": "part-1"},
-            "message": "created",
+            "ok": True,
+            "tool": "nx_create_part",
+            "mutation_outcome": "committed",
+            "data": {"part": {"id": "p:1", "kind": "part", "name": "bracket", "part": "p:1"}},
         }
     )
     server = create_server(bridge, surface="full")

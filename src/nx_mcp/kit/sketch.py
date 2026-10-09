@@ -18,6 +18,8 @@ NX 2406 findings encoded here:
 from __future__ import annotations
 
 import contextlib
+import math
+import re
 
 from nx_mcp.core.errors import fail
 from nx_mcp.kit import geom
@@ -199,3 +201,312 @@ def owns(tx, sk, curve, field="/curve"):
     if int(obj.Tag) not in {int(c.Tag) for c in s.GetAllGeometry()}:
         fail("NX_WRONG_OWNER", "The curve is not owned by this sketch", field=field)
     return obj
+
+
+# ---------------------------------------------------------------------------
+# Sketch curves: kinds, points, read-back, constraint geometry, solving by drag
+#
+# NX 2406 findings (modern solver, ``Sketch.UsesLegacySolver`` is False):
+#
+# - ``Create<Kind>Constraint`` creates a persistent constraint but does not move
+#   geometry; ``Update()``/``LocalUpdate()`` do not solve it. A drag of one curve
+#   point (``SketchDragGeometryBuilder``, also a zero-length drag) solves the
+#   whole sketch with every persistent constraint (NX may move any free point,
+#   the dragged one too: live, a horizontal line kept its start, not its end).
+# - ``CreateFixedConstraint`` on a line fixes the infinite line only: a later
+#   length dimension still slides its end points. ``CreateFullyFixedConstraints``
+#   (with a ``ConstraintGeometry``) fixes the curve and its points; a dimension
+#   that would move it then leaves the sketch OverConstrained.
+# - ``ConstraintPointType.MidVertex`` is refused as a constraint target; drag
+#   points use the ``Sketch.PointType`` enum (StartPoint/EndPoint/Center).
+# - NXOpen point constructors refuse Python ``int`` ("Expecting double type").
+
+POINTS = ("start", "end", "center", "mid")
+CONSTRAINT_POINT = {"start": "StartVertex", "end": "EndVertex", "center": "ArcCenter"}
+DIMENSION_POINT = {
+    "start": "StartPoint",
+    "end": "EndPoint",
+    "center": "ArcCenter",
+    "mid": "Midpoint",
+}
+DRAG_POINT = {"start": "StartPoint", "end": "EndPoint", "center": "Center"}
+DRAG_SOLVED = "Updated"
+FULL_TURN = 2 * math.pi
+
+
+def snake(name):
+    """``ParallelDim`` -> ``parallel_dim`` (enum names as lower snake case)."""
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", str(name)).lower()
+
+
+def curve_kind(tx, curve):
+    """``line``, ``arc``, ``circle``, ``ellipse``, ``spline`` or ``other``."""
+    nx = tx.nx
+    if isinstance(curve, nx.Line):
+        return "line"
+    if isinstance(curve, nx.Arc):
+        full = abs(float(curve.EndAngle) - float(curve.StartAngle)) >= FULL_TURN - 1e-9
+        return "circle" if full else "arc"
+    if isinstance(curve, nx.Ellipse):
+        return "ellipse"
+    spline = getattr(nx, "Spline", None)
+    if isinstance(spline, type) and isinstance(curve, spline):
+        return "spline"
+    return "other"
+
+
+def add(tx, sk, curve):
+    """Add a curve to the sketch without inferred constraints; returns the curve."""
+    _sketch_of(sk).AddGeometry(curve, tx.nx.Sketch.InferConstraintsOption.InferNoConstraints)
+    return curve
+
+
+def geometry(sk):
+    """The sketch's curves and points, in NX order."""
+    return list(_sketch_of(sk).GetAllGeometry())
+
+
+def tags(sk):
+    """Tags of the sketch's geometry."""
+    return {int(c.Tag) for c in _sketch_of(sk).GetAllGeometry()}
+
+
+def new_geometry(sk, before):
+    """Sketch geometry whose tag is not in ``before``, in NX order."""
+    return [c for c in _sketch_of(sk).GetAllGeometry() if int(c.Tag) not in before]
+
+
+def constraints(tx, sk):
+    """Every persistent constraint and dimension of the sketch."""
+    nx = tx.nx
+    return list(
+        _sketch_of(sk).GetAllConstraintsOfType(
+            nx.Sketch.ConstraintClass.Any, nx.Sketch.ConstraintType.NoCon
+        )
+    )
+
+
+def attached(tx, sk, curve):
+    """Constraints that reference ``curve``."""
+    return list(_sketch_of(sk).GetConstraintsForGeometry(curve, tx.nx.Sketch.ConstraintClass.Any))
+
+
+def constraint_type(tx, constraint):
+    """Lower snake case NX constraint type (``horizontal``, ``parallel_dim``...)."""
+    return snake(enum_name(constraint.ConstraintType, tx.nx.Sketch.ConstraintType))
+
+
+def _arc_point(arc, angle):
+    m = arc.Matrix.Element
+    c, r = geom.xyz(arc.CenterPoint), float(arc.Radius)
+    x, y = [m.Xx, m.Xy, m.Xz], [m.Yx, m.Yy, m.Yz]
+    cos, sin = math.cos(angle), math.sin(angle)
+    return [c[i] + r * (cos * x[i] + sin * y[i]) for i in range(3)]
+
+
+def point(tx, curve, which):
+    """Work-part coordinates of ``start``/``end``/``center``/``mid`` of a line or arc."""
+    kind = curve_kind(tx, curve)
+    if kind == "line":
+        if which == "center":
+            fail("NX_INVALID_ARGUMENT", "A line has no center point")
+        s, e = geom.xyz(curve.StartPoint), geom.xyz(curve.EndPoint)
+        return {"start": s, "end": e, "mid": geom.scale(geom.add(s, e), 0.5)}[which]
+    if kind in ("arc", "circle"):
+        if which == "center":
+            return geom.xyz(curve.CenterPoint)
+        a0, a1 = float(curve.StartAngle), float(curve.EndAngle)
+        return _arc_point(curve, {"start": a0, "end": a1, "mid": (a0 + a1) / 2}[which])
+    fail("NX_WRONG_GEOMETRY", "Only sketch lines, arcs and circles have named points")
+
+
+def check_point(tx, curve, which, field, allowed=POINTS):
+    """Refuse a point the curve does not have (line center, start of a full circle)."""
+    kind = curve_kind(tx, curve)
+    if kind not in ("line", "arc", "circle"):
+        fail("NX_WRONG_GEOMETRY", "Select a sketch line, arc or circle", field=field)
+    if which not in allowed:
+        fail("NX_INVALID_ARGUMENT", f"point must be one of {', '.join(allowed)}", field=field)
+    if kind == "line" and which == "center":
+        fail("NX_INVALID_ARGUMENT", "A line has no center point", field=field)
+    if kind == "circle" and which != "center":
+        fail("NX_INVALID_ARGUMENT", "A full circle has only a center point", field=field)
+
+
+def read(tx, f, curve):
+    """Read a sketch curve back in the sketch frame ``f`` (sketch-local coordinates).
+
+    Lines and arcs come from their native data, ellipses and splines from UF Eval.
+    Arc and ellipse angles are counterclockwise degrees in the sketch frame (NX
+    stores them relative to the curve's own matrix, which a mirror flips).
+    """
+    from nx_mcp.kit import curve as kcurve
+
+    kind = curve_kind(tx, curve)
+    if kind == "line":
+        s, e = geom.xyz(curve.StartPoint), geom.xyz(curve.EndPoint)
+    elif kind in ("arc", "circle"):
+        s, e = point(tx, curve, "start"), point(tx, curve, "end")
+    else:
+        s, e = kcurve.ends(tx, curve)
+    row = {"type": kind, "start": to_local(f, s), "end": to_local(f, e)}
+    row["closed"] = geom.dist(s, e) <= geom.tol(s, e)
+    length = getattr(curve, "GetLength", None)
+    if length is not None:
+        row["length"] = float(length())
+    if kind in ("arc", "circle"):
+        m = curve.Matrix.Element
+        center = to_local(f, curve.CenterPoint)
+        sweep = math.degrees(float(curve.EndAngle) - float(curve.StartAngle))
+        ccw = geom.dot([m.Zx, m.Zy, m.Zz], f["normal"]) > 0
+        first = row["start"] if ccw else row["end"]
+        angle = math.degrees(math.atan2(first[1] - center[1], first[0] - center[0])) % 360.0
+        row.update(center=center, radius=float(curve.Radius))
+        row.update(start_angle=angle, end_angle=angle + sweep)
+    elif kind == "ellipse":
+        m = curve.Matrix.Element
+        rotation, start, end = ellipse_in_frame(
+            [m.Xx, m.Xy, m.Xz],
+            [m.Yx, m.Yy, m.Yz],
+            [m.Zx, m.Zy, m.Zz],
+            math.degrees(float(curve.RotationAngle)),
+            math.degrees(float(curve.StartAngle)),
+            math.degrees(float(curve.EndAngle)),
+            f,
+        )
+        row.update(
+            center=to_local(f, curve.CenterPoint),
+            major_radius=float(curve.MajorRadius),
+            minor_radius=float(curve.MinorRadius),
+            rotation=rotation,
+            start_angle=start,
+            end_angle=end,
+        )
+    row["construction"] = bool(getattr(curve, "IsReference", False))
+    return row
+
+
+def constraint_geometry(tx, curve, which=None):
+    """A ``Sketch.ConstraintGeometry`` for a curve (``which`` None) or one of its points."""
+    nx = tx.nx
+    g = nx.Sketch.ConstraintGeometry()
+    g.Geometry = curve
+    g.PointType = getattr(nx.Sketch.ConstraintPointType, CONSTRAINT_POINT.get(which, "NotSet"))
+    g.SplineDefiningPointIndex = 0
+    return g
+
+
+def dimension_geometry(tx, curve, which=None):
+    """A ``Sketch.DimensionGeometry`` for a curve (``which`` None) or one of its points."""
+    nx = tx.nx
+    g = nx.Sketch.DimensionGeometry()
+    g.Geometry = curve
+    g.AssocType = getattr(nx.Sketch.AssocType, DIMENSION_POINT.get(which, "NotSet"))
+    g.AssocValue = 0
+    return g
+
+
+def relax_found_relations(builder):
+    """Relax the relations NX infers for a relation or drag operation; returns their count.
+
+    NX 2406's modern solver also maintains *found* relations during these
+    operations: a Make Equal (radius) between circles A and B also resized an
+    unrelated circle C that merely had B's radius. Relaxing every found relation
+    keeps the change to the persistent constraints and the selected curves.
+    """
+    find = getattr(builder, "FindRelations", None)
+    if find is None:
+        return 0
+    found = list(find() or [])
+    for relation in found:
+        builder.SetRelationRelaxState(relation, True)
+    return len(found)
+
+
+def drag(tx, sk, curve, which, target=None):
+    """Solve the sketch by dragging one curve point to sketch-local ``target``.
+
+    Without ``target`` the drag has zero length: NX solves every persistent
+    constraint (it may still move that point). Returns the drag solver status
+    name (``Updated`` when solved, ``UpdateFailed`` when NX could not solve).
+    """
+    from nx_mcp.kit import builders
+
+    s = _sketch_of(sk)
+    nx = tx.nx
+    g = nx.Sketch.SketchGeometry()
+    g.Geometry = curve
+    g.PointType = getattr(nx.Sketch.PointType, DRAG_POINT[which])
+    g.PointIndex = 0
+    start = point(tx, curve, which)
+    goal = to_part(frame(s), target) if target is not None else start
+    with builders.build(tx, tx.part.Sketches.CreateDragGeometryBuilder) as b:
+        b.SetDragGeometry([g])
+        b.InitializeDrag(nx.Point3d(*(float(v) for v in start)))
+        relax_found_relations(b)
+        b.DragToPoint(nx.Point3d(*(float(v) for v in goal)))
+        raw = b.GetSolverStatus()
+        b.Commit()
+    s.Update()
+    return enum_name(raw, nx.SketchDragGeometryBuilder.SolverStatus)
+
+
+def set_construction(tx, curves, on):
+    """Convert sketch curves to construction (reference) curves, or back to active."""
+    from nx_mcp.kit import builders
+
+    nx = tx.nx
+    with builders.build(tx, tx.part.Sketches.CreateConvertToFromReferenceBuilder) as b:
+        kinds = nx.ConvertToFromReferenceBuilder.OutputType
+        b.OutputState = kinds.Reference if on else kinds.Active
+        b.InputObjects.Add(list(curves))
+        b.Commit()
+
+
+# ---- ellipses (pure math, sketch-local degrees) ----------------------------------
+
+
+def ellipse_perimeter(a, b):
+    """Exact ellipse perimeter ``4a E(e)`` by the arithmetic-geometric mean.
+
+    Ramanujan II is off by 1.2e-5 at b/a = 0.1, which made a 1e-6 read-back
+    reject valid thin ellipses on NX 2406.
+    """
+    a, b = max(a, b), min(a, b)
+    x, g = 1.0, b / a
+    s, p = 0.5 * (1.0 - g * g), 0.5
+    while abs(x - g) > 1e-15 * x:
+        c = (x - g) / 2
+        x, g = (x + g) / 2, math.sqrt(x * g)
+        p *= 2
+        s += p * c * c
+    return 2 * math.pi * a / x * (1 - s)
+
+
+def ellipse_point(center, a, b, rotation, angle):
+    """Local point of an ellipse at a POLAR angle (degrees from the major axis, seen
+    from the center): NX 2406 ellipse start/end angles are polar, not parametric
+    (live: -45..45 on a 20x10 ellipse ends at radius 12.649)."""
+    r, t = math.radians(rotation), math.radians(angle)
+    radius = a * b / math.hypot(b * math.cos(t), a * math.sin(t))
+    u, v = radius * math.cos(t), radius * math.sin(t)
+    return [
+        center[0] + u * math.cos(r) - v * math.sin(r),
+        center[1] + u * math.sin(r) + v * math.cos(r),
+    ]
+
+
+def ellipse_in_frame(x, y, z, rotation, start, end, f):
+    """Ellipse rotation/start/end (degrees) in the sketch frame ``f``.
+
+    NX stores them relative to the curve's own matrix; a mirrored ellipse gets
+    its own (often flipped) matrix (live NX 2406: rotation 0 for a mirror whose
+    major axis lies at 150 degrees). A flipped normal reverses the angle sense,
+    so the arc [s, e] becomes [-e, -s].
+    """
+    r = math.radians(rotation)
+    axis = [math.cos(r) * x[i] + math.sin(r) * y[i] for i in range(3)]
+    local = math.degrees(math.atan2(geom.dot(axis, f["y_axis"]), geom.dot(axis, f["x_axis"])))
+    if geom.dot(z, f["normal"]) < 0:
+        start, end = -end, -start
+    return local, start, end

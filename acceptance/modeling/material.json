@@ -1,0 +1,248 @@
+{
+ "covers": {
+  "nx_get_material": [],
+  "nx_set_material": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "b2_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$b2_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       100,
+       0
+      ],
+      "corner2": [
+       140,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$b2_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "b2",
+   "args": {
+    "sketch": "$b2_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_get_material",
+   "args": {},
+   "expect": {
+    "data.items": {
+     "count": 2
+    },
+    "data.items.0.density": {
+     "close": 7830.64,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "MDL_AL6061",
+      "density": 2700
+     }
+    }
+   },
+   "expect": {
+    "data.items.0.material": "MDL_AL6061",
+    "data.items.0.density": {
+     "close": 2700,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_material",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id",
+     "$b2.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.items.0.material": "MDL_AL6061",
+    "data.items.0.density": {
+     "close": 2700,
+     "tol": 1e-06
+    },
+    "data.items.1.density": {
+     "close": 7830.64,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$b2.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "MDL_AL6061",
+      "density": 2700
+     }
+    }
+   },
+   "expect": {
+    "data.items.0.material": "MDL_AL6061"
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$b2.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "mdl_al6061",
+      "density": 1000
+     }
+    }
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_get_material",
+   "args": {
+    "bodies": [
+     "$b2.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.items.0.density": {
+     "close": 2700,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_material",
+   "args": {
+    "scope": "assembly"
+   },
+   "expect": {
+    "data.items": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$b2.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "X",
+      "density": 0
+     }
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

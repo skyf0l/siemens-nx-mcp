@@ -1,4 +1,4 @@
-"""NX 2406 core regressions: part name conflicts, provable not_started outcomes,
+"""NX 2406 core regressions: provable not_started outcomes,
 section delete clearing view sectioning, and solving an active sketch after a
 dimension expression edit."""
 
@@ -22,38 +22,7 @@ def _error(rig, method, params):
     return caught.value
 
 
-# ---- 1. nx_create_part refuses NX name conflicts before NX is touched -------
-def _guard_file_new(rig):
-    rig.session.Parts.FileNew = Mock(side_effect=AssertionError("NX FileNew must not run"))
-    return list(rig.session.Parts)
-
-
-def test_create_part_refuses_an_existing_file(rig, tmp_path):
-    loaded = _guard_file_new(rig)
-    target = tmp_path / "smoke" / "existing.prt"
-    target.parent.mkdir()
-    target.write_bytes(b"part")
-    error = _error(rig, "nx_create_part", {"path": str(target)})
-    assert error.code == "NX_FILE_EXISTS"
-    assert error.details["mutation_outcome"] == "not_started"
-    assert list(rig.session.Parts) == loaded and target.read_bytes() == b"part"
-
-
-def test_create_part_refuses_a_loaded_basename_in_another_folder(rig, tmp_path):
-    loaded = _guard_file_new(rig)
-    target = tmp_path / "other" / "TEST.prt"  # rig's loaded part is test.prt
-    error = _error(rig, "nx_create_part", {"path": str(target)})
-    assert error.code == "NX_NAME_CONFLICT"
-    assert error.details["loaded_part_path"] == rig.part.FullPath
-    assert error.details["mutation_outcome"] == "not_started"
-    assert list(rig.session.Parts) == loaded and not target.parent.exists()
-
-
-def test_create_part_refuses_an_unsaved_loaded_part_at_the_same_path(rig, tmp_path):
-    _guard_file_new(rig)
-    error = _error(rig, "nx_create_part", {"path": str(tmp_path / "test.prt")})
-    assert error.code == "NX_FILE_EXISTS"
-    assert error.details["loaded_part_path"] == rig.part.FullPath
+# ---- 1. nx_create_part name conflicts: tests/unit/parts_files/test_parts.py ---
 
 
 # ---- 2. not_started only when no side effect was possible --------------------
@@ -94,7 +63,6 @@ def test_possible_side_effects_keep_the_outcome_unknown(rig, tmp_path):
 def test_real_non_model_handlers_report_not_started_for_argument_errors(rig, tmp_path):
     cases = [
         ("nx_inspection_report", {"path": str(tmp_path / "r.txt")}),
-        ("nx_copy_project", {"path": str(tmp_path / "copy"), "prefix": "a b"}),
         ("nx_export_explosion_animation", {"explosion": "x", "path": "a.gif", "frames": 1}),
         ("nx_highlight_collisions", {"obj1": "obj_missing", "obj2": "obj_missing"}),
     ]
@@ -127,7 +95,7 @@ async def test_sidecar_path_errors_are_not_started(tmp_path):
     assert result.structuredContent["details"]["mutation_outcome"] == "not_started"
     bridge.call.assert_not_called()
     bridge.call.side_effect = NXToolError("NX_BRIDGE_UNAVAILABLE", "lost")
-    result = await server.call_tool("nx_save_as", {"path": "copy.prt"})
+    result = await server.call_tool("nx_save_presentation", {"path": "view.json"})
     assert result.structuredContent["details"]["mutation_outcome"] == "unknown"
 
 

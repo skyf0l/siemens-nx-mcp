@@ -1,0 +1,156 @@
+{
+ "covers": {
+  "nx_create_datum_csys": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_datum_csys",
+   "args": {
+    "origin": [
+     10,
+     5,
+     10
+    ],
+    "x_axis": [
+     1,
+     1,
+     0
+    ],
+    "y_axis": [
+     -1,
+     1,
+     0
+    ]
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      10,
+      5,
+      10
+     ],
+     "tol": 1e-09
+    },
+    "data.x_axis": {
+     "close": [
+      0.7071067811865476,
+      0.7071067811865476,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.y_axis": {
+     "close": [
+      -0.7071067811865476,
+      0.7071067811865476,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.z_axis": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    },
+    "data.datum_csys.kind": "datum_csys"
+   }
+  },
+  {
+   "call": "nx_create_datum_csys",
+   "args": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "x_axis": [
+     0,
+     0,
+     1
+    ],
+    "y_axis": [
+     1,
+     0,
+     0
+    ],
+    "name": "TOOL_CS"
+   },
+   "expect": {
+    "data.z_axis": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.feature.name": {
+     "matches": "(?i)^tool_cs$"
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_csys",
+   "args": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "x_axis": [
+     1,
+     0,
+     0
+    ],
+    "y_axis": [
+     1,
+     1,
+     0
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/y_axis"
+   }
+  },
+  {
+   "call": "nx_create_datum_csys",
+   "args": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "x_axis": [
+     0,
+     0,
+     0
+    ],
+    "y_axis": [
+     1,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/x_axis"
+   }
+  }
+ ]
+}

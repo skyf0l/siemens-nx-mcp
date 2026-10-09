@@ -42,7 +42,7 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
     names -= server.nx_surface.added_names()  # Gateways, catalogue and helper tools.
     assert names == set(MANIFEST["tools"])  # Manifest lists exactly the legacy tools.
     assert names > CERTIFIED_TOOL_NAMES
-    assert {"nx_blend", "nx_measure_distance"} <= names
+    assert {"nx_thicken", "nx_measure_distance"} <= names
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 
@@ -66,11 +66,14 @@ async def test_status_returns_structured_content():
 
 
 @pytest.mark.asyncio
-async def test_create_part_resolves_path_inside_workspace(tmp_path: Path):
+async def test_create_part_resolves_path_inside_workspace(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # untested catalogue tools are listed and run
     bridge = RecordingBridge(
         {
-            "part": {"id": "part-1", "kind": "part", "name": "bracket", "part_id": "part-1"},
-            "message": "created",
+            "ok": True,
+            "tool": "nx_create_part",
+            "mutation_outcome": "committed",
+            "data": {"part": {"id": "p:1", "kind": "part", "name": "bracket", "part": "p:1"}},
         }
     )
     server = create_server(bridge, Workspace(tmp_path), surface="full")
@@ -89,7 +92,8 @@ async def test_create_part_resolves_path_inside_workspace(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_file_tool_rejects_workspace_escape_before_bridge_call(tmp_path: Path):
+async def test_file_tool_rejects_workspace_escape_before_bridge_call(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
     bridge = RecordingBridge({})
     server = create_server(bridge, Workspace(tmp_path), surface="full")
 
@@ -102,7 +106,9 @@ async def test_file_tool_rejects_workspace_escape_before_bridge_call(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_bridge_error_preserves_machine_readable_code():
+async def test_bridge_error_preserves_machine_readable_code(monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+
     class ErrorBridge:
         async def call(self, method: str, params: dict):
             raise NXToolError("NX_NO_WORK_PART", "No work part is open")
@@ -117,19 +123,17 @@ async def test_bridge_error_preserves_machine_readable_code():
 
 
 @pytest.mark.asyncio
-async def test_tools_publish_strict_input_and_output_schemas():
+async def test_tools_publish_strict_input_and_output_schemas(monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
     server = create_server(StubBridge(), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert tools["nx_create_part"].inputSchema["properties"]["units"]["enum"] == ["mm", "inch"]
-    assert tools["nx_create_sketch"].inputSchema["properties"]["plane"]["enum"] == [
-        "XY",
-        "XZ",
-        "YZ",
-    ]
-    assert "distance" in tools["nx_extrude"].inputSchema["properties"]
+    assert tools["nx_create_part"].inputSchema["properties"]["units"]["enum"] == ["mm", "in"]
+    placement = tools["nx_create_sketch"].inputSchema["properties"]["placement"]
+    assert {"principal", "on", "path"} <= {k for b in placement["anyOf"] for k in b["properties"]}
+    assert tools["nx_create_extrude"].inputSchema["required"] == ["sketch", "end"]
     assert all(tool.inputSchema.get("additionalProperties") is False for tool in tools.values())
     legacy = set(tools) - server.nx_surface.added_names()
     assert all(tools[name].outputSchema is not None for name in legacy)

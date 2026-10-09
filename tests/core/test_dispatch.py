@@ -91,3 +91,15 @@ def test_panel_summary_comes_from_the_spec(rig):
     assert dispatch.is_read_only("nx_list_objects") is True
     assert dispatch.is_read_only("nx_create_datum_plane") is False
     assert dispatch.is_read_only("nx_list_bodies") is None
+
+
+def test_legacy_tools_receive_the_legacy_id_of_a_catalogue_ref(rig):
+    """Migrated tools return short refs; a legacy consumer gets the obj_ ID they wrap."""
+    body = rig.nx.Body("B9")
+    rig.part.Bodies.append(body)
+    short = rig.e.execute("nx_list_objects", {"kind": "body"})["data"]["items"][0]["id"]
+    services = dispatch.services_for(rig.e)
+    legacy = services.references.entry(short).legacy_id
+    translated = dispatch.legacy_ids(services, {"body": short, "items": [short, "x:1"], "n": 3})
+    assert translated == {"body": legacy, "items": [legacy, "x:1"], "n": 3}
+    assert legacy.startswith("obj_") and rig.e.objects.resolve(legacy) is body

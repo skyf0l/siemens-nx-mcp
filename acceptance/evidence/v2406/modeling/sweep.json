@@ -1,0 +1,176 @@
+{
+  "format": 1,
+  "scenario": "acceptance/modeling/sweep.json",
+  "scenario_sha256": "5470c35f2cc523558a15a75b62c29c43322739ce284909e174ecfbbb1fbe9d77",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_sweep": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_create_sweep": "9cd568b922c3717ea8658d6b1cf285b85fc5eb84428ccb83338a8963be6baade"
+  },
+  "run_id": "20261009-170720-fcded5",
+  "owner": "dom_modeling",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-170720-fcded5\\modeling_sweep_fcded5.prt",
+  "started": "2026-10-09T13:09:26Z",
+  "finished": "2026-10-09T13:09:31Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.125,
+      "result_sha256": "e537d5c6073196ac9175166addb70729fbc8da1dbfd91955509de3d4077fdbc7"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.157,
+      "result_sha256": "6176f5a4e3127871e5063f2be0af391924a87fa09a98d287b1da9a4377b9fefe"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "789f31ccb612b81e5404819ef6810d5434ce309cafc340629462e0123e691f1c"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "9f659b58cd6b848ecf1981d861464e5893308a504d549bb9b1da54e95967cc4f"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.281,
+      "result_sha256": "1c5ea77c88ca31e649589e20980795d8de89a4cde03634fc68f82c96dfd7eea8"
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "6472c8d5508040af6db6b993a044db590724de5721d3aa8211a25c57976a96e1"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "b37dce69d5de2b65fd843a2b31b2e8a352c6eaff3761dd02f95b0f2ba7b94f93"
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.218,
+      "result_sha256": "7dda1248aad525b73cb2fc834d0e48a6e1956d42bcf2c584a3c450e04d1aa822"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.25,
+      "result_sha256": "26541e1fb9ed488010ca12c6cdb73c01a0fee14d688a065a3be8bec8970dd7f1"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.219,
+      "result_sha256": "016a6cd83deff847c94c3de1de9f69b46ba1302cf255236f0a42f1bb63975583"
+    },
+    {
+      "index": 11,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "d1bc461629281223e62bb427a7dc429b59406b49f3fe978bc783f6032bd814e5"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.219,
+      "result_sha256": "2d7d57c36bf07e4cce3d36bdf78b78588a52081cd5d9cc73f132a03a9a03c932"
+    },
+    {
+      "index": 13,
+      "call": "nx_get_bounding_box",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.187,
+      "result_sha256": "c4014474bfac58059e6d287ad6d8d2c7d86517048942856ee13c3efc7fc4dcf8"
+    },
+    {
+      "index": 14,
+      "call": "nx_create_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.328,
+      "result_sha256": "88e9b5b7b710107c6a38ba15c66a7d5dd830e9faafea46f459b3f90d2f22d832"
+    },
+    {
+      "index": 15,
+      "call": "nx_create_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.188,
+      "result_sha256": "85eb2d3a71fa2a8f9c2c437e46ad3c7c495f7c5546008dec96733bdb25baa911"
+    },
+    {
+      "index": 16,
+      "call": "nx_create_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.172,
+      "result_sha256": "83c08950842fa97539bdf1407826b5fbc046722b0f96385e1ef2c7f672151387"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-170720-fcded5/modeling_sweep_fcded5.prt"
+    ],
+    "failed": []
+  }
+}

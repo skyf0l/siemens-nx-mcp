@@ -82,22 +82,12 @@ def test_geometry_cardinality_units_and_closest_points():
 
 
 @pytest.mark.asyncio
-async def test_fresh_mcp_client_accepts_artifacts_and_structured_errors(tmp_path):
-    (tmp_path / "test.txt").write_text("hello")
+async def test_fresh_mcp_client_gets_structured_errors(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
     async with create_connected_server_and_client_session(server) as client:
-        for args in [{"delivery": "metadata"}, {"length": 2}, {"offset": 5}]:
-            result = await client.call_tool("nx_download_file", {"path": "test.txt", **args})
-            assert not result.isError
-            validate("nx_download_file", result.structuredContent)
-        error = await client.call_tool("nx_download_file", {"path": "absent.txt"})
-        assert error.isError and error.structuredContent["code"] == "NX_FILE_NOT_FOUND"
-        validate("nx_download_file", error.structuredContent)
         tools = {t.name: t for t in (await client.list_tools()).tools}
-        assert "sketch_name" in tools["nx_revolve"].inputSchema["required"]
-        assert "Saves the part" in tools["nx_export_step"].description
-        assert "checkpoints can expire" in tools["nx_export_step"].description
-        bad = await client.call_tool("nx_revolve", {})
+        assert "component" in tools["nx_set_component_transform"].inputSchema["required"]
+        bad = await client.call_tool("nx_set_component_transform", {})
         assert bad.isError and bad.structuredContent["code"] == "NX_INVALID_ARGUMENT"
 
 
@@ -112,7 +102,6 @@ async def test_new_inspection_tools_publish_actionable_docstrings(tmp_path):
         "nx_list_reference_sets": "direct members",
         "nx_list_datums": "coordinate systems",
         "nx_set_datum_visibility": "restore_id",
-        "nx_list_open_parts": "total_count",
         "nx_list_components": "include_transforms=False",
     }
     for name, guidance in expected.items():

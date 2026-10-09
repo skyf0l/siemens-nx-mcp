@@ -1,0 +1,374 @@
+{
+ "covers": {
+  "nx_create_gdt": [
+   "fcf"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     75,
+     45,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     40,
+     10,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$top_face.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.text": {
+     "contains": "0.05"
+    },
+    "data.requested_position": [
+     40,
+     25,
+     20
+    ],
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$cyl.items.0.object.id"
+    ],
+    "position": [
+     25,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "position",
+     "tolerance": 0.1,
+     "material": "mmc",
+     "zone": "diameter",
+     "projected_height": 5
+    }
+   },
+   "expect": {
+    "data.text": {
+     "contains": "0.1"
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$cyl.items.0.object.id"
+    ],
+    "position": [
+     25,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "cylindricity",
+     "tolerance": 0.01,
+     "zone": "spherical_diameter"
+    }
+   },
+   "expect": {
+    "data.text": {
+     "contains": "0.01"
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$top_face.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "perpendicularity",
+     "tolerance": 0.02,
+     "zone": "square",
+     "tangent_plane": true,
+     "free_state": true
+    }
+   },
+   "expect": {
+    "data.text": {
+     "contains": "0.02"
+    }
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "datum_feature",
+    "faces": [
+     "$top_face.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "letter": "A"
+   },
+   "expect": {
+    "error.category": "unavailable",
+    "error.code": "NX_LICENSE_UNAVAILABLE",
+    "error.nx_code": 948801
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$top_face.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05,
+     "material": "mmc"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/frame/material"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$top_face.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": -1
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/frame/tolerance"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "datum_feature",
+    "faces": [
+     "$top_face.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "letter": "a"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/letter"
+   }
+  },
+  {
+   "call": "nx_create_gdt",
+   "args": {
+    "kind": "fcf",
+    "faces": [
+     "$back.items.0.object.id"
+    ],
+    "position": [
+     40,
+     25,
+     20
+    ],
+    "frame": {
+     "characteristic": "flatness",
+     "tolerance": 0.05
+    }
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

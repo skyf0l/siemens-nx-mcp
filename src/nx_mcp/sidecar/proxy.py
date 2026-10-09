@@ -11,11 +11,15 @@ after forwarding it is never relabelled ``not_started`` unless NX said so.
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import hashlib
 import json
 import os
 from typing import Any
+from urllib.parse import quote
 
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
 from pydantic import ValidationError
 
 from nx_mcp.core import errors, evidence
@@ -27,17 +31,20 @@ from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
 
 COMPACT_ITEMS = 20
+INLINE_IMAGE_BYTES = 8 * 1024 * 1024
 
 
-def result(envelope: dict) -> CallToolResult:
-    """An MCP result carrying ``envelope`` as text and structured content."""
+def result(envelope: dict, *, extra: list | None = None) -> CallToolResult:
+    """An MCP result carrying ``envelope`` as text and structured content (+ ``extra``)."""
+    content: list = [
+        TextContent(
+            type="text",
+            text=json.dumps(envelope, ensure_ascii=False, separators=(",", ":")),
+        )
+    ]
+    content.extend(extra or [])
     return CallToolResult(
-        content=[
-            TextContent(
-                type="text",
-                text=json.dumps(envelope, ensure_ascii=False, separators=(",", ":")),
-            )
-        ],
+        content=content,
         structuredContent=envelope,
         isError=not envelope.get("ok", False),
     )
@@ -148,6 +155,7 @@ class CatalogueProxy:
         self.workspace = workspace
         self.store = store
         self._build = build
+        self._services = None  # sidecar/local.py services, made on first use
 
     # The build of the connected NX, from the bridge descriptor (None when unknown).
     def build(self) -> str | None:
@@ -235,6 +243,11 @@ class CatalogueProxy:
             # Known before sending, so an unknown outcome can always be queried.
             operation_id = new_operation_id()
         params = dict(args)
+        if spec.runs == "sidecar":  # Workspace tools never reach NX (sidecar/local.py).
+            envelope = await asyncio.to_thread(self._local, spec, params, operation_id)
+            if detail == "compact":
+                envelope = _project(envelope, self.store)
+            return result(envelope, extra=self._attachments(envelope))
         if operation_id:
             params["operation_id"] = operation_id
         if intent:
@@ -269,4 +282,64 @@ class CatalogueProxy:
                 )
         if detail == "compact":
             envelope = _project(envelope, self.store)
-        return result(envelope)
+        return result(envelope, extra=self._attachments(envelope))
+
+    def _local(self, spec, params: dict, operation_id) -> dict:
+        from nx_mcp.sidecar import local
+
+        if self._services is None:
+            self._services = local.SidecarServices(self.workspace)
+        self._services.build = self.build()
+        self._services.dev = self.dev()
+        return local.run(spec, params, self._services, operation_id=operation_id)
+
+    def _attachments(self, envelope: dict) -> list:
+        """An inline PNG (``data.image``) and a resource link to a workspace file the
+        result names (``data.path`` with ``data.sha256``), so clients fetch bytes
+        through ``nx-artifact://`` instead of the conversation."""
+        out = []
+        image = self._image(envelope)
+        if image is not None:
+            out.append(image)
+        data = envelope.get("data") if envelope.get("ok") else None
+        if isinstance(data, dict) and isinstance(data.get("path"), str) and data.get("sha256"):
+            try:
+                file = self.workspace.resolve(data["path"])
+                if file.is_file() and file.stat().st_size <= INLINE_IMAGE_BYTES:
+                    relative = file.relative_to(self.workspace.root).as_posix()
+                    out.append(
+                        ResourceLink(
+                            type="resource_link",
+                            name=file.name,
+                            uri="nx-artifact://workspace/" + quote(relative, safe=""),
+                            size=file.stat().st_size,
+                        )
+                    )
+            except Exception:
+                pass  # A link is a convenience; the finished call's answer stands.
+        return out
+
+    def _image(self, envelope: dict) -> ImageContent | None:
+        """Inline PNG for ``data.image = {path, sha256, inline: true}`` (any tool).
+
+        The bytes go to the client as MCP image content, never as text. A file that
+        changed since the tool reported it, or one over 8 MiB, is not attached and
+        the envelope gets a warning instead.
+        """
+        data = envelope.get("data") if envelope.get("ok") else None
+        image = data.get("image") if isinstance(data, dict) else None
+        if not isinstance(image, dict) or not image.get("inline"):
+            return None
+        try:
+            file = self.workspace.resolve(str(image["path"]))
+            if file.stat().st_size > INLINE_IMAGE_BYTES:
+                raise ValueError("the image exceeds the 8 MiB inline limit")
+            raw = file.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != image.get("sha256"):
+                raise ValueError("the image file changed after the call reported it")
+        except Exception as error:
+            envelope.setdefault("warnings", []).append(
+                {"code": "NX_UPDATE_WARNING", "message": f"Image not attached: {error}"}
+            )
+            return None
+        return ImageContent(type="image", mimeType="image/png", data=base64.b64encode(raw).decode())

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import math
-import re
 
-from nx_mcp.kit.geom import add, dot, rows, xyz
+from nx_mcp.kit.geom import dot, rows, xyz
 from nx_mcp.kit.result import enum_name
 from nx_mcp.legacy_kit import finite, unit_normal, vector
 from nx_mcp.runtime import NXToolError
@@ -21,21 +20,6 @@ def page(items, offset=0, limit=50):
         "offset": offset,
         "next_offset": end if end < len(items) else None,
     }
-
-
-def _native_formula(call):
-    """Run an NX expression create/edit; NX rejects bad formulas with a native error."""
-    try:
-        return call()
-    except NXToolError:
-        raise
-    except Exception as error:
-        raise NXToolError(
-            "NX_INVALID_FORMULA",
-            f"NX rejected the formula: {error}",
-            nx_code=getattr(error, "ErrorCode", None),
-            suggestion="Use NX expression syntax with existing expression names and units",
-        ) from error
 
 
 def _expression_list(exp, method):
@@ -160,107 +144,6 @@ class AuthoringMixin:
         result = page(values, offset, limit)
         result["items"] = [self._expression_record(e) for e in result["items"]]
         return result
-
-    def _set_expression(self, expression, formula, create=False, units="unitless"):
-        part = self._work_part()
-        if not isinstance(formula, str) or not formula.strip() or len(formula) > 4096:
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT",
-                "formula must contain 1–4096 characters of NX expression syntax",
-            )
-        self._require_api(part.Expressions, "EditExpression", "CreateNumberExpression")
-        if create:
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,99}", expression):
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT", "New expression requires a simple identifier"
-                )
-            if any(e.Name == expression for e in part.Expressions):
-                raise NXToolError("NX_NAME_EXISTS", "Expression already exists")
-            unit_names = {
-                "mm": "MilliMeter",
-                "inch": "Inch",
-                "deg": "Degrees",
-                "rad": "Radian",
-                "unitless": None,
-            }
-            if units not in unit_names:
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT", "units must be mm, inch, deg, rad or unitless"
-                )
-            unit = part.UnitCollection.FindObject(unit_names[units]) if unit_names[units] else None
-            exp = _native_formula(
-                lambda: part.Expressions.CreateNumberExpression(expression + "=" + formula, unit)
-            )
-        else:
-            if units != "unitless":
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT",
-                    "Existing expressions retain their units; do not supply units when editing",
-                )
-            exp = self._expression(expression)
-            if not self._expression_record(exp)["editable"] or exp.Type != "Number":
-                raise NXToolError(
-                    "NX_EXPRESSION_READ_ONLY",
-                    "Only editable, local Number expressions are supported",
-                )
-            _native_formula(lambda: part.Expressions.EditExpression(exp, formula))
-        self._update_model()
-        if not create:
-            self._solve_active_sketch([exp])
-        row = self._expression_record(exp)
-        return {
-            "expression": row,
-            "modified": [row["object"]],
-            "created": [row["object"]] if create else [],
-        }
-
-    def _bind_parameter(self, feature, parameter, expression):
-        f = self._resolve(feature, {"feature"})
-        exp = self._expression(expression)
-        if exp.Type != "Number":
-            raise NXToolError("NX_INVALID_ARGUMENT", "Binding requires a Number expression")
-        builders = {
-            "EXTRUDE": ("CreateExtrudeBuilder", {"start", "end"}),
-            "PATTERN_FEATURE": ("CreatePatternFeatureBuilder", {"count", "spacing"}),
-        }
-        kind = f.FeatureType.upper().replace(" ", "_")
-        if kind not in builders or parameter not in builders[kind][1]:
-            raise NXToolError(
-                "NX_UNSUPPORTED_EDIT", "Supported: EXTRUDE start/end; PATTERN_FEATURE count/spacing"
-            )
-        collection = self._work_part().Features
-        self._require_api(collection, builders[kind][0])
-        b = getattr(collection, builders[kind][0])(f)
-        try:
-            target = (
-                (b.Limits.StartExtend.Value if parameter == "start" else b.Limits.EndExtend.Value)
-                if kind == "EXTRUDE"
-                else (
-                    b.PatternService.RectangularDefinition.XSpacing.NCopies
-                    if parameter == "count"
-                    else b.PatternService.RectangularDefinition.XSpacing.PitchDistance
-                )
-            )
-            try:
-                self._work_part().Expressions.EditExpression(target, exp.Name)
-            except Exception as error:
-                # NX 2406 raises "Dimension error" (3270081) for e.g. an angle on a length.
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT",
-                    f"NX rejected binding {parameter} to {exp.Name}: {error}",
-                    nx_code=getattr(error, "ErrorCode", None),
-                    suggestion="Bind an expression whose units match the parameter dimension",
-                ) from error
-            b.CommitFeature()
-        finally:
-            b.Destroy()
-        self._update_model()
-        return {
-            "feature": self._get_feature_info(feature),
-            "parameter": parameter,
-            "expression": self._expression_record(exp),
-            "modified": [self._reference(f, "feature", self._work_part(), "Feature")],
-        }
 
     def _find_geometry(
         self,
@@ -530,138 +413,6 @@ class AuthoringMixin:
                 "Shared prototypes checked once; suppressed components are reported, not loaded.",
             ],
         }
-
-    def _rebuild_model(self):
-        self._update_model()
-        return {"health": self._model_health(), "modified": None, "update": "native DoUpdate"}
-
-    def _edit_sketch(self, sketch_id, operations):
-        sketch = self._resolve(sketch_id, {"sketch"})
-        active = self.session.ActiveSketch
-        if active and active != sketch:
-            raise NXToolError("NX_SKETCH_ACTIVE", "Finish the other active sketch first")
-        if not isinstance(operations, list) or not 1 <= len(operations) <= 100:
-            raise NXToolError("NX_INVALID_ARGUMENT", "operations requires 1–100 sketch edits")
-        geometry = {int(c.Tag): c for c in sketch.GetAllGeometry()}
-        constraints = {
-            int(c.Tag): c
-            for c in sketch.GetAllConstraintsOfType(
-                self.nxopen.Sketch.ConstraintClass.Any, self.nxopen.Sketch.ConstraintType.NoCon
-            )
-        }
-        schemas = {
-            "line": {"action", "curve", "start", "end"},
-            "arc": {"action", "curve", "center", "radius", "start_angle", "end_angle"},
-            "delete": {"action", "object"},
-            "add_line": {"action", "start", "end"},
-            "constraint": {"action", "curve", "type"},
-        }
-        prepared = []
-        frame = self._sketch_frame(sketch)
-
-        def point2(value):
-            if not isinstance(value, list) or len(value) != 2:
-                raise NXToolError("NX_INVALID_ARGUMENT", "Sketch points require local [x,y]")
-            x, y = (finite(v, "coordinate") for v in value)
-            return self.nxopen.Point3d(
-                *add(
-                    frame["origin"],
-                    [x * frame["x_axis"][i] + y * frame["y_axis"][i] for i in range(3)],
-                )
-            )
-
-        for op in operations:
-            if (
-                not isinstance(op, dict)
-                or op.get("action") not in schemas
-                or set(op) != schemas[op["action"]]
-            ):
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT", "Unsupported or extra sketch edit arguments"
-                )
-            action = op["action"]
-            obj = (
-                self._resolve(op.get("curve", op.get("object")), {"curve", "constraint"})
-                if "curve" in op or "object" in op
-                else None
-            )
-            if (
-                obj
-                and int(obj.Tag) not in geometry
-                and not (action == "delete" and int(obj.Tag) in constraints)
-            ):
-                raise NXToolError(
-                    "NX_OBJECT_OWNER_MISMATCH", "Object does not belong to this sketch"
-                )
-            data = dict(op)
-            if action in {"line", "add_line"}:
-                data["start"], data["end"] = point2(op["start"]), point2(op["end"])
-                if op["start"] == op["end"]:
-                    raise NXToolError("NX_INVALID_ARGUMENT", "Line endpoints must differ")
-                if obj:
-                    self._require_api(obj, "SetEndpoints")
-            if action == "arc":
-                self._require_api(obj, "SetParameters")
-                data["center"] = point2(op["center"])
-                data["radius"] = finite(op["radius"], "radius", True)
-                start, end = (
-                    finite(op["start_angle"], "start_angle"),
-                    finite(op["end_angle"], "end_angle"),
-                )
-                if not 0 < end - start <= 360:
-                    raise NXToolError(
-                        "NX_INVALID_ARGUMENT", "Arc sweep must be >0 and <=360 degrees"
-                    )
-                data["start_angle"], data["end_angle"] = math.radians(start), math.radians(end)
-            if action == "constraint" and op["type"] not in {"fixed", "horizontal", "vertical"}:
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT", "Constraint type must be fixed, horizontal or vertical"
-                )
-            prepared.append((obj, data))
-        activated = not active
-        try:
-            if activated:
-                sketch.Activate(self.nxopen.Sketch.ViewReorient.FalseValue)
-            for obj, op in prepared:
-                action = op["action"]
-                if action == "line":
-                    obj.SetEndpoints(op["start"], op["end"])
-                elif action == "arc":
-                    obj.SetParameters(
-                        op["radius"], op["center"], op["start_angle"], op["end_angle"]
-                    )
-                elif action == "add_line":
-                    curve = self._work_part().Curves.CreateLine(op["start"], op["end"])
-                    sketch.AddGeometry(
-                        curve, self.nxopen.Sketch.InferConstraintsOption.InferNoConstraints
-                    )
-                elif action == "delete":
-                    self._error_list(sketch.DeleteObjects([obj]))
-                else:
-                    names = {
-                        "fixed": "CreateFixedConstraint",
-                        "horizontal": "CreateHorizontalConstraint",
-                        "vertical": "CreateVerticalConstraint",
-                    }
-                    geom = self.nxopen.Sketch.ConstraintGeometry()
-                    geom.Geometry = obj
-                    getattr(sketch, names[op["type"]])(geom)
-            if activated:
-                sketch.Deactivate(
-                    self.nxopen.Sketch.ViewReorient.FalseValue, self.nxopen.Sketch.UpdateLevel.Model
-                )
-            self._update_model()
-            return {
-                "sketch": self._sketch_info(sketch_id),
-                "diagnostics": self._sketch_diagnostics(sketch_id),
-                "edit_count": len(prepared),
-                "modified": [self._reference(sketch, "sketch", self._work_part(), "Sketch")],
-            }
-        finally:
-            if activated and self.session.ActiveSketch == sketch:
-                sketch.Deactivate(
-                    self.nxopen.Sketch.ViewReorient.FalseValue, self.nxopen.Sketch.UpdateLevel.Model
-                )
 
     def _component_action(self, component, action, name=None, part_path=None):
         part = self._work_part()

@@ -104,3 +104,93 @@ def test_owns():
     with pytest.raises(NXError) as error:
         sketch.owns(nx.tx, s, stray)
     assert error.value.code == "NX_WRONG_OWNER" and error.value.field == "/curve"
+
+
+# ---- curve helpers (sketch domain) ----------------------------------------------------
+
+
+def _sketch_env():
+    from tests.unit.sketch.fakes import sketch_nx
+
+    nx = sketch_nx()
+    return nx, nx.sketch(origin=(0, 0, 5), active=True)
+
+
+def test_curve_kind_point_and_read_back_in_the_sketch_frame():
+    import math
+
+    nx, sk = _sketch_env()
+    line = nx.line(sk, (0, 0, 5), (10, 0, 5))
+    arc = nx.arc(sk, (20, 0, 5), 5, 0, 90)
+    circle = nx.arc(sk, (40, 0, 5), 2, 0, 360)
+    assert [sketch.curve_kind(nx.tx, c) for c in (line, arc, circle)] == ["line", "arc", "circle"]
+    assert sketch.point(nx.tx, line, "mid") == [5.0, 0.0, 5.0]
+    assert sketch.point(nx.tx, arc, "end") == pytest.approx([20, 5, 5])
+    f = sketch.frame(sk)
+    row = sketch.read(nx.tx, f, arc)
+    assert row["center"] == [20, 0] and row["start_angle"] == pytest.approx(0)
+    assert row["end_angle"] == pytest.approx(90) and row["length"] == pytest.approx(math.pi * 2.5)
+    assert sketch.read(nx.tx, f, circle)["closed"] is True
+    with pytest.raises(NXError) as error:
+        sketch.point(nx.tx, line, "center")
+    assert error.value.code == "NX_INVALID_ARGUMENT"
+    with pytest.raises(NXError) as error:
+        sketch.check_point(nx.tx, circle, "start", "/p")
+    assert error.value.field == "/p"
+
+
+def test_constraint_and_dimension_geometry_and_snake_names():
+    nx, sk = _sketch_env()
+    line = nx.line(sk, (0, 0, 5), (10, 0, 5))
+    g = sketch.constraint_geometry(nx.tx, line, "end")
+    assert (g.Geometry, g.PointType) == (line, "EndVertex")
+    assert sketch.constraint_geometry(nx.tx, line).PointType == "NotSet"
+    assert sketch.dimension_geometry(nx.tx, line, "mid").AssocType == "Midpoint"
+    assert sketch.snake("ParallelDim") == "parallel_dim"
+    c = sk.CreateHorizontalConstraint(g)
+    assert sketch.constraint_type(nx.tx, c) == "horizontal"
+    assert sketch.attached(nx.tx, sk, line) == [c] and sketch.constraints(nx.tx, sk) == [c]
+
+
+def test_drag_solves_and_reports_the_native_status():
+    nx, sk = _sketch_env()
+    line = nx.line(sk, (0, 0, 5), (10, 2, 5))
+    sk.CreateHorizontalConstraint(sketch.constraint_geometry(nx.tx, line))
+    assert sketch.drag(nx.tx, sk, line, "end") == "Updated"
+    assert line.StartPoint.Y == 2 and nx.live_builders == 0
+    assert sketch.drag(nx.tx, sk, line, "end", [12, 2]) == "Updated"
+    assert (line.EndPoint.X, line.EndPoint.Y) == (12, 2)
+
+
+def test_set_construction_and_new_geometry():
+    nx, sk = _sketch_env()
+    before = sketch.tags(sk)
+    line = nx.line(sk, (0, 0, 5), (10, 0, 5))
+    assert sketch.new_geometry(sk, before) == [line] and sketch.geometry(sk) == [line]
+    sketch.set_construction(nx.tx, [line], True)
+    assert line.IsReference and nx.last("ConvertToFromReferenceBuilder").destroyed
+
+
+def test_ellipse_math():
+    assert sketch.ellipse_perimeter(10, 10) == pytest.approx(2 * 3.141592653589793 * 10)
+    assert sketch.ellipse_perimeter(50, 5) == pytest.approx(203.198709, abs=1e-6)
+    assert sketch.ellipse_point([0, 0], 20, 10, 0, 90) == pytest.approx([0, 10])
+    f = {"x_axis": [1, 0, 0], "y_axis": [0, 1, 0], "normal": [0, 0, 1]}
+    assert sketch.ellipse_in_frame([1, 0, 0], [0, 1, 0], [0, 0, 1], 30, 0, 90, f) == (
+        pytest.approx(30),
+        0,
+        90,
+    )
+    flipped = sketch.ellipse_in_frame([-1, 0, 0], [0, 1, 0], [0, 0, -1], 0, 10, 40, f)
+    assert flipped == (pytest.approx(180), -40, -10)
+
+
+def test_relax_found_relations_relaxes_every_relation_nx_found():
+    relaxed = []
+    builder = NS(
+        FindRelations=lambda: ["r1", "r2"],
+        SetRelationRelaxState=lambda r, on: relaxed.append((r, on)),
+    )
+    assert sketch.relax_found_relations(builder) == 2
+    assert relaxed == [("r1", True), ("r2", True)]
+    assert sketch.relax_found_relations(NS()) == 0

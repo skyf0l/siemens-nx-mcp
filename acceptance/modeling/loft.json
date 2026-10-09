@@ -1,0 +1,282 @@
+{
+ "covers": {
+  "nx_create_loft": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l1",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$l1.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -5,
+       -5
+      ],
+      "corner2": [
+       5,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$l1.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l2",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$l2.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -5,
+       -5
+      ],
+      "corner2": [
+       5,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$l2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l3",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      40
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$l3.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$l3.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "save": "prism",
+   "args": {
+    "sections": [
+     "$l1.data.sketch.id",
+     "$l2.data.sketch.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 2000,
+     "tol": 0.0001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$prism.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -5,
+      -5,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      5,
+      5,
+      20
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "save": "frustum",
+   "args": {
+    "sections": [
+     "$l2.data.sketch.id",
+     "$l3.data.sketch.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 4666.666666666667,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "save": "three",
+   "args": {
+    "sections": [
+     "$l1.data.sketch.id",
+     "$l2.data.sketch.id",
+     "$l3.data.sketch.id"
+    ]
+   },
+   "expect": {
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$three.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -10,
+      -10,
+      0
+     ],
+     "tol": 0.001
+    },
+    "max": {
+     "close": [
+      10,
+      10,
+      40
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "save": "sheet",
+   "args": {
+    "sections": [
+     "$l1.data.sketch.id",
+     "$l2.data.sketch.id"
+    ],
+    "solid": false
+   },
+   "expect": {
+    "data.bodies": {
+     "count": 1
+    },
+    "data.volume": {
+     "close": 0,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "body",
+    "type": "sheet"
+   },
+   "expect": {
+    "page.total": 1
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "args": {
+    "sections": [
+     "$l1.data.sketch.id",
+     "$l1.data.sketch.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

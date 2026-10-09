@@ -1,0 +1,331 @@
+{
+ "covers": {
+  "nx_create_mirror": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "a_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "a",
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_mirror",
+   "save": "m1",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "plane": {
+     "principal": "yz"
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$m1.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -40,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      0,
+      20,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "dp",
+   "args": {
+    "method": "point_normal",
+    "origin": [
+     50,
+     0,
+     0
+    ],
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_mirror",
+   "save": "m2",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "plane": "$dp.data.datum_plane.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$m2.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      60,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      100,
+      20,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_mirror",
+   "save": "m3",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "plane": {
+     "origin": [
+      50,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      1,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$m3.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      30,
+      10,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      50,
+      50,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "limit": 1,
+    "order": "nearest",
+    "near": [
+     20,
+     20,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_mirror",
+   "save": "m4",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "plane": "$back.items.0.object.id",
+    "keep_original": false
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$m4.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      0,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      40,
+      40,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     1,
+     0
+    ],
+    "limit": 1,
+    "order": "nearest",
+    "near": [
+     20,
+     20,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_mirror",
+   "args": {
+    "bodies": [
+     "$back.items.0.object.id"
+    ],
+    "plane": {
+     "principal": "xy"
+    }
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

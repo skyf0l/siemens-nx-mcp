@@ -1,0 +1,406 @@
+{
+ "covers": {
+  "nx_create_thread": [],
+  "nx_list_thread_sizes": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$c.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 3
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$c.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "sketch": "$c.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cf",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     3,
+     0,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "tp",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "args": {
+    "face": "$cf.items.0.object.id",
+    "start_face": "$tp.items.0.object.id",
+    "length": 10,
+    "spec": {
+     "pitch": 1,
+     "major_diameter": 6,
+     "minor_diameter": 4.917
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 565.4866776461628,
+     "tol": 1e-06
+    },
+    "data.pitch": {
+     "close": 1,
+     "tol": 1e-09
+    },
+    "data.minor_diameter": {
+     "close": 4.917,
+     "tol": 1e-09
+    },
+    "data.internal": false
+   }
+  },
+  {
+   "call": "nx_list_thread_sizes",
+   "args": {
+    "limit": 200
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "standard": "Metric Coarse",
+      "unit": "Metric"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_list_thread_sizes",
+   "args": {
+    "standard": "Metric Coarse",
+    "size": "M6 x 1.0"
+   },
+   "expect": {
+    "data.items.0.pitch": {
+     "close": 1,
+     "tol": 1e-09
+    },
+    "data.items.0.major_diameter": {
+     "close": 6,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cf",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     3,
+     0,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "tp",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "args": {
+    "face": "$cf.items.0.object.id",
+    "start_face": "$tp.items.0.object.id",
+    "length": 8,
+    "spec": {
+     "standard": "Metric Coarse",
+     "size": "M6 x 1.0"
+    }
+   },
+   "expect": {
+    "error.code": "NX_AMBIGUOUS_REFERENCE",
+    "error.details.candidates": {
+     "contains": {
+      "engagement": "0.75",
+      "size": "M6 x 1.0"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c2",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$c2.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       20,
+       0
+      ],
+      "radius": 3
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$c2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "cyl2",
+   "args": {
+    "sketch": "$c2.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cf2",
+   "args": {
+    "owner": "$cyl2.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     23,
+     0,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "tp2",
+   "args": {
+    "owner": "$cyl2.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "args": {
+    "face": "$cf2.items.0.object.id",
+    "start_face": "$tp2.items.0.object.id",
+    "length": 8,
+    "detailed": true,
+    "spec": {
+     "standard": "Metric Coarse",
+     "size": "M6 x 1.0",
+     "engagement": "0.75"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.size": "M6 x 1.0",
+    "data.internal": false
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cf",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     3,
+     0,
+     3
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "tp",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "args": {
+    "face": "$tp.items.0.object.id",
+    "start_face": "$tp.items.0.object.id",
+    "length": 8,
+    "spec": {
+     "pitch": 1,
+     "major_diameter": 6,
+     "minor_diameter": 4.9
+    }
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "args": {
+    "face": "$cf.items.0.object.id",
+    "start_face": "$tp.items.0.object.id",
+    "length": 8,
+    "spec": {
+     "pitch": 1,
+     "major_diameter": 4,
+     "minor_diameter": 5
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/spec"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "args": {
+    "face": "$cf.items.0.object.id",
+    "start_face": "$tp.items.0.object.id",
+    "length": 8,
+    "spec": {
+     "standard": "Metric Coarse",
+     "size": "M6 x 7"
+    }
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

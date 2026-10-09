@@ -1,0 +1,307 @@
+{
+ "covers": {
+  "nx_create_blend": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "line",
+    "order": "nearest",
+    "near": [
+     20,
+     0,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "args": {
+    "edges": [
+     "$e1.items.0.object.id"
+    ],
+    "radius": 2
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7965.663706143591,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "line",
+    "order": "nearest",
+    "near": [
+     40,
+     10,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "args": {
+    "edges": [
+     "$e2.items.0.object.id"
+    ],
+    "variable": [
+     {
+      "at": 0,
+      "radius": 1
+     },
+     {
+      "at": 1,
+      "radius": 3
+     }
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7947.064880304703,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e3",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "line",
+    "order": "nearest",
+    "near": [
+     0,
+     10,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e4",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "line",
+    "order": "nearest",
+    "near": [
+     20,
+     20,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "args": {
+    "edges": [
+     "$e3.items.0.object.id",
+     "$e4.items.0.object.id"
+    ],
+    "variable": [
+     {
+      "at": 0,
+      "radius": 1
+     },
+     {
+      "at": 1,
+      "radius": 2
+     }
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/edges"
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "args": {
+    "edges": [
+     "$e3.items.0.object.id"
+    ],
+    "radius": 1,
+    "variable": [
+     {
+      "at": 0,
+      "radius": 1
+     },
+     {
+      "at": 1,
+      "radius": 2
+     }
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 7947.064880304703,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e3",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "line",
+    "order": "nearest",
+    "near": [
+     0,
+     10,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "args": {
+    "edges": [
+     "$e3.items.0.object.id"
+    ],
+    "radius": 30
+   },
+   "expect": {
+    "error.category": "geometry_failed",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "save": "bl",
+   "args": {
+    "kind": "body"
+   },
+   "expect": {
+    "page.total": 1
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$bl.data.items.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 7947.064880304703,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "intent": "NX 2406 hands the refused blend's update error to the next sketch: record it",
+   "expect": {
+    "error.code": "NX_UPDATE_FAILED",
+    "error.message": {
+     "matches": "blend faces"
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  }
+ ]
+}

@@ -1,0 +1,221 @@
+{
+  "format": 1,
+  "scenario": "acceptance/modeling/expression.json",
+  "scenario_sha256": "a2faa4c3a97800a7d006b818a13d4778dd7853af6f995deb0d0803a53038ee4b",
+  "domain": "modeling",
+  "covers": {
+    "nx_set_expression": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_set_expression": "504bff3812bc13f8b1c26ac14bf61de50ed64696b9be7500c22c2f0c92041cb7"
+  },
+  "run_id": "20261009-170720-fcded5",
+  "owner": "dom_modeling",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-170720-fcded5\\modeling_expression_fcded5.prt",
+  "started": "2026-10-09T13:08:11Z",
+  "finished": "2026-10-09T13:08:17Z",
+  "passed": true,
+  "checks": 24,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.797,
+      "result_sha256": "96e5386235be695c019edb3cb8361847f04e83160652cf65f6bb6fd918d86741"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "9efdc9712be9f99ca328b3e3ddfda00fc4840789df9977efc6a440436f7ea59a"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.156,
+      "result_sha256": "d856823226bb2e7cb46b624b79227430ca3acb049bec2e374c06d691ee61beb1"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "6fadfc44c450191df0c484bc917e63137da3133442673513aef0916cf0baf8df"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "ff58d0b34e51970a804e4fc064e18187fa1d0f5bd156d64c01258b918eb28205"
+    },
+    {
+      "index": 6,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.125,
+      "result_sha256": "c423754ae329d21c4dd04356dc8e575e4409b2d9a4d8a737ab34c94fec15c9af"
+    },
+    {
+      "index": 7,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.172,
+      "result_sha256": "5be144c29a7e2c9c2ca1266b93153c6f13e56fd9240a5c4cec53451fe5d84860"
+    },
+    {
+      "index": 8,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.203,
+      "result_sha256": "d75ceadb6711699e79522395b812586019228aaaad441cc7955c2de88116d8d9"
+    },
+    {
+      "index": 9,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.156,
+      "result_sha256": "5cd264a69a883b35796e63985763d049e422d6e5a9dbc068d158ba9ff9f022ac"
+    },
+    {
+      "index": 10,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.266,
+      "result_sha256": "7aedc2627e0ce1ba8bf3364b28dd965c6b47e6a7e7f44828f5bb733a16c61608"
+    },
+    {
+      "index": 11,
+      "call": "nx_get_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.156,
+      "result_sha256": "b04cccfa8b1e588d2e820f8a2ad55137b959863c5b1ab5af82773910c403e539"
+    },
+    {
+      "index": 12,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "e66962540eab147e85a8b9a29bbdd20939fbeff090ce0c376af7c5508ec819c2"
+    },
+    {
+      "index": 13,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.172,
+      "result_sha256": "3b01e4081d89b51eedb345625e300fbe27a15fb807ee18e53303ce2a2f949e40"
+    },
+    {
+      "index": 14,
+      "call": "nx_measure_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.156,
+      "result_sha256": "9102701e9bc99944fe33c7f808aa7ce6075618f25f605f72ab4e140c89652d24"
+    },
+    {
+      "index": 15,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.204,
+      "result_sha256": "312215d038404092f0a709389f9a20edcac6d982548bf47838a9baf9660eeb50"
+    },
+    {
+      "index": 16,
+      "call": "nx_measure_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.14,
+      "result_sha256": "3f4ac638aed6c5786e518aa04018848e6be905112878fcc45b0c2266cd8ffd6f"
+    },
+    {
+      "index": 17,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.188,
+      "result_sha256": "793055a54e4a4532839c7763be4a1d009865b208479db598ca23be983ba11b9f"
+    },
+    {
+      "index": 18,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.172,
+      "result_sha256": "44581951577f23b65be446a849d01f851985c32c6927471281fdf57bf183ad29"
+    },
+    {
+      "index": 19,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.015,
+      "result_sha256": "a7dcb21daf03ee09f481963cde9d53352d5234d5a04522f7f226194c3bd842c9"
+    },
+    {
+      "index": 20,
+      "call": "nx_measure_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.172,
+      "result_sha256": "258561a223f2768a9028261bba0259ff15b1cb270d1aea829eab817fccb3c517"
+    },
+    {
+      "index": 21,
+      "call": "nx_model_health",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.156,
+      "result_sha256": "96182eeb9015247b220437fceb80da04671b0c1b56e2d0c6c8f76efee3b0a2bc"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-170720-fcded5/modeling_expression_fcded5.prt"
+    ],
+    "failed": []
+  }
+}

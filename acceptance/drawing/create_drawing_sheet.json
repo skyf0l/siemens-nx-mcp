@@ -1,0 +1,221 @@
+{
+ "covers": {
+  "nx_create_drawing_sheet": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "units": "mm",
+    "projection": "first_angle"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.size": "a3",
+    "data.dimensions": {
+     "close": [
+      420,
+      297
+     ],
+     "tol": 1e-06
+    },
+    "data.units": "mm",
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-12
+    },
+    "data.projection": "first_angle",
+    "data.sheet.name": "SHT1",
+    "data.template": null,
+    "changes.created": {
+     "count_kind": {
+      "drawing_sheet": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "size": "a4",
+    "units": "in",
+    "scale": 0.5
+   },
+   "expect": {
+    "data.size": "a4",
+    "data.units": "in",
+    "data.dimensions": {
+     "close": [
+      11.692913,
+      8.267717
+     ],
+     "tol": 1e-05
+    },
+    "data.scale": {
+     "close": 0.5,
+     "tol": 1e-12
+    },
+    "data.projection": "third_angle",
+    "data.sheet.name": "SHT2"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "WIDE",
+    "size": [
+     500,
+     250
+    ],
+    "scale": 2
+   },
+   "expect": {
+    "data.size": null,
+    "data.dimensions": {
+     "close": [
+      500,
+      250
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-12
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "TEMPLATED",
+    "template": "A3",
+    "scale": 2,
+    "projection": "first_angle"
+   },
+   "expect": {
+    "data.size": "a3",
+    "data.title_block_added": true,
+    "data.template": {
+     "matches": "Drawing-A3-Size2D-template\\.prt$"
+    },
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-12
+    },
+    "data.projection": "first_angle",
+    "data.sheet.name": "TEMPLATED",
+    "warnings": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "SHT1"
+   },
+   "expect": {
+    "error.category": "already_exists",
+    "mutation_outcome": "not_started",
+    "error.field": "/name"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "X1",
+    "template": "A3",
+    "units": "in"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/units"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "X2",
+    "template": "A3",
+    "size": [
+     100,
+     100
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/size"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "X3",
+    "template": "No-Such-Template"
+   },
+   "expect": {
+    "error.category": "not_found",
+    "mutation_outcome": "not_started",
+    "error.field": "/template"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "X4",
+    "template_path": "../outside.prt"
+   },
+   "expect": {
+    "error.category": "path_rejected",
+    "mutation_outcome": "not_started",
+    "error.field": "/template_path"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "X5",
+    "size": "b"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/size"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "X6",
+    "scale": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/scale"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

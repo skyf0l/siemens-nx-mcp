@@ -1,0 +1,96 @@
+{
+ "covers": {
+  "nx_get_drawing_view": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle",
+    "scale": 2
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$top.data.view.id"
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.type": "base",
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.position": {
+     "close": [
+      120,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      63.65,
+      143.65,
+      236.35,
+      256.35
+     ],
+     "tol": 1e-06
+    },
+    "data.inside_sheet": true,
+    "data.style.hidden_lines": true,
+    "data.style.hidden_font": 2,
+    "data.style.self_hidden": true,
+    "data.construction_geometry": false,
+    "data.sheet.name": "SHT1"
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

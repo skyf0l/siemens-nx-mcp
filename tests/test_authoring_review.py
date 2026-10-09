@@ -11,7 +11,7 @@ import pytest
 from nx_mcp.authoring import finite, page
 from nx_mcp.hardened import IDENTITY, xyz
 from nx_mcp.runtime import NXToolError
-from tests.fakes import Body, Collection, Component, Curve, Feature, Object, Sketch, point
+from tests.fakes import Body, Collection, Component, Feature
 from tests.kit.objects import Expression
 
 pytestmark = pytest.mark.fake_nx
@@ -141,75 +141,6 @@ def test_pagination_is_stable_and_complete():
     assert page([1, 2, 3], 2, 2)["next_offset"] is None
 
 
-def test_expressions_creation_binding_and_dependencies(author):
-    r = author
-    e = r.e
-    row = e.execute(
-        "nx_set_expression", {"expression": "width", "formula": "5", "create": True, "units": "mm"}
-    )["expression"]
-    assert row["units"] == "mm" and row["formula"] == "5"
-    exp = r.part.Expressions[-1]
-    exp.parents = [r.expression]
-    r.expression.dependents = [exp]
-    assert e._list_expressions("width")["items"][0]["parents"][0]["name"] == "height"
-    e.execute("nx_set_expression", {"expression": row["object"]["id"], "formula": "height*2"})
-    assert exp.RightHandSide == "height*2"
-    f = r.ref(r.feature, "feature")
-    e.execute("nx_bind_parameter", {"feature": f, "parameter": "end", "expression": "width"})
-    assert r.builder.Limits.EndExtend.Value.RightHandSide == "width"
-    r.builder.CommitFeature.assert_called_once()
-    r.builder.Destroy.assert_called_once()
-    assert e._expression_record(r.expression)["dependents"]
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"expression": "height", "formula": "5", "create": True},
-        {"expression": "a b", "formula": "5", "create": True},
-        {"expression": "a", "formula": "", "create": True},
-        {"expression": "a", "formula": "5", "create": True, "units": "bad"},
-        {"expression": "height", "formula": "5", "units": "mm"},
-        {"expression": "absent", "formula": "5"},
-    ],
-)
-def test_expression_rejections_do_not_modify(author, params):
-    before = [(e.Name, e.RightHandSide) for e in author.part.Expressions]
-    with pytest.raises(NXToolError):
-        author.e.execute("nx_set_expression", params)
-    assert [(e.Name, e.RightHandSide) for e in author.part.Expressions] == before
-
-
-@pytest.mark.parametrize(
-    "flag", ["IsNoEdit", "IsRightHandSideLockedFromEdit", "IsInterpartExpression"]
-)
-def test_locked_expression_is_never_changed(author, flag):
-    setattr(author.expression, flag, True)
-    with pytest.raises(NXToolError):
-        author.e.execute("nx_set_expression", {"expression": "height", "formula": "20"})
-    assert author.expression.RightHandSide == "10"
-
-
-def test_failed_native_update_restores_expression(author):
-    author.session.UpdateManager.DoUpdate.return_value = 1
-    with pytest.raises(NXToolError) as error:
-        author.e.execute("nx_set_expression", {"expression": "height", "formula": "25"})
-    assert error.value.details["mutation_outcome"] == "rolled_back"
-    assert author.expression.RightHandSide == "10"
-
-
-@pytest.mark.parametrize(
-    "kind,parameter,type_",
-    [("OTHER", "end", "Number"), ("EXTRUDE", "spacing", "Number"), ("EXTRUDE", "end", "String")],
-)
-def test_parameter_binding_rejects_unsupported_targets(author, kind, parameter, type_):
-    author.feature.FeatureType = kind
-    author.expression.Type = type_
-    with pytest.raises(NXToolError):
-        author.e._bind_parameter(author.ref(author.feature, "feature"), parameter, "height")
-    author.builder.CommitFeature.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "params",
     [
@@ -300,156 +231,6 @@ def test_health_missing_api_is_explicit(author):
     del author.uf.Modeling.AskBodyConsistency
     with pytest.raises(NXToolError, match="AskBodyConsistency"):
         author.e._model_health()
-
-
-def test_model_rebuild_propagates_failure(author):
-    assert author.e.execute("nx_rebuild_model", {})["health"]["healthy"]
-    author.session.UpdateManager.DoUpdate.return_value = 2
-    with pytest.raises(NXToolError):
-        author.e.execute("nx_rebuild_model", {})
-
-
-class Line(Curve):
-    def __init__(self):
-        super().__init__("line")
-        self.StartPoint = point()
-        self.EndPoint = point(10, 0, 0)
-
-    def SetEndpoints(self, a, b):
-        self.StartPoint, self.EndPoint = a, b
-
-
-@pytest.fixture
-def sketch(author):
-    r = author
-    s = Sketch(r.session)
-    r.part.Sketches.append(s)
-    line = Line()
-    s.geometry = [line]
-    r.part.Curves.append(line)
-    r.nx.Sketch.ConstraintGeometry = lambda: NS()
-    r.nx.Sketch.ConstraintPointType = NS()
-
-    def constraint(g):
-        c = Object("constraint")
-        c.ConstraintType = 0
-        s.constraints.append(c)
-        return c
-
-    s.CreateFixedConstraint = s.CreateHorizontalConstraint = s.CreateVerticalConstraint = constraint
-
-    def delete(values):
-        for v in values:
-            if v in s.geometry:
-                s.geometry.remove(v)
-                r.part.Curves.remove(v)
-            if v in s.constraints:
-                s.constraints.remove(v)
-        return NS(Length=0, Dispose=Mock())
-
-    s.DeleteObjects = delete
-    r.part.Sketches.CreateWorkRegionBuilder = lambda: NS(Scope=None, Commit=Mock(), Destroy=Mock())
-    r.part.Curves.CreateLine = lambda a, b: create_line(a, b)
-
-    def create_line(a, b):
-        v = Line()
-        v.SetEndpoints(a, b)
-        r.part.Curves.append(v)
-        return v
-
-    r.sketch = s
-    r.line = line
-    r.sid = r.ref(s, "sketch")
-    r.cid = r.ref(line, "curve")
-    return r
-
-
-def test_sketch_edits_constraints_and_deletes_owned_objects(sketch):
-    r = sketch
-    e = r.e
-    result = e.execute(
-        "nx_edit_sketch",
-        {
-            "sketch_id": r.sid,
-            "operations": [
-                {"action": "line", "curve": r.cid, "start": [1, 2], "end": [8, 2]},
-                {"action": "constraint", "curve": r.cid, "type": "horizontal"},
-                {"action": "add_line", "start": [1, 2], "end": [1, 8]},
-            ],
-        },
-    )
-    assert result["edit_count"] == 3 and r.session.ActiveSketch is None
-    assert xyz(r.line.EndPoint) == [8, 2, 0] and len(r.sketch.constraints) == 1
-    constraint = r.ref(r.sketch.constraints[0], "constraint")
-    result = e.execute(
-        "nx_edit_sketch",
-        {
-            "sketch_id": r.sid,
-            "operations": [
-                {"action": "delete", "object": constraint},
-                {"action": "delete", "object": r.cid},
-            ],
-        },
-    )
-    assert len(r.sketch.geometry) == 1 and not r.sketch.constraints
-
-
-@pytest.mark.parametrize(
-    "op",
-    [
-        {"action": "unknown"},
-        {"action": "add_line", "start": [0, 0], "end": [0, 0]},
-        {"action": "add_line", "start": [0], "end": [1, 1]},
-        {"action": "add_line", "start": [0, 0], "end": [1, 1], "extra": True},
-    ],
-)
-def test_sketch_preflight_rejections_preserve_activation(sketch, op):
-    with pytest.raises(NXToolError):
-        sketch.e.execute("nx_edit_sketch", {"sketch_id": sketch.sid, "operations": [op]})
-    assert sketch.session.ActiveSketch is None and sketch.sketch.geometry == [sketch.line]
-
-
-def test_sketch_wrong_owner_and_active_sketch_rejected(sketch):
-    r = sketch
-    foreign = r.ref(Line(), "curve")
-    with pytest.raises(NXToolError):
-        r.e._edit_sketch(r.sid, [{"action": "delete", "object": foreign}])
-    r.session.ActiveSketch = Sketch(r.session)
-    with pytest.raises(NXToolError):
-        r.e._edit_sketch(r.sid, [{"action": "delete", "object": r.cid}])
-
-
-def test_sketch_edit_keeps_previously_active_sketch(sketch):
-    r = sketch
-    r.session.ActiveSketch = r.sketch
-    r.e.execute(
-        "nx_edit_sketch",
-        {
-            "sketch_id": r.sid,
-            "operations": [{"action": "constraint", "curve": r.cid, "type": "fixed"}],
-        },
-    )
-    assert r.session.ActiveSketch is r.sketch
-
-
-def test_sketch_arc_edit_units_and_limits(sketch):
-    r = sketch
-    r.line.SetParameters = Mock()
-    op = {
-        "action": "arc",
-        "curve": r.cid,
-        "center": [2, 3],
-        "radius": 4,
-        "start_angle": 0,
-        "end_angle": 180,
-    }
-    r.e.execute("nx_edit_sketch", {"sketch_id": r.sid, "operations": [op]})
-    args = r.line.SetParameters.call_args.args
-    assert (
-        args[0] == 4 and xyz(args[1]) == [2, 3, 0] and args[3] == pytest.approx(3.141592653589793)
-    )
-    with pytest.raises(NXToolError):
-        r.e._edit_sketch(r.sid, [{**op, "end_angle": 400}])
 
 
 @pytest.fixture
@@ -734,32 +515,6 @@ def test_report_rejects_invalid_plans_before_output(author, params):
     assert not (author.e.workspace.root / "a.zip").exists()
 
 
-def test_preview_rolls_back_parameters_and_accepts_exact_plan(author):
-    r = author
-    e = r.e
-    ref = r.ref(r.expression, "expression")
-    r1 = e.execute(
-        "nx_preview_change",
-        {
-            "operations": [
-                {"method": "nx_set_expression", "params": {"expression": ref, "formula": "25"}}
-            ],
-            "capture": False,
-        },
-    )
-    assert r.expression.RightHandSide == "10" and r1["model_outcome"] == "rolled_back"
-    assert next(x for x in r1["after"]["parameters"] if x["name"] == "height")["formula"] == "25"
-    r2 = e.execute(
-        "nx_finish_preview",
-        {"preview_id": r1["preview_id"], "action": "accept", "operation_id": "accept-once"},
-    )
-    assert r.expression.RightHandSide == "25" and r2["geometry_changed"]
-    assert e.execute(
-        "nx_finish_preview",
-        {"preview_id": r1["preview_id"], "action": "accept", "operation_id": "accept-once"},
-    )["replayed"]
-
-
 @pytest.mark.parametrize(
     "operation",
     [
@@ -799,59 +554,6 @@ def test_preview_failure_rolls_back_prior_edits(author):
     assert r.expression.RightHandSide == "10"
 
 
-def test_preview_rollback_failure_keeps_the_original_error(author):
-    from unittest.mock import Mock
-
-    operations = [
-        {"method": "nx_set_expression", "params": {"expression": "height", "formula": "invalid"}}
-    ]
-    author.session.UndoToMark = Mock(side_effect=RuntimeError("undo failed"))
-    with pytest.raises(NXToolError) as error:
-        author.e.execute("nx_preview_change", {"operations": operations, "capture": False})
-    assert error.value.code == "NX_INVALID_FORMULA"  # not hidden behind NX_ROLLBACK_FAILED
-    assert error.value.details["mutation_outcome"] == "partial"
-    assert "undo failed" in error.value.details["rollback_error"]["message"]
-
-
-def test_preview_and_accept_refuse_a_tool_disabled_for_this_nx_version(author):
-    e = author.e
-    operation = {"method": "nx_set_expression", "params": {"expression": "height", "formula": "20"}}
-    preview = e.execute("nx_preview_change", {"operations": [operation], "capture": False})
-    e.nx_version = "v2406"
-    e._manifest_tools = {"nx_set_expression": {"unavailable_on": {"v2406": "API missing"}}}
-    for method, params in [  # Accept first: a refused preview expires older previews.
-        ("nx_finish_preview", {"preview_id": preview["preview_id"], "action": "accept"}),
-        ("nx_preview_change", {"operations": [operation], "capture": False}),
-    ]:
-        with pytest.raises(NXToolError) as error:
-            e.execute(method, params)
-        assert error.value.code == "NX_UNAVAILABLE_ON_VERSION"
-    assert author.expression.RightHandSide == "10"
-
-
-def test_preview_expires_on_intervening_mutation(author):
-    e = author.e
-    r = e.execute(
-        "nx_preview_change",
-        {
-            "operations": [
-                {"method": "nx_set_expression", "params": {"expression": "height", "formula": "20"}}
-            ],
-            "capture": False,
-        },
-    )
-    e.execute("nx_set_expression", {"expression": "height", "formula": "30"})
-    with pytest.raises(NXToolError, match="changed"):
-        e.execute("nx_finish_preview", {"preview_id": r["preview_id"], "action": "accept"})
-    assert author.expression.RightHandSide == "30"
-    assert (
-        e.execute("nx_finish_preview", {"preview_id": r["preview_id"], "action": "discard"})[
-            "geometry_changed"
-        ]
-        is False
-    )
-
-
 @pytest.mark.parametrize(
     "operations",
     [[], [{"method": "nx_save_part", "params": {}}], [{"method": "nx_edit_feature", "params": {}}]],
@@ -887,15 +589,6 @@ async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path):
     bridge = NS(call=AsyncMock(return_value={"status": "success"}))
     server = create_server(bridge, Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
-    variants = tools["nx_edit_sketch"].inputSchema["properties"]["operations"]["items"]["oneOf"]
-    assert {v["properties"]["action"]["const"] for v in variants} == {
-        "line",
-        "arc",
-        "add_line",
-        "delete",
-        "constraint",
-    }
-    assert all(v["additionalProperties"] is False for v in variants)
     assert tools["nx_find_geometry"].annotations.readOnlyHint
     assert not tools["nx_preview_change"].annotations.readOnlyHint
     await server.call_tool(

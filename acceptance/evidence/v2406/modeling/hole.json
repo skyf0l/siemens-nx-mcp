@@ -1,0 +1,253 @@
+{
+  "format": 1,
+  "scenario": "acceptance/modeling/hole.json",
+  "scenario_sha256": "114c82f5d49073e316ef9f6da72d34022af7da2ec0a6259971fbcbfc93dd9d75",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_hole": [
+      "simple",
+      "counterbore",
+      "countersink",
+      "threaded"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_create_hole": "b257431719019bc34ca4f54be6a1b59e6c2111445e5000aabeb879da6cb8c69e"
+  },
+  "run_id": "20261009-170720-fcded5",
+  "owner": "dom_modeling",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-170720-fcded5\\modeling_hole_fcded5.prt",
+  "started": "2026-10-09T13:08:41Z",
+  "finished": "2026-10-09T13:08:47Z",
+  "passed": true,
+  "checks": 26,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.844,
+      "result_sha256": "ab54d5123dee108bf523632e5045fb9303d2e544f80631293b4f11e3e784d0e2"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.219,
+      "result_sha256": "227b1c85b2a66e84d6b677ae2e3fa374ab427845179fb547d193fd7e4ee731a3"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.218,
+      "result_sha256": "ecdfd2ea05770b9bdfd748932d60049edaf10b437205b36760fbdfff7826b9d6"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "f6e25ef52f33402584fd2067e2119d1875f5b44168f350c4766110b281884c15"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "150508bc280fb9636bffe8dbdaaf2818dea822e439dafe8fcb4a19c6a4eadc60"
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "2a78a558dbcda81f6bc2ebc89228dade177aca479aeccd77a09fd6742932f849"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.297,
+      "result_sha256": "bada07ef0557098df929e18f71bd26c9b680c66bd6dc17d6881425f465edb236"
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "52ca8e1e4c21365de51a6e5979f742f9c7bd2e64dcaf7acf7ec108d6d5397887"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.297,
+      "result_sha256": "972bad716e2b5354abf02daabe731a13abb4d5fc620000890c2ce4aa093fe764"
+    },
+    {
+      "index": 10,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "5d2266d8571a3c3f165e8b7048bb4972a90e53dd1d59dd15fc9a9cddc2162be0"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.312,
+      "result_sha256": "af6964381a29aecc35be5982d41e6c5c152d5b15271124a89a7533f5f5c23123"
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "1b5205640778b4f1d0c669ad5f451b0d60297c0fab4456c5016d869e10d39f8b"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.375,
+      "result_sha256": "f7088c9644c2ea8a5ac6ea6706cad22949fb2862ee484c26d0826a1f08e1cb2b"
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "a4037cbca4ff4ec36e8c075b2fceeb640255914580044399ebc9049708795a8b"
+    },
+    {
+      "index": 15,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.297,
+      "result_sha256": "96af151d6ede9c0bd2dc54cb8247f6d9be0de8de726d6cd7386f72bdf21e684f"
+    },
+    {
+      "index": 16,
+      "call": "nx_measure_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.157,
+      "result_sha256": "892f4964caa1f9fcc07cdc8bfa0890a056034cdc8bde5b4cf529f27804c171f6"
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.171,
+      "result_sha256": "8188f1156628e9072cbe9c094d4cb0cb3074f5606282a7556ceb8e8f5aa12a81"
+    },
+    {
+      "index": 18,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.188,
+      "result_sha256": "fed952db541040556ce51d7a9c1c2715d16493f042dd7ac218ea4c9f0566afc7"
+    },
+    {
+      "index": 19,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.172,
+      "result_sha256": "0ef12563e3b24c300def22c8319037ddd2b517d622c799f9adb3a0e52b8fa0e7"
+    },
+    {
+      "index": 20,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.656,
+      "result_sha256": "a2ce4e6c0b3137252ae736d740e5b347cd18a4aef33754335524741c1a7e46a1"
+    },
+    {
+      "index": 21,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.0,
+      "result_sha256": "32c5d66c21d6ad0a0b3acf6e096f4e30f8cf51c7560711cd8f8c76d4a3c9355d"
+    },
+    {
+      "index": 22,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.25,
+      "result_sha256": "4361a9916556cd13685e22bd216f1335d1bbacdc33830c8b49e8b43426d98a10"
+    },
+    {
+      "index": 23,
+      "call": "nx_measure_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.156,
+      "result_sha256": "c025a8b86054c63d3617e68223c2cd03e82972f7e76a50264bc65238baf8a4af"
+    },
+    {
+      "index": 24,
+      "call": "nx_model_health",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.157,
+      "result_sha256": "7c733b407a72605b93b8f949d03727b3b40eff42e02a50bea29ce5a0ba88dca9"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-170720-fcded5/modeling_hole_fcded5.prt"
+    ],
+    "failed": []
+  }
+}

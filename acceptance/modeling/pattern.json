@@ -1,0 +1,451 @@
+{
+ "covers": {
+  "nx_create_pattern": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       60,
+       40
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      10
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$h1.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       10,
+       10
+      ],
+      "radius": 2
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$h1.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "cut1",
+   "setup": true,
+   "args": {
+    "sketch": "$h1.data.sketch.id",
+    "end": {
+     "type": "through_all"
+    },
+    "direction": {
+     "principal": "-z"
+    },
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$blk.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "save": "p1",
+   "args": {
+    "features": [
+     "$cut1.data.feature.id"
+    ],
+    "layout": {
+     "linear": {
+      "direction": [
+       1,
+       0,
+       0
+      ],
+      "count": 3,
+      "spacing": 10
+     }
+    }
+   },
+   "expect": {
+    "data.count": 3,
+    "data.volume": {
+     "close": 23623.008881569225,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      10
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$h2.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       10,
+       30
+      ],
+      "radius": 2
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$h2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "cut2",
+   "setup": true,
+   "args": {
+    "sketch": "$h2.data.sketch.id",
+    "end": {
+     "type": "through_all"
+    },
+    "direction": {
+     "principal": "-z"
+    },
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$blk.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "args": {
+    "features": [
+     "$cut2.data.feature.id"
+    ],
+    "layout": {
+     "linear": {
+      "direction": {
+       "principal": "x"
+      },
+      "count": 2,
+      "spacing": "25 mm",
+      "direction2": [
+       0,
+       1,
+       0
+      ],
+      "count2": 2,
+      "spacing2": 5
+     }
+    }
+   },
+   "expect": {
+    "data.count": 4,
+    "data.volume": {
+     "close": 23120.354056994856,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "d",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$d.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       150,
+       0
+      ],
+      "radius": 30
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$d.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "disk",
+   "setup": true,
+   "args": {
+    "sketch": "$d.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 5
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "dh",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$dh.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       170,
+       0
+      ],
+      "radius": 2
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$dh.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "cut3",
+   "setup": true,
+   "args": {
+    "sketch": "$dh.data.sketch.id",
+    "end": {
+     "type": "through_all"
+    },
+    "direction": {
+     "principal": "-z"
+    },
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$disk.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "setup": true,
+   "save": "ax",
+   "args": {
+    "method": "point_direction",
+    "origin": [
+     150,
+     0,
+     0
+    ],
+    "direction": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "save": "p3",
+   "args": {
+    "features": [
+     "$cut3.data.feature.id"
+    ],
+    "layout": {
+     "circular": {
+      "axis": "$ax.data.datum_axis.id",
+      "count": 6,
+      "angle": 60
+     }
+    }
+   },
+   "expect": {
+    "data.count": 6,
+    "data.volume": {
+     "close": 13760.175822723293,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "args": {
+    "features": [
+     "$cut3.data.feature.id"
+    ],
+    "layout": {
+     "circular": {
+      "axis": {
+       "origin": [
+        150,
+        0,
+        0
+       ],
+       "direction": [
+        0,
+        0,
+        1
+       ]
+      },
+      "count": 7,
+      "angle": 60
+     }
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/layout/circular/angle"
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "args": {
+    "features": [
+     "$cut2.data.feature.id"
+    ],
+    "layout": {
+     "linear": {
+      "direction": [
+       1,
+       0,
+       0
+      ],
+      "count": 2,
+      "spacing": 5,
+      "count2": 2
+     }
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/layout/linear"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

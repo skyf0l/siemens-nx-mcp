@@ -42,39 +42,43 @@ async def run_iteration(
     try:
         await _call(client, "nx_create_part", {"path": part_path, "units": "mm"})
         before = await _call(client, "nx_list_bodies", {})
-        sketch = await _call(client, "nx_create_sketch", {"plane": "XY", "name": "PROFILE"})
-        sketch_id = sketch["object"]["id"]
+        sketch = await _call(
+            client, "nx_create_sketch", {"placement": {"principal": "xy"}, "name": "PROFILE"}
+        )
+        sketch_id = sketch["data"]["sketch"]["id"]
         await _call(
             client,
-            "nx_sketch_rectangle",
+            "nx_create_sketch_curves",
             {
-                "sketch_id": sketch_id,
-                "corner1": {"x": 0, "y": 0},
-                "corner2": {"x": 20, "y": 10},
+                "sketch": sketch_id,
+                "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [20, 10]}],
             },
         )
-        await _call(client, "nx_finish_sketch", {"sketch_id": sketch_id})
+        await _call(client, "nx_finish_sketch", {"sketch": sketch_id})
         extruded = await _call(
             client,
-            "nx_extrude",
-            {"sketch_id": sketch_id, "distance": 12.5, "reverse": False},
+            "nx_create_extrude",
+            {"sketch": sketch_id, "end": {"type": "distance", "value": 12.5}},
         )
         after = await _call(client, "nx_list_bodies", {})
         await _call(client, "nx_fit_view", {})
-        # STEP export saves the part and invalidates native undo marks. Exercise
-        # undo before that save boundary, then recreate the solid for export.
+        # Exercise undo, then recreate the solid for export. The STEP export
+        # writes the part as it is in memory and never saves it.
         await _call(client, "nx_undo", {})
         after_undo = await _call(client, "nx_list_bodies", {})
         sketches = await _call(client, "nx_list_sketches", {})
         sketch_id = next(
-            item["id"] for item in sketches["objects"] if item["name"] == sketch["object"]["name"]
+            item["id"]
+            for item in sketches["objects"]
+            if item["name"] == sketch["data"]["sketch"]["name"]
         )
         extruded = await _call(
             client,
-            "nx_extrude",
-            {"sketch_id": sketch_id, "distance": 12.5, "reverse": False},
+            "nx_create_extrude",
+            {"sketch": sketch_id, "end": {"type": "distance", "value": 12.5}},
         )
-        exported = await _call(client, "nx_export_step", {"path": step_path})
+        exported = await _call(client, "nx_export_model", {"path": step_path, "format": "step"})
+        exported = exported["data"]
         await _call(client, "nx_save_part", {})
         await _call(client, "nx_close_part", {"save": False})
     except Exception:
@@ -94,8 +98,8 @@ async def run_iteration(
     return {
         "iteration": index,
         "nx_version": status["nx_version"],
-        "feature_id": extruded["feature"]["id"],
-        "body_id": extruded["body"]["id"],
+        "feature_id": extruded["data"]["feature"]["id"],
+        "body_id": extruded["data"]["bodies"][0]["id"],
     }
 
 

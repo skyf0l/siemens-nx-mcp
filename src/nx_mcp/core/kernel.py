@@ -71,9 +71,11 @@ class Context:
 # Gates shared by top-level calls and children
 
 
-def _gate_schema(spec, args, *, placeholders=False) -> Checked:  # gate 1
-    if spec.runs != "nx":
-        fail("NX_UNSUPPORTED_OPTION", f"{spec.name} runs in the sidecar, not in NX")
+def _gate_schema(spec, args, *, placeholders=False, where="nx") -> Checked:  # gate 1
+    # ``where`` is the process the services run in (``Services.runs``): NX, or the
+    # sidecar for ``runs="sidecar"`` workspace tools (sidecar/local.py).
+    if spec.runs != where:
+        fail("NX_UNSUPPORTED_OPTION", f"{spec.name} runs in the {spec.runs}, not in {where}")
     return validate(spec.params, args, placeholders=placeholders)
 
 
@@ -295,7 +297,7 @@ def run(spec, args, ctx: Context) -> dict:
     handler_started = handler_done = False
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
     try:
-        checked = _gate_schema(spec, args)  # 1
+        checked = _gate_schema(spec, args, where=getattr(services, "runs", "nx"))  # 1
         _gate_paths(spec, checked, services)  # 2
         _gate_evidence(spec, checked, services)  # 3
         _gate_requires(spec, services)  # 4
@@ -358,6 +360,8 @@ def run(spec, args, ctx: Context) -> dict:
                 or (observer is not None and observer.touched)
             )
         )
+        if getattr(error, "unchanged", False) and not handler_done:
+            touched = False  # raised inside tx.checks(): nothing was changed yet
         outcome, references, error = _settle(
             spec, services, tx, mark, part, before, error, touched, handler_started
         )

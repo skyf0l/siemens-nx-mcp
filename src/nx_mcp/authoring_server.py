@@ -21,8 +21,6 @@ READ_ONLY = {
     "nx_resolve_geometry",
     "nx_recognize_holes",
     "nx_list_component_patterns",
-    "nx_sketch_conflicts",
-    "nx_feature_parameters",
 }
 NON_MODEL = {
     "nx_highlight_objects",
@@ -56,31 +54,8 @@ def nx_list_expressions(name_contains: str | None = None, offset: int = 0, limit
     """Paginate work-part expressions, formulas, numeric values in expression units, editability and stored immediate dependencies. Names are case-sensitive. Non-numeric values are null. Conditional dependencies may be incomplete."""
 
 
-def nx_set_expression(
-    expression: str,
-    formula: str,
-    create: bool = False,
-    units: Literal["unitless", "mm", "inch", "deg", "rad"] = "unitless",
-):
-    """Create a named Number expression or edit a local editable expression ID/name. Formula is NX expression syntax. Units apply only on creation; edits retain original units. Rebuild dependent features and roll back on errors. New name must be a simple identifier. Locked/interpart expressions are rejected."""
-
-
-def nx_bind_parameter(
-    feature: str, parameter: Literal["start", "end", "count", "spacing"], expression: str
-):
-    """Bind EXTRUDE start/end limits or PATTERN_FEATURE count/spacing to an existing Number expression. Native units/dimensional compatibility applies; failed updates roll back. Returns feature dependencies and expression read-back."""
-
-
 def nx_model_health(scope: Literal["part", "assembly"] = "part", offset: int = 0, limit: int = 50):
     """Inspect native feature errors/warnings, suppression, unloaded prototype availability and UF body consistency. Assembly scope checks unique loaded unsuppressed prototypes. Does not force rebuild or certify design intent. Paginate issues; counts cover the whole query."""
-
-
-def nx_rebuild_model():
-    """Run native DoUpdate for pending changes and return model health. Update errors roll back this operation; does not force every already-current feature to regenerate."""
-
-
-def nx_edit_sketch(sketch_id: str, operations: list[dict[str, Any]]):
-    """Reopen an existing sketch for 1–100 atomic local edits; restore prior activation and return solver diagnostics. Points are local [x,y], angles degrees. Operations: {action:add_line,start,end}; {action:line,curve,start,end}; {action:arc,curve,center,radius,start_angle,end_angle}; {action:delete,object} for owned curve/constraint; {action:constraint,curve,type:fixed|horizontal|vertical}. Curve ownership is checked; another active sketch is rejected. Edit dimensional constraints through their expression IDs with nx_set_expression. Deleting or recreating constraints is explicit; no automatic constraint removal."""
 
 
 def nx_component_action(
@@ -129,42 +104,11 @@ def nx_model_summary(
 
 
 def nx_preview_change(operations: list[dict[str, Any]], capture: bool = True):
-    """Temporarily apply 1–25 edits under a native checkpoint, return before/after bounds/volume/parameters/health and optional screenshot, then roll back before returning. Each entry has method and params. Supports nx_set_expression, nx_bind_parameter, nx_edit_feature, nx_edit_sketch, nx_set_component_transform and nx_reposition_component. Returned geometry IDs are stale after rollback. Preview is session-scoped and expires on intervening mutations or manual handoff."""
+    """Temporarily apply 1–25 edits under a native checkpoint, return before/after bounds/volume/parameters/health and optional screenshot, then roll back before returning. Each entry has method and params. Supports nx_set_component_transform and nx_reposition_component. Returned geometry IDs are stale after rollback. Preview is session-scoped and expires on intervening mutations or manual handoff."""
 
 
 def nx_finish_preview(preview_id: str, action: Literal["accept", "discard"]):
     """Accept by atomically reapplying stored preview edits only if its part and mutation epoch are unchanged, or discard the stored plan. Preview already restored original geometry. Accepted edits remain unsaved and undoable. Stable operation_id prevents double application."""
-
-
-# Nested operation schemas are published explicitly; embedded NX validates the
-# same exact key sets before changing sketch geometry.
-POINT2_SCHEMA = {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
-SKETCH_OPERATION_SCHEMAS = []
-_SKETCH_FIELDS: dict[str, dict[str, Any]] = {
-    "add_line": {"start": POINT2_SCHEMA, "end": POINT2_SCHEMA},
-    "line": {"curve": {"type": "string"}, "start": POINT2_SCHEMA, "end": POINT2_SCHEMA},
-    "arc": {
-        "curve": {"type": "string"},
-        "center": POINT2_SCHEMA,
-        "radius": {"type": "number", "exclusiveMinimum": 0},
-        "start_angle": {"type": "number"},
-        "end_angle": {"type": "number"},
-    },
-    "delete": {"object": {"type": "string"}},
-    "constraint": {
-        "curve": {"type": "string"},
-        "type": {"type": "string", "enum": ["fixed", "horizontal", "vertical"]},
-    },
-}
-for _action, _fields in _SKETCH_FIELDS.items():
-    SKETCH_OPERATION_SCHEMAS.append(
-        {
-            "type": "object",
-            "properties": {"action": {"const": _action}, **_fields},
-            "required": ["action", *_fields],
-            "additionalProperties": False,
-        }
-    )
 
 
 def nx_resolve_geometry(selector: dict[str, Any], tie_tolerance: float = 0.001):
@@ -194,82 +138,6 @@ def nx_list_component_patterns():
     """Enumerate native work-assembly component patterns, IDs, native type, association, count/pitch expressions for linear patterns and member occurrence poses. Independent instances are not patterns."""
 
 
-def nx_sketch_dimension(
-    sketch_id: str,
-    curve: str,
-    dimension_type: Literal["length", "horizontal", "vertical", "radius", "diameter"],
-    value: float,
-    origin: list[float],
-    reference: bool = False,
-):
-    """Create a native sketch dimension: line endpoint length/horizontal/vertical distance or arc radius/diameter. Value is positive part units; annotation origin is local [x,y]. Driving dimensions use value, reference dimensions measure existing geometry and require value matching it within 0.001 part units. Returns the associated expression for later formula editing. Atomic and restores activation; conflicting solver state rolls back."""
-
-
-def nx_sketch_relation(
-    sketch_id: str,
-    curve1: str,
-    curve2: str,
-    relation: Literal[
-        "parallel", "perpendicular", "equal_length", "equal_radius", "concentric", "coincident"
-    ],
-    point1: Literal["start", "end", "center"] | None = None,
-    point2: Literal["start", "end", "center"] | None = None,
-):
-    """Create a persistent two-curve sketch relation using the installed solver; modern sketches keep curve1 stationary and move curve2 as needed. Geometric residual is checked before success. Parallel/perpendicular/equal_length require lines; equal_radius/concentric require arcs; coincident requires explicit start/end (line) or center (arc) for each curve. Other relations reject point arguments. Ownership and types checked before mutation. Conflicting solver results roll back; no constraints are automatically removed."""
-
-
-def nx_sketch_conflicts(sketch_id: str, max_checks: int = 20):
-    """Diagnose an over/inconsistently constrained sketch by temporary single-constraint removal and native solver reevaluation, restoring each trial. max_checks 1–50 bounds serial NX work. Returns constraints whose removal relieves the conflict, statuses, checked/total and completeness. Also checks contradictory horizontal/vertical persistent relations on a nonzero line because NX solver status can omit them. This is not a minimal conflicting set; multiple independent conflicts may produce no single-removal relief. No geometry or constraints retained from trials."""
-
-
-def nx_feature_parameters(feature: str):
-    """List native expressions owned by a feature, with IDs, formulas, units, editability and dependencies. Parameter names are NX expression names, not inferred semantic labels. Applicable to feature types exposing GetExpressions."""
-
-
-def nx_set_feature_parameters(feature: str, values: dict[str, str]):
-    """Atomically set 1–25 owned, editable local Number expressions on a feature. Keys are expression IDs or exact names from nx_feature_parameters; values are NX formulas in existing expression units. Preflight ownership/editability; native update failures roll back all changes. Can bind to another expression by its name. Does not alter unexposed builder options or locked/interpart expressions."""
-
-
-def nx_extrude(
-    sketch_id: str,
-    distance: PositiveLength | None = None,
-    reverse: bool = False,
-    start: float = 0.0,
-    end_type: Literal["distance", "through_all", "up_to_face"] = "distance",
-    symmetric: bool = False,
-    direction: list[float] | None = None,
-    target_face: str | None = None,
-    boolean: Literal["none", "unite", "subtract", "intersect"] = "none",
-    targets: list[str] | None = None,
-):
-    """Extrude an owned sketch along its normal or a work-part direction. Lengths use part units. distance is the end coordinate from the sketch plane; start is the start coordinate. Symmetric uses +/- distance/2 and requires start=0. Omit distance for through_all/up_to_face; up_to_face requires target_face. Boolean operations require explicit owned target bodies; through_all requires a boolean. Returns every result body. reverse flips the chosen direction."""
-
-
-def nx_shell(
-    body: str, thickness: float, remove_faces: list[str] | None = None, outward: bool = False
-):
-    """Create a native shell in an owned solid body. Positive thickness uses part units; outward reverses the thickness side. remove_faces must belong to that body; omit for a closed hollow body. Native failures roll back."""
-
-
-def nx_loft(sketches: list[str], solid: bool = True):
-    """Create a native through-curves loft through 2–20 ordered owned sketches. Solid output requires compatible closed profiles; solid=false creates a sheet. Sketch order controls loft direction. Returns all bodies; native errors roll back."""
-
-
-def nx_sketch_primitive(
-    sketch_id: str,
-    primitive: Literal["circle", "slot", "rounded_rectangle"],
-    center: list[float],
-    width: float | None = None,
-    height: float | None = None,
-    radius: float | None = None,
-):
-    """Add editable native sketch curves atomically in sketch-local coordinates. Circle needs radius only. Horizontal slot needs width>height and has end radius=height/2. Rounded rectangle needs width,height and corner radius less than half the shorter side. center is [x,y]; all lengths use part units. Returns curve IDs and solver diagnostics; no implicit constraints."""
-
-
-def nx_copy_project(path: str, prefix: str, activate: bool = False):
-    """Clone the saved work assembly and all loaded prototypes into a new workspace directory using native NX cloning. Preserve relative subfolders; prepend a required simple prefix to each part basename to avoid NX loaded-name conflicts. Verify rewritten dependencies and source hashes; write a manifest. Source files remain intact. activate selects the copied assembly; otherwise restore the original session. Reject existing destinations, unsaved sources and unloaded dependencies."""
-
-
 def nx_mass_properties(
     body: str | None = None, scope: Literal["auto", "part", "assembly"] = "auto"
 ):
@@ -277,20 +145,6 @@ def nx_mass_properties(
 
 
 READ_ONLY.add("nx_mass_properties")
-
-
-def nx_draft(faces: list[str], stationary_face: str, direction: list[float], angle: float):
-    """Create native face draft about a stationary face on the same owned body. direction is in work-part coordinates; angle is signed degrees with magnitude <89. Selected faces must exclude the stationary face. Returns all result bodies; native errors roll back."""
-
-
-def nx_transform_bodies(
-    translation: list[float],
-    rotation_matrix: list[list[float]],
-    bodies: list[str] | None = None,
-    copy: bool = False,
-    feature: str | None = None,
-):
-    """Create or edit an associative in-part move/copy feature. Transform is p_out=R*p_input+translation, in work-part units with a right-handed orthonormal row-major R. New features require owned bodies; copy=true preserves originals. Pass the returned feature ID, omitting bodies/copy, to replace its absolute transform without accumulating motion. operation_id deduplicates retries. No assembly occurrence moves."""
 
 
 def nx_component_array(
@@ -307,39 +161,6 @@ def nx_component_array(
     angle: float | None = None,
 ):
     """Create an associative native component array with 2–100 total instances including seed. Rectangular uses direction/spacing and optional count_y/direction_y/spacing_y. Circular uses center/axis and positive angular pitch in degrees; positions must not wrap to duplicate the seed. Coordinates/lengths use work-part frame/units. Seed must be an unsuppressed immediate child. Parameters for the other pattern type are rejected."""
-
-
-def nx_set_material(bodies: list[str], name: str, density: float):
-    """Create a named local isotropic physical material with density in kg/m^3 and assign it to owned solid bodies. Reject an existing material name to avoid implicit edits to other assignments. Verify native body density. Defines density only; does not invent elastic, thermal or appearance properties."""
-
-
-def nx_material_info(body: str | None = None, scope: Literal["auto", "part", "assembly"] = "auto"):
-    """Read native physical material names and body densities in kg/m^3, including occurrence prototypes. Does not infer density from color or labels."""
-
-
-def nx_sketch_angle(sketch_id: str, line1: str, line2: str, value: float, origin: list[float]):
-    """Create a driving angular dimension between two owned sketch lines. value is 0–180 degrees exclusive; origin is the annotation position in local [x,y]. Returns its editable expression and solver diagnostics."""
-
-
-def nx_sketch_tangent(sketch_id: str, curve1: str, curve2: str):
-    """Create a persistent native tangent relation for line/arc or arc/arc pairs. First curve is stationary. Verify geometric tangency and solver diagnostics; native failures roll back."""
-
-
-def nx_sketch_symmetry(sketch_id: str, curve1: str, curve2: str, centerline: str):
-    """Create native sketch symmetry between two owned lines about a distinct owned straight centerline. Restore prior activation and return solver diagnostics; no implicit constraint deletion."""
-
-
-def nx_sketch_trim_extend(
-    sketch_id: str,
-    curve: str,
-    boundaries: list[str],
-    pick: list[float],
-    action: Literal["trim", "extend"],
-):
-    """Trim or extend an owned sketch curve against explicit owned boundary curves. pick=[x,y] in sketch-local coordinates identifies the segment to remove or the end to extend. Does not extend boundaries. Atomic native edit; reacquire curve references from the returned sketch after topology changes."""
-
-
-READ_ONLY.add("nx_material_info")
 
 
 def nx_render_view(
@@ -384,35 +205,6 @@ def nx_edit_assembly_constraint(
 READ_ONLY.add("nx_list_assembly_constraints")
 
 
-def nx_blend(edges: list[str], radius: float):
-    """Create an associative native edge blend on explicitly selected owned edge IDs from one body. Positive radius uses part units. Return all result bodies and roll back invalid blends."""
-
-
-def nx_chamfer(edges: list[str], offset: float):
-    """Create an associative symmetric-offset native chamfer on owned edge IDs from one body. Positive offset uses part units. Reacquire topology references after editing."""
-
-
-def nx_hole(
-    diameter: float,
-    depth: float,
-    x: float,
-    y: float,
-    z: float,
-    body: str | None = None,
-    direction: list[float] | None = None,
-):
-    """Cut a simple cylindrical hole from [x,y,z] along direction (default +Z) for positive depth. Part units and work-part coordinates. Uses native cylinder subtraction; no drill tip, thread or counterbore. Require explicit body in a multi-body part. Native failures roll back."""
-
-
-def nx_sweep(
-    section: str,
-    guide: str,
-    boolean: Literal["none", "unite", "subtract", "intersect"] = "none",
-    targets: list[str] | None = None,
-):
-    """Create an associative native sweep from an owned section sketch along a distinct owned guide sketch. Closed compatible sections produce solids. Optional boolean requires exactly one explicit owned target body; none forbids targets. Return all output bodies; native failures roll back."""
-
-
 def nx_mate_component(
     component: str,
     mate_type: Literal["touch", "align", "orient", "center", "align_angle"],
@@ -420,53 +212,6 @@ def nx_mate_component(
     offset: float = 0.0,
 ):
     """Create a native assembly mate using two occurrence face/edge references [moving,target]. Touch uses opposite alignment; align uses same alignment; nonzero offset creates a distance. Orient is parallel, center is concentric between circular edges, align_angle uses offset in degrees. The solver may move either component; fix the target first to keep it in place. Other lengths use work-part units. Prefer nx_assembly_constraint for explicit constraint semantics."""
-
-
-def nx_mirror_body(body: str, plane: Literal["XY", "XZ", "YZ"]):
-    """Create a native mirrored copy of an owned body about a principal plane through the work-part origin. Preserve source body; create a datum plane and editable mirror feature. Return every result body."""
-
-
-def nx_create_drawing(
-    name: str = "Sheet1",
-    size: Literal["A0", "A1", "A2", "A3", "A4"] = "A3",
-    scale: float = 1.0,
-    units: Literal["mm", "in"] = "mm",
-):
-    """Create and open a native landscape A0–A4 sheet with independent mm/in sheet units, first-angle projection and positive scale. Sheet sizes retain their physical dimensions; coordinates use the selected sheet units, independent of model units."""
-
-
-def nx_add_base_view(
-    drawing: str,
-    body: str | None = None,
-    view: Literal["top", "front", "back", "right", "left", "bottom", "isometric"] = "isometric",
-    position: list[float] | None = None,
-    scope: Literal["body", "assembly"] = "body",
-    explosion: str | None = None,
-):
-    """Add a native base view to a drawing sheet. scope=body requires body and a single-body part. scope=assembly requires no body, uses current component reference sets/suppression, and optionally associates a typed explosion from the same work part. Omitted explosion explicitly uses assembled positions. position=[x,y] uses sheet units, default 100 mm, 100 mm. Model curves, datums and coordinate systems are kept out of the view without changing model display: per-view erasure, and on NX 2406 (which ignores per-view erasure of datums) the layers holding only construction geometry are hidden in this view (view-dependent layer visibility); datums sharing a layer with bodies stay visible and nx_drawing_view_info warns. Return typed view reference; the target sheet is left open and current."""
-
-
-def nx_export_drawing_pdf(path: str):
-    """Export all work-part drawing sheets to a new workspace PDF using native NX plotting. Temporarily display sheets to refresh their presentation, then restore the prior work/display part and drawing/modeling view (the previously current sheet is verified current again, or the modeling view is verified back). Full sheet scale, metric dimensions and searchable text. Returns actual path, sheet names/count, size and checksum. Reject missing drawings and existing files."""
-
-
-def nx_add_projection_view(
-    base_view: str,
-    direction: Literal["right", "left", "top", "bottom"],
-    spacing: float | None = None,
-):
-    """Create a native associative projected view on the currently open sheet. Direction describes sheet placement relative to the parent; projection follows the sheet convention. Positive spacing uses sheet units, default 60 mm. Returns a typed drawing-view reference."""
-
-
-def nx_add_dimension(
-    view: str,
-    object1: str,
-    object2: str | None = None,
-    dim_type: Literal["aligned", "horizontal", "vertical"] = "aligned",
-    origin: list[float] | None = None,
-    dimension: str | None = None,
-):
-    """Create a native associative linear drawing dimension from owned or work-assembly occurrence edge IDs. One edge measures start-to-end; two edges measure their start vertices. Types are aligned/horizontal/vertical in the drawing view. origin=[x,y] uses sheet units, default 100 mm, 80 mm. Pass dimension to rebind an existing linear dimension explicitly, retaining its identity; origin/default and dim_type apply to edits too. Returns actual computed size in model units and a typed dimension ID."""
 
 
 def nx_create_explosion(name: str):

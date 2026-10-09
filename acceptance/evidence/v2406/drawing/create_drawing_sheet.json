@@ -1,0 +1,147 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/create_drawing_sheet.json",
+  "scenario_sha256": "b1f1b539ff55767b1dd45fc17cb327f4680637183419a6f41deda951c221f0f6",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_sheet": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_create_drawing_sheet": "42c7000e96091f1e6cae49a2ba8414648bb73bbfe85ac37c2dc9b9209b3faeb1"
+  },
+  "run_id": "20261009-172204-2dce34",
+  "owner": "dom_drawing",
+  "part": null,
+  "started": "2026-10-09T13:22:04Z",
+  "finished": "2026-10-09T13:22:08Z",
+  "passed": true,
+  "checks": 46,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.875,
+      "result_sha256": "3a8b4a81dbe14e7ac45264bf55a9ff67fd56f8e5bc2829cb9240e2960033b255"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 9,
+      "seconds": 0.235,
+      "result_sha256": "716de246d5857da7228ce50fca6839429cf0d602d9c7671470f2183403edb96d"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.14,
+      "result_sha256": "0a29cf309e595e51c318b740c4f2fc581e2daa2b2fe3e31a68eba8adc669fc95"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.157,
+      "result_sha256": "9871ec463104c019eb4de5b996bcf6f09701b1c4a0a1ba44535d95ab87e0e5c7"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.359,
+      "result_sha256": "5939bd85eb0b16abda21215a5b184c4f6c34e4d091dac1814c90c281a1291ff1"
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.172,
+      "result_sha256": "8ce799d5fd296d1c13d399f9a8635683a3c658ba60357afd9bc2a2239a1fb237"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.187,
+      "result_sha256": "366d14674f0d990267d682d0bcea25635dad47fe3c9ebf30c5d57394585e3769"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.188,
+      "result_sha256": "9c8d6986a47137d25ae07390e7f085a5193383e6d4d086f8a582f8927db7b3fb"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.172,
+      "result_sha256": "e370dce4516cde3ebd677365c9ca204f4f07ccb3bba613d6ee70699809025765"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.0,
+      "result_sha256": "ce41bd501079a5fbebfa6c5d66ccfa0f367f663c75501179e009ddcc580b4cd5"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.0,
+      "result_sha256": "dbbaf56bd87ef82bcdcd4ba067ac4efcd3ebe8d117a0e0c304213eaeb4697382"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.0,
+      "result_sha256": "9c1882148d9aa77e060b537997de2d9c2ff9d1bb6788cd30ef5de378b8cb7575"
+    },
+    {
+      "index": 13,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.375,
+      "result_sha256": "16abe271b175cefc61764c321caeb464e65fbc3bb482754aa40d7167b37d154d"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

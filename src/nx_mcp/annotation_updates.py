@@ -7,63 +7,6 @@ from nx_mcp.runtime import NXToolError
 
 
 class AnnotationUpdatesMixin:
-    def _bend_table(self, view, position, table=None, automatic=True, columns=None):
-        import NXOpen.Annotations as A
-
-        from nx_mcp.freeform import points3
-
-        target = self._drawing_object(view, "drawing_view")
-        point = points3([list(position) + [0] if len(position) == 2 else position])[0]
-        allowed = {"BendID", "BendName", "BendAngle", "BendDirection", "BendRadius"}
-        if columns is not None and (
-            not columns or len(set(columns)) != len(columns) or not set(columns) <= allowed
-        ):
-            raise NXToolError("NX_INVALID_ARGUMENT", "Supply unique native bend-table columns")
-        existing = self._engineering_owned(table, "annotation") if table else None
-        part = self._work_part()
-        column_type = A.BendTableSettingsBuilder.ColumnType
-        b = part.Annotations.BendTables.CreateBendTableBuilder(existing)
-        try:
-            b.FlatPatternView.Value = target
-            b.Style.BendTable.AutomaticUpdate = automatic
-            if columns is not None:
-                b.Style.BendTable.SetColumnOrder(
-                    [getattr(A.BendTableSettingsBuilder.ColumnType, x) for x in columns]
-                )
-            b.AnnotationOrigin.Origin.SetValue(None, None, self.nxopen.Point3d(*point))
-            if not b.Validate():
-                raise NXToolError(
-                    "NX_ANNOTATION_INVALID", "Select an actual flat-pattern drafting view"
-                )
-            obj = b.Commit()
-            if obj is None:
-                raise NXToolError("NX_VERIFICATION_FAILED", "NX returned no bend table")
-            self._update_model()
-            ref = self._reference(obj, "annotation", part, "Bend table")
-            return {
-                "table": ref,
-                "rows": self._table_cells(obj),
-                "columns": [
-                    # NX 2406 enum members stringify as integers; match the member.
-                    next(
-                        (
-                            n
-                            for n in dir(column_type)
-                            if not n.startswith("_") and getattr(column_type, n) == x
-                        ),
-                        str(x).split(".")[-1],
-                    )
-                    for x in b.Style.BendTable.GetColumnOrder()
-                ],
-                "created": [] if existing else [ref],
-                "modified": [ref] if existing else [],
-                "automatic_update": b.Style.BendTable.AutomaticUpdate,
-                "units": self._units(),
-                "coordinate_frame": "drawing_sheet",
-            }
-        finally:
-            b.Destroy()
-
     def _table_cells(self, obj):
         import NXOpen.UF as U
 

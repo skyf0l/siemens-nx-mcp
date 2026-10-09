@@ -1,0 +1,262 @@
+{
+ "covers": {
+  "nx_edit_drawing_table": [
+   "title_block",
+   "revision"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "setup": true,
+   "save": "rev",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     290
+    ],
+    "rows": [
+     [
+      "A",
+      "First",
+      "TR"
+     ]
+    ],
+    "widths": [
+     10,
+     60,
+     15
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "setup": true,
+   "save": "tb",
+   "args": {
+    "kind": "title_block",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     410,
+     10
+    ],
+    "rows": [
+     [
+      "PART",
+      "BLOCK"
+     ],
+     [
+      "DRAWN",
+      "AGENT"
+     ],
+     [
+      "SCALE",
+      "1:1"
+     ]
+    ],
+    "widths": [
+     30,
+     50
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "rows": [
+     [
+      "A",
+      "First",
+      "TR"
+     ],
+     [
+      "B",
+      "Hole added",
+      "TR"
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.rows": [
+     [
+      "A",
+      "First",
+      "TR"
+     ],
+     [
+      "B",
+      "Hole added",
+      "TR"
+     ]
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "rows": [
+     [
+      "A",
+      "Only",
+      "TR"
+     ]
+    ],
+    "widths": [
+     12,
+     70,
+     20
+    ],
+    "row_height": 9,
+    "position": [
+     240,
+     285
+    ]
+   },
+   "expect": {
+    "data.rows": [
+     [
+      "A",
+      "Only",
+      "TR"
+     ]
+    ],
+    "data.columns.1.width": {
+     "close": 70,
+     "tol": 0.0001
+    },
+    "data.position": {
+     "close": [
+      240,
+      285
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$tb.data.table.id",
+    "kind": "title_block",
+    "rows": [
+     [
+      "PART",
+      "BLOCK"
+     ],
+     [
+      "DRAWN",
+      "AGENT"
+     ],
+     [
+      "SCALE",
+      "2:1"
+     ],
+     [
+      "SHEET",
+      "1/1"
+     ]
+    ]
+   },
+   "expect": {
+    "data.rows": {
+     "count": 4
+    },
+    "data.rows.3.1": "1/1"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "widths": [
+     10,
+     20
+    ]
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "rolled_back",
+    "error.field": "/widths"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "title_block",
+    "rows": [
+     [
+      "A",
+      "B",
+      "C"
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started",
+    "error.field": "/kind"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "automatic": true
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "not_started",
+    "error.field": "/automatic"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

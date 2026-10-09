@@ -1,0 +1,510 @@
+{
+ "covers": {
+  "nx_create_hole": [
+   "simple",
+   "counterbore",
+   "countersink",
+   "threaded"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       60,
+       40
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 20
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "save": "h1",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      10,
+      10,
+      20
+     ],
+     [
+      10,
+      30,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "expect": {
+    "data.removed": {
+     "close": 599.4645451643939,
+     "tol": 0.0001
+    },
+    "data.nominal": {
+     "close": 599.4645451643939,
+     "tol": 1e-09
+    },
+    "data.positions": {
+     "count": 2
+    },
+    "data.direction": {
+     "close": [
+      0,
+      0,
+      -1
+     ],
+     "tol": 1e-09
+    },
+    "data.feature.name": {
+     "matches": "HOLE"
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      25,
+      10,
+      20
+     ]
+    ],
+    "form": "counterbore",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 12
+    },
+    "counterbore": {
+     "diameter": 11,
+     "depth": 4
+    }
+   },
+   "expect": {
+    "data.removed": {
+     "close": 623.3163159019457,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      25,
+      30,
+      20
+     ]
+    ],
+    "form": "countersink",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 12
+    },
+    "countersink": {
+     "diameter": 12,
+     "angle": 90
+    }
+   },
+   "expect": {
+    "data.removed": {
+     "close": 469.37827587604585,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      40,
+      10,
+      20
+     ],
+     [
+      40,
+      30,
+      20
+     ]
+    ],
+    "form": "threaded",
+    "diameter": 6.8,
+    "depth": {
+     "type": "distance",
+     "value": 15
+    },
+    "thread": {
+     "standard": "Metric Coarse",
+     "size": "M8 x 1.25",
+     "depth": 12
+    }
+   },
+   "expect": {
+    "data.removed": {
+     "close": 1138.966,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     1,
+     0,
+     0
+    ],
+    "limit": 1,
+    "order": "nearest",
+    "near": [
+     60,
+     20,
+     10
+    ]
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$side.items.0.object.id",
+    "positions": [
+     [
+      60,
+      20,
+      10
+     ]
+    ],
+    "form": "simple",
+    "diameter": "5 mm",
+    "depth": {
+     "type": "through_all"
+    }
+   },
+   "expect": {
+    "data.removed": {
+     "close": 1178.0972450961724,
+     "tol": 0.0001
+    },
+    "data.nominal": null,
+    "data.direction": {
+     "close": [
+      -1,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 43990.777617961445,
+     "tol": 0.002
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      50,
+      20,
+      21
+     ]
+    ],
+    "form": "simple",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 5
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/positions/0"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      70,
+      20,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 5
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/positions/0"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      50,
+      20,
+      20
+     ]
+    ],
+    "form": "threaded",
+    "diameter": 7,
+    "depth": {
+     "type": "distance",
+     "value": 15
+    },
+    "thread": {
+     "standard": "Metric Coarse",
+     "size": "M8 x 1.25"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/diameter"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      50,
+      20,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 6,
+    "depth": {
+     "type": "until_face",
+     "face": "$side.items.0.object.id"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/depth",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "args": {
+    "face": "$top.items.0.object.id",
+    "positions": [
+     [
+      50,
+      20,
+      20
+     ]
+    ],
+    "form": "counterbore",
+    "diameter": 6,
+    "depth": {
+     "type": "distance",
+     "value": 5
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/counterbore"
+   }
+  },
+  {
+   "call": "nx_measure_volume",
+   "args": {
+    "body": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "volume_mm3": {
+     "close": 43990.777617961445,
+     "tol": 0.002
+    }
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

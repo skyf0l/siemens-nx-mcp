@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from nx_mcp.core import kernel
 from nx_mcp.host import dispatch
 from nx_mcp.runtime import NXToolError
 from tests.kit.objects import Body, Part
@@ -62,26 +63,32 @@ def test_reads_and_view_tools_still_run_on_the_engineers_part(engineer):
     assert engineer.e.execute("nx_fit_view", {})["fitted"] is True
 
 
-@pytest.mark.parametrize("method", ["nx_save_part", "nx_save_as", "nx_close_part"])
-def test_save_and_close_need_ownership(engineer, method, tmp_path):
+@pytest.mark.parametrize(
+    ("method", "args"),
+    [("nx_save_part", {}), ("nx_save_part", {"path": "copy.prt"}), ("nx_close_part", {})],
+)
+def test_save_and_close_need_ownership(engineer, method, args, monkeypatch):
+    # The parts_files catalogue tools call tx.require_owned before saving or closing.
+    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
     engineer.part.Save = Mock()
     engineer.part.SaveAs = Mock()
     engineer.part.Close = Mock()
-    params = {"path": str(tmp_path / "copy.prt")} if method == "nx_save_as" else {}
-    with pytest.raises(NXToolError) as error:
-        engineer.e.execute(method, params)
+    with pytest.raises(dispatch.KernelError) as error:
+        engineer.e.execute(method, args)
     assert error.value.code == "NX_PART_NOT_GRANTED"
+    assert error.value.details["mutation_outcome"] == "not_started"
     engineer.part.Save.assert_not_called()
     engineer.part.SaveAs.assert_not_called()
     engineer.part.Close.assert_not_called()
 
 
-def test_close_checks_the_named_part_not_the_work_part(engineer, tmp_path):
+def test_close_checks_the_named_part_not_the_work_part(engineer, tmp_path, monkeypatch):
+    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
     engineer.services.own(engineer.part)
     other = _load(engineer, tmp_path / "theirs.prt")
     other.Close = Mock()
     ref = engineer.e._reference(other, "part", other, "Part")["id"]
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(dispatch.KernelError) as error:
         engineer.e.execute("nx_close_part", {"part": ref, "save": False})
     assert error.value.code == "NX_PART_NOT_GRANTED" and "theirs.prt" in error.value.message
     other.Close.assert_not_called()

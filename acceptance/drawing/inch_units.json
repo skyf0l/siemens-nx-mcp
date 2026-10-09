@@ -1,0 +1,282 @@
+{
+ "covers": {
+  "nx_create_drawing_view": [
+   "base",
+   "projected",
+   "detail"
+  ],
+  "nx_create_drawing_dimension": [
+   "radius",
+   "diameter"
+  ],
+  "nx_create_note": [],
+  "nx_create_drawing_table": [
+   "revision"
+  ],
+  "nx_create_drawing_sheet": []
+ },
+ "fixture": "fixtures/drawing_block_in.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0.984252,
+     0.984252,
+     0.787402
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "size": "a4",
+    "units": "in"
+   },
+   "save": "sh",
+   "expect": {
+    "data.units": "in",
+    "data.dimensions": {
+     "close": [
+      11.692913,
+      8.267717
+     ],
+     "tol": 1e-05
+    },
+    "units.length": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top"
+   },
+   "save": "top",
+   "expect": {
+    "data.position": {
+     "close": [
+      3.937008,
+      3.937008
+     ],
+     "tol": 1e-05
+    },
+    "units.sheet_length": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "right"
+   },
+   "expect": {
+    "data.position.0": {
+     "close": 6.299213,
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     0.984252,
+     0.984252,
+     0.787402
+    ],
+    "radius": 0.4,
+    "position": [
+     8,
+     2
+    ],
+    "scale": 4
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      8,
+      2
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 4,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "radius",
+    "first": "$h1.items.0.object.id"
+   },
+   "expect": {
+    "data.dimension.value": {
+     "close": 0.314961,
+     "tol": 1e-06
+    },
+    "data.units": "in"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "diameter",
+    "first": "$h1.items.0.object.id",
+    "origin": [
+     5,
+     6.5
+    ]
+   },
+   "expect": {
+    "data.dimension.value": {
+     "close": 0.629921,
+     "tol": 1e-06
+    },
+    "data.origin": {
+     "close": [
+      5,
+      6.5
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_note",
+   "args": {
+    "text": [
+     "INCH"
+    ],
+    "origin": [
+     1,
+     7.5
+    ]
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      1,
+      7.5
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     6,
+     8
+    ],
+    "rows": [
+     [
+      "A",
+      "First"
+     ]
+    ],
+    "widths": [
+     "10 mm",
+     1.5
+    ]
+   },
+   "expect": {
+    "data.columns.0.width": {
+     "close": 0.393701,
+     "tol": 1e-05
+    },
+    "data.columns.1.width": {
+     "close": 1.5,
+     "tol": 1e-05
+    },
+    "data.position": {
+     "close": [
+      6,
+      8
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "MM",
+    "size": "a3",
+    "units": "mm"
+   },
+   "save": "mm",
+   "expect": {
+    "data.units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$mm.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     120,
+     200
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      120,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "units.sheet_length": "mm"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
+    "name": "TMPL",
+    "template": "A3"
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/template",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

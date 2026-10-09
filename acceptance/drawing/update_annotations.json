@@ -1,0 +1,134 @@
+{
+ "covers": {
+  "nx_update_annotations": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "det",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     60,
+     25,
+     20
+    ],
+    "radius": 9,
+    "scale": 3,
+    "position": [
+     380,
+     60
+    ]
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.refreshed": {
+     "count_kind": {
+      "drawing_view": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "setup": true,
+   "args": {
+    "view": "$top.data.view.id",
+    "scale": 1.5
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$det.data.view.id"
+   },
+   "expect": {
+    "data.scale": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.position": {
+     "close": [
+      380,
+      60
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {
+    "objects": [
+     "$det.data.view.id"
+    ]
+   },
+   "expect": {
+    "data.refreshed": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {
+    "objects": [
+     "$sh.data.sheet.id"
+    ]
+   },
+   "expect": {
+    "data.refreshed": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

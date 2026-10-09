@@ -56,18 +56,6 @@ def test_open_sheet_falls_back_to_uf_and_verifies(rig, uf_opens):
     rig.uf.Draw.OpenDrawing.assert_not_called()
 
 
-def test_activate_drawing_reopens_a_sheet_open_ignores(rig):
-    """After a PDF export restore, nx_activate_drawing reported active=false."""
-    sheets, sheet = sheet_part(rig, opens=False)
-    rig.e._explosion_context = lambda: rig.part
-    rig.uf.Draw = NS(OpenDrawing=lambda _: setattr(sheets, "CurrentDrawingSheet", sheet))
-    sheet.Length, sheet.Height, sheet.GetScale = 420.0, 297.0, lambda: (1.0, 1.0)
-    sheet.GetDraftingViews = lambda: []
-    rig.e._sheet_units = lambda _: "mm"
-    result = rig.e._activate_drawing(rig.ref(sheet, "drawing_sheet"))
-    assert result["sheets"][0]["active"] is True and result["modeling_active"] is False
-
-
 def test_leaving_drawing_restores_modeling_work_view(rig):
     """NX 2406 can keep the sheet as work view after ExitDraftingApplication."""
     sheets, _ = sheet_part(rig)
@@ -90,40 +78,6 @@ def test_leaving_drawing_restores_modeling_work_view(rig):
     with pytest.raises(NXToolError) as error:
         rig.e._close_drawing_sheets(rig.part)
     assert error.value.code == "NX_DRAWING_CONTEXT"
-
-
-def test_pdf_export_leaves_the_previous_sheet_current(rig):
-    sheets, sheet = sheet_part(rig, opens=False)
-    sheets.CurrentDrawingSheet = sheet
-    other = Object("Sheet2")
-    other.Open = Mock(side_effect=lambda: setattr(sheets, "CurrentDrawingSheet", None))
-    for s in (sheet, other):
-        s.GetDraftingViews = lambda: []
-    sheets.append(other)
-    by_tag = {s.Tag: s for s in sheets}
-    rig.uf.Draw = NS(OpenDrawing=lambda tag: setattr(sheets, "CurrentDrawingSheet", by_tag[tag]))
-    rig.part.SaveOptions = NS(DrawingCgmData=False)
-    rig.e._activate_part = Mock()
-
-    def commit():
-        Path(builder.Filename).write_bytes(b"%PDF-1.4 fake")
-
-    builder = NS(
-        ActionOption=NS(Native=1),
-        SizeOption=NS(FullScale=1),
-        UnitsOption=NS(Metric=1),
-        OutputTextOption=NS(Text=1),
-        ImageResolutionOption=NS(High=1),
-        Color=NS(AsDisplayed=1),
-        SourceBuilder=NS(SetSheets=Mock()),
-        Commit=commit,
-        Destroy=Mock(),
-    )
-    rig.part.PlotManager = NS(CreatePrintPdfbuilder=lambda: builder)
-    rig.part.DraftingViews = NS(UpdateViews=Mock())
-    rig.e._export_drawing_pdf(str(rig.e.workspace.root / "out.pdf"))
-    # Sheet2's Open() drops the current sheet (NX 2406); the export restores Sheet1.
-    assert sheets.CurrentDrawingSheet is sheet
 
 
 def png(width, height):
@@ -150,7 +104,7 @@ def test_screenshot_exports_the_displayed_drawing_sheet(rig, current):
     assert result["resolution"] == [320, 240] and result["view_name"] == "Sheet1@0"
     assert (result["drawing"] is not None) is current
     assert any("style applies to model views" in w for w in result["warnings"])
-    assert any("nx_activate_drawing" in w for w in result["warnings"]) is not current
+    assert any("nx_activate_drawing_sheet" in w for w in result["warnings"]) is not current
     work.Fit.assert_called_once()
     builder.Destroy.assert_called_once()
 
@@ -259,23 +213,6 @@ def projection_rig(rig):
     return sheets, sheet, builder
 
 
-def test_projected_view_inherits_parent_scale_and_opens_its_sheet(rig):
-    """NX 2406 created projected views at 1:1 under a 2:1 parent and needs the sheet current."""
-    sheets, sheet, builder = projection_rig(rig)
-    rig.e._add_projection_view("Top@1", "right", 140.0)
-    assert builder.Style.ViewStyleProjected.Scale is True
-    assert sheets.CurrentDrawingSheet is sheet
-    builder.Destroy.assert_called_once()
-
-
-def test_projected_view_off_the_sheet_is_refused_before_nx(rig):
-    sheets, sheet, builder = projection_rig(rig)
-    with pytest.raises(NXToolError) as error:
-        rig.e._add_projection_view("Top@1", "left", 150.0)
-    assert error.value.code == "NX_INVALID_ARGUMENT"
-    builder.Commit.assert_not_called()
-
-
 def test_flat_pattern_leaves_the_displayed_drawing_and_returns_its_sheet(rig):
     """NX 2406 refuses a Flat Pattern commit while a drawing sheet is displayed."""
     sheets, sheet = sheet_part(rig)
@@ -287,46 +224,3 @@ def test_flat_pattern_leaves_the_displayed_drawing_and_returns_its_sheet(rig):
     sheets.CurrentDrawingSheet = sheet
     assert rig.e._sm_leave_drawing() is sheet
     rig.e._close_drawing_sheets.assert_called_once_with(rig.part)
-
-
-def test_default_projection_spacing_is_60_mm_on_an_inch_sheet(rig):
-    """Regression: the default spacing 60 was taken as 60 in on an inch sheet (off the sheet)."""
-    sheets, sheet, builder = projection_rig(rig)
-    sheet.Length, sheet.Height = 420 / 25.4, 297 / 25.4
-    rig.e._sheet_units = lambda _: "in"
-    parent = rig.e._drawing_object("Top@1", "drawing_view")
-    parent.GetDrawingReferencePoint = lambda: NS(X=4.0, Y=7.0)
-    rig.e._add_projection_view("Top@1", "right")
-    target = rig.e._place_drawing_view.call_args.args[2]
-    assert target == pytest.approx([4.0 + 60 / 25.4, 7.0])
-    builder.Commit.assert_called_once()
-
-
-@pytest.mark.parametrize(("units", "expected"), [("mm", 100.0), ("in", 100 / 25.4)])
-def test_default_base_view_position_is_100_mm_in_sheet_units(rig, units, expected):
-    """Regression: [100, 100] was 100 in on an inch sheet; NX then failed with
-    "The view is not located on the drawing"."""
-    sheets, sheet = sheet_part(rig)
-    body = rig.part.Bodies[0] if list(rig.part.Bodies) else Object("BODY")
-    rig.part.Bodies[:] = [body]
-    rig.e._engineering_owned = lambda ref, kind: body
-    rig.e._drawing_object = lambda ref, kind: sheet
-    rig.e._sheet_units = lambda _: units
-    rig.e._sheet_point3d = lambda _s, p: p
-    rig.e._configure_base_view = Mock()
-    rig.e._drawing_construction_visibility = Mock()
-    rig.e._place_drawing_view = Mock()
-    rig.part.ModelingViews.FindObject = lambda name: name
-    result = Object("Front@1")
-    builder = NS(
-        SelectModelView=NS(SelectedView=None),
-        Placement=NS(Placement=NS(SetValue=Mock())),
-        Commit=Mock(return_value=result),
-        Destroy=Mock(),
-    )
-    rig.part.DraftingViews = NS(CreateBaseViewBuilder=lambda _: builder)
-    out = rig.e._add_base_view("SH1", "b", "front")
-    point = rig.e._place_drawing_view.call_args.args[2]
-    assert point == pytest.approx([expected, expected])
-    assert out["position"] == pytest.approx([expected, expected])
-    assert out["position_mm"] == pytest.approx([100.0, 100.0])

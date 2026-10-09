@@ -39,10 +39,12 @@ def test_capabilities_report_evidence_for_the_running_nx_version():
     from nx_mcp.manifest import load_manifest, scope_to_version
 
     tools = scope_to_version(load_manifest(), "v2406")["tools"]
-    assert tools["nx_extrude"]["status"] == "tested"  # verified_versions includes v2406
-    assert tools["nx_datum_plane"]["status"] == "tested"  # real_NX_v2406 evidence
-    assert tools["nx_pmi_datum"]["status"] == "unavailable"  # unavailable_on v2406
-    assert scope_to_version(load_manifest(), "v2606")["tools"]["nx_pmi_datum"]["status"] == (
+    assert tools["nx_measure_volume"]["status"] == "tested"  # verified_versions includes v2406
+    real_2406 = {"tools": {"t": {"status": "tested", "evidence_type": "real_NX_v2406_scoped"}}}
+    assert scope_to_version(real_2406, "v2406")["tools"]["t"]["status"] == "tested"
+    sheet_metal_pmi = "nx_sheet_metal_annotation"
+    assert tools[sheet_metal_pmi]["status"] == "unavailable"  # unavailable_on v2406
+    assert scope_to_version(load_manifest(), "v2606")["tools"][sheet_metal_pmi]["status"] == (
         "tested"
     )
     only_2606 = {"tools": {"t": {"status": "tested", "evidence_type": "real_NX_v2606_scoped"}}}

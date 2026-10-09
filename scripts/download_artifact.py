@@ -26,7 +26,7 @@ async def download(url, remote, output):
             )
             if result.isError:
                 raise RuntimeError(result.structuredContent)
-            return result.structuredContent
+            return result.structuredContent["data"]  # a catalogue envelope
 
         meta = await call({"path": remote, "delivery": "metadata"})
         temporary = output.with_suffix(output.suffix + ".partial")
@@ -37,7 +37,7 @@ async def download(url, remote, output):
             raise FileExistsError(output)
         with temporary.open("xb") as stream:
             while True:
-                chunk = await call({"path": remote, "delivery": "base64", "offset": offset})
+                chunk = await call({"path": remote, "delivery": "chunk", "offset": offset})
                 if chunk["sha256"] != meta["sha256"]:
                     raise RuntimeError("Artifact changed during transfer")
                 data = base64.b64decode(chunk["data_base64"], validate=True)

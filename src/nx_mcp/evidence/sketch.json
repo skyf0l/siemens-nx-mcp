@@ -1,0 +1,165 @@
+{
+  "nx_check_sketch": {
+    "v2406": {
+      "checks": 28,
+      "recorded": "2026-10-09T13:20:27Z",
+      "scenario": "acceptance/sketch/check_sketch.json",
+      "scenario_sha256": "dcfe1b8997f246f15e873335a33d4be9ad245420654018a9b099f5a7d9530209",
+      "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",
+      "variants": []
+    }
+  },
+  "nx_create_sketch": {
+    "v2406": {
+      "checks": 54,
+      "recorded": "2026-10-09T13:20:34Z",
+      "scenario": "acceptance/sketch/create_sketch.json",
+      "scenario_sha256": "a2f27a808e59019138acd76b269c5df673b859ba8d1f8d4f797260225ffdc36e",
+      "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",
+      "variants": [
+        "on",
+        "path",
+        "principal"
+      ]
+    }
+  },
+  "nx_create_sketch_constraints": {
+    "v2406": {
+      "checks": 44,
+      "recorded": "2026-10-09T13:20:57Z",
+      "scenario": "acceptance/sketch/sketch_constraints.json",
+      "scenario_sha256": "9a335f576bda96910df33950487c64fc8ff1cf3a44eaa22ec90c149e5bf78d68",
+      "source_sha256": "39fc745244c7d8b5142bab1a3e0b35c8307f95ebd944ac5d6d1dfa589aa4b285",
+      "variants": [
+        "coincident",
+        "concentric",
+        "equal_length",
+        "equal_radius",
+        "fixed",
+        "horizontal",
+        "midpoint",
+        "parallel",
+        "perpendicular",
+        "point_on_curve",
+        "symmetric",
+        "tangent",
+        "vertical"
+      ]
+    }
+  },
+  "nx_create_sketch_copy": {
+    "v2406": {
+      "checks": 35,
+      "recorded": "2026-10-09T13:21:09Z",
+      "scenario": "acceptance/sketch/sketch_copy.json",
+      "scenario_sha256": "4b8f122eafa6533abbe11a7348ef4eab0c7c485fbc7ec307c0e1dd415d3642ef",
+      "source_sha256": "fd1586311d59191dd3b55d61ce4af4ad2fca57cfa65ea0735f69e2a37a951b13",
+      "variants": [
+        "mirror",
+        "offset"
+      ]
+    }
+  },
+  "nx_create_sketch_corner": {
+    "v2406": {
+      "checks": 25,
+      "recorded": "2026-10-09T13:21:15Z",
+      "scenario": "acceptance/sketch/sketch_corner.json",
+      "scenario_sha256": "3de2880a7bcaa0e82d78771a5d24362a57f9af7eb36d82eed2a4271e7bfa502d",
+      "source_sha256": "fd1586311d59191dd3b55d61ce4af4ad2fca57cfa65ea0735f69e2a37a951b13",
+      "variants": [
+        "chamfer",
+        "fillet"
+      ]
+    }
+  },
+  "nx_create_sketch_curves": {
+    "v2406": {
+      "checks": 52,
+      "recorded": "2026-10-09T13:21:25Z",
+      "scenario": "acceptance/sketch/sketch_curves.json",
+      "scenario_sha256": "2cd1519f1047878571354ecaa96f533f1d5fee64e76c18748c2baa218d7bec29",
+      "source_sha256": "1d4d86e978c22198691079ec5d621d2a8eafb5aa5d314bf4631ff8d6ba99056e",
+      "variants": [
+        "arc",
+        "circle",
+        "ellipse",
+        "line",
+        "polygon",
+        "rectangle",
+        "rounded_rectangle",
+        "slot"
+      ]
+    }
+  },
+  "nx_create_sketch_dimensions": {
+    "v2406": {
+      "checks": 39,
+      "recorded": "2026-10-09T13:21:35Z",
+      "scenario": "acceptance/sketch/sketch_dimensions.json",
+      "scenario_sha256": "24ab9c45437c2f52879a5f6ab1dcb85ffd769937cac7d91b7cc21c8ce3aaa2ab",
+      "source_sha256": "39fc745244c7d8b5142bab1a3e0b35c8307f95ebd944ac5d6d1dfa589aa4b285",
+      "variants": [
+        "angle",
+        "diameter",
+        "distance",
+        "horizontal",
+        "length",
+        "parallel_distance",
+        "perpendicular_distance",
+        "radius",
+        "vertical"
+      ]
+    }
+  },
+  "nx_create_sketch_projection": {
+    "v2406": {
+      "checks": 26,
+      "recorded": "2026-10-09T13:21:41Z",
+      "scenario": "acceptance/sketch/sketch_projection.json",
+      "scenario_sha256": "781d314a82b5a0b9adcb3b71c3bec97209a5bcc92f498d8e1b8475aabdd3efdd",
+      "source_sha256": "fd1586311d59191dd3b55d61ce4af4ad2fca57cfa65ea0735f69e2a37a951b13",
+      "variants": [
+        "intersect",
+        "project"
+      ]
+    }
+  },
+  "nx_edit_sketch_curves": {
+    "v2406": {
+      "checks": 32,
+      "recorded": "2026-10-09T13:20:40Z",
+      "scenario": "acceptance/sketch/edit_sketch_curves.json",
+      "scenario_sha256": "bdf6b0f0c885c36eb7fd5f77bb371de5bbfd435992577676ccc840bbf89b56dd",
+      "source_sha256": "1d4d86e978c22198691079ec5d621d2a8eafb5aa5d314bf4631ff8d6ba99056e",
+      "variants": [
+        "arc",
+        "construction",
+        "delete",
+        "extend",
+        "line",
+        "trim"
+      ]
+    }
+  },
+  "nx_finish_sketch": {
+    "v2406": {
+      "checks": 20,
+      "recorded": "2026-10-09T13:20:44Z",
+      "scenario": "acceptance/sketch/finish_sketch.json",
+      "scenario_sha256": "70b4b772b75f27b790a71d211e4e9a3230157c4ed5bf46c330ff53d1688b320a",
+      "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",
+      "variants": []
+    }
+  },
+  "nx_get_sketch": {
+    "v2406": {
+      "checks": 34,
+      "recorded": "2026-10-09T13:20:49Z",
+      "scenario": "acceptance/sketch/get_sketch.json",
+      "scenario_sha256": "5f43fd9a4becde1d8e72734026bc9275df6ea0f15eeca59ce78c14996fad8565",
+      "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",
+      "variants": []
+    }
+  }
+}

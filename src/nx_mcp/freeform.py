@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from nx_mcp.kit.geom import cross, dot, xyz
-from nx_mcp.legacy_kit import finite, points3, unit_normal
+from nx_mcp.legacy_kit import finite, points3
 from nx_mcp.runtime import NXToolError
 
 # Native NX error code: "The requested license feature is not available."
@@ -278,86 +278,6 @@ class FreeformMixin:
             b.FirstOffset.RightHandSide = str(first)
             b.SecondOffset.RightHandSide = str(second)
             return self._freeform_commit(b)
-        finally:
-            b.Destroy()
-
-    def _edit_faces(self, faces, action, distance=None, direction=None, replacement=None):
-        import NXOpen.Features as F
-
-        objects = self._freeform_refs(faces, "face")
-        factories = {
-            "move": "CreateAdmMoveFaceBuilder",
-            "offset": "CreateOffsetFaceBuilder",
-            "replace": "CreateReplaceFaceBuilder",
-            "heal": "CreateDeleteFaceBuilder",
-        }
-        if action not in factories:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Unsupported face edit")
-        if (
-            (distance is not None) != (action in {"move", "offset"})
-            or (direction is not None) != (action == "move")
-            or (replacement is not None) != (action == "replace")
-        ):
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT",
-                "move requires distance/direction; offset distance; replace replacement; heal no extra parameters",
-            )
-        if distance is not None:
-            distance = finite(distance, "distance")
-        if direction is not None:
-            direction = unit_normal(direction)
-        replacing = self._engineering_owned(replacement, "face") if replacement else None
-        b = self._freeform_builder(factories[action])
-        try:
-            rule = self._work_part().ScRuleFactory.CreateRuleFaceDumb(objects)
-            if action == "move":
-                import NXOpen.GeometricUtilities as G
-
-                b.FaceToMove.FaceCollector.ReplaceRules([rule], False)
-                b.Motion.Option = G.ModlMotion.Options.Distance
-                b.Motion.DistanceVector = self._engineering_direction(direction)
-                b.Motion.DistanceValue.RightHandSide = str(distance)
-            elif action == "offset":
-                b.FaceCollector.ReplaceRules([rule], False)
-                b.Distance.RightHandSide = str(abs(distance))
-                b.Direction = distance < 0
-            elif action == "replace":
-                b.ReplaceFaces.ReplaceRules([rule], False)
-                b.ReplacementFaces.ReplaceRules(
-                    [self._work_part().ScRuleFactory.CreateRuleFaceDumb([replacing])], False
-                )
-            else:
-                b.Type = F.DeleteFaceBuilder.SelectTypes.Face
-                b.FaceCollector.ReplaceRules([rule], False)
-                b.Heal = True
-                # NX 2406 has no partial-delete option; it never deletes partially.
-                if hasattr(b, "AllowPartialDelete"):
-                    b.AllowPartialDelete = False
-            result = self._freeform_commit(b, "NX_FACE_EDIT_FAILED")
-            health = self._model_health()
-            if not health["healthy"]:
-                raise NXToolError(
-                    "NX_INVALID_GEOMETRY",
-                    "Face edit left native geometry errors",
-                    details={"health": health},
-                )
-            result["repair_diagnostics"] = {
-                "action": action,
-                "source_faces": faces,
-                "health": health,
-            }
-            return result
-        except Exception as error:
-            if isinstance(error, NXToolError):
-                error.details.update(action=action, source_faces=faces)
-                raise
-            raise NXToolError(
-                "NX_FACE_EDIT_FAILED",
-                str(error),
-                nx_code=getattr(error, "ErrorCode", None),
-                details={"action": action, "source_faces": faces},
-                suggestion="Inspect native diagnostics and explicitly refine the face selection; reacquire IDs after rollback.",
-            ) from error
         finally:
             b.Destroy()
 

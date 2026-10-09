@@ -190,51 +190,6 @@ def test_invalid_section_parameters_do_not_create_builder(rig, origin, normal, n
     assert not builders
 
 
-@pytest.mark.parametrize(
-    "status,dof,expected", [(1, 4, 4), (2, 0, 0), (3, -1, None), (999, 10, None)]
-)
-@pytest.mark.parametrize("active", [True, False])
-def test_solver_status_and_constraint_links_preserve_edit_state(rig, status, dof, expected, active):
-    sk = Sketch(rig.session)
-    sk.status = (status, dof)
-    curve = Curve()
-    sk.geometry = [curve]
-    constraint = Object()
-    constraint.ConstraintType = 1
-    from tests.test_authoring_review import Expression
-
-    rig.nx.Expression = NS(UnitsOption=NS(Expression="expression"))
-    constraint.AssociatedExpression = Expression("p1")
-    constraint.AssociatedExpression.Value = 254.0
-    constraint.AssociatedExpression.expression_value = 10.0
-    sk.constraints = [constraint]
-    rig.part.Sketches.append(sk)
-    region = NS(Commit=Mock(), Destroy=Mock())
-    rig.part.Sketches.CreateWorkRegionBuilder = lambda: region
-    if active:
-        rig.session.ActiveSketch = sk
-    result = rig.e._sketch_diagnostics(rig.ref(sk, "sketch"))
-    assert result["remaining_degrees_of_freedom"] == expected
-    assert result["constraints"][0]["expression"]["value"] == 10
-    assert result["geometry"][0]["constraints"] == [result["constraints"][0]["object"]["id"]]
-    assert rig.session.ActiveSketch == (sk if active else None)
-    assert not rig.session.marks and region.Destroy.call_count == 1
-    assert region.Scope == "all" and result["conflicting_constraints"] is None
-
-
-def test_diagnostics_native_failure_restores_activation_and_marks(rig):
-    sk = Sketch(rig.session)
-    region = NS(Commit=Mock(side_effect=RuntimeError("solver failed")), Destroy=Mock())
-    rig.part.Sketches.CreateWorkRegionBuilder = lambda: region
-    with pytest.raises(RuntimeError):
-        rig.e._sketch_diagnostics(rig.ref(sk, "sketch"))
-    assert rig.session.ActiveSketch is None and not rig.session.marks
-    assert region.Destroy.call_count == 1
-    rig.session.ActiveSketch = Sketch(rig.session)
-    with pytest.raises(NXToolError):
-        rig.e._sketch_diagnostics(rig.ref(sk, "sketch"))
-
-
 def test_highlighting_only_includes_penetration_unless_contact_requested(rig):
     a = Body("a")
     b = Body("b")
@@ -260,13 +215,3 @@ def test_highlighting_only_includes_penetration_unless_contact_requested(rig):
     with pytest.raises(NXToolError):
         rig.e._section_view([0, 0, 0], [0, 0, 1])
     assert enum_name(999, NS(A=1)) == "unknown_999"
-
-
-def test_failed_sketch_deactivation_still_rolls_back_work_region(rig):
-    sk = Sketch(rig.session)
-    sk.Deactivate = Mock(side_effect=RuntimeError("deactivate failed"))
-    region = NS(Commit=Mock(), Destroy=Mock())
-    rig.part.Sketches.CreateWorkRegionBuilder = lambda: region
-    with pytest.raises(RuntimeError):
-        rig.e._sketch_diagnostics(rig.ref(sk, "sketch"))
-    assert rig.session.ActiveSketch is None and not rig.session.marks

@@ -10,6 +10,7 @@ from nx_mcp.agent_surface import HELPERS, ResultStore, compact
 from nx_mcp.core import catalogue
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
+from nx_mcp.sidecar.server import CORE_TOOLS
 from nx_mcp.workspace import Workspace
 
 
@@ -54,15 +55,21 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
         tools = (await client.list_tools()).tools
         # Four gateways plus the core tools that exist in the catalogue.
         assert [t.name for t in tools][:4] == list(gateways.NAMES)
-        assert "nx_list_objects" in {t.name for t in tools} and len(tools) == 5
-        assert "nx_extrude" not in {t.name for t in tools}
-        result = await client.call_tool("nx_find_tools", {"query": "nx_extrude"})
-        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_extrude"
-        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_extrude"]})
+        listed = {t.name for t in tools}
+        core = {
+            n
+            for n in CORE_TOOLS
+            if catalogue.get(n) and catalogue.get(n).effect in ("read", "view")
+        }  # an unknown build shows only read and view tools
+        assert "nx_list_objects" in listed and listed == set(gateways.NAMES) | core
+        assert "nx_thicken" not in {t.name for t in tools}
+        result = await client.call_tool("nx_find_tools", {"query": "nx_thicken"})
+        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_thicken"
+        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_thicken"]})
         schema = result.structuredContent["data"]["tools"][0]["input_schema"]
-        assert "distance" in schema["properties"]
+        assert "first_offset" in schema["properties"]
         # A legacy tool stays callable directly, with compact agent defaults.
-        result = await client.call_tool("nx_list_open_parts", {})
+        result = await client.call_tool("nx_list_components", {})
         assert not result.isError
         assert bridge.call.call_args.args[1]["limit"] == 20
         assert bridge.call.call_args.args[1]["compact"] is True
@@ -79,11 +86,11 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
         assert snapshot.structuredContent["items"] == []
         bridge.call.reset_mock()
         bad = await client.call_tool(
-            "nx_invoke", {"tool": "nx_extrude", "arguments": {"bogus": True}}
+            "nx_invoke", {"tool": "nx_thicken", "arguments": {"bogus": True}}
         )
         assert bad.isError and not bridge.call.called
         good = await client.call_tool(
-            "nx_invoke", {"tool": "nx_list_open_parts", "arguments": {}, "detail": "full"}
+            "nx_invoke", {"tool": "nx_list_components", "arguments": {}, "detail": "full"}
         )
         assert "result_id" not in good.structuredContent
         assert bridge.call.call_args.args[1]["limit"] is None
@@ -119,8 +126,8 @@ async def test_failed_mutation_retains_outcome_and_operation_id(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_extrude",
-            "arguments": {"sketch_id": "x", "distance": 1, "operation_id": "test_operation"},
+            "tool": "nx_thicken",
+            "arguments": {"faces": ["x"], "first_offset": 1, "operation_id": "test_operation"},
         },
     )
     assert result.isError and result.structuredContent["mutation_outcome"] == "rolled_back"
@@ -144,8 +151,8 @@ async def test_compact_success_replay_receipt_and_full_snapshot(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_extrude",
-            "arguments": {"sketch_id": "s", "distance": 2, "operation_id": "operation_123"},
+            "tool": "nx_thicken",
+            "arguments": {"faces": ["s"], "first_offset": 2, "operation_id": "operation_123"},
         },
     )
     payload = result.structuredContent
@@ -184,8 +191,8 @@ async def test_storage_failure_does_not_relabel_committed_mutation(tmp_path, mon
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_extrude",
-            "arguments": {"sketch_id": "s", "distance": 2, "operation_id": "operation_123"},
+            "tool": "nx_thicken",
+            "arguments": {"faces": ["s"], "first_offset": 2, "operation_id": "operation_123"},
         },
     )
     assert not result.isError and result.structuredContent["mutation_outcome"] == "committed"
@@ -224,7 +231,9 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
         # Without a bridge descriptor the build is unknown: only read/view catalogue tools show.
         readable = [s for s in catalogue.load().values() if s.effect in ("read", "view")]
         extra = len(gateways.NAMES) + len(readable) + len(HELPERS)
-        for path, count in [("/mcp", len(MANIFEST["tools"]) + extra), ("/agent/mcp", 5)]:
+        core = [n for n in CORE_TOOLS if n in {s.name for s in readable}]
+        agent = len(gateways.NAMES) + len(core)
+        for path, count in [("/mcp", len(MANIFEST["tools"]) + extra), ("/agent/mcp", agent)]:
             response = client.post(
                 path,
                 headers={"Accept": "application/json, text/event-stream"},
@@ -260,8 +269,8 @@ async def test_gateway_rejects_ignored_top_level_arguments(tmp_path):
     result = await server.call_tool(
         "nx_invoke",
         {
-            "tool": "nx_extrude",
-            "arguments": {"sketch_id": "s", "distance": 2},
+            "tool": "nx_thicken",
+            "arguments": {"faces": ["s"], "first_offset": 2},
             "operation_id": "wrong_place",
         },
     )

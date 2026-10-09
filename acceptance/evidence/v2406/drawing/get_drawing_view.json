@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/get_drawing_view.json",
+  "scenario_sha256": "5f430d796ccf638743f63c76e21365db116910e71b794ef1472667d888b29160",
+  "domain": "drawing",
+  "covers": {
+    "nx_get_drawing_view": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_get_drawing_view": "f023426bb1ac931809b1430c572d6cb76ca34f1de4ff84d58d38934a02998fe3"
+  },
+  "run_id": "20261009-172204-2dce34",
+  "owner": "dom_drawing",
+  "part": null,
+  "started": "2026-10-09T13:22:24Z",
+  "finished": "2026-10-09T13:22:27Z",
+  "passed": true,
+  "checks": 13,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.016,
+      "result_sha256": "1f0605ae68aa4a4270117fc39ea815d63b2b0446463bed085fe8d9785e033c74"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.188,
+      "result_sha256": "fc665a94451dad7071c0fda890c00e5c414976c922121bc3ec1767d2938f3ebf"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.375,
+      "result_sha256": "11650669d54fb2db7c2adb2b70d2d2ca7f47549cea07ee34c28112d797a82992"
+    },
+    {
+      "index": 4,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 11,
+      "seconds": 0.156,
+      "result_sha256": "1f3113d7701c87e0c85586cf253dffa92ab4d2cb0d50bf22801addf1ecc428e8"
+    },
+    {
+      "index": 5,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.14,
+      "result_sha256": "acb5ee3be7ea2687eb4d72e7e2c82e8686468ef05ec88b0bce50e549de4b8e17"
+    },
+    {
+      "index": 6,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.313,
+      "result_sha256": "1fc785fb7e009bdc1c0086900b618b47985e67a1160e9cf97b7692127ccc5c63"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

@@ -70,5 +70,4 @@ async def test_visual_tools_publish_enums_and_native_capture_description(tmp_pat
     assert "native" in tools["nx_section_view"].description.lower()
     assert "desktop to PNG" not in tools["nx_screenshot"].description
     assert "inline" in tools["nx_screenshot"].description
-    assert tools["nx_sketch_diagnostics"].annotations.readOnlyHint
     assert not tools["nx_set_display"].annotations.readOnlyHint

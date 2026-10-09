@@ -203,7 +203,7 @@ class InspectionMixin:
         if sheet is None:
             warnings.append(
                 "NX shows a drawing sheet that is not its current sheet; "
-                "call nx_activate_drawing to make it current"
+                "call nx_activate_drawing_sheet to make it current"
             )
         return {
             "path": str(file),

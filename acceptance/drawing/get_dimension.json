@@ -1,0 +1,252 @@
+{
+ "covers": {
+  "nx_get_dimension": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     75,
+     45,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     40,
+     10,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "lin",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "linear",
+    "first": "$front.items.0.object.id",
+    "second": "$back.items.0.object.id",
+    "orientation": "vertical",
+    "origin": [
+     200,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "rad",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "radius",
+    "first": "$h1.items.0.object.id"
+   }
+  },
+  {
+   "call": "nx_get_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id"
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.type": "VerticalDimension",
+    "data.value": {
+     "close": 50,
+     "tol": 1e-09
+    },
+    "data.valid": true,
+    "data.associations": 2,
+    "data.format.units": "mm",
+    "data.tolerance.type": "none",
+    "data.origin": {
+     "close": [
+      200,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.sheet.name": "SHT1"
+   }
+  },
+  {
+   "call": "nx_get_dimension",
+   "args": {
+    "dimension": "$rad.data.dimension.id"
+   },
+   "expect": {
+    "data.type": "RadiusDimension",
+    "data.value": {
+     "close": 8,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_dimension",
+   "args": {
+    "dimension": "$top.data.view.id"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

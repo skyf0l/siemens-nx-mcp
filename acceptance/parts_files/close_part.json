@@ -1,0 +1,32 @@
+{
+  "covers": {"nx_close_part": []},
+  "part": null,
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "save": "blk", "args": {"path": "$run/cl/pf_close_blk.prt"}},
+    {"call": "nx_save_part", "setup": true, "args": {}},
+    {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$run/cl/pf_close_asm.prt"}},
+    {"call": "nx_add_component", "setup": true, "args": {"part_path": "$run/cl/pf_close_blk.prt", "name": "BLK"}},
+    {"call": "nx_close_part", "args": {"part": "$blk.data.part.id", "save": false},
+     "expect": {"error.code": "NX_PART_IN_USE", "mutation_outcome": "not_started",
+                "error.details.parent_assemblies.0": {"matches": "pf_close_asm\\.prt$"}}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/cl"},
+     "expect": {"page.total": 2}},
+    {"call": "nx_close_part", "args": {"save": true},
+     "expect": {"mutation_outcome": "committed", "data.saved": true,
+                "data.closed.0.kind": "part"}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/cl/pf_close_asm"},
+     "expect": {"page.total": 0}},
+    {"call": "nx_list_files", "args": {"path": "$run/cl", "prefix": "pf_close_asm"},
+     "expect": {"page.total": 1}},
+    {"call": "nx_create_part", "setup": true, "save": "tmp", "args": {"path": "$run/cl/pf_close_tmp.prt"}},
+    {"call": "nx_close_part", "args": {"part": "$tmp.data.part.id", "save": false},
+     "expect": {"mutation_outcome": "committed", "data.closed_count": 1, "data.saved": false,
+                "data.closed.0.id": {"matches": "^p:"}}},
+    {"call": "nx_list_files", "args": {"path": "$run/cl", "prefix": "pf_close_tmp"},
+     "expect": {"page.total": 0}},
+    {"call": "nx_close_part", "args": {"part": "$tmp.data.part.id", "save": false},
+     "expect": {"error.category": "stale_reference", "mutation_outcome": "not_started"}},
+    {"call": "nx_close_part", "args": {"part": "p:999999999"},
+     "expect": {"error.code": {"matches": "^NX_(NOT_FOUND|STALE_REFERENCE)$"}, "mutation_outcome": "not_started"}}
+  ]
+}

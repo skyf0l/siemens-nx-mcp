@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/get_drawing_table.json",
+  "scenario_sha256": "cf3fa9448aca96780315920cf5f078229823c368fba7607c888dac888f034d58",
+  "domain": "drawing",
+  "covers": {
+    "nx_get_drawing_table": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_get_drawing_table": "2de15c44976a938514257f0b458bf2ffdd122193d4756a0121880ffd243853d5"
+  },
+  "run_id": "20261009-172248-9c3719",
+  "owner": "dom_drawing",
+  "part": null,
+  "started": "2026-10-09T13:23:24Z",
+  "finished": "2026-10-09T13:23:27Z",
+  "passed": true,
+  "checks": 11,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.968,
+      "result_sha256": "10000acdcd54542e010da002f71dfd749c75151a88c06f668f3ce50e33753fc6"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.25,
+      "result_sha256": "e2b00b628bc32a4ee0c9cae45f5161c4277caa2b673478e3bdb887a16a87a082"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_table",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.235,
+      "result_sha256": "ddcc1a83e90dad6cc0c8a02a9ceef980f09a427db42d1c227fa0abbbbd3a62f4"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_table",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.312,
+      "result_sha256": "834cdffb3de451e8121fb6677a1c2d7d828bdf1a5afc4ed5d97a893908a6dae6"
+    },
+    {
+      "index": 5,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.188,
+      "result_sha256": "d6748708430b1b8252a43322883318caf03eecdbbbc577491d9935757c15d8c5"
+    },
+    {
+      "index": 6,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.125,
+      "result_sha256": "52fb0528980bd97c697dad30e88a9c3faab9d0b8a73ae363da793ec36a6a12cb"
+    },
+    {
+      "index": 7,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.187,
+      "result_sha256": "72a66ee83f4160fc2d579f5dd3c32a2b1904ce8198dd66455c34f5b782c99ca5"
+    },
+    {
+      "index": 8,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.375,
+      "result_sha256": "33542ee1593c29594462f3ab942c4c7fdbc546deee32f2d79f969d4ffbdd7756"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

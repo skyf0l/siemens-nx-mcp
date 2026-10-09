@@ -1,0 +1,571 @@
+{
+ "covers": {
+  "nx_create_drawing_view": [
+   "base",
+   "projected",
+   "section",
+   "detail"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     75,
+     45,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     40,
+     10,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   },
+   "save": "top",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "base",
+    "data.position": {
+     "close": [
+      120,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-09
+    },
+    "data.inside_sheet": true,
+    "data.bounds": {
+     "close": [
+      88.65,
+      168.65,
+      181.35,
+      231.35
+     ],
+     "tol": 1e-06
+    },
+    "units.sheet_length": "mm",
+    "changes.created": {
+     "contains": {
+      "kind": "drawing_view"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "bottom"
+   },
+   "save": "bottom",
+   "expect": {
+    "data.type": "projected",
+    "data.position.1": {
+     "close": 140,
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$top.data.view.id"
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      120,
+      200
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "right",
+    "spacing": 110
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      230,
+      200
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "isometric",
+    "body": "$part.data.part.id",
+    "position": [
+     330,
+     230
+    ]
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started",
+    "error.field": "/body"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     330,
+     230
+    ],
+    "scale": 2
+   },
+   "save": "front2",
+   "expect": {
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.position": {
+     "close": [
+      330,
+      230
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "projected",
+    "parent": "$front2.data.view.id",
+    "direction": "bottom",
+    "spacing": 60
+   },
+   "expect": {
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.position.1": {
+     "close": 170,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$top.data.view.id",
+    "cut": "$h1.items.0.object.id",
+    "cut_point": "center",
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     300,
+     100
+    ]
+   },
+   "expect": {
+    "data.type": "section",
+    "data.position": {
+     "close": [
+      300,
+      100
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$top.data.view.id",
+    "cut": "$back.items.0.object.id",
+    "cut_point": "start",
+    "step_direction": [
+     0,
+     1
+    ],
+    "arrow_direction": [
+     -1,
+     0
+    ],
+    "position": [
+     60,
+     60
+    ],
+    "scale": 0.5
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      60,
+      60
+     ],
+     "tol": 1e-06
+    },
+    "data.scale": {
+     "close": 0.5,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     60,
+     25,
+     20
+    ],
+    "radius": 9,
+    "scale": 3,
+    "position": [
+     380,
+     60
+    ]
+   },
+   "expect": {
+    "data.type": "detail",
+    "data.scale": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.position": {
+     "close": [
+      380,
+      60
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     25,
+     25,
+     20
+    ],
+    "radius": 5,
+    "position": [
+     380,
+     150
+    ]
+   },
+   "expect": {
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "left",
+    "spacing": 400
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/spacing"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$top.data.view.id",
+    "cut": "$h1.items.0.object.id",
+    "cut_point": "start",
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     300,
+     100
+    ]
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started",
+    "error.field": "/cut_point",
+    "error.code": "NX_WRONG_GEOMETRY"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$top.data.view.id",
+    "cut": "$h1.items.0.object.id",
+    "cut_point": "center",
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     1,
+     1
+    ],
+    "position": [
+     300,
+     100
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/arrow_direction"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     300,
+     100
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/orientation"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$top.data.view.id",
+    "orientation": "top"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     25,
+     25,
+     20
+    ],
+    "radius": -1,
+    "position": [
+     380,
+     150
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/radius"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

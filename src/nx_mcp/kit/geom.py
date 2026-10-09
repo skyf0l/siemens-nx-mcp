@@ -172,3 +172,22 @@ def rows(m):
     """Row-major rotation R (p_abs = R p_local) of an NX Matrix3x3: its X, Y and Z
     axes become the columns."""
     return [[m.Xx, m.Yx, m.Zx], [m.Xy, m.Yy, m.Zy], [m.Xz, m.Yz, m.Zz]]
+
+
+def rotation(m, field="rotation"):
+    """A right-handed orthonormal row-major 3x3 rotation as float rows (1e-8 tolerance)."""
+    from nx_mcp.kit.args import vec3
+
+    if not isinstance(m, (list, tuple)) or len(m) != 3:
+        fail("NX_INVALID_ARGUMENT", f"{_name(field)} must be 3x3", field=field)
+    r = [vec3(row, f"{str(field).rstrip('/')}/{i}") for i, row in enumerate(m)]
+    orthonormal = all(
+        abs(dot(r[i], r[j]) - (1.0 if i == j else 0.0)) <= 1e-8 for i in range(3) for j in range(3)
+    )
+    if not orthonormal or abs(dot(r[0], cross(r[1], r[2])) - 1.0) > 1e-8:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{_name(field)} must be a right-handed orthonormal matrix",
+            field=field,
+        )
+    return r

@@ -1,0 +1,238 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/create_balloons.json",
+  "scenario_sha256": "2d1dfd9efe25d3cccb50d9f1b655ad2941eede9d321229b5f1cb9e6f42169f4f",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_balloons": [],
+    "nx_create_drawing_view": [
+      "base",
+      "projected"
+    ],
+    "nx_create_drawing_table": [
+      "parts_list"
+    ],
+    "nx_edit_drawing_table": [
+      "parts_list"
+    ],
+    "nx_get_drawing_table": [],
+    "nx_update_annotations": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_create_balloons": "2de15c44976a938514257f0b458bf2ffdd122193d4756a0121880ffd243853d5",
+    "nx_create_drawing_view": "f023426bb1ac931809b1430c572d6cb76ca34f1de4ff84d58d38934a02998fe3",
+    "nx_create_drawing_table": "2de15c44976a938514257f0b458bf2ffdd122193d4756a0121880ffd243853d5",
+    "nx_edit_drawing_table": "2de15c44976a938514257f0b458bf2ffdd122193d4756a0121880ffd243853d5",
+    "nx_get_drawing_table": "2de15c44976a938514257f0b458bf2ffdd122193d4756a0121880ffd243853d5",
+    "nx_update_annotations": "cff22fa04aaf459aaf58076238726a1f3ec982fbfb9263fcea853bc994e82f6b"
+  },
+  "run_id": "20261009-172335-5674f0",
+  "owner": "dom_drawing",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-172335-5674f0\\drawing_create_balloons_5674f0.prt",
+  "started": "2026-10-09T13:23:39Z",
+  "finished": "2026-10-09T13:23:45Z",
+  "passed": true,
+  "checks": 36,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 1.078,
+      "result_sha256": "7347c923c1f4f85ecd962bf54a3333686793a869d3e7bc70b6fdcd3e4f41bffe"
+    },
+    {
+      "index": 2,
+      "call": "nx_add_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.234,
+      "result_sha256": "ed358324f0042e727e2669a324ef1af8dce3e919c9b1bf88951a73a670605b23"
+    },
+    {
+      "index": 3,
+      "call": "nx_add_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.156,
+      "result_sha256": "785a6ad0972af5d208219019f406f1c354052bab605faa2885d9c7328bc10677"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_explosion",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "04fe457c93b1824c7da7ca13ead586aec50de4cc5649dbaec86dbb47965a5a64"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.235,
+      "result_sha256": "a72f89cd12494f6ad44c89e789098a66091931e807f7026f5a63301c150bc0e7"
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.703,
+      "result_sha256": "86258d884dfe0a9581542942c471dd4571c295771cf45f1198ef903d75c94b1f"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.859,
+      "result_sha256": "c4377f62516bdac193135aeee06797e471a5794e916fa305688662e25bb1a068"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.282,
+      "result_sha256": "5f4939960d91a4149b159bf9c0d0f3ab384c27ba836e88d8db29e688503d65d3"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.171,
+      "result_sha256": "040e2f5c399f340fdd06ed43a70d90ce69aea9ee4f2be067c0cf63682b9a1c05"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.188,
+      "result_sha256": "160968e2b2b0644c0dd4fde0e18b79ea88e082461571dfebdebe01a9bd827bd5"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.125,
+      "result_sha256": "31c3f409ef2550fd4dd0285b92abff5c1593a6ccb200a167d0dac16239266191"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_balloons",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.172,
+      "result_sha256": "39daf817983c5cb3545890f72d723994611cf69913168c2f4afb1336db192785"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_balloons",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.203,
+      "result_sha256": "a780eaa718aa6dc40507f744d67ab2e85363ce9d508eeb126a5f921f7b0b0b1a"
+    },
+    {
+      "index": 14,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.234,
+      "result_sha256": "63a97cf2a0153fc7d869578b59102e83a578744d1e0c60bc630cb0b2fae8fa19"
+    },
+    {
+      "index": 15,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.188,
+      "result_sha256": "cc1db775910f2addd7a0b6b3a48205fd70715352a5ee3c5e822fde09c8de1229"
+    },
+    {
+      "index": 16,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.094,
+      "result_sha256": "d70fb8d33c64c0731bda7a06b29c82d3ec3434bd1e3df1f81fe1e1080f048202"
+    },
+    {
+      "index": 17,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.109,
+      "result_sha256": "5fa81b7c9d02b223c7854071a12bed82d21ee10d48fe36ca13122d7793c0afb0"
+    },
+    {
+      "index": 18,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.125,
+      "result_sha256": "3a41804a4885cb0714200e1d936d4db6bd6806153ca9d42d35be779864aee774"
+    },
+    {
+      "index": 19,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.125,
+      "result_sha256": "9eb83737d903bd9fb7e3c57a9a9a29218536c80d921e745b8db6f6c0529e0b68"
+    },
+    {
+      "index": 20,
+      "call": "nx_create_balloons",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.141,
+      "result_sha256": "f8da5b0315a67d1066946ec3c85816c79b675e30fe8b8bdf1390d1c2146ee30b"
+    },
+    {
+      "index": 21,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.25,
+      "result_sha256": "69ee32a2cc9910cba8e220b34ad826ad472855872a11483365640fc8ed4e21d1"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-172335-5674f0/drawing_create_balloons_drawing_block_mm.prt"
+    ],
+    "failed": []
+  }
+}

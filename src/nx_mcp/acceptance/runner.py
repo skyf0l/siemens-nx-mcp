@@ -457,8 +457,16 @@ async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, bui
 
 async def loaded_parts(session) -> list[dict] | None:
     """Loaded parts in load order (``None`` when NX cannot list them)."""
-    listed = await call_tool(session, "nx_list_open_parts", {}, intent=None)
-    return listed.get("parts") if listed.get("ok") else None
+    rows: list[dict] = []
+    offset: int | None = 0
+    while offset is not None:
+        args = {"offset": offset, "limit": 200}
+        listed = await call_tool(session, "nx_list_parts", args, intent=None)
+        if not listed.get("ok"):
+            return None
+        rows.extend((listed.get("data") or {}).get("items") or [])
+        offset = (listed.get("page") or {}).get("next_offset")
+    return rows
 
 
 async def close_new_parts(session, before: list[dict] | None, mode: str = "close") -> dict:

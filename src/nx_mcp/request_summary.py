@@ -9,7 +9,6 @@ values, read-only tools as inspections ("Check ...", "Measure ...", "List ...").
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -175,66 +174,6 @@ class _Context:
         return head + _clip(text or "an unknown step", MAX_LENGTH - len(head) - len(tail)) + tail
 
 
-def _extrude(p, c):
-    target = c.obj(p.get("sketch_id"))
-    end = p.get("end_type", "distance")
-    if end == "through_all":
-        extent = "through all"
-    elif end == "up_to_face":
-        extent = "up to a face"
-    elif p.get("symmetric"):
-        extent = f"{c.length(p.get('distance'))} symmetric"
-    else:
-        extent = c.length(p.get("distance"))
-    boolean = p.get("boolean", "none")
-    tail = (
-        "" if boolean in (None, "none") else f", {boolean} with {c.count(p.get('targets'), 'body')}"
-    )
-    return f"Extrude {target} {extent}{tail}"
-
-
-def _rectangle(p, c):
-    a, b = p.get("corner1") or {}, p.get("corner2") or {}
-    try:
-        size = f"{_number(abs(b['x'] - a['x']))} × {_number(abs(b['y'] - a['y']))}{c.unit} "
-    except (KeyError, TypeError):
-        size = ""
-    return f"Add {size}rectangle to {c.sketch(p.get('sketch_id'))}"
-
-
-def _line(p, c):
-    try:
-        (x1, y1), (x2, y2) = _xy(p.get("start")), _xy(p.get("end"))
-        size = f"{c.length(round(math.hypot(x2 - x1, y2 - y1), 3))} "
-    except (KeyError, TypeError, ValueError, IndexError):
-        size = ""
-    return f"Add {size}line to {c.sketch(p.get('sketch_id'))}"
-
-
-def _arc(p, c):
-    shape = (
-        "circle" if abs(_float(p.get("end_angle")) - _float(p.get("start_angle"))) >= 360 else "arc"
-    )
-    return f"Add {shape} R{c.length(p.get('radius'))} to {c.sketch(p.get('sketch_id'))}"
-
-
-def _sketch(p, c):
-    plane = "a custom plane" if p.get("origin") else f"the {p.get('plane', 'XY')} plane"
-    name = f' "{p["name"]}"' if p.get("name") else ""
-    return f"Create sketch{name} on {plane}"
-
-
-def _datum_plane(p, c):
-    method = p.get("method")
-    if method == "offset":
-        return (
-            f"Create a datum plane {c.length(p.get('distance'))} from {c.obj(p.get('reference'))}"
-        )
-    if method == "three_points":
-        return "Create a datum plane through three points"
-    return "Create a datum plane through a point"
-
-
 _CONTROL = {
     "agent": "Take control of NX",
     "manual": "Hand control of NX back to the engineer",
@@ -252,34 +191,7 @@ def _reposition(p, c):
     return text
 
 
-# --- Sketch edits, sheet metal and formatting details -----------------------
-
-
-def _sketch_edit_step(op, c):
-    action = op.get("action")
-    if action == "add_line":
-        try:
-            (x1, y1), (x2, y2) = _xy(op.get("start")), _xy(op.get("end"))
-            return f"add {c.length(round(math.hypot(x2 - x1, y2 - y1), 3))} line"
-        except (TypeError, ValueError, IndexError):
-            return "add a line"
-    if action == "line":
-        return f"move line {c.obj(op.get('curve'))}"
-    if action == "arc":
-        return f"reshape arc {c.obj(op.get('curve'))} to R{c.length(op.get('radius'))}"
-    if action == "delete":
-        return f"delete {c.obj(op.get('object'))}"
-    if action == "constraint":
-        kind = op.get("type")
-        verb = "fix" if kind == "fixed" else "make"
-        return f"{verb} {c.obj(op.get('curve'))}" + ("" if kind == "fixed" else f" {kind}")
-    return _words(action or "edit")
-
-
-def _edit_sketch(p, c):
-    operations = p.get("operations") if isinstance(p.get("operations"), list) else []
-    first = _sketch_edit_step(operations[0], c) if operations else "no changes"
-    return f"Edit sketch {c.obj(p.get('sketch_id'))}: {first}" + _more(len(operations) - 1)
+# --- Sheet metal and formatting details --------------------------------------
 
 
 _SHEET_METAL_VERBS = {
@@ -371,60 +283,6 @@ def _tolerance(p, c):
     return f"{kind} tolerance" if kind else ""
 
 
-def _dimension_format(p, c):
-    parts = []
-    if p.get("decimal_places") is not None:
-        parts.append(f"{p['decimal_places']} decimals")
-    if p.get("tolerance_type"):
-        parts.append(_tolerance(p, c))
-    if p.get("units"):
-        parts.append(f"in {p['units']}")
-    if p.get("decimal_separator"):
-        parts.append(f"{p['decimal_separator']} separator")
-    if p.get("trailing_zeros") is not None:
-        parts.append("trailing zeros" if p["trailing_zeros"] else "no trailing zeros")
-    if p.get("tolerance_decimal_places") is not None:
-        parts.append(f"{p['tolerance_decimal_places']} tolerance decimals")
-    head = f"Format dimension {c.obj(p.get('dimension'))}"
-    return head + (f": {_listed(parts)}" if parts else "")
-
-
-def _edit_drawing_view(p, c):
-    parts = []
-    if p.get("position"):
-        parts.append(f"move to {_point(p['position'])}")
-    if p.get("scale"):
-        parts.append(f"scale {_scale(p['scale'])}")
-    if p.get("style"):
-        parts.append("restyle")
-    return f"Edit view {c.obj(p.get('view'))}" + (f": {_listed(parts, 3)}" if parts else "")
-
-
-def _edit_annotation(p, c):
-    target = c.obj(p.get("annotation"))
-    if p.get("delete"):
-        return f"Delete annotation {target}"
-    if p.get("name") and p.get("position"):
-        return f'Move and rename annotation {target} to "{p["name"]}"'
-    if p.get("name"):
-        return f'Rename annotation {target} to "{p["name"]}"'
-    if p.get("position"):
-        return f"Move annotation {target} to {_point(p['position'])}"
-    return f"Edit annotation {target}"
-
-
-def _edit_faces(p, c):
-    faces = c.some(p.get("faces"), "face")
-    action = p.get("action")
-    if action == "move":
-        return f"Move {faces} {c.length(p.get('distance'))} along {_direction(p.get('direction'))}"
-    if action == "offset":
-        return f"Offset {faces} by {c.length(p.get('distance'))}"
-    if action == "replace":
-        return f"Replace {faces} with {c.obj(p.get('replacement'))}"
-    return f"Heal {faces}"
-
-
 def _component_action(p, c):
     target = c.obj(p.get("component"))
     action = p.get("action")
@@ -491,47 +349,6 @@ def _edit_explosion_trace(p, c):
     return head + (f": {_listed(changed)}" if changed else "")
 
 
-def _drawing_table(p, c):
-    rows = p.get("rows") if isinstance(p.get("rows"), list) else []
-    columns = len(rows[0]) if rows and isinstance(rows[0], list) else 0
-    kind = "title block" if p.get("kind") == "title_block" else "revision table"
-    verb = f"Edit {kind} {c.obj(p.get('table'))}" if p.get("table") else f"Add {kind}"
-    return f"{verb} ({len(rows)} × {columns} cells) on drawing {c.obj(p.get('drawing'))}"
-
-
-def _parts_list_column(p, c):
-    target = c.obj(p.get("parts_list"))
-    action = p.get("action")
-    if action == "append":
-        title = f' "{p["title"]}"' if p.get("title") else ""
-        return f"Add column{title} to parts list {target}"
-    verb = "Remove" if action == "remove" else "Edit"
-    column = f"column {p['index']}" if p.get("index") is not None else "a column"
-    return f"{verb} {column} of parts list {target}"
-
-
-def _bend_table(p, c):
-    columns = p.get("columns")
-    tail = f" ({c.count(columns, 'column')})" if columns else ""
-    if p.get("table"):
-        return f"Edit bend table {c.obj(p.get('table'))}{tail}"
-    return f"Add bend table for view {c.obj(p.get('view'))}{tail}"
-
-
-def _pmi_fcf(p, c):
-    characteristic = "".join(
-        f" {ch.lower()}" if ch.isupper() else ch for ch in str(p.get("characteristic"))
-    ).strip()
-    zone = "Ø" if p.get("zone_shape") in ("diameter", "spherical_diameter") else ""
-    datums = p.get("datums") or []
-    verb = "Edit" if p.get("annotation") else "Add"
-    text = (
-        f"{verb} {characteristic} tolerance {zone}{c.length(p.get('tolerance'))} "
-        f"on {c.some(p.get('faces'), 'face')}"
-    )
-    return text + (f" to {c.count(datums, 'datum')}" if datums else "")
-
-
 def _set_display(p, c):
     parts = []
     if p.get("color"):
@@ -559,19 +376,6 @@ def _spline(p, c):
     return f"{head} {through} {len(points)} {method}, degree {p.get('degree', 3)}"
 
 
-def _transform_bodies(p, c):
-    rotation = p.get("rotation_matrix")
-    identity = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-    turned = isinstance(rotation, list) and rotation != identity
-    if p.get("feature"):
-        head = f"Edit transform {c.obj(p.get('feature'))}"
-    else:
-        verb = "Copy" if p.get("copy") else "Move"
-        bodies = c.some(p.get("bodies"), "body") if p.get("bodies") else "bodies"
-        head = f"{verb} {bodies}"
-    return f"{head} by {_point(p.get('translation'))}{c.unit}" + (" and rotate" if turned else "")
-
-
 def _find_geometry(p, c):
     kind = p.get("kind") or "face"
     shape = p.get("geometry_type")
@@ -594,38 +398,6 @@ def _capabilities(p, c):
     return "Check tested scope of all tools"
 
 
-def _thread_catalog(p, c):
-    if p.get("size"):
-        return f"Look up thread {p.get('standard')} {p['size']}"
-    if p.get("standard"):
-        return f'List thread sizes of "{p["standard"]}"'
-    return "List installed thread standards"
-
-
-def _activate_part(p, c):
-    target = c.obj(p.get("part"))
-    work, display = p.get("work", True), p.get("display", True)
-    if work and display:
-        return f"Make {target} the displayed work part"
-    return f"Make {target} the work part" if work else f"Display {target}"
-
-
-def _import_geometry(p, c):
-    source = c.path(p.get("path"))
-    if p.get("target") == "new_part":
-        text = f"Import STEP {source} into new part {c.path(p.get('output_path'))}"
-    else:
-        text = f"Import STEP {source} into the work part"
-    return text + (", flattened" if p.get("flatten") else "")
-
-
-def _upload(p, c):
-    size = _float(p.get("total_size"))
-    shown = f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{math.ceil(size / 1024)} KB"
-    verb = "Continue uploading" if _float(p.get("offset")) > 0 else "Upload"
-    return f"{verb} {c.path(p.get('path'))} ({shown})"
-
-
 def _clearance(p, c):
     objects = p.get("objects")
     if isinstance(objects, list) and len(objects) > 1:
@@ -644,39 +416,6 @@ def _inspection_report(p, c):
     return f"Write clearance report{scope} to {c.path(p.get('path'))}"
 
 
-def _sketch_constraint(p, c):
-    kind = _words(p.get("constraint_type", ""))
-    if kind == "fixed":
-        kind = "fix"
-    text = f"Add {kind} constraint to {c.some(p.get('targets'), 'curve')}"
-    value = p.get("value")
-    if value is None:
-        return text
-    shown = f"{_number(value)}°" if kind == "angle" else c.length(value)
-    return f"{text} = {shown}"
-
-
-def _sketch_primitive(p, c):
-    kind = p.get("primitive")
-    where = c.sketch(p.get("sketch_id"))
-    if kind == "circle":
-        return f"Add circle R{c.length(p.get('radius'))} to {where}"
-    size = f"{_number(p.get('width'))} × {_number(p.get('height'))}{c.unit}"
-    if kind == "slot":
-        return f"Add {size} slot to {where}"
-    return f"Add {size} rounded rectangle R{_number(p.get('radius'))} to {where}"
-
-
-def _sketch_relation(p, c):
-    relation = _words(p.get("relation", ""))
-    first, second = c.obj(p.get("curve1")), c.obj(p.get("curve2"))
-    if p.get("point1") or p.get("point2"):
-        first = f"{p.get('point1') or 'point'} of {first}"
-        second = f"{p.get('point2') or 'point'} of {second}"
-        return f"Make {first} {relation} with {second}"
-    return f"Make {first} and {second} {relation}"
-
-
 def _show_explosion(p, c):
     if not p.get("explosion"):
         text = "Show the assembly unexploded"
@@ -687,35 +426,12 @@ def _show_explosion(p, c):
     return text
 
 
-def _material(p, c):
-    return (
-        f'Assign material "{p.get("name")}" ({_number(p.get("density"))} kg/m³) '
-        f"to {c.some(p.get('bodies'), 'body')}"
-    )
-
-
-def _workspace_list(p, c):
-    folder = p.get("path") or "."
-    where = "the workspace root" if folder in (".", "./", "") else c.path(folder)
-    prefix = f' matching "{p["prefix"]}"' if p.get("prefix") else ""
-    return f"List files in {where}{prefix}"
-
-
 def _list_components(p, c):
     text = "List assembly components"
     if p.get("name_contains"):
         text += f' named like "{p["name_contains"]}"'
     if p.get("suppressed") is not None:
         text += " (suppressed only)" if p["suppressed"] else " (unsuppressed only)"
-    return text
-
-
-def _list_open_parts(p, c):
-    if p.get("active_only"):
-        return "List the active parts"
-    text = "List parts loaded in NX"
-    if p.get("modified") is not None:
-        text += " (modified only)" if p["modified"] else " (unmodified only)"
     return text
 
 
@@ -742,15 +458,11 @@ _READ_ONLY_FIXED = {
 }
 
 _ACTION_FIXED = {
-    "nx_save_part": "Save the work part",
     "nx_fit_view": "Fit the view",
     "nx_undo": "Undo the agent's last operation",
     "nx_screenshot": "Capture a screenshot",
     "nx_render_view": "Render the view to an image",
-    "nx_datum_csys": "Create a datum coordinate system",
     "nx_clear_highlights": "Clear the agent's highlights",
-    "nx_rebuild_model": "Update the model",
-    "nx_refresh_annotations": "Refresh sheet-metal annotations",
     "nx_update_assembly_documentation": "Update assembly mates, parts lists, traces and views",
     "nx_sheet_metal_context": "Switch NX to the Sheet Metal application",
     "nx_set_camera": "Set the view camera",
@@ -763,24 +475,6 @@ _ACTION_FIXED = {
 
 _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     # Files, parts and session
-    "nx_create_part": lambda p, c: f"Create part {c.path(p.get('path'))}",
-    "nx_open_part": lambda p, c: f"Open {c.path(p.get('path'))}",
-    "nx_save_as": lambda p, c: f"Save the work part as {c.path(p.get('path'))}",
-    "nx_close_part": lambda p, c: (
-        f"Close {c.obj(p.get('part'))}" + (" after saving" if p.get("save") else " without saving")
-    ),
-    "nx_activate_part": _activate_part,
-    "nx_activate_drawing": lambda p, c: (
-        f"Open drawing sheet {c.obj(p.get('drawing'))}"
-        if p.get("drawing")
-        else "Return from the drawing to modeling"
-    ),
-    "nx_export_step": lambda p, c: f"Export STEP to {c.path(p.get('path'))}",
-    "nx_export_drawing_pdf": lambda p, c: f"Export drawing PDF to {c.path(p.get('path'))}",
-    "nx_import_geometry": _import_geometry,
-    "nx_export_planar_dxf": lambda p, c: (
-        f"Export {c.obj(p.get('source'))} as DXF to {c.path(p.get('path'))}"
-    ),
     "nx_export_flat_pattern": lambda p, c: (
         f"Export flat pattern {c.obj(p.get('flat_pattern'))} as "
         f"{str(p.get('format') or 'dxf').upper()} to {c.path(p.get('path'))}"
@@ -789,18 +483,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
         f"Export explosion {c.obj(p.get('explosion'))} animation "
         f"({p.get('frames', 12)} frames) to {c.path(p.get('path'))}"
     ),
-    "nx_copy_project": lambda p, c: (
-        f'Copy the assembly to {c.path(p.get("path"))} with prefix "{p.get("prefix")}"'
-    ),
-    "nx_package_assembly": lambda p, c: f"Package the assembly into {c.path(p.get('path'))}",
-    "nx_create_directory": lambda p, c: f"Create folder {c.path(p.get('path'))}",
-    "nx_download_file": lambda p, c: (
-        f"Check file {c.path(p.get('path'))}"
-        if p.get("delivery") == "metadata"
-        else f"Read file {c.path(p.get('path'))}"
-    ),
-    "nx_upload_file": _upload,
-    "nx_workspace_list": _workspace_list,
     "nx_save_presentation": lambda p, c: f"Save the view presentation to {c.path(p.get('path'))}",
     "nx_restore_presentation": lambda p, c: (
         f"Restore the view presentation from {c.path(p.get('path'))}"
@@ -822,109 +504,10 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
         if p.get("action") == "accept"
         else "Discard the previewed changes"
     ),
-    # Sketches
-    "nx_create_sketch": _sketch,
-    "nx_create_sketch_on": lambda p, c: (
-        f'Create sketch "{p["name"]}" on {c.obj(p.get("target"))}'
-        if p.get("name")
-        else f"Create a sketch on {c.obj(p.get('target'))}"
-    ),
-    "nx_create_path_sketch": lambda p, c: (
-        "Create sketch"
-        + (f' "{p["name"]}"' if p.get("name") else "")
-        + f" along {c.some(p.get('edges'), 'edge')} at {_number(p.get('percent', 0))}%"
-    ),
-    "nx_finish_sketch": lambda p, c: f"Finish sketch {c.obj(p.get('sketch_id'))}",
-    "nx_edit_sketch": _edit_sketch,
-    "nx_sketch_line": _line,
-    "nx_sketch_rectangle": _rectangle,
-    "nx_sketch_arc": _arc,
-    "nx_sketch_primitive": _sketch_primitive,
-    "nx_sketch_constraint": _sketch_constraint,
-    "nx_sketch_relation": _sketch_relation,
-    "nx_sketch_tangent": lambda p, c: (
-        f"Make {c.obj(p.get('curve2'))} tangent to {c.obj(p.get('curve1'))}"
-    ),
-    "nx_sketch_symmetry": lambda p, c: (
-        f"Make {c.obj(p.get('curve1'))} and {c.obj(p.get('curve2'))} symmetric "
-        f"about {c.obj(p.get('centerline'))}"
-    ),
-    "nx_sketch_angle": lambda p, c: (
-        f"Dimension angle between {c.obj(p.get('line1'))} and {c.obj(p.get('line2'))} "
-        f"to {_number(p.get('value'))}°"
-    ),
-    "nx_sketch_dimension": lambda p, c: (
-        f"Dimension {p.get('dimension_type')} of {c.obj(p.get('curve'))} "
-        + ("as a reference" if p.get("reference") else f"to {c.length(p.get('value'))}")
-    ),
-    "nx_sketch_trim_extend": lambda p, c: (
-        f"{'Extend' if p.get('action') == 'extend' else 'Trim'} {c.obj(p.get('curve'))} "
-        f"{'to' if p.get('action') == 'extend' else 'at'} "
-        f"{c.some(p.get('boundaries'), 'boundary')}"
-    ),
-    "nx_sketch_info": lambda p, c: f"Inspect sketch {c.obj(p.get('sketch_id'))}",
-    "nx_sketch_diagnostics": lambda p, c: (
-        f"Check constraint status of sketch {c.obj(p.get('sketch_id'))}"
-    ),
-    "nx_sketch_conflicts": lambda p, c: (
-        f"Find conflicting constraints in sketch {c.obj(p.get('sketch_id'))}"
-    ),
     # Features and bodies
-    "nx_extrude": _extrude,
-    "nx_revolve": lambda p, c: (
-        f'Revolve sketch "{p.get("sketch_name")}" '
-        f"{_number(p.get('angle', 360))}° about {p.get('axis', 'Z')}"
-    ),
-    "nx_sweep": lambda p, c: (
-        f"Sweep {c.obj(p.get('section'))} along {c.obj(p.get('guide'))}"
-        + (
-            ""
-            if p.get("boolean") in (None, "none")
-            else f", {p['boolean']} with {c.some(p.get('targets'), 'body')}"
-        )
-    ),
-    "nx_loft": lambda p, c: (
-        f"Loft through {c.count(p.get('sketches'), 'sketch')}"
-        + ("" if p.get("solid", True) else " as a sheet")
-    ),
-    "nx_blend": lambda p, c: (
-        f"Blend {c.count(p.get('edges'), 'edge')} R{c.length(p.get('radius'))}"
-    ),
-    "nx_chamfer": lambda p, c: (
-        f"Chamfer {c.count(p.get('edges'), 'edge')} {c.length(p.get('offset'))}"
-    ),
-    "nx_hole": lambda p, c: (
-        f"Drill hole Ø{c.length(p.get('diameter'))} × {c.length(p.get('depth'))} deep"
-    ),
-    "nx_thread": lambda p, c: (
-        f"Add thread Ø{_number(p.get('major_diameter'))} × P{_number(p.get('pitch'))}, "
-        f"{c.length(p.get('length'))} long on {c.obj(p.get('face'))}"
-    ),
-    "nx_standard_thread": lambda p, c: (
-        f"Add {p.get('size')} thread, {c.length(p.get('length'))} long on {c.obj(p.get('face'))}"
-    ),
-    "nx_boolean": lambda p, c: (
-        f"{str(p.get('boolean_type', 'Boolean')).capitalize()} {c.count(p.get('targets'), 'body')}"
-    ),
-    "nx_pattern": lambda p, c: (
-        f"Pattern {c.count(p.get('features'), 'feature')}: "
-        f"{_number(p.get('count', 2))} × {c.length(p.get('spacing', 10))} "
-        f"along {p.get('direction', 'X')}"
-    ),
-    "nx_circular_pattern": lambda p, c: (
-        f"Circular pattern of {c.count(p.get('features'), 'feature')}: "
-        f"{_number(p.get('count'))} × {_number(p.get('angle'))}°"
-    ),
-    "nx_shell": lambda p, c: f"Shell {c.obj(p.get('body'))} {c.length(p.get('thickness'))} thick",
-    "nx_draft": lambda p, c: f"Draft {c.count(p.get('faces'), 'face')} {_number(p.get('angle'))}°",
     "nx_thicken": lambda p, c: (
         f"Thicken {c.count(p.get('faces'), 'face')} by {c.length(p.get('first_offset'))}"
     ),
-    "nx_mirror_body": lambda p, c: (
-        f"Mirror {c.obj(p.get('body'))} about the {p.get('plane')} plane"
-    ),
-    "nx_transform_bodies": _transform_bodies,
-    "nx_edit_faces": _edit_faces,
     "nx_sew": lambda p, c: (
         f"Sew {c.obj(p.get('target'))} with {c.some(p.get('tools'), 'sheet')}"
         + (" into a solid" if p.get("solid") else "")
@@ -941,30 +524,10 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     ),
     "nx_spline": _spline,
     "nx_delete_feature": lambda p, c: f"Delete feature {c.obj(p.get('name'))}",
-    "nx_edit_feature": lambda p, c: (
-        f"Edit feature {c.obj(p.get('name'))}: {c.assignments(p.get('params'))}"
-    ),
-    "nx_set_feature_parameters": lambda p, c: (
-        f"Set {c.assignments(p.get('values'))} on {c.obj(p.get('feature'))}"
-    ),
-    "nx_bind_parameter": lambda p, c: (
-        f"Bind {p.get('parameter')} of {c.obj(p.get('feature'))} "
-        f"to expression {c.obj(p.get('expression'))}"
-    ),
-    "nx_set_expression": lambda p, c: f"Set {p.get('expression')} = {p.get('formula')}",
-    "nx_set_material": _material,
     "nx_create_reference_set": lambda p, c: (
         f'Create reference set "{p.get("name")}" with {c.count(p.get("objects"), "object")}'
     ),
     "nx_geometry_anchor": lambda p, c: f"Capture a persistent anchor for {c.obj(p.get('object'))}",
-    "nx_datum_plane": _datum_plane,
-    "nx_datum_axis": lambda p, c: (
-        "Create a datum axis"
-        + (" through two points" if p.get("method") == "two_points" else " along a direction")
-    ),
-    "nx_datum_point": lambda p, c: (
-        "Create a point at " + ", ".join(_number(v) for v in (p.get("position") or []))
-    ),
     # Sheet metal
     "nx_sheet_metal_feature": _sheet_metal_feature,
     "nx_set_sheet_metal_defaults": _sheet_metal_defaults,
@@ -1029,61 +592,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
         f"Add trace line from {c.obj(p.get('start_edge'))} to {c.obj(p.get('end_edge'))}"
     ),
     "nx_edit_explosion_trace": _edit_explosion_trace,
-    # Drawings and PMI
-    "nx_create_drawing": lambda p, c: (
-        f'Create drawing sheet "{p.get("name", "Sheet1")}" ({p.get("size", "A3")})'
-    ),
-    "nx_add_base_view": lambda p, c: (
-        f"Add {_a(p.get('view') or 'isometric')} view to drawing {c.obj(p.get('drawing'))}"
-    ),
-    "nx_add_projection_view": lambda p, c: (
-        f"Add a projected view {p.get('direction')} of view {c.obj(p.get('base_view'))}"
-    ),
-    "nx_add_section_drawing_view": lambda p, c: (
-        f"Add a section view of {c.obj(p.get('parent_view'))} "
-        f"through {c.obj(p.get('cut_object'))}"
-        + (f" at {_scale(p['scale'])}" if p.get("scale") not in (None, 1, 1.0) else "")
-    ),
-    "nx_add_detail_drawing_view": lambda p, c: (
-        f"Add a {_scale(p.get('scale', 2))} detail view R{c.length(p.get('radius'))} "
-        f"of view {c.obj(p.get('parent_view'))}"
-    ),
-    "nx_add_flat_pattern_view": lambda p, c: (
-        f"Add a flat-pattern view of {c.obj(p.get('flat_pattern'))} "
-        f"to drawing {c.obj(p.get('drawing'))}"
-    ),
-    "nx_edit_drawing_view": _edit_drawing_view,
-    "nx_add_dimension": lambda p, c: (
-        ("Rebind" if p.get("dimension") else "Add")
-        + f" {p.get('dim_type') or 'aligned'} dimension "
-        + (
-            f"between {c.obj(p.get('object1'))} and {c.obj(p.get('object2'))}"
-            if p.get("object2")
-            else f"on {c.obj(p.get('object1'))}"
-        )
-    ),
-    "nx_edit_dimension_format": _dimension_format,
-    "nx_dimension_format": lambda p, c: f"Read the format of dimension {c.obj(p.get('dimension'))}",
-    "nx_edit_annotation": _edit_annotation,
-    "nx_create_parts_list": lambda p, c: (
-        "Add a parts list ("
-        + {"top_level": "top level", "all": "all levels"}.get(p.get("scope"), "leaf parts")
-        + f") to drawing {c.obj(p.get('drawing'))}"
-    ),
-    "nx_update_parts_list": lambda p, c: f"Update parts list {c.obj(p.get('parts_list'))}",
-    "nx_parts_list_column": _parts_list_column,
-    "nx_parts_list_balloons": lambda p, c: (
-        f"Add parts-list balloons in view {c.obj(p.get('view'))}"
-    ),
-    "nx_parts_list_info": lambda p, c: f"Read parts list {c.obj(p.get('parts_list'))}",
-    "nx_drawing_table": _drawing_table,
-    "nx_bend_table": _bend_table,
-    "nx_drawing_view_info": lambda p, c: f"Check scale and position of view {c.obj(p.get('view'))}",
-    "nx_pmi_datum": lambda p, c: (
-        f"{'Edit' if p.get('annotation') else 'Add'} datum {p.get('letter')} "
-        f"on {c.some(p.get('faces'), 'face')}"
-    ),
-    "nx_pmi_fcf": _pmi_fcf,
     # Display and views
     "nx_set_view": lambda p, c: f"Set the view to {p.get('orientation')}",
     "nx_set_visibility": lambda p, c: (
@@ -1118,7 +626,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     "nx_get_bounding_box": lambda p, c: (
         f"Measure the bounding box of {c.scope(p.get('body'), p.get('scope'))}"
     ),
-    "nx_material_info": lambda p, c: f"Check material of {c.scope(p.get('body'), p.get('scope'))}",
     "nx_check_clearance": _clearance,
     "nx_check_interference": lambda p, c: (
         f"Check interference between {c.obj(p.get('obj1'))} and {c.obj(p.get('obj2'))}"
@@ -1146,20 +653,16 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
         "Check model health" + (" of the assembly" if p.get("scope") == "assembly" else "")
     ),
     "nx_model_summary": lambda p, c: f"Summarize the work part ({p.get('section') or 'overview'})",
-    "nx_get_feature_info": lambda p, c: f"Inspect feature {c.obj(p.get('name'))}",
-    "nx_feature_parameters": lambda p, c: f"List parameters of feature {c.obj(p.get('feature'))}",
     "nx_list_topology": lambda p, c: (
         f"List faces and edges of {c.obj(p.get('face') or p.get('body'))}"
     ),
     "nx_list_components": _list_components,
-    "nx_list_open_parts": _list_open_parts,
     "nx_list_expressions": lambda p, c: (
         f'List expressions named like "{p["name_contains"]}"'
         if p.get("name_contains")
         else "List expressions in the work part"
     ),
     "nx_explosion_info": lambda p, c: f"Inspect explosion {c.obj(p.get('explosion'))}",
-    "nx_thread_catalog": _thread_catalog,
 }
 
 

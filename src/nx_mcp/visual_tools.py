@@ -7,7 +7,7 @@ import uuid
 
 from nx_mcp import side_effects
 from nx_mcp.kit.geom import xyz
-from nx_mcp.kit.result import enum_name
+from nx_mcp.kit.result import enum_name  # noqa: F401 - re-exported for tests
 from nx_mcp.legacy_kit import unit_normal, vector
 from nx_mcp.runtime import NXToolError
 
@@ -459,98 +459,3 @@ class VisualToolsMixin:
         elif view.ActiveDynamicSection == target:
             view.DisplaySectioningToggle = False
         return {"section_id": section, "action": action, "geometry_changed": False}
-
-    def _sketch_diagnostics(self, sketch_id):
-        sketch = self._resolve(sketch_id, {"sketch"})
-        part = self._work_part()
-        active = self.session.ActiveSketch
-        if active and active != sketch:
-            raise NXToolError(
-                "NX_SKETCH_ACTIVE", "Finish the other active sketch before running diagnostics"
-            )
-        mark = self.session.SetUndoMark(
-            self.nxopen.Session.MarkVisibility.Invisible, "NX MCP sketch diagnostics"
-        )
-        activated = False
-        try:
-            if not active:
-                sketch.Activate(self.nxopen.Sketch.ViewReorient.FalseValue)
-                activated = True
-            region = part.Sketches.CreateWorkRegionBuilder()
-            try:
-                # Evaluate all geometry regardless of the current work-region UI
-                # preference; the invisible undo mark restores this temporary change.
-                region.Scope = self.nxopen.SketchWorkRegionBuilder.ScopeType.EntireSketch
-                region.Commit()
-            finally:
-                region.Destroy()
-            sketch.CalculateStatus()
-            status, dof = sketch.GetStatus()
-            status_name = enum_name(status, self.nxopen.Sketch.Status)
-            constraints = list(
-                sketch.GetAllConstraintsOfType(
-                    self.nxopen.Sketch.ConstraintClass.Any, self.nxopen.Sketch.ConstraintType.NoCon
-                )
-            )
-            constraint_records = []
-            for constraint in constraints:
-                ref = self._reference(constraint, "constraint", part, "Sketch constraint")
-                row = {
-                    "object": ref,
-                    "type": enum_name(constraint.ConstraintType, self.nxopen.Sketch.ConstraintType),
-                }
-                if hasattr(constraint, "AssociatedExpression") and constraint.AssociatedExpression:
-                    exp = constraint.AssociatedExpression
-                    row["expression"] = self._expression_record(exp)
-                constraint_records.append(row)
-            geometry = []
-            for curve in sketch.GetAllGeometry():
-                attached = sketch.GetConstraintsForGeometry(
-                    curve, self.nxopen.Sketch.ConstraintClass.Any
-                )
-                geometry.append(
-                    {
-                        "object": self._reference(curve, "curve", part, "Sketch geometry"),
-                        "constraints": [
-                            self._reference(c, "constraint", part, "Constraint")["id"]
-                            for c in attached
-                        ],
-                    }
-                )
-            return {
-                "sketch": self._reference(sketch, "sketch", part, "Sketch"),
-                "solver_status": status_name,
-                "remaining_degrees_of_freedom": dof
-                if status_name in {"UnderConstrained", "WellConstrained"}
-                else None,
-                "native_dof_value": dof,
-                "constraints": constraint_records,
-                "constraint_count": len(constraints),
-                "geometry": geometry,
-                "geometry_count": len(geometry),
-                "evaluation": "native CalculateStatus, entire sketch",
-                "conflicting_constraints": None,
-                "work_region_handling": "Temporarily evaluate entire sketch; restore native state with undo",
-                "warnings": [
-                    "Persistent constraints are enumerated; inferred solver relations are not individual persistent constraints.",
-                    "NX overall status does not identify a minimal conflicting constraint set.",
-                    "remaining_degrees_of_freedom is NX's native GetStatus indicator; NX 2406 reports the number of curves that are not fully constrained, not scalar DOF. Use solver_status for the constraint state.",
-                ],
-            }
-        finally:
-            try:
-                if activated and self.session.ActiveSketch == sketch:
-                    sketch.Deactivate(
-                        self.nxopen.Sketch.ViewReorient.FalseValue,
-                        self.nxopen.Sketch.UpdateLevel.Model,
-                    )
-            finally:
-                try:
-                    self.session.UndoToMark(mark, None)
-                    self.session.DeleteUndoMark(mark, None)
-                except Exception as error:
-                    raise NXToolError(
-                        "NX_ROLLBACK_FAILED",
-                        "Sketch diagnostic cleanup failed: " + str(error),
-                        details={"mutation_outcome": "partial"},
-                    ) from error

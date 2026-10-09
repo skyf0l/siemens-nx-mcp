@@ -86,7 +86,7 @@ async def snapshot():
         status = await call("nx_status")
         if status["ui"]["mode"] != "agent":
             raise RuntimeError("NX must be in agent mode before native acceptance")
-        parts = (await call("nx_list_open_parts"))["parts"]
+        parts = (await call("nx_list_parts"))["data"]["items"]
         if not parts or any(p["modified"] for p in parts):
             raise RuntimeError(
                 "Keep an original saved part open and save existing work before acceptance"

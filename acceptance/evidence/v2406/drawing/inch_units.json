@@ -1,0 +1,173 @@
+{
+  "format": 1,
+  "scenario": "acceptance/drawing/inch_units.json",
+  "scenario_sha256": "c27da8ca603bf392139329acf1216e5b41d0ba95f399a47e2886b75908558ed8",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_view": [
+      "base",
+      "projected",
+      "detail"
+    ],
+    "nx_create_drawing_dimension": [
+      "radius",
+      "diameter"
+    ],
+    "nx_create_note": [],
+    "nx_create_drawing_table": [
+      "revision"
+    ],
+    "nx_create_drawing_sheet": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_create_drawing_view": "f023426bb1ac931809b1430c572d6cb76ca34f1de4ff84d58d38934a02998fe3",
+    "nx_create_drawing_dimension": "7fa8bae9e30f48f968a9a995a0a45ca52f3e5830387d2d43fb371387b153d4fd",
+    "nx_create_note": "cff22fa04aaf459aaf58076238726a1f3ec982fbfb9263fcea853bc994e82f6b",
+    "nx_create_drawing_table": "2de15c44976a938514257f0b458bf2ffdd122193d4756a0121880ffd243853d5",
+    "nx_create_drawing_sheet": "42c7000e96091f1e6cae49a2ba8414648bb73bbfe85ac37c2dc9b9209b3faeb1"
+  },
+  "run_id": "20261009-172335-5674f0",
+  "owner": "dom_drawing",
+  "part": null,
+  "started": "2026-10-09T13:24:29Z",
+  "finished": "2026-10-09T13:24:33Z",
+  "passed": true,
+  "checks": 23,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.797,
+      "result_sha256": "52a82ba9e00164a2b651802624e685d1b692f0a34bfc003ef439b0a6567fbb41"
+    },
+    {
+      "index": 2,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.171,
+      "result_sha256": "6fe2fe2b1452219fa4ad40268eb5a51da7edb56bb005925c40a83d01423e3c15"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.219,
+      "result_sha256": "1f15911a26241dfb683c601eecb34c155e3160f797b924ac336cf13879a7e58e"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.406,
+      "result_sha256": "302fbb136509b1452fb232c73503274602782a378a1c4b7ee11a95f4ef783453"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.25,
+      "result_sha256": "b8dc72fa199039762d098778cbdaabdc7ea2ad87354421eece8225940ec59fbe"
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.391,
+      "result_sha256": "7de81f288b523e9073fa6c604d3653f1bc003f8b667714180eebe1d812ff03fe"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.218,
+      "result_sha256": "c1b008964af1c567eb7c601f089f8723c5f9125eddcfb164d1e8c6e94164ae3d"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.172,
+      "result_sha256": "b51a09e4ebcf0a5e1121507facf51bf8379e8ee32d7176286ba982022d4e0988"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_note",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.157,
+      "result_sha256": "912fe8640532ed580dfab9c01c5cb54814c343923ac096475e6fb08014822ccd"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.218,
+      "result_sha256": "c1f15c08a1bd97de054809e1404b0929b63fb320b67869b670d1ccb084758338"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.188,
+      "result_sha256": "835b823e502231aa65584151e6d3ec9714e07a84bd14794970e18244641d916f"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.562,
+      "result_sha256": "bedafd4efa169ab41462a449032146996457fb3b49e544d2dafe4dd69165e440"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.282,
+      "result_sha256": "582f8cb5705a4ec2073dbb50fb090de55bffc7d3a66531df8171a416f6344f7e"
+    },
+    {
+      "index": 14,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.328,
+      "result_sha256": "3a5b9c143c1e437f21b3e3e1910d8acf22076db67344036cae21c166310c1942"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

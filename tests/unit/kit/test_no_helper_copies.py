@@ -39,11 +39,6 @@ ALLOWLIST = {
         "page",
     ): "legacy page shape {items,total,...}; kit.result.page replaces it per domain",
     ("inventory.py", "page"): "legacy page shape (rows, {total_count,...}); replaced per domain",
-    (
-        "authoring.py",
-        "_native_formula",
-    ): "maps to NX_INVALID_FORMULA; kit.expr replaces it (modeling domain)",
-    ("sketch_curves.py", "native_input_error"): "native() with codes replaces it (sketch domain)",
     ("request_summary.py", "_number"): "panel text formatter, not a validator",
     ("request_summary.py", "_tolerance"): "panel text formatter, not a tolerance",
     ("request_summary.py", "_scale"): "panel text formatter, not vector scaling",

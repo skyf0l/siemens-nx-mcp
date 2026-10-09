@@ -9,7 +9,7 @@ for planes and the axis for cylinders and cones.
 
 from __future__ import annotations
 
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.kit import geom
 
 # UF_MODL face types (AskFaceData[0]).
@@ -30,6 +30,18 @@ PRINCIPAL_PLANES = {"xy": [0.0, 0.0, 1.0], "yz": [1.0, 0.0, 0.0], "xz": [0.0, -1
 ORIGIN = [0.0, 0.0, 0.0]
 
 
+def resolve(tx, ref, *kinds, field=None, work_part=False):
+    """``tx.resolve`` whose stale, wrong-kind and wrong-owner errors name ``field``."""
+    try:
+        return (
+            tx.resolve(ref, *kinds, work_part=work_part) if work_part else tx.resolve(ref, *kinds)
+        )
+    except NXError as error:
+        if field and getattr(error, "field", None) is None:
+            error.field = field
+        raise
+
+
 def owned_by_work_part(tx, obj):
     """True for a prototype object of the work part (not an occurrence)."""
     if getattr(obj, "IsOccurrence", False):
@@ -47,7 +59,10 @@ def owned(tx, obj, field=None, what="geometry"):
 def one(tx, ref, *kinds, field=None):
     """Resolve one reference of ``kinds`` owned by the work part."""
     return owned(
-        tx, tx.resolve(ref, *kinds), field, kinds[0].replace("_", " ") if kinds else "geometry"
+        tx,
+        resolve(tx, ref, *kinds, field=field),
+        field,
+        kinds[0].replace("_", " ") if kinds else "geometry",
     )
 
 

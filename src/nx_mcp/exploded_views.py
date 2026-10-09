@@ -5,9 +5,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 from nx_mcp.authoring import page
-from nx_mcp.engineering import EngineeringMixin
 from nx_mcp.kit.geom import matmul, matvec, rows, transpose, xyz
-from nx_mcp.legacy_kit import finite, vector
+from nx_mcp.legacy_kit import vector
 from nx_mcp.runtime import NXToolError
 
 
@@ -402,82 +401,3 @@ class ExplodedViewsMixin:
         ref = self._reference(ex, "explosion", self._work_part(), "Explosion")
         ex.Delete()
         return {"deleted": [ref]}
-
-    def _add_base_view(
-        self, drawing, body=None, view="isometric", position=None, scope="body", explosion=None
-    ):
-        if scope == "body":
-            if body is None or explosion is not None:
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT", "Body scope requires body and forbids explosion"
-                )
-            return EngineeringMixin._add_base_view(self, drawing, body, view, position)
-        if scope != "assembly" or body is not None:
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "Use scope=assembly without body for an assembly view"
-            )
-        part = self._explosion_context()
-        ex = self._explosion(explosion) if explosion is not None else None
-        if not self._walk_components(part):
-            raise NXToolError("NX_NO_COMPONENTS", "Assembly view requires component geometry")
-        names = {
-            n: n.title() for n in ("top", "front", "back", "right", "left", "bottom", "isometric")
-        }
-        if view not in names:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Unsupported model view")
-        sheet = self._drawing_object(drawing, "drawing_sheet")
-        point = (
-            self._sheet_default(sheet, 100.0, 100.0)
-            if position is None
-            else [finite(v, "position") for v in position]
-        )
-        if len(point) != 2:
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "position must contain two sheet coordinates in sheet units"
-            )
-        if sheet.OwningPart != part:
-            raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Drawing sheet must belong to work part")
-        uf = self._explosion_uf()
-        self._require_api(uf, "SetViewExplosion", "AskViewExplosion")
-        self._open_drawing_sheet(sheet)
-        builder = part.DraftingViews.CreateBaseViewBuilder(None)
-        try:
-            self._configure_base_view(builder, sheet)
-            builder.SelectModelView.SelectedView = part.ModelingViews.FindObject(names[view])
-            builder.Placement.Placement.SetValue(None, None, self._sheet_point3d(sheet, point))
-            result = builder.Commit()
-        finally:
-            builder.Destroy()
-        self._drawing_construction_visibility(result, False)
-        self._place_drawing_view(result, sheet, point)
-        uf.SetViewExplosion(result.Tag, ex.Tag if ex else 0)
-        part.DraftingViews.UpdateViews([result])
-        if int(uf.AskViewExplosion(result.Tag) or 0) != (int(ex.Tag) if ex else 0):
-            raise NXToolError(
-                "NX_EXPLOSION_VIEW_MISMATCH", "Drawing does not reference requested explosion"
-            )
-        return {
-            "object": self._reference(result, "drawing_view", part, "Assembly base view"),
-            "drawing": self._reference(sheet, "drawing_sheet", part, "Drawing sheet"),
-            "scope": "assembly",
-            "orientation": view,
-            **self._drawing_coordinates(sheet, point),
-            "explosion": self._reference(ex, "explosion", part, "Explosion") if ex else None,
-        }
-
-    def _add_projection_view(self, base_view, direction, spacing=None):
-        if not self._explosions(self._work_part()):
-            return EngineeringMixin._add_projection_view(self, base_view, direction, spacing)
-        parent = self._drawing_object(base_view, "drawing_view")
-        uf = self._explosion_uf()
-        tag = uf.AskViewExplosion(parent.Tag) or 0
-        result = EngineeringMixin._add_projection_view(self, base_view, direction, spacing)
-        view = self._resolve(result["object"]["id"], {"drawing_view"})
-        uf.SetViewExplosion(view.Tag, tag)
-        self._work_part().DraftingViews.UpdateViews([view])
-        if int(uf.AskViewExplosion(view.Tag) or 0) != int(tag):
-            raise NXToolError(
-                "NX_EXPLOSION_VIEW_MISMATCH", "Projected view did not retain its parent's explosion"
-            )
-        result["exploded"] = bool(tag)
-        return result

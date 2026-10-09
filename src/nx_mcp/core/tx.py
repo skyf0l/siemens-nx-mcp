@@ -59,6 +59,7 @@ class Services:
     session_id = ""
     store = None  # OperationStore-like: get, put, path
     references = None  # core.references.References over this object
+    runs = "nx"  # the process these services run in: "nx", or "sidecar" (gate 1)
 
     # parts and units
     def work_part(self): ...
@@ -71,7 +72,7 @@ class Services:
 
     # drawing sheets (gate 9: SheetLength / SheetPoint arguments)
     def current_sheet(self): ...  # the work part's current drawing sheet or None
-    def sheet_of(self, obj): ...  # the sheet that is or shows obj (sheet, view), else None
+    def sheet_of(self, obj): ...  # sheet that is/shows obj (+ @sheet_locator kinds) or None
     def sheet_units(self, sheet) -> str: ...  # "mm" or "in"
 
     # legacy registry seam for core.references
@@ -105,6 +106,7 @@ class Services:
     def clear_update_errors(self) -> None: ...
     def invalidate(self, before: dict, after: dict, topology: bool) -> None: ...
     def invalidate_parts(self, parts) -> None: ...
+    def forget_parts(self, keys) -> None: ...  # closed parts (by part_key): refs, undo, owner
     def refresh_annotations(self, spec) -> list: ...
     def record_history(self, mark, part, operation_id: str, tool: str) -> None: ...
     def after_commit(self, spec) -> None: ...
@@ -347,6 +349,20 @@ class Tx:
     def non_undoable(self, reason: str) -> None:
         """Declare a step that undo cannot revert; a later failure reports partial."""
         self.non_undoable_reason = str(reason)
+
+    @contextlib.contextmanager
+    def checks(self):
+        """Read-only lookups and refusals that run before the handler changes anything.
+
+        An ``NXError`` raised inside is marked ``unchanged``: the kernel reports
+        ``not_started`` although NX was read (a busy part, a name clash, a stale
+        reference). Only wrap code that changes nothing, before the first change.
+        """
+        try:
+            yield
+        except NXError as error:
+            error.unchanged = True
+            raise
 
     # -- temporary geometry ---------------------------------------------------------
     @contextlib.contextmanager

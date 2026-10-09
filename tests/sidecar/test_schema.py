@@ -180,6 +180,7 @@ def known_core_gap(spec, args) -> bool:
 @pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
 def test_pydantic_and_core_validators_agree(spec):
     checked = 0
+    total = sum(1 for _ in samples(spec))
     for args in samples(spec):
         pydantic_ok, core_ok = accepts_pydantic(spec, args), accepts_core(spec, args)
         if pydantic_ok != core_ok and known_core_gap(spec, args):
@@ -187,7 +188,7 @@ def test_pydantic_and_core_validators_agree(spec):
             continue
         assert pydantic_ok == core_ok, (spec.name, args)
         checked += 1
-    assert checked > 20
+    assert checked > min(20, total // 2)  # tools with 0-1 parameters yield few samples
 
 
 def _walk(node, path="#"):

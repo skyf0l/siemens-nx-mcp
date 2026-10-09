@@ -1,0 +1,197 @@
+{
+ "covers": {
+  "nx_export_drawing": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/no_sheet.pdf"
+   },
+   "expect": {
+    "error.category": "precondition",
+    "mutation_outcome": "not_started",
+    "error.code": "NX_WRONG_APPLICATION"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh2",
+   "args": {
+    "name": "SHT2",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/export_all.pdf"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.format": "pdf",
+    "data.sheets": {
+     "count": 2
+    },
+    "data.path": {
+     "matches": "export_all\\.pdf$"
+    },
+    "data.sha256": {
+     "matches": "^[0-9a-f]{64}$"
+    }
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/export_one.pdf",
+    "sheets": [
+     "$sh.data.sheet.id"
+    ]
+   },
+   "expect": {
+    "data.sheets": {
+     "count": 1
+    },
+    "data.sheets.0.name": "SHT1"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/export_one.dxf",
+    "format": "dxf",
+    "sheets": [
+     "$sh.data.sheet.id"
+    ]
+   },
+   "expect": {
+    "data.format": "dxf",
+    "data.sheets.0.name": "SHT1"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/export_one.dwg",
+    "format": "dwg",
+    "sheets": [
+     "$sh.data.sheet.id"
+    ]
+   },
+   "expect": {
+    "data.format": "dwg"
+   }
+  },
+  {
+   "call": "nx_download_file",
+   "args": {
+    "path": "$run/export_all.pdf",
+    "delivery": "metadata"
+   },
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/export_all.pdf"
+   },
+   "expect": {
+    "error.category": "already_exists",
+    "mutation_outcome": "not_started",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/wrong.dxf"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/two.dxf",
+    "format": "dxf"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/sheets"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/x.txt"
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "not_started",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "../outside.pdf"
+   },
+   "expect": {
+    "error.category": "path_rejected",
+    "mutation_outcome": "not_started",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

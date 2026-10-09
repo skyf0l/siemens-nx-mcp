@@ -1,0 +1,223 @@
+{
+ "covers": {
+  "nx_create_drawing_table": [
+   "title_block",
+   "revision"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     290
+    ],
+    "rows": [
+     [
+      "A",
+      "First release",
+      "TR"
+     ]
+    ],
+    "widths": [
+     10,
+     60,
+     15
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.kind": "revision",
+    "data.rows": [
+     [
+      "A",
+      "First release",
+      "TR"
+     ]
+    ],
+    "data.position": {
+     "close": [
+      250,
+      290
+     ],
+     "tol": 1e-06
+    },
+    "data.columns": {
+     "count": 3
+    },
+    "data.columns.1.width": {
+     "close": 60,
+     "tol": 0.0001
+    },
+    "data.table.kind": "drawing_table"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "title_block",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     410,
+     10
+    ],
+    "rows": [
+     [
+      "PART",
+      "BLOCK"
+     ],
+     [
+      "DRAWN",
+      "AGENT"
+     ]
+    ],
+    "widths": [
+     30,
+     "2 in"
+    ],
+    "row_height": 8
+   },
+   "expect": {
+    "data.kind": "title_block",
+    "data.rows": [
+     [
+      "PART",
+      "BLOCK"
+     ],
+     [
+      "DRAWN",
+      "AGENT"
+     ]
+    ],
+    "data.columns.1.width": {
+     "close": 50.8,
+     "tol": 0.0001
+    },
+    "data.position": {
+     "close": [
+      410,
+      10
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     200
+    ],
+    "rows": [
+     [
+      "A",
+      "B"
+     ],
+     [
+      "C"
+     ]
+    ],
+    "widths": [
+     10,
+     20
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/rows"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     200
+    ],
+    "rows": [
+     [
+      "A"
+     ]
+    ],
+    "widths": [
+     -5
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/widths"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "parts_list",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     200
+    ]
+   },
+   "expect": {
+    "error.category": "wrong_owner",
+    "mutation_outcome": "not_started",
+    "error.field": "/sheet",
+    "error.code": "NX_WRONG_PART_CONTEXT"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     200
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/rows"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

@@ -2,28 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
-READ_ONLY = {"nx_parts_list_info"}
+READ_ONLY: set[str] = set()
 NON_MODEL = {"nx_export_explosion_animation"}
-
-
-def nx_create_parts_list(
-    drawing: str, position: list[float], scope: Literal["leaves", "top_level", "all"] = "leaves"
-):
-    """Create a native automatically updating BOM on a work-part assembly drawing. position is [x,y] in sheet units. Scope controls assembly traversal. Uses installed native parts-list column defaults and returns their actual evaluated rows and quantities. Repeated instances aggregate according to the native key columns. No prototype part is modified."""
-
-
-def nx_parts_list_info(parts_list: str):
-    """Read a native parts list's evaluated rows, column/row counts and automatic-update setting. parts_list is the typed annotation ID returned by nx_create_parts_list. Reading does not refresh or mutate the table."""
-
-
-def nx_update_parts_list(parts_list: str):
-    """Explicitly update an existing native parts list after assembly changes and return its actual evaluated rows. Preserves native callout associations."""
-
-
-def nx_parts_list_balloons(parts_list: str, view: str):
-    """Ask NX to show native associative parts-list callout balloons in a drawing view, including an exploded view. Returns newly created balloon annotation IDs and count. Native automatic placement and grouping follow the parts-list preferences; inspect the drawing before publishing."""
 
 
 def nx_explosion_trace(

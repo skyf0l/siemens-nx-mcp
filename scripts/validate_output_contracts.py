@@ -31,7 +31,12 @@ async def validate(url, output):
             report["checks"].append(name + (":error" if error else ":success"))
             return result.structuredContent
 
-        before = await call("nx_list_open_parts")
+        async def loaded_parts():
+            result = await client.call_tool("nx_list_parts", {"limit": 200})
+            assert not result.isError, result.structuredContent
+            return {"parts": result.structuredContent["data"]["items"]}
+
+        before = await loaded_parts()
         try:
             await call("nx_status")
             components = (await call("nx_list_components"))["components"]
@@ -46,14 +51,10 @@ async def validate(url, output):
                 await call("nx_check_interference", pair)
             await call("nx_checkpoint_state")
             await call("nx_operation_status", {"operation_id": "contract_unknown_20260906"})
-            await call("nx_workspace_list", {"limit": 2})
-            await call(
-                "nx_workspace_list", {"path": "contract-absent-directory-20260906"}, error=True
-            )
             await call("nx_revolve", error=True)
             report["passed"] = True
         finally:
-            after = await call("nx_list_open_parts")
+            after = await loaded_parts()
             fields = ("path", "work", "display", "modified")
 
             def project(r):

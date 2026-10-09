@@ -1,0 +1,334 @@
+{
+ "covers": {
+  "nx_create_shell": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "a_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "a",
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "b_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$b_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       100,
+       0
+      ],
+      "corner2": [
+       140,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$b_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "b",
+   "args": {
+    "sketch": "$b_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$c_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       200,
+       0
+      ],
+      "corner2": [
+       240,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$c_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "c",
+   "args": {
+    "sketch": "$c_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_shell",
+   "args": {
+    "body": "$a.data.bodies.0.id",
+    "thickness": 2,
+    "remove_faces": [
+     "$top.items.0.object.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 3392,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$a.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      40,
+      20,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_shell",
+   "args": {
+    "body": "$b.data.bodies.0.id",
+    "thickness": "2 mm"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 4544,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$c.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_shell",
+   "args": {
+    "body": "$c.data.bodies.0.id",
+    "thickness": 2,
+    "remove_faces": [
+     "$top.items.0.object.id"
+    ],
+    "outward": true
+   },
+   "expect": {
+    "data.volume": {
+     "close": 4672,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$c.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      198,
+      -2,
+      -2
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      242,
+      22,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "Z"
+   }
+  },
+  {
+   "call": "nx_create_shell",
+   "args": {
+    "body": "$b.data.bodies.0.id",
+    "thickness": 1,
+    "remove_faces": [
+     "$top.items.0.object.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_OWNER"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

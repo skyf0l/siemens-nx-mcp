@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 from nx_mcp import side_effects
+from nx_mcp.core import catalogue
 from nx_mcp.core.references import PREFIX, Counter, References
 from nx_mcp.kit import drawing, units
 
@@ -137,6 +138,12 @@ class LegacyServices:
         if kind == "drawing_sheet":
             return obj
         if kind != "drawing_view":
+            # Annotations, dimensions and tables: the drawing domain's locators.
+            for locate in catalogue.hooks("sheet").values():
+                with contextlib.suppress(Exception):
+                    sheet = locate(self, obj)
+                    if sheet is not None:
+                        return sheet
             return None
         matches = drawing.sheets_showing(self.owning_part(obj), obj)
         return matches[0] if len(matches) == 1 else None
@@ -321,6 +328,27 @@ class LegacyServices:
     def invalidate_parts(self, parts) -> None:
         for part in parts:
             self.x.objects.invalidate_part(self.part_key(part))
+
+    def forget_parts(self, keys) -> None:
+        """Parts NX closed (``part_key`` taken before the close): drop their references,
+        undo history, checkpoints and ownership, and retire the key so a reused NX tag
+        never inherits them (the legacy ``_close_loaded_part`` bookkeeping)."""
+        keys = set(keys)
+        if not keys:
+            return
+        x = self.x
+        for key in keys:
+            x.objects.invalidate_part(key)
+            x._owned_parts.pop(key, None)
+            x._granted_parts.pop(key, None)
+        generations = getattr(x, "_part_generations", {})
+        for tag, generation in list(generations.items()):
+            if any(key.endswith("_" + generation) for key in keys):
+                generations.pop(tag, None)
+        x._history = [h for h in getattr(x, "_history", []) if h.get("part_id") not in keys]
+        x._checkpoints = {
+            k: v for k, v in getattr(x, "_checkpoints", {}).items() if v.get("part_id") not in keys
+        }
 
     def refresh_annotations(self, spec) -> list:
         refresh = getattr(self.x, "_refresh_annotations", None)

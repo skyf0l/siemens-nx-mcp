@@ -1,12 +1,7 @@
 """Native drawing authoring and persistent imported-geometry references."""
 
-import math
-import uuid
-
-from nx_mcp.kit import units
 from nx_mcp.kit.drawing import work_view_is_drawing as drawing_work_view
-from nx_mcp.kit.geom import dot, xyz
-from nx_mcp.legacy_kit import finite, sheet_point
+from nx_mcp.kit.geom import xyz
 from nx_mcp.runtime import NXToolError
 
 CONSTRUCTION_WARNING = (
@@ -25,16 +20,6 @@ class ReleaseEngineeringMixin:
         if sheet.Units == D.DrawingSheet.Unit.Inches:
             return "in"
         raise NXToolError("NX_UNSUPPORTED_UNITS", "Unknown native drawing units")
-
-    def _sheet_default(self, sheet, *mm):
-        """A default placement defined in millimetres, in the sheet's units.
-
-        Defaults such as [100, 100] were plain sheet units: on an inch sheet that
-        is 100 in, off an A3 sheet, and NX fails with "The view is not located on
-        the drawing". Explicit values stay in sheet units.
-        """
-        factor = units.factor("mm", self._sheet_units(sheet))
-        return [float(v) * factor for v in mm]
 
     def _view_sheet(self, view):
         matches = [s for s in self._work_part().DrawingSheets if view in s.GetDraftingViews()]
@@ -124,164 +109,6 @@ class ReleaseEngineeringMixin:
             "bounds_semantics": "native drafting view border, excluding separately placed annotations",
         }
 
-    def _edit_drawing_view(self, view, position=None, scale=None, style=None):
-        import NXOpen.UF as U
-
-        style = {k: v for k, v in (style or {}).items() if v is not None}
-        if position is None and scale is None and not style:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Supply position, scale or style")
-        point = sheet_point(position, "position") if position is not None else None
-        scale = finite(scale, "scale", True) if scale is not None else None
-        obj = self._drawing_object(view, "drawing_view")
-        self._open_drawing_sheet(self._view_sheet(obj))
-        uf = U.UFSession.GetUFSession().Draw
-        self._require_api(uf, "SetViewScale", "MoveView")
-        if scale is not None:
-            uf.SetViewScale(obj.Tag, scale)
-        if point is not None:
-            uf.MoveView(obj.Tag, point)
-        if style:
-            self._view_style(view, {k: v for k, v in style.items() if v is not None})
-        self._work_part().DraftingViews.UpdateViews([obj])
-        self._refresh_detail_boundaries()
-        result = self._drawing_view_info(view)
-        if (scale is not None and not math.isclose(result["scale"], scale, abs_tol=1e-8)) or (
-            point is not None and math.dist(result["position"], point) > 1e-6
-        ):
-            raise NXToolError(
-                "NX_VERIFICATION_FAILED",
-                "View alignment or scale prevented the requested placement; rolling back",
-            )
-        result["modified"] = [result["object"]]
-        return result
-
-    def _add_section_drawing_view(
-        self,
-        parent_view,
-        cut_object,
-        position,
-        step_direction,
-        arrow_direction,
-        scale=1.0,
-        cut_association="start",
-    ):
-        import NXOpen.UF as U
-
-        from nx_mcp.legacy_kit import unit_normal
-
-        point = sheet_point(position, "position")
-        scale = finite(scale, "scale", True)
-        step, arrow = (
-            unit_normal(step_direction, "step_direction"),
-            unit_normal(arrow_direction, "arrow_direction"),
-        )
-        if abs(step[2]) > 1e-8 or abs(arrow[2]) > 1e-8 or abs(dot(step, arrow)) > 1e-8:
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT",
-                "Step and arrow must be perpendicular vectors in the sheet XY plane",
-            )
-        parent = self._drawing_object(parent_view, "drawing_view")
-        edge = self._engineering_owned(cut_object, "edge")
-        sheet = self._view_sheet(parent)
-        uf = U.UFSession.GetUFSession().Draw
-        self._require_api(uf, "CreateSimpleSxview")
-        self._open_drawing_sheet(sheet)
-        cut = U.Drf.Object()
-        cut.ObjectTag = edge.Tag
-        cut.ObjectViewTag = parent.Tag
-        if cut_association not in {"start", "end", "arc_center"}:
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "cut_association must be start, end or arc_center"
-            )
-        cut.ObjectAssocType = (
-            U.Drf.AssocType.ARC_CENTER
-            if cut_association == "arc_center"
-            else U.Drf.AssocType.END_POINT
-        )
-        cut.ObjectAssocModifier = (
-            0 if cut_association == "arc_center" else 1 if cut_association == "start" else 2
-        )
-        tag = uf.CreateSimpleSxview(sheet.Tag, scale, step, arrow, parent.Tag, cut, point)
-        obj = self.nxopen.TaggedObjectManager.GetTaggedObject(tag)
-        self._work_part().DraftingViews.UpdateViews([obj])
-        ref = self._reference(obj, "drawing_view", self._work_part(), "Section view")
-        try:
-            # NX creates the section at its own aligned spot; MoveView then places it.
-            placed = self._edit_drawing_view(ref["id"], scale=scale, position=point)
-        except NXToolError as error:
-            if error.code != "NX_VERIFICATION_FAILED":
-                raise
-            raise NXToolError(
-                "NX_VERIFICATION_FAILED",
-                "NX did not place the section view at the requested sheet position",
-                details={
-                    "requested": point,
-                    "actual": self._drawing_view_info(ref["id"])["position"],
-                    "parent_position": self._drawing_view_info(parent_view)["position"],
-                },
-            ) from error
-        return {
-            **placed,
-            "created": [ref],
-            "parent": parent_view,
-            "association": "native simple section anchored to edge",
-        }
-
-    def _add_detail_drawing_view(self, parent_view, center, radius, position, scale=2.0):
-        import NXOpen.Drawings as D
-
-        from nx_mcp.freeform import points3
-
-        center = points3([center])[0]
-        radius = finite(radius, "radius", True)
-        point = sheet_point(position, "position")
-        scale = finite(scale, "scale", True)
-        parent = self._drawing_object(parent_view, "drawing_view")
-        sheet = self._view_sheet(parent)
-        self._open_drawing_sheet(sheet)
-        part = self._work_part()
-        self._require_api(part.DraftingViews, "CreateDetailViewBuilder")
-        b = part.DraftingViews.CreateDetailViewBuilder(None)
-        try:
-            b.Parent.View.Value = parent
-            b.Type = D.DetailViewBuilder.Types.Circular
-            mapped = self._detail_boundary_points(parent, sheet, center, radius)
-            b.BoundaryPoint1 = part.Points.CreatePoint(mapped[0])
-            b.BoundaryPoint2 = part.Points.CreatePoint(mapped[1])
-            b.BoundaryPoint1.Blank()
-            b.BoundaryPoint2.Blank()
-            b.Scale.ScaleType = D.ViewScaleBuilder.Type.Ratio
-            b.Scale.Numerator = scale
-            b.Scale.Denominator = 1.0
-            b.Origin.Placement.SetValue(None, None, self._sheet_point3d(sheet, point))
-            if not b.Validate():
-                raise NXToolError("NX_DRAWING_INVALID", "Detail view did not validate")
-            obj = b.Commit()
-        finally:
-            b.Destroy()
-        import json
-
-        import NXOpen.UF as U
-
-        obj.SetAttribute(
-            "NX_MCP_DETAIL_V1",
-            json.dumps(
-                {
-                    "parent": U.UFSession.GetUFSession().Tag.AskHandleFromTag(parent.Tag),
-                    "center": center,
-                    "radius": radius,
-                }
-            ),
-        )
-        ref = self._reference(obj, "drawing_view", part, "Detail view")
-        return {
-            **self._edit_drawing_view(ref["id"], scale=scale),
-            "created": [ref],
-            "parent": parent_view,
-            "boundary_frame": "work_part",
-            "boundary_units": self._units(),
-        }
-
     def _geometry_anchor(self, object):
         import NXOpen.UF as U
 
@@ -345,174 +172,6 @@ class ReleaseEngineeringMixin:
             "object": self._reference(obj, anchor["kind"], part, "Anchored geometry"),
             "anchor": anchor,
             "resolution": "native persistent handle and owner/type verification",
-        }
-
-    def _drawing_table(self, drawing, kind, rows, widths, position, table=None, row_height=7.0):
-        import NXOpen.UF as U
-
-        if (
-            kind not in {"title_block", "revision"}
-            or not isinstance(rows, list)
-            or not 1 <= len(rows) <= 100
-            or not isinstance(widths, list)
-            or not 1 <= len(widths) <= 20
-        ):
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT",
-                "Use title_block or revision with 1..100 rows and 1..20 columns",
-            )
-        if any(
-            not isinstance(r, list)
-            or len(r) != len(widths)
-            or any(not isinstance(c, str) or len(c) > 1024 for c in r)
-            for r in rows
-        ):
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT",
-                "Rows must be rectangular strings, maximum 1024 characters per cell",
-            )
-        widths = [finite(w, "width", True) for w in widths]
-        height = finite(row_height, "row_height", True)
-        point = sheet_point(position, "position")
-        sheet = self._drawing_object(drawing, "drawing_sheet")
-        part = self._work_part()
-        section = self._engineering_owned(table, "annotation") if table else None
-        attr = "NX_MCP_DRAWING_TABLE_V1"
-        guid_attr = "NX_MCP_TABLE_SHEET_GUID_V2"
-        string_type = self.nxopen.NXObject.AttributeType.String
-        sheet_guid = (
-            sheet.GetStringAttribute(guid_attr)
-            if sheet.HasUserAttribute(guid_attr, string_type, -1)
-            else None
-        )
-        if sheet_guid:
-            matches = [
-                s
-                for s in part.DrawingSheets
-                if s.HasUserAttribute(guid_attr, string_type, -1)
-                and s.GetStringAttribute(guid_attr) == sheet_guid
-            ]
-            if len(matches) != 1:
-                raise NXToolError(
-                    "NX_OBJECT_OWNER_AMBIGUOUS",
-                    "Drawing sheets share the same managed identity; resolve duplicated sheet metadata before editing tables",
-                )
-        if section is not None:
-            kind_ok = (
-                section.HasUserAttribute(attr, string_type, -1)
-                and section.GetStringAttribute(attr) == kind
-            )
-            if section.HasUserAttribute(guid_attr, string_type, -1):
-                owner_ok = (
-                    sheet_guid is not None and section.GetStringAttribute(guid_attr) == sheet_guid
-                )
-            else:
-                try:
-                    owner_ok = (
-                        U.UFSession.GetUFSession().Tag.AskTagOfHandle(
-                            section.GetStringAttribute("NX_MCP_TABLE_SHEET_V1")
-                        )
-                        == sheet.Tag
-                    )
-                except Exception:
-                    owner_ok = False
-            if not kind_ok or not owner_ok:
-                raise NXToolError(
-                    "NX_OBJECT_OWNER_MISMATCH",
-                    "Edit a managed table of the same kind on this sheet",
-                )
-        if sheet_guid is None:
-            sheet_guid = uuid.uuid4().hex
-            sheet.SetAttribute(guid_attr, sheet_guid)
-        self._open_drawing_sheet(sheet)
-        if section is None:
-            b = part.Annotations.TableSections.CreateTableSectionBuilder(None)
-            try:
-                b.NumberOfRows = len(rows)
-                b.NumberOfColumns = len(widths)
-                b.RowHeight = height
-                b.ColumnWidth = widths[0]
-                b.Origin.Origin.SetValue(None, None, self._sheet_point3d(sheet, point))
-                section = b.Commit()
-            finally:
-                b.Destroy()
-            section.SetAttribute(attr, kind)
-            section.SetAttribute(
-                "NX_MCP_TABLE_SHEET_V1", U.UFSession.GetUFSession().Tag.AskHandleFromTag(sheet.Tag)
-            )
-        section.SetAttribute(guid_attr, sheet_guid)
-        tab = U.UFSession.GetUFSession().Tabnot
-        tag = (
-            U.UFSession.GetUFSession().Tag.AskTagOfHandle(
-                section.GetStringAttribute("NX_MCP_NATIVE_TABLE_V1")
-            )
-            if type(section).__name__ == "TitleBlock"
-            else tab.AskTabularNoteOfSection(section.Tag)
-        )
-        if tab.AskNmColumns(tag) != len(widths):
-            raise NXToolError(
-                "NX_UNSUPPORTED_EDIT", "Keep the existing column count when editing a table"
-            )
-        while tab.AskNmRows(tag) < len(rows):
-            tab.AddRow(tag, tab.CreateRow(height), tab.AskNmRows(tag))
-        while tab.AskNmRows(tag) > len(rows):
-            old = tab.AskNthRow(tag, tab.AskNmRows(tag) - 1)
-            tab.RemoveRow(old)
-            U.UFSession.GetUFSession().Obj.DeleteObject(old)
-        for i, values in enumerate(rows):
-            row = tab.AskNthRow(tag, i)
-            tab.SetRowHeight(row, height)
-            for j, value in enumerate(values):
-                col = tab.AskNthColumn(tag, j)
-                tab.SetColumnWidth(col, widths[j])
-                tab.SetCellText(tab.AskCellAtRowCol(row, col), value)
-        section.AnnotationOrigin = self._sheet_point3d(sheet, point)
-        title = None
-        if kind == "title_block" and table is None:
-            b = part.DraftingManager.TitleBlocks.CreateDefineTitleBlockBuilder(
-                self.nxopen.Annotations.TitleBlock.Null
-            )
-            try:
-                b.Components.Add(section)
-                b.UpdateCells()
-                title = b.Commit()
-            finally:
-                b.Destroy()
-            section = title
-            section.AnnotationOrigin = self._sheet_point3d(sheet, point)
-            section.SetAttribute(attr, kind)
-            section.SetAttribute(
-                "NX_MCP_TABLE_SHEET_V1", U.UFSession.GetUFSession().Tag.AskHandleFromTag(sheet.Tag)
-            )
-            section.SetAttribute(
-                "NX_MCP_NATIVE_TABLE_V1", U.UFSession.GetUFSession().Tag.AskHandleFromTag(tag)
-            )
-        section.SetAttribute(guid_attr, sheet_guid)
-        self._update_model()
-        ref = self._reference(section, "annotation", part, "Drawing table")
-        actual = [
-            [
-                tab.AskEvaluatedCellText(
-                    tab.AskCellAtRowCol(tab.AskNthRow(tag, i), tab.AskNthColumn(tag, j))
-                )
-                for j in range(len(widths))
-            ]
-            for i in range(len(rows))
-        ]
-        return {
-            "table": ref,
-            "kind": kind,
-            "position": point,
-            "position_anchor": "lower_right" if kind == "title_block" else "upper_left",
-            "rows": actual,
-            "row_count": len(actual),
-            "column_count": len(widths),
-            "native_title_block": type(section).__name__ if kind == "title_block" else None,
-            "created": [ref] if table is None else [],
-            "modified": [ref] if table else [],
-            "units": self._sheet_units(sheet),
-            "coordinate_frame": "drawing_sheet",
-            "semantics": "Editable native table; revision entries are explicitly supplied, not inferred release approvals",
         }
 
     def _update_assembly_documentation(self):
@@ -579,21 +238,12 @@ class ReleaseEngineeringMixin:
             "retained_annotations": retained_annotations,
             "documentation_complete": not retained_dimensions and not retained_annotations,
             "warnings": [
-                "Retained dimensions or annotations require explicit reassociation or replacement; use nx_add_dimension(dimension=...) for dimensions."
+                "Retained dimensions or annotations require explicit reassociation or replacement; rebind dimensions with nx_edit_dimension(edges=...)."
             ]
             if retained_dimensions or retained_annotations
             else [],
             "health": self._model_health(scope="assembly"),
             "semantics": "Explicit assembly update after prototype edits/replacement: solves constraints, refreshes anchored traces, BOMs and native drawing views. Missing managed anchors or unsolved mates roll back this refresh; previous prototype edits remain separate operations.",
-        }
-
-    def _drawing_coordinates(self, sheet, value, key="position"):
-        units = self._sheet_units(sheet)
-        return {
-            key: value,
-            key + "_mm": [v * (25.4 if units == "in" else 1) for v in value],
-            "sheet_units": units,
-            "coordinate_frame": "drawing_sheet",
         }
 
     def _sheet_point3d(self, sheet, values):
@@ -602,18 +252,6 @@ class ReleaseEngineeringMixin:
             25.4 if self._units() == "inch" else 1.0
         )
         return self.nxopen.Point3d(*(float(v) * factor for v in values), 0.0)
-
-    def _place_drawing_view(self, view, sheet, point, axes=(0, 1)):
-        import NXOpen.UF as U
-
-        U.UFSession.GetUFSession().Draw.MoveView(view.Tag, point)
-        self._work_part().DraftingViews.UpdateViews([view])
-        actual = view.GetDrawingReferencePoint()
-        if any(abs([actual.X, actual.Y][i] - point[i]) > 1e-6 for i in axes):
-            raise NXToolError(
-                "NX_VERIFICATION_FAILED",
-                f"Native view placement differs from requested sheet coordinates: actual {[actual.X, actual.Y]}, requested {point}",
-            )
 
     def _detail_boundary_points(self, parent, sheet, center, radius):
         import NXOpen.UF as U
@@ -661,17 +299,6 @@ class ReleaseEngineeringMixin:
                     builder.Commit()
                 finally:
                     builder.Destroy()
-
-    def _drawing_dimension_edge(self, reference):
-        edge = self._resolve(reference, {"edge"})
-        if edge.IsOccurrence:
-            if edge.OwningComponent not in [c for c, _ in self._walk_components(self._work_part())]:
-                raise NXToolError(
-                    "NX_OBJECT_OWNER_MISMATCH", "Select geometry in the work assembly"
-                )
-        elif edge.OwningPart != self._work_part():
-            raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Select owned work-part geometry")
-        return edge
 
     def _list_dimensions(self):
         part = self._work_part()

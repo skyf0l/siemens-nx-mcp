@@ -83,7 +83,7 @@ DOMAINS = frozenset(
         "display",
     }
 )
-HOOKS = ("lister", "deleter", "definition", "refresher")
+HOOKS = ("lister", "deleter", "definition", "refresher", "sheet")
 _DOMAIN_PACKAGE = "nx_mcp.domains."
 
 
@@ -504,7 +504,7 @@ def tool(**options) -> Callable[[Callable], Callable]:
 
 def _hook(kind_of_hook: str, key: str) -> Callable[[Callable], Callable]:
     if (
-        kind_of_hook in ("lister", "deleter", "refresher")
+        kind_of_hook in ("lister", "deleter", "refresher", "sheet")
         and key not in KINDS
         and key not in KIND_GROUPS
     ):
@@ -544,6 +544,12 @@ def definition(feature_type: str):
 def refresher(kind: str):
     """Refresh managed annotations of ``kind`` (``nx_update_annotations``, gate 13)."""
     return _hook("refresher", kind)
+
+
+def sheet_locator(kind: str):
+    """The drawing sheet an object of ``kind`` lies on, for gate 9 (``services.sheet_of``):
+    ``fn(services, obj) -> sheet or None``. Sheets and views are known to the host."""
+    return _hook("sheet", kind)
 
 
 def hooks(kind_of_hook: str) -> Mapping[str, Callable]:

@@ -1,0 +1,365 @@
+{
+ "covers": {
+  "nx_create_drawing_symbol": [
+   "surface_finish",
+   "weld"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     75,
+     45,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_face",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "near": [
+     40,
+     10,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$top_face.items.0.object.id",
+    "origin": [
+     200,
+     260
+    ],
+    "symbol": "surface_finish",
+    "roughness_ra": 3.2
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.text": [
+     "Ra 3.2"
+    ],
+    "data.origin": {
+     "close": [
+      200,
+      260
+     ],
+     "tol": 1e-06
+    },
+    "data.leader.object.kind": "face"
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$back.items.0.object.id",
+    "origin": [
+     60,
+     270
+    ],
+    "symbol": "surface_finish",
+    "roughness_ra": 0.8,
+    "removal": "prohibited"
+   },
+   "expect": {
+    "data.text": [
+     "Ra 0.8"
+    ],
+    "data.leader.object.kind": "edge"
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$front.items.0.object.id",
+    "origin": [
+     60,
+     150
+    ],
+    "symbol": "surface_finish",
+    "roughness_ra": 12.5,
+    "removal": "any"
+   },
+   "expect": {
+    "data.text": [
+     "Ra 12.5"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$ch.items.0.object.id",
+    "origin": [
+     220,
+     250
+    ],
+    "symbol": "weld",
+    "weld": "fillet",
+    "size": 5,
+    "side": "both"
+   },
+   "expect": {
+    "data.text": [
+     "5"
+    ],
+    "data.origin": {
+     "close": [
+      220,
+      250
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$back.items.0.object.id",
+    "origin": [
+     150,
+     270
+    ],
+    "symbol": "weld",
+    "weld": "v_butt",
+    "size": 4,
+    "side": "other"
+   },
+   "expect": {
+    "data.text": [
+     "4"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$front.items.0.object.id",
+    "origin": [
+     150,
+     150
+    ],
+    "symbol": "weld",
+    "weld": "square_butt",
+    "size": 3
+   },
+   "expect": {
+    "data.text": [
+     "3"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$top_face.items.0.object.id",
+    "origin": [
+     200,
+     260
+    ],
+    "symbol": "surface_finish",
+    "roughness_ra": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/roughness_ra"
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$top_face.items.0.object.id",
+    "origin": [
+     200,
+     260
+    ],
+    "symbol": "weld",
+    "size": 3
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/weld"
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$sh.data.sheet.id",
+    "origin": [
+     200,
+     260
+    ],
+    "symbol": "surface_finish",
+    "roughness_ra": 1.6
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

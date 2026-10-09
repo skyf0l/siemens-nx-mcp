@@ -1,0 +1,31 @@
+{
+  "covers": {"nx_finish_sketch": []},
+  "fixture": null,
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+    {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}}},
+    {"call": "nx_create_sketch_curves", "setup": true,
+     "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [30, 10]}]}},
+    {"call": "nx_finish_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+     "expect": {"mutation_outcome": "committed", "data.was_active": true, "data.curve_count": 4,
+                "data.sketch.id": {"matches": "^s:"}, "data.feature.kind": "feature"}},
+    {"call": "nx_list_objects", "args": {"kind": "sketch"},
+     "expect": {"page.total": 1, "data.items.0.details.active": false}},
+    {"call": "nx_finish_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+     "expect": {"mutation_outcome": "committed", "data.was_active": false, "changes.created": {"count": 0},
+                "changes.deleted": {"count": 0}}},
+    {"call": "nx_create_extrude", "save": "ext",
+     "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 10}},
+     "expect": {"data.volume": {"close": 3000, "tol": 1e-6}}},
+    {"call": "nx_create_sketch", "setup": true, "save": "other", "args": {"placement": {"principal": "xz"}}},
+    {"call": "nx_finish_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+     "expect": {"error.code": "NX_SKETCH_ACTIVE", "error.field": "/sketch", "changes.references": "preserved"}},
+    {"call": "nx_list_objects", "args": {"kind": "sketch", "name_contains": "SKETCH_001"},
+     "expect": {"data.items.0.details.active": true}},
+    {"call": "nx_finish_sketch", "args": {"sketch": "$ext.data.feature.id"},
+     "expect": {"error.code": "NX_WRONG_KIND", "mutation_outcome": "not_started"}},
+    {"call": "nx_finish_sketch", "args": {"sketch": "$other.data.sketch.id"},
+     "expect": {"data.was_active": true, "data.curve_count": 0}}
+  ]
+}

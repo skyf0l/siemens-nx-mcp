@@ -1,0 +1,318 @@
+{
+ "covers": {
+  "nx_create_revolve": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "rv",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$rv.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$rv.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "save": "full",
+   "args": {
+    "sketch": "$rv.data.sketch.id",
+    "axis": {
+     "principal": "z"
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 3141.592653589793,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$full.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -10,
+      -10,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      10,
+      10,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "save": "quarter",
+   "args": {
+    "sketch": "$rv.data.sketch.id",
+    "axis": {
+     "principal": "z"
+    },
+    "end_angle": "1.5707963267948966 rad"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 785.3981633974482,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "setup": true,
+   "save": "ax",
+   "args": {
+    "method": "point_direction",
+    "origin": [
+     20,
+     0,
+     0
+    ],
+    "direction": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "rv2",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$rv2.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       21,
+       0
+      ],
+      "corner2": [
+       25,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$rv2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "save": "half",
+   "args": {
+    "sketch": "$rv2.data.sketch.id",
+    "axis": "$ax.data.datum_axis.id",
+    "end_angle": 180
+   },
+   "expect": {
+    "data.volume": {
+     "close": 376.99111843077515,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "rv3",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$rv3.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       10,
+       0
+      ],
+      "corner2": [
+       12,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$rv3.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$rv3.data.sketch.id",
+    "axis": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "direction": [
+      0,
+      0,
+      1
+     ]
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$full.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 4523.893421169302,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_get_bounding_box",
+   "args": {
+    "body": "$full.data.bodies.0.id",
+    "precision": "exact"
+   },
+   "expect": {
+    "min": {
+     "close": [
+      -12,
+      -12,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "max": {
+     "close": [
+      12,
+      12,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$rv.data.sketch.id",
+    "axis": {
+     "principal": "z"
+    },
+    "start_angle": 90,
+    "end_angle": 45
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/end_angle"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$rv.data.sketch.id",
+    "axis": {
+     "principal": "z"
+    },
+    "end_angle": 400
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/end_angle"
+   }
+  },
+  {
+   "call": "nx_model_health",
+   "args": {},
+   "expect": {
+    "healthy": true
+   }
+  }
+ ]
+}

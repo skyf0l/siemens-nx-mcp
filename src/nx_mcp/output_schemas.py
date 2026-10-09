@@ -160,46 +160,6 @@ PAYLOADS: dict[str, dict[str, Any]] = {
             "retention": S,
         }
     ),
-    "nx_workspace_list": obj(
-        {
-            "path": S,
-            "count": COUNT,
-            "total_count": COUNT,
-            "offset": COUNT,
-            "next_offset": {"anyOf": [COUNT, NULL]},
-            "entries": arr(
-                {
-                    "oneOf": [
-                        obj({**META, "kind": {"const": "file"}}),
-                        obj({"path": S, "kind": {"const": "directory"}}),
-                    ]
-                }
-            ),
-        }
-    ),
-    "nx_download_file": {
-        "oneOf": [
-            obj({**META, "delivery": {"const": "metadata"}}),
-            obj(
-                {
-                    **META,
-                    "delivery": {"const": "image"},
-                    "mime_type": {"const": "image/png"},
-                    "resolution": arr(COUNT, 2),
-                }
-            ),
-            obj(
-                {
-                    **META,
-                    "offset": COUNT,
-                    "bytes_returned": COUNT,
-                    "next_offset": {"anyOf": [COUNT, NULL]},
-                    "data_base64": S,
-                    "eof": B,
-                }
-            ),
-        ]
-    },
 }
 for name in ("nx_check_interference", "nx_check_clearance"):
     PAYLOADS[name] = obj(
@@ -217,19 +177,10 @@ for name in ("nx_check_interference", "nx_check_clearance"):
             "semantics": S,
         }
     )
-for name in ("nx_extrude", "nx_pattern"):
-    PAYLOADS[name] = obj(
-        {"feature": REF, "body": {"anyOf": [REF, NULL]}, "bodies": arr(REF), "body_count": COUNT},
-        ["feature", "bodies"],
-    )
-PAYLOADS["nx_revolve"] = obj({"feature": REF, "angle": N, "axis": S})
 for name in (
     "nx_screenshot",
     "nx_render_view",
-    "nx_export_step",
-    "nx_export_drawing_pdf",
     "nx_export_flat_pattern",
-    "nx_package_assembly",
 ):
     PAYLOADS[name] = obj({**META, "mime_type": S, "resolution": arr(COUNT, 2)}, ["path", "sha256"])
 
@@ -258,79 +209,6 @@ EXPRESSION = obj(
 )
 PAYLOADS.update(
     {
-        "nx_create_part": obj({"part": REF, "message": S}),
-        "nx_open_part": obj(
-            {"part": REF, "work": B, "display": B, "already_loaded": B, "path": S, "message": S}
-        ),
-        "nx_activate_part": obj({"part": REF, "work": B, "display": B, "message": S}),
-        "nx_save_as": obj({"part": REF, "path": S, "message": S}),
-        "nx_save_part": obj(
-            {
-                "path": S,
-                "message": S,
-                "recovery": PAYLOADS["nx_checkpoint_state"],
-                "requested_file": S,
-                "saved_files": arr(S),
-                "observed_changed_files": arr(S),
-                "save_scope": S,
-                "verification_scope": S,
-                "verified_part_count": COUNT,
-                "target_file": {"type": "object"},
-                "unrelated_modified_parts": arr({"type": "object"}),
-                "unexpected_changes": arr({"type": "object"}),
-                "unexpected_new_parts": arr({"type": "object"}),
-                "native_save_errors": arr({"type": "object"}),
-            }
-        ),
-        "nx_close_part": obj(
-            {
-                "closed_parts": arr(REF),
-                "closed_count": COUNT,
-                "remaining_count": COUNT,
-                "message": S,
-            }
-        ),
-        "nx_list_open_parts": obj(
-            {
-                "parts": arr(
-                    obj({"part": REF, "name": S, "path": S, "work": B, "display": B, "modified": B})
-                ),
-                **PAGE,
-            }
-        ),
-        "nx_sketch_info": obj(
-            {
-                "object": REF,
-                "frame": obj(
-                    {
-                        "origin": VEC,
-                        "x_axis": VEC,
-                        "y_axis": VEC,
-                        "normal": VEC,
-                        "coordinate_frame": S,
-                    }
-                ),
-                "curves": arr(obj({"object": REF, "type": S})),
-                "curve_count": COUNT,
-            }
-        ),
-        "nx_sketch_diagnostics": obj(
-            {
-                "sketch": REF,
-                "solver_status": S,
-                "remaining_degrees_of_freedom": {"anyOf": [INTEGER, NULL]},
-                "native_dof_value": INTEGER,
-                "constraints": arr(
-                    obj({"object": REF, "type": S, "expression": EXPRESSION}, ["object", "type"])
-                ),
-                "constraint_count": COUNT,
-                "geometry": arr(obj({"object": REF, "constraints": arr(S)})),
-                "geometry_count": COUNT,
-                "evaluation": S,
-                "conflicting_constraints": NULL,
-                "work_region_handling": S,
-            }
-        ),
         "nx_sheet_metal_feature": obj(
             {
                 "feature": REF,
@@ -411,24 +289,8 @@ PAYLOADS.update(
                 "modeling_active": B,
             }
         ),
-        "nx_drawing_view_info": obj(
-            {
-                "object": REF,
-                "drawing": REF,
-                "native_type": S,
-                "position": arr(N, 2),
-                "scale": N,
-                "bounds": arr(N, 4),
-                "inside_sheet": B,
-                "units": S,
-                "coordinate_frame": S,
-                "bounds_semantics": S,
-            }
-        ),
     }
 )
-PAYLOADS["nx_activate_drawing"] = deepcopy(PAYLOADS["nx_list_drawings"])
-PAYLOADS["nx_edit_drawing_view"] = deepcopy(PAYLOADS["nx_drawing_view_info"])
 component_fields = PAYLOADS["nx_list_components"]["properties"]["components"]["items"]
 component_fields["properties"].update(
     part_path={"anyOf": [S, NULL]}, load_state=S, prototype_type={"anyOf": [S, NULL]}
@@ -493,17 +355,6 @@ PAYLOADS.update(
                 "eligibility": S,
             }
         ),
-        "nx_create_drawing": obj(
-            {
-                "object": REF,
-                "sheet_name": S,
-                "size": S,
-                "dimensions_mm": arr(N, 2),
-                "dimensions": arr(N, 2),
-                "scale": N,
-                "projection": S,
-            }
-        ),
         "nx_list_dimensions": obj(
             {
                 "dimensions": arr(
@@ -555,40 +406,8 @@ PAYLOADS.update(
                 "omitted": {"type": "object"},
             }
         ),
-        "nx_dimension_format": obj(
-            {
-                "object": REF,
-                "computed_value": N,
-                "measurement_units": S,
-                "measurement_valid": B,
-                "decimal_places": COUNT,
-                "tolerance_decimal_places": COUNT,
-                "upper_tolerance": N,
-                "lower_tolerance": N,
-                "tolerance_type": S,
-                "trailing_zeros": B,
-                "display_units": S,
-                "decimal_separator": S,
-                "association_count": COUNT,
-            }
-        ),
-        "nx_export_planar_dxf": obj(
-            {
-                "path": S,
-                "size": COUNT,
-                "sha256": S,
-                "units": {"const": "mm"},
-                "scale": {"const": 1.0},
-                "coordinate_frame": {"type": "object"},
-                "entity_count": COUNT,
-                "entity_counts": {"type": "object"},
-                "entities": arr({"type": "object"}),
-                "all_boundary_loops_included": B,
-            }
-        ),
     }
 )
-PAYLOADS["nx_edit_dimension_format"] = deepcopy(PAYLOADS["nx_dimension_format"])
 
 
 def output_schema(name: str, common: dict) -> dict:

@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from nx_mcp.core import kernel
 from nx_mcp.runtime import NXToolError
 from tests.fakes import Body, Part
 
@@ -41,7 +42,8 @@ def test_checkpoint_rollback_invalidates_objects_and_preserves_receipt(rig):
         rig.e._rollback_checkpoint(cp["checkpoint_id"])
 
 
-def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig):
+def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, monkeypatch):
+    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)  # nx_save_part untested
     add = mutation(rig)
     add(operation_id="first-operation")
     add(operation_id="second-operation")
@@ -49,8 +51,8 @@ def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig):
     assert rig.e.execute("nx_undo", {})["undone_operation_id"] == "second-operation"
     assert len(rig.part.Bodies) == 1
     cp = rig.e._checkpoint()
-    saved = rig.e._save_part()
-    assert saved["recovery"]["undo_depth"] == 0
+    saved = rig.e.execute("nx_save_part", {})
+    assert saved["data"]["saved_files"] == ["test.prt"]
     with pytest.raises(NXToolError, match="expired"):
         rig.e._rollback_checkpoint(cp["checkpoint_id"])
     with pytest.raises(NXToolError, match="No native undo"):
@@ -126,18 +128,20 @@ def test_prior_session_receipt_warns_and_cannot_duplicate(rig):
     assert len(rig.part.Bodies) == 1
 
 
-def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path):
+def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path, monkeypatch):
+    monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)  # untested catalogue tools
     part = rig.part
     body = Body()
     part.Bodies.append(body)
     old = rig.ref(body)
     p = rig.e._reference(part, "part", part, "Part")["id"]
-    opened = rig.e._open_part(part.FullPath)
-    assert opened["already_loaded"]
-    assert opened["message"] == "Reused loaded part"
+    part.Save()  # nx_open_part reuses a loaded part by its file on disk
+    opened = rig.e.execute("nx_open_part", {"path": part.FullPath})
+    assert opened["data"]["already_loaded"]
     assert rig.e._activate_part(part.Name, False, False)["part"]["id"] == p
     cp = rig.e._checkpoint()
-    rig.e._close_part(save=True, part=p)
+    closed = rig.e.execute("nx_close_part", {"part": p, "save": True})
+    assert closed["data"]["closed_count"] == 1
     assert not rig.session.Parts and not rig.e._checkpoints
     with pytest.raises(NXToolError):
         rig.e.objects.resolve(old)
@@ -146,12 +150,11 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     assert rig.ref(body) != old
     path = tmp_path / "imported.prt"
     path.write_text("fixture")
-    new_part = rig.e._open_part(str(path), work=False, display=False)
-    assert not new_part["already_loaded"]
-    assert new_part["message"] == "Opened part"
-    assert len(rig.e._list_open_parts()["parts"]) == 2
+    new_part = rig.e.execute("nx_open_part", {"path": str(path), "work": False, "display": False})
+    assert not new_part["data"]["already_loaded"]
+    assert rig.e.execute("nx_list_parts", {})["page"]["total"] == 2
     with pytest.raises(NXToolError):
-        rig.e._open_part(str(tmp_path / "missing.prt"))
+        rig.e.execute("nx_open_part", {"path": str(tmp_path / "missing.prt")})
     with pytest.raises(NXToolError):
         rig.e._activate_part("missing")
     assert cp["checkpoint_id"] not in rig.e._checkpoints
@@ -198,27 +201,6 @@ def test_guard_failures_never_create_undo_marks(rig):
     assert not rig.session.marks
 
 
-def test_open_reuses_loaded_part_with_equivalent_path_spelling(rig, tmp_path):
-    path = tmp_path / "project" / "base.prt"
-    path.parent.mkdir()
-    rig.part.FullPath = str(path.parent / "sub" / ".." / path.name)
-    opened = rig.e._open_part(str(path))
-    assert opened["already_loaded"]
-    assert len(rig.session.Parts) == 1
-
-
-def test_close_invalidates_automatically_unloaded_prototypes(rig, tmp_path):
-    child = Part(rig.session, tmp_path / "child.prt")
-    child_ref = rig.e._reference(child, "part", child, "Child")["id"]
-    target = rig.e._reference(rig.part, "part", rig.part, "Parent")["id"]
-    rig.part.Close = Mock(side_effect=lambda *args: rig.session.Parts.clear())
-    result = rig.e._close_part(save=False, part=target)
-    assert result["closed_count"] == 2 and result["remaining_count"] == 0
-    with pytest.raises(NXToolError) as error:
-        rig.e.objects.resolve(child_ref)
-    assert error.value.code == "NX_OBJECT_STALE"
-
-
 def test_operation_status_preserves_target_receipt_metadata(rig):
     committed = mutation(rig)(operation_id="receipt-query-target")
     status = rig.e.execute("nx_operation_status", {"operation_id": "receipt-query-target"})
@@ -235,12 +217,12 @@ def test_capability_filters_and_unit_conventions(rig):
 
     rig.session.DexManager = SimpleNamespace()
     rig.session.Measurement = SimpleNamespace()
-    one = rig.e._capabilities(tool="nx_close_part")
-    assert list(one["tools"]) == ["nx_close_part"] and one["units"] is None
+    one = rig.e._capabilities(tool="nx_list_components")
+    assert list(one["tools"]) == ["nx_list_components"] and one["units"] is None
     group = rig.e._capabilities(prefix="nx_sheet")
     assert all(name.startswith("nx_sheet") for name in group["tools"])
     assert group["tool_count"] < group["total_tool_count"]
-    for params in [{"tool": "nx_missing"}, {"tool": "nx_close_part", "prefix": "nx_"}]:
+    for params in [{"tool": "nx_missing"}, {"tool": "nx_list_components", "prefix": "nx_"}]:
         with pytest.raises(NXToolError):
             rig.e._capabilities(**params)
 

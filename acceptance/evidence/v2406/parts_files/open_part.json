@@ -1,0 +1,150 @@
+{
+  "format": 1,
+  "scenario": "acceptance/parts_files/open_part.json",
+  "scenario_sha256": "8c6bf4d25d434a51e4d24e2dc3c1c752c0e87fc49bd16d2dc7e6b7f3b04bbc96",
+  "domain": "parts_files",
+  "covers": {
+    "nx_open_part": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "24569c556092fb076e81816c79ed5687463fb007",
+  "sources": {
+    "nx_open_part": "5de038221e1a2c6242ff922520dae0bd243805fa929516a21a1348dd9b776814"
+  },
+  "run_id": "20261009-171200-a3ab2c",
+  "owner": "dom_parts_files",
+  "part": null,
+  "started": "2026-10-09T13:14:29Z",
+  "finished": "2026-10-09T13:14:33Z",
+  "passed": true,
+  "checks": 28,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 1.093,
+      "result_sha256": "13cf46a92d0b824a03d8a04c9cb27e6a3d673a1ea967a2035b515dec82aa0821"
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.141,
+      "result_sha256": "095c6bbb2fba23b62c9ac2bd258c30309240c170417fd2f26d5a1a3e09db93e9"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.578,
+      "result_sha256": "b96f948505850bb333de06b21a22546964cd25dff6420fa1683d7bb6716f236d"
+    },
+    {
+      "index": 4,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.188,
+      "result_sha256": "81027f6cc8db7d7d793c9284cc6b50aac9e8c6d35f1c6bf2b699016381b2e670"
+    },
+    {
+      "index": 5,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.187,
+      "result_sha256": "01973d9cefaa4c413be9145bcdf51858ff44325d880fabb3c42c11d7dda1b106"
+    },
+    {
+      "index": 6,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.328,
+      "result_sha256": "a898b378e4d317c97f1a7eecdfe1826c672ccd52327b07168df0c30d64694a00"
+    },
+    {
+      "index": 7,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.172,
+      "result_sha256": "d8967ce0452ee9e6481b93db6b41628819b44fbbb0d8f136a1589fbd495a9c8b"
+    },
+    {
+      "index": 8,
+      "call": "nx_upload_file",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.016,
+      "result_sha256": "7d6d3e9a59bebfd6ad0596f00f197dd3f1ddcf077b48b2590135720d746d1e9c"
+    },
+    {
+      "index": 9,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.078,
+      "result_sha256": "6960972366c2a8543d0318b58893546339285b2f6299dd9da3d31a4024b5a4ed"
+    },
+    {
+      "index": 10,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.156,
+      "result_sha256": "cf471b9b53116425c9c912c646c1048757383db956b94ebe32f714672a5699c5"
+    },
+    {
+      "index": 11,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "7394be73b005376e6ba5b1230de59000d2a6177112f48df66dfd58138fc80c38"
+    },
+    {
+      "index": 12,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.125,
+      "result_sha256": "d8c895a1b4e16a133f3b4079350ad9140844a96da57ab9e6e7f2f6e22721e846"
+    },
+    {
+      "index": 13,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.141,
+      "result_sha256": "76d2ea30757d98d89ce47bfc9a7ec211b1b3f5abb552f56987912069c6de9d20"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261009-171200-a3ab2c/parts_files_open_part_parts_files_block_mm.prt",
+      "smoke/20261009-171200-a3ab2c/pf_open_other.prt"
+    ],
+    "failed": []
+  }
+}

@@ -1,0 +1,140 @@
+{
+ "covers": {
+  "nx_create_datum_axis": [
+   "point_direction",
+   "two_points"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "args": {
+    "method": "point_direction",
+    "origin": [
+     5,
+     5,
+     0
+    ],
+    "direction": [
+     0,
+     0,
+     3
+    ],
+    "name": "AX1"
+   },
+   "expect": {
+    "data.direction": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    },
+    "data.datum_axis.kind": "datum_axis",
+    "data.feature.name": {
+     "matches": "(?i)^ax1$"
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "args": {
+    "method": "two_points",
+    "start": [
+     0,
+     0,
+     0
+    ],
+    "end": [
+     10,
+     10,
+     0
+    ]
+   },
+   "expect": {
+    "data.direction": {
+     "close": [
+      0.7071067811865476,
+      0.7071067811865476,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "changes.created": {
+     "count_kind": {
+      "feature": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "args": {
+    "method": "two_points",
+    "start": [
+     1,
+     1,
+     1
+    ],
+    "end": [
+     1,
+     1,
+     1
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/end"
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "args": {
+    "method": "point_direction",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "direction": [
+     0,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/direction"
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "args": {
+    "method": "two_points",
+    "start": [
+     0,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/end"
+   }
+  }
+ ]
+}

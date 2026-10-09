@@ -125,92 +125,6 @@ def fields_schema(fields, required=()):
 
 
 class SheetMetalMixin:
-    def _create_path_sketch(
-        self,
-        edges,
-        help_point,
-        percent=0,
-        orienting_face=None,
-        reverse_normal=False,
-        reverse_axis=False,
-        name=None,
-    ):
-        import NXOpen.GeometricUtilities as G
-
-        part = self._work_part()
-        if self.session.ActiveSketch:
-            raise NXToolError("NX_SKETCH_ACTIVE", "Finish the active sketch first")
-        if not self.session.IsBatch and self.session.Parts.Display != part:
-            raise NXToolError("NX_PART_CONTEXT", "Activate the same work and display part")
-        values = self._sm_validate(
-            {
-                "edges": {"kind": "reference_list", "objects": "edge"},
-                "help_point": {"kind": "point3d"},
-                "percent": {"kind": "number"},
-                "reverse_normal": {"kind": "boolean"},
-                "reverse_axis": {"kind": "boolean"},
-            },
-            {
-                "edges": edges,
-                "help_point": help_point,
-                "percent": percent,
-                "reverse_normal": reverse_normal,
-                "reverse_axis": reverse_axis,
-            },
-        )
-        if not 0 <= values["percent"] <= 100:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Path percentage must be within 0..100")
-        if name is not None and (
-            not isinstance(name, str)
-            or not name
-            or len(name) > 132
-            or any(ord(c) < 32 for c in name)
-        ):
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "Use a nonempty sketch name without control characters"
-            )
-        face = self._sm_reference(orienting_face, "face") if orienting_face else None
-        self._require_api(part.Sketches, "CreateSketchAlongPathBuilder")
-        builder = part.Sketches.CreateSketchAlongPathBuilder(None)
-        try:
-            self._sm_section(
-                builder.Section, {"edges": values["edges"], "help_point": values["help_point"]}
-            )
-            builder.PlaneOrientation = (
-                self.nxopen.SketchAlongPathBuilder.PlaneOrientationType.NormalToPath
-            )
-            builder.SketchOrient = getattr(
-                self.nxopen.SketchAlongPathBuilder.SketchOrientationType,
-                "RelativeToFace" if face else "Automatic",
-            )
-            if face:
-                builder.OrientingFace.ReplaceRules(
-                    [part.ScRuleFactory.CreateRuleFaceDumb([face])], False
-                )
-            location = builder.PlaneLocation
-            location.IsParameterUsed = False
-            location.IsPercentUsed = True
-            location.Expression.RightHandSide = str(values["percent"])
-            location.Update(G.OnPathDimensionBuilder.UpdateReason.Path)
-            builder.ReversePlaneNormal = values["reverse_normal"]
-            builder.ReverseAxis = values["reverse_axis"]
-            if not builder.Validate():
-                raise NXToolError("NX_SKETCH_INVALID", "Native path sketch validation failed")
-            sketch = builder.Commit()
-            if name:
-                sketch.SetName(name)
-            self._update_model()
-            sketch.Activate(self.nxopen.Sketch.ViewReorient.FalseValue)
-            return {
-                "object": self._reference(sketch, "sketch", part, "Path sketch"),
-                "frame": self._sketch_frame(sketch),
-                "percent": values["percent"],
-                "position_convention": "arc_length_percent",
-                "units": self._units(),
-            }
-        finally:
-            builder.Destroy()
-
     def _sm_manager(self):
         part = self._work_part()
         self._require_api(part.Features, "SheetmetalManager")
@@ -1033,45 +947,6 @@ class SheetMetalMixin:
             }
         finally:
             temporary.unlink(missing_ok=True)
-
-    def _sm_open_sheet(self, part, sheet):
-        """Make the sheet current; base-view builders commit a null view otherwise."""
-        self._open_drawing_sheet(sheet, part)
-
-    def _add_flat_pattern_view(self, drawing, flat_pattern, position=None):
-        part = self._work_part()
-        feature = self._sm_reference(flat_pattern, "feature")
-        if feature.FeatureType != "FLAT_PATTERN":
-            raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "Select a native Flat Pattern feature")
-        sheet = self._drawing_object(drawing, "drawing_sheet")
-        point = self._sheet_default(sheet, 100.0, 100.0) if position is None else position
-        if not isinstance(point, list) or len(point) != 2:
-            raise NXToolError(
-                "NX_INVALID_ARGUMENT", "position requires two sheet coordinates in sheet units"
-            )
-        point = [finite(v, "position") for v in point]
-        definition = self._sm_manager().CreateFlatPatternBuilder(feature)
-        try:
-            model_view = part.ModelingViews.FindObject(definition.FlatPatternViewName)
-        finally:
-            definition.Destroy()
-        self._sm_open_sheet(part, sheet)
-        builder = part.DraftingViews.CreateBaseViewBuilder(None)
-        try:
-            builder.SelectModelView.SelectedView = model_view
-            builder.Placement.Placement.SetValue(None, None, self._sheet_point3d(sheet, point))
-            view = builder.Commit()
-        finally:
-            builder.Destroy()
-        self._place_drawing_view(view, sheet, point)
-        return {
-            "view": self._reference(view, "drawing_view", part, "Flat pattern view"),
-            "drawing": self._reference(sheet, "drawing_sheet", part, "Drawing sheet"),
-            "flat_pattern": self._reference(feature, "feature", part, "FlatPattern"),
-            "model_view_name": model_view.Name,
-            **self._drawing_coordinates(sheet, point),
-            "units": self._sheet_units(sheet),
-        }
 
     def _sheet_metal_annotation(
         self, kind, body, position, faces=None, annotation=None, automatic=False

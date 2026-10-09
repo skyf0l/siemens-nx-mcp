@@ -170,8 +170,11 @@ Units = Literal["mm", "in"]
 # Hints in the target drawing sheet's units: a tool using one of them gets the
 # sheet resolved from its arguments and ``tx.units["sheet_length"]`` (gate 9).
 SHEET_HINTS = (SheetPoint, SheetLength)
-# Reference kinds the kernel can map to the drawing sheet that shows them.
-SHEET_KINDS = frozenset({"drawing_sheet", "drawing_view"})
+# Reference kinds the kernel can map to the drawing sheet that shows them (annotations,
+# dimensions and tables through the drawing domain's ``@sheet_locator`` hooks).
+SHEET_KINDS = frozenset(
+    {"drawing_sheet", "drawing_view", "annotation", "dimension", "drawing_table"}
+)
 Name = Annotated[
     str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_ .\-]{0,63}$"), Doc("Name for the new object")
 ]

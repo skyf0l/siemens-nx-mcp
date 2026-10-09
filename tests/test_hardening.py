@@ -1,8 +1,6 @@
 """Safety and MCP contract regressions; these do not substitute for real NX tests."""
 
 import asyncio
-import base64
-import hashlib
 from threading import Event
 from types import SimpleNamespace
 
@@ -10,10 +8,9 @@ import pytest
 
 from nx_mcp.bridge import BridgeClient, BridgeServer
 from nx_mcp.hardened import HardenedExecutor
-from nx_mcp.integration_server import artifact_call
 from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
-from nx_mcp.workspace import Workspace, WorkspaceViolation
+from nx_mcp.workspace import Workspace
 
 
 class FakeSession:
@@ -132,70 +129,28 @@ async def test_transport_timeout_does_not_duplicate_mutation(executor):
         server.stop()
 
 
-@pytest.mark.parametrize(
-    "path", ["../outside.step", "/tmp/outside.step", ".nx-mcp/operations/x.json"]
-)
-def test_artifacts_reject_outside_or_reserved_paths(tmp_path, path):
-    with pytest.raises((WorkspaceViolation, NXToolError)):
-        artifact_call(
-            "nx_download_file", {"path": path, "offset": 0, "length": 1}, Workspace(tmp_path)
-        )
-
-
-def test_chunk_upload_retry_checksum_download_and_no_overwrite(tmp_path):
-    w = Workspace(tmp_path)
-    data = b"0123456789" * 100
-    digest = hashlib.sha256(data).hexdigest()
-
-    def upload(offset, chunk, sha=digest):
-        return artifact_call(
-            "nx_upload_file",
-            {
-                "path": "vendor/test.step",
-                "offset": offset,
-                "total_size": len(data),
-                "sha256": sha,
-                "data_base64": base64.b64encode(chunk).decode(),
-            },
-            w,
-        )
-
-    assert not upload(0, data[:400])["committed"]
-    assert not upload(0, data[:400])["committed"]
-    assert upload(400, data[400:])["committed"]
-    assert upload(400, data[400:])["replayed"]
-    result = artifact_call(
-        "nx_download_file", {"path": "vendor/test.step", "offset": 0, "length": 262144}, w
-    )
-    assert base64.b64decode(result["data_base64"]) == data
-    assert result["sha256"] == digest and result["eof"]
-    with pytest.raises(NXToolError):
-        upload(0, b"x" * 1000, "0" * 64)
-    assert (tmp_path / "vendor/test.step").read_bytes() == data
-
-
 @pytest.mark.asyncio
 async def test_uniform_structured_success_failure_and_schema(tmp_path):
     class Caller:
         async def call(self, method, params):
-            if method == "nx_edit_feature":
+            if method == "nx_reposition_component":
                 raise NXToolError("NX_UNSUPPORTED_EDIT", "unsupported edit")
             return {"status": "success", "method": method, "params": params}
 
     server = create_server(Caller(), Workspace(tmp_path), surface="full")
     tools = await server.list_tools()
-    pattern = next(t for t in tools if t.name == "nx_pattern")
-    assert pattern.inputSchema["properties"]["pattern_type"]["const"] == "linear"
-    assert "operation_id" in pattern.inputSchema["properties"]
+    move = next(t for t in tools if t.name == "nx_set_component_transform")
+    assert "translation" in move.inputSchema["required"]
+    assert "operation_id" in move.inputSchema["properties"]
     success = await server.call_tool("nx_status", {})
     assert success.structuredContent["status"] == "success" and not success.isError
     for name, args in [
-        ("nx_edit_feature", {"name": "f", "params": {"x": 1}}),
-        ("nx_pattern", {"features": [], "ignored": 123}),
+        ("nx_reposition_component", {"component": "c", "dx": 1}),
+        ("nx_set_component_transform", {"component": "c", "ignored": 123}),
     ]:
         result = await server.call_tool(name, args)
         assert result.isError and result.structuredContent["status"] == "error"
-    assert not next(t for t in tools if t.name == "nx_sketch_rectangle").annotations.readOnlyHint
+    assert not next(t for t in tools if t.name == "nx_add_component").annotations.readOnlyHint
 
 
 def test_reference_namespace_rejects_previous_session(executor, tmp_path):

@@ -1,0 +1,84 @@
+{
+ "covers": {
+  "nx_create_datum_point": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_datum_point",
+   "args": {
+    "position": [
+     10,
+     0,
+     5
+    ],
+    "name": "TIP"
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      10,
+      0,
+      5
+     ],
+     "tol": 1e-09
+    },
+    "data.feature.name": {
+     "matches": "(?i)^tip$"
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_point",
+   "args": {
+    "position": [
+     -1.5,
+     2.25,
+     1000.0
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      -1.5,
+      2.25,
+      1000
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_point",
+   "args": {
+    "position": [
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "feature",
+    "type": "point"
+   },
+   "expect": {
+    "page.total": 2
+   }
+  }
+ ]
+}

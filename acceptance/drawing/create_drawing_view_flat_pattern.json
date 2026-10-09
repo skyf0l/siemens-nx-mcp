@@ -1,0 +1,259 @@
+{
+ "covers": {
+  "nx_create_drawing_view": [
+   "flat_pattern"
+  ],
+  "nx_create_drawing_table": [
+   "bend"
+  ],
+  "nx_edit_drawing_table": [
+   "bend"
+  ],
+  "nx_update_annotations": []
+ },
+ "fixture": "fixtures/drawing_sheet_metal.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "flat",
+   "args": {
+    "kind": "feature",
+    "type": "flat_pattern"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "flat_pattern",
+    "sheet": "$sh.data.sheet.id",
+    "flat_pattern": "$flat.data.items.0.id",
+    "position": [
+     150,
+     150
+    ]
+   },
+   "save": "fv",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      150,
+      150
+     ],
+     "tol": 1e-06
+    },
+    "data.view.name": {
+     "matches": "^FLAT-PATTERN"
+    },
+    "data.inside_sheet": true
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "flat_pattern",
+    "sheet": "$sh.data.sheet.id",
+    "flat_pattern": "$flat.data.items.0.id",
+    "position": [
+     330,
+     150
+    ],
+    "scale": 0.5
+   },
+   "expect": {
+    "data.scale": {
+     "close": 0.5,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "bend",
+    "view": "$fv.data.view.id",
+    "position": [
+     300,
+     270
+    ],
+    "columns": [
+     "id",
+     "angle",
+     "radius"
+    ]
+   },
+   "save": "bt",
+   "expect": {
+    "data.kind": "bend",
+    "data.rows": [
+     [
+      "1",
+      "90,00",
+      "3,00"
+     ]
+    ],
+    "data.automatic": true,
+    "data.columns": [
+     {
+      "field": "id"
+     },
+     {
+      "field": "angle"
+     },
+     {
+      "field": "radius"
+     }
+    ],
+    "data.position": {
+     "close": [
+      300,
+      270
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$bt.data.table.id",
+    "kind": "bend",
+    "automatic": false,
+    "bend_columns": [
+     "id",
+     "radius"
+    ],
+    "position": [
+     300,
+     260
+    ]
+   },
+   "expect": {
+    "data.automatic": false,
+    "data.rows": [
+     [
+      "1",
+      "3,00"
+     ]
+    ],
+    "data.position": {
+     "close": [
+      300,
+      260
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$bt.data.table.id",
+    "kind": "bend",
+    "automatic": true,
+    "bend_columns": [
+     "id",
+     "name",
+     "angle",
+     "direction",
+     "radius"
+    ]
+   },
+   "expect": {
+    "data.automatic": true,
+    "data.columns": {
+     "count": 5
+    }
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.refreshed": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {
+    "objects": [
+     "$bt.data.table.id"
+    ]
+   },
+   "expect": {
+    "data.refreshed": {
+     "count_kind": {
+      "drawing_table": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "bend",
+    "view": "$fv.data.view.id",
+    "position": [
+     300,
+     270
+    ],
+    "columns": [
+     "id",
+     "id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/columns/1"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "flat_pattern",
+    "sheet": "$sh.data.sheet.id",
+    "flat_pattern": "$flat.data.items.0.id",
+    "position": [
+     330,
+     150
+    ],
+    "orientation": "top"
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

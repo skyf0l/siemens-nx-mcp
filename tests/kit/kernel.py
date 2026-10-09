@@ -101,6 +101,10 @@ class KitServices(Services):
         if kind == "drawing_view":
             matches = drawing.sheets_showing(self.work_part(), obj)
             return matches[0] if len(matches) == 1 else None
+        for locate in catalogue.hooks("sheet").values():  # annotations, dimensions, tables
+            sheet = locate(self, obj)
+            if sheet is not None:
+                return sheet
         return None
 
     def sheet_units(self, sheet):
@@ -208,6 +212,16 @@ class KitServices(Services):
 
     def invalidate_parts(self, parts):
         self.fake.refs.clear()
+
+    def forget_parts(self, keys):
+        """Closed parts: their refs go stale (``nx.forgotten`` records the keys)."""
+        keys = set(keys)
+        forgotten = self.fake.__dict__.setdefault("forgotten", [])
+        forgotten.extend(sorted(keys))
+        for ref, (obj, _kind) in list(self.fake.refs.items()):
+            owner = getattr(obj, "OwningPart", obj if hasattr(obj, "PartUnits") else None)
+            if owner is not None and self.part_key(owner) in keys:
+                del self.fake.refs[ref]
 
     def refresh_annotations(self, spec):
         return []

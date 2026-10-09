@@ -19,6 +19,7 @@ does not own (:func:`run_legacy`). The engineer grants a part on the NX MCP pane
 from __future__ import annotations
 
 import contextlib
+import re
 
 from nx_mcp.core import catalogue, kernel, summary
 from nx_mcp.core.errors import NXError
@@ -30,6 +31,8 @@ from nx_mcp.runtime import NXToolError
 
 catalogue.load()
 
+# A catalogue short reference (core.references), e.g. "s:3".
+_SHORT_REF = re.compile(r"^[a-z]{1,3}:[1-9][0-9]{0,11}$")
 # Arguments that belong to the call, not to the handler.
 CALL_KEYS = ("intent", "operation_id", "detail")
 
@@ -54,11 +57,9 @@ LEGACY_VIEW = frozenset(
         "nx_section_control",
     }
 )
-# Legacy tools that save or close a part: (parameter naming the part or None for
-# the work part). Other NON_MODEL tools only read parts or write new files.
-LEGACY_PART_FILE = {"nx_save_part": None, "nx_save_as": None, "nx_close_part": "part"}
 # Legacy calls that never change an existing part although they are not read-only.
-LEGACY_UNGATED = frozenset({"nx_dev_python", "nx_ui_control", "nx_package_assembly"})
+# (Saving and closing parts are catalogue tools; they call tx.require_owned.)
+LEGACY_UNGATED = frozenset({"nx_dev_python", "nx_ui_control"})
 
 
 class KernelError(NXToolError):
@@ -145,40 +146,45 @@ def run(executor, spec, params: dict) -> dict:
 def _legacy_gated(method: str, params: dict) -> bool:
     from nx_mcp.hardened import NON_MODEL, READ_ONLY
 
-    if method in LEGACY_PART_FILE:
-        return True
     if method in READ_ONLY or method in NON_MODEL or method in LEGACY_VIEW:
         return False
-    if method in LEGACY_UNGATED:
-        return False
-    return not (method == "nx_import_geometry" and params.get("target") == "new_part")
+    return method not in LEGACY_UNGATED
 
 
 def _legacy_target(executor, method: str, params: dict):
-    name = LEGACY_PART_FILE.get(method)
-    if name and params.get(name):
-        try:
-            return executor.objects.resolve(params[name], expected_kind="part")
-        except Exception:
-            return None  # The handler reports the bad reference itself.
     return executor._work_part(required=False)
+
+
+def legacy_ids(services, value):
+    """Catalogue refs (``"s:3"``) inside legacy arguments become the legacy IDs they wrap.
+
+    Migrated tools return short refs; legacy tools that consume their objects
+    (``nx_extrude`` with a sketch from ``nx_create_sketch``) only know ``obj_...``
+    IDs. Unknown strings pass through unchanged (deleted with the legacy path, F4).
+    """
+    if isinstance(value, str):
+        entry = services.references.entry(value) if _SHORT_REF.match(value) else None
+        return entry.legacy_id if entry is not None else value
+    if isinstance(value, list):
+        return [legacy_ids(services, v) for v in value]
+    if isinstance(value, dict):
+        return {k: legacy_ids(services, v) for k, v in value.items()}
+    return value
 
 
 def run_legacy(executor, method: str, params: dict):
     """Run a legacy tool with gate 6 (production) and part tracking (always)."""
     services = services_for(executor)
+    params = legacy_ids(services, params)
     gated = not services.dev and _legacy_gated(method, params)
     if gated:
         target = _legacy_target(executor, method, params)
-        if method in LEGACY_PART_FILE and target is not None:
-            # A part outside the workspace is refused first: no grant can help.
-            executor._workspace_part_file(target, allow_unsaved=method == "nx_save_as")
         try:
             check_owned(services, target)
         except NXError as error:
             error.details["mutation_outcome"] = "not_started"
             raise
-    flags = services.modified_flags() if gated and method not in LEGACY_PART_FILE else None
+    flags = services.modified_flags() if gated else None
     loaded = services.loaded()
     try:
         result = executor._execute_legacy(method, params)

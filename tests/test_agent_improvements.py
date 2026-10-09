@@ -24,9 +24,6 @@ async def test_guidance_examples_match_real_input_schemas(tmp_path):
         result = guidance(tool)
         assert result["native_evidence"]["status"] in {"tested", "experimental", "unavailable"}
     assert (
-        guidance(server._tool_manager.get_tool("nx_export_step"))["effects"]["saves_part"] is True
-    )
-    assert (
         guidance(server._tool_manager.get_tool("nx_measure_volume"))["effects"][
             "geometry_or_assembly"
         ]
@@ -166,19 +163,18 @@ def test_next_action_does_not_repeat_the_current_inspection():
     from nx_mcp.agent_guidance import next_actions
 
     assert not next_actions("nx_list_topology", {"body": {"id": "body", "kind": "body"}})
-    assert not next_actions("nx_download_file", {"path": "a.png", "sha256": "x"})
 
 
 @pytest.mark.asyncio
 async def test_spaced_discovery_and_optional_output_schema(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
-    result = await server.call_tool("nx_find_tools", {"query": "create part"})
+    result = await server.call_tool("nx_find_tools", {"query": "add component"})
     rows = result.structuredContent["data"]["tools"]
-    assert rows[0]["name"] == "nx_create_part" and rows[0]["legacy"] is True
-    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_create_part"]})
+    assert rows[0]["name"] == "nx_add_component" and rows[0]["legacy"] is True
+    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_add_component"]})
     described = result.structuredContent["data"]["tools"][0]
     assert "input_schema" in described and "output_schema" not in described
     result = await server.call_tool(
-        "nx_get_tool_schemas", {"names": ["nx_create_part"], "include_output": True}
+        "nx_get_tool_schemas", {"names": ["nx_add_component"], "include_output": True}
     )
     assert "output_schema" in result.structuredContent["data"]["tools"][0]

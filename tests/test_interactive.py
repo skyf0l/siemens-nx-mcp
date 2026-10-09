@@ -56,28 +56,6 @@ def test_conservative_bounds_gap():
 
 
 @pytest.mark.asyncio
-async def test_mcp_points_cross_bridge_as_json_objects(tmp_path):
-    from nx_mcp.server import create_server
-    from nx_mcp.workspace import Workspace
-
-    class Bridge:
-        async def call(self, method, params):
-            assert params["corner1"] == {"x": 0.0, "y": 0.0}
-            assert params["corner2"] == {"x": 10.0, "y": 10.0}
-            import json
-
-            json.dumps(params)
-            return {"status": "success"}
-
-    server = create_server(Bridge(), Workspace(tmp_path), surface="full")
-    result = await server.call_tool(
-        "nx_sketch_rectangle",
-        {"sketch_id": "sketch-test", "corner1": {"x": 0, "y": 0}, "corner2": {"x": 10, "y": 10}},
-    )
-    assert not result.isError, result
-
-
-@pytest.mark.asyncio
 async def test_capture_returns_inline_image_and_rejects_changed_artifact(tmp_path):
     import hashlib
 

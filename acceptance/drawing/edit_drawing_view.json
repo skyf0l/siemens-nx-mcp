@@ -1,0 +1,248 @@
+{
+ "covers": {
+  "nx_edit_drawing_view": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "right",
+    "spacing": 110
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "scale": 1.5
+   },
+   "expect": {
+    "data.scale": {
+     "close": 1.5,
+     "tol": 1e-09
+    },
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "position": [
+     130,
+     210
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      130,
+      210
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$right.data.view.id",
+    "position": [
+     270,
+     210
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      270,
+      210
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$right.data.view.id",
+    "position": [
+     270,
+     150
+    ]
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "rolled_back",
+    "error.field": "/position"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "style": {
+     "hidden_font": 0,
+     "visible_font": 1,
+     "smooth_edges": false,
+     "rendering": "wireframe"
+    }
+   },
+   "expect": {
+    "data.style.hidden_font": 0,
+    "data.style.smooth_edges": false,
+    "data.style.visible_font": 1
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "style": {
+     "hidden_lines": false
+    }
+   },
+   "expect": {
+    "data.style.hidden_lines": false,
+    "warnings": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "style": {
+     "hidden_lines": true,
+     "self_hidden": true,
+     "hidden_font": 2
+    }
+   },
+   "expect": {
+    "data.style.hidden_lines": true,
+    "data.style.hidden_font": 2,
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "style": {
+     "construction_geometry": true
+    }
+   },
+   "expect": {
+    "data.construction_geometry": true
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "style": {
+     "construction_geometry": false
+    }
+   },
+   "expect": {
+    "data.construction_geometry": false
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "scale": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/scale"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "style": {
+     "hidden_font": 9
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/style/hidden_font"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$sh.data.sheet.id",
+    "scale": 2
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

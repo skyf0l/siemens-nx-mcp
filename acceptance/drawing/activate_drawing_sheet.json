@@ -1,0 +1,120 @@
+{
+ "covers": {
+  "nx_activate_drawing_sheet": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh2",
+   "args": {
+    "name": "SHT2",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "args": {},
+   "expect": {
+    "data.sheet": null,
+    "data.modeling": true,
+    "data.sheets": {
+     "count": 2
+    },
+    "data.sheets.0.active": false
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "args": {
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "data.sheet.name": "SHT1",
+    "data.modeling": false,
+    "data.sheets.0.active": true,
+    "data.sheets.1.active": false,
+    "data.sheets.0.size": {
+     "close": [
+      420,
+      297
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "args": {
+    "sheet": "$sh2.data.sheet.id"
+   },
+   "expect": {
+    "data.sheet.name": "SHT2",
+    "data.sheets.1.active": true
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "args": {
+    "sheet": "$top.data.view.id"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "args": {},
+   "expect": {
+    "data.modeling": true,
+    "data.sheets.0.views": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

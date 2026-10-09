@@ -1,0 +1,25 @@
+{
+  "covers": {"nx_create_directory": []},
+  "part": null,
+  "steps": [
+    {"call": "nx_create_directory", "args": {"path": "$run/dirs/a/b"},
+     "expect": {"mutation_outcome": "committed", "data.created": true, "data.path": {"matches": "^smoke/.+/dirs/a/b$"}}},
+    {"call": "nx_create_directory", "args": {"path": "$run/dirs/a/b"},
+     "expect": {"mutation_outcome": "committed", "data.created": false}},
+    {"call": "nx_upload_file", "setup": true,
+     "args": {"path": "$run/dirs/file.txt", "data_base64": "eA==", "offset": 0, "total_size": 1,
+              "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"}},
+    {"call": "nx_create_directory", "args": {"path": "$run/dirs/file.txt"},
+     "expect": {"error.code": "NX_WRONG_KIND", "error.field": "/path", "mutation_outcome": "not_started"}},
+    {"call": "nx_create_directory", "args": {"path": "../outside_dir"},
+     "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}},
+    {"call": "nx_create_directory", "args": {"path": "smoke/../.NX-MCP/evil"},
+     "expect": {"error.code": "NX_PATH_RESERVED", "mutation_outcome": "not_started"}},
+    {"call": "nx_create_directory", "args": {"path": "C:relative"},
+     "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}},
+    {"call": "nx_create_directory", "args": {"path": "\\rooted"},
+     "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}},
+    {"call": "nx_list_files", "args": {"path": "$run/dirs/a"},
+     "expect": {"data.items": {"count": 1}, "data.items.0.kind": "directory"}}
+  ]
+}

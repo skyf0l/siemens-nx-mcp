@@ -342,142 +342,31 @@ def test_query_commands_return_typed_stable_object_references(tmp_path: Path):
     assert executor.execute("nx_list_bodies", {})["objects"][0]["id"] == bodies[0]["id"]
 
 
-def test_create_part_uses_validated_workspace_path_and_returns_part_reference(
-    tmp_path: Path,
-):
-    session = FakeSession()
-    executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    part_path = tmp_path / "parts" / "new-bracket.prt"
-
-    result = executor.execute("nx_create_part", {"path": str(part_path), "units": "mm"})
-
-    assert result["part"]["kind"] == "part"
-    assert result["part"]["name"] == "new-bracket"
-    assert result["message"] == "Created part: new-bracket"
-    assert session.Parts.last_file_new.TemplateFileName == "model-plain-1-mm-template.prt"
-    assert session.Parts.last_file_new.Units == "mm"
-    assert session.Parts.last_file_new.DisplayPartOption == "allow-additional"
-    assert not hasattr(session.Parts.last_file_new, "UseBlankTemplate")
-
-
-def test_open_save_export_and_close_part_lifecycle(tmp_path: Path):
-    session = FakeSession()
-    executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    source = tmp_path / "existing.prt"
-    source.write_text("part", encoding="utf-8")
-
-    opened = executor.execute("nx_open_part", {"path": str(source)})
-    saved = executor.execute("nx_save_part", {})
-    exported = executor.execute("nx_export_step", {"path": str(tmp_path / "out" / "part.stp")})
-    closed = executor.execute("nx_close_part", {"save": True})
-
-    assert opened["part"]["name"] == "existing"
-    assert saved["message"] == "Saved part: existing"
-    assert exported["path"].endswith("part.stp")
-    assert "MANIFOLD_SOLID_BREP" in Path(exported["path"]).read_text(encoding="utf-8")
-    assert closed["message"] == "Closed part: existing"
-    assert session.Parts.last_closed.close_args[:2] == ("whole-tree", "close")
-    assert executor.execute("nx_status", {})["active_part"] is None
-
-
-def test_explicit_sketch_workflow_adds_geometry_to_the_referenced_sketch(tmp_path: Path):
-    session = FakeSession()
-    executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-
-    created = executor.execute("nx_create_sketch", {"plane": "XY", "name": "PROFILE"})
-    sketch_id = created["object"]["id"]
-    line = executor.execute(
-        "nx_sketch_line",
-        {"sketch_id": sketch_id, "start": {"x": 0, "y": 0}, "end": {"x": 20, "y": 0}},
-    )
-    rectangle = executor.execute(
-        "nx_sketch_rectangle",
-        {
-            "sketch_id": sketch_id,
-            "corner1": {"x": 0, "y": 0},
-            "corner2": {"x": 20, "y": 10},
-        },
-    )
-    finished = executor.execute("nx_finish_sketch", {"sketch_id": sketch_id})
-
-    sketch = session.Parts.Work.Sketches.values[-1]
-    assert created["object"]["name"] == "PROFILE"
-    assert session.Parts.Work.Planes.last_plane.normal == (0.0, 0.0, 1.0)
-    assert (
-        session.Parts.Work.Sketches.last_builder.PlaneReference
-        is session.Parts.Work.Planes.last_plane
-    )
-    assert line["object"]["kind"] == "curve"
-    assert len(rectangle["objects"]) == 4
-    assert len(sketch.geometry) == 5
-    assert finished["object"]["id"] == sketch_id
-    assert sketch.active is False
-
-
-def test_extrude_returns_new_feature_and_body_references(tmp_path: Path):
-    session = FakeSession()
-    executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    sketch = executor.execute("nx_create_sketch", {"plane": "XY", "name": "PROFILE"})
-
-    result = executor.execute(
-        "nx_extrude",
-        {"sketch_id": sketch["object"]["id"], "distance": 12.5, "reverse": False},
-    )
-
-    assert result["feature"]["kind"] == "feature"
-    assert result["body"]["kind"] == "body"
-    assert result["message"] == "Extruded PROFILE by 12.5"
-    builder = session.Parts.Work.Features.last_extrude_builder
-    assert builder.Limits.StartExtend.Value.RightHandSide == "0"
-    assert builder.Limits.EndExtend.Value.RightHandSide == "12.5"
-    assert builder.BooleanOperation.Type == "create"
-    assert builder.Direction.sense == "forward"
-
-
 def test_undo_and_fit_view_are_exposed_by_the_executor(tmp_path: Path):
     session = FakeSession()
     executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    sketch = executor.execute("nx_create_sketch", {"plane": "XY"})
-    executor.execute(
-        "nx_extrude",
-        {"sketch_id": sketch["object"]["id"], "distance": 12.5},
-    )
+    executor._handlers["nx_add_component"] = lambda **_kw: {"message": "added"}
+    executor.execute("nx_add_component", {})
+    executor.execute("nx_add_component", {})
 
     undo = executor.execute("nx_undo", {})
     fitted = executor.execute("nx_fit_view", {})
 
     assert undo == {"message": "Undo successful"}
     assert fitted == {"message": "View fitted"}
-    assert len(session.Parts.Work.Bodies.values) == 1
     assert session.undo_to_marks[-1] == 2
-
-
-def test_save_clears_mcp_undo_marks(tmp_path: Path):
-    executor = NXOpenExecutor(FakeSession(), FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-
-    executor.execute("nx_create_sketch", {"plane": "XY"})
-    executor.execute("nx_save_part", {})
-
-    with pytest.raises(NXToolError) as error:
-        executor.execute("nx_undo", {})
-
-    assert error.value.code == "NX_UNDO_UNAVAILABLE"
 
 
 def test_failed_model_mutation_rolls_back_its_undo_mark(tmp_path: Path):
     session = FakeSession()
     executor = NXOpenExecutor(session, FAKE_NXOPEN, "NX test", Workspace(tmp_path))
-    sketch = executor.execute("nx_create_sketch", {"plane": "XY", "name": "PROFILE"})
 
+    def refuse(**_kw):
+        raise NXToolError("NX_INVALID_ARGUMENT", "refused after the mark was set")
+
+    executor._handlers["nx_add_component"] = refuse
     with pytest.raises(NXToolError):
-        executor.execute(
-            "nx_sketch_rectangle",
-            {
-                "sketch_id": sketch["object"]["id"],
-                "corner1": {"x": 0, "y": 0},
-                "corner2": {"x": 0, "y": 10},
-            },
-        )
+        executor.execute("nx_add_component", {})
 
     assert session.rollback_count == 1
 

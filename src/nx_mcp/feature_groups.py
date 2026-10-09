@@ -9,16 +9,7 @@ from __future__ import annotations
 
 import importlib
 
-SERVER_MODULES = (
-    "modeling_server",
-    "sketch_curves_server",
-    "sketch_constraints_server",
-    "holes_server",
-    "feature_tree_server",
-    "body_ops_server",
-    "drafting_dims_server",
-    "drafting_notes_server",
-)
+SERVER_MODULES = ("modeling_server",)
 
 
 def server_modules():
