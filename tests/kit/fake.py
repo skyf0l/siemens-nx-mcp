@@ -226,6 +226,10 @@ class FakeNX:
         self._ids = itertools.count(1)
         self.opened = []
         self.face_data = {}
+        # Display state for view tools (tests/kit/kernel.py KitServices).
+        self.camera = {"rotation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "scale": 1.0}
+        self.highlighted = []
+        self.display_snapshots = {}
         self.nx = self._namespace()
         self.uf = self._uf()
         self._wire_part()

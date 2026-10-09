@@ -1,0 +1,16 @@
+{
+  "nx_create_datum_plane": {
+    "v2406": {
+      "checks": 22,
+      "recorded": "2026-10-09T11:49:53Z",
+      "scenario": "acceptance/modeling/datum_plane.json",
+      "scenario_sha256": "30ca6400d8f4e1ded648c60c7feeab70da2e74449729e137d24b46f22fd1e109",
+      "source_sha256": "5246d18dd9e5f07ddeb481b4e26740c2057fc482fa837e914c60ac467cae9a1b",
+      "variants": [
+        "offset",
+        "point_normal",
+        "three_points"
+      ]
+    }
+  }
+}

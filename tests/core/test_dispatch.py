@@ -1,10 +1,13 @@
 """HardenedExecutor.execute: catalogue tools go to the kernel, the rest stays legacy."""
 
+from pathlib import Path
+
 import pytest
 
 from nx_mcp.core import catalogue
 from nx_mcp.host import dispatch
 from nx_mcp.host.dispatch import KernelError
+from tests.kit.objects import Part
 
 
 def test_catalogue_names_do_not_shadow_legacy_handlers(rig):
@@ -62,15 +65,21 @@ def test_model_tool_in_dev_uses_one_visible_mark_and_legacy_history(rig, monkeyp
     assert rig.session.marks == {} and rig.e._history == []
 
 
-def test_legacy_tools_keep_their_shape_and_record_ownership(rig):
+def test_legacy_tools_keep_their_shape_and_record_ownership(rig, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # tracking runs in development too
     legacy = rig.e.execute("nx_list_bodies", {})
     assert legacy["status"] == "success" and "ok" not in legacy
     services = dispatch.services_for(rig.e)
+    rig.e._owned_parts.clear()
+    # The engineer's part was loaded before any agent call: not owned.
     assert not services.owns(rig.part)
-    dispatch.after_legacy(rig.e, "nx_open_part", {"already_loaded": True})
-    assert not services.owns(rig.part)
-    dispatch.after_legacy(rig.e, "nx_open_part", {"already_loaded": False})
-    assert services.owns(rig.part)
+    # A part loaded by an agent call (created or opened) is owned.
+    rig.e._handlers["nx_test_open"] = lambda: (
+        bool(Part(rig.session, Path(rig.part.FullPath).parent / "new.prt")) and {"opened": 1}
+    )
+    rig.e.execute("nx_test_open", {})
+    new = rig.session.Parts[-1]
+    assert services.owns(new) and services.created(new) and not services.owns(rig.part)
 
 
 def test_panel_summary_comes_from_the_spec(rig):

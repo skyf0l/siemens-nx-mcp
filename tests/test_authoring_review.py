@@ -799,6 +799,20 @@ def test_preview_failure_rolls_back_prior_edits(author):
     assert r.expression.RightHandSide == "10"
 
 
+def test_preview_rollback_failure_keeps_the_original_error(author):
+    from unittest.mock import Mock
+
+    operations = [
+        {"method": "nx_set_expression", "params": {"expression": "height", "formula": "invalid"}}
+    ]
+    author.session.UndoToMark = Mock(side_effect=RuntimeError("undo failed"))
+    with pytest.raises(NXToolError) as error:
+        author.e.execute("nx_preview_change", {"operations": operations, "capture": False})
+    assert error.value.code == "NX_INVALID_FORMULA"  # not hidden behind NX_ROLLBACK_FAILED
+    assert error.value.details["mutation_outcome"] == "partial"
+    assert "undo failed" in error.value.details["rollback_error"]["message"]
+
+
 def test_preview_and_accept_refuse_a_tool_disabled_for_this_nx_version(author):
     e = author.e
     operation = {"method": "nx_set_expression", "params": {"expression": "height", "formula": "20"}}
@@ -871,7 +885,7 @@ async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path):
     from nx_mcp.workspace import Workspace
 
     bridge = NS(call=AsyncMock(return_value={"status": "success"}))
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
     variants = tools["nx_edit_sketch"].inputSchema["properties"]["operations"]["items"]["oneOf"]
     assert {v["properties"]["action"]["const"] for v in variants} == {

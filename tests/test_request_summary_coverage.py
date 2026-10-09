@@ -54,8 +54,13 @@ def name_of(object_id):
 
 
 def tools():
-    server = create_server(AsyncMock(), Workspace(__import__("pathlib").Path(".")))
-    return {tool.name: tool.inputSchema for tool in asyncio.run(server.list_tools())}
+    server = create_server(AsyncMock(), Workspace(__import__("pathlib").Path(".")), surface="full")
+    added = server.nx_surface.added_names()  # catalogue summaries come from their specs
+    return {
+        tool.name: tool.inputSchema
+        for tool in asyncio.run(server.list_tools())
+        if tool.name not in added
+    }
 
 
 NUMBERS = itertools.count(10, 5)

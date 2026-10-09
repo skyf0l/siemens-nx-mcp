@@ -20,7 +20,31 @@ from pathlib import Path
 
 from nx_mcp.core.errors import WARNING_CODES, NXError, fail
 
+# Cooperative budget per cost class (architecture.md 3.3), measured from gate 9.
+# tx.checkpoint() past the budget raises interrupted/NX_CANCELLED (reason "budget").
 COST_BUDGET_SECONDS = {"instant": 30.0, "light": 30.0, "heavy": 300.0, "long": 1800.0}
+DEFAULT_BUDGET_SECONDS = 300.0
+
+NOT_GRANTED_HINT = (
+    "The part is the engineer's: ask them in chat to tick 'Allow agent to change {name}' "
+    "in the NX MCP panel, then retry, or work in a part you create"
+)
+
+
+def check_owned(services, part, *, field: str | None = None) -> None:
+    """Gate 6: refuse to change ``part`` unless the agent owns it (off in development)."""
+    if part is None or services.dev or services.owns(part):
+        return
+    path = services.part_path(part)
+    name = str(getattr(part, "Name", "") or path)
+    fail(
+        "NX_PART_NOT_GRANTED",
+        f"The part {path} belongs to the engineer: the agent may change only parts it "
+        "created or opened, or parts the engineer allowed on the NX MCP panel",
+        hint=NOT_GRANTED_HINT.format(name=name),
+        field=field,
+        details={"part": path},
+    )
 
 
 class Services:
@@ -43,8 +67,12 @@ class Services:
     def part_path(self, part) -> str: ...
     def owning_part(self, obj): ...
     def part_units(self, part) -> str: ...  # "mm" or "in"
-    def sheet_units(self) -> str | None: ...
     def infer_kind(self, obj) -> str: ...
+
+    # drawing sheets (gate 9: SheetLength / SheetPoint arguments)
+    def current_sheet(self): ...  # the work part's current drawing sheet or None
+    def sheet_of(self, obj): ...  # the sheet that is or shows obj (sheet, view), else None
+    def sheet_units(self, sheet) -> str: ...  # "mm" or "in"
 
     # legacy registry seam for core.references
     def legacy_register(self, obj, kind: str, part) -> str: ...
@@ -53,11 +81,18 @@ class Services:
     def legacy_kind(self, legacy_id: str) -> str | None: ...
     def legacy_name(self, legacy_id: str) -> str | None: ...
 
-    # state for `requires` and ownership
+    # state for `requires` and ownership (gate 6)
     def state(self) -> dict: ...
-    def owns(self, part) -> bool: ...
+    def owns(self, part) -> bool: ...  # created/opened by the agent, or granted
     def own(self, part) -> None: ...
-    def modified_flags(self) -> dict: ...
+    def modified_flags(self) -> dict: ...  # {part_key: IsModified} of parts not owned
+
+    # display state: `view` rollback and restore_id (architecture.md 3.2)
+    def display_camera(self): ...  # opaque camera snapshot of the work view
+    def display_records(self, objects, appearance: bool) -> list: ...  # [(obj, record)]
+    def highlights(self) -> list: ...  # objects the agent highlighted
+    def restore_display(self, camera, records, highlights) -> None: ...
+    def save_display_snapshot(self, records, camera) -> str: ...  # restore_id
 
     # undo, snapshots, invalidation
     def observe(self): ...  # context manager -> object with .touched
@@ -120,6 +155,59 @@ class Files:
         return clean
 
 
+class Display:
+    """Display state a handler is about to change, so the kernel can restore it.
+
+    Call before changing: ``tx.display.keep_camera()``, ``tx.display.keep(objs,
+    appearance=True)`` (blank state, colour, transparency; bodies expand to their
+    faces with ``appearance``), ``tx.display.keep_highlights()``. A failed call
+    restores what was kept (``view`` tools: outcome ``rolled_back``); a successful
+    call of a ``restorable`` tool returns ``restore_id`` for ``nx_restore_display``.
+    """
+
+    def __init__(self, tx: Tx) -> None:
+        self._tx = tx
+        self.camera = None
+        self.records: dict = {}  # key -> [obj, record]
+        self.highlights = None
+
+    @property
+    def kept(self) -> bool:
+        return self.camera is not None or bool(self.records) or self.highlights is not None
+
+    def keep_camera(self) -> None:
+        if self.camera is None:
+            self.camera = self._tx.services.display_camera()
+
+    def keep(self, objects, *, appearance: bool = False) -> None:
+        for obj, record in self._tx.services.display_records(list(objects), appearance):
+            tag = getattr(obj, "Tag", None)
+            key = int(tag) if tag is not None else id(obj)
+            if key in self.records:
+                known = self.records[key][1]
+                known.update({k: v for k, v in record.items() if k not in known})
+            else:
+                self.records[key] = [obj, dict(record)]
+
+    def keep_highlights(self) -> None:
+        if self.highlights is None:
+            self.highlights = list(self._tx.services.highlights())
+
+    def restore(self) -> None:
+        """Put back everything kept: records, highlights, then the camera."""
+        self._tx.services.restore_display(
+            self.camera, [tuple(pair) for pair in self.records.values()], self.highlights
+        )
+
+    def snapshot(self) -> str | None:
+        """A restore_id for the kept camera and records, or None."""
+        if self.camera is None and not self.records:
+            return None
+        return self._tx.services.save_display_snapshot(
+            [tuple(pair) for pair in self.records.values()], self.camera
+        )
+
+
 class Tx:
     def __init__(
         self,
@@ -142,12 +230,14 @@ class Tx:
         self.started = time.monotonic()
         self.touched = False
         self.frame = "work_part_absolute"
-        self.units = {"length": None, "angle": "deg"}
+        self.units = {"length": None, "angle": "deg"}  # + "sheet_length" (gate 9)
+        self.sheet = None  # the target drawing sheet of a sheet tool (gate 9), or None
         self.warnings: list[dict] = []
         self.non_undoable_reason: str | None = None
         self.mark = None
         self.outcome: str | None = None  # "previewed" after tx.preview()
         self.files = Files(self)
+        self.display = Display(self)
         self.children: list[dict] = []
 
     # -- NX access ------------------------------------------------------------
@@ -205,6 +295,14 @@ class Tx:
                 )
         return obj
 
+    def require_owned(self, part, *, field: str | None = None) -> None:
+        """Refuse to save, close or change ``part`` unless the agent owns it (gate 6).
+
+        The kernel checks the work part of ``model`` tools; ``file`` and ``session``
+        tools that save or close a specific part call this before acting.
+        """
+        check_owned(self._services, part, field=field)
+
     def kind_of(self, obj) -> str:
         """The exact reference kind of a live NX object (``feature``, ``face``, ...)."""
         return self._services.infer_kind(obj)
@@ -231,12 +329,19 @@ class Tx:
             raise NXError(
                 "NX_CANCELLED", "Cancelled by nx_cancel_operation", details={"reason": "cancel"}
             )
-        budget = COST_BUDGET_SECONDS.get(root.spec.cost, 300.0)
-        if time.monotonic() - root.started > budget:
+        budget = COST_BUDGET_SECONDS.get(root.spec.cost, DEFAULT_BUDGET_SECONDS)
+        elapsed = time.monotonic() - root.started
+        if elapsed > budget:
             raise NXError(
                 "NX_CANCELLED",
-                f"Exceeded the {budget:g} s budget of a {root.spec.cost} operation",
-                details={"reason": "budget", "budget_seconds": budget},
+                f"Stopped after {elapsed:.0f} s, over the {budget:g} s budget of a "
+                f"{root.spec.cost} operation",
+                hint="Split the work into smaller calls (fewer objects or steps per call)",
+                details={
+                    "reason": "budget",
+                    "budget_seconds": budget,
+                    "elapsed_seconds": round(elapsed, 3),
+                },
             )
 
     def non_undoable(self, reason: str) -> None:

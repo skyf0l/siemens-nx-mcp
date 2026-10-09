@@ -15,6 +15,7 @@ from pathlib import Path
 
 from nx_mcp import side_effects
 from nx_mcp.core.references import PREFIX, Counter, References
+from nx_mcp.kit import drawing, units
 
 APPLICATIONS = {
     "UG_APP_MODELING": "modeling",
@@ -33,8 +34,16 @@ _KIND_BY_CLASS = (
     ("Point", "point"),
     ("Assemblies.Component", "component"),
     ("Expression", "expression"),
+    ("Drawings.DrawingSheet", "drawing_sheet"),
+    ("Drawings.DraftingView", "drawing_view"),
     ("Part", "part"),
 )
+
+
+def _path_key(part) -> str:
+    """A part's file identity for ownership: its full path, else its name."""
+    full = str(getattr(part, "FullPath", "") or getattr(part, "Name", "") or "")
+    return full.replace("\\", "/").casefold()
 
 
 class LegacyServices:
@@ -42,8 +51,12 @@ class LegacyServices:
 
     def __init__(self, executor) -> None:
         self.x = executor
-        if not hasattr(executor, "_owned_parts"):
-            executor._owned_parts = set()
+        # Gate 6 state: part key -> file identity. A key alone could be reused by NX
+        # for another part after an out-of-band close; the path must match too.
+        if not isinstance(getattr(executor, "_owned_parts", None), dict):
+            executor._owned_parts = {}  # created or opened by the agent
+        if not isinstance(getattr(executor, "_granted_parts", None), dict):
+            executor._granted_parts = {}  # allowed by the engineer on the panel
         refs = getattr(executor, "_catalogue_references", None)
         if refs is None:
             state = Path(executor.workspace.root) / ".nx-mcp" / "refs.json"
@@ -114,8 +127,22 @@ class LegacyServices:
         units = getattr(part, "PartUnits", None)
         return "mm" if units == self.nx.BasePart.Units.Millimeters else "in"
 
-    def sheet_units(self):
-        return None  # Sheet quantities fall back to part units until the drawing domain.
+    # -- drawing sheets (gate 9) ------------------------------------------------------
+    def current_sheet(self):
+        part = self.work_part()
+        return drawing.current(part) if part is not None else None
+
+    def sheet_of(self, obj):
+        kind = self.infer_kind(obj, default=None)
+        if kind == "drawing_sheet":
+            return obj
+        if kind != "drawing_view":
+            return None
+        matches = drawing.sheets_showing(self.owning_part(obj), obj)
+        return matches[0] if len(matches) == 1 else None
+
+    def sheet_units(self, sheet) -> str:
+        return units.sheet_units(self, sheet)  # needs only ``.nx``
 
     def infer_kind(self, obj, default: str | None = "error"):
         for path, kind in _KIND_BY_CLASS:
@@ -165,18 +192,62 @@ class LegacyServices:
             state["application"] = APPLICATIONS.get(name, name.lower())
         return state
 
+    def _held(self, table: dict, part) -> bool:
+        return table.get(self.part_key(part)) == _path_key(part)
+
     def owns(self, part) -> bool:
-        return self.part_key(part) in self.x._owned_parts
+        """Created or opened by the agent this session, or granted by the engineer."""
+        return self._held(self.x._owned_parts, part) or self._held(self.x._granted_parts, part)
+
+    def created(self, part) -> bool:
+        """Created or opened by the agent (not only granted)."""
+        return self._held(self.x._owned_parts, part)
+
+    def granted(self, part) -> bool:
+        return self._held(self.x._granted_parts, part)
 
     def own(self, part) -> None:
-        self.x._owned_parts.add(self.part_key(part))
+        self.x._owned_parts[self.part_key(part)] = _path_key(part)
+
+    def grant(self, part) -> None:
+        """The engineer allowed the agent to change ``part`` (NX MCP panel)."""
+        self.x._granted_parts[self.part_key(part)] = _path_key(part)
+
+    def revoke(self, part) -> None:
+        self.x._granted_parts.pop(self.part_key(part), None)
+
+    def loaded(self) -> dict:
+        """``{part_key: file identity}`` of every loaded part (input of :meth:`track`)."""
+        out = {}
+        with contextlib.suppress(Exception):
+            for part in self.parts():
+                with contextlib.suppress(Exception):
+                    out[self.part_key(part)] = _path_key(part)
+        return out
+
+    def track(self, before: dict) -> None:
+        """After an agent call: own every part loaded since ``before`` (the agent created
+        or opened it), and keep owning an agent part the call saved under a new path."""
+        owned, granted = self.x._owned_parts, self.x._granted_parts
+        try:
+            parts = self.parts()
+        except Exception:
+            return
+        for part in parts:
+            with contextlib.suppress(Exception):
+                key, now = self.part_key(part), _path_key(part)
+                if key not in before:
+                    owned[key] = now
+                elif before[key] != now and before[key] in (owned.get(key), granted.get(key)):
+                    owned[key] = now  # the agent saved its (or a granted) part as a new file
 
     def modified_flags(self) -> dict:
         out = {}
-        for part in self.parts():
-            if not self.owns(part):
+        with contextlib.suppress(Exception):
+            for part in self.parts():
                 with contextlib.suppress(Exception):
-                    out[self.part_key(part)] = bool(part.IsModified)
+                    if not self.owns(part):
+                        out[self.part_key(part)] = bool(part.IsModified)
         return out
 
     # -- undo, snapshots, invalidation ----------------------------------------------------
@@ -256,6 +327,27 @@ class LegacyServices:
         if refresh is None or self.work_part() is None:
             return []
         return list(refresh().get("updated") or [])
+
+    # -- display state (view rollback, restore_id) ---------------------------------------
+    def display_camera(self):
+        return self.x._view_info()
+
+    def display_records(self, objects, appearance: bool) -> list:
+        return self.x._display_pairs(list(objects), appearance)
+
+    def highlights(self) -> list:
+        return list(getattr(self.x, "_highlighted_objects", []))
+
+    def restore_display(self, camera, records, highlights) -> None:
+        for obj, record in records:
+            self.x._apply_display_record(obj, record)
+        if highlights is not None:
+            self.x._set_highlights(highlights)
+        if camera is not None:
+            self.x._restore_camera(camera)
+
+    def save_display_snapshot(self, records, camera) -> str:
+        return self.x._save_display_snapshot([r for _, r in records], camera=camera)
 
     def record_history(self, mark, part, operation_id: str, tool: str) -> None:
         self.x._history.append(

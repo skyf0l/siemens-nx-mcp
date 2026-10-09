@@ -3,6 +3,7 @@
 import math
 import uuid
 
+from nx_mcp.kit import units
 from nx_mcp.kit.drawing import work_view_is_drawing as drawing_work_view
 from nx_mcp.kit.geom import dot, xyz
 from nx_mcp.legacy_kit import finite, sheet_point
@@ -24,6 +25,16 @@ class ReleaseEngineeringMixin:
         if sheet.Units == D.DrawingSheet.Unit.Inches:
             return "in"
         raise NXToolError("NX_UNSUPPORTED_UNITS", "Unknown native drawing units")
+
+    def _sheet_default(self, sheet, *mm):
+        """A default placement defined in millimetres, in the sheet's units.
+
+        Defaults such as [100, 100] were plain sheet units: on an inch sheet that
+        is 100 in, off an A3 sheet, and NX fails with "The view is not located on
+        the drawing". Explicit values stay in sheet units.
+        """
+        factor = units.factor("mm", self._sheet_units(sheet))
+        return [float(v) * factor for v in mm]
 
     def _view_sheet(self, view):
         matches = [s for s in self._work_part().DrawingSheets if view in s.GetDraftingViews()]

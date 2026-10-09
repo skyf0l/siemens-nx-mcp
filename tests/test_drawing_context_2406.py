@@ -287,3 +287,46 @@ def test_flat_pattern_leaves_the_displayed_drawing_and_returns_its_sheet(rig):
     sheets.CurrentDrawingSheet = sheet
     assert rig.e._sm_leave_drawing() is sheet
     rig.e._close_drawing_sheets.assert_called_once_with(rig.part)
+
+
+def test_default_projection_spacing_is_60_mm_on_an_inch_sheet(rig):
+    """Regression: the default spacing 60 was taken as 60 in on an inch sheet (off the sheet)."""
+    sheets, sheet, builder = projection_rig(rig)
+    sheet.Length, sheet.Height = 420 / 25.4, 297 / 25.4
+    rig.e._sheet_units = lambda _: "in"
+    parent = rig.e._drawing_object("Top@1", "drawing_view")
+    parent.GetDrawingReferencePoint = lambda: NS(X=4.0, Y=7.0)
+    rig.e._add_projection_view("Top@1", "right")
+    target = rig.e._place_drawing_view.call_args.args[2]
+    assert target == pytest.approx([4.0 + 60 / 25.4, 7.0])
+    builder.Commit.assert_called_once()
+
+
+@pytest.mark.parametrize(("units", "expected"), [("mm", 100.0), ("in", 100 / 25.4)])
+def test_default_base_view_position_is_100_mm_in_sheet_units(rig, units, expected):
+    """Regression: [100, 100] was 100 in on an inch sheet; NX then failed with
+    "The view is not located on the drawing"."""
+    sheets, sheet = sheet_part(rig)
+    body = rig.part.Bodies[0] if list(rig.part.Bodies) else Object("BODY")
+    rig.part.Bodies[:] = [body]
+    rig.e._engineering_owned = lambda ref, kind: body
+    rig.e._drawing_object = lambda ref, kind: sheet
+    rig.e._sheet_units = lambda _: units
+    rig.e._sheet_point3d = lambda _s, p: p
+    rig.e._configure_base_view = Mock()
+    rig.e._drawing_construction_visibility = Mock()
+    rig.e._place_drawing_view = Mock()
+    rig.part.ModelingViews.FindObject = lambda name: name
+    result = Object("Front@1")
+    builder = NS(
+        SelectModelView=NS(SelectedView=None),
+        Placement=NS(Placement=NS(SetValue=Mock())),
+        Commit=Mock(return_value=result),
+        Destroy=Mock(),
+    )
+    rig.part.DraftingViews = NS(CreateBaseViewBuilder=lambda _: builder)
+    out = rig.e._add_base_view("SH1", "b", "front")
+    point = rig.e._place_drawing_view.call_args.args[2]
+    assert point == pytest.approx([expected, expected])
+    assert out["position"] == pytest.approx([expected, expected])
+    assert out["position_mm"] == pytest.approx([100.0, 100.0])

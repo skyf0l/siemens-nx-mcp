@@ -15,7 +15,7 @@ from nx_mcp.workspace import Workspace
 async def test_guidance_examples_match_real_input_schemas(tmp_path):
     from nx_mcp.agent_guidance import GUIDANCE
 
-    server = create_server(AsyncMock(), Workspace(tmp_path))
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
     for name, (_, _, example) in GUIDANCE.items():
         tool = server._tool_manager.get_tool(name)
         assert tool is not None
@@ -172,19 +172,13 @@ def test_next_action_does_not_repeat_the_current_inspection():
 @pytest.mark.asyncio
 async def test_spaced_discovery_and_optional_output_schema(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
+    result = await server.call_tool("nx_find_tools", {"query": "create part"})
+    rows = result.structuredContent["data"]["tools"]
+    assert rows[0]["name"] == "nx_create_part" and rows[0]["legacy"] is True
+    result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_create_part"]})
+    described = result.structuredContent["data"]["tools"][0]
+    assert "input_schema" in described and "output_schema" not in described
     result = await server.call_tool(
-        "nx_discover_tools",
-        {"query": "create part", "include_schema": True, "include_output_schema": False},
+        "nx_get_tool_schemas", {"names": ["nx_create_part"], "include_output": True}
     )
-    rows = result.structuredContent["tools"]
-    assert rows[0]["name"] == "nx_create_part"
-    assert "inputSchema" in rows[0] and "outputSchema" not in rows[0]
-    result = await server.call_tool(
-        "nx_discover_tools", {"query": "nx_create_part", "include_schema": True}
-    )
-    assert "outputSchema" not in result.structuredContent["tools"][0]
-    result = await server.call_tool(
-        "nx_discover_tools",
-        {"query": "nx_create_part", "include_schema": True, "include_output_schema": True},
-    )
-    assert "outputSchema" in result.structuredContent["tools"][0]
+    assert "output_schema" in result.structuredContent["data"]["tools"][0]

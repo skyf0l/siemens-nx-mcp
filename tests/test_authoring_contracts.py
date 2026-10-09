@@ -376,7 +376,10 @@ def test_save_and_close_refuse_parts_outside_the_workspace(rig, tmp_path, method
 
 
 def test_unsaved_part_without_a_file_may_only_be_saved_as_into_the_workspace(rig, tmp_path):
+    from nx_mcp.host.dispatch import services_for
+
     rig.part.FullPath = "model1"
+    services_for(rig.e).own(rig.part)  # a new part the agent created (gate 6)
     for method in ["nx_save_part", "nx_close_part"]:
         with pytest.raises(NXToolError) as error:
             rig.e.execute(method, {})

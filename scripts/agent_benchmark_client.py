@@ -43,9 +43,9 @@ async def run(args):
             log({"event": "catalog", "profile": args.profile, "presented": value})
         elif args.action == "discover":
             if args.profile == "agent":
-                value = await call(
-                    "nx_discover_tools", {"query": args.tool, "include_schema": True}
-                )
+                found = await call("nx_find_tools", {"query": args.tool})
+                names = [row["name"] for row in found["data"]["tools"]][:10]
+                value = await call("nx_get_tool_schemas", {"names": names}) if names else found
             else:
                 started = time.monotonic()
                 catalog = (await client.list_tools()).tools
@@ -72,10 +72,10 @@ async def run(args):
         else:
             params = json.loads(args.arguments)
             if args.profile == "agent" and args.tool not in {
-                "nx_inspect",
-                "nx_result",
-                "nx_result_cleanup",
-                "nx_discover_tools",
+                "nx_find_tools",
+                "nx_get_tool_schemas",
+                "nx_invoke",
+                "nx_invoke_read",
             }:
                 value = await call("nx_invoke", {"tool": args.tool, "arguments": params})
             else:

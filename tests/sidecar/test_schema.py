@@ -1,0 +1,277 @@
+"""Schema generation: Pydantic adapters and JSON Schema from core types.
+
+The parity test feeds the same generated samples to the sidecar's Pydantic
+adapter and to ``core.validate`` (the NX-side gate 1): both must accept and
+reject exactly the same arguments.
+"""
+
+import itertools
+import json
+import typing
+from typing import Annotated, Literal, TypedDict
+
+import pytest
+
+from nx_mcp.core import catalogue
+from nx_mcp.core.catalogue import make_spec
+from nx_mcp.core.errors import NXError
+from nx_mcp.core.types import (
+    Angle,
+    Axis,
+    Combine,
+    Direction,
+    Doc,
+    Items,
+    Length,
+    Limit,
+    Name,
+    Offset,
+    PageLimit,
+    PathIn,
+    Plane,
+    Point2,
+    Pose,
+    Quantity,
+    Range,
+    Ref,
+    SheetLength,
+    SketchPoint,
+    Text,
+)
+from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwrap, validate
+from nx_mcp.sidecar import schema
+
+
+class Out(TypedDict):
+    count: int
+
+
+def nx_create_sample(
+    tx,
+    *,
+    kind: Literal["a", "b"],
+    plane: Plane | None = None,
+    axis: Axis | None = None,
+    direction: Direction | None = None,
+    end: Limit | None = None,
+    combine: Combine | None = None,
+    pose: Pose | None = None,
+    corner: SketchPoint | None = None,
+    angle: Angle = 0,
+    width: SheetLength | None = None,
+    length: Length | None = None,
+    points: Annotated[list[Point2], Items(1, 4)] | None = None,
+    count: Annotated[int, Range(ge=1, le=9), Doc("How many")] = 1,
+    ratio: Annotated[float, Range(gt=0, lt=1)] | None = None,
+    flag: bool = False,
+    label: Annotated[str, Text(8, r"^[a-z]+$")] | None = None,
+    name: Name | None = None,
+    target: Ref | None = None,
+    path: PathIn | None = None,
+    offset: Offset = 0,
+    limit: PageLimit = 20,
+) -> Out:
+    """Create a sample object for schema tests."""
+
+
+SAMPLE = make_spec(
+    nx_create_sample,
+    effect="model",
+    label="Create sample",
+    keywords=("sample", "test", "schema"),
+    variants="kind",
+    domain="modeling",
+    example={"kind": "a"},
+)
+
+
+def specs():
+    return [SAMPLE, *catalogue.load().values()]
+
+
+# ---------------------------------------------------------------------------
+# Sample generation from core-type hints
+
+
+def valid_value(hint):
+    base, markers = unwrap(hint)
+    if Quantity in markers:
+        return 30 if markers[Quantity].dim == "angle" else "2.5 mm"
+    if is_union(base):
+        alternatives = [a for a in typing.get_args(base) if a is not type(None)]
+        return valid_value(alternatives[0])
+    if typing.get_origin(base) is Literal:
+        return typing.get_args(base)[0]
+    if base is bool:
+        return True
+    if base is int:
+        bounds = markers.get(Range)
+        return int(bounds.ge) if bounds and bounds.ge is not None else 3
+    if base is float:
+        bounds = markers.get(Range)
+        return 0.5 if bounds else 1.5
+    if base is str:
+        text = markers.get(Text)
+        if text and text.pattern and "obj_" in text.pattern:
+            return "b:41"
+        if text and text.pattern and text.pattern.startswith("^[a-z]+"):
+            return "abc"
+        return "Name_1"
+    origin = typing.get_origin(base)
+    if origin is list:
+        items = markers.get(Items)
+        return [valid_value(typing.get_args(base)[0])] * (items.min if items else 1)
+    if origin is tuple:
+        return [valid_value(a) for a in typing.get_args(base)]
+    if is_typeddict(base):
+        fields = typeddict_fields(base)
+        return {k: valid_value(fields[k]) for k in base.__required_keys__}
+    raise AssertionError(base)
+
+
+INVALID = [None, True, "x", 1e400, -1, 10**9, 2.5, [], {}, "10 deg", "10 mm", "b:0", "a" * 300]
+
+
+def samples(spec):
+    """Valid arguments, then one mutation per parameter and bad value."""
+    base = {p.name: valid_value(p.hint) for p in spec.params.values() if p.required}
+    yield dict(spec.example) or base
+    yield base
+    for name, param in spec.params.items():
+        good = valid_value(param.hint)
+        yield {**base, name: good}
+        for bad in INVALID:
+            yield {**base, name: bad}
+        if isinstance(good, dict):
+            yield {**base, name: {**good, "extra": 1}}
+            for key in good:
+                yield {**base, name: {k: v for k, v in good.items() if k != key}}
+        if isinstance(good, list):
+            yield {**base, name: [*good, *good, *good, *good, *good]}
+            if good and isinstance(good[0], list):
+                yield {**base, name: [good[0][:-1]]}
+    yield {**base, "unknown": 1}
+    yield {}
+
+
+def accepts_core(spec, args):
+    try:
+        validate(spec.params, args)
+        return True
+    except NXError:
+        return False
+
+
+def accepts_pydantic(spec, args):
+    try:
+        schema.adapter(spec).validate_python(args)
+        return True
+    except Exception:
+        return False
+
+
+def known_core_gap(spec, args) -> bool:
+    """core.validate accepts null for a *required* field (``Param.default`` is None for
+    required parameters). Reported to the core owner; the sidecar rejects it, so such a
+    call never reaches NX. Remove this allowance when core rejects it too."""
+    return any(args.get(p.name, 0) is None for p in spec.params.values() if p.required)
+
+
+@pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
+def test_pydantic_and_core_validators_agree(spec):
+    checked = 0
+    for args in samples(spec):
+        pydantic_ok, core_ok = accepts_pydantic(spec, args), accepts_core(spec, args)
+        if pydantic_ok != core_ok and known_core_gap(spec, args):
+            assert not pydantic_ok
+            continue
+        assert pydantic_ok == core_ok, (spec.name, args)
+        checked += 1
+    assert checked > 20
+
+
+def _walk(node, path="#"):
+    yield path, node
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "properties":
+                for name, sub in value.items():
+                    yield from _walk(sub, f"{path}/properties/{name}")
+            elif isinstance(value, (dict, list)):
+                yield from _walk(value, f"{path}/{key}")
+    elif isinstance(node, list):
+        for i, value in enumerate(node):
+            yield from _walk(value, f"{path}/{i}")
+
+
+@pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
+def test_schema_is_bounded_inlined_and_untitled(spec):
+    generated = schema.input_schema(spec)
+    text = json.dumps(generated)
+    assert "$ref" not in text and "$defs" not in text
+    for path, node in _walk(generated):
+        if not isinstance(node, dict):
+            continue
+        assert "title" not in node, path
+        if node.get("type") == "array":
+            assert "maxItems" in node, path
+        if node.get("type") == "string":
+            assert "maxLength" in node or "pattern" in node or "enum" in node, path
+        if node.get("type") == "object" and "properties" in node:
+            assert node.get("additionalProperties") is False, path
+    assert generated["additionalProperties"] is False
+
+
+def test_unit_strings_refs_defaults_and_call_keys():
+    generated = schema.input_schema(SAMPLE)
+    props = generated["properties"]
+    length = props["length"]["anyOf"]
+    assert {"type": "number"} in length and any("(mm|in)" in b.get("pattern", "") for b in length)
+    assert any("(deg|rad)" in b.get("pattern", "") for b in props["angle"]["anyOf"])
+    assert "Reference" in props["target"]["description"] and "pattern" in props["target"]
+    assert props["count"]["default"] == 1 and props["count"]["maximum"] == 9
+    assert props["points"]["maxItems"] == 4 and props["points"]["items"]["maxItems"] == 2
+    assert "null" not in json.dumps(props["plane"])  # optional fields are documented by omission
+    assert generated["required"] == ["kind"]
+    assert {"operation_id", "intent"} <= set(props)
+    assert "operation_id" not in schema.input_schema(SAMPLE, call_keys=False)["properties"]
+    reader = catalogue.get("nx_list_objects")
+    assert "operation_id" not in schema.input_schema(reader)["properties"]
+
+
+def test_variant_schema_narrows_the_variant_field():
+    narrowed = schema.variant_schema(SAMPLE, "b")
+    assert narrowed["properties"]["kind"] == {"const": "b"}
+    with pytest.raises(KeyError):
+        schema.variant_schema(SAMPLE, "z")
+
+
+def test_output_schema_describes_the_envelope_and_data():
+    out = schema.output_schema(catalogue.get("nx_create_datum_plane"))
+    data = out["properties"]["data"]["properties"]
+    assert {"feature", "datum_plane", "origin", "normal"} <= set(data)
+    assert "rolled_back" in out["properties"]["mutation_outcome"]["enum"]
+
+
+@pytest.mark.parametrize(
+    "args, pointer",
+    [
+        ({"kind": "a", "points": [[1, 2], [3]]}, "/points/1"),
+        ({"kind": "a", "pose": {"translation": [1, 2]}}, "/pose/translation"),
+        ({"kind": "a", "length": "3 deg"}, "/length"),
+        ({}, "/kind"),
+        ({"kind": "a", "bogus": 1}, "/bogus"),
+    ],
+)
+def test_error_pointer_skips_union_tags(args, pointer):
+    with pytest.raises(Exception) as caught:
+        schema.adapter(SAMPLE).validate_python(args)
+    first = caught.value.errors()[0]
+    assert schema.error_pointer(args, first["loc"], first["type"]).startswith(pointer)
+
+
+def test_every_catalogue_tool_converts():
+    for spec in catalogue.load().values():
+        assert schema.adapter(spec) is schema.adapter(spec)  # cached
+        assert schema.definition_size(spec.name, spec.description, schema.input_schema(spec))
+    assert list(itertools.islice(samples(SAMPLE), 1)) == [{"kind": "a"}]

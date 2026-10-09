@@ -133,9 +133,14 @@ def _restore(tx, part, before, target):
         open_sheet(tx, before, part)
 
 
+def sheets_showing(part, view):
+    """The sheets of ``part`` that show drafting view ``view`` (normally one)."""
+    return [s for s in getattr(part, "DrawingSheets", None) or [] if view in s.GetDraftingViews()]
+
+
 def view_sheet(tx, view, field=None):
     """The one work-part sheet that shows ``view``."""
-    matches = [s for s in tx.part.DrawingSheets if view in s.GetDraftingViews()]
+    matches = sheets_showing(tx.part, view)
     if len(matches) != 1:
         fail("NX_WRONG_OWNER", "Select a view on one work-part sheet", field=field)
     return matches[0]

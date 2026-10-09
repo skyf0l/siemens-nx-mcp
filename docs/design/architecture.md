@@ -522,9 +522,8 @@ step.
   first evidence. Production refuses them.
 - Gate 4 runs once, in the kernel after the hold; the pre-hold run is host work.
 - Gate 6: before the handler only `model` effects check the work part; `model` and `file`
-  effects get the after-handler `IsModified` check. Legacy `nx_create_part` and newly opened
-  `nx_open_part` record ownership (`dispatch.after_legacy`). The panel grant is not built yet
-  (`services.own(part)` exists).
+  effects get the after-handler `IsModified` check. Ownership tracking and the panel grant:
+  see the F1b notes below.
 - Any failure after the handler returned counts as touched and rolls back. The rollback
   snapshot is compared before undoing.
 - Receipts replay a failed result too (same id, same arguments); a running or unknown receipt
@@ -543,8 +542,100 @@ step.
   helpers (deleted in F4).
 - A failed catalogue call reaches the bridge as `KernelError`: the legacy keys (`code`,
   `message`, `details.mutation_outcome`) plus the full error envelope in `details.envelope`.
-- Sheet quantities use part units until the drawing domain supplies `services.sheet_units`.
-  `view` and `session` failures report `unknown` until display snapshots are wired.
+- Sheet quantities and `view` rollback: see the F1b notes below. `session` failures report
+  `unknown`.
+
+**F1b as built (kernel features for the domain migrations).**
+
+- **Sheet units (gate 9).** A tool whose signature uses `SheetLength` or `SheetPoint` (derived
+  `spec.sheet`) gets its target sheet from the arguments, in this order: the first reference
+  argument that is a `drawing_sheet` or a `drawing_view` (the sheet showing it,
+  `services.sheet_of`); for a tool that creates a sheet, its top-level `units` argument; the
+  work part's current sheet; else part units. `SheetLength` values and unit strings (`"10 mm"`,
+  `"0.5 in"`) are converted to that sheet's units; `SheetPoint` stays plain numbers in sheet
+  units. The handler gets `tx.sheet` (the sheet object or None) and
+  `tx.units = {"length", "angle", "sheet_length"}`; the envelope's `units` carries
+  `sheet_length`. NXOpen placement points still take part units: convert with
+  `kit.drawing.Sheet.point`. An unresolvable reference never fails gate 9; the handler reports
+  it. Annotation, dimension and table references do not name a sheet yet: the drawing domain
+  adds them to `services.sheet_of` (host) or passes `sheet`/`view` explicitly.
+- **View rollback (`effect="view"`).** Before changing the display a handler records what it
+  will change: `tx.display.keep(objs, appearance=True)` (blank state, colour, transparency;
+  bodies expand to faces), `tx.display.keep_camera()`, `tx.display.keep_highlights()`. A failure
+  restores what was kept (outcome `rolled_back`); a failed restore is
+  `rollback_failed/NX_RESTORE_FAILED`, outcome `partial`; a touched handler that kept nothing
+  reports `unknown`. With `@tool(..., restorable=True)` (view tools only) a success returns
+  `restore_id`, a legacy display snapshot that now also holds the camera, so legacy
+  `nx_restore_display` restores it (and the display domain's `nx_restore_display`). `model`
+  failures also put kept display state back after the undo. The services call the legacy
+  `VisualToolsMixin` code (`_display_pairs`, `_apply_display_record`, `_set_highlights`,
+  `_save_display_snapshot(records, camera)`) and `_view_info`/`_restore_camera`.
+- **Part ownership (gate 6).** Every call, catalogue or legacy, owns the parts it loaded
+  (created, or opened when not already loaded); an owned part keeps ownership when the agent
+  saves it under a new path. Ownership is keyed by part key plus file path, so a reused NX tag
+  never inherits it. The engineer grants the work part with the panel checkbox **Allow agent to
+  change <part>** (`dispatch.grant_state`/`set_grant`, production only). `NX_PART_NOT_GRANTED`
+  (`engineer_control`, `retry: ask_engineer`) carries a hint telling the agent to ask the
+  engineer in chat. During migration `dispatch.run_legacy` applies the same rule to legacy
+  tools in production: model tools check the work part and undo a change to a foreign part;
+  `nx_save_part`, `nx_save_as` and `nx_close_part` check their part (after the workspace check);
+  reads, legacy view tools (`dispatch.LEGACY_VIEW`) and file exports are not gated.
+  `NX_MCP_DEV=1` turns it all off. **Domain agents:** `file` and `session` tools that save or
+  close a specific part call `tx.require_owned(part, field="/part")` first; the kernel checks
+  only the work part of `model` tools.
+- **Long operations.** `tx.checkpoint(done, total)` writes progress to the receipt, honours
+  `nx_cancel_operation` and enforces the cooperative budget per cost class (instant/light 30 s,
+  heavy 300 s, long 1800 s; unknown 300 s, measured from gate 9). Over budget raises
+  `interrupted/NX_CANCELLED` with `details.reason = "budget"`, `budget_seconds`,
+  `elapsed_seconds` and a hint to split the call; a `model` tool rolls back. Handlers that loop
+  over many objects or native calls call `tx.checkpoint()` between them. The panel's running
+  line says "NX may pause" only for `heavy`/`long` catalogue tools.
+- **Panel and activity log.** Catalogue calls show `spec.summary` (with the sheet's units for
+  sheet tools) while waiting, running and in the history; the created object's name comes
+  from `data.<feature|sketch|body|...>` or `changes.created`. A failed catalogue call shows
+  the model state from `mutation_outcome` (`not_applicable` = "model unchanged"); `read` and
+  `view` catalogue steps are grouped with read-only steps.
+
+**F3 as built (deviations and additions).**
+
+- `sidecar/`: `schema.py` (core types → Pydantic `TypeAdapter` + JSON Schema, parity-tested
+  against `core.validate`), `proxy.py` (gates 1-3, 14, 15 in S), `gateways.py`, `legacy.py`
+  (legacy pseudo-specs), `server.py` (`install()` replaces `tools/list` and `tools/call` on the
+  FastMCP server that still registers the legacy tools). There is no separate `artifacts.py` or
+  `http.py` yet: the artifact resource, result store and compact presentation stay in
+  `agent_surface.py` and `http_surface.py` serves both profiles, reused until F4.
+- `agent` lists the 4 gateways plus the core tools that exist in the catalogue (today only
+  `nx_list_objects`); `full` lists gateways, catalogue tools, every legacy tool and the legacy
+  helpers `nx_result`, `nx_inspect`, `nx_result_cleanup` (stand-ins for `nx_get_result` and
+  `nx_delete_results`, kept in their own tool manager so the legacy registry stays the manifest).
+  `nx_discover_tools` and the 13-entry agent surface are gone; `scripts/validate_agent_ux.py`
+  still calls `nx_discover_tools` and needs `nx_find_tools` + `nx_get_tool_schemas`.
+- Legacy tools stay callable directly (both profiles) and through both gateways; discovery rows
+  mark them `legacy`, rank them below catalogue tools (an exact name still wins) and omit their
+  guessed domain. Their results keep the legacy shape. A catalogue or gateway name equal to a
+  legacy name raises `CatalogueError` at sidecar start.
+- `operation_id` and `intent` are listed only on directly listed non-read catalogue tools;
+  `nx_get_tool_schemas` omits them (the gateway carries `intent`, `operation_id` goes inside
+  `arguments`). Optional `= None` fields are documented by omission (no `null` branch).
+- The sidecar evidence gate and discovery filter use the build from the bridge descriptor;
+  without a descriptor the gate is left to NX. `NX_MCP_DEV=1` in the sidecar shows and runs
+  untested tools (marked `tested: false`); the acceptance runner starts its sidecar that way.
+- Any `unknown` outcome gets `retry: after_status_check` and a hint naming
+  `nx_operation_status` with the `operation_id` (a `long` tool outlasting the bridge wait).
+- Acceptance: steps run through `nx_invoke` (catalogue read tools through `nx_invoke_read`) with
+  `detail=full`; legacy results are unwrapped to `ok`/`error`/`mutation_outcome`. `$part` is
+  `smoke/<run-id>/<domain>_<name>_<run>.prt` (NX refuses a second loaded part with the same
+  basename). After each scenario, also on failure, the runner closes every part it loaded without
+  saving (`"cleanup": "save"|"keep"` overrides) and re-activates the earlier display/work part.
+  Evidence per run is `acceptance/evidence/<build>/<domain>/<name>.json` (a failed run writes
+  `<name>.last-failure.json`); `fold` rebuilds `src/nx_mcp/evidence/*.json` from passing,
+  non-stale runs only. `nx_status` reports only `v2406`, so `nx_build` is that key until the host
+  reports the full release. The runner reads the commit from `.git` files (no git process).
+- Budgets (`tests/sidecar/test_budget.py`): agent listing, a 10-row discovery page and the
+  per-tool definition caps are enforced as written. The 700 median applies from 10 catalogue
+  tools; `nx_get_tool_schemas` may add at most 200 characters to a tool's definition (900 per
+  tool once definitions meet the median). The `full` listing's 110,000 cap applies to the
+  generated part; the legacy part may not grow beyond today's 218,951 characters.
 
 F4 deletes:
 

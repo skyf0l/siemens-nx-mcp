@@ -24,7 +24,7 @@ def payload(result):
 async def test_failure_after_bridge_success_is_internal_and_unknown(tmp_path):
     bridge = AsyncMock()
     bridge.call.return_value = None  # e.g. a malformed bridge result
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
     error = payload(
         await server.call_tool(
             "nx_extrude", {"sketch_id": "obj_s", "distance": 5, "operation_id": "op_ext_1"}
@@ -41,7 +41,7 @@ async def test_capture_read_failure_after_success_is_not_an_argument_error(tmp_p
     bridge = AsyncMock()
     # NX reports a committed capture whose file is missing from the workspace.
     bridge.call.return_value = {"status": "success", "path": "shot.png", "sha256": "0"}
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
     error = payload(await server.call_tool("nx_screenshot", {"path": "shot.png"}))
     assert error["code"] == "NX_INTERNAL_ERROR"
     assert error["details"]["mutation_outcome"] == "unknown"
@@ -50,7 +50,7 @@ async def test_capture_read_failure_after_success_is_not_an_argument_error(tmp_p
 
 async def test_schema_validation_failure_is_not_started(tmp_path):
     bridge = AsyncMock()
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
     error = payload(await server.call_tool("nx_extrude", {"sketch_id": "s", "distance": -1}))
     assert error["code"] == "NX_INVALID_ARGUMENT"
     assert error["details"]["mutation_outcome"] == "not_started"
@@ -58,10 +58,12 @@ async def test_schema_validation_failure_is_not_started(tmp_path):
 
 
 async def test_unknown_tool_on_full_surface_is_tool_not_found(tmp_path):
-    server = create_server(AsyncMock(), Workspace(tmp_path))
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
     error = payload(await server.call_tool("nx_extrud", {}))
-    assert error["code"] == "NX_TOOL_NOT_FOUND"
-    assert "nx_extrude" in error["details"]["close_matches"]
+    assert error["mutation_outcome"] == "not_started"
+    assert error["error"]["code"] == "NX_UNKNOWN_TOOL"
+    assert error["error"]["category"] == "not_found"
+    assert "nx_extrude" in error["error"]["details"]["close_matches"]
 
 
 # ---- 2. bridge transport: before vs after the request was written ----
@@ -135,7 +137,7 @@ def test_client_waits_longer_than_the_nx_dispatcher():
 
 async def test_sidecar_merge_keeps_retryable_consistent_with_outcome(tmp_path):
     bridge = AsyncMock()
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
     args = {"sketch_id": "obj_s", "distance": 5, "operation_id": "op_merge"}
     # No outcome from the transport: the sidecar marks it unknown, so never retryable.
     bridge.call.side_effect = NXToolError("NX_BRIDGE_UNAVAILABLE", "lost", retryable=True)
@@ -161,18 +163,18 @@ async def test_agent_invoke_unknown_tool_is_tool_not_found(tmp_path):
     error = payload(
         await server.call_tool("nx_invoke", {"tool": "nx_extrud", "arguments": {"distance": 1}})
     )
-    assert error["code"] == "NX_TOOL_NOT_FOUND"
-    assert error["details"]["mutation_outcome"] == "not_started"
-    assert "nx_extrude" in error["details"]["close_matches"]
-    assert "nx_extrude" in error["suggestion"]
+    assert error["error"]["code"] == "NX_UNKNOWN_TOOL" and error["error"]["field"] == "/tool"
+    assert error["mutation_outcome"] == "not_started"
+    assert "nx_extrude" in error["error"]["details"]["close_matches"]
+    assert "nx_extrude" in error["error"]["hint"]
     error = payload(await server.call_tool("nx_no_such_tool_at_all", {}))
-    assert error["code"] == "NX_TOOL_NOT_FOUND"
+    assert error["error"]["code"] == "NX_UNKNOWN_TOOL"
     bridge.call.assert_not_called()
 
 
 # ---- 6. one schema per tool ----
 async def test_each_tool_has_one_definition_with_strict_arguments(tmp_path):
-    server = create_server(AsyncMock(), Workspace(tmp_path))
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
     extrude = tools["nx_extrude"].inputSchema["properties"]
     assert "end_type" in extrude  # the extended signature

@@ -4,6 +4,11 @@
 undo marks are the fake session's marks, references are the fake's ref table
 (``nx.refs``), receipts go to a temporary workspace, and development mode is on
 (untested tools run, ownership is not enforced). Every kernel gate runs.
+
+Sheet tools get the sheet their arguments name (``nx.sheet(units=...)``,
+``nx.view(sheet)``) and ``tx.units["sheet_length"]``. Display state for ``view``
+tools is the fake objects' ``IsBlanked``/``Color``/``transparency``/``highlighted``,
+``nx.camera`` and ``nx.highlighted``; ``nx.display_snapshots`` holds restore_ids.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from nx_mcp.core import catalogue, kernel
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Services
 from nx_mcp.core.types import expand_kinds
+from nx_mcp.kit import drawing, units
 
 KINDS = ("Bodies", "body"), ("Features", "feature"), ("Sketches", "sketch"), ("Curves", "curve")
 
@@ -85,8 +91,55 @@ class KitServices(Services):
     def part_units(self, part):
         return "mm" if part.PartUnits == "mm" else "in"
 
-    def sheet_units(self):
+    def current_sheet(self):
+        return drawing.current(self.work_part())
+
+    def sheet_of(self, obj):
+        kind = self.references.kind_of(obj)
+        if kind == "drawing_sheet":
+            return obj
+        if kind == "drawing_view":
+            matches = drawing.sheets_showing(self.work_part(), obj)
+            return matches[0] if len(matches) == 1 else None
         return None
+
+    def sheet_units(self, sheet):
+        return units.sheet_units(self, sheet)
+
+    # display state (view rollback, restore_id)
+    def display_camera(self):
+        return dict(self.fake.camera)
+
+    def display_records(self, objects, appearance):
+        out = []
+        for obj in objects:
+            record = {"blanked": bool(obj.IsBlanked)}
+            if appearance:
+                record.update(color_index=obj.Color, transparency=obj.transparency)
+            out.append((obj, record))
+        return out
+
+    def highlights(self):
+        return list(self.fake.highlighted)
+
+    def restore_display(self, camera, records, highlights):
+        for obj, record in records:
+            obj.IsBlanked = record["blanked"]
+            if "color_index" in record:
+                obj.Color, obj.transparency = record["color_index"], record["transparency"]
+        if highlights is not None:
+            for obj in self.fake.highlighted:
+                obj.Unhighlight()
+            for obj in highlights:
+                obj.Highlight()
+            self.fake.highlighted[:] = highlights
+        if camera is not None:
+            self.fake.camera = dict(camera)
+
+    def save_display_snapshot(self, records, camera):
+        token = f"display_{len(self.fake.display_snapshots) + 1}"
+        self.fake.display_snapshots[token] = {"records": records, "camera": camera}
+        return token
 
     def infer_kind(self, obj, default="error"):
         return self.references.kind_of(obj) or type(obj).__name__.lower()

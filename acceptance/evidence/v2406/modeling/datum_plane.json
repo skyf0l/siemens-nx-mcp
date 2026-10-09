@@ -1,0 +1,174 @@
+{
+  "format": 1,
+  "scenario": "acceptance/modeling/datum_plane.json",
+  "scenario_sha256": "30ca6400d8f4e1ded648c60c7feeab70da2e74449729e137d24b46f22fd1e109",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_datum_plane": [
+      "offset",
+      "point_normal",
+      "three_points"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "9ca4cbd2ff4dc66d019531e24198731fde989ebd",
+  "sources": {
+    "nx_create_datum_plane": "5246d18dd9e5f07ddeb481b4e26740c2057fc482fa837e914c60ac467cae9a1b"
+  },
+  "run_id": "20261009-154943-721955",
+  "owner": "f3_sidecar",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-154943-721955\\modeling_datum_plane_721955.prt",
+  "started": "2026-10-09T11:49:47Z",
+  "finished": "2026-10-09T11:49:53Z",
+  "passed": true,
+  "checks": 22,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.875,
+      "result_sha256": "cbe7783bc3448966601c4001dd4808f1eb8f34e2a5621a80a2a8089fbef8c441"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "a6744972351cb91a15e39316d8f9c8794d51c9adcc3073a7c6b767a78d7a1fee"
+    },
+    {
+      "index": 3,
+      "call": "nx_sketch_rectangle",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "006d44d71075b5af8e3237c3130f8385fbb020c4c29d253c7c658d8050d201ff"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.266,
+      "result_sha256": "be5e485d45a80e5e2c778771502c74dde710659b154807b511f71b70133224d4"
+    },
+    {
+      "index": 5,
+      "call": "nx_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.171,
+      "result_sha256": "d8108c14136662bf49c3bd861acff4de97abc503746ce6eaa577594cde3f49cc"
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "95c40c76b72f5b10a8d772202855c233e43facadfafa6822b5f7d6125a58854e"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 6,
+      "seconds": 0.203,
+      "result_sha256": "871abb4bd0d4546ce62e8e75bac5da442b6213e4e752605f81a9e568e022c68f"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.219,
+      "result_sha256": "bedc48fd22234bb74646d3203653bc3955e496b01b978957ea33f9e36fc5855b"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.203,
+      "result_sha256": "4e8f97cbee2a799f17a68f5aef8a8110be5ee1ed5d515af9cc352dadb4bd7d8f"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.157,
+      "result_sha256": "d642c0ee7f20ff32c214d55fbc63e1f00178ca4af953da01409692d7c8c0c9eb"
+    },
+    {
+      "index": 11,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.14,
+      "result_sha256": "1b17f032397691d20bbdb908c4730a2850e872a444950c066ff5c0abc5067488"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.156,
+      "result_sha256": "3040a451b9461aa6bbd9837e161d3785e65e2835070a6f191c2d16ee21a3b771"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.188,
+      "result_sha256": "943a40fc5a0709c0e0d3e424ef990c64899cd938cceec78fa5b4894221acd290"
+    },
+    {
+      "index": 14,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "00f39fa5873fedacf54720c0642a96e90c68ab1f0c149f99495b4c5c3faf7593"
+    },
+    {
+      "index": 15,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.187,
+      "result_sha256": "8403ace2974e16aa4e8bf8dc6f4141addd9717b0ab7d409ac43ec0d48099ec76"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-154943-721955\\modeling_datum_plane_721955.prt"
+    ],
+    "failed": [],
+    "restored": [
+      "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-154744-eacbbd\\modeling_datum_plane_eacbbd.prt"
+    ]
+  }
+}

@@ -182,7 +182,7 @@ async def test_uniform_structured_success_failure_and_schema(tmp_path):
                 raise NXToolError("NX_UNSUPPORTED_EDIT", "unsupported edit")
             return {"status": "success", "method": method, "params": params}
 
-    server = create_server(Caller(), Workspace(tmp_path))
+    server = create_server(Caller(), Workspace(tmp_path), surface="full")
     tools = await server.list_tools()
     pattern = next(t for t in tools if t.name == "nx_pattern")
     assert pattern.inputSchema["properties"]["pattern_type"]["const"] == "linear"

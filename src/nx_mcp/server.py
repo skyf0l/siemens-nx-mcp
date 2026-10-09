@@ -22,23 +22,25 @@ def create_server(
     workspace: Workspace | None = None,
     *,
     surface: str | None = None,
+    build=None,
 ) -> FastMCP:
-    """Create the MCP server with every tool registered."""
+    """Create the MCP server: catalogue tools, gateways and the legacy tools.
+
+    ``surface`` (or ``NX_MCP_SURFACE``) selects the profile, ``agent`` by default.
+    ``build`` overrides the NX build read from the bridge descriptor (tests).
+    """
+    from nx_mcp.sidecar.server import install, profile_from_env
+
     if workspace is None and (workspace_root := os.environ.get("NX_MCP_WORKSPACE")):
         workspace = Workspace(Path(workspace_root))
     if workspace is None:
         raise ValueError(
             "Set NX_MCP_WORKSPACE to the CAD workspace directory shared with the NX bridge"
         )
-    surface = surface or os.environ.get("NX_MCP_SURFACE", "full")
-    if surface not in {"full", "agent"}:
-        raise ValueError("NX_MCP_SURFACE must be full or agent")
-    server = create_certified_server(bridge or DescriptorBridgeClient(), workspace)
-
-    if surface == "agent":
-        from nx_mcp.agent_surface import configure
-
-        configure(server, workspace)
+    profile = profile_from_env(surface)
+    bridge = bridge or DescriptorBridgeClient()
+    server = create_certified_server(bridge, workspace)
+    install(server, bridge, workspace, profile, build=build)
     return server
 
 

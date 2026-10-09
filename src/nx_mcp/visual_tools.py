@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 
 from nx_mcp import side_effects
@@ -78,6 +79,10 @@ class VisualToolsMixin:
         return record
 
     def _display_records(self, values, appearance=False):
+        return [record for _, record in self._display_pairs(values, appearance)]
+
+    def _display_pairs(self, values, appearance=False):
+        """``[(obj, record)]`` of display state; bodies expand to faces with appearance."""
         if appearance:
             values = list(
                 {
@@ -90,9 +95,29 @@ class VisualToolsMixin:
             )
         if len(values) > 10000:
             raise NXToolError("NX_OBJECT_LIMIT", "Display change exceeds 10000 objects/faces")
-        return [self._display_record(x, appearance) for x in values]
+        return [(x, self._display_record(x, appearance)) for x in values]
 
-    def _save_display_snapshot(self, records):
+    def _apply_display_record(self, obj, record):
+        """Put one object's saved blank state, colour and transparency back."""
+        if "color_index" in record:
+            self._apply_appearance([obj], record["color_index"], record.get("transparency"))
+        (obj.Blank if record["blanked"] else obj.Unblank)()
+
+    def _set_highlights(self, objects):
+        """Make the agent's highlights exactly ``objects`` (restores a kept set)."""
+        wanted = {int(o.Tag): o for o in objects}
+        for obj in list(getattr(self, "_highlighted_objects", [])):
+            if int(obj.Tag) not in wanted:
+                # NX may have deleted an entity since the highlight.
+                with contextlib.suppress(Exception):
+                    obj.Unhighlight()
+        current = {int(o.Tag) for o in getattr(self, "_highlighted_objects", [])}
+        for tag, obj in wanted.items():
+            if tag not in current:
+                obj.Highlight()
+        self._highlighted_objects = list(wanted.values())
+
+    def _save_display_snapshot(self, records, camera=None):
         if not hasattr(self, "_display_snapshots"):
             self._display_snapshots = {}
         token = "display_" + uuid.uuid4().hex
@@ -100,6 +125,8 @@ class VisualToolsMixin:
             "part_id": self._part_id(self._work_part()),
             "records": records,
         }
+        if camera is not None:
+            self._display_snapshots[token]["camera"] = camera
         return token
 
     def _display_info(self, objects, count_only=False):
@@ -274,10 +301,11 @@ class VisualToolsMixin:
         resolved = self._validate_display_restore(restore_id)
         snapshots = self._display_snapshots
         for obj, record in resolved:
-            if "color_index" in record:
-                # Bodies precede their faces, preserving per-face colors afterward.
-                self._apply_appearance([obj], record["color_index"], record.get("transparency"))
-            (obj.Blank if record["blanked"] else obj.Unblank)()
+            # Bodies precede their faces, preserving per-face colors afterward.
+            self._apply_display_record(obj, record)
+        camera = snapshots[restore_id].get("camera")
+        if camera is not None:
+            self._restore_camera(camera)
         del snapshots[restore_id]
         return {
             "restored": restore_id,

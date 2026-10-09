@@ -128,7 +128,7 @@ def nx_export_flat_pattern(
 
 
 def nx_add_flat_pattern_view(drawing: str, flat_pattern: str, position: list[float] | None = None):
-    """Place the native named view belonging to an existing Flat Pattern feature on a drawing sheet. Position is [x,y] in sheet units; default [100,100]. Uses actual developed geometry and bend lines from NX, with the existing flat pattern's settings. Returns a typed drawing-view reference for projection, dimensions and PDF export. Does not copy or move the folded solid."""
+    """Place the native named view belonging to an existing Flat Pattern feature on a drawing sheet. Position is [x,y] in sheet units; default 100 mm, 100 mm. Uses actual developed geometry and bend lines from NX, with the existing flat pattern's settings. Returns a typed drawing-view reference for projection, dimensions and PDF export. Does not copy or move the folded solid."""
 
 
 def nx_sheet_metal_annotation(

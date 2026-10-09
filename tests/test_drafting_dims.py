@@ -130,7 +130,7 @@ def test_invalid_requests_are_rejected_before_native_work(rig, tool, params, mes
 
 @pytest.mark.asyncio
 async def test_new_tools_are_public_typed_and_honestly_classified(tmp_path: Path):
-    server = create_server(object(), Workspace(tmp_path))
+    server = create_server(object(), Workspace(tmp_path), surface="full")
     async with create_connected_server_and_client_session(server) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
     assert set(tools) >= NEW_TOOLS

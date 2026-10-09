@@ -69,7 +69,7 @@ async def test_mcp_points_cross_bridge_as_json_objects(tmp_path):
             json.dumps(params)
             return {"status": "success"}
 
-    server = create_server(Bridge(), Workspace(tmp_path))
+    server = create_server(Bridge(), Workspace(tmp_path), surface="full")
     result = await server.call_tool(
         "nx_sketch_rectangle",
         {"sketch_id": "sketch-test", "corner1": {"x": 0, "y": 0}, "corner2": {"x": 10, "y": 10}},
@@ -96,7 +96,7 @@ async def test_capture_returns_inline_image_and_rejects_changed_artifact(tmp_pat
                 "model_preview": True,
             }
 
-    server = create_server(Bridge(), Workspace(tmp_path))
+    server = create_server(Bridge(), Workspace(tmp_path), surface="full")
     result = await server.call_tool("nx_screenshot", {})
     assert not result.isError and result.structuredContent["model_preview"]
     assert len([item for item in result.content if item.type == "image"]) == 1

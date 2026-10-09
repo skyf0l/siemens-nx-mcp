@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from nx_mcp.authoring import page
+from nx_mcp.inspection import with_cleanup_failure
 from nx_mcp.legacy_kit import finite, vector
 from nx_mcp.runtime import NXToolError
 
@@ -480,12 +481,16 @@ class ReviewToolsMixin:
         )
         previous = self._active_mark
         camera = self._view_info() if capture else None
+        original = None
         try:
             self._active_mark = mark
             for op in operations:
                 self._call_child(op["method"], op["params"])
             after = self._preview_snapshot()
             image = self._capture_view(fit=True) if capture else None
+        except BaseException as exc:
+            original = exc
+            raise
         finally:
             self._active_mark = previous
             try:
@@ -493,11 +498,17 @@ class ReviewToolsMixin:
                 self.session.DeleteUndoMark(mark, None)
                 self.objects.invalidate_part(pid)
             except Exception as exc:
-                raise NXToolError(
-                    "NX_ROLLBACK_FAILED",
-                    "Preview rollback failed: " + str(exc),
-                    details={"mutation_outcome": "partial"},
-                ) from exc
+                if original is None:
+                    raise NXToolError(
+                        "NX_ROLLBACK_FAILED",
+                        "Preview rollback failed: " + str(exc),
+                        details={"mutation_outcome": "partial"},
+                    ) from exc
+                # Keep the preview's own error; the rollback failure goes in its details.
+                error = with_cleanup_failure(original, exc)
+                if error is original:
+                    raise original  # noqa: B904 - re-raise the preview's own error.
+                raise error from original
             finally:
                 if camera:
                     self._restore_camera(camera)

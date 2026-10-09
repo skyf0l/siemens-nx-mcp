@@ -21,8 +21,11 @@ LOG_LIMIT_BYTES = 5 * 1024 * 1024
 _MODEL_STATE = {
     "rolled_back": "rolled back, model unchanged",
     "not_started": "not run, model unchanged",
+    "not_applicable": "model unchanged",  # a failed read-only step
     "partial": "partly applied, check the model",
 }
+# Failures that left the model as it was.
+_UNCHANGED = frozenset({"rolled_back", "not_started", "not_applicable"})
 # Error code -> short reason for the panel line; the log keeps the full message.
 _SHORT_REASON = {
     "NX_OBJECT_STALE": "stale reference",
@@ -40,6 +43,10 @@ _SHORT_REASON = {
     "NX_PATH_OUTSIDE_WORKSPACE": "path outside the workspace",
     "NX_UI_BUSY": "an NX dialog is open",
     "NX_ROLLBACK_FAILED": "undo failed",
+    # Catalogue codes whose messages are long; others show their message.
+    "NX_PART_NOT_GRANTED": "engineer's part, not granted",
+    "NX_VERSION_UNSUPPORTED": "not tested on this NX version",
+    "NX_RESTORE_FAILED": "view not fully restored",
 }
 _CREATED_KEYS = ("feature", "sketch", "component", "part", "drawing_sheet", "drawing_view", "body")
 # Created kinds an engineer recognises, most meaningful first.
@@ -79,8 +86,9 @@ def created_name(result: dict[str, Any]) -> str | None:
     also brings its sketch feature, datums and points), so name the step's own
     result, else the most meaningful created kind, never a list of internals.
     """
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
     for key in _CREATED_KEYS:
-        value = result.get(key)
+        value = result.get(key) or data.get(key)  # legacy result or catalogue envelope
         if isinstance(value, dict) and value.get("name"):
             return str(value["name"])
     created = [
@@ -178,7 +186,7 @@ class Activity:
             head = f"✓  {clock}  "
             return head + _clip(entry.summary, LINE_WIDTH - len(head) - len(tail)) + tail
         state = _MODEL_STATE.get(entry.outcome or "", "outcome unknown, check the model")
-        mark = "✗" if entry.outcome in ("rolled_back", "not_started") else "⚠"
+        mark = "✗" if entry.outcome in _UNCHANGED else "⚠"
         head = f"{mark}  {clock}  "
         room = max(20, LINE_WIDTH - len(head) - len(state) - 3)
         line = f"{head}{_clip(entry.summary, room)} — {state}"

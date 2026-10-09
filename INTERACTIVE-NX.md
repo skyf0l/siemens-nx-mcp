@@ -1,7 +1,7 @@
 # Interactive NX MCP, NX 2406 and 2606
 
 On NX 2406 run the bridge as an NX startup application (next section). On NX 2606,
-play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window says who has control (window title and first line) and has one toggle, **Give control to agent** / **Take control back**, plus **Stop bridge**. Long native operations can temporarily block NX; taking control back and stopping take effect between calls (the toggle then reads **Take control back after this step**).
+play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window says who has control (window title and first line) and has one toggle, **Give control to agent** / **Take control back**, plus **Stop bridge**, and the **Allow agent to change <part>** checkbox when the work part is yours (see below). Long native operations can temporarily block NX; taking control back and stopping take effect between calls (the toggle then reads **Take control back after this step**).
 
 ## NX 2406: run the bridge as an NX startup application (recommended)
 
@@ -52,6 +52,25 @@ itself: `nx_ui_control(mode="agent")` is a request like any other. Giving contro
 still invalidates references taken before your manual work, so a waiting request
 that points at geometry you have since edited fails safely as stale.
 
+## Your parts and the agent's parts
+
+The agent may change, save or close only the parts it created or opened itself
+in this NX session, and parts you allow. When the work part is one of yours, the
+panel shows a checkbox above the buttons:
+
+```
+☐ Allow agent to change bracket
+```
+
+Tick it to let the agent change, save or close that part; untick it to withdraw
+the permission. Until you tick it, the agent's changes to it fail with
+`NX_PART_NOT_GRANTED` before anything happens, and the agent is told to ask you
+in chat. Reading, measuring and view changes (camera, visibility, captures) are
+always allowed. The checkbox follows the work part; the agent's own parts never
+show it. Permissions last until NX closes or the bridge restarts. Saving the
+part under a new name (File > Save As) withdraws it. In the development loop
+(`NX_MCP_DEV=1`) there is no checkbox and no restriction.
+
 ## Development loop (never for production work)
 
 Start NX with the startup application in development mode:
@@ -81,7 +100,8 @@ line, in plain words with its start time and the agent's note below it:
 ```
 
 The panel cannot repaint during a native call, so the running line shows a
-start time, not a counter. When the step ends it becomes a ✓/✗/⚠ line in place.
+start time, not a counter. Quick steps (cost `instant` or `light`) say only
+`running`; heavier ones add `NX may pause`. When the step ends it becomes a ✓/✗/⚠ line in place.
 When the agent is idle but holds control, the top line reads `·  Idle since
 14:32 — waiting for the agent's next request`, so you know it is safe to take
 control back.

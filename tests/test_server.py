@@ -47,8 +47,9 @@ def test_server_lists_every_tool_without_nx_imports(tmp_path):
         from nx_mcp.server import create_server
 
         async def main():
-            server = create_server()
-            tools = await server.list_tools()
+            server = create_server(surface="full")
+            added = server.nx_surface.added_names()
+            tools = [t for t in await server.list_tools() if t.name not in added]
             forbidden = [name for name in ("NXOpen",) if name in sys.modules]
             print(json.dumps({"tools": [tool.name for tool in tools], "forbidden": forbidden}))
 
@@ -85,7 +86,7 @@ async def test_server_reads_workspace_from_environment(
             "message": "created",
         }
     )
-    server = create_server(bridge)
+    server = create_server(bridge, surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         result = await client.call_tool(
@@ -102,11 +103,12 @@ async def test_server_reads_workspace_from_environment(
 async def test_removed_profile_flags_have_no_effect(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("NX_MCP_ENABLE_EXPERIMENTAL", "0")
     monkeypatch.setenv("NX_MCP_ENABLE_JOURNAL", "1")
-    server = create_server(StubBridge())
+    server = create_server(StubBridge(), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         names = {tool.name for tool in (await client.list_tools()).tools}
 
+    names -= server.nx_surface.added_names()
     assert names == set(MANIFEST["tools"]) and names > CERTIFIED_TOOL_NAMES
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
@@ -114,4 +116,4 @@ async def test_removed_profile_flags_have_no_effect(monkeypatch: pytest.MonkeyPa
 def test_server_requires_a_workspace(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("NX_MCP_WORKSPACE")
     with pytest.raises(ValueError, match="NX_MCP_WORKSPACE"):
-        create_server(StubBridge())
+        create_server(StubBridge(), surface="full")

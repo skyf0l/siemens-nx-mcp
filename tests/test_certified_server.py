@@ -34,12 +34,13 @@ class RecordingBridge:
 
 @pytest.mark.asyncio
 async def test_server_always_lists_every_tool_and_no_code_execution_tools():
-    server = create_server(StubBridge())
+    server = create_server(StubBridge(), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         names = {tool.name for tool in (await client.list_tools()).tools}
 
-    assert names == set(MANIFEST["tools"])  # Manifest lists exactly the public tools.
+    names -= server.nx_surface.added_names()  # Gateways, catalogue and helper tools.
+    assert names == set(MANIFEST["tools"])  # Manifest lists exactly the legacy tools.
     assert names > CERTIFIED_TOOL_NAMES
     assert {"nx_blend", "nx_measure_distance"} <= names
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
@@ -47,7 +48,7 @@ async def test_server_always_lists_every_tool_and_no_code_execution_tools():
 
 @pytest.mark.asyncio
 async def test_status_returns_structured_content():
-    server = create_server(StubBridge())
+    server = create_server(StubBridge(), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         result = await client.call_tool("nx_status", {})
@@ -72,7 +73,7 @@ async def test_create_part_resolves_path_inside_workspace(tmp_path: Path):
             "message": "created",
         }
     )
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         result = await client.call_tool(
@@ -90,7 +91,7 @@ async def test_create_part_resolves_path_inside_workspace(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_file_tool_rejects_workspace_escape_before_bridge_call(tmp_path: Path):
     bridge = RecordingBridge({})
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         result = await client.call_tool("nx_open_part", {"path": "../secret.prt"})
@@ -106,7 +107,7 @@ async def test_bridge_error_preserves_machine_readable_code():
         async def call(self, method: str, params: dict):
             raise NXToolError("NX_NO_WORK_PART", "No work part is open")
 
-    server = create_server(ErrorBridge())
+    server = create_server(ErrorBridge(), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         result = await client.call_tool("nx_save_part", {})
@@ -117,7 +118,7 @@ async def test_bridge_error_preserves_machine_readable_code():
 
 @pytest.mark.asyncio
 async def test_tools_publish_strict_input_and_output_schemas():
-    server = create_server(StubBridge())
+    server = create_server(StubBridge(), surface="full")
 
     async with create_connected_server_and_client_session(server) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
@@ -130,7 +131,8 @@ async def test_tools_publish_strict_input_and_output_schemas():
     ]
     assert "distance" in tools["nx_extrude"].inputSchema["properties"]
     assert all(tool.inputSchema.get("additionalProperties") is False for tool in tools.values())
-    assert all(tool.outputSchema is not None for tool in tools.values())
+    legacy = set(tools) - server.nx_surface.added_names()
+    assert all(tools[name].outputSchema is not None for name in legacy)
 
 
 @pytest.mark.asyncio

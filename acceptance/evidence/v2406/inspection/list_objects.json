@@ -1,0 +1,161 @@
+{
+  "format": 1,
+  "scenario": "acceptance/inspection/list_objects.json",
+  "scenario_sha256": "9f499d67f31e4b7dcb0912ba66f72e282e4b507d9fe4fda21288f73d47e0a4d3",
+  "domain": "inspection",
+  "covers": {
+    "nx_list_objects": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "9ca4cbd2ff4dc66d019531e24198731fde989ebd",
+  "sources": {
+    "nx_list_objects": "30b29ce453a0aadb5c7d38e7e67de1b0389363a2892c8a33a608c9a02971c153"
+  },
+  "run_id": "20261009-154943-721955",
+  "owner": "f3_sidecar",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-154943-721955\\inspection_list_objects_721955.prt",
+  "started": "2026-10-09T11:49:43Z",
+  "finished": "2026-10-09T11:49:47Z",
+  "passed": true,
+  "checks": 20,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.797,
+      "result_sha256": "2575e5f6c83183fa47b883e9971e354496295ae5597e29a239fdc4e441308780"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.282,
+      "result_sha256": "3876e24d6ee7a04f6c9edd56a3bbbbcada9201dd4f30baf32aad2842144f417f"
+    },
+    {
+      "index": 3,
+      "call": "nx_sketch_rectangle",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.187,
+      "result_sha256": "66cbb5a64e9476c762ebf3a9d99da51f94be36f2cc1adac1d91c4522bf017eff"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.203,
+      "result_sha256": "52912141595cfdf37095c40c9e8f6aa1c201941cf42c86aa17474dc184608559"
+    },
+    {
+      "index": 5,
+      "call": "nx_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.219,
+      "result_sha256": "078b973c4abb398eb11b634d2d5b39b2fdd53e6a76baa43eb00e4502614cd29a"
+    },
+    {
+      "index": 6,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.172,
+      "result_sha256": "7e4c1bfc522d8e0e4e57d999754ff6dc3206c95081da7d624215a708090308ef"
+    },
+    {
+      "index": 7,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.14,
+      "result_sha256": "33539046c8c5a34df700adca99293f268cffd0bb888bf58ec4e4e016aba44871"
+    },
+    {
+      "index": 8,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.172,
+      "result_sha256": "fc9341754b5938eaedcda061c52762d4f985b41926b7a552a32bcaeafa0dac6e"
+    },
+    {
+      "index": 9,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.125,
+      "result_sha256": "3e454c3c59035c52bce2d454810b467d51f9c4c29074d0174577b11e8cd27f3a"
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.125,
+      "result_sha256": "a381699ab310c5252909573cebc673aaef7929bade45fdaa5438443d6b5b7288"
+    },
+    {
+      "index": 11,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.141,
+      "result_sha256": "faa52623b998a68b3d3545d899c83a3c069fc408c51639da11d02a57f4773dc5"
+    },
+    {
+      "index": 12,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.187,
+      "result_sha256": "114f5950ba90adba4eef982ebddffd9c103f2aeef0e89aa7d12740cfab345711"
+    },
+    {
+      "index": 13,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.125,
+      "result_sha256": "d86cc349094dd6ab044cdd5e38bbff478b028b391887dd1ed5c91d8db4878060"
+    },
+    {
+      "index": 14,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.0,
+      "result_sha256": "c757ec3b0f0b9fd39e687e0409ea111bd82d4ec72eeded16a9200ce464f31b68"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-154943-721955\\inspection_list_objects_721955.prt"
+    ],
+    "failed": [],
+    "restored": [
+      "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-154744-eacbbd\\modeling_datum_plane_eacbbd.prt"
+    ]
+  }
+}

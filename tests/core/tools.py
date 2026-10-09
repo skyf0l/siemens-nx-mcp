@@ -6,7 +6,20 @@ from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import make_spec
 from nx_mcp.core.errors import fail
-from nx_mcp.core.types import Angle, Doc, Items, Length, Name, PathTo, RefTo, Text
+from nx_mcp.core.types import (
+    Angle,
+    Doc,
+    Items,
+    Length,
+    Name,
+    PathTo,
+    Ref,
+    RefTo,
+    SheetLength,
+    SheetPoint,
+    Text,
+    Units,
+)
 
 
 class Count(TypedDict):
@@ -97,6 +110,84 @@ def nx_preview_blocks(tx, *, sizes: Annotated[list[Length], Items(1, 10)]) -> Ch
     return {"results": out}
 
 
+class Placed(TypedDict):
+    origin: list
+    height: float
+    units: dict
+    sheet: str
+
+
+def nx_create_label(
+    tx,
+    *,
+    origin: SheetPoint,
+    height: SheetLength = 3.5,
+    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
+    view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
+) -> Placed:
+    """Place a label on a drawing sheet."""
+    return {
+        "origin": list(origin),
+        "height": height,
+        "units": dict(tx.units),
+        "sheet": getattr(tx.sheet, "Name", None),
+    }
+
+
+class NewSheet(TypedDict):
+    width: float
+    units: dict
+
+
+def nx_create_sheet(tx, *, width: SheetLength, units: Units = "mm") -> NewSheet:
+    """Create a drawing sheet in its own units."""
+    return {"width": width, "units": dict(tx.units)}
+
+
+class Looked(TypedDict):
+    count: int
+
+
+def nx_set_look(
+    tx,
+    *,
+    objects: Annotated[list[Ref], Items(1, 10)],
+    fail_with: Annotated[str, Text(40), Doc("Code to raise after the change")] | None = None,
+    keep: bool = True,
+) -> Looked:
+    """Hide objects, recolour them, zoom and highlight them."""
+    objs = [tx.resolve(r) for r in objects]
+    if keep:
+        tx.display.keep(objs, appearance=True)
+        tx.display.keep_camera()
+        tx.display.keep_highlights()
+    tx.session  # noqa: B018 - the change starts here (touched)
+    services = tx.services
+    for obj in objs:
+        obj.blanked, obj.color = True, 1
+    services.camera["scale"] = 9.0
+    services.highlighted = list(objs)
+    if fail_with:
+        fail(fail_with, "requested failure")
+    return {"count": len(objs)}
+
+
+def nx_create_steps(tx, *, steps: Annotated[int, Doc("Steps")] = 3) -> Count:
+    """Create features one by one with progress checkpoints."""
+    for i in range(steps):
+        tx.part.add("feature", f"STEP{i}")
+        tx.checkpoint(done=i + 1, total=steps)
+    return {"count": steps}
+
+
+def nx_save_other(tx, *, part: RefTo("part")) -> Written:  # type: ignore[valid-type]
+    """Save a named part."""
+    target = tx.resolve(part, "part")
+    tx.require_owned(target, field="/part")
+    target.IsModified = False
+    return {"path": target.FullPath}
+
+
 KEYWORDS = ("alpha", "beta", "gamma")
 
 
@@ -142,6 +233,49 @@ def specs():
             domain="session",
             cost="heavy",
             example={"sizes": [1]},
+        ),
+        "nx_create_label": make_spec(
+            nx_create_label,
+            effect="model",
+            label="Create label",
+            summary="Label {height} at {origin}",
+            keywords=KEYWORDS,
+            domain="drawing",
+            example={"origin": [10, 10]},
+        ),
+        "nx_create_sheet": make_spec(
+            nx_create_sheet,
+            effect="model",
+            label="Create sheet",
+            summary="Sheet {width} wide",
+            keywords=KEYWORDS,
+            domain="drawing",
+            example={"width": 297},
+        ),
+        "nx_set_look": make_spec(
+            nx_set_look,
+            effect="view",
+            label="Set look",
+            keywords=KEYWORDS,
+            domain="display",
+            restorable=True,
+            example={"objects": ["b:1"]},
+        ),
+        "nx_create_steps": make_spec(
+            nx_create_steps,
+            effect="model",
+            label="Create steps",
+            keywords=KEYWORDS,
+            domain="modeling",
+            example={},
+        ),
+        "nx_save_other": make_spec(
+            nx_save_other,
+            effect="file",
+            label="Save other part",
+            keywords=KEYWORDS,
+            domain="parts_files",
+            example={"part": "p:1"},
         ),
         "nx_preview_blocks": make_spec(
             nx_preview_blocks,

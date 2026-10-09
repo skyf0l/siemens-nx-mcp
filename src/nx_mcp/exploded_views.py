@@ -425,12 +425,16 @@ class ExplodedViewsMixin:
         }
         if view not in names:
             raise NXToolError("NX_INVALID_ARGUMENT", "Unsupported model view")
-        point = [100.0, 100.0] if position is None else [finite(v, "position") for v in position]
+        sheet = self._drawing_object(drawing, "drawing_sheet")
+        point = (
+            self._sheet_default(sheet, 100.0, 100.0)
+            if position is None
+            else [finite(v, "position") for v in position]
+        )
         if len(point) != 2:
             raise NXToolError(
                 "NX_INVALID_ARGUMENT", "position must contain two sheet coordinates in sheet units"
             )
-        sheet = self._drawing_object(drawing, "drawing_sheet")
         if sheet.OwningPart != part:
             raise NXToolError("NX_OBJECT_OWNER_MISMATCH", "Drawing sheet must belong to work part")
         uf = self._explosion_uf()
@@ -461,7 +465,7 @@ class ExplodedViewsMixin:
             "explosion": self._reference(ex, "explosion", part, "Explosion") if ex else None,
         }
 
-    def _add_projection_view(self, base_view, direction, spacing=60.0):
+    def _add_projection_view(self, base_view, direction, spacing=None):
         if not self._explosions(self._work_part()):
             return EngineeringMixin._add_projection_view(self, base_view, direction, spacing)
         parent = self._drawing_object(base_view, "drawing_view")

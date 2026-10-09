@@ -89,4 +89,5 @@ nx_mcp = [
     "capability_manifest.json",
     "capability_fragments/*.json",
     "sheet_metal_catalog.json",
+    "evidence/*.json",
 ]

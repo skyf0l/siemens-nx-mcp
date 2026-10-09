@@ -118,7 +118,7 @@ def test_nested_observers_mark_the_outer_call_touched():
 @pytest.mark.asyncio
 async def test_sidecar_path_errors_are_not_started(tmp_path):
     bridge = AsyncMock()
-    server = create_server(bridge, Workspace(tmp_path))
+    server = create_server(bridge, Workspace(tmp_path), surface="full")
     result = await server.call_tool(
         "nx_component_action",
         {"component": "obj_x", "action": "replace", "part_path": "../outside.prt"},

@@ -130,3 +130,23 @@ def test_panel_shows_short_reason_and_log_keeps_the_full_message(tmp_path):
     assert activity.recent()[0].endswith("— rolled back, model unchanged (stale reference)")
     log = (tmp_path / "activity.log").read_text(encoding="utf-8")
     assert "NX_OBJECT_STALE: Object reference is not valid: obj_123456789" in log
+
+
+def test_catalogue_envelopes_name_the_result_and_the_model_state(tmp_path):
+    from nx_mcp.core.errors import NXError
+
+    activity = Activity(tmp_path / "activity.log")
+    activity.start_session()
+    ok = {"ok": True, "data": {"feature": {"id": "f:3", "name": "DATUM_PLANE(3)"}}}
+    run(activity, "nx_create_datum_plane", "Datum plane 15 mm from top", result=ok)
+    failed_read = NXError("NX_STALE_REFERENCE", "b:4 is stale")
+    failed_read.details["mutation_outcome"] = "not_applicable"
+    run(activity, "nx_list_objects", "List faces", read_only=True, error=failed_read, at=2)
+    refused = NXError("NX_PART_NOT_GRANTED", "The part bracket.prt belongs to the engineer: ...")
+    refused.details["mutation_outcome"] = "not_started"
+    run(activity, "nx_create_datum_plane", "Datum plane", error=refused, at=4)
+    lines = activity.recent()
+    assert "→ DATUM_PLANE(3)" in lines[0]
+    assert lines[1].startswith("✗ ") and "List faces — model unchanged (b:4 is stale)" in lines[1]
+    assert lines[2].startswith("✗ ") and "not run, model unchanged" in lines[2]
+    assert "(engineer's part, not granted)" in lines[2]

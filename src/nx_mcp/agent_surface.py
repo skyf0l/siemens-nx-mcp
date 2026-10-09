@@ -1,4 +1,13 @@
-"""Opt-in bounded agent surface; the full registry remains the validation authority."""
+"""Legacy agent presentation: compact results, snapshots, artifacts and helper tools.
+
+Tool listing, discovery and the gateways moved to :mod:`nx_mcp.sidecar` (step F3).
+What stays here serves legacy tools until their domains migrate (deleted in F4):
+
+- ``compact``/``compact_payload``: the bounded projection of a legacy result;
+- :class:`ResultStore`: durable response snapshots (``result_id``);
+- the ``nx-artifact://`` resource template for workspace artifacts;
+- the helper tools ``nx_result``, ``nx_result_cleanup`` and ``nx_inspect``.
+"""
 
 from __future__ import annotations
 
@@ -7,27 +16,16 @@ import os
 import re
 import uuid
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from urllib.parse import quote, unquote
 
 from mcp.server.fastmcp.exceptions import ToolError
-from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
-from pydantic import Field
+from mcp.server.fastmcp.tools import ToolManager
+from mcp.types import CallToolResult, ResourceLink, TextContent, Tool, ToolAnnotations
 
-from nx_mcp.agent_guidance import guidance, next_actions
-from nx_mcp.integration_server import REQUEST_INTENT
+from nx_mcp.agent_guidance import next_actions
 from nx_mcp.result_retention import LOCK, maintain, settings
 
-CORE = {
-    "nx_status",
-    "nx_workspace_info",
-    "nx_operation_status",
-    "nx_cancel_operation",
-    "nx_list_open_parts",
-    "nx_list_components",
-    "nx_screenshot",
-    "nx_download_file",
-}
 DOMAINS = {
     "sketch": ("sketch", "constraint"),
     "assembly": ("component", "assembly", "explosion", "reference_set", "mate"),
@@ -73,6 +71,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "nx_download_file": {"delivery": "metadata"},
     "nx_workspace_list": {"limit": 20},
 }
+# Helper tools served by the sidecar itself; read helpers never change anything.
+HELPERS = {"nx_result": "read", "nx_inspect": "read", "nx_result_cleanup": "file"}
 
 
 def category(name):
@@ -167,13 +167,101 @@ class ResultStore:
         return json.loads((self.root / (result_id + ".json")).read_text(encoding="utf-8"))
 
 
-def configure(mcp, workspace):
-    from nx_mcp.integration_server import envelope, unknown_tool_error
+class Helpers:
+    """Presentation and helper tools for legacy results (see :func:`install`).
 
-    registry = dict(mcp._tool_manager._tools)
-    original_call = mcp.call_tool
-    original_list = mcp.list_tools
+    The helper tools live in their own tool manager, so the legacy registry (and
+    the release scripts that count it) stays exactly the manifest's tools.
+    """
+
+    names = frozenset(HELPERS)
+
+    def __init__(self, workspace, store):
+        self.manager = ToolManager(warn_on_duplicate_tools=True)
+        self.workspace = workspace
+        self.store = store
+
+    def tool(self, annotations):
+        def register(fn):
+            self.manager.add_tool(fn, name=fn.__name__, annotations=annotations)
+            return fn
+
+        return register
+
+    def tools(self):
+        """The helper tools (FastMCP ``Tool`` objects) by name."""
+        return {name: self.manager.get_tool(name) for name in HELPERS}
+
+    def listed(self) -> list[Tool]:
+        """MCP definitions of the helper tools for the ``full`` listing."""
+        return [
+            Tool(
+                name=t.name,
+                description=t.description,
+                inputSchema=t.parameters,
+                annotations=t.annotations,
+            )
+            for t in self.tools().values()
+        ]
+
+    def present(self, response, mode, method=None):
+        """Compact a legacy result; never turns a finished call into an error."""
+        if not isinstance(response, CallToolResult) or mode == "full" or response.isError:
+            return response
+        full = response.structuredContent
+        if not isinstance(full, dict):
+            return response
+        from nx_mcp.integration_server import envelope
+
+        try:
+            payload = compact_payload(full, self.store.put(full), method)
+            result = envelope(payload)
+            result.content.extend(c for c in response.content if not isinstance(c, TextContent))
+            if full.get("path") and full.get("sha256") and full.get("size", 0) <= 8 * 1024 * 1024:
+                file = self.workspace.resolve(full["path"])
+                relative = file.relative_to(self.workspace.root).as_posix()
+                result.content.append(
+                    ResourceLink(
+                        type="resource_link",
+                        name=file.name,
+                        uri="nx-artifact://workspace/" + quote(relative, safe=""),
+                        size=full.get("size"),
+                    )
+                )
+        except Exception:
+            # The call already ran in NX: a presentation fault (snapshot storage,
+            # artifact link) must not relabel its outcome. Return it uncompacted.
+            return response
+        return result
+
+    async def call(self, name, arguments):
+        """Run a helper tool; its own failures happen before or without any NX change."""
+        from nx_mcp.integration_server import envelope
+        from nx_mcp.runtime import NXToolError
+
+        try:
+            return await self.manager.call_tool(name, arguments or {}, convert_result=False)
+        except (ValueError, KeyError, IndexError, OSError, TypeError, ToolError) as error:
+            expired = isinstance(error, FileNotFoundError) or isinstance(
+                error.__cause__, FileNotFoundError
+            )
+            outcome = "not_applicable" if HELPERS[name] == "read" else "not_started"
+            return envelope(
+                NXToolError(
+                    "NX_RESULT_EXPIRED" if expired else "NX_INVALID_ARGUMENT",
+                    str(error),
+                    details={"mutation_outcome": outcome},
+                ).as_dict(),
+                True,
+            )
+
+
+def install(mcp, workspace, legacy_call) -> Helpers:
+    """Register the artifact resource and the helper tools on ``mcp``."""
+    from nx_mcp.integration_server import envelope
+
     store = ResultStore(workspace.root)
+    helpers = Helpers(workspace, store)
 
     @mcp.resource("nx-artifact://workspace/{path}", mime_type="application/octet-stream")
     def artifact(path: str) -> bytes:
@@ -185,108 +273,7 @@ def configure(mcp, workspace):
             raise ValueError("Resource exceeds 8 MiB; use programmatic nx_download_file chunks")
         return file.read_bytes()
 
-    def present(response, mode, method=None):
-        if not isinstance(response, CallToolResult) or mode == "full" or response.isError:
-            return response
-        full = response.structuredContent
-        if not isinstance(full, dict):
-            return response
-        # Never turn an already-committed operation into an error if caching fails.
-        try:
-            payload = compact_payload(full, store.put(full), method)
-        except OSError:
-            return response
-        result = envelope(payload)
-        result.content.extend(c for c in response.content if not isinstance(c, TextContent))
-        if full.get("path") and full.get("sha256") and full.get("size", 0) <= 8 * 1024 * 1024:
-            file = workspace.resolve(full["path"])
-            relative = file.relative_to(workspace.root).as_posix()
-            result.content.append(
-                ResourceLink(
-                    type="resource_link",
-                    name=file.name,
-                    uri="nx-artifact://workspace/" + quote(relative, safe=""),
-                    size=full.get("size"),
-                )
-            )
-        return result
-
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
-    async def nx_discover_tools(
-        query: str = "",
-        domain: str | None = None,
-        include_schema: bool = False,
-        include_output_schema: bool = False,
-        offset: Annotated[int, Field(ge=0)] = 0,
-        limit: Annotated[int, Field(ge=1, le=20)] = 10,
-    ) -> CallToolResult:
-        """Discover task tools by name/description or domain. Domains: modeling, sketch, assembly, drawing, manufacturing, inspection, display, files. Spaced queries match all words, with tool-name matches ranked first. Request exact-name schema before nx_invoke; output schemas are omitted unless include_output_schema=true; results are paged. Discovery does not mutate NX or the session's catalog."""
-        if offset < 0 or not 1 <= limit <= 20:
-            raise ValueError("offset >= 0; limit 1..20")
-        if domain is not None and domain not in {*DOMAINS, "modeling"}:
-            raise ValueError("Unknown domain")
-        words = re.findall(r"[a-z0-9]+", query.casefold())
-
-        def score(tool):
-            name_words = re.findall(r"[a-z0-9]+", tool.name.casefold())
-            haystack = " ".join(name_words) + " " + tool.description.casefold()
-            if not all(word in haystack for word in words):
-                return -1
-            return sum(4 if word in name_words else 1 for word in words)
-
-        rows = [
-            t
-            for n, t in registry.items()
-            if (domain is None or category(n) == domain) and score(t) >= 0
-        ]
-        rows.sort(key=lambda t: (-score(t), t.name))
-        # Exact name wins over incidental description matches.
-        if query in registry and (domain is None or category(query) == domain):
-            rows = [registry[query]]
-        selected = []
-        for tool in rows[offset : offset + limit]:
-            row = {
-                "name": tool.name,
-                "description": tool.description,
-                "domain": category(tool.name),
-                "defaults": DEFAULTS.get(tool.name, {}),
-            }
-            if include_schema:
-                row.update(
-                    inputSchema=tool.parameters,
-                    guidance=guidance(tool),
-                )
-                if include_output_schema:
-                    row["outputSchema"] = tool.fn_metadata.output_schema
-            selected.append(row)
-        return envelope(
-            {
-                "tools": selected,
-                "total_count": len(rows),
-                "next_offset": offset + len(selected)
-                if offset + len(selected) < len(rows)
-                else None,
-            }
-        )
-
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
-    async def nx_invoke(
-        tool: str,
-        arguments: dict[str, Any],
-        detail: Literal["compact", "full"] = "compact",
-        intent: Annotated[str | None, Field(max_length=120)] = None,
-    ) -> CallToolResult:
-        """Call a discovered NX tool using its exact input schema. Mutations execute serially on the NX thread. Supply operation_id inside arguments and reuse it after transport failure; nx_operation_status is authoritative. Compact returns result_id for detail expansion. Full preserves the original response. This gateway may mutate NX; inspect the discovered tool semantics first. intent is an optional short note in the engineer's terms on why you make this call (e.g. "Add the 10 mm mounting boss"); the NX MCP panel shows it, labelled as your note, when the engineer must approve control."""
-        if tool not in registry:
-            return envelope(unknown_tool_error(tool, registry).as_dict(), True)
-        params = {**DEFAULTS.get(tool, {}), **arguments} if detail == "compact" else arguments
-        token = REQUEST_INTENT.set(" ".join(intent.split()) if intent else None)
-        try:
-            return present(await original_call(tool, params), detail, tool)
-        finally:
-            REQUEST_INTENT.reset(token)
-
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @helpers.tool(ToolAnnotations(readOnlyHint=True))
     async def nx_result(
         result_id: str,
         field: str = "",
@@ -326,7 +313,7 @@ def configure(mcp, workspace):
             }
         )
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+    @helpers.tool(ToolAnnotations(readOnlyHint=False, destructiveHint=True))
     async def nx_result_cleanup(
         dry_run: bool = True,
         max_age_seconds: int | None = None,
@@ -339,7 +326,7 @@ def configure(mcp, workspace):
             )
         )
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @helpers.tool(ToolAnnotations(readOnlyHint=True))
     async def nx_inspect(
         tool: Literal[
             "nx_list_features", "nx_list_sketches", "nx_list_topology", "nx_list_annotations"
@@ -383,13 +370,13 @@ def configure(mcp, workspace):
                 raise ValueError(
                     "Use nx_inspect offset/limit, not underlying annotation pagination"
                 )
-            response = await original_call(tool, arguments)
+            response = await legacy_call(tool, arguments)
             if response.isError:
                 return response
             full = response.structuredContent
             if tool == "nx_list_annotations":
                 while full.get("next_offset") is not None:
-                    response = await original_call(
+                    response = await legacy_call(
                         tool, {"offset": full["next_offset"], "limit": 100}
                     )
                     if response.isError:
@@ -437,62 +424,8 @@ def configure(mcp, workspace):
             }
         )
 
-    helper_names = {
-        "nx_discover_tools",
-        "nx_invoke",
-        "nx_result",
-        "nx_inspect",
-        "nx_result_cleanup",
-    }
-    for name in helper_names:
-        tool = mcp._tool_manager.get_tool(name)
+    for tool in helpers.tools().values():
         tool.fn_metadata.arg_model.model_config["extra"] = "forbid"
         tool.fn_metadata.arg_model.model_rebuild(force=True)
         tool.parameters = tool.fn_metadata.arg_model.model_json_schema()
-
-    async def call(name, arguments):
-        try:
-            if name in helper_names:
-                return await mcp._tool_manager.call_tool(name, arguments, convert_result=False)
-            if name not in registry:
-                return envelope(unknown_tool_error(name, registry).as_dict(), True)
-            return present(
-                await original_call(name, {**DEFAULTS.get(name, {}), **(arguments or {})}),
-                "compact",
-                name,
-            )
-        except (ValueError, KeyError, IndexError, OSError, TypeError, ToolError) as error:
-            from nx_mcp.runtime import NXToolError
-
-            return envelope(
-                NXToolError(
-                    "NX_RESULT_EXPIRED"
-                    if isinstance(error, FileNotFoundError)
-                    or isinstance(error.__cause__, FileNotFoundError)
-                    else "NX_INVALID_ARGUMENT",
-                    str(error),
-                    details={"mutation_outcome": "not_started"},
-                ).as_dict(),
-                True,
-            )
-
-    async def listing():
-        result = [t for t in await original_list() if t.name in CORE | helper_names]
-        for tool in result:
-            # Agent presentation is an extensible envelope; exact full contracts are discoverable.
-            tool.outputSchema = None
-            if tool.name in DEFAULTS:
-                tool.inputSchema = json.loads(json.dumps(tool.inputSchema))
-                for key, value in DEFAULTS[tool.name].items():
-                    if key in tool.inputSchema.get("properties", {}):
-                        tool.inputSchema["properties"][key]["default"] = value
-                tool.description += (
-                    " Agent profile defaults: " + json.dumps(DEFAULTS[tool.name]) + "."
-                )
-        return result
-
-    mcp.call_tool = call
-    mcp.list_tools = listing
-    mcp._mcp_server.call_tool(validate_input=False)(call)
-    mcp._mcp_server.list_tools()(listing)
-    mcp._mcp_server.instructions = "NX agent profile. Use nx_inspect for filtered stable inventory pages and nx_result_cleanup for snapshot maintenance. Discover exact schemas with nx_discover_tools, then call nx_invoke. Inventories default to 20 rows; follow next_offset. Compact responses retain result_id for nx_result expansion. Supply durable operation_id for mutations and query nx_operation_status before retrying uncertain operations. File downloads default to metadata; retrieve bytes programmatically, never paste base64 into model context. Full compatibility surface remains available with NX_MCP_SURFACE=full."
+    return helpers

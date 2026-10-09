@@ -1557,7 +1557,11 @@ class EngineeringMixin:
                 "Base-view body selection currently requires a single-body part",
             )
         sheet = self._drawing_object(drawing, "drawing_sheet")
-        point = [100.0, 100.0] if position is None else [finite(v, "position") for v in position]
+        point = (
+            self._sheet_default(sheet, 100.0, 100.0)
+            if position is None
+            else [finite(v, "position") for v in position]
+        )
         if len(point) != 2:
             raise NXToolError(
                 "NX_INVALID_ARGUMENT", "position must be two sheet coordinates in sheet units"
@@ -1659,15 +1663,19 @@ class EngineeringMixin:
             "warnings": [],
         }
 
-    def _add_projection_view(self, base_view, direction, spacing=60.0):
+    def _add_projection_view(self, base_view, direction, spacing=None):
         offsets = {"right": (1, 0), "left": (-1, 0), "top": (0, 1), "bottom": (0, -1)}
         if direction not in offsets:
             raise NXToolError("NX_INVALID_ARGUMENT", "direction must be right, left, top or bottom")
-        spacing = finite(spacing, "spacing", True)
         view = self._drawing_object(base_view, "drawing_view")
         center = view.GetDrawingReferencePoint()
         dx, dy = offsets[direction]
         sheet = self._view_sheet(view)
+        spacing = (
+            self._sheet_default(sheet, 60.0)[0]
+            if spacing is None
+            else finite(spacing, "spacing", True)
+        )
         target = [center.X + dx * spacing, center.Y + dy * spacing]
         size = [getattr(sheet, "Length", None), getattr(sheet, "Height", None)]
         if None not in size and not all(0 <= t <= s for t, s in zip(target, size, strict=True)):
@@ -1726,7 +1734,11 @@ class EngineeringMixin:
         b = self._drawing_dimension_edge(object2) if object2 else a
         pa = a.GetVertices()[0]
         pb = b.GetVertices()[1] if object2 is None else b.GetVertices()[0]
-        point = [100.0, 80.0] if origin is None else [finite(v, "origin") for v in origin]
+        point = (
+            self._sheet_default(self._view_sheet(drawing_view), 100.0, 80.0)
+            if origin is None
+            else [finite(v, "origin") for v in origin]
+        )
         if len(point) != 2:
             raise NXToolError("NX_INVALID_ARGUMENT", "origin must be [x,y] in sheet units")
         existing = self._engineering_owned(dimension, "dimension") if dimension else None

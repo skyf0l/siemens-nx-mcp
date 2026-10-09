@@ -6,8 +6,10 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.agent_guidance import MANIFEST
-from nx_mcp.agent_surface import ResultStore, compact
+from nx_mcp.agent_surface import HELPERS, ResultStore, compact
+from nx_mcp.core import catalogue
 from nx_mcp.server import create_server
+from nx_mcp.sidecar import gateways
 from nx_mcp.workspace import Workspace
 
 
@@ -50,19 +52,29 @@ async def test_discovery_defaults_dispatch_and_expansion(tmp_path):
     server = create_server(bridge, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as client:
         tools = (await client.list_tools()).tools
-        assert len(tools) == 13
+        # Four gateways plus the core tools that exist in the catalogue.
+        assert [t.name for t in tools][:4] == list(gateways.NAMES)
+        assert "nx_list_objects" in {t.name for t in tools} and len(tools) == 5
         assert "nx_extrude" not in {t.name for t in tools}
-        result = await client.call_tool(
-            "nx_discover_tools", {"query": "nx_extrude", "include_schema": True}
-        )
-        assert result.structuredContent["total_count"] == 1
-        assert "distance" in result.structuredContent["tools"][0]["inputSchema"]["properties"]
+        result = await client.call_tool("nx_find_tools", {"query": "nx_extrude"})
+        assert result.structuredContent["data"]["tools"][0]["name"] == "nx_extrude"
+        result = await client.call_tool("nx_get_tool_schemas", {"names": ["nx_extrude"]})
+        schema = result.structuredContent["data"]["tools"][0]["input_schema"]
+        assert "distance" in schema["properties"]
+        # A legacy tool stays callable directly, with compact agent defaults.
         result = await client.call_tool("nx_list_open_parts", {})
         assert not result.isError
         assert bridge.call.call_args.args[1]["limit"] == 20
         assert bridge.call.call_args.args[1]["compact"] is True
         snapshot = await client.call_tool(
-            "nx_result", {"result_id": result.structuredContent["result_id"], "field": "/parts"}
+            "nx_invoke_read",
+            {
+                "tool": "nx_result",
+                "arguments": {
+                    "result_id": result.structuredContent["result_id"],
+                    "field": "/parts",
+                },
+            },
         )
         assert snapshot.structuredContent["items"] == []
         bridge.call.reset_mock()
@@ -182,13 +194,14 @@ async def test_storage_failure_does_not_relabel_committed_mutation(tmp_path, mon
 @pytest.mark.asyncio
 async def test_discovery_paging_and_argument_errors(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
-    for args in [{"limit": 21}, {"offset": -1}, {"domain": "wrong"}]:
-        assert (await server.call_tool("nx_discover_tools", args)).isError
+    for args in [{"limit": 21}, {"offset": -1}, {"domain": "wrong"}, {"bogus": 1}]:
+        bad = await server.call_tool("nx_find_tools", args)
+        assert bad.isError and bad.structuredContent["error"]["code"] == "NX_INVALID_ARGUMENT"
     result = await server.call_tool(
-        "nx_discover_tools", {"limit": 2, "offset": 2, "domain": "modeling"}
+        "nx_find_tools", {"limit": 2, "offset": 2, "domain": "modeling"}
     )
-    assert len(result.structuredContent["tools"]) == 2
-    assert result.structuredContent["next_offset"] == 4
+    assert len(result.structuredContent["data"]["tools"]) == 2
+    assert result.structuredContent["page"]["next_offset"] == 4
     assert (await server.call_tool("nx_invoke", {"tool": "missing", "arguments": {}})).isError
     assert (await server.call_tool("missing", {})).isError
 
@@ -208,7 +221,10 @@ def test_dual_http_profiles(tmp_path, monkeypatch):
 
     app = create_app(AsyncMock(), Workspace(tmp_path))
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
-        for path, count in [("/mcp", len(MANIFEST["tools"])), ("/agent/mcp", 13)]:
+        # Without a bridge descriptor the build is unknown: only read/view catalogue tools show.
+        readable = [s for s in catalogue.load().values() if s.effect in ("read", "view")]
+        extra = len(gateways.NAMES) + len(readable) + len(HELPERS)
+        for path, count in [("/mcp", len(MANIFEST["tools"]) + extra), ("/agent/mcp", 5)]:
             response = client.post(
                 path,
                 headers={"Accept": "application/json, text/event-stream"},

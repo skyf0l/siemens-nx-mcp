@@ -530,3 +530,47 @@ def test_stop_tears_down_even_if_handover_and_teardown_steps_fail(host, monkeypa
     host.panel.close.assert_called_once()
     assert "handover failure" in host.last_error and "dispatcher failure" in host.last_error
     assert not host.descriptor_path.exists()
+
+
+def test_grant_checkbox_shows_for_the_engineers_part_and_toggles(host, rig, monkeypatch):
+    from nx_mcp.host import dispatch
+
+    monkeypatch.delenv("NX_MCP_DEV", raising=False)
+    assert host.grant_state() is None  # the rig part is the agent's own
+    rig.e._owned_parts.clear()
+    assert host.grant_state() == {"name": "test", "granted": False}
+    panel = ControlPanel.__new__(ControlPanel)
+    panel.host = host
+    panel.user = NS(
+        SetWindowTextW=Mock(), SendMessageW=Mock(), ShowWindow=Mock(), DefWindowProcW=Mock()
+    )
+    panel.grant = 9
+    panel.show_grant(host.grant_state())
+    panel.user.SetWindowTextW.assert_called_once_with(9, "Allow agent to change test")
+    panel.user.SendMessageW.assert_called_once_with(9, 0xF1, 0, 0)  # unchecked
+    panel.user.ShowWindow.assert_called_once_with(9, 5)
+    panel.show_grant(host.grant_state())  # unchanged: no repaint
+    assert panel.user.ShowWindow.call_count == 1
+    # The engineer clicks it; the next tick grants the work part.
+    assert panel._message(1, 0x111, 106, 0) == 0 and host.grant_toggle_requested
+    host.panel = panel
+    panel.update = Mock()
+    host.tick()
+    assert not host.grant_toggle_requested
+    assert dispatch.services_for(rig.e).granted(rig.part)
+    assert panel.user.SendMessageW.call_args.args == (9, 0xF1, 1, 0)  # now checked
+    assert "You allowed the agent to change test" in host.notice
+    host.grant_toggle_requested = True
+    host.tick()
+    assert not dispatch.services_for(rig.e).owns(rig.part)
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    host.tick()
+    assert panel.user.ShowWindow.call_args.args == (9, 0)  # hidden in development
+
+
+def test_light_catalogue_steps_do_not_warn_that_nx_may_pause(host):
+    host.running_method = "nx_list_objects"
+    host.current_started_at = time.time()
+    assert host.panel_text().splitlines()[0].endswith("nx_list_objects — running")
+    host.running_method = "nx_extrude"  # legacy tools keep the warning
+    assert host.panel_text().splitlines()[0].endswith("— running, NX may pause")

@@ -357,9 +357,8 @@ class HardenedExecutor(
         # every other tool keeps the legacy path below.
         if (spec := dispatch.catalogue_spec(method)) is not None:
             return dispatch.run(self, spec, params)
-        result = self._execute_legacy(method, params)
-        dispatch.after_legacy(self, method, result)
-        return result
+        # Legacy tools keep the part-ownership rule during migration (gate 6).
+        return dispatch.run_legacy(self, method, params)
 
     def _execute_legacy(self, method, params):
         params = dict(params)

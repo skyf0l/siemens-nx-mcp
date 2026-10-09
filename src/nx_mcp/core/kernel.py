@@ -27,8 +27,8 @@ from pathlib import Path
 from nx_mcp.core import evidence
 from nx_mcp.core.errors import NXError, classify, fail
 from nx_mcp.core.receipts import Receipts, new_operation_id
-from nx_mcp.core.tx import Services, Tx
-from nx_mcp.core.types import convert_quantity
+from nx_mcp.core.tx import Services, Tx, check_owned
+from nx_mcp.core.types import SHEET_KINDS, convert_quantity, expand_kinds
 from nx_mcp.core.validate import Checked, get_at, pointer, set_at, validate
 
 REQUIRE_FAILURES = {
@@ -157,14 +157,7 @@ def _gate_ownership(spec, services: Services) -> dict | None:  # gate 6 (before)
     if services.dev or spec.effect not in ("model", "file"):
         return None
     if spec.effect == "model":
-        part = services.work_part()
-        if part is not None and not services.owns(part):
-            fail(
-                "NX_PART_NOT_GRANTED",
-                f"The work part {services.part_path(part)} belongs to the engineer",
-                hint="Ask the engineer to grant it on the NX MCP panel, or work on a copy",
-                details={"part": services.part_path(part)},
-            )
+        check_owned(services, services.work_part())
     return services.modified_flags()
 
 
@@ -176,21 +169,59 @@ def _check_ownership_after(services: Services, flags: dict | None) -> None:  # g
     if changed:
         fail(
             "NX_PART_NOT_GRANTED",
-            "The call modified a part the agent does not own",
+            "The call modified a part the agent does not own; it was undone",
+            hint="Ask the engineer in chat to allow that part on the NX MCP panel",
             details={"parts": changed},
         )
 
 
+def sheet_target(spec, args: dict, refs, services: Services) -> tuple:
+    """``(sheet, units)``: the drawing sheet a sheet tool's arguments name, and its units.
+
+    In order: the first reference argument that is a drawing sheet or a view on
+    one (``services.sheet_of``); for a tool that creates a sheet, its top-level
+    ``units`` argument (``(None, "mm")``); the work part's current sheet. Returns
+    ``(None, None)`` when nothing names a sheet. Never raises: an unresolvable
+    reference is left to the handler, which reports it.
+    """
+    for path, kinds in refs:
+        if kinds and not expand_kinds(kinds) & SHEET_KINDS:
+            continue
+        value = get_at(args, path)
+        if not isinstance(value, str):
+            continue
+        try:
+            sheet = services.sheet_of(services.references.resolve(value, kinds))
+            if sheet is not None:
+                return sheet, services.sheet_units(sheet)
+        except Exception:
+            continue
+    units = args.get("units")
+    if "units" in spec.params and units in ("mm", "in"):
+        return None, units
+    try:
+        sheet = services.current_sheet()
+        if sheet is not None:
+            return sheet, services.sheet_units(sheet)
+    except Exception:
+        pass
+    return None, None
+
+
 def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # gate 9
+    """Convert quantities: lengths to part units, sheet lengths to the target sheet's
+    units (part units when no sheet is named), angles to degrees."""
     part = services.work_part()
     length = services.part_units(part) if part is not None else None
     tx.units = {"length": length, "angle": "deg"}
-    sheet = None
+    sheet_units = None
+    if spec.sheet:
+        tx.sheet, sheet_units = sheet_target(spec, checked.args, checked.refs, services)
+        sheet_units = sheet_units or length or "mm"
+        tx.units["sheet_length"] = sheet_units
     for path, dim in checked.quantities:
         if dim == "sheet_length":
-            sheet = sheet or services.sheet_units() or length or "mm"
-            target = sheet
-            tx.units["sheet_length"] = sheet
+            target = sheet_units or length or "mm"
         elif dim == "angle":
             target = "deg"
         else:
@@ -310,6 +341,10 @@ def run(spec, args, ctx: Context) -> dict:
         envelope["warnings"] = tx.warnings
         if page is not None:
             envelope["page"] = page
+        if spec.restorable:
+            restore_id = tx.display.snapshot()
+            if restore_id is not None:
+                envelope["restore_id"] = restore_id
         services.after_commit(spec)
         receipts.finish(record, envelope)
         return envelope
@@ -372,6 +407,9 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
                 details={"operation_error": error.error_dict()},
             )
             return "partial", "part_invalidated", failed
+        if tx.display.kept:
+            with contextlib.suppress(Exception):
+                tx.display.restore()  # NX undo does not restore the camera.
         if tx.non_undoable_reason:
             error.details.setdefault("non_undoable", tx.non_undoable_reason)
             return "partial", "part_invalidated", error
@@ -381,7 +419,18 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
         if tx.files.published or tx.non_undoable_reason or not clean:
             return "partial", "preserved", error
         return "rolled_back", "preserved", error
-    # view and session effects have no generic rollback.
+    if spec.effect == "view" and tx is not None and tx.display.kept:
+        try:
+            tx.display.restore()
+        except Exception as restore_error:
+            failed = NXError(
+                "NX_RESTORE_FAILED",
+                f"The view change failed and the display was not fully restored: {restore_error}",
+                details={"operation_error": error.error_dict()},
+            )
+            return "partial", "preserved", failed
+        return "rolled_back", "preserved", error
+    # A view handler that kept nothing, and session effects, have no generic rollback.
     return "unknown", "preserved", error
 
 

@@ -1044,7 +1044,7 @@ class SheetMetalMixin:
         if feature.FeatureType != "FLAT_PATTERN":
             raise NXToolError("NX_OBJECT_TYPE_MISMATCH", "Select a native Flat Pattern feature")
         sheet = self._drawing_object(drawing, "drawing_sheet")
-        point = [100.0, 100.0] if position is None else position
+        point = self._sheet_default(sheet, 100.0, 100.0) if position is None else position
         if not isinstance(point, list) or len(point) != 2:
             raise NXToolError(
                 "NX_INVALID_ARGUMENT", "position requires two sheet coordinates in sheet units"

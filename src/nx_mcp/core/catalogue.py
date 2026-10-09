@@ -19,7 +19,17 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal
 
-from nx_mcp.core.types import KIND_GROUPS, KINDS, Doc, Items, PathArg, Quantity, RefKind, Text
+from nx_mcp.core.types import (
+    KIND_GROUPS,
+    KINDS,
+    SHEET_HINTS,
+    Doc,
+    Items,
+    PathArg,
+    Quantity,
+    RefKind,
+    Text,
+)
 from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwrap, validate
 
 EFFECTS = ("read", "view", "model", "file", "session")
@@ -111,6 +121,10 @@ class ToolSpec:
     runs: str
     example: Mapping[str, Any]
     handler: Callable[..., Any] = field(repr=False)
+    # Derived: an argument is in the target drawing sheet's units (gate 9).
+    sheet: bool = False
+    # Decorator, view tools only: a success returns restore_id for nx_restore_display.
+    restorable: bool = False
 
     @property
     def evidence(self) -> dict:
@@ -239,6 +253,23 @@ def _collect_paths(hint, where: str, out: list, seen=None) -> None:
             _collect_paths(sub, f"{where}/{name}", out, seen)
 
 
+def _uses_sheet(hint, seen=None) -> bool:
+    """True when ``hint`` contains a sheet-unit type (``SheetPoint``, ``SheetLength``)."""
+    seen = seen if seen is not None else set()
+    if any(hint == sheet for sheet in SHEET_HINTS):
+        return True
+    base, markers = unwrap(hint)
+    quantity = markers.get(Quantity)
+    if quantity is not None:
+        return quantity.dim == "sheet_length"
+    if is_union(base) or typing.get_origin(base) in (list, tuple):
+        return any(_uses_sheet(a, seen) for a in typing.get_args(base) if a is not Ellipsis)
+    if is_typeddict(base) and base not in seen:
+        seen.add(base)
+        return any(_uses_sheet(h, seen) for h in typeddict_fields(base).values())
+    return False
+
+
 def _literal_values(hint) -> tuple | None:
     base, _ = unwrap(hint)
     if is_union(base):
@@ -272,6 +303,7 @@ def make_spec(
     runs: str = "nx",
     example: Mapping[str, Any] | None = None,
     domain: str | None = None,
+    restorable: bool = False,
 ) -> ToolSpec:
     """Build and check a :class:`ToolSpec` without registering it."""
     name = fn.__name__
@@ -403,6 +435,8 @@ def make_spec(
         problems.append("batchable requires effect 'model' and cost instant/light")
     if previewable and effect != "model":
         problems.append("previewable requires effect 'model'")
+    if restorable and effect != "view":
+        problems.append("restorable requires effect 'view'")
     paths: list = []
     for p in params.values():
         _collect_paths(p.hint, "/" + p.name, paths)
@@ -433,6 +467,8 @@ def make_spec(
         runs=runs,
         example=MappingProxyType(example),
         handler=fn,
+        sheet=any(_uses_sheet(p.hint) for p in params.values()),
+        restorable=bool(restorable),
     )
 
 

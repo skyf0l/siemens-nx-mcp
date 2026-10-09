@@ -86,6 +86,12 @@ class FakeServices(Services):
         self.fail_undo = False
         self.refreshed: list[dict] = []
         self.epoch = 0
+        self.current = None  # current drawing sheet
+        self.camera = {"scale": 1.0}
+        self.highlighted: list = []
+        self.snapshots: dict = {}
+        self.fail_camera = False
+        self.fail_restore = False
 
     # parts
     def work_part(self):
@@ -106,8 +112,64 @@ class FakeServices(Services):
     def part_units(self, part):
         return part.PartUnits
 
-    def sheet_units(self):
-        return None
+    # drawing sheets: Obj("drawing_sheet") with .units, Obj("drawing_view") with .sheet
+    def current_sheet(self):
+        return self.current
+
+    def sheet_of(self, obj):
+        if getattr(obj, "kind", None) == "drawing_sheet":
+            return obj
+        return getattr(obj, "sheet", None) if getattr(obj, "kind", None) == "drawing_view" else None
+
+    def sheet_units(self, sheet):
+        return sheet.units
+
+    def add_sheet(self, units="mm", current=False):
+        sheet = self.part.add("drawing_sheet", "SHT")
+        sheet.units = units
+        if current:
+            self.current = sheet
+        return sheet
+
+    def add_view(self, sheet):
+        view = self.part.add("drawing_view", "FRONT@1")
+        view.sheet = sheet
+        return view
+
+    # display state: objects carry .blanked/.color; camera and highlights are plain data
+    def display_camera(self):
+        if self.fail_camera:
+            raise RuntimeError("no view")
+        return dict(self.camera)
+
+    def display_records(self, objects, appearance):
+        out = []
+        for obj in objects:
+            record = {"blanked": getattr(obj, "blanked", False)}
+            if appearance:
+                record["color"] = getattr(obj, "color", 7)
+            out.append((obj, record))
+        return out
+
+    def highlights(self):
+        return list(self.highlighted)
+
+    def restore_display(self, camera, records, highlights):
+        if self.fail_restore:
+            raise RuntimeError("restore refused")
+        for obj, record in records:
+            obj.blanked = record["blanked"]
+            if "color" in record:
+                obj.color = record["color"]
+        if highlights is not None:
+            self.highlighted = list(highlights)
+        if camera is not None:
+            self.camera = dict(camera)
+
+    def save_display_snapshot(self, records, camera):
+        token = f"display_{len(self.snapshots) + 1}"
+        self.snapshots[token] = {"records": records, "camera": camera}
+        return token
 
     def infer_kind(self, obj, default="error"):
         return "part" if isinstance(obj, FakePart) else obj.kind

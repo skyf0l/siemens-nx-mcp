@@ -149,4 +149,9 @@ def rig(tmp_path, monkeypatch):
         return m
 
     session.DisplayManager = NS(NewDisplayModification=modification)
+    # The test part stands for a part the agent created (part-ownership gate 6);
+    # ownership tests revoke it with services_for(e).x._owned_parts.clear().
+    from nx_mcp.host.dispatch import services_for
+
+    services_for(e).own(part)
     return NS(e=e, session=session, part=part, nx=nx, uf=uf, ref=ref, modifications=modifications)

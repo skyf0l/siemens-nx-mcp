@@ -194,7 +194,7 @@ def test_invalid_requests_are_rejected_before_native_work(rig, params, message):
 
 @pytest.mark.asyncio
 async def test_hole_feature_schema_is_public_and_typed(tmp_path: Path):
-    server = create_server(object(), Workspace(tmp_path))
+    server = create_server(object(), Workspace(tmp_path), surface="full")
     async with create_connected_server_and_client_session(server) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
     schema = tools["nx_hole_feature"].inputSchema

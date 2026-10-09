@@ -47,6 +47,20 @@ def _read_only(method):
     return method in READ_ONLY if flag is None else flag
 
 
+def _model_unchanged(method):
+    """Read and view steps: grouped in the panel history (model unchanged)."""
+    from nx_mcp.host.dispatch import effect_of
+
+    return _read_only(method) or method in VIEW_ONLY or effect_of(method) in ("read", "view")
+
+
+def _running_tail(method):
+    """Catalogue tools of cost instant/light do not pause NX noticeably (arch. 3.3)."""
+    from nx_mcp.host.dispatch import cost_of
+
+    return " — running" if cost_of(method) in ("instant", "light") else " — running, NX may pause"
+
+
 def runs_while_engineer_has_control(pending):
     """Status reads and handing control back never need the engineer's approval."""
     if pending.method == "nx_status":
@@ -159,6 +173,7 @@ class ControlPanel:
         self.user.EnableWindow.argtypes = [w.HWND, ctypes.c_int]
         self.user.ShowWindow.argtypes = [w.HWND, ctypes.c_int]
         self.user.UpdateWindow.argtypes = [w.HWND]
+        self.user.SendMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
         self.user.DestroyWindow.argtypes = [w.HWND]
         self.user.UnregisterClassW.argtypes = [w.LPCWSTR, w.HINSTANCE]
         self.user.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASS)]
@@ -178,7 +193,7 @@ class ControlPanel:
             40,
             60,
             680,
-            265,
+            291,
             self.host.main_hwnd,
             None,
             None,
@@ -199,20 +214,24 @@ class ControlPanel:
         self.label = control(
             "STATIC", "Starting interactive bridge...", 0x5000000C, 12, 8, 650, 164
         )
+        # Production only: the engineer allows the agent to change the work part
+        # (a part the agent neither created nor opened). BS_CHECKBOX, hidden until
+        # needed; the host owns the checked state (show_grant).
+        self.grant = control("BUTTON", "", 0x40010002, 12, 176, 650, 22, 106)
         # One toggle hands control over in either direction; its caption names
         # the only available action. "Not now" replaces "Open log" only while the
         # agent is waiting for control. Stop sits apart so it is not hit by mistake.
-        self.toggle = control("BUTTON", "Give control to agent", 0x50010000, 12, 178, 250, 28, 101)
-        self.decline = control("BUTTON", "Not now", 0x40010000, 270, 178, 110, 28, 104)
-        self.open_log = control("BUTTON", "Open log", 0x50010000, 270, 178, 110, 28, 105)
-        stop = control("BUTTON", "Stop bridge", 0x50010000, 532, 178, 130, 28, 103)
+        self.toggle = control("BUTTON", "Give control to agent", 0x50010000, 12, 204, 250, 28, 101)
+        self.decline = control("BUTTON", "Not now", 0x40010000, 270, 204, 110, 28, 104)
+        self.open_log = control("BUTTON", "Open log", 0x50010000, 270, 204, 110, 28, 105)
+        stop = control("BUTTON", "Stop bridge", 0x50010000, 532, 204, 130, 28, 103)
         # The dialog font fits a full activity line; the default system font does not.
         try:
             gdi = ctypes.WinDLL("gdi32")
             gdi.GetStockObject.restype = ctypes.c_void_p
             font = gdi.GetStockObject(17)  # DEFAULT_GUI_FONT
             self.user.SendMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
-            for child in (self.label, self.toggle, self.decline, self.open_log, stop):
+            for child in (self.label, self.grant, self.toggle, self.decline, self.open_log, stop):
                 self.user.SendMessageW(child, 0x30, font, 1)  # WM_SETFONT
         except Exception as exc:
             self.host.last_error = "Panel font: " + str(exc)
@@ -227,6 +246,8 @@ class ControlPanel:
                     self.host.decline_requested = True
                 elif ident == 105:
                     self.host.open_log_requested = True
+                elif ident == 106:
+                    self.host.grant_toggle_requested = True
                 elif ident == 103:
                     self.host.stop_requested = True
                 return 0
@@ -262,6 +283,18 @@ class ControlPanel:
         self.user.UpdateWindow(self.label)
         self.user.UpdateWindow(self.hwnd)
 
+    def show_grant(self, grant):
+        """Show the "Allow agent to change <part>" checkbox, or hide it (None)."""
+        if grant == getattr(self, "_grant", None):
+            return
+        self._grant = grant
+        if grant is None:
+            self.user.ShowWindow(self.grant, 0)
+            return
+        self.user.SetWindowTextW(self.grant, f"Allow agent to change {grant['name'][:60]}")
+        self.user.SendMessageW(self.grant, 0xF1, 1 if grant["granted"] else 0, 0)  # BM_SETCHECK
+        self.user.ShowWindow(self.grant, 5)
+
     def close(self):
         self.user.DestroyWindow(self.hwnd)
         self.user.UnregisterClassW(self._class.lpszClassName, None)
@@ -280,6 +313,7 @@ class InteractiveHost:
     decline_requested = False
     notice = None
     open_log_requested = False
+    grant_toggle_requested = False
     current_summary = None
     current_intent = None
     current_started_at = None
@@ -404,10 +438,45 @@ class InteractiveHost:
             "_sample_monotonic": time.monotonic(),
             "_operation_monotonic": self.operation_started,
         }
-        self.panel.update(*self.panel_state())
+        self._refresh_panel()
         temp = self.state_dir / "ui-state.tmp"
         temp.write_text(json.dumps(state))
         temp.replace(self.state_dir / "ui-state.json")
+
+    def _refresh_panel(self):
+        self.panel.update(*self.panel_state())
+        show_grant = getattr(self.panel, "show_grant", None)
+        if show_grant is not None:
+            try:
+                show_grant(self.grant_state())
+            except Exception as exc:
+                self.last_error = "Panel grant: " + str(exc)
+
+    def grant_state(self):
+        """The grant checkbox for the work part (production only), or None."""
+        if self.running_method:
+            return getattr(self.panel, "_grant", None)  # Keep it steady during a step.
+        from nx_mcp.host.dispatch import grant_state
+
+        try:
+            return grant_state(self.executor)
+        except Exception:
+            return None
+
+    def _toggle_grant(self):
+        """The engineer clicked "Allow agent to change <part>"."""
+        from nx_mcp.host.dispatch import set_grant
+
+        state = self.grant_state()
+        if state is None:
+            return
+        allow = not state["granted"]
+        name = set_grant(self.executor, allow)
+        self.notice = (
+            f"You allowed the agent to change {name}."
+            if allow
+            else f"The agent may no longer change {name}."
+        )
 
     @property
     def activity(self):
@@ -432,7 +501,7 @@ class InteractiveHost:
             # The panel cannot repaint while NX runs this step, so show a start
             # time rather than a counter that would appear frozen.
             started = time.strftime("%H:%M:%S", time.localtime(self.current_started_at))
-            head, tail = f"▶  {started}  ", " — running, NX may pause"
+            head, tail = f"▶  {started}  ", _running_tail(self.running_method)
             summary = self.current_summary or self.running_method
             lines = [head + _clip(summary, LINE_WIDTH - len(head) - len(tail)) + tail]
             if self.current_intent:
@@ -697,7 +766,10 @@ class InteractiveHost:
                 try:
                     part.ModelingViews.WorkView.UpdateDisplay()
                 except Exception as exc:
-                    result.setdefault("warnings", []).append("View refresh: " + str(exc))
+                    warning = "View refresh: " + str(exc)
+                    if "ok" in result:  # A catalogue envelope: warnings are {code, message}.
+                        warning = {"code": "NX_UPDATE_WARNING", "message": warning}
+                    result.setdefault("warnings", []).append(warning)
             return result
         except BaseException as exc:
             self.last_error = str(exc)
@@ -712,7 +784,7 @@ class InteractiveHost:
                     started=self.current_started_at,
                     duration=self.last_duration_seconds,
                     intent=self.current_intent,
-                    read_only=_read_only(method) or method in VIEW_ONLY,
+                    read_only=_model_unchanged(method),
                     result=result,
                     error=error,
                 )
@@ -754,6 +826,9 @@ class InteractiveHost:
             if self.open_log_requested:
                 self.open_log_requested = False
                 self._open_log()
+            if self.grant_toggle_requested:
+                self.grant_toggle_requested = False
+                self._toggle_grant()
             if self.auto_start and not self.hold_auto_start:
                 try:
                     self.control("agent")
@@ -765,7 +840,7 @@ class InteractiveHost:
                 self.dispatcher.drain(timeout=0, limit=1)
             else:
                 self._serve_while_engineer_has_control()
-            self.panel.update(*self.panel_state())
+            self._refresh_panel()
             if self.ticks % 10 == 0:
                 self.publish()
         except BaseException as exc:
