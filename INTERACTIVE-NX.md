@@ -1,6 +1,7 @@
-# Interactive NX MCP, v2606
+# Interactive NX MCP, NX 2406 and 2606
 
-Play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window says who has control (window title and first line) and has one toggle, **Give control to agent** / **Take control back**, plus **Stop bridge**. Long native operations can temporarily block NX; taking control back and stopping take effect between calls (the toggle then reads **Take control back after this step**).
+On NX 2406 run the bridge as an NX startup application (next section). On NX 2606,
+play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window says who has control (window title and first line) and has one toggle, **Give control to agent** / **Take control back**, plus **Stop bridge**. Long native operations can temporarily block NX; taking control back and stopping take effect between calls (the toggle then reads **Take control back after this step**).
 
 ## NX 2406: run the bridge as an NX startup application (recommended)
 

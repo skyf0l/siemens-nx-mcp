@@ -497,3 +497,36 @@ def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig
     host.session = NS2()  # A failed probe never blocks work.
     assert host._nx_application_ready()
     host.session = real_session
+
+
+def test_manual_handover_releases_nx_before_bookkeeping_that_fails(host, rig):
+    host.control("agent")
+    assert host.ui.AskLockStatus() == 1 and not host.user.IsWindowEnabled(1)
+    rig.e._clear_highlights = Mock(side_effect=RuntimeError("highlight failure"))
+    rig.e._history = Mock(clear=Mock(side_effect=RuntimeError("history failure")))
+    result = host.control("manual")
+    assert host.user.IsWindowEnabled(1) and host.ui.AskLockStatus() == 0
+    assert not host.owns_lock and not host.window_disabled and host.mode == "manual"
+    assert result["mode"] == "manual"
+    assert "highlight failure" in host.last_error and "history failure" in host.last_error
+    assert not rig.e._checkpoints  # Later bookkeeping still ran.
+
+
+def test_manual_handover_never_raises_when_unlock_fails(host):
+    host.control("agent")
+    host.ui.UnlockAccess = Mock(side_effect=RuntimeError("unlock failure"))
+    host.control("manual")
+    assert host.user.IsWindowEnabled(1) and host.mode == "manual"
+    assert "Cannot unlock NX: unlock failure" in host.last_error
+
+
+def test_stop_tears_down_even_if_handover_and_teardown_steps_fail(host, monkeypatch):
+    monkeypatch.setattr(host, "control", Mock(side_effect=RuntimeError("handover failure")))
+    host.dispatcher.stop.side_effect = RuntimeError("dispatcher failure")
+    host.stop()
+    assert host.stopped
+    host.user.KillTimer.assert_called_once_with(None, 7)
+    host.server.stop.assert_called_once()
+    host.panel.close.assert_called_once()
+    assert "handover failure" in host.last_error and "dispatcher failure" in host.last_error
+    assert not host.descriptor_path.exists()

@@ -523,30 +523,13 @@ class InteractiveHost:
         if threading.get_ident() != self.thread:
             raise RuntimeError("UI control called off NX thread")
         if mode == "manual":
-            if self.mode == "agent":
-                if hasattr(self.executor, "_clear_highlights"):
-                    self.executor._clear_highlights()
-                # Manual edits have no bridge receipt. Do not let a later agent
-                # rollback undo them, or resolve references across that boundary.
-                for part in self.session.Parts:
-                    self.executor.objects.invalidate_part(self.executor._part_id(part))
-                self.executor._history.clear()
-                self.executor._checkpoints.clear()
-                self.executor._review_epoch = getattr(self.executor, "_review_epoch", 0) + 1
-                self.recap = self.activity.session_recap()
-            if self.owns_lock:
-                before = str(self.ui.AskLockStatus())
-                self.ui.UnlockAccess()
-                self.last_unlock = {
-                    "before": before,
-                    "after": str(self.ui.AskLockStatus()),
-                    "can_open_part": self.ui.CanOpenPart(),
-                }
-                self.owns_lock = False
-            if self.window_disabled:
-                self.user.EnableWindow(self.main_hwnd, True)
-                self.window_disabled = False
+            # Release first: the engineer gets NX back even if the bookkeeping
+            # below fails. Nothing on this path raises.
+            was_agent = self.mode == "agent"
+            self._release_to_engineer()
             self.mode = "manual"
+            if was_agent:
+                self._forget_agent_session()
             # Only the engineer's own click is a lasting choice. After the agent
             # hands control back, or an internal error drops it, the wish for
             # agent control is kept but held: this host never acts on it, while
@@ -575,7 +558,83 @@ class InteractiveHost:
             self.handover_error = None
         elif mode != "status":
             raise NXToolError("NX_INVALID_ARGUMENT", "mode must be status, manual or agent")
+        if mode == "manual":
+            try:
+                return self.status()
+            except Exception as exc:
+                self._record_release_error("Status after handover", exc)
+                return {"interactive": True, "mode": self.mode, "last_error": self.last_error}
         return self.status()
+
+    def _record_release_error(self, step, exc):
+        message = f"{step}: {exc}"
+        self.last_error = message if not self.last_error else self.last_error + "; " + message
+
+    def _release_to_engineer(self):
+        """Re-enable NX's window and drop the bridge's UI lock; never raises."""
+        if self.window_disabled:
+            try:
+                self.user.EnableWindow(self.main_hwnd, True)
+                self.window_disabled = False
+            except Exception as exc:
+                self._record_release_error("Cannot re-enable the NX window", exc)
+        if self.owns_lock:
+            before = None
+            try:
+                before = str(self.ui.AskLockStatus())
+            except Exception as exc:
+                self._record_release_error("Cannot read the NX UI lock", exc)
+            try:
+                self.ui.UnlockAccess()
+                self.owns_lock = False
+            except Exception as exc:
+                self._record_release_error("Cannot unlock NX", exc)
+            try:
+                self.last_unlock = {
+                    "before": before,
+                    "after": str(self.ui.AskLockStatus()),
+                    "can_open_part": self.ui.CanOpenPart(),
+                }
+            except Exception as exc:
+                self._record_release_error("Cannot read the NX UI lock", exc)
+
+    def _forget_agent_session(self):
+        """Bookkeeping after the agent's session; errors are recorded, never raised."""
+        if hasattr(self.executor, "_clear_highlights"):
+            try:
+                self.executor._clear_highlights()
+            except Exception as exc:
+                self._record_release_error("Cannot clear highlights", exc)
+        # Manual edits have no bridge receipt. Do not let a later agent
+        # rollback undo them, or resolve references across that boundary.
+        try:
+            for part in self.session.Parts:
+                try:
+                    self.executor.objects.invalidate_part(self.executor._part_id(part))
+                except Exception as exc:
+                    self._record_release_error("Cannot invalidate part references", exc)
+        except Exception as exc:
+            self._record_release_error("Cannot list open parts", exc)
+            # Without the part list, drop every reference rather than keep stale ones.
+            try:
+                objects = self.executor.objects
+                for part_id in {e.reference.part_id for e in objects._objects.values()}:
+                    objects.invalidate_part(part_id)
+            except Exception as exc2:
+                self._record_release_error("Cannot clear references", exc2)
+        for step in (
+            lambda: self.executor._history.clear(),
+            lambda: self.executor._checkpoints.clear(),
+        ):
+            try:
+                step()
+            except Exception as exc:
+                self._record_release_error("Cannot clear rollback history", exc)
+        self.executor._review_epoch = getattr(self.executor, "_review_epoch", 0) + 1
+        try:
+            self.recap = self.activity.session_recap()
+        except Exception as exc:
+            self._record_release_error("Activity recap", exc)
 
     def execute(self, method, params):
         if threading.get_ident() != self.thread:
@@ -859,13 +918,22 @@ class InteractiveHost:
     def stop(self):
         from nx_mcp.bridge import BridgeDescriptor
 
-        self.control("manual")
+        try:
+            self.control("manual")
+        except Exception as exc:
+            self._record_release_error("Handover on stop", exc)
         self.stopped = True
-        if self.timer:
-            self.user.KillTimer(None, self.timer)
-        self.dispatcher.stop()
-        self.server.stop()
-        self.panel.close()
+        # Each teardown step runs even if an earlier one fails.
+        for step, action in (
+            ("Kill timer", lambda: self.timer and self.user.KillTimer(None, self.timer)),
+            ("Stop dispatcher", self.dispatcher.stop),
+            ("Stop bridge server", self.server.stop),
+            ("Close panel", self.panel.close),
+        ):
+            try:
+                action()
+            except Exception as exc:
+                self._record_release_error(step, exc)
         try:
             if BridgeDescriptor.read(self.descriptor_path).token == self.descriptor.token:
                 self.descriptor_path.unlink()

@@ -168,7 +168,7 @@ class ResultStore:
 
 
 def configure(mcp, workspace):
-    from nx_mcp.integration_server import envelope
+    from nx_mcp.integration_server import envelope, unknown_tool_error
 
     registry = dict(mcp._tool_manager._tools)
     original_call = mcp.call_tool
@@ -278,7 +278,7 @@ def configure(mcp, workspace):
     ) -> CallToolResult:
         """Call a discovered NX tool using its exact input schema. Mutations execute serially on the NX thread. Supply operation_id inside arguments and reuse it after transport failure; nx_operation_status is authoritative. Compact returns result_id for detail expansion. Full preserves the original response. This gateway may mutate NX; inspect the discovered tool semantics first. intent is an optional short note in the engineer's terms on why you make this call (e.g. "Add the 10 mm mounting boss"); the NX MCP panel shows it, labelled as your note, when the engineer must approve control."""
         if tool not in registry:
-            raise ValueError("Unknown tool; use nx_discover_tools")
+            return envelope(unknown_tool_error(tool, registry).as_dict(), True)
         params = {**DEFAULTS.get(tool, {}), **arguments} if detail == "compact" else arguments
         token = REQUEST_INTENT.set(" ".join(intent.split()) if intent else None)
         try:
@@ -455,7 +455,7 @@ def configure(mcp, workspace):
             if name in helper_names:
                 return await mcp._tool_manager.call_tool(name, arguments, convert_result=False)
             if name not in registry:
-                raise ValueError("Unknown tool")
+                return envelope(unknown_tool_error(name, registry).as_dict(), True)
             return present(
                 await original_call(name, {**DEFAULTS.get(name, {}), **(arguments or {})}),
                 "compact",

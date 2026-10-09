@@ -86,7 +86,7 @@ async def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=["full", "agent"], required=True)
-    parser.add_argument("--url", default="http://192.168.52.10:8765")
+    parser.add_argument("--url", default="http://127.0.0.1:8765")
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("action", choices=["discover", "call", "list"])
     parser.add_argument("tool", nargs="?", default="")

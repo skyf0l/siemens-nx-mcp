@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import struct
+import sys
 import uuid
 from contextvars import ContextVar
 from typing import Annotated, Literal
@@ -206,7 +207,7 @@ def nx_check_interference(obj1: str, obj2: str):
 def nx_check_clearance(
     objects: list[str] | None = None,
     minimum_clearance: float = 0.0,
-    max_pairs: int = 1000,
+    max_pairs: int = 100,
     include_clear: bool = False,
 ):
     pass
@@ -541,7 +542,7 @@ DESCRIPTIONS = {
     "nx_view_info": "Return the displayed model view, camera matrix, scale, rendering style, and interactive state.",
     "nx_screenshot": "Export the actual interactive NX viewport as PNG and return an inline MCP image. Advisory 128–4096 pixel dimensions (NX can use the actual device size; response reports both), background, shaded/wireframe style and fit. When a drawing sheet is displayed, exports the sheet as displayed (capture_kind nx_drawing_sheet, drawing reference, camera null; style does not apply, fit fits the sheet). No desktop capture. Paths are workspace-relative; omit for a unique capture path.",
     "nx_check_interference": "Check native solid interference between two body/component references, including nested occurrence geometry. Return penetration/contact/clear, closest points and pairwise interference volumes in mm^3. Temporary solids are rolled back.",
-    "nx_check_clearance": "Check distinct solid body occurrences in selected groups or the full assembly. minimum_clearance uses part units. Conservative bounds prune clear pairs; reported distances and interference use native geometry. Pair limits are preflighted. Volumes are pairwise, not union volume.",
+    "nx_check_clearance": "Check distinct solid body occurrences in selected groups or the full assembly. minimum_clearance uses part units. Conservative bounds prune clear pairs; reported distances and interference use native geometry. max_pairs (default 100, at most 10000) caps the pairs that need native checks after pruning; above it the call is refused before any native check. Volumes are pairwise, not union volume.",
     "nx_create_sketch": "Create an active sketch with explicit part-space origin and orthonormal basis. XY: X,Y,+Z; XZ: X,Z,-Y; YZ: Y,Z,+X. Curve coordinates use the returned local basis. Lengths in work-part units.",
     "nx_sketch_info": "Read the actual sketch origin, basis, normal and owned curve coordinates in part space. IDs preferred.",
     "nx_sketch_arc": "Add an arc to the active owning sketch using local coordinates; radius in work-part units and angles in degrees. Full circle: start=0,end=360. Pass sketch_id explicitly.",
@@ -681,28 +682,54 @@ def envelope(payload, error=False):
     )
 
 
+def unknown_tool_error(name, known):
+    """NX_TOOL_NOT_FOUND (as on the NX side) with close-match suggestions."""
+    import difflib
+
+    matches = difflib.get_close_matches(str(name), list(known), n=3, cutoff=0.6)
+    return NXToolError(
+        "NX_TOOL_NOT_FOUND",
+        f"Unknown tool: {name}",
+        suggestion=("Did you mean " + ", ".join(matches) + "? " if matches else "")
+        + "Use nx_discover_tools to find exact tool names.",
+        details={"mutation_outcome": "not_started", "close_matches": matches},
+    )
+
+
+def tool_definitions(modules=None):
+    """Collect module-level nx_* signatures; each tool name must have one definition."""
+    if modules is None:
+        modules = [
+            sys.modules[__name__],
+            authoring_server,
+            sheet_metal_server,
+            freeform_server,
+            manufacturing_server,
+            assembly_documentation_server,
+            documentation_editing_server,
+            *feature_group_modules(),
+        ]
+    definitions, owners = {}, {}
+    for module in modules:
+        for name, obj in vars(module).items():
+            if not (name.startswith("nx_") and inspect.isfunction(obj)):
+                continue
+            if name in definitions and definitions[name] is not obj:
+                raise RuntimeError(
+                    f"NX MCP tool {name} is defined twice: {owners[name]} and {module.__name__}"
+                )
+            definitions[name], owners[name] = obj, module.__name__
+    return definitions
+
+
 def configure(mcp, bridge, workspace):
     existing = dict(mcp._tool_manager._tools)
-    definitions = {
-        name: obj
-        for name, obj in globals().items()
-        if name.startswith("nx_") and inspect.isfunction(obj)
-    }
-    definitions.update(
-        {
-            name: obj
-            for name, obj in {
-                **vars(authoring_server),
-                **vars(sheet_metal_server),
-                **vars(freeform_server),
-                **vars(manufacturing_server),
-                **vars(assembly_documentation_server),
-                **vars(documentation_editing_server),
-                **{k: v for m in feature_group_modules() for k, v in vars(m).items()},
-            }.items()
-            if name.startswith("nx_") and inspect.isfunction(obj)
-        }
-    )
+    definitions = tool_definitions()
+    if duplicates := sorted(set(existing) & set(definitions)):
+        raise RuntimeError(
+            "NX MCP tools defined twice (certified.py and a *_server.py signature): "
+            + ", ".join(duplicates)
+        )
     names = set(existing) | set(definitions)
     for name in names:
         old = existing.get(name)
@@ -730,7 +757,7 @@ def configure(mcp, bridge, workspace):
             async def proxy(**kwargs):
                 # Errors before the request leaves the sidecar (argument binding,
                 # workspace path checks) provably did not start the operation.
-                forwarded = False
+                forwarded = bridged = False
                 try:
                     bound = signature.bind(**kwargs)
                     bound.apply_defaults()
@@ -771,7 +798,7 @@ def configure(mcp, bridge, workspace):
                                     )
                         if intent := REQUEST_INTENT.get():
                             params["intent"] = intent
-                        forwarded = True
+                        forwarded = bridged = True
                         result = await bridge.call(method, params)
                     response = envelope(result, error=result.get("status") == "error")
                     if (
@@ -800,22 +827,36 @@ def configure(mcp, bridge, workspace):
                             )
                             response = envelope(result)
                     return response
-                except (NXToolError, WorkspaceViolation, ValueError, TypeError) as e:
-                    error = (
-                        e
-                        if isinstance(e, NXToolError)
-                        else NXToolError(
+                except Exception as e:
+                    operation_id = params.get("operation_id") if "params" in locals() else None
+                    if isinstance(e, NXToolError):
+                        error = e
+                    elif not bridged and isinstance(e, (WorkspaceViolation, ValueError, TypeError)):
+                        error = NXToolError(
                             "NX_PATH_OUTSIDE_WORKSPACE"
                             if isinstance(e, WorkspaceViolation)
                             else "NX_INVALID_ARGUMENT",
                             str(e),
                         )
-                    )
-                    if "params" in locals() and params.get("operation_id"):
-                        error.details.setdefault("operation_id", params["operation_id"])
+                    else:
+                        # A sidecar fault, or anything after the request reached NX
+                        # (e.g. reading a committed capture), is not an argument error.
+                        error = NXToolError(
+                            "NX_INTERNAL_ERROR",
+                            f"Sidecar failed handling {method}: {type(e).__name__}: {e}",
+                            suggestion="Query nx_operation_status before retrying"
+                            if forwarded and operation_id
+                            else None,
+                            details={"mutation_outcome": "unknown" if forwarded else "not_started"},
+                        )
+                    if operation_id:
+                        error.details.setdefault("operation_id", operation_id)
                         error.details.setdefault(
                             "mutation_outcome", "unknown" if forwarded else "not_started"
                         )
+                    if error.details.get("mutation_outcome") == "unknown":
+                        # The operation may have run; a blind retry could repeat it.
+                        error.retryable = False
                     return envelope(error.as_dict(), True)
 
             proxy.__name__ = method
@@ -874,12 +915,26 @@ def configure(mcp, bridge, workspace):
         try:
             return await original_call(name, arguments)
         except Exception as error:
-            return envelope(
-                NXToolError(
+            from pydantic import ValidationError
+
+            if mcp._tool_manager.get_tool(name) is None:
+                failure = unknown_tool_error(name, mcp._tool_manager._tools)
+            elif isinstance(error.__cause__, ValidationError):
+                # FastMCP validates arguments before the proxy runs: nothing was sent.
+                failure = NXToolError(
                     "NX_INVALID_ARGUMENT", str(error), details={"mutation_outcome": "not_started"}
-                ).as_dict(),
-                True,
-            )
+                )
+            else:
+                # The proxy maps its own failures; anything else escaped after the
+                # tool started, so the outcome is unknown.
+                failure = NXToolError(
+                    "NX_INTERNAL_ERROR",
+                    str(error),
+                    details={"mutation_outcome": "unknown"},
+                )
+                if isinstance(arguments, dict) and arguments.get("operation_id"):
+                    failure.details["operation_id"] = arguments["operation_id"]
+            return envelope(failure.as_dict(), True)
 
     mcp.call_tool = uniform_call
     mcp._mcp_server.call_tool(validate_input=False)(uniform_call)

@@ -117,7 +117,7 @@ def test_new_part_failure_closes_created_parts_and_restores_selection():
     e = HardenedExecutor.__new__(HardenedExecutor)
     e.session = NS(Parts=parts)
     e._reference = lambda p, *_: {"id": str(p.Tag)}
-    e._close_part = lambda part, save: parts.remove(next(p for p in parts if str(p.Tag) == part))
+    e._close_loaded_part = lambda part, save: parts.remove(part)
 
     def fail(*_):
         parts.append(NS(Tag=10))

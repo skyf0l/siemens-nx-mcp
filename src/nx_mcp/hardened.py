@@ -709,10 +709,37 @@ class HardenedExecutor(
             "message": "Activated loaded part" if work or display else "Resolved loaded part",
         }
 
+    def _workspace_part_file(self, part, *, allow_unsaved=False):
+        """The part's file inside the workspace; refuse any other part before NX acts.
+
+        allow_unsaved admits a new part NX has not written yet (no absolute path).
+        """
+        from nx_mcp.workspace import WorkspaceViolation
+
+        path = str(getattr(part, "FullPath", "") or "")
+        details = {"path": path or None, "mutation_outcome": "not_started"}
+        if not path or not Path(path).is_absolute():
+            if allow_unsaved:
+                return None
+            raise NXToolError(
+                "NX_PATH_OUTSIDE_WORKSPACE",
+                "The part has no file in the workspace yet; save it with nx_save_as first",
+                details=details,
+            )
+        try:
+            return self.workspace.ensure_inside(path)
+        except WorkspaceViolation as error:
+            raise NXToolError(
+                "NX_PATH_OUTSIDE_WORKSPACE",
+                f"{error}; this part's file is not in the workspace: {path}",
+                details=details,
+            ) from None
+
     def _save_part(self):
         from nx_mcp.save_audit import snapshot, verify
 
         part = self._work_part()
+        self._workspace_part_file(part)
         try:
             before = snapshot(self.session)
         except Exception as error:
@@ -785,7 +812,17 @@ class HardenedExecutor(
 
     def _save_as(self, path):
         part = self._work_part()
-        dest = self.workspace.ensure_inside(path)
+        self._workspace_part_file(part, allow_unsaved=True)
+        from nx_mcp.workspace import WorkspaceViolation
+
+        try:
+            dest = self.workspace.ensure_inside(path)
+        except WorkspaceViolation as error:
+            raise NXToolError(
+                "NX_PATH_OUTSIDE_WORKSPACE",
+                str(error),
+                details={"path": str(path), "mutation_outcome": "not_started"},
+            ) from None
         if dest.exists():
             raise NXToolError("NX_FILE_EXISTS", "Save-as does not overwrite existing files")
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -800,9 +837,14 @@ class HardenedExecutor(
         }
 
     def _close_part(self, save=True, part=None):
+        target = self.objects.resolve(part, expected_kind="part") if part else self._work_part()
+        self._workspace_part_file(target)
+        return self._close_loaded_part(target, save)
+
+    def _close_loaded_part(self, target, save):
+        """Close a part without the workspace check: only for parts this server created."""
         from nx_mcp.assembly_loading import dependent_assemblies
 
-        target = self.objects.resolve(part, expected_kind="part") if part else self._work_part()
         parents = dependent_assemblies(self, target)
         if parents:
             raise NXToolError(
@@ -1511,8 +1553,7 @@ class HardenedExecutor(
                 cleanup_errors = []
                 for part in reversed(created):
                     try:
-                        ref = self._reference(part, "part", part, "Import part")
-                        self._close_part(part=ref["id"], save=False)
+                        self._close_loaded_part(part, save=False)  # Created by this import.
                     except Exception as cleanup:
                         cleanup_errors.append(str(cleanup))
                 try:
@@ -1796,7 +1837,7 @@ class HardenedExecutor(
                     "NX_INVALID_ARGUMENT",
                     "Batch supports sketch curves and assembly placement only",
                 )
-            inspect.signature(self._handlers[op["method"]]).bind(**op["params"])
+            self._child_handler(op["method"], op["params"])
         results = []
         key = self._current_operation
         for i, op in enumerate(operations):
@@ -1806,7 +1847,7 @@ class HardenedExecutor(
                     "Cancelled between operations",
                     details={"completed_before_rollback": i},
                 )
-            result = self._handlers[op["method"]](**op["params"])
+            result = self._call_child(op["method"], op["params"])
             results.append({"index": i, "method": op["method"], "result": result})
             record = self.store.get(key)
             record.update(progress={"completed": i + 1, "total": len(operations)})
@@ -1896,6 +1937,27 @@ class HardenedExecutor(
         if clear is not None:
             with contextlib.suppress(Exception):
                 clear()
+
+    def _child_handler(self, method, params):
+        """Gate a nested call (batch, preview) exactly like execute() gates a tool.
+
+        Applies the version gate and binds the arguments; the parent call keeps
+        its own single undo mark and receipt.
+        """
+        handler = self._handlers.get(method)
+        if handler is None:
+            raise NXToolError("NX_TOOL_NOT_FOUND", method)
+        self._check_version_gate(method)
+        if not isinstance(params, dict):
+            raise NXToolError("NX_INVALID_ARGUMENT", f"{method} parameters must be an object")
+        try:
+            inspect.signature(handler).bind(**params)
+        except TypeError as exc:
+            raise NXToolError("NX_INVALID_ARGUMENT", f"{method} parameters: {exc}") from exc
+        return handler
+
+    def _call_child(self, method, params):
+        return self._child_handler(method, params)(**params)
 
     def _check_version_gate(self, method):
         """Refuse a tool disabled for this NX version before it can touch NX."""

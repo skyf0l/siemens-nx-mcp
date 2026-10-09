@@ -5,11 +5,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import runpy
 from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GROUPS = ("Native-tested", "Contract/sidecar-tested", "Experimental", "Unavailable")
+
+
+def load_manifest() -> dict:
+    """The full manifest (base plus capability_fragments) via nx_mcp.manifest, by path."""
+    return runpy.run_path(str(ROOT / "src/nx_mcp/manifest.py"))["load_manifest"]()
 
 
 def classification(entry: dict) -> str:
@@ -50,7 +56,9 @@ def render(manifest: dict) -> str:
     lines = [
         "# Capability evidence matrix",
         "",
-        "Generated from `src/nx_mcp/capability_manifest.json`; do not edit this table by hand.",
+        "Generated from `src/nx_mcp/capability_manifest.json` plus "
+        "`src/nx_mcp/capability_fragments/` (`nx_mcp.manifest.load_manifest()`); "
+        "do not edit this table by hand.",
         "Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.",
         "",
         f"Manifest revision: **{cell(manifest['revision'])}**. NX: **{cell(manifest['nx_version'])}**. "
@@ -106,12 +114,17 @@ def render(manifest: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--manifest", type=Path, default=ROOT / "src/nx_mcp/capability_manifest.json"
+        "--manifest",
+        type=Path,
+        help="render this single manifest file instead of the full load_manifest() view",
     )
     parser.add_argument("--output", type=Path, default=ROOT / "docs/capability-matrix.md")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    result = render(json.loads(args.manifest.read_text(encoding="utf-8")))
+    manifest = (
+        json.loads(args.manifest.read_text(encoding="utf-8")) if args.manifest else load_manifest()
+    )
+    result = render(manifest)
     if args.check:
         if not args.output.exists() or args.output.read_text(encoding="utf-8") != result:
             print(f"Capability matrix is stale: {args.output}; regenerate with this script.")
@@ -119,7 +132,7 @@ def main() -> int:
         print("Capability matrix matches manifest.")
         return 0
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(result, encoding="utf-8")
+    args.output.write_text(result, encoding="utf-8", newline="\n")
     return 0
 
 

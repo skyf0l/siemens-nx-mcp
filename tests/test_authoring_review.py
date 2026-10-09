@@ -819,6 +819,22 @@ def test_preview_failure_rolls_back_prior_edits(author):
     assert r.expression.RightHandSide == "10"
 
 
+def test_preview_and_accept_refuse_a_tool_disabled_for_this_nx_version(author):
+    e = author.e
+    operation = {"method": "nx_set_expression", "params": {"expression": "height", "formula": "20"}}
+    preview = e.execute("nx_preview_change", {"operations": [operation], "capture": False})
+    e.nx_version = "v2406"
+    e._manifest_tools = {"nx_set_expression": {"unavailable_on": {"v2406": "API missing"}}}
+    for method, params in [  # Accept first: a refused preview expires older previews.
+        ("nx_finish_preview", {"preview_id": preview["preview_id"], "action": "accept"}),
+        ("nx_preview_change", {"operations": [operation], "capture": False}),
+    ]:
+        with pytest.raises(NXToolError) as error:
+            e.execute(method, params)
+        assert error.value.code == "NX_UNAVAILABLE_ON_VERSION"
+    assert author.expression.RightHandSide == "10"
+
+
 def test_preview_expires_on_intervening_mutation(author):
     e = author.e
     r = e.execute(

@@ -8,20 +8,23 @@ on the NX thread. The sidecar imports without NX installed.
 MCP client → Python sidecar → authenticated loopback bridge → NXOpen / NX
 ```
 
-This fork targets **NX 2606 on Windows**. Upstream's NX 2506 batch evidence is
+This fork targets **NX 2406 and NX 2606 on Windows**: NX 2406 runs the bridge as an
+NX startup application (`nx_app/startup/nx_mcp_startup.py`), NX 2606 through the
+timer journal (`examples/start_nx_interactive_2606.py`); see
+[graphical lifecycle](INTERACTIVE-NX.md). Upstream's NX 2506 batch evidence is
 historical and does not establish cross-version compatibility for these additions.
 See the [capability matrix](docs/capability-matrix.md) for per-tool evidence and
 limits. “Tested” applies to the recorded fixtures, not every option of a builder.
 
 ## Choose a tool surface
 
-All 189 tools are always available. `NX_MCP_SURFACE` only chooses how they are
+All 227 tools are always available. `NX_MCP_SURFACE` only chooses how they are
 presented to the MCP client:
 
 | Surface | What the client sees | Configuration |
 | --- | --- | --- |
-| Full (default) | All 189 tools listed directly | nothing, or `NX_MCP_SURFACE=full` |
-| Agent | 13 entry points; discover/invoke the 189 tools on demand | `NX_MCP_SURFACE=agent` |
+| Full (default) | All 227 tools listed directly | nothing, or `NX_MCP_SURFACE=full` |
+| Agent | 13 entry points; discover/invoke the 227 tools on demand | `NX_MCP_SURFACE=agent` |
 
 `NX_MCP_WORKSPACE` is required. Per-tool native test status is reported by
 `nx_capabilities`. There is no arbitrary journal execution tool; every operation
@@ -62,8 +65,11 @@ journal loads this checkout's `src` directory; the NX-side process does not need
 See [graphical lifecycle](INTERACTIVE-NX.md) and [setup details](docs/tools.md).
 
 The optional `python -m nx_mcp.http_surface` entrypoint serves `/mcp` and
-`/agent/mcp`. It requires separate network access controls; loopback bridge
-authentication does not authenticate the HTTP endpoint. Stdio avoids network exposure.
+`/agent/mcp` on `127.0.0.1:8765` by default (`--host`/`--port`, `NX_MCP_HTTP_HOST`/
+`NX_MCP_HTTP_PORT`). Loopback bridge authentication does not authenticate the HTTP
+endpoint, so it refuses a non-loopback address unless `--allow-remote` (or
+`NX_MCP_HTTP_ALLOW_REMOTE=1`) is given behind separate network access controls.
+Stdio avoids network exposure.
 
 ## Workflows
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import inspect
 import json
 import uuid
 import zipfile
@@ -452,12 +451,7 @@ class ReviewToolsMixin:
                     "NX_INVALID_ARGUMENT",
                     "Preview supports expression, parameter, feature, sketch and placement edits only",
                 )
-            try:
-                inspect.signature(self._handlers[op["method"]]).bind(**op["params"])
-            except TypeError as exc:
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT", f"{op['method']} parameters: {exc}"
-                ) from exc
+            self._child_handler(op["method"], op["params"])
             visit(op["params"])
         return locators
 
@@ -491,7 +485,7 @@ class ReviewToolsMixin:
         try:
             self._active_mark = mark
             for op in operations:
-                self._handlers[op["method"]](**op["params"])
+                self._call_child(op["method"], op["params"])
             after = self._preview_snapshot()
             image = self._capture_view(fit=True) if capture else None
         finally:
@@ -561,7 +555,7 @@ class ReviewToolsMixin:
             return value
 
         results = [
-            self._handlers[op["method"]](**translate(op["params"])) for op in preview["operations"]
+            self._call_child(op["method"], translate(op["params"])) for op in preview["operations"]
         ]
         del self._previews[preview_id]
         return {

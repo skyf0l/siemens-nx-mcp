@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+try:
+    from pydantic import Field
+
+    PositiveLength = Annotated[float, Field(gt=0)]
+except ImportError:  # NX-side import: only the sidecar validates these signatures.
+    PositiveLength = float  # type: ignore[misc]
 
 READ_ONLY = {
     "nx_list_explosions",
@@ -225,7 +232,7 @@ def nx_set_feature_parameters(feature: str, values: dict[str, str]):
 
 def nx_extrude(
     sketch_id: str,
-    distance: float | None = None,
+    distance: PositiveLength | None = None,
     reverse: bool = False,
     start: float = 0.0,
     end_type: Literal["distance", "through_all", "up_to_face"] = "distance",

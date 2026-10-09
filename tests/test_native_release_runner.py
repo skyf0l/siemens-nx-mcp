@@ -1,6 +1,8 @@
 """Native release receipts must distinguish failures and changed user sessions."""
 
+import ast
 import hashlib
+import json
 import runpy
 from pathlib import Path
 
@@ -55,19 +57,54 @@ async def test_agent_ux_client_forwards_tool_name_arguments(tmp_path):
     )
 
 
-def test_native_suites_accept_runner_profile_count():
-    """An added tool must not strand unrelated native suites on an old literal."""
-    suites = Path(__file__).resolve().parents[1] / "acceptance"
-    for name in [
-        "advanced_tools",
-        "authoring_tools",
-        "engineering_tools",
-        "freeform_manufacturing",
-        "project_folders",
-        "sheet_metal",
-        "visual_tools",
-    ]:
-        source = (suites / f"validate_{name}.py").read_text()
-        assert 'os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT))' in source
-        assert "capability_manifest.json" in source
-        assert "== 179" not in source
+def expected_tool_count(script: Path) -> int:
+    """Evaluate a script's EXPECTED_TOOL_COUNT assignment without running the suite."""
+    tree = ast.parse(script.read_text(encoding="utf-8"))
+    (node,) = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.Assign)
+        and any(getattr(t, "id", None) == "EXPECTED_TOOL_COUNT" for t in n.targets)
+    ]
+    namespace = {"__file__": str(script), "Path": Path, "runpy": runpy, "json": json}
+    exec(compile(ast.Module([node], []), str(script), "exec"), namespace)
+    return namespace["EXPECTED_TOOL_COUNT"]
+
+
+def registered_tool_count(tmp_path) -> int:
+    from unittest.mock import AsyncMock
+
+    from nx_mcp.server import create_server
+    from nx_mcp.workspace import Workspace
+
+    server = create_server(AsyncMock(), Workspace(tmp_path), surface="full")
+    return len(server._tool_manager._tools)
+
+
+def test_native_suites_accept_runner_profile_count(tmp_path):
+    """Every release script expects exactly the tools the server registers.
+
+    The count includes capability_fragments (load_manifest), not only
+    capability_manifest.json, and an added tool must not strand a suite on a literal.
+    """
+    root = Path(__file__).resolve().parents[1]
+    registered = registered_tool_count(tmp_path)
+    scripts = [root / "scripts/accept_release.py", root / "scripts/validate_native_release.py"]
+    scripts += [
+        root / "acceptance" / f"validate_{name}.py"
+        for name in [
+            "advanced_tools",
+            "authoring_tools",
+            "engineering_tools",
+            "freeform_manufacturing",
+            "project_folders",
+            "sheet_metal",
+            "visual_tools",
+        ]
+    ]
+    for script in scripts:
+        assert expected_tool_count(script) == registered, script.name
+        source = script.read_text(encoding="utf-8")
+        if script.parent.name == "acceptance":
+            assert 'os.environ.get("NX_EXPECTED_TOOL_COUNT", str(EXPECTED_TOOL_COUNT))' in source
+    assert RUNNER["EXPECTED_TOOL_COUNT"] == registered

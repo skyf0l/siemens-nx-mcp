@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Any, Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError as MCPToolError
-from pydantic import Field
 
 from nx_mcp.contracts import (
     ExportResult,
-    ExtrudeResult,
     NXToolError,
     ObjectListResult,
     ObjectResult,
@@ -82,19 +80,9 @@ def create_certified_server(
         )
 
     @mcp.tool()
-    async def nx_open_part(path: str) -> PartResult:
-        """Open a part from the configured workspace."""
-        return PartResult(**await call("nx_open_part", {"path": resolve_path(path)}))
-
-    @mcp.tool()
     async def nx_save_part() -> OperationResult:
         """Save the active work part."""
         return OperationResult(**await call("nx_save_part", {}))
-
-    @mcp.tool()
-    async def nx_close_part(save: bool = True) -> OperationResult:
-        """Close the active work part, optionally saving it first."""
-        return OperationResult(**await call("nx_close_part", {"save": save}))
 
     @mcp.tool()
     async def nx_export_step(path: str) -> ExportResult:
@@ -115,13 +103,6 @@ def create_certified_server(
     async def nx_list_features() -> ObjectListResult:
         """List features in the active work part."""
         return ObjectListResult(**await call("nx_list_features", {}))
-
-    @mcp.tool()
-    async def nx_create_sketch(
-        plane: Literal["XY", "XZ", "YZ"] = "XY", name: str | None = None
-    ) -> ObjectResult:
-        """Create and activate a sketch on a principal datum plane."""
-        return ObjectResult(**await call("nx_create_sketch", {"plane": plane, "name": name}))
 
     @mcp.tool()
     async def nx_sketch_line(sketch_id: str, start: Point2D, end: Point2D) -> ObjectResult:
@@ -155,20 +136,6 @@ def create_certified_server(
         return ObjectResult(**await call("nx_finish_sketch", {"sketch_id": sketch_id}))
 
     @mcp.tool()
-    async def nx_extrude(
-        sketch_id: str,
-        distance: Annotated[float, Field(gt=0)],
-        reverse: bool = False,
-    ) -> ExtrudeResult:
-        """Extrude a sketch into a new body."""
-        return ExtrudeResult(
-            **await call(
-                "nx_extrude",
-                {"sketch_id": sketch_id, "distance": distance, "reverse": reverse},
-            )
-        )
-
-    @mcp.tool()
     async def nx_undo() -> OperationResult:
         """Undo the last visible NX MCP operation."""
         return OperationResult(**await call("nx_undo", {}))
@@ -178,6 +145,9 @@ def create_certified_server(
         """Fit the active modeling view."""
         return OperationResult(**await call("nx_fit_view", {}))
 
+    # nx_open_part, nx_close_part, nx_create_sketch and nx_extrude are certified
+    # too; their single public schemas live with the extended signatures in
+    # integration_server.py and authoring_server.py (configure() rejects duplicates).
     from nx_mcp.integration_server import configure
 
     configure(mcp, bridge, workspace)

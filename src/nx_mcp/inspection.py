@@ -8,7 +8,22 @@ import math
 import struct
 import uuid
 
-from nx_mcp.runtime import NXToolError
+from nx_mcp.runtime import NXToolError, api_error
+
+# Native clearance checks per call (each pair may run a solid interference check).
+DEFAULT_CLEARANCE_PAIRS = 100
+MAX_CLEARANCE_PAIRS = 10000
+
+
+def with_cleanup_failure(original, cleanup_error):
+    """The original error, with a later cleanup/rollback failure in its details."""
+    error = original if isinstance(original, NXToolError) else api_error(original)
+    if isinstance(cleanup_error, NXToolError):
+        failure = {"code": cleanup_error.code, "message": cleanup_error.message}
+    else:
+        failure = {"code": "NX_API_ERROR", "message": str(cleanup_error)}
+    error.details.update(rollback_error=failure, mutation_outcome="partial")
+    return error
 
 
 def envelope_gap(a, b):
@@ -219,6 +234,7 @@ class InspectionMixin:
             self.nxopen.Session.MarkVisibility.Invisible, "NX MCP temporary interference"
         )
         builder = None
+        original = None
         try:
             builder = part.AnalysisManager.CreateSimpleInterferenceObject()
             builder.InterferenceType = (
@@ -261,39 +277,59 @@ class InspectionMixin:
                     "NX_INTERFERENCE_UNRESOLVED", "Native NX could not classify this pair"
                 )
             return {"classification": classification, "interference_volume_mm3": volume}
+        except BaseException as exc:
+            original = exc
+            raise
         finally:
             try:
-                if builder:
-                    try:
-                        builder.Reset()
-                    finally:
-                        builder.Destroy()
-            finally:
+                self._interference_cleanup(builder, mark, part, baseline)
+            except Exception as cleanup_error:
+                if original is None:
+                    raise
+                # Keep the check's own error; the cleanup failure goes in its details.
+                error = with_cleanup_failure(original, cleanup_error)
+                if error is original:
+                    raise original  # noqa: B904 - re-raise the check's own error.
+                raise error from original
+
+    def _interference_cleanup(self, builder, mark, part, baseline):
+        try:
+            if builder:
                 try:
-                    self.session.UndoToMark(mark, None)
-                    self.session.DeleteUndoMark(mark, None)
-                    after = ([int(x.Tag) for x in part.Bodies], [int(x.Tag) for x in part.Features])
-                    if after != baseline:
-                        raise RuntimeError("Temporary interference geometry remains")
-                except Exception as exc:
-                    raise NXToolError(
-                        "NX_ROLLBACK_FAILED",
-                        "Interference cleanup failed: " + str(exc),
-                        details={"mutation_outcome": "partial"},
-                    ) from exc
+                    builder.Reset()
+                finally:
+                    builder.Destroy()
+        finally:
+            try:
+                self.session.UndoToMark(mark, None)
+                self.session.DeleteUndoMark(mark, None)
+                after = ([int(x.Tag) for x in part.Bodies], [int(x.Tag) for x in part.Features])
+                if after != baseline:
+                    raise RuntimeError("Temporary interference geometry remains")
+            except Exception as exc:
+                raise NXToolError(
+                    "NX_ROLLBACK_FAILED",
+                    "Interference cleanup failed: " + str(exc),
+                    details={"mutation_outcome": "partial"},
+                ) from exc
 
     def _check_clearance(
-        self, objects=None, minimum_clearance=0.0, max_pairs=1000, include_clear=False
+        self,
+        objects=None,
+        minimum_clearance=0.0,
+        max_pairs=DEFAULT_CLEARANCE_PAIRS,
+        include_clear=False,
     ):
 
         if (
             not math.isfinite(minimum_clearance)
             or minimum_clearance < 0
             or type(max_pairs) is not int
-            or not 1 <= max_pairs <= 10000
+            or not 1 <= max_pairs <= MAX_CLEARANCE_PAIRS
         ):
             raise NXToolError(
-                "NX_INVALID_ARGUMENT", "Require nonnegative finite clearance and 1–10000 max_pairs"
+                "NX_INVALID_ARGUMENT",
+                f"Require nonnegative finite clearance and 1–{MAX_CLEARANCE_PAIRS} max_pairs",
             )
         if objects is not None and (not isinstance(objects, list) or len(objects) < 2):
             raise NXToolError(
@@ -322,23 +358,34 @@ class InspectionMixin:
         from nx_mcp.hardened import xyz
 
         n = len(pairs)
-        if n > max_pairs:
-            raise NXToolError(
-                "NX_PAIR_LIMIT",
-                f"{n} pairs exceed max_pairs={max_pairs}; select smaller groups or raise the explicit limit",
-            )
         part = self._work_part()
         uf = NXOpen.UF.UFSession.GetUFSession()
         boxes = {int(b.Tag): list(uf.ModlGeneral.AskBoundingBox(b.Tag)) for b in bodies}
+        # Broad phase first: separated bounding boxes are clear without native work,
+        # so max_pairs bounds only the native (slow) pair checks.
+        native = [
+            (a, b)
+            for a, b in pairs
+            if include_clear
+            or envelope_gap(boxes[int(a.Tag)], boxes[int(b.Tag)]) <= minimum_clearance + 1e-7
+        ]
+        skipped = n - len(native)
+        if len(native) > max_pairs:
+            raise NXToolError(
+                "NX_PAIR_LIMIT",
+                f"{len(native)} of {n} body pairs need native checks, more than "
+                f"max_pairs={max_pairs}; select smaller groups or raise max_pairs "
+                f"(at most {MAX_CLEARANCE_PAIRS}). No pair was checked.",
+                details={
+                    "pair_count": n,
+                    "native_pair_count": len(native),
+                    "max_pairs": max_pairs,
+                    "mutation_outcome": "not_started",
+                },
+            )
         reports = []
-        skipped = 0
-        counts = {"penetration": 0, "contact": 0, "below_clearance": 0, "clear": 0}
-        for a, b in pairs:
-            gap = envelope_gap(boxes[int(a.Tag)], boxes[int(b.Tag)])
-            if gap > minimum_clearance + 1e-7 and not include_clear:
-                skipped += 1
-                counts["clear"] += 1
-                continue
+        counts = {"penetration": 0, "contact": 0, "below_clearance": 0, "clear": skipped}
+        for a, b in native:
             distance, p1, p2, accuracy = self.session.Measurement.GetMinimumDistance(a, b)
             hit = (
                 self._interference_pair(a, b)
@@ -371,6 +418,8 @@ class InspectionMixin:
             "pair_count": n,
             "reported_pair_count": len(reports),
             "broad_phase_clear_pairs": skipped,
+            "native_pair_count": len(native),
+            "max_pairs": max_pairs,
             "minimum_clearance": minimum_clearance,
             "units": self._units(),
             "volume_units": "mm^3",
@@ -378,7 +427,11 @@ class InspectionMixin:
             "complete": True,
             "semantics": "Pairwise body occurrence checks; interference volumes are not a geometric union",
             "warnings": [
-                "Broad-phase clear pairs use conservative bounding separation; reported distances use native geometry."
+                f"{skipped} of {n} pairs skipped the native check: their bounding boxes are "
+                "farther apart than minimum_clearance, so they are clear. Reported distances "
+                "use native geometry."
+                if skipped
+                else "Every pair was checked with native geometry."
             ],
         }
 
@@ -393,6 +446,6 @@ class InspectionMixin:
         if not unique:
             raise NXToolError("NX_INVALID_ARGUMENT", "References resolve only to the same body")
         bodies = list({int(x.Tag): x for x in a + b}.values())
-        result = self._analyze_pairs(bodies, list(unique.values()), 0.0, 10000, True)
+        result = self._analyze_pairs(bodies, list(unique.values()), 0.0, MAX_CLEARANCE_PAIRS, True)
         result["selected_references"] = [obj1, obj2]
         return result

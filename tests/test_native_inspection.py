@@ -102,6 +102,24 @@ def test_interference_failure_cleanup_and_partial_outcome(rig, failure):
         assert not rig.part.Bodies
 
 
+@pytest.mark.parametrize("native", [True, False])
+def test_interference_rollback_failure_does_not_hide_the_original_error(rig, native):
+    a = Body()
+    b = Body()
+    builder = native_pair(rig, 99)  # 99: NX cannot classify the pair.
+    if native:
+        builder.PerformCheck = Mock(side_effect=RuntimeError("native failure"))
+    rig.session.UndoToMark = Mock(side_effect=RuntimeError("undo failed"))
+    with pytest.raises(NXToolError) as error:
+        rig.e._interference_pair(a, b)
+    assert error.value.code == ("NX_API_ERROR" if native else "NX_INTERFERENCE_UNRESOLVED")
+    assert ("native failure" if native else "classify") in error.value.message
+    assert error.value.details["mutation_outcome"] == "partial"
+    assert error.value.details["rollback_error"]["code"] == "NX_ROLLBACK_FAILED"
+    assert "undo failed" in error.value.details["rollback_error"]["message"]
+    assert builder.Destroy.call_count == 1
+
+
 def test_clearance_prunes_only_separated_boxes_and_returns_native_points(rig):
     a = Body("a")
     b = Body("b", [12, 0, 0, 22, 10, 10])
@@ -148,9 +166,40 @@ def test_invalid_clearance_rejected_before_geometry(rig, kwargs):
 
 
 def test_pair_limit_prevents_partial_clearance_report(rig):
-    rig.part.Bodies.extend([Body(), Body(), Body()])
+    bodies = [Body(), Body(), Body()]
+    rig.part.Bodies.extend(bodies)
+    for body in bodies:
+        rig.ref(body)
+    measured = Mock()
+    rig.session.Measurement = NS(GetMinimumDistance=measured)
     with pytest.raises(NXToolError) as error:
         rig.e._check_clearance(max_pairs=1)
+    assert error.value.code == "NX_PAIR_LIMIT" and not measured.called
+    assert error.value.details["native_pair_count"] == 3
+    assert error.value.details["mutation_outcome"] == "not_started"
+
+
+def test_clearance_default_bounds_native_checks_and_reports_skipped_pairs(rig):
+    import inspect
+
+    from nx_mcp.inspection import DEFAULT_CLEARANCE_PAIRS, MAX_CLEARANCE_PAIRS
+
+    default = inspect.signature(rig.e._check_clearance).parameters["max_pairs"].default
+    assert default == DEFAULT_CLEARANCE_PAIRS == 100 and MAX_CLEARANCE_PAIRS == 10000
+    # 16 separated bodies: 120 pairs, more than the default, but none needs a native check.
+    bodies = [Body(f"b{i}", [20 * i, 0, 0, 20 * i + 10, 10, 10]) for i in range(16)]
+    rig.part.Bodies.extend(bodies)
+    for body in bodies:
+        rig.ref(body)
+    measured = Mock()
+    rig.session.Measurement = NS(GetMinimumDistance=measured)
+    result = rig.e._check_clearance()
+    assert result["pair_count"] == 120 and result["broad_phase_clear_pairs"] == 120
+    assert result["native_pair_count"] == 0 and result["max_pairs"] == 100
+    assert "120 of 120 pairs skipped the native check" in result["warnings"][0]
+    assert not measured.called
+    with pytest.raises(NXToolError) as error:
+        rig.e._check_clearance(include_clear=True)  # Every pair would be native.
     assert error.value.code == "NX_PAIR_LIMIT"
 
 

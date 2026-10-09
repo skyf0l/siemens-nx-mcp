@@ -22,6 +22,11 @@ from nx_mcp.runtime import NXToolError, ObjectKind, ObjectRef
 
 BRIDGE_PROTOCOL_VERSION = 1
 _MAX_MESSAGE_BYTES = 1024 * 1024
+# NX answers a request it could not finish within DISPATCHER_TIMEOUT itself
+# (NX_MAIN_THREAD_UNAVAILABLE with a known outcome); the sidecar waits a little
+# longer so that answer arrives before its own transport timeout.
+DISPATCHER_TIMEOUT = 120.0
+CLIENT_TIMEOUT = DISPATCHER_TIMEOUT + 15.0
 
 
 @dataclass
@@ -210,7 +215,7 @@ class MainThreadDispatcher:
         self,
         executor: Callable[[str, dict[str, Any]], dict[str, Any]],
         *,
-        timeout: float = 120.0,
+        timeout: float = DISPATCHER_TIMEOUT,
     ) -> None:
         self._executor = executor
         self._timeout = timeout
@@ -226,6 +231,7 @@ class MainThreadDispatcher:
                     "NX_BRIDGE_UNAVAILABLE",
                     "NX bridge is stopping.",
                     retryable=True,
+                    details={"mutation_outcome": "not_started"},
                 )
             self._calls.put(pending)
 
@@ -309,6 +315,7 @@ class MainThreadDispatcher:
                     "NX_BRIDGE_UNAVAILABLE",
                     "NX bridge is stopping.",
                     retryable=True,
+                    details={"mutation_outcome": "not_started"},
                 )
                 pending.complete.set()
 
@@ -335,7 +342,9 @@ class MainThreadDispatcher:
 
 
 class BridgeClient:
-    def __init__(self, host: str, port: int, *, token: str, timeout: float = 120.0) -> None:
+    def __init__(
+        self, host: str, port: int, *, token: str, timeout: float = CLIENT_TIMEOUT
+    ) -> None:
         if host != "127.0.0.1":
             raise ValueError("NX bridge must use the 127.0.0.1 loopback address")
         self.host = host
@@ -354,6 +363,7 @@ class BridgeClient:
             "params": params,
         }
         writer: asyncio.StreamWriter | None = None
+        sent = False
         try:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(
@@ -366,6 +376,7 @@ class BridgeClient:
             assert writer is not None
             writer.write(json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n")
             await writer.drain()
+            sent = True
             raw = await asyncio.wait_for(reader.readline(), timeout=self.timeout)
         except ValueError as error:
             raise NXToolError(
@@ -374,10 +385,24 @@ class BridgeClient:
                 details={"operation_id": params.get("operation_id"), "mutation_outcome": "unknown"},
             ) from error
         except (OSError, asyncio.TimeoutError) as error:
+            if sent:
+                # NX may be running or have committed the request: never retry blindly.
+                raise NXToolError(
+                    "NX_BRIDGE_OUTCOME_UNKNOWN",
+                    "The request reached the NX bridge but no answer arrived "
+                    f"({type(error).__name__}: {error}). Query nx_operation_status with this "
+                    "operation_id before retrying.",
+                    retryable=False,
+                    details={
+                        "operation_id": params.get("operation_id"),
+                        "mutation_outcome": "unknown",
+                    },
+                ) from error
             raise NXToolError(
                 "NX_BRIDGE_UNAVAILABLE",
                 f"NX bridge is unavailable: {error}",
                 retryable=True,
+                details={"mutation_outcome": "not_started"},
             ) from error
         finally:
             if writer is not None:
@@ -386,7 +411,13 @@ class BridgeClient:
                     await writer.wait_closed()
 
         if not raw or len(raw) > _MAX_MESSAGE_BYTES:
-            raise NXToolError("NX_PROTOCOL_ERROR", "NX bridge returned an invalid response size")
+            # The request was delivered; a dropped connection leaves its outcome unknown.
+            raise NXToolError(
+                "NX_PROTOCOL_ERROR",
+                "NX bridge returned an invalid response size; query nx_operation_status "
+                "before retrying",
+                details={"operation_id": params.get("operation_id"), "mutation_outcome": "unknown"},
+            )
         try:
             response = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError) as parse_error:
@@ -418,7 +449,7 @@ class DescriptorBridgeClient:
     """Reloads the bridge descriptor for every call so NX can restart independently."""
 
     def __init__(
-        self, descriptor_path: str | Path | None = None, *, timeout: float = 120.0
+        self, descriptor_path: str | Path | None = None, *, timeout: float = CLIENT_TIMEOUT
     ) -> None:
         self.descriptor_path = (
             Path(descriptor_path) if descriptor_path else default_descriptor_path()
@@ -433,6 +464,7 @@ class DescriptorBridgeClient:
                 "NX_BRIDGE_UNAVAILABLE",
                 "Start the NX MCP bridge inside Siemens NX before calling tools.",
                 retryable=True,
+                details={"mutation_outcome": "not_started"},
             ) from error
         if descriptor.protocol_version != BRIDGE_PROTOCOL_VERSION:
             raise NXToolError(

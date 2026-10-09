@@ -110,3 +110,47 @@ def test_production_mode_starts_with_the_engineer_in_control(tmp_path, monkeypat
     app.RESTART_FILE.write_text("")
     app.tick()  # Reload requests are ignored outside development mode.
     assert started == [(False, False)]
+
+
+def test_failing_restart_backs_off_records_once_and_gives_up(tmp_path, monkeypatch):
+    app = load(tmp_path, monkeypatch)
+    started = []
+    monkeypatch.setattr(app, "purge_nx_mcp", lambda: None)
+    monkeypatch.setattr(app, "nx_has_main_window", lambda: True)
+    monkeypatch.setitem(sys.modules, "nx_mcp.interactive", fake_interactive(started))
+    monkeypatch.setattr(app.importlib, "import_module", lambda name: sys.modules[name])
+    app.tick()
+    host = app.state["host"]
+    stops = []
+
+    def failing_stop():
+        stops.append(1)
+        raise RuntimeError("stop failed")
+
+    host.stop = failing_stop
+    clock = {"now": 100.0}
+    monkeypatch.setattr(app.time, "monotonic", lambda: clock["now"])
+    writes = []
+    real_write = Path.write_text
+
+    def counting_write(self, *args, **kwargs):
+        if self == app.ERROR_FILE:
+            writes.append(1)
+        return real_write(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", counting_write)
+    app.RESTART_FILE.write_text("")
+    app.tick()
+    for _ in range(20):  # 50 ms ticks inside the back-off window do not retry.
+        app.tick()
+    assert len(stops) == 1 and host.ticks == 20  # The current host keeps ticking.
+    for _ in range(app.RESTART_ATTEMPTS - 1):
+        clock["now"] += app.RESTART_BACKOFF_MAX
+        app.tick()
+    assert len(stops) == app.RESTART_ATTEMPTS and len(writes) == 1
+    assert not app.RESTART_FILE.exists()  # The request is dropped, not retried forever.
+    state = json.loads(app.STATE_FILE.read_text())
+    assert state["ok"] is False and "stop failed" in state["error"] and state["generation"] == 2
+    clock["now"] += app.RESTART_BACKOFF_MAX
+    app.tick()
+    assert len(stops) == app.RESTART_ATTEMPTS

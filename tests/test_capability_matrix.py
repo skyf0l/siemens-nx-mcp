@@ -51,3 +51,12 @@ def test_render_preserves_caveats_and_is_order_independent():
     assert "one case only" in first
     assert "- missing_feature" in first
     assert "No general certification" in first
+
+
+def test_default_manifest_includes_fragments_like_the_server():
+    from nx_mcp.manifest import load_manifest
+
+    manifest = matrix.load_manifest()
+    assert set(manifest["tools"]) == set(load_manifest()["tools"])
+    rendered = matrix.render(manifest)
+    assert all(f"| {name} |" in rendered for name in manifest["tools"])

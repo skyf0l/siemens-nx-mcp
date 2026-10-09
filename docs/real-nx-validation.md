@@ -265,4 +265,4 @@ occurrence placements were restored after deployment.
 
 The regression suite passed 922 tests; the 17 focused UI tests also passed after
 the final owner-window change. Source hash checks, Windows stdio/HTTP discovery
-(189 tools), agent discovery (13 tools), and inline viewport PNG delivery passed.
+(189 tools at that revision), agent discovery (13 tools), and inline viewport PNG delivery passed.

@@ -1,14 +1,17 @@
 # Agent surface
 
-The full profile remains compatible: 189 tools with existing defaults. The opt-in
+The full profile remains compatible: 227 tools with existing defaults. The opt-in
 agent profile lists 13 tools: eight core tools plus `nx_discover_tools`, `nx_invoke`
-`nx_result`, `nx_inspect` and `nx_result_cleanup`. All 189 underlying tools remain available, subject to their
+`nx_result`, `nx_inspect` and `nx_result_cleanup`. All 227 underlying tools remain available, subject to their
 existing capability status and native prerequisites.
 
 For stdio, set `NX_MCP_SURFACE=agent` and `NX_MCP_WORKSPACE`. The dual HTTP entrypoint `python -m nx_mcp.http_surface` serves
-full compatibility at `/mcp` and the agent profile at `/agent/mcp` on port 8765.
-Both use the same bridge and serial NX main-thread queue. They must not be used
-to issue concurrent mutations. The host must restrict network access as before.
+full compatibility at `/mcp` and the agent profile at `/agent/mcp` on
+`127.0.0.1:8765` by default (`--host`/`--port` or `NX_MCP_HTTP_HOST`/`NX_MCP_HTTP_PORT`).
+The endpoint is unauthenticated, so a non-loopback bind address is refused unless
+`--allow-remote` or `NX_MCP_HTTP_ALLOW_REMOTE=1` is given; the host must then restrict
+network access. Both profiles use the same bridge and serial NX main-thread queue.
+They must not be used to issue concurrent mutations.
 
 ## Discover, invoke, inspect
 
@@ -61,7 +64,7 @@ cost. Larger files use existing chunked downloads programmatically:
 
 ```sh
 python scripts/download_artifact.py project/model.step ./model.step \
-  --url http://192.168.52.10:8765/agent/mcp
+  --url http://127.0.0.1:8765/agent/mcp
 ```
 
 This streams directly to disk and verifies size and SHA-256. Explicit base64

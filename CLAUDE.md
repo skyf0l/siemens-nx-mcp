@@ -24,7 +24,7 @@ python -m nx_mcp.real_smoke --workspace D:\NX_MCP_WORKSPACE --iterations 20
 - `nx_bridge.py`: live NX command executor and manual bridge lifecycle.
 - `contracts.py`: Pydantic input/output and error contracts.
 
-All 189 tools are always registered: `certified.py` defines the core schemas and
+All 227 tools are always registered: `certified.py` defines the core schemas and
 `integration_server.py` with the `*_server.py` modules defines the rest, then
 re-registers every tool behind one uniform proxy. `NX_MCP_SURFACE=agent` only
 changes the presentation (13 discover/invoke entry points). Every public tool

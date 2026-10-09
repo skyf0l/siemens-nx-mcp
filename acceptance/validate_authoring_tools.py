@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import runpy
 import traceback
 import uuid
 import zipfile
@@ -14,13 +15,13 @@ from pathlib import Path
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-# The public tool count is the manifest's: one source of truth.
+# The public tool count is the full manifest's (capability_manifest.json plus
+# capability_fragments), via this checkout's nx_mcp.manifest.load_manifest() loaded
+# by path so the installed package under test is not shadowed: one source of truth.
 EXPECTED_TOOL_COUNT = len(
-    json.loads(
-        (
-            Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "capability_manifest.json"
-        ).read_text(encoding="utf-8")
-    )["tools"]
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "src" / "nx_mcp" / "manifest.py"))[
+        "load_manifest"
+    ]()["tools"]
 )
 
 

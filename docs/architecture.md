@@ -32,7 +32,7 @@ workspace on both sides of the process boundary.
 
 ## Profiles and graphical hosting
 
-All 189 tools are always registered; `NX_MCP_SURFACE` only selects the full
+All 227 tools are always registered; `NX_MCP_SURFACE` only selects the full
 listing or the compact agent entry points. The capability manifest separates
 native, sidecar-only and experimental evidence.
 There is no arbitrary journal-execution tool. The optional agent profile discovers

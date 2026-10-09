@@ -330,3 +330,60 @@ def test_truncated_step_rejected_before_translator(rig, tmp_path, contents):
         rig.e._import_geometry(str(source), flatten=True)
     assert error.value.code == "NX_INVALID_STEP"
     translator.assert_not_called()
+
+
+def test_batch_children_pass_the_version_gate_and_argument_binding(rig):
+    rig.e._current_operation = "batch-gate"
+    rig.e.store.put({"operation_id": "batch-gate", "state": "running"})
+    calls = []
+    rig.e._handlers["nx_sketch_line"] = lambda start, end: calls.append((start, end)) or {}
+    rig.e._handlers["nx_sketch_arc"] = lambda center, radius: calls.append(radius) or {}
+    rig.e.nx_version = "v2406"
+    rig.e._manifest_tools = {"nx_sketch_arc": {"unavailable_on": {"v2406": "API missing"}}}
+    ops = [
+        {"method": "nx_sketch_line", "params": {"start": 1, "end": 2}},
+        {"method": "nx_sketch_arc", "params": {"center": 0, "radius": 1}},
+    ]
+    with pytest.raises(NXToolError) as error:
+        rig.e._batch(ops)
+    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION" and not calls  # Refused in preflight.
+    with pytest.raises(NXToolError) as error:
+        rig.e._batch([{"method": "nx_sketch_line", "params": {"start": 1}}])
+    assert error.value.code == "NX_INVALID_ARGUMENT" and not calls
+    # The gate also applies when the child runs, not only in preflight.
+    with pytest.raises(NXToolError) as error:
+        rig.e._call_child("nx_sketch_arc", {"center": 0, "radius": 1})
+    assert error.value.code == "NX_UNAVAILABLE_ON_VERSION" and not calls
+
+
+@pytest.mark.parametrize("method", ["nx_save_part", "nx_save_as", "nx_close_part"])
+def test_save_and_close_refuse_parts_outside_the_workspace(rig, tmp_path, method):
+    outside = tmp_path.parent / f"{tmp_path.name}-engineer" / "bracket.prt"
+    rig.part.FullPath = str(outside)
+    rig.part.Save = Mock()
+    rig.part.SaveAs = Mock()
+    rig.part.Close = Mock()
+    params = {"path": str(tmp_path / "copy.prt")} if method == "nx_save_as" else {}
+    with pytest.raises(NXToolError) as error:
+        rig.e.execute(method, params)
+    assert error.value.code == "NX_PATH_OUTSIDE_WORKSPACE"
+    assert error.value.details["mutation_outcome"] == "not_started"
+    assert error.value.details["path"] == str(outside)
+    rig.part.Save.assert_not_called()
+    rig.part.SaveAs.assert_not_called()
+    rig.part.Close.assert_not_called()
+    assert not outside.exists() and not (tmp_path / "copy.prt").exists()
+
+
+def test_unsaved_part_without_a_file_may_only_be_saved_as_into_the_workspace(rig, tmp_path):
+    rig.part.FullPath = "model1"
+    for method in ["nx_save_part", "nx_close_part"]:
+        with pytest.raises(NXToolError) as error:
+            rig.e.execute(method, {})
+        assert error.value.code == "NX_PATH_OUTSIDE_WORKSPACE"
+    with pytest.raises(NXToolError) as error:
+        rig.e.execute("nx_save_as", {"path": str(tmp_path.parent / "elsewhere.prt")})
+    assert error.value.code == "NX_PATH_OUTSIDE_WORKSPACE"
+    destination = tmp_path / "smoke" / "model1.prt"
+    assert rig.e.execute("nx_save_as", {"path": str(destination)})["path"] == str(destination)
+    assert rig.e.execute("nx_save_part", {})["path"] == str(destination)

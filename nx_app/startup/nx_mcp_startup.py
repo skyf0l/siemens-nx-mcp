@@ -42,8 +42,13 @@ ERROR_FILE = STATE_DIR / "resident-error.txt"
 STATE_FILE = STATE_DIR / "dev-state.json"
 RESTART_FILE = STATE_DIR / "dev-restart"
 TICK_MS = 50
+RESTART_ATTEMPTS = 5  # Per reload request; then the request is dropped.
+RESTART_BACKOFF_MAX = 8.0  # Seconds between attempts after a failed restart.
 
 state = {
+    "restart_failures": 0,
+    "restart_after": 0.0,
+    "restart_error": None,
     "armed": False,
     "host": None,
     "generation": 0,
@@ -180,6 +185,27 @@ def restart_host():
     start_host()
 
 
+def restart_failed(exc):
+    """Back off after a failed restart; record each distinct error once."""
+    state["restart_failures"] += 1
+    message = f"restart: {type(exc).__name__}: {exc}"
+    if message != state["restart_error"]:
+        state["restart_error"] = message
+        with contextlib.suppress(OSError):
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            ERROR_FILE.write_text(message + "\n" + traceback.format_exc(), encoding="utf-8")
+    if state["restart_failures"] >= RESTART_ATTEMPTS:
+        # Give up on this request; scripts/dev_reload.py sees a failed generation.
+        RESTART_FILE.unlink(missing_ok=True)
+        state["generation"] += 1
+        write_state(running=True, ok=False, agent_control=state["agent_control"], error=message)
+        state["restart_failures"], state["restart_after"] = 0, 0.0
+        state["restart_error"] = None
+        return
+    delay = min(RESTART_BACKOFF_MAX, TICK_MS / 1000 * 2 ** (state["restart_failures"] + 2))
+    state["restart_after"] = time.monotonic() + delay
+
+
 def tick():
     if state["busy"]:
         return
@@ -191,9 +217,14 @@ def tick():
             if nx_has_main_window():
                 start_host()
             return
-        if DEV and RESTART_FILE.exists():
-            restart_host()
+        if DEV and RESTART_FILE.exists() and time.monotonic() >= state["restart_after"]:
+            try:
+                restart_host()
+                state["restart_failures"], state["restart_error"] = 0, None
+            except Exception as exc:
+                restart_failed(exc)
             return
+        # A backed-off restart keeps ticking the current host meanwhile.
         if host is not None and not host.stopped:
             host.tick()
         elif host is not None and host.stopped and DEV:
