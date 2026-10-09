@@ -422,7 +422,9 @@ class Tx:
         root = self
         while root.parent is not None:
             root = root.parent
-        if root.receipts is not None and (done is not None or total is not None):
+        # A batch or preview child's own progress (curves of one step) would overwrite
+        # the parent's step count; children only check cancellation and the budget.
+        if root is self and root.receipts is not None and (done is not None or total is not None):
             root.receipts.progress(root.record, done, total)
         if root.receipts is not None and root.receipts.cancel_requested(root.operation_id):
             raise NXError(

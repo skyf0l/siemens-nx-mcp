@@ -22,7 +22,6 @@ _SESSION = {
     "nx_cancel_operation",
     "nx_capabilities",
     "nx_read_result",
-    "nx_batch",
     "nx_checkpoint",
     "nx_checkpoint_state",
     "nx_rollback",

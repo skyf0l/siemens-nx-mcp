@@ -7,7 +7,7 @@ import json
 import sys
 import uuid
 from contextvars import ContextVar
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,13 +34,9 @@ def nx_list_datums():
     """List work-part datum planes, axes and coordinate systems with IDs and blanked state. Does not recurse into component prototypes."""
 
 
-# Public schemas for tools whose NX handlers live in hardened.py,
-# legacy_repairs.py and nx_bridge.py. Descriptions come from DESCRIPTIONS
+# Public schemas for tools whose NX handlers live in hardened.py
+# and nx_bridge.py. Descriptions come from DESCRIPTIONS
 # where one exists.
-def nx_delete_feature(name: str):
-    """Delete a feature."""
-
-
 # Signature-only definitions are used to publish the actual bridge arguments.
 def nx_checkpoint(label: str = "checkpoint"):
     pass
@@ -77,19 +73,6 @@ def nx_read_result(
     """Read a stored oversized bridge result without repeating its operation. field is a JSON pointer; arrays/strings are paged. Nested omissions remain explicit. Snapshot expiry does not delete operation receipts."""
 
 
-class BatchParameters(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class BatchOperation(BatchParameters):
-    method: str
-    params: dict[str, Any]
-
-
-def nx_batch(operations: Annotated[list[BatchOperation], Field(min_length=1, max_length=100)]):
-    pass
-
-
 def nx_capabilities(tool: str | None = None, prefix: str | None = None):
     pass
 
@@ -104,13 +87,11 @@ def nx_workspace_info():
 
 DESCRIPTIONS = {
     "nx_workspace_info": "Discover the NX host workspace root and path rules. Paths refer to the NX machine, not the MCP client's filesystem. No session-wide current directory is changed.",
-    "nx_delete_feature": "Delete a work-part feature by typed ID or unambiguous name using native update/undo. Dependent geometry may be deleted; inspect changes.deleted and reacquire topology afterward.",
     "nx_checkpoint": "Create an in-session model undo checkpoint. NX v2606 saves expire native marks; create a new checkpoint after save. Restart/close also invalidates checkpoints.",
     "nx_checkpoint_state": "Inspect available checkpoint IDs and retained model-operation history. Read-only calls retain marks. Native NX save can expire them; availability is checked against NX.",
     "nx_rollback": "Rollback to an in-session checkpoint. Rejects rollback across mutations to unrelated parts. Reacquire object IDs afterward; save explicitly to persist.",
     "nx_operation_status": "Read durable request state without waiting on the NX thread: running, committed, failed, unknown. Unknown never authorizes blind retry.",
     "nx_cancel_operation": "Request cooperative cancellation of a running batch between child operations. Cannot interrupt a single NXOpen call; inspect final outcome.",
-    "nx_batch": "Legacy batch of 1–100 operations under one rollback mark. No legacy tool is batchable any more: component placement moved to the catalogue tools nx_create_component and nx_set_component_pose.",
     "nx_list_topology": "Enumerate body topology. Optional face restricts results to that face and its boundary edges; include_adjacency returns face_edges and edge_faces ID mappings. compact retains minimal typed IDs. Use current upward-face boundary edges for flat-pattern orientation rather than guessing a former outer edge. Reacquire after edits/rollback/close.",
     "nx_rename_object": "Rename a referenced object and return its actual NX-normalized display name. Reacquire references afterward.",
     "nx_capabilities": "Inspect NX-version-specific tested scope. Use tool=exact_name or prefix=nx_sheet to limit response size; omit both for all tools. API detection is separate from native test evidence. Batch NX has no model viewport.",
@@ -391,7 +372,7 @@ def artifact_call(method, p, workspace):
         return store.get(p["operation_id"])
     if method == "nx_cancel_operation":
         record = store.get(p["operation_id"])
-        if record["state"] != "running" or record.get("method") != "nx_batch":
+        if record["state"] != "running" or record.get("method") != "nx_run_batch":
             raise NXToolError("NX_NOT_CANCELLABLE", "Only running batches accept cancellation")
         store.path(p["operation_id"]).with_suffix(".cancel").touch()
         return {

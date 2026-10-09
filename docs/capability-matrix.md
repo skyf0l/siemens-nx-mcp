@@ -4,13 +4,13 @@ Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evide
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
 Manifest revision: **2606-manufacturing-r1**. NX: **v2606**. Bridge protocol: **1**.
-Canonical SHA-256 (manifest and catalogue evidence): `a9f395d9a5e4abe05e2379de54a3c56b30ac0a75e906aba0cf869c44eb40ec6d`.
+Canonical SHA-256 (manifest and catalogue evidence): `07a5ab284dfe1885cd1a2f9be999e76d5a3d7e65d944f512e932feecd3c6c050`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); without it the tool is Experimental, hidden from discovery and refused in production. A legacy tool is Native-tested with manifest status `tested` and an evidence type beginning `real_NX_`; only the stated scope and NX version are covered. Contract/sidecar-tested does not establish native CAD correctness. Experimental includes untested entries and tested entries without a recognized evidence type. Unavailable capabilities are explicitly recorded by the manifest; absence from this matrix is not proof of availability or unavailability.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 154 |
+| Native-tested | 153 |
 | Contract/sidecar-tested | 4 |
 | Experimental | 1 |
 | Unavailable | 0 |
@@ -84,6 +84,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_transform | Native-tested | modeling | model | v2406: tested; 20 checks in acceptance/modeling/transform.json |
 | nx_create_trim_body | Native-tested | modeling | model | v2406: all variants; 16 checks in acceptance/modeling/trim_body.json |
 | nx_create_trim_sheet | Native-tested | freeform | model | v2406: tested; 11 checks in acceptance/freeform/trim_sheet.json |
+| nx_delete_objects | Native-tested | session | model | v2406: tested; 30 checks in acceptance/session/delete_objects.json |
 | nx_download_file | Native-tested | parts_files | read | v2406: all variants; 27 checks in acceptance/parts_files/download_file.json |
 | nx_edit_annotation | Native-tested | drawing | model | v2406: tested; 22 checks in acceptance/drawing/edit_annotation.json |
 | nx_edit_assembly_constraint | Native-tested | assembly | model | v2406: tested; 82 checks in acceptance/assembly/constraints.json |
@@ -134,6 +135,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_open_part | Native-tested | parts_files | session | v2406: tested; 28 checks in acceptance/parts_files/open_part.json |
 | nx_resolve_reference | Native-tested | inspection | read | v2406: tested; 51 checks in acceptance/inspection/geometry.json |
 | nx_restore_display | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
+| nx_run_batch | Native-tested | session | model | v2406: tested; 28 checks in acceptance/session/run_batch.json |
 | nx_save_part | Native-tested | parts_files | file | v2406: tested; 30 checks in acceptance/parts_files/save_part.json |
 | nx_save_presentation | Native-tested | display | file | v2406: tested; 28 checks in acceptance/display/presentation.json |
 | nx_set_appearance | Native-tested | display | view | v2406: tested; 53 checks in acceptance/display/appearance.json |
@@ -158,13 +160,10 @@ These labels report recorded evidence, not certification or independent verifica
 
 | Tool | Classification | Manifest status | Evidence type | Tested scope / caveat |
 | --- | --- | --- | --- | --- |
-| nx_batch | Native-tested | tested | real_NX_v2606 | Two-step partial failure fully rolled back; serial execution on journal thread |
 | nx_cancel_operation | Contract/sidecar-tested | tested | local_contract_tests | Sidecar contract accepts cancellation only for running batches and creates the cancellation marker; batch boundary seam verifies rollback. Live non-running request rejected. No mid-NXOpen interruption claim. |
 | nx_capabilities | Native-tested | tested | real_NX_v2606_scoped | Live exact-tool manifest filtering, NX version and API-detection response. API presence is not a geometry correctness certificate. |
 | nx_checkpoint | Native-tested | tested | real_NX_v2606 | In-session model checkpoint and available-state inspection |
 | nx_checkpoint_state | Native-tested | tested | real_NX_v2606 | Checks actual NX mark availability, including save expiration |
-| nx_delete_explosion | Native-tested | tested | real_NX_v2606_scoped | Native unassociated explosion deletion followed by empty explosion inventory; in-use rejection and stale invalidation covered locally. |
-| nx_delete_feature | Native-tested | tested | real_NX_v2606_scoped | Native extrusion deletion after Save As with a reacquired feature ID; resulting body count zero. Dependency cascades beyond this fixture are not independently tested. |
 | nx_finish_preview | Native-tested | tested | real_NX_v2606_and_local_stateful_seams | Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits. |
 | nx_list_annotations | Native-tested | tested | real_NX_v2606_scoped | Native BOM, balloon and managed sheet-metal PMI enumeration and text. |
 | nx_list_bodies | Native-tested | tested | real_NX_v2606_scoped | Native work-part inventory reports one extruded body and zero after feature deletion. |

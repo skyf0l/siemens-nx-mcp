@@ -102,19 +102,6 @@ def test_rotation_rejects_scale_shear_or_reflection(rig, rotation):
         rig.e._validate_rotation(rotation)
 
 
-def test_legacy_batch_refuses_every_tool_before_running_one(rig):
-    """Component placement moved to catalogue tools; no legacy tool is batchable."""
-    rig.e._current_operation = "batch-operation"
-    rig.e.store.put({"operation_id": "batch-operation", "state": "running"})
-    calls = []
-    rig.e._handlers["nx_rename_object"] = lambda **kw: calls.append(kw) or {}
-    for bad in [[], [{"method": "nx_rename_object", "params": {}}], [{"method": "nx_bad"}]]:
-        with pytest.raises(NXToolError) as error:
-            rig.e._batch(bad)
-        assert error.value.code == "NX_INVALID_ARGUMENT"
-    assert not calls
-
-
 @pytest.mark.parametrize(
     ("method", "params"),
     [("nx_save_part", {}), ("nx_save_part", {"path": "copy.prt"}), ("nx_close_part", {})],

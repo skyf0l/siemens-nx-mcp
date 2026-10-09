@@ -22,7 +22,3 @@ def nx_preview_change(operations: list[dict[str, Any]], capture: bool = True):
 
 def nx_finish_preview(preview_id: str, action: Literal["accept", "discard"]):
     """Accept by atomically reapplying stored preview edits only if its part and mutation epoch are unchanged, or discard the stored plan. Preview already restored original geometry. Accepted edits remain unsaved and undoable. Stable operation_id prevents double application."""
-
-
-def nx_delete_explosion(explosion: str):
-    """Delete a native explosion only when no model/drawing views reference it. Detach dependent views with nx_set_explosion_display (no explosion) first. Native deletion is transactional; returned reference becomes stale. Actual assembly components are retained."""

@@ -475,9 +475,11 @@ references and returns degrees in [0,180]. Directions use line start/end, edge
 vertex order or outward face normals. This is not an oriented dihedral angle;
 curved entities and component occurrences are rejected.
 
-`nx_delete_feature` resolves a feature ID or unambiguous name, adds it to the
-native update manager deletion list and reports deleted references. Dependent
-geometry can be removed; inspect change records and reacquire topology afterward.
+`nx_delete_objects` deletes 1-100 work-part objects of mixed kinds (features,
+sketches, curves, components, explosions, traces, annotations, dimensions, drawing
+tables, section views, sheets, views) under one undo mark through each domain's
+`@deleter` hook. It reads back that every object is gone and reports the objects NX
+deleted with them as `dependents`; reacquire topology afterward.
 
 `nx_sketch_constraint` routes owned curve IDs to supported sketch editors and
 relation/dimension tools. Horizontal/vertical/fix use one curve; pair relations
@@ -497,7 +499,7 @@ Drawing creation assigns and verifies the sheet scale. New body and assembly bas
 
 `nx_display_info(objects=[...], count_only=true)` preflights appearance expansion without modifying display state. Changes are limited to 10,000 unique expanded bodies/faces; split larger selections after checking their counts. Oversized committed responses carry a paginated `full_result` handle; see the agent-surface recovery contract.
 
-`nx_batch` publishes a discriminated `{method,params}` schema for each supported child method. Lines and rectangles require an owning sketch ID and structured points; arcs use center/radius/angles and an optional sketch ID. Execution remains serial under one rollback mark. Custom revolve axes use both `axis_origin` and nonzero `axis_direction` in work-part coordinates; leave the principal-axis selector at its default.
+`nx_run_batch` runs 1-100 batchable catalogue calls (`{tool, arguments}`) in order under one undo mark; every step is checked before the first runs, a Ref argument may name an earlier step's result (`"$0.data.sketch"`, 0-based), and a failing or cancelled step rolls the whole batch back. Custom revolve axes use both `axis_origin` and nonzero `axis_direction` in work-part coordinates; leave the principal-axis selector at its default.
 
 `nx_save_part` saves only the work-part file. Component edits require explicit
 activation and saving of each component; saving an assembly does not imply

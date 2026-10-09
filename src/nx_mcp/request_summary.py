@@ -218,11 +218,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
     "nx_capabilities": _capabilities,
     "nx_checkpoint": lambda p, c: f'Create undo checkpoint "{p.get("label", "checkpoint")}"',
     "nx_rename_object": lambda p, c: f'Rename {c.obj(p.get("object_id"))} to "{p.get("name")}"',
-    "nx_batch": lambda p, c: (
-        c.steps(p.get("operations"), f"Batch of {c.count(p.get('operations'), 'step')}: ")
-        if p.get("operations")
-        else "Run an empty batch"
-    ),
     "nx_preview_change": lambda p, c: c.steps(
         p.get("operations"), f"Preview {c.count(p.get('operations'), 'change')}: "
     ),
@@ -231,10 +226,6 @@ _TEMPLATES: dict[str, Callable[[dict[str, Any], _Context], str]] = {
         if p.get("action") == "accept"
         else "Discard the previewed changes"
     ),
-    # Features and bodies
-    "nx_delete_feature": lambda p, c: f"Delete feature {c.obj(p.get('name'))}",
-    # Assemblies
-    "nx_delete_explosion": lambda p, c: f"Delete explosion {c.obj(p.get('explosion'))}",
     # Measurements and inspections
     "nx_list_topology": lambda p, c: (
         f"List faces and edges of {c.obj(p.get('face') or p.get('body'))}"

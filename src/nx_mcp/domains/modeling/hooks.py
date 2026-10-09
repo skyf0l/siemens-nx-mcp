@@ -1,10 +1,11 @@
-"""Modeling listers for ``nx_list_objects``: bodies, faces, edges, features, datums."""
+"""Modeling listers for ``nx_list_objects`` (bodies, faces, edges, features, datums) and the
+feature deleter for ``nx_delete_objects`` (``fn(tx, objects)``, inside the caller's mark)."""
 
 from __future__ import annotations
 
-from nx_mcp.core.catalogue import lister
-from nx_mcp.core.errors import fail
-from nx_mcp.kit import geom, result, select
+from nx_mcp.core.catalogue import deleter, lister
+from nx_mcp.core.errors import fail, native
+from nx_mcp.kit import geom, model, result, select
 
 FACE_TYPES = {22: "plane", 16: "cylinder", 17: "cone", 18: "sphere", 19: "torus"}
 EDGE_TYPES = {"Linear": "line", "Circular": "circle", "Elliptical": "ellipse"}
@@ -83,3 +84,19 @@ def datums(tx, owner, owner_kind):
             }
         out.append((datum, kind, extra))
     return out
+
+
+def no_active_sketch(tx):
+    """Deletes run the model update: refuse while a sketch is active (NX defers it)."""
+    if tx.session.ActiveSketch is not None:
+        fail("NX_SKETCH_ACTIVE", "Finish the active sketch before deleting model objects",
+             hint="Finish the active sketch, then retry")  # fmt: skip
+
+
+@deleter("feature")
+def delete_features(tx, objects):
+    """NX's Delete through the update manager: dependent features and their bodies go too."""
+    no_active_sketch(tx)
+    with native(default="NX_BUILD_FAILED"):
+        tx.session.UpdateManager.AddToDeleteList(list(objects))
+    model.update(tx)

@@ -9,6 +9,26 @@
       "variants": []
     }
   },
+  "nx_delete_objects": {
+    "v2406": {
+      "checks": 30,
+      "recorded": "2026-10-09T15:46:59Z",
+      "scenario": "acceptance/session/delete_objects.json",
+      "scenario_sha256": "e4fdaf4870141538cf219ae8ea1a00cd343c204346a3465fbe5d78709ee7c972",
+      "source_sha256": "f8c4df79959444b40ad26d4a70aecffc753692f03830e70c97068d60ebdd1281",
+      "variants": []
+    }
+  },
+  "nx_run_batch": {
+    "v2406": {
+      "checks": 28,
+      "recorded": "2026-10-09T15:47:22Z",
+      "scenario": "acceptance/session/run_batch.json",
+      "scenario_sha256": "193db60e7f45d8ce89c845faf071534b23a8cd03cbf8df3ab754021939803f41",
+      "source_sha256": "ba3d0051723d86420996e4e3a18504296207c8e02e95f6ce0e76e9d0da1ac3d6",
+      "variants": []
+    }
+  },
   "nx_set_control": {
     "v2406": {
       "checks": 19,

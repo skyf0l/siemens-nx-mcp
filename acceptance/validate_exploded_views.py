@@ -180,7 +180,7 @@ async def main():
                 {"name": "views_pdf_save_as_reopen", "passed": True, "png": png, "pdf": pdf}
             )
 
-            await rejected("nx_delete_explosion", explosion=ex)
+            await rejected("nx_delete_objects", objects=[ex])
             ex = (await call("nx_list_explosions"))["explosions"][0]["object"]["id"]
             initial = await poses(ex)
             cap = initial["CAP"]["component"]["id"]
@@ -214,7 +214,7 @@ async def main():
                         ]
                     },
                 )
-            await call("nx_delete_explosion", explosion=ex)
+            await call("nx_delete_objects", objects=[ex])
             await rejected("nx_explosion_info", explosion=ex)
             assert not (await call("nx_list_explosions"))["explosions"]
             receipt["groups"].append(

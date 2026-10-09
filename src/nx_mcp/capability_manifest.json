@@ -11,14 +11,6 @@
         "v2406"
       ]
     },
-    "nx_batch": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606",
-      "scope": "Two-step partial failure fully rolled back; serial execution on journal thread",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
     "nx_undo": {
       "status": "tested",
       "evidence_type": "real_NX_v2606",
@@ -47,14 +39,6 @@
       "status": "tested",
       "evidence_type": "local_contract_test",
       "scope": "Durable committed/failed/unknown receipt tests; no crash reconstruction claimed",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_delete_feature": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native extrusion deletion after Save As with a reacquired feature ID; resulting body count zero. Dependency cascades beyond this fixture are not independently tested.",
       "verified_versions": [
         "v2406"
       ]
@@ -143,14 +127,6 @@
       "status": "tested",
       "scope": "Scoped v2606 native authoring/review acceptance and local failure-path regressions; see docs/tools.md for supported operations and limits.",
       "evidence_type": "real_NX_v2606_and_local_stateful_seams",
-      "verified_versions": [
-        "v2406"
-      ]
-    },
-    "nx_delete_explosion": {
-      "status": "tested",
-      "evidence_type": "real_NX_v2606_scoped",
-      "scope": "Native unassociated explosion deletion followed by empty explosion inventory; in-use rejection and stale invalidation covered locally.",
       "verified_versions": [
         "v2406"
       ]

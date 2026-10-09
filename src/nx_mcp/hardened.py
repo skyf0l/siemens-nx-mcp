@@ -46,7 +46,6 @@ from nx_mcp.kit.geom import (  # noqa: F401
     xyz,
 )
 from nx_mcp.legacy_kit import vector
-from nx_mcp.legacy_repairs import LegacyRepairsMixin
 from nx_mcp.manufacturing import ManufacturingMixin
 from nx_mcp.nx_bridge import NXOpenExecutor
 from nx_mcp.recovery import OperationStore, timestamp
@@ -103,7 +102,6 @@ def _not_implemented(name):
 
 class HardenedExecutor(
     DatumFeaturesMixin,
-    LegacyRepairsMixin,
     DrawingPreferencesMixin,
     ReleaseEngineeringMixin,
     ReferenceGeometryMixin,
@@ -147,7 +145,6 @@ class HardenedExecutor(
         self._handlers.update(
             {
                 "nx_list_datums": self._list_datums,
-                "nx_delete_explosion": self._delete_explosion,
                 "nx_list_expressions": self._list_expressions,
                 "nx_preview_change": self._preview_change,
                 "nx_finish_preview": self._finish_preview,
@@ -156,10 +153,8 @@ class HardenedExecutor(
                 "nx_rollback": self._rollback_checkpoint,
                 "nx_operation_status": lambda operation_id: self.store.get(operation_id),
                 "nx_list_topology": self._list_topology,
-                "nx_batch": self._batch,
                 "nx_capabilities": self._capabilities,
                 "nx_rename_object": self._rename_object,
-                "nx_delete_feature": self._delete_feature,
             }
         )
 
@@ -328,14 +323,7 @@ class HardenedExecutor(
                     "modified": result.get("modified"),
                     "modified_tracking": "explicit only; null means not fully tracked",
                 }
-                self._invalidate_deleted(
-                    before,
-                    after,
-                    invalidate_topology=method
-                    not in {
-                        "nx_delete_explosion",
-                    },
-                )
+                self._invalidate_deleted(before, after, invalidate_topology=True)
                 self._history.append(
                     {"mark": mark, "part_id": part_id, "operation_id": op_id, "method": method}
                 )
@@ -784,41 +772,6 @@ class HardenedExecutor(
                 "NX_INVALID_ARGUMENT", "rotation_matrix must be a right-handed orthonormal matrix"
             )
         return m
-
-    def _batch(self, operations):
-        if not 1 <= len(operations) <= 100:
-            raise NXToolError("NX_INVALID_ARGUMENT", "Batch requires 1–100 operations")
-        # Component placement moved to catalogue tools (nx_create_component,
-        # nx_set_component_pose); no legacy tool is batchable any more.
-        allowed: set[str] = set()
-        # Preflight is structural and validates all signatures before any NX mutation.
-        for op in operations:
-            if set(op) != {"method", "params"} or op["method"] not in allowed:
-                raise NXToolError(
-                    "NX_INVALID_ARGUMENT",
-                    "No legacy tool is batchable; catalogue tools batch with nx_run_batch",
-                )
-            self._child_handler(op["method"], op["params"])
-        results = []
-        key = self._current_operation
-        for i, op in enumerate(operations):
-            if self.store.path(key).with_suffix(".cancel").exists():
-                raise NXToolError(
-                    "NX_CANCELLED",
-                    "Cancelled between operations",
-                    details={"completed_before_rollback": i},
-                )
-            result = self._call_child(op["method"], op["params"])
-            results.append({"index": i, "method": op["method"], "result": result})
-            record = self.store.get(key)
-            record.update(progress={"completed": i + 1, "total": len(operations)})
-            self.store.put(record)
-        return {
-            "results": results,
-            "count": len(results),
-            "atomic": True,
-            "message": "Batch committed on NX journal thread",
-        }
 
     def _capabilities(self, tool=None, prefix=None):
 

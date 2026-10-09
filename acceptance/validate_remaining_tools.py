@@ -105,7 +105,7 @@ async def main():
                 for f in (await call("nx_list_features"))["objects"]
                 if f["name"] == "ProbeExtrusion"
             )
-            deleted = await call("nx_delete_feature", name=feature)
+            deleted = await call("nx_delete_objects", objects=[feature])
             assert deleted["deleted"]
             assert not (await call("nx_list_bodies"))["objects"]
             await call("nx_save_part")
@@ -130,7 +130,7 @@ async def main():
                 for a, b in zip(actual, expected, strict=True)
             )
             ex = (await call("nx_create_explosion", name="Disposable"))["object"]["id"]
-            await call("nx_delete_explosion", explosion=ex)
+            await call("nx_delete_objects", objects=[ex])
             assert not (await call("nx_list_explosions"))["explosions"]
             await call("nx_save_part")
             await call("nx_package_assembly", path=prefix + "/assembly.zip")

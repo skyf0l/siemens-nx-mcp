@@ -127,6 +127,8 @@ def valid_value(hint):
     if is_typeddict(base):
         fields = typeddict_fields(base)
         return {k: valid_value(fields[k]) for k in base.__required_keys__}
+    if base is dict:  # Json: another tool's arguments (nx_run_batch)
+        return {}
     raise AssertionError(base)
 
 

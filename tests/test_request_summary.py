@@ -33,33 +33,27 @@ def describe(method, params, **kwargs):
     ("method", "params", "expected"),
     [
         (
-            "nx_delete_feature",
-            {"name": "obj_gone"},
-            "Delete feature an object from before the last handover",
+            "nx_rename_object",
+            {"object_id": "obj_gone", "name": "A"},
+            'Rename an object from before the last handover to "A"',
         ),
-        ("nx_delete_feature", {"name": "EXTRUDE(2)"}, 'Delete feature "EXTRUDE(2)"'),
+        (
+            "nx_rename_object",
+            {"object_id": "obj_extrude", "name": "A"},
+            'Rename "EXTRUDE(2)" to "A"',
+        ),
     ],
 )
 def test_summaries_use_real_arguments_and_names(method, params, expected):
     assert describe(method, params) == expected
 
 
-def test_batch_counts_steps_and_names_the_first():
-    operations = [{"method": "nx_delete_feature", "params": {"name": "EXTRUDE(2)"}}] * 5
-    assert describe("nx_batch", {"operations": operations}) == (
-        'Batch of 5 steps: Delete feature "EXTRUDE(2)" (+4 more)'
-    )
-    one = describe("nx_batch", {"operations": operations[-1:]})
-    assert one == 'Batch of 1 step: Delete feature "EXTRUDE(2)"'
-    assert describe("nx_batch", {"operations": []}) == "Run an empty batch"
-
-
 def test_batch_keeps_its_count_when_the_first_step_is_long():
-    long_name = {"name": "x" * 200}
-    operations = [{"method": "nx_delete_feature", "params": long_name}] * 12
+    long_name = {"object_id": "x" * 200, "name": "A"}
+    operations = [{"method": "nx_rename_object", "params": long_name}] * 12
     line = describe("nx_preview_change", {"operations": operations})
     assert len(line) <= MAX_LENGTH
-    assert line.startswith("Preview 12 changes: Delete feature") and line.endswith("… (+11 more)")
+    assert line.startswith("Preview 12 changes: Rename") and line.endswith("… (+11 more)")
 
 
 def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
@@ -70,9 +64,9 @@ def test_paths_are_shown_relative_to_the_workspace(tmp_path: Path):
 
 
 def test_summaries_never_raise_and_stay_short():
-    assert describe("nx_delete_feature", {"name": object()}).startswith("Delete feature")
-    assert describe("nx_delete_feature", "not a dict") == "Delete feature"
-    assert len(describe("nx_delete_feature", {"name": "x" * 300})) == MAX_LENGTH
+    assert describe("nx_rename_object", {"object_id": object()}).startswith("Rename")
+    assert describe("nx_rename_object", "not a dict") == "Rename object"
+    assert len(describe("nx_rename_object", {"object_id": "x" * 300})) == MAX_LENGTH
     assert humanize("nx_measure_distance") == "Measure distance"
 
 

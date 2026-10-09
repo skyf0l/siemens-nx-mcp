@@ -20,7 +20,7 @@ def test_workspace_metadata_and_cancellation_are_scoped(tmp_path):
     (tmp_path / "a.txt").write_text("hello")
     (tmp_path / "sub").mkdir()
     store = OperationStore(tmp_path)
-    store.put({"operation_id": "batch-operation", "state": "running", "method": "nx_batch"})
+    store.put({"operation_id": "batch-operation", "state": "running", "method": "nx_run_batch"})
     assert artifact_call("nx_cancel_operation", {"operation_id": "batch-operation"}, w)[
         "cancellation_requested"
     ]
