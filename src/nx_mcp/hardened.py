@@ -379,6 +379,7 @@ class HardenedExecutor(
         handler = self._handlers.get(method)
         if handler is None:
             raise NXToolError("NX_TOOL_NOT_FOUND", method)
+        self._check_version_gate(method)
         try:
             inspect.signature(handler).bind(**params)
         except TypeError as e:
@@ -1856,6 +1857,20 @@ class HardenedExecutor(
         if clear is not None:
             with contextlib.suppress(Exception):
                 clear()
+
+    def _check_version_gate(self, method):
+        """Refuse a tool disabled for this NX version before it can touch NX."""
+        from nx_mcp.manifest import load_manifest, unavailable_reason
+
+        if getattr(self, "_manifest_tools", None) is None:
+            self._manifest_tools = load_manifest()["tools"]
+        reason = unavailable_reason(self._manifest_tools.get(method, {}), self.nx_version)
+        if reason:
+            raise NXToolError(
+                "NX_UNAVAILABLE_ON_VERSION",
+                f"{method} is not available on NX {self.nx_version}: {reason}",
+                details={"nx_version": self.nx_version, "tool": method},
+            )
 
     def _drop_inherited_feature_errors(self, part, before):
         """Update new features that report errors once, dropping inherited messages.

@@ -20,13 +20,23 @@ def load_manifest() -> dict:
     return manifest
 
 
+def unavailable_reason(entry: dict, nx_version: str) -> str | None:
+    """Why a tool is disabled on this NX version (manifest unavailable_on), or None."""
+    return (entry.get("unavailable_on") or {}).get(nx_version)
+
+
 def scope_to_version(manifest: dict, nx_version: str) -> dict:
     """Keep "tested" only where there is native evidence for the running NX version.
 
     Evidence for a version is an evidence_type of real_NX_<version>... or the
     version listed in verified_versions; anything else becomes experimental.
+    A tool listed for this version in unavailable_on is unavailable: the
+    executor refuses it (NX_UNAVAILABLE_ON_VERSION) before touching NX.
     """
     for entry in manifest["tools"].values():
+        if reason := unavailable_reason(entry, nx_version):
+            entry.update(status="unavailable", scope=f"Not available on NX {nx_version}: {reason}")
+            continue
         versions = set(entry.get("verified_versions", []))
         evidence = str(entry.get("evidence_type", ""))
         if evidence.startswith("real_NX_"):
