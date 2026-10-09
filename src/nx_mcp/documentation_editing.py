@@ -114,7 +114,9 @@ class DocumentationEditingMixin:
         self._update_model()
         if point is not None:
             actual = xyz(obj.AnnotationOrigin)
-            if max(abs(a - b) for a, b in zip(actual, point)) > 1e-6 * max(1.0, *map(abs, point)):
+            if max(abs(a - b) for a, b in zip(actual, point, strict=True)) > 1e-6 * max(
+                1.0, *map(abs, point)
+            ):
                 # Associative annotations (center marks, centerlines) stay where their
                 # geometry puts them: NX accepts the origin and keeps the old position.
                 raise NXToolError(
