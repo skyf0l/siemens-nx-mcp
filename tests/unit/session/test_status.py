@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from nx_mcp.core.errors import NXToolError
 from nx_mcp.core.receipts import Receipts
 from nx_mcp.domains.session import status as st
-from nx_mcp.runtime import NXToolError
 from nx_mcp.sidecar.proxy import CatalogueProxy
 from nx_mcp.workspace import Workspace
 from tests.kit import fake_nx, run
@@ -128,7 +128,7 @@ async def test_other_bridge_failures_stay_errors(tmp_path, monkeypatch):
 
 @pytest.fixture
 def store(tmp_path):
-    from nx_mcp.recovery import OperationStore
+    from nx_mcp.core.receipts import OperationStore
 
     return OperationStore(tmp_path)
 

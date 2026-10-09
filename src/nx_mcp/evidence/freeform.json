@@ -36,7 +36,7 @@
   "nx_create_spline": {
     "v2406": {
       "checks": 25,
-      "recorded": "2026-10-09T15:33:56Z",
+      "recorded": "2026-10-09T17:19:47Z",
       "scenario": "acceptance/freeform/spline.json",
       "scenario_sha256": "e0d32949735b9c3f173f03b994b57e86fb1fa6360fc8fb10d34924c44a097540",
       "source_sha256": "3ebc166cb96b11204999855423f7583e62d667c7067aa649be09f835dbac155d",

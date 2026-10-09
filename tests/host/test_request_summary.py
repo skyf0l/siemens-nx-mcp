@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from nx_mcp.bridge import MainThreadDispatcher, ObjectRegistry
+from nx_mcp.core.errors import NXToolError
 from nx_mcp.core.summary import humanize, relative_path
-from nx_mcp.runtime import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
@@ -76,5 +76,5 @@ async def test_invoke_intent_reaches_the_bridge_but_not_the_tool_arguments(tmp_p
 
 
 def test_executor_ignores_intent(rig):
-    result = rig.e.execute("nx_list_objects", {**BODIES, "intent": "Check bodies"})
+    result = rig.run("nx_list_objects", {**BODIES, "intent": "Check bodies"})
     assert result["ok"]

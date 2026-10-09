@@ -203,7 +203,7 @@
   "nx_get_drawing_view": {
     "v2406": {
       "checks": 13,
-      "recorded": "2026-10-09T13:22:27Z",
+      "recorded": "2026-10-09T17:29:59Z",
       "scenario": "acceptance/drawing/get_drawing_view.json",
       "scenario_sha256": "5f430d796ccf638743f63c76e21365db116910e71b794ef1472667d888b29160",
       "source_sha256": "f023426bb1ac931809b1430c572d6cb76ca34f1de4ff84d58d38934a02998fe3",

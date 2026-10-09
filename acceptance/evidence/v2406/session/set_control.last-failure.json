@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "scenario": "acceptance/session/set_control.json",
+  "scenario_sha256": "04653bcb77af0e003384e160efd71c9bf9b201789e36eeefb7021381db44e448",
+  "domain": "session",
+  "covers": {
+    "nx_set_control": [
+      "status",
+      "auto",
+      "ask",
+      "manual",
+      "agent"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "48e4e51a54677bddfbb09286a59e42267aa0e755",
+  "sources": {
+    "nx_set_control": "33fb6329096dde0fb6b8d875038a8a8d94fdfe4caa59751e44fb1c7cb04f3d41"
+  },
+  "run_id": "20261009-211931-703ad5",
+  "owner": "cl3_executor",
+  "part": null,
+  "started": "2026-10-09T17:19:52Z",
+  "finished": "2026-10-09T17:22:52Z",
+  "passed": false,
+  "checks": 19,
+  "failed_checks": 4,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 5,
+      "seconds": 0.016,
+      "result_sha256": "b5b0ee817be917ba2eb40329e3c39edd3908c0fdea02bdb99d6a078ee8533eda"
+    },
+    {
+      "index": 2,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.015,
+      "result_sha256": "6a60cc999905e5bbafcda8da2acbde491e1abab5b1599dfcaf8d5b13c4a4ff07"
+    },
+    {
+      "index": 3,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.016,
+      "result_sha256": "dcc9263ea8cdec4decbf75f9947b5d9f68a20ca2d7068f6ca11e5a54b8485521"
+    },
+    {
+      "index": 4,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.015,
+      "result_sha256": "7066cf8e1f6ec171d2f47c686393066ee654df2c10e2be6c66f9a99e6e288441"
+    },
+    {
+      "index": 5,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 60.047,
+      "result_sha256": "f202e4ec2c65b99ff7666268b29462ad991d87d9531122a84d7496d7ebb25b0d"
+    },
+    {
+      "index": 6,
+      "call": "nx_set_control",
+      "setup": false,
+      "passed": false,
+      "checks": 3,
+      "seconds": 60.032,
+      "result_sha256": "7f7c55a275dbbeaa9b32010357195f57dc8692e6fb21a95cd82251cd747592dc",
+      "failures": [
+        "unexpected error NX_CONTROL_PAUSED: The engineer did not answer within 60 s. Ask them in chat, or ask them to answer the request on the NX MCP panel.",
+        "mutation_outcome: equals 'committed' failed (actual 'not_started')",
+        "data.mode: missing (wanted 'agent')",
+        "data.owner: missing (wanted 'agent')"
+      ]
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [],
+    "failed": []
+  }
+}

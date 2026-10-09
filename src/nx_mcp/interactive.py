@@ -4,12 +4,13 @@ Timer mode (NX 2606): the journal returns after installing a Win32 timer. NX's
 existing message pump invokes TIMERPROC on the registering thread; the pinned
 callback drains one call.
 
-Resident mode (NX 2406 and other releases that tear down a journal's
-interpreter when it returns): the journal never returns while the host is up.
-It pumps the thread's message queue itself and ticks the host from its own
-interpreter, so lazy imports and NXOpen namespaces resolve where they were set
-up. See run_resident(). The NX 2406 startup application ticks the host the
-same way from its own UI-thread timer.
+Resident mode (NX 2406): the NX startup application
+(``nx_app/startup/nx_mcp_startup.py``) stays loaded for the session and ticks the
+host from its own UI-thread timer, so lazy imports and NXOpen namespaces resolve
+where they were set up.
+
+Every bridge call runs through ``host.dispatch`` and the catalogue kernel with the
+host's ``NXServices`` (``self.services``).
 
 Panel modes (the radio buttons on the NX MCP panel):
 
@@ -37,8 +38,7 @@ import time
 import uuid
 from pathlib import Path
 
-from nx_mcp.runtime import NXToolError
-from nx_mcp.winpump import pump_messages
+from nx_mcp.core.errors import NXToolError
 
 _host = None
 _retired = []
@@ -77,12 +77,10 @@ VIEW_ONLY = frozenset({"nx_fit_view", "nx_set_view", "nx_screenshot", "nx_render
 
 
 def _read_only(method):
-    """Catalogue tools by their effect; legacy tools by the legacy READ_ONLY list."""
-    from nx_mcp.hardened import READ_ONLY
+    """Catalogue tools whose effect is ``read``."""
     from nx_mcp.host.dispatch import is_read_only
 
-    flag = is_read_only(method)
-    return method in READ_ONLY if flag is None else flag
+    return is_read_only(method)
 
 
 def _model_unchanged(method):
@@ -480,7 +478,7 @@ class InteractiveHost:
             BridgeServer,
             MainThreadDispatcher,
         )
-        from nx_mcp.hardened import HardenedExecutor
+        from nx_mcp.host.services import NXServices
         from nx_mcp.workspace import Workspace
 
         self.session = NXOpen.Session.GetSession()
@@ -519,13 +517,13 @@ class InteractiveHost:
             raise RuntimeError(
                 "Stop the batch bridge before attaching the interactive host to this workspace"
             )
-        self.executor = HardenedExecutor(
+        self.services = NXServices(
             self.session,
             NXOpen,
-            nx_bridge._detect_nx_version(self.session),
+            nx_bridge.detect_nx_version(self.session),
             Workspace(self.root),
         )
-        self.executor._interactive_host = self  # LegacyServices.control (nx_set_control)
+        self.services.host = self  # nx_set_control and nx_get_status reach the panel
         token = secrets.token_hex(32)
         progress = threading.Event()  # Set by bridge workers: a call queued or answered.
         self.dispatcher = MainThreadDispatcher(
@@ -540,7 +538,7 @@ class InteractiveHost:
         )
         self.descriptor_path = Path(descriptor_path)
         self.descriptor = BridgeDescriptor.create(
-            self.server.port, self.executor.nx_version, token=token
+            self.server.port, self.services.build, token=token
         )
         self.main_hwnd = nx_main_window()
         self.window_disabled = False
@@ -661,13 +659,13 @@ class InteractiveHost:
         if method == STATUS_TOOL and snapshot and snapshot.get("running_method"):
             from nx_mcp.domains.session import status
 
-            executor = self.executor
+            services = self.services
             return status.envelope_from_snapshot(
                 snapshot,
                 params,
-                root=executor.workspace.root,
-                build=getattr(executor, "nx_version", None),
-                store=getattr(executor, "store", None),
+                root=services.workspace.root,
+                build=getattr(services, "build", None),
+                store=getattr(services, "store", None),
             )
         return self.dispatcher.call(method, params)
 
@@ -695,9 +693,9 @@ class InteractiveHost:
         """Work/display part for nx_get_status while a step runs (UI thread only)."""
         from nx_mcp.domains.session.status import snapshot_parts
 
-        executor = self.executor
-        session = getattr(executor, "session", None)
-        workspace = getattr(executor, "workspace", None)
+        services = self.services
+        session = getattr(services, "session", None)
+        workspace = getattr(services, "workspace", None)
         if session is None or workspace is None:
             return None
         return snapshot_parts(session, workspace.root)
@@ -718,7 +716,7 @@ class InteractiveHost:
         from nx_mcp.host.dispatch import grant_state
 
         try:
-            return grant_state(self.executor)
+            return grant_state(self.services)
         except Exception:
             return None
 
@@ -730,7 +728,7 @@ class InteractiveHost:
         if state is None:
             return
         allow = not state["granted"]
-        name = set_grant(self.executor, allow)
+        name = set_grant(self.services, allow)
         self._set_notice(
             f"You allowed the agent to change {name}."
             if allow
@@ -1026,9 +1024,9 @@ class InteractiveHost:
 
     def _end_agent_session(self):
         """After Agent drives: clear highlights and recap; errors are recorded, never raised."""
-        if hasattr(self.executor, "_clear_highlights"):
+        if hasattr(self.services, "clear_highlights"):
             try:
-                self.executor._clear_highlights()
+                self.services.clear_highlights()
             except Exception as exc:
                 self._record_release_error("Cannot clear highlights", exc)
         try:
@@ -1155,35 +1153,32 @@ class InteractiveHost:
         try:
             for part in self.session.Parts:
                 try:
-                    self.executor.objects.invalidate_part(self.executor._part_id(part))
+                    self.services.objects.invalidate_part(self.services.part_key(part))
                 except Exception as exc:
                     self._record_release_error("Cannot invalidate part references", exc)
         except Exception as exc:
             self._record_release_error("Cannot list open parts", exc)
             # Without the part list, drop every reference rather than keep stale ones.
             try:
-                objects = self.executor.objects
+                objects = self.services.objects
                 for part_id in {e.reference.part_id for e in objects._objects.values()}:
                     objects.invalidate_part(part_id)
             except Exception as exc2:
                 self._record_release_error("Cannot clear references", exc2)
-        for step in (
-            lambda: self.executor._history.clear(),
-            lambda: self.executor._checkpoints.clear(),
-        ):
-            try:
-                step()
-            except Exception as exc:
-                self._record_release_error("Cannot clear rollback history", exc)
-        self.executor._review_epoch = getattr(self.executor, "_review_epoch", 0) + 1
+        try:
+            self.services.engineer_changed()  # undo history, checkpoints, review epoch
+        except Exception as exc:
+            self._record_release_error("Cannot clear rollback history", exc)
 
     # -- execution -------------------------------------------------------------
 
     def execute(self, method, params):
+        from nx_mcp.host import dispatch
+
         if threading.get_ident() != self.thread:
             raise RuntimeError("NX request called off registering UI thread")
         if method in (CONTROL_TOOL, STATUS_TOOL):  # never waits for the engineer
-            return self.executor.execute(method, params)
+            return dispatch.execute(self.services, method, params)
         reserved = self.mode == "agent" and self.owns_lock
         if not (reserved or self._light):
             raise NXToolError(
@@ -1223,11 +1218,11 @@ class InteractiveHost:
                 self.publish()
             except Exception as exc:
                 self.last_error = "UI status publication failed: " + str(exc)
-            result = self.executor.execute(method, params)
+            result = dispatch.execute(self.services, method, params)
             self.completed += 1
             part = self.session.Parts.Display
             sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
-            from nx_mcp.release_engineering import drawing_work_view
+            from nx_mcp.kit.drawing import work_view_is_drawing as drawing_work_view
 
             if part and not _read_only(method) and sheet is None and not drawing_work_view(part):
                 try:
@@ -1516,7 +1511,7 @@ class InteractiveHost:
         try:
             from nx_mcp.host.dispatch import render_summary
 
-            line = render_summary(self.executor, method, params, path_of=relative_path(self.root))
+            line = render_summary(self.services, method, params, path_of=relative_path(self.root))
             if line is not None:
                 return line
         except Exception:
@@ -1535,7 +1530,7 @@ class InteractiveHost:
     def _dev_python(self, code):
         """Run a Python snippet on the NX UI thread (development launcher only).
 
-        Names: NXOpen, session, part (work part), executor, resolve(id). Set
+        Names: NXOpen, session, part (work part), services, resolve(id). Set
         `result` to return a value; print() output is returned as stdout.
         """
         import contextlib
@@ -1545,8 +1540,8 @@ class InteractiveHost:
             "NXOpen": self.nx,
             "session": self.session,
             "part": self.session.Parts.Work,
-            "executor": self.executor,
-            "resolve": lambda ref: self.executor._resolve(ref),
+            "services": self.services,
+            "resolve": lambda ref: self.services.resolve(ref),
         }
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -1650,24 +1645,6 @@ def start(
     if dev:
         # Development launcher only: lets development agents inspect NXOpen
         # APIs inside NX. Never registered by the production launchers.
-        candidate.executor._handlers["nx_dev_python"] = candidate._dev_python
+        candidate.services.dev_tools["nx_dev_python"] = candidate._dev_python
     _host = candidate
     return _host.status()
-
-
-def run_resident(workspace, descriptor_path, interval=0.02, pump=pump_messages):
-    """Host the bridge from a journal that stays resident until Stop.
-
-    Messages are pumped only between ticks, never during a native call, so no
-    modeling request can re-enter while another is running.
-    """
-    missing = import_nxopen_namespaces()
-    start(workspace, descriptor_path, resident=True)
-    host = _host
-    if missing:
-        host.last_error = "NXOpen namespaces not importable: " + "; ".join(missing)
-    while not host.stopped:
-        pump()
-        host.tick()
-        time.sleep(interval)
-    return host

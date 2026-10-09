@@ -9,8 +9,8 @@ bridge is down (:func:`offline_envelope`, bridge ``unavailable``).
 
 ``nx_get_operation`` (replaces ``nx_operation_status``) and
 ``nx_cancel_operation`` run in the sidecar (``runs="sidecar"``): they read and
-flag the shared receipt store (``core/receipts.py`` and the legacy
-``OperationStore`` records), so NX being busy or down never delays them. Cancel
+flag the shared receipt store (``core/receipts.py``, ``OperationStore``
+records), so NX being busy or down never delays them. Cancel
 writes the receipt's ``.cancel`` file, which ``tx.checkpoint`` honours between
 steps (``nx_run_batch`` and other multi-step tools); one native call is never
 interrupted.

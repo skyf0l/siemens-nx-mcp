@@ -7,7 +7,7 @@ import pytest
 
 from nx_mcp import bridge as bridge_module
 from nx_mcp.bridge import CLIENT_TIMEOUT, DISPATCHER_TIMEOUT, BridgeClient, MainThreadDispatcher
-from nx_mcp.runtime import NXToolError
+from nx_mcp.core.errors import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 

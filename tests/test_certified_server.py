@@ -4,7 +4,7 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.core import catalogue
-from nx_mcp.runtime import NXToolError
+from nx_mcp.core.errors import NXToolError
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
 from nx_mcp.workspace import Workspace

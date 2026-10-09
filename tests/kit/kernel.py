@@ -55,7 +55,7 @@ class _Refs:
 
 class KitServices(Services):
     def __init__(self, fake, root=None, build="v2406"):
-        from nx_mcp.recovery import OperationStore
+        from nx_mcp.core.receipts import OperationStore
         from nx_mcp.workspace import Workspace
 
         self.fake = fake
@@ -233,9 +233,6 @@ class KitServices(Services):
             owner = getattr(obj, "OwningPart", obj if hasattr(obj, "PartUnits") else None)
             if owner is not None and self.part_key(owner) in keys:
                 del self.fake.refs[ref]
-
-    def refresh_annotations(self, spec):
-        return []
 
     def record_history(self, mark, part, operation_id, tool):
         if not self.mark_exists(mark):  # like the host: an undo went back past its mark

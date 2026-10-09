@@ -2,8 +2,7 @@
 
 Fails when a module outside ``kit/`` defines its own module-level copy of a kit
 helper (vector math, validators, enum names, units, sheet and sketch helpers).
-Import the kit version instead (legacy code that must raise ``NXToolError``
-imports it from ``nx_mcp.legacy_kit``).
+Import the kit version instead.
 """
 
 import ast
@@ -33,18 +32,13 @@ HELPERS = {
 
 # (module, function) copies not removed yet, with the reason. Remove an entry when
 # its module migrates; a stale entry fails the test.
-ALLOWLIST = {
-    (
-        "authoring.py",
-        "page",
-    ): "legacy page shape {items,total,...}; kit.result.page replaces it per domain",
-}
+ALLOWLIST: dict[tuple[str, str], str] = {}
 
 
 def _modules():
     for path in sorted(ROOT.rglob("*.py")):
         rel = path.relative_to(ROOT)
-        if rel.parts[0] in {"kit", "core"} or rel.name == "legacy_kit.py":
+        if rel.parts[0] in {"kit", "core"}:
             continue
         yield rel, path
 

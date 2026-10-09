@@ -16,11 +16,52 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from nx_mcp import side_effects
-from nx_mcp.runtime import NXToolError, ObjectKind, ObjectRef
+from nx_mcp.core.errors import NXToolError
+
+ObjectKind = Literal[
+    "reference_set",
+    "datum",
+    "part",
+    "sketch",
+    "curve",
+    "point",
+    "feature",
+    "body",
+    "component",
+    "face",
+    "edge",
+    "section",
+    "constraint",
+    "expression",
+    "component_pattern",
+    "assembly_constraint",
+    "drawing_sheet",
+    "drawing_view",
+    "dimension",
+    "annotation",
+    "traceline",
+    "explosion",
+    "modeling_view",
+]
+
+
+@dataclass(frozen=True)
+class ObjectRef:
+    """One registered NX object: opaque ``id``, kind, display name and owning part."""
+
+    id: str
+    kind: ObjectKind
+    name: str
+    part_id: str
+
+    def model_dump(self) -> dict[str, str]:
+        """Match the sidecar model interface without importing Pydantic in NX."""
+        return asdict(self)
+
 
 BRIDGE_PROTOCOL_VERSION = 1
 _MAX_MESSAGE_BYTES = 1024 * 1024

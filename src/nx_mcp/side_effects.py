@@ -2,12 +2,11 @@
 
 Tools without an outer undo mark (files, views, session lifecycle) cannot roll
 back, so a failure normally reports ``mutation_outcome: "unknown"``. Most such
-failures are plain argument checks that run before anything happens. The
-executor wraps every handler in a :class:`SideEffectObserver`; the observer is
-"touched" (side effects possible) as soon as the handler, on the executor
-thread:
+failures are plain argument checks that run before anything happens. The kernel
+wraps every handler in a :class:`SideEffectObserver` (``NXServices.observe``) on
+top of the ``Tx`` touch tracking; the observer is "touched" (side effects
+possible) as soon as the handler, on the NX thread:
 
-* reads ``executor.session`` (the origin of every NX object),
 * obtains an NX object from the object registry,
 * calls any NXOpen function or method, including ``Session.GetSession`` and
   ``UFSession.GetUFSession`` (``sys.setprofile`` ``c_call`` events), or runs
@@ -17,21 +16,16 @@ thread:
 
 A failure while the observer is untouched provably happened before any side
 effect and reports ``"not_started"``; anything else stays ``"unknown"``. The one
-blind spot is a property assignment on an NX object a handler cached on the
-executor in an earlier call without any further NXOpen call, which handlers do
-not do before validating their arguments. Read-only lookups that fail (an
-unknown object ID) are rewound with :func:`checkpoint`/:func:`rewind`.
+blind spot is a property assignment on an NX object cached in an earlier call
+without any further NXOpen call, which handlers do not do before validating
+their arguments.
 """
 
 from __future__ import annotations
 
-import contextlib
-import functools
 import os
 import sys
 import threading
-
-from nx_mcp.runtime import NXToolError
 
 _WRITE_FLAGS = (
     os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC | getattr(os, "O_EXCL", 0)
@@ -98,45 +92,6 @@ def touch():
     if observer is not None and not observer.touched:
         observer.touched = True
         observer._stop_profile()
-
-
-def checkpoint():
-    """State to rewind to when a read-only lookup fails."""
-    observer = _current()
-    return (observer, observer.touched if observer is not None else None)
-
-
-def rewind(state):
-    """Forget touches made by a read-only lookup that raised before returning."""
-    observer, touched = state
-    if observer is not None and observer is _current() and touched is False and observer.touched:
-        observer.touched = False
-        observer._start_profile()
-
-
-@contextlib.contextmanager
-def read_only():
-    """Wrap code that only reads NX (lookups, argument checks against the model).
-
-    When it raises NXToolError it changed nothing and handed no NX object to the
-    caller, so the touches it made while looking are forgotten."""
-    state = checkpoint()
-    try:
-        yield
-    except NXToolError:
-        rewind(state)
-        raise
-
-
-def lookup(function):
-    """Decorator form of :func:`read_only` for lookup helpers."""
-
-    @functools.wraps(function)
-    def wrapper(*args, **kwargs):
-        with read_only():
-            return function(*args, **kwargs)
-
-    return wrapper
 
 
 def _is_nx(function):

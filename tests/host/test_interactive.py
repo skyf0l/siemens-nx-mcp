@@ -4,7 +4,7 @@ import time
 import pytest
 
 from nx_mcp.bridge import MainThreadDispatcher
-from nx_mcp.runtime import NXToolError
+from nx_mcp.core.errors import NXToolError
 
 
 def test_expired_queued_mutation_never_executes():
@@ -57,9 +57,10 @@ def test_conservative_bounds_gap():
     assert envelope_gap([0, 0, 0, 10, 10, 10], [13, 14, 10, 23, 24, 20]) == 5
 
 
-def test_agent_ui_lock_is_not_nested_and_handoff_releases_input():
+def test_agent_ui_lock_is_not_nested_and_handoff_releases_input(monkeypatch):
     from types import SimpleNamespace
 
+    from nx_mcp.host import dispatch
     from nx_mcp.interactive import InteractiveHost
 
     class UI:
@@ -103,7 +104,10 @@ def test_agent_ui_lock_is_not_nested_and_handoff_releases_input():
             assert host.ui.count == 0  # FileNew must run without an NX UI lock.
         return {"status": "success"}
 
-    host.executor = SimpleNamespace(execute=execute, _history=[1], _checkpoints={"cp": 1})
+    host.services = SimpleNamespace(history=[1], checkpoints={"cp": 1})
+    monkeypatch.setattr(
+        dispatch, "execute", lambda _services, method, params: execute(method, params)
+    )
     host.execute("nx_list_bodies", {})
     assert host.ui.count == 1  # Reads run inside the held lock: no unlock/relock pair.
     host.execute("nx_create_part", {})
@@ -112,7 +116,7 @@ def test_agent_ui_lock_is_not_nested_and_handoff_releases_input():
     assert host.ui.count == 0 and not enabled and host.mode == "ask"
     # References and checkpoints survive the handover; only an engineer edit seen
     # before the agent's next step invalidates them.
-    assert host.executor._history and host.executor._checkpoints
+    assert host.services.history and host.services.checkpoints
 
 
 @pytest.mark.asyncio
@@ -145,34 +149,6 @@ async def test_interactive_transport_services_health_during_blocked_request():
         server.stop()
 
 
-def test_resident_loop_ticks_without_timer_until_stopped(monkeypatch):
-    from nx_mcp import interactive
-
-    class Host:
-        stopped = False
-        last_error = None
-        ticks = 0
-
-        def tick(self):
-            self.ticks += 1
-            self.stopped = self.ticks == 3
-
-    host = Host()
-    calls = []
-
-    def fake_start(workspace, descriptor, resident=False):
-        calls.append(resident)
-        interactive._host = host
-
-    monkeypatch.setattr(interactive, "_host", None)
-    monkeypatch.setattr(interactive, "start", fake_start)
-    monkeypatch.setattr(interactive, "import_nxopen_namespaces", lambda: ["NXOpen.X (gone)"])
-    pumps = []
-    assert interactive.run_resident("w", "d", interval=0, pump=lambda: pumps.append(1)) is host
-    assert calls == [True] and host.ticks == 3 and len(pumps) == 3
-    assert "NXOpen.X" in host.last_error
-
-
 def test_namespace_import_reports_missing():
     from nx_mcp.interactive import import_nxopen_namespaces
 
@@ -181,14 +157,15 @@ def test_namespace_import_reports_missing():
     ]
 
 
-def test_api_error_carries_traceback():
-    from nx_mcp.runtime import api_error
+def test_unexpected_errors_carry_a_traceback_in_development(monkeypatch):
+    from nx_mcp.core.errors import classify
 
+    monkeypatch.setenv("NX_MCP_DEV", "1")
     try:
         import nx_mcp_no_such_module  # noqa: F401
     except ImportError as exc:
-        err = api_error(exc)
-    assert err.code == "NX_API_ERROR"
+        err = classify(exc)
+    assert err.code == "NX_ERROR"
     assert err.details["exception_type"] == "ModuleNotFoundError"
     assert "nx_mcp_no_such_module" in err.details["traceback"]
 
@@ -310,3 +287,28 @@ def test_request_arrival_ticks_at_once_or_right_after_a_busy_tick():
     host.busy = True
     host.bridge_ready()
     assert host.tick.call_count == 1 and host._rewake  # the busy tick wakes again
+
+
+def test_start_options_set_agent_control_and_dev_title(monkeypatch):
+    from types import SimpleNamespace
+
+    from nx_mcp import interactive
+
+    def init(self, *args):
+        self.mode, self.auto_start, self.stopped = "manual", False, False
+        self.status = lambda: {}
+        self.services = SimpleNamespace(dev_tools={})
+
+    monkeypatch.setattr(interactive, "_host", None)
+    monkeypatch.setattr(interactive.InteractiveHost, "__init__", init)
+    interactive.start("w", "d", True, agent_control=True, dev=True)
+    host = interactive._host
+    assert host.mode == "agent" and host.dev
+    host.requested_mode = host.running_method = None
+    host.waiting_count = 0
+    host.panel_text = lambda: ""
+    assert host.panel_state()[1] == "NX MCP DEV — Agent drives"
+    assert "nx_dev_python" in host.services.dev_tools  # Dev launcher only.
+    host.stopped = True
+    interactive.start("w", "d", True)
+    assert "nx_dev_python" not in interactive._host.services.dev_tools

@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 
 from nx_mcp.bridge import DescriptorBridgeClient
-from nx_mcp.runtime import NXToolError
+from nx_mcp.core.errors import NXToolError
 
 
 async def main():

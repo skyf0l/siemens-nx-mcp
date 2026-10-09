@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-BOOTSTRAP = Path(__file__).resolve().parents[1] / "nx_app" / "startup" / "nx_mcp_startup.py"
+BOOTSTRAP = Path(__file__).resolve().parents[2] / "nx_app" / "startup" / "nx_mcp_startup.py"
 
 
 def load(tmp_path, monkeypatch, dev=True):

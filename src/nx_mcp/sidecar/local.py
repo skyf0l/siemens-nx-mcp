@@ -21,7 +21,7 @@ class SidecarServices(Services):
     runs = "sidecar"
 
     def __init__(self, workspace, *, build=None, dev=None) -> None:
-        from nx_mcp.recovery import OperationStore
+        from nx_mcp.core.receipts import OperationStore
 
         self.workspace = workspace
         self.store = OperationStore(workspace.root)

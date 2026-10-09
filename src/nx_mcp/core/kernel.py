@@ -286,9 +286,9 @@ def _readback(spec, services: Services, part, before: dict, mark) -> dict:  # ga
 
 
 def _refresh(spec, services: Services, tx: Tx) -> list:  # gate 13
-    """Managed annotations after a commit, inside the call's undo mark: the legacy
-    refresher (until F4), then every ``@refresher`` hook of every domain."""
-    rows = list(services.refresh_annotations(spec) or [])
+    """Managed annotations after a commit, inside the call's undo mark: every
+    ``@refresher`` hook of every domain."""
+    rows: list = []
     for _kind, refresh in sorted(services.refreshers().items()):
         tx.checkpoint()
         rows.extend(refresh(tx, None) or [])

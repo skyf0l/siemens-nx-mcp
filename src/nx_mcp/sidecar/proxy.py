@@ -23,10 +23,9 @@ from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
 from pydantic import ValidationError
 
 from nx_mcp.core import errors, evidence
-from nx_mcp.core.errors import NXError
+from nx_mcp.core.errors import NXError, NXToolError
 from nx_mcp.core.receipts import new_operation_id
 from nx_mcp.core.validate import validate
-from nx_mcp.runtime import NXToolError
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
 

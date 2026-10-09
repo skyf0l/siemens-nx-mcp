@@ -64,7 +64,9 @@ def test_model_commit_converts_units_marks_and_reports_changes(tmp_path):
 def test_annotation_refresh_rows_join_modified(svc):
     spec = SPECS["nx_create_block"]
     assert spec.refresh_annotations  # model tool in a geometry domain
-    svc.refreshed = [{"id": "a:1", "kind": "annotation"}]
+    svc.refreshers = lambda: {
+        "annotation": lambda tx, objects: [{"id": "a:1", "kind": "annotation"}]
+    }
     ok = run(svc, "nx_create_block", size=1)
     assert ok["changes"]["modified"] == [{"id": "a:1", "kind": "annotation"}]
 
@@ -76,14 +78,10 @@ def test_gate_13_runs_every_refresher_hook_under_the_calls_mark(svc):
         calls.append((tx.spec.name, objects, tx.mark is not None))
         return [{"id": "t:1", "kind": "drawing_table"}]
 
-    svc.refreshed = [{"id": "a:1", "kind": "annotation"}]
     svc.refreshers = lambda: {"drawing_table": tables}
     ok = run(svc, "nx_create_block", size=1)
     assert calls == [("nx_create_block", None, True)]
-    assert ok["changes"]["modified"] == [
-        {"id": "a:1", "kind": "annotation"},
-        {"id": "t:1", "kind": "drawing_table"},
-    ]
+    assert ok["changes"]["modified"] == [{"id": "t:1", "kind": "drawing_table"}]
 
     def broken(tx, objects):
         fail("NX_STALE_REFERENCE", "a managed table lost its source")

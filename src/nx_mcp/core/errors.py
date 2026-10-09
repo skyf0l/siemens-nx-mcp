@@ -277,11 +277,10 @@ def dev_mode() -> bool:
 
 
 class NXToolError(Exception):
-    """A recoverable NX error in the legacy shape (``code``, ``message``, ``details``).
+    """A recoverable NX error in the bridge shape (``code``, ``message``, ``details``).
 
-    Defined here so :class:`NXError` can subclass it: legacy ``except NXToolError``
-    blocks and the legacy executor handle kit and kernel errors natively.
-    ``nx_mcp.runtime`` re-exports it. Deleted with the legacy executor (F4).
+    Raised for bridge-level failures (transport, protocol, unknown method);
+    :class:`NXError` subclasses it, so every tool failure crosses the bridge the same way.
     """
 
     def __init__(

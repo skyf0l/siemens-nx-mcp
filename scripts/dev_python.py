@@ -1,8 +1,8 @@
 """Run a Python snippet inside NX through the development launcher's bridge.
 
-Development only (examples/start_nx_interactive_dev_2406.py); hold the NX lock
+Development only (the startup app with NX_MCP_DEV=1); hold the NX lock
 (scripts/dev_lock.py). Names available: NXOpen, session, part (work part),
-executor, resolve(object_id). print() output and `result` are returned. The
+services (NXServices), resolve(ref). print() output and `result` are returned. The
 snippet runs under an undo mark: an exception rolls its model changes back.
 
     python scripts/dev_python.py "print(dir(NXOpen.Features.HoleFeatureBuilder))"

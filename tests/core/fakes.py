@@ -12,9 +12,9 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 from nx_mcp.bridge import ObjectRegistry
+from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import Counter, References
 from nx_mcp.core.tx import Services
-from nx_mcp.recovery import OperationStore
 from nx_mcp.workspace import Workspace
 
 _tags = itertools.count(1000)
@@ -84,7 +84,6 @@ class FakeServices(Services):
         self.owned: set[str] = set()
         self.application = "modeling"
         self.fail_undo = False
-        self.refreshed: list[dict] = []
         self.epoch = 0
         self.current = None  # current drawing sheet
         self.camera = {"scale": 1.0}
@@ -270,9 +269,6 @@ class FakeServices(Services):
     def invalidate_parts(self, parts):
         for part in parts:
             self.registry.invalidate_part(self.part_key(part))
-
-    def refresh_annotations(self, spec):
-        return list(self.refreshed)
 
     def record_history(self, mark, part, operation_id, tool):
         self.history.append({"mark": mark, "operation_id": operation_id, "method": tool})

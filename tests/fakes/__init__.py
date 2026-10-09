@@ -1,7 +1,8 @@
 """Stateful NX seams for failure/recovery tests; not a geometric kernel oracle.
 
 The fake NX objects live in ``tests.kit.objects`` (the shared fake kit); the
-``rig`` fixture wires them to the legacy ``HardenedExecutor``.
+``rig`` fixture wires them to the host's ``NXServices`` (``rig.e``) and runs bridge
+calls through ``host.dispatch.execute`` (``rig.run``).
 """
 
 from types import ModuleType
@@ -10,7 +11,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from nx_mcp.hardened import HardenedExecutor
+from nx_mcp.host import dispatch
+from nx_mcp.host.services import NXServices
 from nx_mcp.workspace import Workspace
 from tests.kit.objects import (  # noqa: F401  (re-exported for legacy tests)
     Body,
@@ -66,10 +68,13 @@ def rig(tmp_path, monkeypatch):
         Part(session, __import__("pathlib").Path(path)),
         NS(Dispose=Mock()),
     )
-    e = HardenedExecutor(session, nx, "v2606 fake seam", Workspace(tmp_path))
+    e = NXServices(session, nx, "v2606 fake seam", Workspace(tmp_path))
+
+    def run(method, params):
+        return dispatch.execute(e, method, params)
 
     def ref(obj, kind="body"):
-        return e._reference(obj, kind, part, kind)["id"]
+        return e.register(obj, kind, part, kind)["id"]
 
     def object_for(tag):
         return next(entry.value for entry in e.objects._objects.values() if entry.value.Tag == tag)
@@ -150,8 +155,15 @@ def rig(tmp_path, monkeypatch):
 
     session.DisplayManager = NS(NewDisplayModification=modification)
     # The test part stands for a part the agent created (part-ownership gate 6);
-    # ownership tests revoke it with services_for(e).x._owned_parts.clear().
-    from nx_mcp.host.dispatch import services_for
-
-    services_for(e).own(part)
-    return NS(e=e, session=session, part=part, nx=nx, uf=uf, ref=ref, modifications=modifications)
+    # ownership tests revoke it with e.owned_parts.clear().
+    e.own(part)
+    return NS(
+        e=e,
+        run=run,
+        session=session,
+        part=part,
+        nx=nx,
+        uf=uf,
+        ref=ref,
+        modifications=modifications,
+    )

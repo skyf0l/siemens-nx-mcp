@@ -49,7 +49,7 @@
   "nx_get_sheet_metal_defaults": {
     "v2406": {
       "checks": 30,
-      "recorded": "2026-10-09T14:32:35Z",
+      "recorded": "2026-10-09T17:29:55Z",
       "scenario": "acceptance/sheet_metal/defaults.json",
       "scenario_sha256": "2fe16b227736cc75a2eeed764b56bd518faf4228f53b4dfa31fee18114591f56",
       "source_sha256": "02508ec6c439e267d5637240012cb25e2d2fae8d1c1e42b5ade36851b5b06753",

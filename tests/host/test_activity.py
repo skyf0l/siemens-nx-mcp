@@ -1,7 +1,7 @@
 """Agent activity history shown in the NX MCP panel and written to activity.log."""
 
 from nx_mcp.activity import LINE_WIDTH, Activity, created_name
-from nx_mcp.runtime import NXToolError
+from nx_mcp.core.errors import NXToolError
 
 T = 1_791_460_000.0  # Fixed wall-clock start for readable assertions.
 

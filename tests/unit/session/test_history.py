@@ -6,7 +6,6 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from nx_mcp.host.legacy_services import LegacyServices
 from tests.kit import fake_nx, run
 from tests.kit.kernel import services
 from tests.kit.objects import Feature
@@ -160,17 +159,21 @@ def test_expired_foreign_and_cross_part_checkpoints_are_refused(nx):
     assert bad.error["code"] == "NX_INVALID_ARGUMENT"
 
 
-def test_host_history_is_the_executor_list_the_panel_clears():
-    """InteractiveHost._invalidate_references clears executor._history/_checkpoints
-    on engineer edits; the catalogue tools must read those very objects."""
-    history, checkpoints = [{"mark": 1}], {"cp_x": {}}
-    host = NS(x=NS(_history=history, _checkpoints=checkpoints))
-    assert LegacyServices.undo_history(host) is history
-    assert LegacyServices.undo_checkpoints(host) is checkpoints
+def test_host_history_is_the_list_the_panel_clears(tmp_path):
+    """InteractiveHost._invalidate_references clears the services' history and
+    checkpoints on engineer edits; the catalogue tools must read those very objects."""
+    from nx_mcp.host.services import NXServices
+    from nx_mcp.workspace import Workspace
+
     marks = {1}
-    host.x.session = NS(DoesUndoMarkExist=lambda mark, _: mark in marks)
-    host.mark_exists = lambda mark: LegacyServices.mark_exists(host, mark)
+    session = NS(DoesUndoMarkExist=lambda mark, _: mark in marks)
+    host = NXServices(session, NS(), "test", Workspace(tmp_path))
     host.part_key = lambda part: "part_1"
-    LegacyServices.record_history(host, 2, object(), "op_dead", "nx_undo_operation")
-    LegacyServices.record_history(host, 1, object(), "op_live", "nx_delete_objects")
+    history, checkpoints = host.history, host.checkpoints
+    assert host.undo_history() is history and host.undo_checkpoints() is checkpoints
+    history.append({"mark": 1})
+    host.record_history(2, object(), "op_dead", "nx_undo_operation")
+    host.record_history(1, object(), "op_live", "nx_delete_objects")
     assert [h.get("operation_id") for h in history] == [None, "op_live"]
+    host.engineer_changed()
+    assert host.undo_history() is history and not history

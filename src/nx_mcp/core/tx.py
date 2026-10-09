@@ -5,9 +5,8 @@ and ``tx.part`` mark the transaction *touched*; a handler failure while
 untouched reports ``not_started``.
 
 ``Services`` documents what the kernel needs from the NX side. In production it
-is ``nx_mcp.host.legacy_services.LegacyServices`` (the existing executor's
-operation store, object registry, undo marks, snapshots and workspace); unit
-tests may supply their own implementation.
+is ``nx_mcp.host.services.NXServices`` (operation store, object registry, undo
+marks, snapshots and workspace); unit tests may supply their own implementation.
 """
 
 from __future__ import annotations
@@ -108,7 +107,6 @@ class Services:
     def invalidate(self, before: dict, after: dict, topology: bool) -> None: ...
     def invalidate_parts(self, parts) -> None: ...
     def forget_parts(self, keys) -> None: ...  # closed parts (by part_key): refs, undo, owner
-    def refresh_annotations(self, spec) -> list: ...  # legacy-managed annotations (F4: gone)
 
     def refreshers(self) -> dict:
         """The ``@refresher`` hooks gate 13 runs, ``{kind: fn(tx, objects or None)}``.

@@ -77,7 +77,7 @@
   "nx_create_datum_point": {
     "v2406": {
       "checks": 6,
-      "recorded": "2026-10-09T13:07:54Z",
+      "recorded": "2026-10-09T17:19:51Z",
       "scenario": "acceptance/modeling/datum_point.json",
       "scenario_sha256": "75a141ee6aa44ae0f5438e236e189b682724e921f183258b4e50b1f40dad2fce",
       "source_sha256": "09709e0657b14a4198982ab4592892e7698754fca7c0fb5ee4f2303f488da93c",

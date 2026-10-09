@@ -3,8 +3,9 @@
 import pytest
 
 from nx_mcp.bridge import BridgeClient, BridgeServer
+from nx_mcp.core.errors import NXToolError
 from nx_mcp.domains.session.results import nx_get_result
-from nx_mcp.result_transport import bound_result
+from nx_mcp.result_transport import bound_result, encoded
 from tests.unit.parts_files.support import side
 
 
@@ -51,3 +52,43 @@ async def test_bridge_bounds_large_native_commit(tmp_path):
         assert calls == ["mutate"]
     finally:
         server.stop()
+
+
+def test_result_storage_failure_preserves_commit_and_restore(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    def fail(*_):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_bytes", fail)
+    with pytest.raises(NXToolError) as error:
+        bound_result(
+            {
+                "operation_id": "op",
+                "mutation_outcome": "committed",
+                "restore_id": "restore",
+                "objects": ["x" * 4096] * 300,
+            },
+            tmp_path,
+        )
+    assert error.value.code == "NX_RESULT_STORAGE_FAILED"
+    assert error.value.details["mutation_outcome"] == "committed"
+    assert error.value.details["restore_id"] == "restore"
+
+
+def test_nested_oversize_pages_remain_bounded_and_addressable(tmp_path):
+    value = {str(i): ["x" * 2048] * 150 for i in range(120)}
+    full = {
+        "status": "success",
+        "operation_id": "op",
+        "mutation_outcome": "committed",
+        "objects": value,
+    }
+    receipt = bound_result(full, tmp_path / ".nx-mcp" / "bridge-results")
+    key = receipt["full_result"]["id"]
+    page = side(tmp_path, nx_get_result, result_id=key, field="/objects", offset=100, limit=20)
+    assert list(page.data["value"]) == [str(i) for i in range(100, 120)]
+    assert page.envelope["page"]["total"] == 120 and page.envelope["page"]["next_offset"] is None
+    assert len(encoded(page.envelope)) < 512 * 1024
+    child = side(tmp_path, nx_get_result, result_id=key, field="/objects/101", offset=140, limit=10)
+    assert len(child.data["items"]) == 10 and child.data["items"][0] == "x" * 2048

@@ -7,8 +7,8 @@ import json
 import uuid
 from pathlib import Path
 
+from nx_mcp.core.errors import NXToolError
 from nx_mcp.kit.snapshots import LOCK, maintain, settings
-from nx_mcp.runtime import NXToolError
 
 
 def encoded(value):

@@ -22,7 +22,7 @@
   "nx_create_directory": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-09T13:12:15Z",
+      "recorded": "2026-10-09T17:19:52Z",
       "scenario": "acceptance/parts_files/create_directory.json",
       "scenario_sha256": "76dd8d78b4517b0aca423f2f36a401c820bca3c443471bc7c25da02faa11cf9c",
       "source_sha256": "9d35b73ed61b6bb90d5a30c40ba68f8d52b10a7600d1265d602702c46ac3f68b",

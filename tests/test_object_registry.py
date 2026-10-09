@@ -1,7 +1,7 @@
 import pytest
 
 from nx_mcp.bridge import ObjectRegistry
-from nx_mcp.runtime import NXToolError
+from nx_mcp.core.errors import NXToolError
 
 
 def test_object_reference_resolves_only_in_its_part_session():

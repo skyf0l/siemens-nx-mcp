@@ -145,7 +145,7 @@
   "nx_finish_sketch": {
     "v2406": {
       "checks": 20,
-      "recorded": "2026-10-09T13:20:44Z",
+      "recorded": "2026-10-09T17:29:35Z",
       "scenario": "acceptance/sketch/finish_sketch.json",
       "scenario_sha256": "70b4b772b75f27b790a71d211e4e9a3230157c4ed5bf46c330ff53d1688b320a",
       "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",

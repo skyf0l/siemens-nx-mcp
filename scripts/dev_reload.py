@@ -1,6 +1,7 @@
-"""Reload the NX-side MCP host from disk via the development journal and wait.
+"""Reload the NX-side MCP host from disk via the NX startup application and wait.
 
-Requires examples/start_nx_interactive_dev_2406.py running in NX. Exit code 0 when
+Requires NX started with the startup app in development mode
+(scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1). Exit code 0 when
 the new host started (and, with --wait-agent, the agent has control), 1 when
 the code failed to load (the traceback is printed), 2 on timeout.
 """
