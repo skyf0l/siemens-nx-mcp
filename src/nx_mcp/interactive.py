@@ -52,8 +52,10 @@ HOLD_SECONDS = 60
 # Auto: a step waits at most this long while the engineer is busy in NX. The
 # bridge (QUEUE_TIMEOUT) waits longer, so this answer always arrives first.
 BUSY_WAIT_SECONDS = 120
-PAD_RIGHT = 16  # Panel margin right of the text and Stop bridge (96-DPI px).
-PANEL_ROWS = 8  # Panel body lines: running/idle line or request card, then history.
+PAD_RIGHT = 16  # Panel margin right of the text and Stop bridge, in pixels.
+MIN_WINDOW = (560, 300)  # Smallest panel window the engineer can resize to.
+MIN_CLIENT = (520, 200)  # Layout floor while Windows shrinks the client area.
+PANEL_ROWS = 8  # Panel body lines at the opening size; resizing changes host.panel_rows.
 NOTICE_SECONDS = 30  # A notice replaces the idle line this long.
 
 MODES = ("auto", "ask")
@@ -240,21 +242,18 @@ class ControlPanel:
         self._class = cls
         if not self.user.RegisterClassW(ctypes.byref(cls)):
             raise ctypes.WinError(ctypes.get_last_error())
-        # Layout in 96-DPI units, scaled to NX's DPI so the text fits the controls.
-        scale = self._dpi() / 96
-
-        def s(value):
-            return round(value * scale)
-
+        # Resizable (WS_THICKFRAME), opening at the usual size: the activity list
+        # grows with the window, the buttons stay at the bottom and Stop bridge at
+        # the right, PAD_RIGHT inside the edge (_layout places every control).
         self.hwnd = self.user.CreateWindowExW(
             0x80,
             cls.lpszClassName,
             "NX MCP control",
-            0x10C80000,
-            s(40),
-            s(60),
-            s(700),
-            s(321),
+            0x10CC0000,
+            40,
+            60,
+            680,
+            321,
             self.host.main_hwnd,
             None,
             None,
@@ -263,65 +262,42 @@ class ControlPanel:
         if not self.hwnd:
             raise ctypes.WinError(ctypes.get_last_error())
 
-        # Controls end PAD_RIGHT inside the client area: the text and Stop bridge
-        # never touch the window's right edge.
-        rect = w.RECT()
-        if self.user.GetClientRect(self.hwnd, ctypes.byref(rect)) and rect.right > s(400):
-            right = rect.right - s(PAD_RIGHT)
-        else:
-            right = s(700 - 16 - PAD_RIGHT)  # frame estimate
-
-        def control(cls_name, text, style, x, y, width, height, ident=None):
+        def control(cls_name, text, style, ident=None):
             return self.user.CreateWindowExW(
-                0,
-                cls_name,
-                text,
-                style,
-                s(x),
-                s(y),
-                width,
-                s(height),
-                self.hwnd,
-                ident,
-                None,
-                None,
+                0, cls_name, text, style, 0, 0, 0, 0, self.hwnd, ident, None, None
             )
 
         # Mode: (•) Auto ( ) Ask me first. BS_RADIOBUTTON (not auto): a click
         # only asks for the mode; the host sets the check marks.
-        mode_label = control("STATIC", "Mode:", 0x50000000, 12, 12, s(48), 20)
+        self.mode_label = control("STATIC", "Mode:", 0x50000000)
         self.radios = {
-            "auto": control("BUTTON", "Auto", 0x50010004, 66, 8, s(72), 24, 111),
-            "ask": control("BUTTON", "Ask me first", 0x50000004, 144, 8, s(124), 24, 113),
+            "auto": control("BUTTON", "Auto", 0x50010004, 111),
+            "ask": control("BUTTON", "Ask me first", 0x50000004, 113),
         }
         # One list, newest first: the running step (or idle line / request card) on
         # top, then recent activity. The title says the mode and what the agent does.
         # SS_LEFTNOWORDWRAP (0xC): an entry never wraps into the next one; a line too
         # long for a high-DPI font is clipped at the right edge instead.
-        self.label = control(
-            "STATIC", "Starting interactive bridge...", 0x5000000C, 12, 38, right - s(12), 164
-        )
+        self.label = control("STATIC", "Starting interactive bridge...", 0x5000000C)
         # Production only: the engineer allows the agent to change the work part
         # (a part the agent neither created nor opened). BS_CHECKBOX, hidden until
         # needed; the host owns the checked state (show_grant).
-        self.grant = control("BUTTON", "", 0x40010002, 12, 206, right - s(12), 22, ID_GRANT)
+        self.grant = control("BUTTON", "", 0x40010002, ID_GRANT)
         # The request card's answers replace "Open log" while the agent waits for
         # one. Stop sits apart so it is not hit by mistake.
-        self.run_once = control("BUTTON", "Run once", 0x40010000, 12, 234, s(110), 28, ID_RUN_ONCE)
-        self.run_auto = control(
-            "BUTTON", "Run && switch to Auto", 0x40010000, 128, 234, s(170), 28, ID_RUN_AUTO
-        )
-        self.decline = control("BUTTON", "Not now", 0x40010000, 304, 234, s(110), 28, ID_DECLINE)
-        self.open_log = control("BUTTON", "Open log", 0x50010000, 12, 234, s(110), 28, ID_OPEN_LOG)
-        stop = control("BUTTON", "Stop bridge", 0x50010000, 0, 234, s(130), 28, ID_STOP)
-        self.user.MoveWindow(stop, right - s(130), s(234), s(130), s(28), False)
+        self.run_once = control("BUTTON", "Run once", 0x40010000, ID_RUN_ONCE)
+        self.run_auto = control("BUTTON", "Run && switch to Auto", 0x40010000, ID_RUN_AUTO)
+        self.decline = control("BUTTON", "Not now", 0x40010000, ID_DECLINE)
+        self.open_log = control("BUTTON", "Open log", 0x50010000, ID_OPEN_LOG)
+        self.stop = control("BUTTON", "Stop bridge", 0x50010000, ID_STOP)
         # The dialog font fits a full activity line; the default system font does not.
+        self.line_height = 16
         try:
             gdi = ctypes.WinDLL("gdi32")
             gdi.GetStockObject.restype = ctypes.c_void_p
             font = gdi.GetStockObject(17)  # DEFAULT_GUI_FONT
             children = (
-                mode_label,
+                self.mode_label,
                 *self.radios.values(),
                 self.label,
                 self.grant,
@@ -329,24 +305,53 @@ class ControlPanel:
                 self.run_auto,
                 self.decline,
                 self.open_log,
-                stop,
+                self.stop,
             )
             for child in children:
                 self.user.SendMessageW(child, 0x30, font, 1)  # WM_SETFONT
+            self.line_height = self._text_height(gdi, font) or 16
         except Exception as exc:
             self.host.last_error = "Panel font: " + str(exc)
+        rect = w.RECT()
+        if self.user.GetClientRect(self.hwnd, ctypes.byref(rect)):
+            self._layout(rect.right, rect.bottom)
 
-    def _dpi(self):
-        """NX's DPI (96 when Windows scales NX itself or the call is unavailable)."""
-        from ctypes import wintypes as w
-
+    def _text_height(self, gdi, font):
+        """Pixel height of one activity line in the panel font (0 if unknown)."""
+        self.user.GetDC.restype = ctypes.c_void_p
+        self.user.GetDC.argtypes = [ctypes.c_void_p]
+        self.user.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        gdi.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        gdi.GetTextMetricsW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        dc = self.user.GetDC(self.label)
+        if not dc:
+            return 0
         try:
-            self.user.GetDpiForWindow.argtypes = [w.HWND]
-            self.user.GetDpiForWindow.restype = w.UINT
-            dpi = self.user.GetDpiForWindow(self.host.main_hwnd) if self.host.main_hwnd else 0
-            return dpi if 96 <= dpi <= 480 else 96
-        except (AttributeError, OSError):
-            return 96
+            gdi.SelectObject(dc, font)
+            metrics = (ctypes.c_long * 15)()  # TEXTMETRICW starts with tmHeight
+            return metrics[0] if gdi.GetTextMetricsW(dc, metrics) else 0
+        finally:
+            self.user.ReleaseDC(self.label, dc)
+
+    def _layout(self, width, height):
+        """Place the controls in a width x height client area (WM_SIZE)."""
+        if not hasattr(self, "stop"):
+            return  # WM_SIZE while CreateWindowEx builds the window
+        move = self.user.MoveWindow
+        right = max(width - PAD_RIGHT, MIN_CLIENT[0] - PAD_RIGHT)
+        buttons = max(height - 12 - 28, MIN_CLIENT[1] - 12 - 28)
+        move(self.mode_label, 12, 12, 48, 20, True)
+        move(self.radios["auto"], 66, 8, 72, 24, True)
+        move(self.radios["ask"], 144, 8, 124, 24, True)
+        list_height = buttons - 28 - 4 - 38
+        move(self.label, 12, 38, right - 12, list_height, True)
+        move(self.grant, 12, buttons - 28, right - 12, 22, True)
+        move(self.run_once, 12, buttons, 110, 28, True)
+        move(self.run_auto, 128, buttons, 170, 28, True)
+        move(self.decline, 304, buttons, 110, 28, True)
+        move(self.open_log, 12, buttons, 110, 28, True)
+        move(self.stop, right - 130, buttons, 130, 28, True)
+        self.host.panel_rows = max(3, min(40, list_height // max(self.line_height, 1)))
 
     def _message(self, hwnd, msg, wp, lp):
         try:
@@ -368,6 +373,13 @@ class ControlPanel:
                     self.host.grant_toggle_requested = True
                 elif ident == ID_STOP:
                     self.host.stop_requested = True
+                return 0
+            if msg == 0x0005:  # WM_SIZE: client width and height in lp
+                self._layout(lp & 0xFFFF, (lp >> 16) & 0xFFFF)
+                return 0
+            if msg == 0x0024:  # WM_GETMINMAXINFO: ptMinTrackSize is longs 6 and 7
+                info = ctypes.cast(lp, ctypes.POINTER(ctypes.c_long * 10)).contents
+                info[6], info[7] = MIN_WINDOW
                 return 0
             if msg == 0x10:
                 self.host.stop_requested = True
@@ -428,6 +440,7 @@ class InteractiveHost:
     timer = None
     mode = "auto"
     requested_mode = None
+    panel_rows = PANEL_ROWS
     answer_requested = None
     # The request card: calls waiting for the engineer's answer.
     card = ()
@@ -741,7 +754,7 @@ class InteractiveHost:
         return list(reversed(self.activity.recent(rows))) if rows > 0 else []
 
     def _with_history(self, lines):
-        return "\n".join(lines + self.history_lines(PANEL_ROWS - len(lines)))
+        return "\n".join(lines + self.history_lines(self.panel_rows - len(lines)))
 
     def _summary_of(self, pending):
         if pending.summary is None:
