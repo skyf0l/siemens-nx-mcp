@@ -73,6 +73,38 @@ def _hosts(seeds):
     return {int(b.Tag): b for f in seeds for b in common.feature_bodies(f)}
 
 
+UNITE_TEXT = "Unite copies made as separate bodies into the seed's body (they must touch it)"
+
+
+class United(TypedDict, total=False):
+    united: Annotated[int, Doc("Copies united into the seed's body (unite)")]
+    unite_feature: result.Row
+
+
+def _unite_host(hosts, unite, field="/unite"):
+    """The one body ``unite`` merges into (checked before NX), else None."""
+    if not unite:
+        return None
+    if len(hosts) != 1:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "unite needs seed features of one body"
+            + (f": they own {len(hosts)} bodies" if hosts else ": they own no body"),
+            field=field,
+            hint="Pattern or mirror the features of one body per call, or unite the bodies "
+            "afterwards with nx_create_boolean",
+        )
+    return next(iter(hosts.values()))
+
+
+def _unite_new(tx, host, new):
+    """``(bodies, extra data)`` after uniting the ``new`` copy bodies into ``host``."""
+    if host is None or not new:
+        return None, {}
+    feature, body = common.unite_into(tx, host, new)
+    return [body], {"united": len(new), "unite_feature": tx.ref(feature, kind="feature")}
+
+
 def _update(tx):
     return tx.nx.SmartObject.UpdateOption.WithinModeling
 
@@ -111,12 +143,14 @@ def _expression(expr, value):
 # Mirror
 
 
-class MirrorData(common.FeatureData):
+class MirrorData(common.FeatureData, United):
     target: str
     count: int
     new_bodies: Annotated[
-        int, Doc("New bodies: every mirrored body, or mirrors of a feature with its own body")
-    ]
+        int,
+        Doc("New bodies: every mirrored body, or mirrors of a feature with its own body "
+            "(0 after unite)"),
+    ]  # fmt: skip
 
 
 def _mirror_summary(a, say):
@@ -159,13 +193,14 @@ def _mirror_bodies(tx, refs, plane, keep_original):
     return {**out, "target": "bodies", "count": len(made), "new_bodies": len(made)}
 
 
-def _mirror_features(tx, refs, plane):
+def _mirror_features(tx, refs, plane, unite):
     with tx.checks():
         seeds = _seeds(tx, refs)
         hosts = _hosts(seeds)
         if not hosts:
             fail("NX_WRONG_GEOMETRY", "The features own no body to mirror into",
                  field="/features")  # fmt: skip
+        host = _unite_host(hosts, unite)
     datum, _origin, _normal = _plane(tx, plane, "/plane")
     before = measure.volume(tx, list(hosts.values()))
     existing = {int(b.Tag) for b in tx.part.Bodies}
@@ -183,6 +218,10 @@ def _mirror_features(tx, refs, plane):
     new = [b for b in tx.part.Bodies if int(b.Tag) not in existing]
     out = common.result_of(tx, feature, [*hosts.values(), *new])
     common.changed(before, out["volume"], "differs")
+    united, extra = _unite_new(tx, host, new)
+    if united is not None:
+        out = {**common.result_of(tx, feature, united), **extra}
+        new = []
     return {**out, "target": "features", "count": len(seeds), "new_bodies": len(new)}
 
 
@@ -205,10 +244,14 @@ def nx_create_mirror(
     bodies: BodyList | None = None,
     features: FeatureList | None = None,
     keep_original: Annotated[bool, Doc("bodies only: false hides the sources")] = True,
+    unite: Annotated[
+        bool, Doc("features only: unite separate-body mirrors into the seed's body")
+    ] = False,
 ) -> MirrorData:
     """Mirror solid bodies into new bodies, or features into their own bodies, about a
     plane (associative to a datum plane). target selects which list is used. Mirrors of a
-    feature that made its own body are new bodies (new_bodies)."""
+    feature that made its own body are new bodies (new_bodies) unless unite merges them
+    into the seed's body."""
     wanted, other = ("bodies", "features") if target == "bodies" else ("features", "bodies")
     given: dict[str, list[str] | None] = {"bodies": bodies, "features": features}
     if not given[wanted]:
@@ -222,7 +265,14 @@ def nx_create_mirror(
                 "A feature mirror keeps its seed features",
                 field="/keep_original",
             )
-        return _mirror_features(tx, features, plane)
+        return _mirror_features(tx, features, plane, unite)
+    if unite:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "unite applies to target features",
+            field="/unite",
+            hint="Unite mirrored bodies with nx_create_boolean",
+        )
     return _mirror_bodies(tx, bodies, plane, keep_original)
 
 
@@ -330,15 +380,17 @@ Parameters = Annotated[
 ]
 
 
-class PatternData(TypedDict):
+class PatternData(United):
     feature: result.Row
-    bodies: list[result.Row]
+    bodies: Annotated[list[result.Row], Doc("The seed's body first, then the new bodies")]
     volume: float
     layout: str
     count: int
     new_bodies: Annotated[
-        int, Doc("Instances NX built as separate bodies (a seed that made its own body)")
-    ]
+        int,
+        Doc("Instances NX built as separate bodies (a seed that made its own body; 0 after "
+            "unite)"),
+    ]  # fmt: skip
 
 
 def _pattern_summary(a, say):
@@ -611,17 +663,19 @@ def nx_create_pattern(
     features: FeatureList,
     layout: Layout,
     parameters: Parameters,
+    unite: Annotated[bool, Doc(UNITE_TEXT)] = False,
 ) -> PatternData:
     """Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a
     face, or at explicit points. Counts include the seed; NX computes spiral and fill counts.
-    Instances of a feature that made its own body are new bodies (new_bodies); a circular
-    angle is the step between instances."""
+    A seed with its own body makes new bodies (new_bodies) unless unite; a circular angle
+    is the step between instances."""
     p = dict(parameters)
     total = _check(layout, p)
     with tx.checks():
         seeds = _seeds(tx, features)
         _resolve(tx, layout, p)
-    hosts = _hosts(seeds)
+        hosts = _hosts(seeds)
+        host = _unite_host(hosts, unite)
     before = measure.volume(tx, list(hosts.values())) if hosts else 0.0
     existing = {int(b.Tag) for b in tx.part.Bodies}
     G = tx.nx.GeometricUtilities
@@ -644,4 +698,8 @@ def nx_create_pattern(
     out = common.result_of(tx, feature, bodies)
     if hosts:
         common.changed(before, out["volume"], "differs")
+    united, extra = _unite_new(tx, host, new)
+    if united is not None:
+        out = {**common.result_of(tx, feature, united), **extra}
+        new = []
     return {**out, "layout": layout, "count": count, "new_bodies": len(new)}

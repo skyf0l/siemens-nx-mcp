@@ -37,8 +37,9 @@ if TYPE_CHECKING:
     from nx_mcp.sidecar.local import SidecarServices
 
 COMPACT_ITEMS = 20
-# Compact changes list at most this many rows when data names none of them.
-COMPACT_CHANGE_ROWS = 5
+# A compact list of more references (changes rows, a mutation's data bodies) shows only
+# its first and last; the full list stays in the result store.
+COMPACT_REF_ROWS = 3
 # Terse changes only when they save more than the result_id/omitted/counts they add.
 TERSE_MIN_SAVING = 160
 # NX's internal helpers: auto-named expressions (p12) and sketch-internal geometry
@@ -163,42 +164,77 @@ def _data_refs(value, *, top: bool) -> set:
     return found
 
 
+def _ends(rows: list) -> list:
+    """``rows`` when there are at most COMPACT_REF_ROWS, else the first and the last."""
+    return rows if len(rows) <= COMPACT_REF_ROWS else [rows[0], rows[-1]]
+
+
+def _cut_note(total: int, kept: int) -> dict:
+    note: dict[str, Any] = {"total": total, "returned": kept}
+    if total > COMPACT_REF_ROWS and kept == 2:
+        note["shown"] = "first_last"
+    return note
+
+
 def _terse_changes(envelope: dict, omitted: dict) -> dict | None:
-    """Compact ``changes``: created/modified keep the rows ``data`` names at its top level
-    (the tool's main objects, e.g. its feature, body or sketch); when it names none, up to
-    COMPACT_CHANGE_ROWS rows that ``data`` does not already show and that are not NX
-    helpers. ``counts`` gives every row by kind; deleted rows (invalid references) stay."""
+    """Compact ``changes``, which never repeat an object ``data`` shows (no object is
+    listed twice; dropping those rows loses nothing). Of the other rows, created and
+    modified keep none when ``data`` names the call's main objects at its top level (its
+    feature, body or sketch: the rest are its parts and NX helpers), else the rows that are
+    not NX helpers; deleted keeps its rows (invalid references). A kept list of more than
+    COMPACT_REF_ROWS shows its first and last row. ``counts`` gives every row of a cut list
+    by kind, and the full rows stay in the result store (``nx_get_result``)."""
     changes = envelope.get("changes")
     if not isinstance(changes, dict):
         return None
     data = envelope.get("data")
     top, shown = _data_refs(data, top=True), _data_refs(data, top=False)
-    out, counts = dict(changes), {}
-    for key in ("created", "modified"):
+    lossless, terse, counts = dict(changes), dict(changes), {}
+    notes = {}
+    for key in ("created", "modified", "deleted"):
         rows = changes.get(key)
         if not isinstance(rows, list) or not rows:
             continue
-        keep = [r for r in rows if _is_ref(r) and r["id"] in top]
-        if not keep:
-            keep = [
-                r
-                for r in rows
-                if _is_ref(r)
-                and r["id"] not in shown
-                and not HELPER_NAME.match(str(r.get("name") or ""))
-            ][:COMPACT_CHANGE_ROWS]
-        if len(keep) < len(rows):
+        unseen = [r for r in rows if not (_is_ref(r) and r["id"] in shown)]
+        lossless[key] = terse[key] = unseen
+        if key == "deleted":
+            keep = _ends(unseen)
+        elif any(_is_ref(r) and r["id"] in top for r in rows):
+            keep = []
+        else:
+            names = [r for r in unseen if not HELPER_NAME.match(str(r.get("name") or ""))]
+            keep = _ends(names)
+        if len(keep) < len(unseen):
             kinds = Counter(str(r.get("kind")) for r in rows if isinstance(r, dict))
             counts[key] = dict(sorted(kinds.items()))
-            omitted[f"/changes/{key}"] = {"total": len(rows), "returned": len(keep)}
-            out[key] = keep
-    if not counts:
+            notes[f"/changes/{key}"] = _cut_note(len(rows), len(keep))
+            terse[key] = keep
+    if counts:
+        terse["counts"] = counts
+        if _size(lossless) - _size(terse) >= TERSE_MIN_SAVING:
+            omitted.update(notes)
+            return terse
+    # A few rows cost less than the result_id, omitted and counts that would replace them.
+    return None if lossless == changes else lossless
+
+
+def _terse_data(envelope: dict, omitted: dict) -> dict | None:
+    """Compact ``data`` of a committed mutation: a top-level list of more than
+    COMPACT_REF_ROWS body references (a pattern's instance bodies) shows its first and last
+    row; the tool lists its seed or target body first."""
+    data = envelope.get("data")
+    if envelope.get("mutation_outcome") != "committed" or not isinstance(data, dict):
         return None
-    out["counts"] = counts
-    if _size(changes) - _size(out) < TERSE_MIN_SAVING:
-        for key in counts:
-            omitted.pop(f"/changes/{key}", None)
-        return None  # a few rows cost less than result_id, omitted and counts
+    out = None
+    for key, value in data.items():
+        if (
+            isinstance(value, list)
+            and len(value) > COMPACT_REF_ROWS
+            and all(_is_ref(v) and v.get("kind") == "body" for v in value)
+        ):
+            out = dict(data) if out is None else out
+            out[key] = _ends(value)
+            omitted[f"/data/{key}"] = _cut_note(len(value), 2)
     return out
 
 
@@ -207,13 +243,15 @@ def _size(value) -> int:
 
 
 def _project(envelope: dict, store) -> dict:
-    """Compact detail (gate 14, S): terse ``changes`` (:func:`_terse_changes`) and arrays
-    over 20 items cut; the full result goes to the result store for ``nx_get_result``."""
+    """Compact detail (gate 14, S): terse ``data`` body lists (:func:`_terse_data`) and
+    ``changes`` (:func:`_terse_changes`), arrays over 20 items cut; the full result goes to
+    the result store for ``nx_get_result``."""
     if not envelope.get("ok"):
         return envelope
     omitted: dict[str, Any] = {}
     paged = envelope.get("page") is not None
     terse = _terse_changes(envelope, omitted)
+    terse_data = _terse_data(envelope, omitted)
 
     def cut(value, path):
         if isinstance(value, dict):
@@ -228,6 +266,8 @@ def _project(envelope: dict, store) -> dict:
         return value
 
     envelope_view = {**envelope, "changes": terse} if terse is not None else envelope
+    if terse_data is not None:
+        envelope_view = {**envelope_view, "data": terse_data}
     projected = {
         k: v if k in ("warnings", "error", "page") else cut(v, "/" + k)
         for k, v in envelope_view.items()

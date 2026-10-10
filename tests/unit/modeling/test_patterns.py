@@ -315,3 +315,100 @@ def test_pattern_of_a_feature_with_its_own_body_counts_the_new_bodies():
     assert ok.ok, ok
     assert ok.data["count"] == 3 and ok.data["new_bodies"] == 2
     assert ok.data["volume"] == 3000 and len(ok.data["bodies"]) == 3
+
+
+def _separate_copies(nx, block, n, unite_leaves=0):
+    """A pattern/mirror commit that makes ``n`` separate copy bodies of ``block`` and a
+    boolean commit that unites them (leaving ``unite_leaves`` separate)."""
+    made = []
+
+    def copies(kind):
+        def commit(b):
+            made[:] = [new_body(nx, [10 * i, 0, 0, 10 * i + 10, 10, 10]) for i in range(1, n + 1)]
+            return counted(feature(nx, kind, []), 1 + n)
+
+        return commit
+
+    def united(b):
+        assert b.Target is block and list(b.Tools.Add.calls[0][0][0]) == made
+        for body in made[unite_leaves:]:
+            nx.part.Bodies.remove(body)
+            block.volume += body.volume
+        return feature(nx, "UNITE", [block])
+
+    nx.on_commit("BooleanBuilder", united)
+    return copies, made
+
+
+def test_pattern_unite_merges_the_copies_into_the_seed_body():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+    copies, made = _separate_copies(nx, block, 17)
+    nx.on_commit("PatternFeatureBuilder", copies("PATTERN_FEATURE"))
+    ok = run(nx, "nx_create_pattern", features=[nx.ref_of(seed, "feature")], layout="linear",
+             parameters={"direction": [1, 0, 0], "count": 18, "spacing": 10},
+             unite=True)  # fmt: skip
+    assert ok.ok, ok
+    data = ok.data
+    assert data["new_bodies"] == 0 and data["united"] == 17 and data["count"] == 18
+    assert [b["id"] for b in data["bodies"]] == [block.ref] and data["volume"] == 18000
+    assert data["unite_feature"]["kind"] == "feature"
+    assert data["feature"]["name"].startswith("PATTERN_FEATURE")
+    assert len(ok.changes["deleted"]) == 0  # created and consumed in the same call
+    assert all(b not in nx.part.Bodies for b in made) and nx.live_builders == 0
+
+
+def test_pattern_unite_fails_and_rolls_back_when_copies_stay_separate():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+    copies, _made = _separate_copies(nx, block, 3, unite_leaves=1)
+    nx.on_commit("PatternFeatureBuilder", copies("PATTERN_FEATURE"))
+    bad = run(nx, "nx_create_pattern", features=[nx.ref_of(seed, "feature")], layout="linear",
+              parameters={"direction": [1, 0, 0], "count": 4, "spacing": 10},
+              unite=True)  # fmt: skip
+    assert bad.error["code"] == "NX_BUILD_FAILED", bad
+    assert bad.error["details"]["bodies"] == 2 and "touch" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_pattern_without_unite_keeps_the_separate_bodies_seed_first():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+    copies, made = _separate_copies(nx, block, 3)
+    nx.on_commit("PatternFeatureBuilder", copies("PATTERN_FEATURE"))
+    ok = pattern(nx, seed, "linear", direction=[1, 0, 0], count=4, spacing=10)
+    assert ok.ok and ok.data["new_bodies"] == 3 and "united" not in ok.data, ok
+    assert [b["id"] for b in ok.data["bodies"]] == [block.ref] + [
+        nx.ref_of(b, "body") for b in made
+    ]
+    assert not any(b.FeatureType == "UNITE" for b in nx.part.Features)
+
+
+def test_unite_needs_seed_features_of_one_body():
+    nx = modeling_nx()
+    a, b = nx.block(10, 10, 10), nx.block(10, 10, 10, origin=(20, 0, 0))
+    seeds = [nx.ref_of(feature(nx, "EXTRUDE", [body]), "feature") for body in (a, b)]
+    bad = run(nx, "nx_create_pattern", features=seeds, layout="linear",
+              parameters={"direction": [1, 0, 0], "count": 2, "spacing": 50},
+              unite=True)  # fmt: skip
+    assert bad.error["field"] == "/unite" and "2 bodies" in bad.error["message"], bad
+    assert bad.mutation_outcome == "not_started" and not any(x.commits for x in nx.builders)
+    mirrored = run(nx, "nx_create_mirror", target="bodies", bodies=[a.ref],
+                   plane={"principal": "yz"}, unite=True)  # fmt: skip
+    assert mirrored.error["field"] == "/unite" and mirrored.mutation_outcome == "not_started"
+
+
+def test_mirror_features_unite_merges_the_mirror_into_the_seed_body():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+    copies, made = _separate_copies(nx, block, 1)
+    nx.on_commit("MirrorBuilder", copies("MIRROR"))
+    ok = run(nx, "nx_create_mirror", target="features", features=[nx.ref_of(seed, "feature")],
+             plane={"principal": "yz"}, unite=True)  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["new_bodies"] == 0 and ok.data["united"] == 1 and ok.data["volume"] == 2000
+    assert [b["id"] for b in ok.data["bodies"]] == [block.ref] and made[0] not in nx.part.Bodies

@@ -1,0 +1,24 @@
+{
+ "covers": {"nx_find_geometry": [], "nx_list_objects": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xz"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "curves": [
+   {"type": "polyline", "closed": true, "points": [[4, 50], [10, 50], [5, 70], [4, 70]]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {"call": "nx_create_revolve", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "axis": {"principal": "z"}}},
+  {"call": "nx_find_geometry", "args": {"geometry_type": "cone"},
+   "expect": {"data.items": {"count": 1}, "data.items.0.type": "cone", "data.items.0.radii": {"close": [10, 5], "tol": 1e-9},
+              "data.items.0.half_angle": {"close": 14.0362435, "tol": 1e-6}, "data.items.0.axis": {"close": [0, 0, 1], "tol": 1e-9}}},
+  {"call": "nx_list_objects", "args": {"kind": "face", "type": "cone"},
+   "expect": {"data.items.0.details.radii": {"close": [10, 5], "tol": 1e-9},
+              "data.items.0.details.half_angle": {"close": 14.0362435, "tol": 1e-6}}},
+  {"call": "nx_list_objects", "args": {"kind": "face", "type": "cylinder"},
+   "expect": {"data.items": {"count": 1}, "data.items.0.details.radius": {"close": 4, "tol": 1e-9},
+              "data.items.0.details.axis": {"close": [0, 0, 1], "tol": 1e-9}}},
+  {"call": "nx_find_geometry", "args": {"geometry_type": "cylinder"},
+   "expect": {"data.items.0.radius": {"close": 4, "tol": 1e-9}, "data.items.0.role": "bore"}}
+ ]
+}

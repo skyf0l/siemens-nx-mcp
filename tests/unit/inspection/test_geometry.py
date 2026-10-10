@@ -3,9 +3,11 @@
 import json
 import math
 
+import pytest
+
 from tests.kit import run
 from tests.kit.kernel import services
-from tests.unit.inspection.fakes import assembly, inspection_nx
+from tests.unit.inspection.fakes import arc_spec, assembly, inspection_nx, spec_curve
 
 
 def _top(nx, body):
@@ -188,3 +190,45 @@ def test_feature_owner_gives_only_the_features_own_faces_and_edges():
     hole.own_faces = []
     empty = run(nx, "nx_find_geometry", owner=ref, kind="face")
     assert empty.ok and empty.page["total"] == 0
+
+
+def _axial_faces(nx):
+    """A frustum face (r 10 at z=50 to r 5 at z=70, axis +Z) and a r=4 cylinder."""
+    body = nx.block(10, 10, 10)
+    cone = nx.face(normal=(0, 0, 1), origin=(0, 0, 60), kind="cone", body=body)
+    cone.radius, cone.half_angle, cone.sense = 7.5, math.atan(0.25), 1
+    rings = [
+        spec_curve(nx, arc_spec((0, 0, 70), 5, 0, 2 * math.pi)),
+        spec_curve(nx, arc_spec((0, 0, 50), 10, 0, 2 * math.pi)),
+    ]
+    cone.GetEdges = lambda: rings
+    bore = nx.face(normal=(0, 0, 1), origin=(0, 0, 0), kind="cylinder", body=body)
+    bore.radius, bore.sense = 4.0, -1
+    bore.GetEdges = lambda: []
+    for face in (cone, bore):
+        nx.remember(face)
+        body.faces.append(face)
+    return cone, bore
+
+
+def test_cone_faces_carry_both_end_radii_and_the_half_angle():
+    nx = inspection_nx()
+    cone, _bore = _axial_faces(nx)
+    ok = run(nx, "nx_find_geometry", geometry_type="cone")
+    assert ok.ok, ok
+    (row,) = ok.data["items"]
+    assert row["id"] == cone.ref and row["type"] == "cone"
+    assert row["radii"] == pytest.approx([10, 5]) and row["axis"] == [0.0, 0.0, 1.0]
+    assert row["half_angle"] == pytest.approx(14.0362435)
+    bad = run(nx, "nx_find_geometry", kind="edge", geometry_type="cone")
+    assert bad.error["field"] == "/geometry_type"
+
+
+def test_listed_cylinder_and_cone_faces_carry_their_radii():
+    nx = inspection_nx()
+    _axial_faces(nx)
+    cones = run(nx, "nx_list_objects", kind="face", type="cone").data["items"]
+    assert cones[0]["details"]["radii"] == pytest.approx([10, 5])
+    assert cones[0]["details"]["half_angle"] == pytest.approx(14.0362435)
+    bores = run(nx, "nx_list_objects", kind="face", type="cylinder").data["items"]
+    assert bores[0]["details"]["radius"] == 4.0 and bores[0]["details"]["axis"] == [0, 0, 1.0]

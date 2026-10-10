@@ -32,8 +32,9 @@ from nx_mcp.domains.inspection import common
 from nx_mcp.kit import args, bodies, curve, geom, parts, result, select
 
 FACE_TYPES = {22: "plane", 16: "cylinder", 17: "cone", 18: "sphere", 19: "torus"}
+FACE_CONE = 17
 EDGE_TYPES = {"Linear": "line", "Circular": "circle", "Elliptical": "ellipse"}
-FACE_ONLY, EDGE_ONLY = {"plane", "cylinder"}, {"circle", "line"}
+FACE_ONLY, EDGE_ONLY = {"plane", "cylinder", "cone"}, {"circle", "line"}
 MAX_CANDIDATES = 20000
 DEFAULT_TOLERANCE = 0.001
 AXES = "xyz"
@@ -41,7 +42,7 @@ _HANDLE_ANCHOR = re.compile(r"^@(?P<part>.+?):(?P<kind>body|face|edge)=(?P<handl
 _JID_ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
 
 Tolerance = Annotated[float, Range(gt=0, le=1), Doc("Radius and normal tolerance")]
-GeometryType = Literal["any", "plane", "cylinder", "circle", "line"]
+GeometryType = Literal["any", "plane", "cylinder", "cone", "circle", "line"]
 Order = Literal["nearest", "highest", "lowest"]
 OwnerRef = Annotated[str, RefTo("body", "feature", "component")]
 AnchorText = Annotated[str, Text(400), Doc("Anchor from nx_create_anchor or a result row")]
@@ -64,6 +65,8 @@ class GeometryRow(result.Row, total=False):
     axis: list[float]
     axis_point: list[float]
     role: str
+    half_angle: float
+    radii: list[float]
 
 
 class FindData(TypedDict):
@@ -128,17 +131,16 @@ def _describe(tx, obj, kind):
     if kind == "face":
         with native():
             data = tx.uf.Modeling.AskFaceData(obj.Tag)
-        code, point, direction, sign = int(data[0]), data[1], data[2], data[6]
+        code, direction, sign = int(data[0]), data[2], data[6]
         facts["type"] = FACE_TYPES.get(code, "other")
         if code == select.FACE_PLANE:
             facts["normal"] = geom.unit(common.xyz3(direction))
         elif code == select.FACE_CYLINDER:
             facts.update(
-                radius=float(data[4]),
-                axis=geom.unit(common.xyz3(direction)),
-                axis_point=common.xyz3(point),
-                role="bore" if float(sign) < 0 else "boss",
+                common.axial_facts(tx, obj, data), role="bore" if float(sign) < 0 else "boss"
             )
+        elif code == FACE_CONE:
+            facts.update(common.axial_facts(tx, obj, data))
     else:
         name = result.enum_name(obj.SolidEdgeType, tx.nx.Edge.EdgeType)
         facts["type"] = EDGE_TYPES.get(name, "other")
@@ -200,7 +202,7 @@ def nx_find_geometry(
     kind: Literal["face", "edge"] = "face",
     geometry_type: GeometryType = "any",
     normal: Vec3 | None = None,
-    radius: Annotated[float, Range(gt=0), Doc("Part units")] | None = None,
+    radius: Annotated[float, Range(gt=0)] | None = None,
     near: Point3 | None = None,
     order: Order | None = None,
     axis: Literal["x", "y", "z"] = "z",

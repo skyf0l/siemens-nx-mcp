@@ -1,0 +1,76 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/sealed_void.json",
+  "scenario_sha256": "3c15503ef6a45edf9bbf5586d4e8434901a2316f5cd5e2ebea12b2c52ff8b7de",
+  "domain": "inspection",
+  "covers": {
+    "nx_check_model": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_check_model": "7aa9945404dd1c2aa96f5eb6fb11a77e18586485c9aa0d8a8b394796a2e2be3d"
+  },
+  "recorded": "2026-10-10T17:31:38Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_revolve",
+      "setup": true,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 14
+    },
+    {
+      "index": 7,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

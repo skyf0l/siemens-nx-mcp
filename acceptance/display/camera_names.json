@@ -1,0 +1,26 @@
+{
+ "covers": {"nx_set_camera": [], "nx_get_camera": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true,
+   "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [100, 20]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {"call": "nx_create_extrude", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 20}}},
+  {"call": "nx_set_camera", "args": {"orientation": "isometric", "fit": true},
+   "expect": {"data.view": "isometric", "data.view_angle": 0, "data.view_from": {"close": [0.5773502692, -0.5773502692, 0.5773502692], "tol": 1e-9}}},
+  {"call": "nx_set_camera", "args": {"view_from": [-1, -1, 1]},
+   "expect": {"data.view": "front", "data.view_angle": {"close": 54.736, "tol": 0.001},
+              "data.view_from": {"close": [-0.5773502692, -0.5773502692, 0.5773502692], "tol": 1e-9}}},
+  {"call": "nx_get_camera", "args": {},
+   "expect": {"data.view": "front", "data.view_angle": {"close": 54.736, "tol": 0.001}}},
+  {"call": "nx_set_camera", "args": {"view_from": [0.05, -1, 0]},
+   "expect": {"data.view": "front", "data.view_angle": {"close": 2.862, "tol": 0.001}}},
+  {"call": "nx_set_camera", "args": {"orientation": "trimetric"},
+   "expect": {"data.view": "trimetric", "data.view_angle": 0}},
+  {"call": "nx_set_camera", "args": {"view_from": [0, 0, -1]},
+   "expect": {"data.view": "bottom", "data.view_angle": {"close": 0, "tol": 1e-6}}}
+ ]
+}

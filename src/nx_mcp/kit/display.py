@@ -23,6 +23,10 @@ NX 2406 findings encoded here:
 - Canned orientations (``ORIENTATION_FROM``): top looks from +Z (screen up +Y),
   bottom from -Z (up -Y), front from -Y, back from +Y, right from +X, left from -X
   (up +Z), isometric from (1,-1,1)/sqrt3, trimetric from about (0.72,-0.59,0.38).
+  NX's ``view.Name`` stays the layout view's name (``Trimetric``) whatever the
+  camera, so ``nearest_view`` names the canned orientation closest to a rotation.
+- Blanking a sketch or datum marks the part modified; undoing to a mark set before
+  restores both the blank state and the modified flag (``capture_clutter``).
 - ``DeleteSections`` leaves ``DisplaySectioningToggle`` on with no section left (the
   model looks cut by nothing): sectioning is switched off when no active section remains.
 - Opening a ``DynamicSectionBuilder`` on an existing section to read it changes nothing.
@@ -35,6 +39,7 @@ The snapshot store lives here, not in a domain: the host's services write it
 
 from __future__ import annotations
 
+import math
 import uuid
 
 from nx_mcp.core.errors import fail, native
@@ -195,6 +200,23 @@ def rotation_from(view_from, up=None, field="/view_from") -> list[list[float]]:
     return [[x[i], y[i], z[i]] for i in range(3)]
 
 
+def nearest_view(rotation) -> tuple[str, float]:
+    """``(name, degrees)``: the canned orientation whose look-from direction is closest to
+    the camera's and the angle between the two directions (0 when the camera looks from
+    there, whatever its roll). Ties (e.g. (-1,-1,1) is 54.7 degrees from front, left and
+    top) go to the smallest whole rotation, then the order of ``ORIENTATION_ROTATIONS``."""
+    keys = []
+    look = [rotation[i][2] for i in range(3)]
+    for order, (name, rot) in enumerate(ORIENTATION_ROTATIONS.items()):
+        cosine = sum(look[i] * rot[i][2] for i in range(3))
+        direction = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+        trace = sum(rotation[i][j] * rot[i][j] for i in range(3) for j in range(3))
+        whole = math.degrees(math.acos(max(-1.0, min(1.0, (trace - 1.0) / 2.0))))
+        keys.append((round(direction, 6), round(whole, 6), order, name))
+    direction, _whole, _order, name = min(keys)
+    return name, round(direction, 3)
+
+
 def expect_camera(got: dict, rotation=None, origin=None, scale=None, check="camera") -> None:
     """Read-back of a camera against the requested values (those given)."""
     if rotation is not None:
@@ -276,6 +298,15 @@ def datums(part) -> list:
         getattr(part, "CoordinateSystems", []) or []
     )
     return list({int(x.Tag): x for x in values}.values())
+
+
+def capture_clutter(tx, part) -> list:
+    """Shown finished sketches and datums of ``part`` (none while a sketch is active:
+    hiding is then skipped, the edited sketch stays as it is)."""
+    if getattr(tx.session, "ActiveSketch", None) is not None:
+        return []
+    values = list(getattr(part, "Sketches", []) or []) + datums(part)
+    return [v for v in values if not bool(getattr(v, "IsBlanked", True))]
 
 
 # ---- dynamic sections -----------------------------------------------------------------------

@@ -26,6 +26,7 @@ from nx_mcp.core.types import (
     EdgeRef,
     FaceRef,
     Items,
+    Json,
     Name,
     Point3,
     Range,
@@ -35,6 +36,7 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.sketch import common
+from nx_mcp.domains.sketch import curves as sketch_curves
 from nx_mcp.domains.sketch.common import CurveRow, Frame, Status
 from nx_mcp.kit import builders, curve, geom, readback, result, select
 from nx_mcp.kit import sketch as ksketch
@@ -91,6 +93,8 @@ class SketchData(TypedDict, total=False):
     feature: result.Row
     frame: Frame
     active: bool
+    curves: Annotated[list[result.Row], Doc("The created curves, in order (with curves)")]
+    loops: Annotated[list[sketch_curves.Loop], Doc("Connected curve chains (with curves)")]
 
 
 def _create_summary(a, say):
@@ -102,7 +106,9 @@ def _create_summary(a, say):
     else:
         where = "an edge path"
     name = f' "{a["name"]}"' if a.get("name") else ""
-    return f"Create sketch{name} on {where}"
+    n = len(a.get("curves") or [])
+    with_curves = f" with {n} curve" + ("" if n == 1 else "s") if n else ""
+    return f"Create sketch{name} on {where}{with_curves}"
 
 
 def _matrix(tx, x, y, z):
@@ -256,10 +262,19 @@ def nx_create_sketch(
     *,
     placement: Placement,
     name: Name | None = None,
+    curves: Annotated[
+        list[Annotated[dict, Json(max_keys=8, max_chars=8000)]],
+        Items(1, 100),
+        Doc("Profile: nx_create_sketch_curves items, e.g. {type: polyline, points}"),
+    ]
+    | None = None,
+    finish: Annotated[bool, Doc("Finish the sketch after the curves, ready for modeling")] = False,
 ) -> SketchData:
     """Create a sketch on a principal plane, a planar face or datum plane, or normal to an edge
-    path, and make it active. Later sketch tools use the returned frame; finish the sketch
-    before modeling."""
+    path, and make it active. curves and finish make a profile in one call (loops reports
+    closure): each closed loop is a region, a loop inside another makes a hollow profile.
+    Finish before modeling."""
+    plans = sketch_curves.check_curves(curves) if curves else []
     want = _principal_frame(placement) if "principal" in placement else None
     if want is not None:
         sketch = _on_principal(tx, want)
@@ -284,7 +299,36 @@ def nx_create_sketch(
     sketch.Activate(tx.nx.Sketch.ViewReorient.FalseValue)
     active = tx.session.ActiveSketch
     readback.expect(active is not None and int(active.Tag) == int(sketch.Tag), "active")
-    return {**common.sketch_rows(tx, sketch), "frame": got, "active": True}
+    data: SketchData = {**common.sketch_rows(tx, sketch), "frame": got, "active": True}
+    if plans:
+        try:
+            made = sketch_curves.add_curves(tx, sketch, plans)
+        except BaseException:
+            _leave(tx, sketch)  # the kernel then undoes the whole call
+            raise
+        data["curves"] = [r["curve"] for r in made["curves"]]
+        data["loops"] = made["loops"]
+    if finish:
+        _deactivate(tx, sketch)
+        data["active"] = False
+    return data
+
+
+def _deactivate(tx, sk):
+    """Finish the active sketch ``sk`` with a model update and read it back."""
+    nx = tx.nx
+    with native(default="NX_UPDATE_FAILED"):
+        sk.Deactivate(nx.Sketch.ViewReorient.TrueValue, nx.Sketch.UpdateLevel.Model)
+    readback.expect(tx.session.ActiveSketch is None, "deactivated")
+
+
+def _leave(tx, sk):
+    """Leave sketch mode before a failed call's rollback (best effort)."""
+    try:
+        if tx.session.ActiveSketch is not None:
+            sk.Deactivate(tx.nx.Sketch.ViewReorient.FalseValue, tx.nx.Sketch.UpdateLevel.SketchOnly)
+    except Exception:  # the rollback still runs; NX undo also leaves the sketch
+        pass
 
 
 class FinishData(TypedDict, total=False):
@@ -318,11 +362,8 @@ def nx_finish_sketch(tx: Tx, *, sketch: SketchRef) -> FinishData:
             hint="Finish the active sketch first (nx_list_objects kind=sketch shows it)",
             field="/sketch",
         )
-    nx = tx.nx
     if active is not None:
-        with native(default="NX_UPDATE_FAILED"):
-            sk.Deactivate(nx.Sketch.ViewReorient.TrueValue, nx.Sketch.UpdateLevel.Model)
-        readback.expect(tx.session.ActiveSketch is None, "deactivated")
+        _deactivate(tx, sk)
     return {
         **common.sketch_rows(tx, sk),
         "was_active": active is not None,

@@ -1,5 +1,7 @@
 """nx_check_model and nx_get_model_summary on the fake kit."""
 
+import pytest
+
 from tests.kit import run
 from tests.kit.objects import Feature
 from tests.unit.inspection.fakes import assembly, inspection_nx
@@ -77,3 +79,55 @@ def test_summary_overview_and_sections():
     assert comps.page["total"] == 0
     bad = run(nx, "nx_get_model_summary", section="features", limit=0)
     assert bad.error["field"] == "/limit"
+
+
+def _void_body(nx):
+    """A 40 mm cube with a sealed 10 mm cubic void: two shells (no shared edges)."""
+    outer = nx.block(40, 40, 40)
+    inner = nx.block(10, 10, 10, origin=(10, 10, 10))
+    nx.part.Bodies.remove(inner)
+    for face in inner.faces:  # a void's faces point into the void
+        face.normal = [-c for c in face.normal]
+    outer.faces += inner.faces
+    outer.edges += inner.edges
+    nx.facet_boxes = {}
+    for body, box in ((outer, [0, 0, 0, 40, 40, 40]), (inner, [10, 10, 10, 20, 20, 20])):
+        for face in body.faces[:6]:
+            axis = next(i for i in range(3) if face.normal[i])
+            flat = [float(v) for v in box]
+            flat[axis] = flat[axis + 3] = float(face.origin[axis])
+            nx.facet_boxes[int(face.Tag)] = flat
+    return outer
+
+
+def test_a_sealed_void_is_a_warning_with_its_volume_and_box():
+    nx = inspection_nx()
+    body = _void_body(nx)
+    curves = len(nx.part.Curves)
+    ok = run(nx, "nx_check_model")
+    assert ok.ok and ok.mutation_outcome == "not_applicable", ok
+    assert ok.data["healthy"] is False and ok.data["warnings"] == 1 and ok.data["errors"] == 0
+    issue = ok.data["issues"][0]
+    assert issue["kind"] == "internal_void" and issue["severity"] == "warning"
+    assert issue["object"]["id"] == body.ref and issue["shells"] == 2
+    (void,) = issue["voids"]
+    assert void["faces"] == 6 and void["volume"] == pytest.approx(1000.0)
+    assert void["min"] == [10, 10, 10] and void["max"] == [20, 20, 20]
+    params = nx.uf.Facet.models[0][1]
+    assert params.SurfaceAngularTolerance == 0.05 and len(nx.part.Curves) == curves
+    summary = run(nx, "nx_get_model_summary").data
+    assert summary["health"] == {"healthy": False, "errors": 0, "warnings": 1}
+
+
+def test_a_void_without_facets_keeps_its_box_and_no_volume():
+    nx = inspection_nx()
+    _void_body(nx)
+    nx.facet_error = RuntimeError("no licence")
+    issue = run(nx, "nx_check_model").data["issues"][0]
+    assert issue["voids"][0]["volume"] is None and issue["voids"][0]["max"] == [20, 20, 20]
+
+
+def test_one_shell_bodies_have_no_void_issue():
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    assert run(nx, "nx_check_model").data["issues"] == []

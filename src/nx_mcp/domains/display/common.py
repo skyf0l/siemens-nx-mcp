@@ -14,8 +14,9 @@ TARGET_KINDS = ("body", "face", "edge", "curve", "point", "sketch", "component",
 Targets = Annotated[list[Annotated[str, RefTo(*TARGET_KINDS)]], Items(1, 1000)]
 
 
-class Camera(TypedDict):
+class Camera(TypedDict, total=False):
     view: str
+    view_angle: float
     rotation: list[list[float]]
     view_from: list[float]
     up: list[float]
@@ -87,18 +88,25 @@ def display_rows(tx, pairs) -> list[DisplayRow]:
     return out
 
 
-def camera_row(cam: dict) -> Camera:
+def camera_row(cam: dict, *, named: bool = True) -> Camera:
     """The surface fields of a camera (``kit.display.camera``); ``view_from``, ``up`` and
-    ``right`` are the rotation's columns (world unit vectors)."""
+    ``right`` are the rotation's columns (world unit vectors). ``view`` is the canned
+    orientation nearest in look-from direction and ``view_angle`` the degrees between the
+    two directions (``named``), else NX's view name (a drawing sheet's view)."""
     axes = display.view_axes(cam["rotation"])
-    return {
-        "view": cam["view"],
-        "rotation": cam["rotation"],
-        "view_from": axes["view_from"],
-        "up": axes["up"],
-        "right": axes["right"],
-        "origin": cam["origin"],
-        "absolute_origin": cam["absolute_origin"],
-        "scale": cam["scale"],
-        "style": cam["style"],
-    }
+    row: Camera = {"view": cam["view"]}
+    if named:
+        row["view"], row["view_angle"] = display.nearest_view(cam["rotation"])
+    row.update(
+        {
+            "rotation": cam["rotation"],
+            "view_from": axes["view_from"],
+            "up": axes["up"],
+            "right": axes["right"],
+            "origin": cam["origin"],
+            "absolute_origin": cam["absolute_origin"],
+            "scale": cam["scale"],
+            "style": cam["style"],
+        }
+    )
+    return row

@@ -331,7 +331,11 @@
    "call": "nx_check_model",
    "args": {},
    "expect": {
-    "data.healthy": true
+    "data.healthy": false,
+    "data.errors": 0,
+    "data.warnings": 1,
+    "data.issues.0.kind": "internal_void",
+    "data.issues.0.shells": 2
    }
   }
  ]

@@ -38,7 +38,7 @@
     "data.resolution": {
      "count": 2
     },
-    "data.image.inline": true,
+    "data.image.inline": false,
     "data.image.mime_type": "image/png",
     "data.image.sha256": {
      "matches": "^[0-9a-f]{64}$"
@@ -76,7 +76,8 @@
      0.9,
      1.0
     ],
-    "lighting": 2
+    "lighting": 2,
+    "hide_sketches": false
    },
    "expect": {
     "data.resolution": [
@@ -108,7 +109,7 @@
    },
    "expect": {
     "data.style": "wireframe",
-    "data.image.inline": true
+    "data.image.inline": false
    }
   },
   {
@@ -305,7 +306,7 @@
    "expect": {
     "data.sheet.name": "SHT1",
     "data.sheet.kind": "drawing_sheet",
-    "data.image.inline": true,
+    "data.image.inline": false,
     "data.resolution": {
      "count": 2
     }

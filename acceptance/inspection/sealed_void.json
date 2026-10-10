@@ -1,0 +1,27 @@
+{
+ "covers": {"nx_check_model": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xz"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "curves": [
+   {"type": "rectangle", "corner1": [5, 0], "corner2": [20, 40]},
+   {"type": "rectangle", "corner1": [8, 10], "corner2": [15, 30]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {"call": "nx_create_revolve", "setup": true, "save": "rv", "args": {"sketch": "$sk.data.sketch.id", "axis": {"principal": "z"}},
+   "expect": {"data.volume": {"close": 37008.0, "tol": 1}}},
+  {"call": "nx_check_model", "args": {},
+   "expect": {"mutation_outcome": "not_applicable", "data.healthy": false, "data.errors": 0, "data.warnings": 1,
+              "data.issues.0.kind": "internal_void", "data.issues.0.severity": "warning",
+              "data.issues.0.object.kind": "body", "data.issues.0.object.name": {"matches": "^REVOLVED"}, "data.issues.0.shells": 2,
+              "data.issues.0.voids": {"count": 1}, "data.issues.0.voids.0.faces": 4,
+              "data.issues.0.voids.0.volume": {"close": 10115.92, "tol": 10.12},
+              "data.issues.0.voids.0.min": {"close": [-15, -15, 10], "tol": 1e-6},
+              "data.issues.0.voids.0.max": {"close": [15, 15, 30], "tol": 1e-6}}},
+  {"call": "nx_get_model_summary", "args": {},
+   "expect": {"data.health.warnings": 1, "data.health.errors": 0, "data.counts.bodies": 1}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$rv.data.bodies.0.id"]},
+   "expect": {"data.volume": {"close": 37007.96, "tol": 1}}}
+ ]
+}

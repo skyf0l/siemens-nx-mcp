@@ -45,6 +45,10 @@ BodyList = Annotated[list[BodyRef], Items(1, 50)]
 # Boolean
 
 
+class BooleanData(common.FeatureData):
+    deleted_bodies: Annotated[int, Doc("Tool bodies the operation consumed")]
+
+
 @tool(
     effect="model",
     label="Combine bodies",
@@ -62,8 +66,9 @@ def nx_create_boolean(
     operation: Literal["unite", "subtract", "intersect"],
     target: BodyRef,
     tools: BodyList,
-) -> common.FeatureData:
-    """Unite, subtract or intersect tool bodies with a target body; the tools are consumed."""
+) -> BooleanData:
+    """Unite, subtract or intersect tool bodies with a target body; the tools are consumed.
+    bodies lists the result bodies, the target's first."""
     tool_refs: list[str] = tools
     if target in tool_refs:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
@@ -72,14 +77,13 @@ def nx_create_boolean(
     if int(body.Tag) in {int(t.Tag) for t in others}:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
     before = measure.volume(tx, body)
-    with builders.build(tx, tx.part.Features.CreateBooleanBuilder, None) as b:
-        b.Operation = getattr(tx.nx.Features.FeatureBooleanType, builders.BOOLEAN_TYPES[operation])
-        b.Target = body
-        b.Tools.Add(others)
-        feature = b.commit()
-    out = common.result_of(tx, feature)
+    feature = common.boolean_feature(tx, operation, body, others)
+    bodies = common.feature_bodies(feature)
+    bodies.sort(key=lambda b: int(b.Tag) != int(body.Tag))  # the target first
+    out = common.result_of(tx, feature, bodies)
     common.changed(before, out["volume"], "at_least" if operation == "unite" else "at_most")
-    return out
+    alive = {int(b.Tag) for b in tx.part.Bodies}
+    return {**out, "deleted_bodies": sum(int(t.Tag) not in alive for t in others)}
 
 
 # ---------------------------------------------------------------------------

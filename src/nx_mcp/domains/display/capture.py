@@ -1,4 +1,15 @@
-"""``nx_capture_view``: a PNG of the displayed model view or drawing sheet, delivered inline.
+"""``nx_capture_view``: a PNG of the displayed model view or drawing sheet.
+
+The PNG is saved in the workspace; the MCP result carries the image inline only with
+``inline=true`` or when no ``path`` is given (``image.inline``, which the sidecar proxy
+turns into image content), so a capture to a path costs the agent no image tokens.
+``view_from`` (with ``up``) aims the camera for this capture only and fits by default;
+the camera is put back afterwards. ``hide_sketches`` (default) blanks the shown
+finished sketches and datums for the capture under a scratch undo mark: NX 2406
+measured, blanking marks the part modified and undoing to the mark restores both the
+blank state and the modified flag. Nothing is hidden while a sketch is active. The undo
+also clears the modified flag a studio style or lighting would leave (measured), so the
+``part_modified`` warning below only appears with ``hide_sketches=false`` or nothing to hide.
 
 NX 2406 findings (``kit.capture``): the viewport export rasterises the graphics window
 at its own size, so ``resolution`` can differ from ``requested`` (a warning says so);
@@ -19,6 +30,7 @@ file there that is not a PNG is refused. ``overwritten`` says whether a file was
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
@@ -26,20 +38,13 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, PathTo, Range
+from nx_mcp.core.types import Doc, PathTo, Range, Vec3
 from nx_mcp.domains.display.common import Camera, camera_row
 from nx_mcp.kit import capture, display, drawing, files
 from nx_mcp.kit.result import Row
 
 Pixels = Annotated[int, Range(ge=128, le=4096)]
-Rgb = Annotated[
-    tuple[
-        Annotated[float, Range(ge=0, le=1)],
-        Annotated[float, Range(ge=0, le=1)],
-        Annotated[float, Range(ge=0, le=1)],
-    ],
-    Doc("RGB 0..1"),
-]
+Rgb = Annotated[tuple[float, float, float], Doc("RGB 0..1")]
 
 
 class ImageInfo(TypedDict):
@@ -63,6 +68,7 @@ class CaptureData(TypedDict, total=False):
     resolution: list[int]
     style: str
     camera: Camera
+    hidden: int
     sheet: Row
 
 
@@ -86,23 +92,28 @@ def nx_capture_view(
     tx: Tx,
     *,
     quality: Literal["viewport", "studio"] = "viewport",
-    path: Annotated[
-        str, Doc("PNG to write; an existing one needs overwrite"), PathTo("replace", ".png")
-    ]
-    | None = None,
-    overwrite: Annotated[bool, Doc("Replace an existing PNG at path")] = False,
+    path: Annotated[str, PathTo("replace", ".png")] | None = None,
+    overwrite: bool = False,
+    inline: bool | None = None,
+    view_from: Vec3 | None = None,
+    up: Vec3 | None = None,
+    fit: bool | None = None,
+    hide_sketches: bool = True,
     width: Pixels = 1024,
     height: Pixels = 768,
     background: Literal["white", "original", "transparent", "color"] = "white",
     color: Rgb | None = None,
     style: Literal["current", "shaded", "shaded_with_edges", "wireframe", "studio"] = "current",
-    fit: bool = False,
-    lighting: Annotated[int, Range(ge=1, le=5), Doc("Studio light preset")] | None = None,
+    lighting: Annotated[int, Range(ge=1, le=5)] | None = None,
 ) -> CaptureData:
-    """Capture the displayed view or drawing sheet as an inline PNG; the view is unchanged.
-    Only studio renders width x height exactly; viewport exports the NX window's size."""
+    """PNG of the shown view or sheet, saved to path or captures/. Inline image only with
+    inline=true or no path. view_from/up aim it (as nx_set_camera)."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
+    if up is not None and view_from is None:
+        fail("NX_INVALID_ARGUMENT", "up goes with view_from", field="/up")
+    aim = display.rotation_from(view_from, up) if view_from is not None else None
+    fit = aim is not None if fit is None else fit
     replacing = path is not None and Path(path).exists()
     if replacing and not overwrite:
         fail(
@@ -113,6 +124,8 @@ def nx_capture_view(
         )
     if (background == "color") != (color is not None):
         fail("NX_INVALID_ARGUMENT", "color goes with background=color", field="/color")
+    if color is not None and not all(0.0 <= float(c) <= 1.0 for c in color):
+        fail("NX_INVALID_ARGUMENT", "color components are 0..1", field="/color")
     if lighting is not None and quality != "studio":
         fail("NX_INVALID_ARGUMENT", "lighting needs quality=studio", field="/lighting")
     if quality == "studio" and style == "wireframe":
@@ -126,7 +139,9 @@ def nx_capture_view(
                 "A drawing sheet is captured as displayed; use style=current",
                 field="/style",
             )
-        if fit and not sheet:
+        if sheet and aim is not None:
+            fail("NX_UNSUPPORTED_OPTION", "A drawing sheet has no 3D camera", field="/view_from")
+        if (fit or aim is not None) and not sheet:
             display.shown_part(tx, work=True)  # the kept camera is restored in the work part
         if replacing and files.png_size(Path(str(path))) is None:
             fail(
@@ -147,23 +162,40 @@ def nx_capture_view(
             view.Fit()
     else:
         view = part.ModelingViews.WorkView
-        if fit:
+        if fit or aim is not None:
             tx.display.keep_camera()
+        if aim is not None:
+            now = display.camera(tx, view)
+            display.set_camera(tx, view, aim, now["origin"], now["scale"])
+        if fit:
             view.Fit()
             view.UpdateDisplay()
         out["camera"] = camera_row(display.camera(tx, view))
         tx.frame = "display_part_absolute"
     was_modified = bool(part.IsModified)
     chosen = None if style == "current" else style
-    if quality == "studio":
-        size = capture.studio_png(
-            tx, temp, width, height, style=chosen, background=background, color=color,
-            lighting=lighting,
-        )  # fmt: skip
-    else:
-        size = capture.viewport_png(
-            tx, temp, width, height, style=chosen, background=background, color=color
-        )
+    hide = display.capture_clutter(tx, part) if hide_sketches and not sheet else []
+    with tx.scratch() if hide else contextlib.nullcontext():
+        try:
+            for obj in hide:
+                obj.Blank()
+            if hide:
+                view.UpdateDisplay()
+            if quality == "studio":
+                size = capture.studio_png(
+                    tx, temp, width, height, style=chosen, background=background,
+                    color=color, lighting=lighting,
+                )  # fmt: skip
+            else:
+                size = capture.viewport_png(
+                    tx, temp, width, height, style=chosen, background=background, color=color
+                )
+        finally:
+            for obj in hide:  # the scratch undo restores them too (and the modified flag)
+                with contextlib.suppress(Exception):
+                    obj.Unblank()
+    if hide:
+        view.UpdateDisplay()
     if tx.display.kept:
         tx.display.restore()  # the fitted camera goes back: the engineer's view is unchanged
     published = tx.files.publish()[0]  # with overwrite: atomic replace of the old PNG
@@ -188,10 +220,11 @@ def nx_capture_view(
             "part_modified": bool(part.IsModified),
             "resolution": list(size),
             "style": style,
+            "hidden": len(hide),
             "image": {
                 "path": meta["path"],
                 "sha256": meta["sha256"],
-                "inline": True,
+                "inline": path is None if inline is None else inline,
                 "mime_type": "image/png",
                 "width": size[0],
                 "height": size[1],

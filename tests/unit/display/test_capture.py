@@ -7,6 +7,7 @@ import pytest
 from nx_mcp.kit import files
 from tests.kit import NXException, run
 from tests.kit.kernel import services
+from tests.kit.objects import Object, Sketch
 from tests.unit.display.fakes import WINDOW, display_nx, show_sheet
 
 
@@ -36,7 +37,8 @@ def test_viewport_capture_reports_the_window_size_and_an_inline_image():
     builder = nx.captures[0]
     assert builder.kind == "viewport" and builder.destroyed
     assert builder.background_color == [1.0, 1.0, 1.0] and builder.EnhanceEdges is True
-    assert data["camera"]["view"] == "Trimetric" and "restore_id" not in ok.envelope
+    assert data["camera"]["view"] == "trimetric" and "restore_id" not in ok.envelope
+    assert data["hidden"] == 0
 
 
 def test_studio_capture_renders_the_exact_size_with_style_light_and_colour():
@@ -165,3 +167,77 @@ def test_a_capture_that_marks_the_part_modified_says_so():
     assert lit.ok and lit.mutation_outcome == "not_applicable" and lit.data["part_modified"]
     assert [w["code"] for w in lit.warnings] == ["NX_UPDATE_WARNING"]
     assert "modified" in lit.warnings[0]["message"]
+
+
+def test_a_capture_to_a_path_returns_no_inline_image_unless_asked():
+    nx = display_nx()
+    path = str(root(nx) / "shots" / "b.png")
+    quiet = run(nx, "nx_capture_view", path=path)
+    assert quiet.ok and quiet.data["image"]["inline"] is False and quiet.data["path"]
+    loud = run(nx, "nx_capture_view", path=str(root(nx) / "shots" / "c.png"), inline=True)
+    assert loud.data["image"]["inline"] is True
+    bare = run(nx, "nx_capture_view", inline=False)  # no path: inline only when asked off
+    assert bare.data["image"]["inline"] is False
+
+
+def test_view_from_aims_the_capture_fits_and_puts_the_camera_back():
+    nx = display_nx()
+    ok = run(nx, "nx_capture_view", view_from=[-1, -1, 1])
+    assert ok.ok and nx.work_view.fits == 1, ok
+    cam = ok.data["camera"]
+    third = 3**-0.5
+    assert cam["view_from"] == pytest.approx([-third, -third, third])
+    assert cam["up"][2] > 0 and cam["view_angle"] > 0
+    assert nx.camera["scale"] == 1.0  # the engineer's camera came back
+    still = run(nx, "nx_capture_view", view_from=[1, 0, 0], up=[0, 1, 0], fit=False)
+    assert still.ok and nx.work_view.fits == 1  # fit=false keeps the scale
+    assert still.data["camera"]["up"] == pytest.approx([0, 1, 0])
+
+
+@pytest.mark.parametrize(
+    ("args", "field"),
+    [({"up": [0, 0, 1]}, "/up"), ({"view_from": [0, 0, 0]}, "/view_from")],
+)
+def test_bad_aim_is_refused_before_nx(args, field):
+    nx = display_nx()
+    bad = run(nx, "nx_capture_view", **args)
+    assert bad.error["field"] == field and bad.mutation_outcome == "not_started"
+    assert nx.captures == []
+
+
+def test_a_sheet_has_no_view_from():
+    nx = display_nx()
+    show_sheet(nx)
+    bad = run(nx, "nx_capture_view", view_from=[1, 1, 1])
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/view_from"
+
+
+def _clutter(nx):
+    sketch, datum, hidden = Sketch("SKETCH_000"), Object("DATUM_PLANE"), Sketch("SKETCH_001")
+    hidden.IsBlanked = True
+    nx.part.Sketches.extend([sketch, hidden])
+    nx.part.Datums.append(datum)
+    nx.watch = [sketch, datum, hidden]
+    return sketch, datum, hidden
+
+
+def test_sketches_and_datums_are_hidden_for_the_capture_and_come_back():
+    nx = display_nx()
+    sketch, datum, hidden = _clutter(nx)
+    ok = run(nx, "nx_capture_view")
+    assert ok.ok and ok.data["hidden"] == 2 and ok.mutation_outcome == "not_applicable"
+    assert nx.captures[0].blanked == [True, True, True]  # hidden while NX exported
+    assert [sketch.IsBlanked, datum.IsBlanked, hidden.IsBlanked] == [False, False, True]
+    assert ok.data["part_modified"] is False and not [
+        w for w in ok.warnings if w["code"] == "NX_UPDATE_WARNING"
+    ]
+    shown = run(nx, "nx_capture_view", hide_sketches=False)
+    assert shown.data["hidden"] == 0 and nx.captures[1].blanked == [False, False, True]
+
+
+def test_nothing_is_hidden_while_a_sketch_is_active():
+    nx = display_nx()
+    sketch, _datum, _hidden = _clutter(nx)
+    nx.session.ActiveSketch = sketch
+    ok = run(nx, "nx_capture_view")
+    assert ok.ok and ok.data["hidden"] == 0 and nx.captures[0].blanked == [False, False, True]

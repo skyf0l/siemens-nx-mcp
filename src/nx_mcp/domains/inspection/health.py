@@ -1,7 +1,9 @@
 """Model overview and health (tool-surface 3.9).
 
 ``nx_check_model`` reads native feature errors and warnings, suppression, unloaded or
-suppressed components and UF body consistency; it does not run a model update.
+suppressed components, UF body consistency and sealed internal voids (a solid body
+with more than one shell, ``voids``: a warning with each void's facet volume and box);
+it does not run a model update.
 Shared prototypes are checked once. ``nx_get_model_summary`` pages the feature tree,
 expressions, sketches and components, and gives counts, bounds and health for the
 overview.
@@ -16,6 +18,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit
+from nx_mcp.domains.inspection import voids
 from nx_mcp.kit import bodies, expr, measure, parts, result
 
 
@@ -27,6 +30,8 @@ class Issue(TypedDict, total=False):
     path: list[str]
     message: str
     faults: list[dict[str, Any]]
+    shells: int
+    voids: list[dict[str, Any]]
 
 
 class Counts(TypedDict):
@@ -126,6 +131,21 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
                         ],
                     }
                 )
+            if getattr(body, "IsSolidBody", False):
+                with native():
+                    groups = voids.shells(body)
+                if len(groups) > 1:
+                    issues.append(
+                        {
+                            "severity": "warning",
+                            "kind": "internal_void",
+                            "part": where,
+                            "object": tx.ref(body, kind="body", part=owner),
+                            "message": f"{len(groups) - 1} sealed internal void(s)",
+                            "shells": len(groups),
+                            "voids": voids.voids(tx, body, groups),
+                        }
+                    )
     counts: Counts = {
         "errors": sum(i["severity"] == "error" for i in issues),
         "warnings": sum(i["severity"] == "warning" for i in issues),
@@ -152,8 +172,8 @@ def nx_check_model(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> HealthData:
-    """Check feature errors and warnings, suppression, unloaded components and body
-    consistency. healthy means no errors and no warnings; no model update is run."""
+    """Check feature errors and warnings, suppression, unloaded components, body
+    consistency and sealed voids (warning). healthy: no errors or warnings; no update."""
     issues, counts = diagnose(tx, scope)
     selected, page = result.page(issues, offset, limit)
     return {

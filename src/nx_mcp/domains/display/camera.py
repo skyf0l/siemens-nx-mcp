@@ -8,6 +8,11 @@ The result echoes the same matrix and its columns as ``right``, ``up`` and
 ``view_from``. Canned orientations (``kit.display.ORIENTATION_FROM``) keep the scale
 unless ``fit``; ``view_from`` gives any other direction (e.g. the other isometric
 octants). A camera change does not mark the part modified (NX 2406, measured).
+
+``view`` is the canned orientation nearest in look-from direction and ``view_angle`` the
+angle in degrees between the two directions (NX keeps ``Trimetric`` as the view name). NX's
+isometric looks from (1,-1,1): the rear of a part whose front faces -X (an engine with
+its nose at x=0); ``view_from [-1,-1,1]`` shows that front from the same height.
 """
 
 from __future__ import annotations
@@ -30,15 +35,16 @@ Orientation = Annotated[
 _Row = tuple[float, float, float]
 ViewRotation = Annotated[
     tuple[_Row, _Row, _Row],
-    Doc("Row-major; columns = world screen-right, screen-up, toward-viewer"),
+    Doc("Row-major; columns = right, up, view_from"),
 ]
-ViewFrom = Annotated[tuple[float, float, float], Doc("World direction to look from, e.g. [1,1,1]")]
+ViewFrom = Annotated[tuple[float, float, float], Doc("Direction to look from, e.g. [-1,-1,1]")]
 ViewUp = Annotated[tuple[float, float, float], Doc("Screen up for view_from (default +Z)")]
 
 
 class CameraData(TypedDict, total=False):
     part: Row
     view: str
+    view_angle: float
     rotation: list[list[float]]
     view_from: list[float]
     up: list[float]
@@ -61,7 +67,8 @@ class CameraData(TypedDict, total=False):
 )
 def nx_get_camera(tx: Tx) -> CameraData:
     """Read the displayed view: camera rotation, origin, scale and rendering style, or the
-    shown drawing sheet. origin is the value nx_set_camera takes back."""
+    shown drawing sheet. origin is the value nx_set_camera takes back; view is the nearest
+    named view, view_angle the degrees off it."""
     part = display.shown_part(tx)
     tx.frame = "display_part_absolute"
     out: CameraData = {"part": tx.ref(part, "part"), "interactive": not tx.session.IsBatch}
@@ -69,7 +76,7 @@ def nx_get_camera(tx: Tx) -> CameraData:
         sheet = drawing.current(part)
         if sheet is not None:
             out["sheet"] = tx.ref(sheet, "drawing_sheet")
-        out.update(camera_row(display.camera(tx, part.Views.WorkView)))
+        out.update(camera_row(display.camera(tx, part.Views.WorkView), named=False))
         return out
     out.update(camera_row(display.camera(tx, part.ModelingViews.WorkView)))
     return out
@@ -111,8 +118,9 @@ def nx_set_camera(
     fit: bool = False,
 ) -> CameraData:
     """Orient the model view (orientation, view_from or rotation), set origin or scale, and/or
-    fit. Named views have +Z up (top +Y, bottom -Y); the result adds the rotation's columns
-    right, up, view_from. Work and display part must match; returns restore_id."""
+    fit; returns restore_id. isometric is NX's (1,-1,1), the rear of a part whose front is at
+    min X: view_from [-1,-1,1] shows that front. view = nearest named view, view_angle
+    degrees off it."""
     given = [n for n, v in (("orientation", orientation), ("view_from", view_from),
                             ("rotation", rotation)) if v is not None]  # fmt: skip
     if not given and origin is None and scale is None and not fit:

@@ -135,6 +135,7 @@ async def test_find_ranks_by_name_keywords_and_synonyms(tmp_path, tested):
     assert partial["data"]["partial"] is True  # no tool matched every word
     none = body(await agent.call_tool("nx_find_tools", {"query": "zebra quokka"}))
     assert none["data"]["tools"] == [] and none["page"]["total"] == 0
+    assert none["data"]["domains"] and "No tool matches" in none["data"]["hint"]  # never bare
     reads = body(await agent.call_tool("nx_find_tools", {"query": "list", "effect": "read"}))
     assert all(r["effect"] == "read" for r in reads["data"]["tools"])
 
@@ -509,12 +510,102 @@ def _entries():
 )
 def test_find_ranks_the_obvious_tool_first(query, first):
     found, _ = gateways.ranked(_entries(), query)
-    assert found[0].name == first, [e.name for e in found[:5]]
+    assert found[0].entry.name == first, [h.entry.name for h in found[:5]]
 
 
 def test_find_keeps_unrelated_tools_below_name_matches():
-    names = [e.name for e in gateways.ranked(_entries(), "create part")[0][:3]]
+    names = [h.entry.name for h in gateways.ranked(_entries(), "create part")[0][:3]]
     assert not any("explosion" in n or n.startswith("nx_export") for n in names), names
+
+
+# ---- discovery regressions (builder agents, 2026-10-10): a scored OR ------------
+
+
+def _top3(query):
+    specs = catalogue.load()
+    hits, _ = gateways.ranked(_entries(), query, variants=lambda e: specs[e.name].variant_values())
+    return [h.entry.name for h in hits[:3]]
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("save close part", ["nx_save_part", "nx_close_part"]),
+        ("new part", ["nx_create_part"]),
+        ("close part", ["nx_close_part"]),
+        ("revolve profile", ["nx_create_revolve"]),
+        ("fillet edges", ["nx_create_blend"]),
+        ("section view", ["nx_create_section_view"]),
+        ("set expression", ["nx_set_expression"]),
+        ("pattern blades around axis", ["nx_create_pattern"]),
+        ("unite bodies", ["nx_create_boolean"]),
+        ("measure distance", ["nx_measure_distance"]),
+        ("screenshot", ["nx_capture_view"]),
+        ("mate parts", ["nx_create_assembly_constraint"]),
+    ],
+)
+def test_find_puts_the_expected_tools_in_the_top_three(query, expected):
+    top = _top3(query)
+    assert set(expected) <= set(top), top
+
+
+def test_find_puts_create_part_first_for_create_new_part():
+    assert _top3("create new part")[0] == "nx_create_part"
+
+
+def test_find_ranks_a_tool_matching_every_word_above_partial_ones():
+    hits, partial = gateways.ranked(_entries(), "save part")
+    assert not partial and hits[0].entry.name == "nx_save_part"
+    assert hits[0].matched == ("save", "part")
+    # A rarer word counts more: "save" alone outranks "part" alone.
+    rest = {h.entry.name: h.score for h in hits}
+    assert rest["nx_save_presentation"] > rest["nx_activate_part"]
+
+
+@pytest.fixture
+def every_tool(monkeypatch):
+    every = {
+        n: {"v2406": {"variants": list(s.variant_values())}} for n, s in catalogue.load().items()
+    }
+    monkeypatch.setattr(evidence, "_CACHE", every)
+    monkeypatch.delenv("NX_MCP_DEV", raising=False)
+
+
+async def test_find_answers_several_tasks_in_one_query_with_a_hint(tmp_path, every_tool):
+    query = "revolve sketch extrude pattern expression unite"
+    data = body(await server(tmp_path).call_tool("nx_find_tools", {"query": query}))["data"]
+    names = [r["name"] for r in data["tools"]]
+    assert "nx_create_revolve" in names and "nx_create_extrude" in names, names
+    assert data["partial"] is True and "queries" in data["hint"]
+    assert all(r["matched"] for r in data["tools"])  # each row says what it matched
+
+
+async def test_find_queries_returns_the_top_tools_per_task(tmp_path, every_tool):
+    agent = server(tmp_path)
+    data = body(
+        await agent.call_tool("nx_find_tools", {"queries": ["revolve", "pattern", "unite"]})
+    )["data"]
+    firsts = [item["tools"][0]["name"] for item in data["results"]]
+    assert firsts == ["nx_create_revolve", "nx_create_pattern", "nx_create_boolean"]
+    assert [item["query"] for item in data["results"]] == ["revolve", "pattern", "unite"]
+    assert all(len(item["tools"]) <= 5 for item in data["results"])  # 5 per query by default
+    assert "matched" not in data["results"][0]["tools"][0]  # one word: nothing to say
+    both = body(await agent.call_tool("nx_find_tools", {"query": "x", "queries": ["revolve"]}))
+    assert both["error"]["code"] == "NX_INVALID_ARGUMENT" and "not both" in both["error"]["message"]
+    for bad in ([], ["a"] * 11, [""]):
+        refused = body(await agent.call_tool("nx_find_tools", {"queries": bad}))
+        assert refused["error"]["code"] == "NX_INVALID_ARGUMENT", bad
+
+
+async def test_find_searches_close_spellings_of_unknown_words(tmp_path, every_tool):
+    agent = server(tmp_path)
+    data = body(await agent.call_tool("nx_find_tools", {"query": "revovle"}))["data"]
+    assert "revolve" in data["did_you_mean"] and "partial" not in data
+    assert data["tools"][0]["name"] == "nx_create_revolve"
+    data = body(await agent.call_tool("nx_find_tools", {"query": "chamfre edges"}))["data"]
+    assert data["did_you_mean"] == ["chamfer"] and data["tools"][0]["name"] == "nx_create_chamfer"
+    data = body(await agent.call_tool("nx_find_tools", {"queries": ["scrrenshot"]}))["data"]
+    assert data["results"][0]["tools"][0]["name"] == "nx_capture_view"
 
 
 async def test_empty_find_returns_a_domain_overview(tmp_path):
@@ -609,9 +700,9 @@ def test_compact_changes_keep_the_main_object_and_count_the_rest():
     }
     store = _Store()
     compact = _project(full, store)
-    assert compact["changes"]["created"] == [pattern]
+    assert compact["changes"]["created"] == []  # data shows the pattern: never listed twice
     assert compact["changes"]["counts"] == {"created": {"expression": 8, "feature": 36}}
-    assert compact["omitted"]["/changes/created"] == {"total": 44, "returned": 1}
+    assert compact["omitted"]["/changes/created"] == {"total": 44, "returned": 0}
     assert compact["data"]["volume"] == 1.0 and compact["result_id"]
     assert store.saved == [full] and len(full["changes"]["created"]) == 44  # full kept
 
@@ -628,8 +719,8 @@ def test_compact_changes_drop_rows_data_already_shows_and_nx_helpers():
         "changes": {"created": curves, "modified": [], "deleted": [], "references": "preserved"},
     }
     compact = _project(full, _Store())
-    assert compact["changes"]["created"] == []
-    assert compact["changes"]["counts"] == {"created": {"curve": 12}}
+    assert compact["changes"]["created"] == []  # data lists every curve: nothing is lost
+    assert "counts" not in compact["changes"] and "result_id" not in compact
     helpers = [_ref(70 + k, "point", f"ENTITY 2 {k} 1") for k in range(4)]
     helpers += [_ref(80 + k, "curve", f"ENTITY 3 {k} 1") for k in range(4)]
     datum = _ref(9, "datum_plane", "DATUM_PLANE(3)")
@@ -639,20 +730,108 @@ def test_compact_changes_drop_rows_data_already_shows_and_nx_helpers():
 
 
 def test_small_compact_result_needs_no_result_id():
-    """Two rows cost less than the result_id, omitted and counts that would replace them."""
+    """A helper row costs less than the result_id, omitted and counts that would replace
+    it; the row data already shows is dropped without loss."""
     from nx_mcp.sidecar.proxy import _project
 
     feature = _ref(5, "feature", "EXTRUDE(2)")
+    helper = _ref(1, "expression", "p0")
     full = {
         "ok": True,
         "tool": "nx_create_extrude",
         "mutation_outcome": "committed",
         "data": {"feature": feature},
         "changes": {
-            "created": [_ref(1, "expression", "p0"), feature],
+            "created": [helper, feature],
             "modified": [],
             "deleted": [],
             "references": "preserved",
         },
     }
-    assert _project(full, _Store()) == full
+    store = _Store()
+    compact = _project(full, store)
+    assert compact["changes"]["created"] == [helper] and "result_id" not in compact
+    assert store.saved == [] and full["changes"]["created"] == [helper, feature]
+
+
+def _pattern_envelope(instances):
+    """A separate-body pattern of ``instances`` (seed included), as NX 2406 reports it."""
+    seed_body = _ref(3, "body", "")
+    new = [_ref(100 + k, "body", "") for k in range(instances - 1)]
+    pattern = _ref(10, "feature", "Pattern Feature [Linear](11)")
+    created = [_ref(20 + k, "expression", f"p{17 + k}") for k in range(9)]
+    created += [pattern, *new]
+    created += [
+        _ref(200 + k, "feature", f"Pattern Feature [Linear](11:{k}A)") for k in range(instances)
+    ]
+    return {
+        "ok": True,
+        "tool": "nx_create_pattern",
+        "mutation_outcome": "committed",
+        "data": {
+            "feature": pattern,
+            "bodies": [seed_body, *new],
+            "volume": 18000.0,
+            "layout": "linear",
+            "count": instances,
+            "new_bodies": instances - 1,
+        },
+        "changes": {"created": created, "modified": [], "deleted": [], "references": "listed"},
+    }
+
+
+def test_compact_pattern_lists_no_body_twice_and_shows_first_and_last():
+    from nx_mcp.sidecar.proxy import _project, _size
+
+    full = _pattern_envelope(18)
+    store = _Store()
+    compact = _project(full, store)
+    data = compact["data"]
+    assert [b["id"] for b in data["bodies"]] == ["b:3", "b:116"]  # seed body, last instance
+    assert data["new_bodies"] == 17 and data["count"] == 18
+    assert compact["omitted"]["/data/bodies"] == {"total": 18, "returned": 2, "shown": "first_last"}
+    assert compact["changes"]["created"] == []
+    assert compact["changes"]["counts"] == {"created": {"body": 17, "expression": 9, "feature": 19}}
+    ids = [r["id"] for r in data["bodies"]] + [r["id"] for r in compact["changes"]["created"]]
+    assert len(ids) == len(set(ids))
+    assert store.saved == [full] and len(full["data"]["bodies"]) == 18
+    assert _size(compact) < 1000 and _size(full) > 4000
+
+
+def test_compact_boolean_shows_first_and_last_deleted_tool():
+    from nx_mcp.sidecar.proxy import _project
+
+    target = _ref(3, "body", "")
+    tools = [_ref(100 + k, "body", "") for k in range(18)]
+    feature = _ref(10, "feature", "UNITE(30)")
+    full = {
+        "ok": True,
+        "tool": "nx_create_boolean",
+        "mutation_outcome": "committed",
+        "data": {"feature": feature, "bodies": [target], "volume": 1.0, "deleted_bodies": 18},
+        "changes": {
+            "created": [feature],
+            "modified": [target],
+            "deleted": tools,
+            "references": "listed",
+        },
+    }
+    compact = _project(full, _Store())
+    changes = compact["changes"]
+    assert changes["created"] == [] and changes["modified"] == []  # shown in data
+    assert changes["deleted"] == [tools[0], tools[-1]]
+    assert changes["counts"] == {"deleted": {"body": 18}}
+    assert compact["omitted"] == {
+        "/changes/deleted": {"total": 18, "returned": 2, "shown": "first_last"}
+    }
+    three = {**full, "changes": {**full["changes"], "deleted": tools[:3]}}
+    assert _project(three, _Store())["changes"]["deleted"] == tools[:3]
+
+
+def test_read_results_keep_their_body_lists():
+    from nx_mcp.sidecar.proxy import _project
+
+    bodies = [_ref(k, "body", "") for k in range(6)]
+    full = {"ok": True, "tool": "nx_list_bodies", "mutation_outcome": "not_applicable",
+            "data": {"bodies": bodies}}  # fmt: skip
+    assert _project(full, _Store())["data"]["bodies"] == bodies

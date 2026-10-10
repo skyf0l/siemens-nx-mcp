@@ -120,12 +120,31 @@ def test_boolean_operations_and_rules():
     changes(nx, "BooleanBuilder", a, 1500.0)
     ok = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=[b.ref])
     assert ok.ok and ok.data["volume"] == 1500, ok
+    assert ok.data["deleted_bodies"] == 0  # the fake keeps the tool body
     assert nx.last("BooleanBuilder").Operation is nx.nx.Features.FeatureBooleanType.Unite
     self_tool = run(nx, "nx_create_boolean", operation="subtract", target=a.ref, tools=[a.ref])
     assert self_tool.error["field"] == "/tools"
     changes(nx, "BooleanBuilder", a, 2000.0)
     grew = run(nx, "nx_create_boolean", operation="subtract", target=a.ref, tools=[b.ref])
     assert grew.error["details"]["check"] == "volume"
+
+
+def test_boolean_counts_the_consumed_tools_and_lists_the_target_first():
+    nx = modeling_nx()
+    a = nx.block(10, 10, 10)
+    tools = [nx.block(10, 10, 10, origin=(5 * k, 0, 0)) for k in range(1, 5)]
+
+    def united(b):
+        for t in tools:
+            nx.part.Bodies.remove(t)
+        a.volume = 3000.0
+        return feature(nx, "UNITE", [*tools[:0], a])
+
+    nx.on_commit("BooleanBuilder", united)
+    ok = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=[t.ref for t in tools])
+    assert ok.ok, ok
+    assert ok.data["deleted_bodies"] == 4 and [b["id"] for b in ok.data["bodies"]] == [a.ref]
+    assert len(ok.changes["deleted"]) == 4
 
 
 def test_trim_keeps_the_requested_side_and_split_adds_up():

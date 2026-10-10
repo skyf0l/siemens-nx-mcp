@@ -157,6 +157,9 @@ class Capture:
         if self.fake.capture_error is not None:
             raise self.fake.capture_error
         self.styled = self.fake.work_view.RenderingStyle
+        self.blanked = [bool(o.IsBlanked) for o in getattr(self.fake, "watch", [])]
+        self.matrix = self.fake.work_view.Matrix
+        self.modified = bool(self.fake.part.IsModified)
         if self.kind == "studio":
             png(self.NativeFileBrowser, (self.dims[1], self.dims[0]))
         else:

@@ -10,8 +10,10 @@
 
 from __future__ import annotations
 
+import math
+
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import bodies, geom
+from nx_mcp.kit import bodies, facts, geom
 
 # Principal radii at or beyond this many part units mean a straight (flat) direction.
 FLAT_RADIUS = 1e8
@@ -115,3 +117,30 @@ def unit_or_none(values):
     v = xyz3(values)
     n = geom.norm(v)
     return [x / n for x in v] if n > 1e-12 else None
+
+
+def axial_facts(tx, face, data) -> dict:
+    """Facts of a cylinder (code 16) or cone (17) face from UF ``AskFaceData`` ``data``.
+
+    Cylinders: ``radius``, ``axis``, ``axis_point``. Cones: ``axis``, ``axis_point``,
+    ``half_angle`` (degrees) and ``radii``, the radii of the face's circular edges in
+    order along ``axis`` (both ends of a frustum; one for a cone with an apex). NX 2406:
+    a cone's ``data[4]`` is its radius at ``axis_point`` and ``data[5]`` the half-angle
+    in radians; UF ``AskArcData`` centres are arc-local, so edges go through UF Eval.
+    """
+    code = int(data[0])
+    point, axis = xyz3(data[1]), geom.unit(xyz3(data[2]))
+    if code == 16:
+        return {"radius": float(data[4]), "axis": axis, "axis_point": point}
+    rings: dict[float, float] = {}  # axial position -> radius (split arcs counted once)
+    for edge in face.GetEdges():
+        found = facts.edge(tx, edge)
+        if found["kind"] == "arc":
+            at = geom.dot(geom.sub(found["center"], point), axis)
+            rings.setdefault(round(at, 6), float(found["radius"]))
+    return {
+        "axis": axis,
+        "axis_point": point,
+        "half_angle": math.degrees(abs(float(data[5]))),
+        "radii": [rings[k] for k in sorted(rings)],
+    }

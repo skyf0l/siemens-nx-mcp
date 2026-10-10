@@ -26,7 +26,8 @@ def test_get_camera_reads_the_model_view():
     assert ok.ok and ok.mutation_outcome == "not_applicable"
     assert ok.frame == "display_part_absolute"
     data = ok.data
-    assert data["view"] == "Trimetric" and data["style"] == "shaded_with_edges"
+    assert data["view"] == "trimetric" and data["view_angle"] == 0.0
+    assert data["style"] == "shaded_with_edges"
     assert flat(data["rotation"]) == pytest.approx(flat(display.ORIENTATION_ROTATIONS["trimetric"]))
     assert data["origin"] == [-1.0, -2.0, -3.0] and data["scale"] == 1.5
     assert data["interactive"] is True and "sheet" not in data
@@ -38,6 +39,28 @@ def test_get_camera_reports_the_shown_sheet():
     data = run(nx, "nx_get_camera").data
     assert data["sheet"]["name"] == "SHT1" and data["style"] == "drawing"
     assert data["view"] == "SHT1@0" and data["origin"] == [-210, -148.5, 0]
+    assert "view_angle" not in data  # a sheet keeps NX's view name
+
+
+def test_a_custom_camera_names_the_nearest_view_and_the_angle_off_it():
+    nx = display_nx()
+    ok = run(nx, "nx_set_camera", view_from=[-1, -1, 1])
+    assert ok.ok and ok.data["view_from"] == pytest.approx([-(3**-0.5), -(3**-0.5), 3**-0.5])
+    # (-1,-1,1), the isometric octant facing a part's min-X front, is 54.7 degrees from
+    # front, left and top alike: the smallest whole rotation (front, +Z up) wins.
+    assert ok.data["view"] == "front" and ok.data["view_angle"] == pytest.approx(54.736)
+    iso = run(nx, "nx_set_camera", orientation="isometric").data
+    assert iso["view"] == "isometric" and iso["view_angle"] == 0.0
+    near = run(nx, "nx_set_camera", view_from=[0.05, -1, 0]).data
+    assert near["view"] == "front" and near["view_angle"] == pytest.approx(2.862, abs=1e-3)
+
+
+def test_nearest_view_names_every_canned_rotation_whatever_the_roll():
+    for name, rotation in display.ORIENTATION_ROTATIONS.items():
+        assert display.nearest_view(rotation) == (name, 0.0)
+    rolled = display.rotation_from([1, 0, 0], [0, 1, 0])  # right, with +Y up
+    assert display.nearest_view(rolled) == ("right", 0.0)
+    assert display.nearest_view(display.rotation_from([0, 0, -1])) == ("bottom", 0.0)
 
 
 def test_orientation_with_fit_is_read_back_and_restorable():

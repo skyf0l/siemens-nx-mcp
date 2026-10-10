@@ -145,3 +145,81 @@ def test_check_sketch_reports_relieving_constraints():
     sk.constraints.remove(v)
     calm = run(nx, "nx_check_sketch", sketch=sk.ref)
     assert calm.data["trials"] == [] and calm.data["state"] == "under_constrained"
+
+
+# ---------------------------------------------------------------------------
+# One-call sketch: placement, curves and finish
+
+
+HOLLOW = [
+    {"type": "rectangle", "corner1": [10, 0], "corner2": [30, 40]},
+    {"type": "polyline", "points": [[15, 5], [25, 5], [25, 35], [15, 35]], "closed": True},
+]
+
+
+def test_one_call_sketch_makes_a_finished_profile_with_nested_loops():
+    nx = sketch_nx()
+    ok = run(nx, "nx_create_sketch", placement={"principal": "xz"}, curves=HOLLOW, finish=True)
+    assert ok.ok, ok
+    data = ok.data
+    assert data["loops"] == [{"closed": True, "curves": 4}, {"closed": True, "curves": 4}]
+    assert len(data["curves"]) == 8 and {c["kind"] for c in data["curves"]} == {"curve"}
+    assert data["active"] is False and nx.session.ActiveSketch is None
+    sketch = nx.part.Sketches[-1]
+    assert len(sketch.geometry) == 8
+    coincident = [c for c in sketch.constraints if c.ConstraintType == CT.Coincident]
+    assert len(coincident) == 8
+    assert ok.mutation_outcome == "committed" and nx.live_builders == 0
+    kinds = [r["kind"] for r in ok.changes["created"]]
+    assert kinds.count("sketch") == 1 and kinds.count("curve") == 8
+
+
+def test_one_call_sketch_without_finish_stays_active():
+    nx = sketch_nx()
+    ok = run(nx, "nx_create_sketch", placement={"principal": "xy"},
+             curves=[{"type": "line", "start": [0, 0], "end": [10, 0]}])  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["active"] is True and nx.session.ActiveSketch is nx.part.Sketches[-1]
+    assert ok.data["loops"] == [{"closed": False, "curves": 1, "open_ends": 2}]
+
+
+def test_one_call_sketch_validates_every_curve_before_nx():
+    nx = sketch_nx()
+    bad = run(nx, "nx_create_sketch", placement={"principal": "xy"},
+              curves=[*HOLLOW, {"type": "line", "start": [1, 1], "end": [1, 1]}])  # fmt: skip
+    assert bad.error["field"] == "/curves/2/end" and bad.mutation_outcome == "not_started", bad
+    assert nx.builders == [] and list(nx.part.Sketches) == []
+
+
+def test_one_call_sketch_rolls_back_the_sketch_when_a_curve_fails():
+    nx = sketch_nx()
+    create_line = nx.part.Curves.CreateLine
+    made = []
+
+    def failing(a, b):
+        if len(made) == 5:
+            raise RuntimeError("NX refused the line")
+        made.append(create_line(a, b))
+        return made[-1]
+
+    nx.part.Curves.CreateLine = failing
+    bad = run(nx, "nx_create_sketch", placement={"principal": "xy"}, curves=HOLLOW, finish=True)
+    assert bad.mutation_outcome == "rolled_back" and "refused" in bad.error["message"], bad
+    assert list(nx.part.Sketches) == [] and nx.session.ActiveSketch is None
+
+
+@pytest.mark.parametrize(
+    ("curves", "field"),
+    [
+        ([{"type": "spline", "points": [[0, 0], [1, 1]]}], "/curves/0/type"),
+        ([{"start": [0, 0], "end": [1, 1]}], "/curves/0/type"),
+        ([{"type": "circle", "center": [0, 0], "radius": 2, "sides": 3}], "/curves/0/sides"),
+        ([{"type": "circle", "center": [0, 0]}], "/curves/0/radius"),
+    ],
+)
+def test_one_call_sketch_checks_each_item_against_its_curve_type(curves, field):
+    nx = sketch_nx()
+    bad = run(nx, "nx_create_sketch", placement={"principal": "xy"}, curves=curves)
+    assert bad.error["category"] == "invalid_argument", bad
+    assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
+    assert list(nx.part.Sketches) == []

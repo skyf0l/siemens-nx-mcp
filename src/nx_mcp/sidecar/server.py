@@ -54,7 +54,8 @@ CORE_TOOLS = (
     "nx_download_file",
 )
 AGENT_INSTRUCTIONS = (
-    "NX agent profile. Find tools with nx_find_tools (task words), fetch exact schemas with "
+    "NX agent profile. Find tools with nx_find_tools: query takes 1-4 keywords for one task "
+    "('revolve profile'); for several tasks pass queries, one task each. Fetch exact schemas with "
     "nx_get_tool_schemas (1-10 names; 'tool#variant' for one variant), then call them through "
     "nx_invoke, or nx_invoke_read for read-only tools: catalogue tools found with nx_find_tools "
     "are not MCP tools of their own (only the listed core tools are). Results carry ok, "
@@ -66,6 +67,9 @@ AGENT_INSTRUCTIONS = (
     "into the conversation."
 )
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
+# nx_find_tools: default rows for one query and per query of ``queries``; more words than
+# this in one query earn a hint to split the tasks into ``queries``.
+FIND_LIMIT, QUERIES_LIMIT, MAX_QUERY_WORDS = 10, 5, 4
 FULL_INSTRUCTIONS = (
     "Siemens NX integration. Runtime support varies by NX version; no general certification "
     "is claimed. Tools return {ok, mutation_outcome, data | error}. Every changing tool takes "
@@ -113,6 +117,7 @@ class Surface:
             )
             for s in self.specs.values()
         ]
+        self.index = gateways.Index(self.entries)  # word rarity over the whole catalogue
 
     # -- listing ---------------------------------------------------------------
 
@@ -258,7 +263,7 @@ class Surface:
     def _visible_entries(self):
         return [e for e in self.entries if self.proxy.visible(self.specs[e.name])]
 
-    def row(self, entry) -> dict[str, Any]:
+    def row(self, entry, matched=None) -> dict[str, Any]:
         row: dict[str, Any] = {
             "name": entry.name,
             "summary": entry.summary,
@@ -267,6 +272,8 @@ class Surface:
         }
         if not self.proxy.tested(self.specs[entry.name]):
             row["tested"] = False
+        if matched is not None:
+            row["matched"] = list(matched)
         return row
 
     def build_note(self) -> dict[str, Any]:
@@ -281,22 +288,65 @@ class Surface:
             )
         return note
 
-    def _find(self, request) -> CallToolResult:
-        if not request.query.strip() and request.domain is None:
-            return self._overview(request.effect)
-        found, partial = gateways.ranked(
+    def _search(self, query: str, request) -> tuple[list, bool, list[str], str]:
+        """``(hits, partial, spellings, searched)``. Query words no tool matches are replaced
+        by their close spellings (``spellings``; ``searched``: the query then run)."""
+        searched, spellings = self.index.respell(query)
+        hits, partial = gateways.ranked(
             self._visible_entries(),
-            request.query,
+            searched,
             request.domain,
             request.effect,
             variants=lambda e: self.proxy.variants(self.specs[e.name]),
+            index=self.index,
         )
-        selected = found[request.offset : request.offset + request.limit]
-        end = request.offset + len(selected)
-        data: dict[str, Any] = {"tools": [self.row(e) for e in selected], "call_with": CALL_WITH}
+        # Spellings are alternatives ("revolve remove"), so missing one is not partial.
+        return hits, partial and not spellings, spellings, searched
+
+    def _rows(self, hits, query: str, offset: int, limit: int) -> list[dict[str, Any]]:
+        """Rows of a page of hits; a row that missed a query word lists the words it matched
+        (none listed: it matched them all)."""
+        count = len(gateways.query_words(query))
+        return [
+            self.row(h.entry, h.matched if len(h.matched) < count else None)
+            for h in hits[offset:][:limit]
+        ]
+
+    @staticmethod
+    def _notes(query: str, partial: bool, spellings: list[str]) -> dict[str, Any]:
+        notes: dict[str, Any] = {}
         if partial:
-            data["partial"] = True  # no tool matched every word; best matches first
+            notes["partial"] = True  # no tool matched every word; rows say what they matched
+        if spellings:
+            notes["did_you_mean"] = spellings  # searched for words no tool matches
+        count = len(gateways.query_words(query))
+        if count > MAX_QUERY_WORDS or (partial and count > 2):
+            notes["hint"] = (
+                "One task per query: for several tasks pass queries, e.g. "
+                "['revolve profile', 'pattern circular', 'unite bodies']"
+            )
+        return notes
+
+    def _find(self, request) -> CallToolResult:
+        if request.queries is not None:
+            return self._find_each(request)
+        if not request.query.strip() and request.domain is None:
+            return self._overview(request.effect)
+        hits, partial, spellings, searched = self._search(request.query, request)
+        limit = request.limit or FIND_LIMIT
+        data: dict[str, Any] = {
+            "tools": self._rows(hits, searched, request.offset, limit),
+            "call_with": CALL_WITH,
+        }
+        data.update(self._notes(request.query, partial, spellings))
+        if not hits:  # never just empty: the domains to browse instead
+            data["domains"] = self._domains(request.effect)
+            data["hint"] = (
+                "No tool matches these words: try others, or pass a domain below with an "
+                "empty query to list its tools"
+            )
         data["listing"] = self.build_note()
+        end = min(request.offset + limit, len(hits))
         return result(
             {
                 "ok": True,
@@ -305,14 +355,40 @@ class Surface:
                 "data": data,
                 "page": {
                     "offset": request.offset,
-                    "total": len(found),
-                    "next_offset": end if end < len(found) else None,
+                    "total": len(hits),
+                    "next_offset": end if end < len(hits) else None,
                 },
             }
         )
 
-    def _overview(self, effect) -> CallToolResult:
-        """An empty query: the domains with their tool counts and a few key tools each."""
+    def _find_each(self, request) -> CallToolResult:
+        """``queries``: one ranked search per query, ``QUERIES_LIMIT`` rows each by default."""
+        limit = request.limit or QUERIES_LIMIT
+        results = []
+        for query in request.queries:
+            hits, partial, spellings, searched = self._search(query, request)
+            item: dict[str, Any] = {
+                "query": query,
+                "tools": self._rows(hits, searched, request.offset, limit),
+                "total": len(hits),
+            }
+            item.update(self._notes(query, partial, spellings))
+            results.append(item)
+        data: dict[str, Any] = {"results": results, "call_with": CALL_WITH}
+        if any(not item["total"] for item in results):
+            data["hint"] = "Some queries match no tool: try other words, or an empty query"
+        data["listing"] = self.build_note()
+        return result(
+            {
+                "ok": True,
+                "tool": "nx_find_tools",
+                "mutation_outcome": "not_applicable",
+                "data": data,
+            }
+        )
+
+    def _domains(self, effect) -> list[dict[str, Any]]:
+        """The domains with their tool counts and a few key tools each."""
         domains: dict[str, list] = {}
         for entry in self._visible_entries():
             if effect is None or entry.effect == effect:
@@ -322,13 +398,17 @@ class Surface:
             names = domains[domain]
             key = [n for n in gateways.KEY_TOOLS.get(domain, ()) if n in names]
             rows.append({"domain": domain, "tools": len(names), "key": key or sorted(names)[:3]})
+        return rows
+
+    def _overview(self, effect) -> CallToolResult:
+        """An empty query: the domain overview."""
         return result(
             {
                 "ok": True,
                 "tool": "nx_find_tools",
                 "mutation_outcome": "not_applicable",
                 "data": {
-                    "domains": rows,
+                    "domains": self._domains(effect),
                     "hint": "Search with task words (e.g. 'revolve', 'sketch polyline'), or "
                     "pass domain with an empty query to list one domain's tools",
                     "call_with": CALL_WITH,

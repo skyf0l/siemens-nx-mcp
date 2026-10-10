@@ -9,6 +9,10 @@ NX 2406 findings kept here:
 - ``AskBoundingBoxExact`` is aligned to the WCS: exact absolute bounds need a WCS
   whose axes are the absolute axes, otherwise the call is refused.
 - Overlapping bodies are summed, not united.
+- A feature reference measures the feature's whole bodies (``kit.bodies.of``), like the
+  other measurements: the bounds of a boss are those of the body it was united into.
+  ``nx_measure_section`` or ``nx_find_geometry`` with the feature as owner read the
+  feature's own geometry.
 """
 
 from __future__ import annotations
@@ -251,7 +255,8 @@ def nx_measure_bounds(
     ] = "conservative",
 ) -> BoundsData:
     """Measure the absolute axis-aligned bounding box of bodies, the part or the assembly.
-    conservative may exceed curved geometry; exact is tight."""
+    A feature or component counts its whole bodies, not only its own faces. conservative
+    may exceed curved geometry; exact is tight."""
     found = common.target_bodies(tx, bodies, scope)
     exact = precision == "exact"
     if exact and not measure.wcs_is_absolute(tx):

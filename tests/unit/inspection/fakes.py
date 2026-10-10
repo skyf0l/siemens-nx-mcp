@@ -29,6 +29,23 @@ def _clamp(p, box):
     return [min(max(p[i], box[i]), box[i + 3]) for i in range(3)]
 
 
+def adjacent(body):
+    """NX's face<->edge adjacency on a fake block (an edge lies in a face's plane): one
+    shell, as ``nx_check_model`` counts shells through shared edges."""
+
+    def on(face, edge):
+        n, o = face.normal, face.origin
+        return all(
+            abs(sum(n[i] * (getattr(v, "XYZ"[i]) - o[i]) for i in range(3))) < 1e-9
+            for v in edge.GetVertices()
+        )
+
+    for face in body.faces:
+        face.GetEdges = lambda f=face: [e for e in body.edges if on(f, e)]
+    for edge in body.edges:
+        edge.GetFaces = lambda e=edge: [f for f in body.faces if on(f, e)]
+
+
 def inspection_nx(units="mm"):
     nx = fake_nx(units=units)
     part = nx.part
@@ -53,10 +70,9 @@ def inspection_nx(units="mm"):
             remember(f)
             f.sense = 1
             f.JournalIdentifier = f"FACE({f.Tag})"
-            f.GetEdges = lambda f=f: []
         for e in body.edges:
             remember(e)
-            e.GetFaces = lambda: []
+        adjacent(body)
         return body
 
     nx.block = block
@@ -65,7 +81,8 @@ def inspection_nx(units="mm"):
         f = objects[tag]
         kind, origin, direction = nx.face_data[tag]
         radius = getattr(f, "radius", 0.0)
-        return (CODES[kind], list(origin), list(direction), [0] * 6, radius, 0.0, f.sense)
+        half = getattr(f, "half_angle", 0.0)
+        return (CODES[kind], list(origin), list(direction), [0] * 6, radius, half, f.sense)
 
     def body_of(obj):
         return obj if hasattr(obj, "IsSolidBody") else obj.GetBody()
@@ -236,7 +253,131 @@ def inspection_nx(units="mm"):
     nx.nx.NXException = lambda code: NS(GetMessage=lambda: f"fault {code}")
     nx.nx.TaggedObjectManager = NS(GetTaggedObject=lambda tag: objects[int(tag)])
     nx.remember = remember
+    nx.curve_specs = {}  # tag -> ("line", a, b) | ("arc", center, r, x_axis, y_axis, a0, a1)
+    nx.uf.Eval = Evaluator(nx)
+    nx.uf.Facet = Facets(nx)
+    nx.section_cuts = {}  # body tag -> curve specs the plane cut gives
+    nx.planes = []
+
+    def create_plane(origin, normal):
+        nx.planes.append((list(origin), list(normal)))
+        return 7000 + len(nx.planes)
+
+    def section_from_planes(general, planes):
+        nx.section_calls.append((list(general.Objects), list(planes.Planes)))
+        tags = []
+        for body_tag in general.Objects:
+            for spec in nx.section_cuts.get(int(body_tag), []):
+                tags.append(spec_curve(nx, spec).Tag)
+        if not tags:
+            raise RuntimeError("No section curves created.")  # NX 2406 for a miss
+        return tags
+
+    nx.section_calls = []
+    nx.uf.Modeling.CreatePlane = create_plane
+    nx.uf.Curve.SectionGeneralData = lambda: NS(Objects=[], NumObjects=0)
+    nx.uf.Curve.SectionPlanesData = lambda: NS(Planes=[], NumPlanes=0)
+    nx.uf.Curve.SectionFromPlanes = section_from_planes
+    nx.uf.Group = NS(AskGroupData=lambda tags: (list(tags), len(tags)))
     return nx
+
+
+def spec_curve(nx, spec):
+    """A part curve evaluated from ``spec`` (added to the part, as NX section curves are)."""
+    c = Object("CURVE")
+    c.OwningPart, c.IsOccurrence = nx.part, False
+    nx.remember(c)
+    nx.part.Curves.append(c)
+    nx.curve_specs[int(c.Tag)] = spec
+    return c
+
+
+def arc_spec(center, radius, a0, a1, x=(1.0, 0.0, 0.0), y=(0.0, 1.0, 0.0)):
+    return ("arc", list(center), float(radius), list(x), list(y), float(a0), float(a1))
+
+
+class Evaluator:
+    """UF Eval over ``nx.curve_specs`` (lines and arcs, absolute coordinates)."""
+
+    def __init__(self, nx):
+        self.nx = nx
+
+    def Initialize(self, tag):
+        return int(tag)
+
+    def AskLimits(self, tag):
+        spec = self.nx.curve_specs[tag]
+        return [spec[5], spec[6]] if spec[0] == "arc" else [0.0, 1.0]
+
+    def EvaluateUnitVectors(self, tag, t):
+        spec = self.nx.curve_specs[tag]
+        if spec[0] == "line":
+            a, b = spec[1], spec[2]
+            return ([a[i] + t * (b[i] - a[i]) for i in range(3)], [0.0, 0.0, 0.0])
+        _, c, r, x, y, _a0, _a1 = spec
+        p = [c[i] + r * (math.cos(t) * x[i] + math.sin(t) * y[i]) for i in range(3)]
+        return (p, [-math.sin(t) * x[i] + math.cos(t) * y[i] for i in range(3)])
+
+    def IsLine(self, tag):
+        return self.nx.curve_specs[tag][0] == "line"
+
+    def IsArc(self, tag):
+        return self.nx.curve_specs[tag][0] == "arc"
+
+    def AskArc(self, tag):
+        _, c, r, x, _y, _a0, _a1 = self.nx.curve_specs[tag]
+        return NS(Center=c, Radius=r, XAxis=x)
+
+    def Free(self, _handle):
+        pass
+
+
+class Facets:
+    """UF Facet over flat box faces: two triangles per face, wound by its normal.
+
+    ``nx.facet_boxes[face tag]`` is a face's flat box ``[x0, y0, z0, x1, y1, z1]`` (zero
+    span along its axis) and ``face.normal`` its outward (material) normal. Facet ids are
+    ``face tag * 10 + k``."""
+
+    def __init__(self, nx):
+        self.nx = nx
+        self.models = []
+
+    def AskDefaultParameters(self):
+        return NS()
+
+    def FacetSolid(self, body_tag, params):
+        if getattr(self.nx, "facet_error", None):
+            raise self.nx.facet_error
+        self.models.append((int(body_tag), params))
+        return 9000 + len(self.models)
+
+    def AskFaceIdOfSolidFace(self, _model, face_tag):
+        return int(face_tag)
+
+    def CycleFacetsInFace(self, _model, face_id, facet):
+        if facet == -1:
+            return face_id * 10
+        return facet + 1 if facet % 10 == 0 else -1
+
+    def AskVerticesOfFacet(self, _model, facet):
+        return 3, self.triangles(facet // 10)[facet % 10]
+
+    def triangles(self, face_tag):
+        face = self.nx.objects[face_tag]
+        box, n = self.nx.facet_boxes[face_tag], face.normal
+        axis = next(i for i in range(3) if n[i])
+        u, v = (axis + 1) % 3, (axis + 2) % 3  # u x v = +axis
+
+        def corner(a, b):
+            q = [0.0, 0.0, 0.0]
+            q[axis], q[u], q[v] = box[axis], box[u + 3 * a], box[v + 3 * b]
+            return q
+
+        quad = [corner(0, 0), corner(1, 0), corner(1, 1), corner(0, 1)]
+        if n[axis] < 0:
+            quad.reverse()
+        return [[quad[0], quad[1], quad[2]], [quad[0], quad[2], quad[3]]]
 
 
 def _identity():
@@ -314,6 +455,8 @@ def assembly(nx, *placements):
     made = []
     for name, box in placements:
         proto = Body(name, list(box))
+        for edge in proto.edges:  # one shell: every edge joins the box's faces
+            edge.GetFaces = lambda p=proto: list(p.faces)
         component = Component(name, [proto], parent=root)
         component.JournalIdentifier = f"COMPONENT {name} 1"
         for occurrence in component.occurrences.values():

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from nx_mcp.core.errors import fail
-from nx_mcp.kit import measure, readback, result, select
+from nx_mcp.kit import builders, measure, readback, result, select
 
 # Values within this relative band of each other count as "unchanged" volume.
 VOLUME_REL = 1e-9
@@ -98,6 +98,43 @@ def result_of(tx, feature, bodies=None) -> FeatureData:
         "bodies": body_rows(tx, bodies),
         "volume": volume,
     }
+
+
+def boolean_feature(tx, operation, target, tools):
+    """Commit one boolean feature (``unite``/``subtract``/``intersect``) of ``tools``
+    with ``target``; returns the feature."""
+    with builders.build(tx, tx.part.Features.CreateBooleanBuilder, None) as b:
+        b.Operation = getattr(tx.nx.Features.FeatureBooleanType, builders.BOOLEAN_TYPES[operation])
+        b.Target = target
+        b.Tools.Add(list(tools))
+        return b.commit()
+
+
+def unite_into(tx, target, tools):
+    """Unite the separate ``tools`` bodies into ``target`` (one boolean feature) and read it
+    back: every tool is consumed and the body holds at least the target's volume and at
+    most the sum. Returns ``(feature, united body)``."""
+    target_volume = measure.volume(tx, target)
+    total = measure.volume(tx, [target, *tools])
+    feature = boolean_feature(tx, "unite", target, tools)
+    alive = {int(b.Tag) for b in tx.part.Bodies}
+    left = [t for t in tools if int(t.Tag) in alive]
+    made = feature_bodies(feature) or [target]
+    if left or len(made) != 1:
+        # NX 2406 commits a unite of copies that miss the target and keeps several
+        # bodies (measured: 4 for a circular pattern of a seed off the axis).
+        fail(
+            "NX_BUILD_FAILED",
+            f"The copies did not unite into one body: NX kept {max(len(made), len(left) + 1)} "
+            "bodies",
+            hint="Copies must overlap or touch the seed's body to unite; omit unite to keep "
+            "separate bodies",
+            details={"bodies": max(len(made), len(left) + 1)},
+        )
+    after = measure.volume(tx, made)
+    changed(target_volume, after, "at_least")
+    changed(total, after, "at_most")
+    return feature, made[0]
 
 
 # How a combined feature changes the targets' total volume.

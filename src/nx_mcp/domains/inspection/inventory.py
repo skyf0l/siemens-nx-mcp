@@ -6,7 +6,8 @@ kind-specific summary (``type`` is used by the ``type`` filter). Rows are only
 built for the requested page, so large inventories register few references.
 A ``type`` outside a kind's known set (``TYPES``) is refused, never an empty page.
 ``include`` adds per-row detail to the page: ``adjacency`` (a face's edge ids, an edge's
-face ids) or ``views`` (a drawing sheet's views).
+face ids) or ``views`` (a drawing sheet's views). Cylinder and cone face rows of the page
+get their ``details`` here (``common.axial_facts``: radius, or radii and half-angle).
 """
 
 from __future__ import annotations
@@ -14,9 +15,10 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import hooks, tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit, RefTo, Text
+from nx_mcp.domains.inspection import common
 from nx_mcp.kit import result
 
 # Every kind some domain registered a @lister for (a test keeps the two in step: a domain
@@ -122,10 +124,7 @@ def nx_list_objects(
     kind: ListKind,
     owner: Annotated[str, RefTo("body", "face", "feature")] | None = None,
     name_contains: Annotated[str, Text(64), Doc("Case-insensitive name filter")] | None = None,
-    type: Annotated[
-        str, Text(32, r"^[a-z_]+$"), Doc("Kind-specific type, e.g. face plane/cylinder/cone")
-    ]
-    | None = None,
+    type: Annotated[str, Text(32, r"^[a-z_]+$"), Doc("e.g. face cylinder, cone")] | None = None,
     include: Include | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
@@ -155,6 +154,10 @@ def nx_list_objects(
     items: list[ObjectRow] = []
     for obj, k, extra in selected:
         row = cast(ObjectRow, {**tx.ref(obj, kind=k), **extra})  # a row plus the lister's summary
+        if k == "face" and extra.get("type") in ("cylinder", "cone"):
+            with native():
+                axial = common.axial_facts(tx, obj, tx.uf.Modeling.AskFaceData(obj.Tag))
+            row["details"] = {**(row.get("details") or {}), **axial}
         if include is not None:
             row["details"] = {**(row.get("details") or {}), **_expand(tx, obj, k)}
         items.append(row)

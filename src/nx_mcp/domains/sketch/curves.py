@@ -389,37 +389,26 @@ class CurvesData(TypedDict):
     loops: Annotated[list[Loop], Doc("Connected curve chains of the sketch (construction out)")]
 
 
-@tool(
-    effect="model",
-    label="Create sketch curves",
-    summary="Add {curves} to sketch {sketch}",
-    keywords=("polyline", "profile", "line", "arc", "circle", "rectangle", "slot", "sketch curve"),
-    requires=("work_part",),
-    variants=CURVE_TYPES,
-    cost="light",
-    batchable=True,
-    previewable=True,
-    invalidates="deleted",
-    example={
-        "sketch": "s:3",
-        "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}],
-    },
-)
-def nx_create_sketch_curves(
-    tx: Tx,
-    *,
-    sketch: SketchRef,
-    curves: Annotated[
-        list[CurveSpec], Items(1, 100), Doc("Fields per type: nx_get_tool_schemas(tool#type)")
-    ],
-    construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
-) -> CurvesData:
-    """Add 1-100 curves to a sketch: lines, polylines, arcs, circles, ellipses, rectangles, slots.
-    Sketch-local coordinates, part units, degrees; connected curves are joined by coincident
-    constraints, read back, and loops report each chain's closure."""
-    items = common.check_items(curves, CURVE_TYPES, "type", "/curves")
-    plans = [plan(item, f"/curves/{i}") for i, item in enumerate(items)]
-    tx.frame = "sketch_local"
+LOOPS_TEXT = "Each closed loop is a region; a loop inside another makes a hollow profile"
+
+
+def check_curves(curves, field="/curves"):
+    """The plan of every curve item, validated before NX (pure; raises invalid_argument)."""
+    for i, item in enumerate(curves):
+        kind = item.get("type") if isinstance(item, dict) else None
+        if kind not in CURVE_TYPES:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "type must be one of " + ", ".join(CURVE_TYPES),
+                field=f"{field}/{i}/type",
+            )
+    items = common.check_items(curves, CURVE_TYPES, "type", field)
+    return [plan(item, f"{field}/{i}") for i, item in enumerate(items)]
+
+
+def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
+    """Create planned curves in ``sketch`` (a ref or live sketch, activated for the call
+    unless already active), join and read them back; ``loops`` covers the whole sketch."""
     with ksketch.editing(tx, sketch) as sk:
         made = []
         for i, (prims, join) in enumerate(plans):
@@ -447,6 +436,42 @@ def nx_create_sketch_curves(
             "curves": rows,
             "loops": sketch_loops(tx, sk.frame, sk),
         }
+
+
+@tool(
+    effect="model",
+    label="Create sketch curves",
+    summary="Add {curves} to sketch {sketch}",
+    keywords=("polyline", "profile", "line", "arc", "circle", "rectangle", "slot", "sketch curve"),
+    requires=("work_part",),
+    variants=CURVE_TYPES,
+    cost="light",
+    batchable=True,
+    previewable=True,
+    invalidates="deleted",
+    example={
+        "sketch": "s:3",
+        "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}],
+    },
+)
+def nx_create_sketch_curves(
+    tx: Tx,
+    *,
+    sketch: SketchRef,
+    curves: Annotated[
+        list[CurveSpec],
+        Items(1, 100),
+        Doc("Fields per type: nx_get_tool_schemas(tool#type)"),
+    ],
+    construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
+) -> CurvesData:
+    """Add 1-100 curves to a sketch: lines, polylines, arcs, circles, ellipses, rectangles, slots.
+    Sketch-local coordinates, part units, degrees; connected curves are joined and read back;
+    loops report each chain's closure. Several closed loops are allowed: a loop inside another
+    makes a hollow profile."""
+    plans = check_curves(curves)
+    tx.frame = "sketch_local"
+    return add_curves(tx, sketch, plans, construction)
 
 
 def sketch_loops(tx, f, sk):
