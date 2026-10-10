@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/datum_point.json",
   "scenario_sha256": "75a141ee6aa44ae0f5438e236e189b682724e921f183258b4e50b1f40dad2fce",
   "domain": "modeling",
@@ -7,16 +7,11 @@
     "nx_create_datum_point": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_datum_point": "09709e0657b14a4198982ab4592892e7698754fca7c0fb5ee4f2303f488da93c"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_datum_point_433572.prt",
-  "started": "2026-10-10T11:45:16Z",
-  "finished": "2026-10-10T11:45:17Z",
+  "recorded": "2026-10-10T11:45:17Z",
   "passed": true,
   "checks": 6,
   "failed_checks": 0,
@@ -26,52 +21,35 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.578,
-      "result_sha256": "3ff0acb104eb00d0916918328d4829c035a4cdcbc06ec9bd1fe76b6bd11cce30"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_datum_point",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "0f70ef9057e91f5e4e7f54d9a1935b241940008dd41ff11ce991b3c38e0aa637"
+      "checks": 2
     },
     {
       "index": 3,
       "call": "nx_create_datum_point",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "f85a9201a7b2f2354bbe7fcac60242bf7622f2ebcf90fa3e5137bce83fae53b3"
+      "checks": 1
     },
     {
       "index": 4,
       "call": "nx_create_datum_point",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "2d1517b349cb72515773fd9435f5872277d0dd8fdd42ef941873dfe655722668"
+      "checks": 2
     },
     {
       "index": 5,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "2c837f5bec8b34a9e429f485891fb09ad9932359993c2badd15d76107cc10057"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_datum_point_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

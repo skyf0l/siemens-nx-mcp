@@ -20,7 +20,19 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Name, Point3, Range, RefTo, SheetPoint, Text
+from nx_mcp.core.types import (
+    Doc,
+    DrawingSheetRef,
+    DrawingViewRef,
+    Items,
+    Name,
+    Point3,
+    Range,
+    Ref,
+    RefTo,
+    SheetPoint,
+    Text,
+)
 from nx_mcp.domains.drawing.common import (
     add_leader,
     annotation_kind,
@@ -46,6 +58,7 @@ FINISHES = {
 WELDS = {"fillet": "Fillet", "square_butt": "SquareButt", "v_butt": "VButt"}
 SIDES = {"arrow": ("arrow",), "other": ("other",), "both": ("arrow", "other")}
 AXIAL_FACES = (select.FACE_CYLINDER, select.FACE_CONE)
+EdgeOrFace = Annotated[str, RefTo("edge", "face")]
 
 
 class AnnotationData(TypedDict, total=False):
@@ -102,9 +115,9 @@ def nx_create_note(
     *,
     text: Annotated[list[Annotated[str, Text(1024, r"^[^\r\n]*$")]], Items(1, MAX_LINES)],
     origin: SheetPoint,
-    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
-    view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
-    leader_to: RefTo("edge", "face") | None = None,  # type: ignore[valid-type]
+    sheet: DrawingSheetRef | None = None,
+    view: DrawingViewRef | None = None,
+    leader_to: EdgeOrFace | None = None,
 ) -> AnnotationData:
     """Place a drawing note, one list item per line, on a sheet (default the open one).
     leader_to adds a leader to an edge or face as shown in view."""
@@ -129,7 +142,7 @@ def nx_create_note(
         update(tx)
         stored = [str(s) for s in note.GetText()]
         readback.expect(stored == list(text), "text", "NX stored other note text", text=stored)
-        out = {
+        out: AnnotationData = {
             "annotation": tx.ref(note, "annotation"),
             "sheet": tx.ref(target, "drawing_sheet"),
             "origin": verify_origin(sh, note, origin),
@@ -164,9 +177,9 @@ def nx_create_note(
 def nx_create_centerline(
     tx: Tx,
     *,
-    view: RefTo("drawing_view"),  # type: ignore[valid-type]
+    view: DrawingViewRef,
     kind: Literal["center_mark", "axis", "between_edges"],
-    objects: Annotated[list[RefTo("edge", "face")], Items(1, 50)],  # type: ignore[valid-type]
+    objects: Annotated[list[EdgeOrFace], Items(1, 50)],
 ) -> AnnotationData:
     """Create center marks on circular edges, an axis line on a cylindrical or conical face, or a
     centerline between two edges. Circles must be seen along their axis."""
@@ -332,8 +345,8 @@ def _centerline(tx, view_ref, kind, refs):
 def nx_create_drawing_symbol(
     tx: Tx,
     *,
-    view: RefTo("drawing_view"),  # type: ignore[valid-type]
-    object: RefTo("edge", "face"),  # type: ignore[valid-type]  # noqa: A002
+    view: DrawingViewRef,
+    object: EdgeOrFace,  # noqa: A002
     origin: SheetPoint,
     symbol: Literal["surface_finish", "weld"],
     roughness_ra: Annotated[float, Range(gt=0, le=1000), Doc("Micrometres")] | None = None,
@@ -437,7 +450,7 @@ def _weld(tx, view, sheet, obj, origin, spec):
 
 # ---- edit and refresh -----------------------------------------------------------------------
 
-AnyAnnotation = RefTo("annotation", "dimension", "drawing_table")
+AnyAnnotation = Annotated[str, RefTo("annotation", "dimension", "drawing_table")]
 
 
 class EditData(TypedDict, total=False):
@@ -461,7 +474,7 @@ class EditData(TypedDict, total=False):
 def nx_edit_annotation(
     tx: Tx,
     *,
-    annotation: AnyAnnotation,  # type: ignore[valid-type]
+    annotation: AnyAnnotation,
     position: SheetPoint | Point3 | None = None,
     name: Name | None = None,
 ) -> EditData:
@@ -488,7 +501,7 @@ def nx_edit_annotation(
                 fail("NX_INVALID_ARGUMENT",
                      "Use [x, y] for a sheet annotation, [x, y, z] for PMI",
                      field="/position")  # fmt: skip
-    out = {}
+    out: EditData = {}
     if name is not None:
         out["name"] = result.rename(tx, obj, name)
     if position is not None:
@@ -539,7 +552,7 @@ class RefreshData(TypedDict):
 def nx_update_annotations(
     tx: Tx,
     *,
-    objects: Annotated[list[RefTo()], Items(1, 100)] | None = None,  # type: ignore[valid-type]
+    objects: Annotated[list[Ref], Items(1, 100)] | None = None,
 ) -> RefreshData:
     """Refresh managed annotations from the model: parts lists, bend tables, title blocks,
     detail boundaries and callouts. Omit objects to refresh all of them."""
@@ -548,7 +561,7 @@ def nx_update_annotations(
         if objects
         else None
     )
-    refreshed = []
+    refreshed: list[result.Row] = []
     for _kind, refresh in sorted(hooks("refresher").items()):
         tx.checkpoint()
         refreshed.extend(refresh(tx, live) or [])

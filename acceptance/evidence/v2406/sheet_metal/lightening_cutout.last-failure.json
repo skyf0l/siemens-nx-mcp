@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/lightening_cutout.json",
   "scenario_sha256": "bcbe2eaae65b907cdf20873080ebf28aa0191cac35b5534beaa70222f9d767c9",
   "domain": "sheet_metal",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_lightening_cutout_3fd345.prt",
-  "started": "2026-10-10T11:54:41Z",
-  "finished": "2026-10-10T11:54:43Z",
+  "recorded": "2026-10-10T11:54:43Z",
   "passed": false,
   "checks": 4,
   "failed_checks": 4,
@@ -28,90 +23,70 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.5,
-      "result_sha256": "43a922ad3eaebfcc2bc1af1b1a73bc2c8bd249a4ff8ff101378d1e4bf9a8d31e"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.187,
-      "result_sha256": "f2afec3f51b31496d35b52f2cc113a13937b5bba4c3f22e61a2bf2844f494123"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "8ecce6fe1a564c827b3d2865db684563de7008620ea316c68416aaca85ddce12"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "b721ef3468811910aea1bca7b78afad01d402abe9e9ce41b6f8bfb4319b10bec"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "e37d5d0efcf12503db60bfdf313faffd7bab4a7926a1bd1c8c820ed16f16eb34"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.079,
-      "result_sha256": "cb42ad26c40e0ee8a02b4fdff415f2a1c87c95b1b548e7d5777ce5b3f8fedacc"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.062,
-      "result_sha256": "24874f7b874bbd923f427e56e65048b9fe55830c578e507a2695a0d548e7545b"
+      "checks": 1
     },
     {
       "index": 8,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "d9e6e3189ffb589b3f1cf1402a16b096065b9754c58d870f95e8509fa7a94ffe"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "181447f07538418e43d135ce460b70d1796c911841cbcceff58552bf64d28aaf"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "d0b907e8f11b9d6e45ec79fe05f9a29ae028daf000b7409ae89004a7b980947c"
+      "checks": 0
     },
     {
       "index": 11,
@@ -119,8 +94,10 @@
       "setup": false,
       "passed": false,
       "checks": 3,
-      "seconds": 0.109,
-      "result_sha256": "4db040cb28e0987cf328015fe296d5c20643b4c39da0b21519d3243976132366",
+      "error": {
+        "code": "NX_LICENSE_UNAVAILABLE",
+        "message": "This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist."
+      },
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -128,12 +105,5 @@
         "data.thickness: missing (wanted {'close': 2, 'tol': 1e-06})"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_lightening_cutout_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

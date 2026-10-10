@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/contour_jog.json",
   "scenario_sha256": "9c128256d2163beb2f3ddf0891d57304c0e106fa7bde33943e2af0bc9a1a7034",
   "domain": "sheet_metal",
@@ -10,16 +10,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_contour_jog_3fd345.prt",
-  "started": "2026-10-10T11:54:20Z",
-  "finished": "2026-10-10T11:54:22Z",
+  "recorded": "2026-10-10T11:54:22Z",
   "passed": true,
   "checks": 19,
   "failed_checks": 0,
@@ -29,178 +24,133 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.484,
-      "result_sha256": "45d0ae5bbf29159847f9138b30e60a203b3050aa2573cb71758886b40551e2e7"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.203,
-      "result_sha256": "429125c829945c7b1dfb97e9f56b6a235dc448569a97e3cef803cd56c8052614"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "56070566722d01e7df49bbfd9d3929eb00735335df4906176ea0a6e2d873eaef"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "f635b6e79a4253a4c1dbd900dddfb4dbe086764f00d0498c37583b68d503b139"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "da1c8a24db7901ea0a89ce69981dfe591bef38a19ce86c849dba127a80499fcf"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "0045bb2d7f851b452f2ba1e3f270deec3d95e996c097117888867c0a15c446cf"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.094,
-      "result_sha256": "4cd677b422ab5fa30fa59d1b3c8eb4490f18e1bfc30073564a04e883c3362a05"
+      "checks": 7
     },
     {
       "index": 8,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "1739248d52d523257209650aa7761b5a2d55b83d168172c16d664e2dc67a3b94"
+      "checks": 2
     },
     {
       "index": 9,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "a8cdd79a5b252cf1f8cf3b02f0cb65d9915474e6a52e471e7cb17b07cbc65814"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "4c191b0b1265c5769af6f18475107bd444ac108f7646e335978bc0593ad0a0c1"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "e689e89e1da4d59c8f74d185f97c80d1a409942b6680a939919fd365cd8ac871"
+      "checks": 0
     },
     {
       "index": 12,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "cf0b1cb868a6433fef52156f8f1ae5aa52bdb5c863b8e340c692e03359d94438"
+      "checks": 0
     },
     {
       "index": 13,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "713c9ac8ab49c725b2b48aec21f43551ea643e569d66e9e9b7524d88dff06c26"
+      "checks": 0
     },
     {
       "index": 14,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "43f0b00242b470eea5184f07c9aa3ffce33cf564627f464772adb171dbb69cb5"
+      "checks": 0
     },
     {
       "index": 15,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "05c7b47bd8cde42cb70971e900ec2c74b855dd130a7a4d2afc6130eca32359c1"
+      "checks": 0
     },
     {
       "index": 16,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "06bd94feb9ae38b43db64673fc6dacd814092c2e6de21379847904995d273452"
+      "checks": 0
     },
     {
       "index": 17,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 5,
-      "seconds": 0.079,
-      "result_sha256": "313ac8f2327ca7ab0dd0d4bc251242e41dadcff1f6bfff2fea985d96663bb985"
+      "checks": 5
     },
     {
       "index": 18,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "a5d2a494c5b07d5f1bd6034f43c17d52765467e6997e5773705faca6ae2417c9"
+      "checks": 2
     },
     {
       "index": 19,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "c27591f82a37b5285852e74ddd37b3c7f9ff21926a6b7905ffe14ea3edb41f6c"
+      "checks": 3
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_contour_jog_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

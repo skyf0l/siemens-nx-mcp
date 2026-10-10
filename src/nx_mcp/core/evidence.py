@@ -140,9 +140,9 @@ def _memory() -> dict:
     holder = sys.modules.get(_MEMORY_MODULE)
     if holder is None:
         holder = types.ModuleType(_MEMORY_MODULE)
-        holder.licenses = {}  # type: ignore[attr-defined]
+        holder.licenses = {}  # type: ignore[attr-defined]  # a bare module keeps the memory
         sys.modules[_MEMORY_MODULE] = holder
-    return holder.licenses  # type: ignore[attr-defined]
+    return holder.licenses
 
 
 def remember_license(spec, build: str | None, args, error) -> dict | None:
@@ -179,7 +179,7 @@ def forget_licenses() -> None:
     _memory().clear()
 
 
-def remembered(entries, tool: str, variant: str | None) -> dict | None:
+def remembered(entries, tool: str | None, variant: str | None) -> dict | None:
     """The entry of ``entries`` (status rows) that blocks ``tool``/``variant``, or None."""
     for entry in entries or ():
         if entry.get("tool") == tool and entry.get("variant") in (None, variant):
@@ -222,7 +222,10 @@ def record(
     recorded: str,
     directory: str | Path | None = None,
 ) -> Path:
-    """Writer API for the acceptance runner: record one passing scenario."""
+    """Writer API for the acceptance runner's ``fold``: record one passing scenario.
+
+    ``recorded`` is the evidence file's own ``recorded`` time, never "now", so a fold
+    of unchanged evidence rewrites nothing."""
     root = Path(directory) if directory else EVIDENCE_DIR
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{domain}.json"
@@ -237,7 +240,8 @@ def record(
         recorded=recorded,
     )
     temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # Bytes with LF: identical inputs give byte-identical files on every OS.
+    temp.write_bytes((json.dumps(data, indent=2, sort_keys=True) + "\n").encode("utf-8"))
     os.replace(temp, path)
     if directory is None:
         reload()

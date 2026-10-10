@@ -18,7 +18,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Offset, PageLimit, Range, RefTo, Text
+from nx_mcp.core.types import BodyRef, Doc, Items, Offset, PageLimit, Range, Text, forbid_extra
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import builders, readback, result
 
@@ -358,7 +358,7 @@ def _assembly_bodies(tx):
 def nx_get_material(
     tx: Tx,
     *,
-    bodies: Annotated[list[RefTo("body")], Items(1, 200)] | None = None,  # type: ignore[valid-type]
+    bodies: Annotated[list[BodyRef], Items(1, 200)] | None = None,
     scope: Annotated[
         Literal["part", "assembly"], Doc("Without bodies: work part or components")
     ] = "part",
@@ -400,8 +400,7 @@ class LibrarySpec(TypedDict):
 
 MaterialSpec = CustomSpec | LibrarySpec
 
-for _td in (Custom, CustomSpec, LibrarySpec):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined,union-attr]
+forbid_extra(Custom, CustomSpec, LibrarySpec)
 
 
 def _material_text(spec) -> str:
@@ -534,8 +533,7 @@ def _library(tx, spec, targets):
 def nx_set_material(
     tx: Tx,
     *,
-    bodies: Annotated[list[RefTo("body")], Items(1, 200), Doc("Omit for every solid body")]  # type: ignore[valid-type]
-    | None = None,
+    bodies: Annotated[list[BodyRef], Items(1, 200), Doc("Omit for every solid body")] | None = None,
     material: MaterialSpec,
 ) -> MaterialData:
     """Assign an NX library material (names from nx_list_materials) or a custom density material.
@@ -548,7 +546,7 @@ def nx_set_material(
         if not targets:
             fail("NX_NOT_FOUND", "The work part has no solid bodies", field="/bodies")
     if "custom" in material:
-        items = _custom(tx, material["custom"], targets)  # type: ignore[typeddict-item]
+        items = _custom(tx, material["custom"], targets)  # type: ignore[typeddict-item]  # `in` narrows only @final TypedDicts
     else:
         items = _library(tx, material, targets)
     return {"items": items}

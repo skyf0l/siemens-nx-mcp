@@ -72,17 +72,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import (
-    REF_PATTERN,
-    ByVariant,
-    Doc,
-    Items,
-    Json,
-    Quantity,
-    Range,
-    RefKind,
-    Text,
-)
+from nx_mcp.core.types import ByVariant, Doc, Items, Json, Quantity, Range, RefTo, forbid_extra
 from nx_mcp.core.validate import unwrap
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.kit import (
@@ -137,14 +127,6 @@ Operation = Literal[
 ]
 
 
-def _ref(kind, doc):
-    return Annotated[str, Text(128, REF_PATTERN), RefKind(kind), Doc(doc)]
-
-
-def _length(doc):
-    return Annotated[float | str, Quantity("length"), Doc(doc)]
-
-
 HEMS = {
     "open": "OpenHemType",
     "closed": "ClosedHemType",
@@ -160,21 +142,23 @@ CORNERS = {"fillet": "Fillet", "chamfer": "ChamferEqualSetback"}
 class Fields(TypedDict, total=False):
     """Every ``parameters`` field; each operation's form takes the ones it uses."""
 
-    section: _ref("sketch", "Ref: finished sketch")  # type: ignore[valid-type]
-    end_section: _ref("sketch", "Ref: finished open end profile")  # type: ignore[valid-type]
-    face: _ref("face", "Ref: face that stays put")  # type: ignore[valid-type]
-    faces: Annotated[list[_ref("face", "Ref: bend face")], Items(1, 50)]  # type: ignore[valid-type]
-    edges: Annotated[list[_ref("edge", "Ref: sheet edge")], Items(1, 50)]  # type: ignore[valid-type]
-    edge: _ref("edge", "Ref: straight edge of face: the X axis")  # type: ignore[valid-type]
-    body: _ref("body", "Ref: sheet-metal body")  # type: ignore[valid-type]
-    tool: _ref("body", "Ref: solid tool body")  # type: ignore[valid-type]
-    thickness: _length("Sheet thickness")
-    length: _length("Length")
+    section: Annotated[str, RefTo("sketch", doc="Ref: finished sketch")]
+    end_section: Annotated[str, RefTo("sketch", doc="Ref: finished open end profile")]
+    face: Annotated[str, RefTo("face", doc="Ref: face that stays put")]
+    faces: Annotated[list[Annotated[str, RefTo("face", doc="Ref: bend face")]], Items(1, 50)]
+    edges: Annotated[list[Annotated[str, RefTo("edge", doc="Ref: sheet edge")]], Items(1, 50)]
+    edge: Annotated[str, RefTo("edge", doc="Ref: straight edge of face: the X axis")]
+    body: Annotated[str, RefTo("body", doc="Ref: sheet-metal body")]
+    tool: Annotated[str, RefTo("body", doc="Ref: solid tool body")]
+    thickness: Annotated[float | str, Quantity("length"), Doc("Sheet thickness")]
+    length: Annotated[float | str, Quantity("length"), Doc("Length")]
     angle: Annotated[float | str, Quantity("angle"), Doc("Bend angle")]
-    height: _length("Form depth")
-    width: _length("Width")
-    diameter: _length("Hole diameter")
-    radius: _length("Inner bend radius (default: the part's)")
+    height: Annotated[float | str, Quantity("length"), Doc("Form depth")]
+    width: Annotated[float | str, Quantity("length"), Doc("Width")]
+    diameter: Annotated[float | str, Quantity("length"), Doc("Hole diameter")]
+    radius: Annotated[
+        float | str, Quantity("length"), Doc("Inner bend radius (default: the part's)")
+    ]
     neutral_factor: Annotated[float, Range(ge=0, le=1), Doc("Neutral factor 0..1")]
     reverse: Annotated[bool, Doc("Flip the thickness side, bend or form direction")]
     style: Annotated[
@@ -375,7 +359,7 @@ def _hint(key, doc):
     if typing.get_origin(base) is list:  # a list is described on its items
         item, item_markers = unwrap(typing.get_args(base)[0])
         kept = [m for t, m in item_markers.items() if t is not Doc]
-        base = list[Annotated[(item, *kept, Doc(doc))]]  # type: ignore[misc]
+        base = list[Annotated[(item, *kept, Doc(doc))]]
         return Annotated[(base, *markers.values())]
     kept = [m for t, m in markers.items() if t is not Doc]
     return Annotated[(base, *kept, Doc(doc))]
@@ -385,12 +369,12 @@ def _form(operation: str, op: Op) -> type:
     """The ``parameters`` TypedDict of one operation (``tool#operation`` shows it)."""
     name = "".join(w.capitalize() for w in operation.split("_")) + "Parameters"
     fields = {k: _hint(k, op.docs.get(k)) for k in op.required}
-    required = TypedDict("_" + name, fields)  # type: ignore[operator]
+    required = TypedDict("_" + name, fields)  # type: ignore[misc]  # built per operation
     optional = {k: _hint(k, op.docs.get(k)) for k in op.optional}
     form = types.new_class(
         name, (required,), {"total": False}, lambda ns: ns.update(__annotations__=optional)
     )
-    form.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+    forbid_extra(form)
     return form
 
 
@@ -1151,8 +1135,8 @@ def _flat_extents(tx, curves, i, what="flat_pattern") -> list[float]:
     ]
 
 
-def _result(tx, operation, feature, body, after, view=None) -> dict:
-    out = {
+def _result(tx, operation, feature, body, after, view=None) -> FeatureData:
+    out: FeatureData = {
         "feature": tx.ref(feature, "feature"),
         "operation": operation,
         "body": tx.ref(body, "body"),
@@ -1184,7 +1168,7 @@ def nx_create_sheet_metal_feature(
     tx: Tx,
     *,
     operation: Operation,
-    parameters: Parameters,  # type: ignore[valid-type]
+    parameters: Parameters,
 ) -> FeatureData:
     """Create one sheet-metal feature. Each operation's parameters are listed by
     nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>"); needs the Sheet Metal

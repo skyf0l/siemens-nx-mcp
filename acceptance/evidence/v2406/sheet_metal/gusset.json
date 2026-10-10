@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/gusset.json",
   "scenario_sha256": "c1933078930727e267eb663e74d09999227971df6500d745d373a5dec636233e",
   "domain": "sheet_metal",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_gusset_3fd345.prt",
-  "started": "2026-10-10T11:54:33Z",
-  "finished": "2026-10-10T11:54:34Z",
+  "recorded": "2026-10-10T11:54:34Z",
   "passed": true,
   "checks": 9,
   "failed_checks": 0,
@@ -28,115 +23,84 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.468,
-      "result_sha256": "5253a5fcf9d7b7636b52ea5f1ffda5da68080da0b6aeb23b973402a784359529"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.188,
-      "result_sha256": "89ca0c89d4139f2f2de338995d0a67f0f65b57f06c8091286536f9e514f47fae"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "de6bacb29bbfa390730b99acda7d9a3d7d5943477ca230854ee604c682f53fca"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "d28b07247ff89a5f08a69b01bf883b875dc16c167bf3994e9435dea69b33521a"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "1868a4893bd53e832fc51788c854615fbeecc5b7e2dfe179497aff95690df69a"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "a98d1b4d8afec84c4d51fd4899a46479577fd21794625bd2814b732de5d349dc"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "9c504fae70516f4729582499075648e703d840572ce4fff4ea3853b55f02f3af"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "21f6759ed037ede7d639e17cec6130b744f9f6a68aae66fb11f982f0de24af26"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.078,
-      "result_sha256": "053ecf206662f8a0a6570c74cbba21dbce4d23fe3ed00065e39bfda2d356b9c9"
+      "checks": 1
     },
     {
       "index": 10,
       "call": "nx_get_sheet_metal",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "63a2ef9965daba4768bfa3786f9ee75679d05e7cbf663aebc43dc963b59e3408"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.046,
-      "result_sha256": "54de560767b5eea490a6a2cdcd3fa1169ffe5745ee4a3b8e98ed2bef55dcc988"
+      "checks": 3
     },
     {
       "index": 12,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 5,
-      "seconds": 0.094,
-      "result_sha256": "117ba23d105e17500404c90bb236d172b38b14a19db42a17794b46af5a8b6dc5"
+      "checks": 5
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_gusset_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

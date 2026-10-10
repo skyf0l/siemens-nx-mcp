@@ -21,9 +21,21 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Name, Point3, Range, RefTo, Vec3
+from nx_mcp.core.types import (
+    Doc,
+    EdgeRef,
+    FaceRef,
+    Items,
+    Name,
+    Point3,
+    Range,
+    RefTo,
+    SketchRef,
+    Vec3,
+    forbid_extra,
+)
 from nx_mcp.domains.sketch import common
-from nx_mcp.domains.sketch.common import CurveRow, Frame, SketchRef, Status
+from nx_mcp.domains.sketch.common import CurveRow, Frame, Status
 from nx_mcp.kit import builders, curve, geom, readback, result, select
 from nx_mcp.kit import sketch as ksketch
 
@@ -44,7 +56,7 @@ class PrincipalPlacement(_Principal, total=False):
 
 
 class _On(TypedDict):
-    on: RefTo("face", "datum_plane")  # type: ignore[valid-type]
+    on: Annotated[str, RefTo("face", "datum_plane")]
 
 
 class OnPlacement(_On, total=False):
@@ -52,19 +64,18 @@ class OnPlacement(_On, total=False):
 
 
 class _Path(TypedDict):
-    path: Annotated[list[RefTo("edge")], Items(1, 50)]  # type: ignore[valid-type]
+    path: Annotated[list[EdgeRef], Items(1, 50)]
     help_point: Point3
 
 
 class PathPlacement(_Path, total=False):
     percent: Annotated[float, Range(ge=0, le=100)]
-    orienting_face: RefTo("face")  # type: ignore[valid-type]
+    orienting_face: FaceRef
     reverse_normal: bool
     reverse_axis: bool
 
 
-for _td in (PrincipalPlacement, OnPlacement, PathPlacement):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(PrincipalPlacement, OnPlacement, PathPlacement)
 
 Placement = Annotated[
     PrincipalPlacement | OnPlacement | PathPlacement,
@@ -292,7 +303,7 @@ class FinishData(TypedDict, total=False):
     invalidates="deleted",
     example={"sketch": "s:3"},
 )
-def nx_finish_sketch(tx: Tx, *, sketch: SketchRef) -> FinishData:  # type: ignore[valid-type]
+def nx_finish_sketch(tx: Tx, *, sketch: SketchRef) -> FinishData:
     """Finish the active sketch and update the model so features can use it. A sketch that is
     not active is left as it is."""
     sk = ksketch.resolve(tx, sketch)
@@ -387,7 +398,7 @@ def _solver_status(tx, sk):
 def nx_get_sketch(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     include: Annotated[
         list[Literal["geometry", "constraints", "status"]],
         Items(1, 3),
@@ -402,7 +413,7 @@ def nx_get_sketch(
     sk = ksketch.resolve(tx, sketch)
     f = ksketch.frame(sk)
     active = tx.session.ActiveSketch
-    data = {
+    data: SketchInfo = {
         **common.sketch_rows(tx, sk),
         "active": active is not None and int(active.Tag) == int(sk.Tag),
         "frame": common.frame_row(f),
@@ -450,7 +461,7 @@ class ConflictData(TypedDict, total=False):
 def nx_check_sketch(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     max_checks: Annotated[int, Range(ge=1, le=50), Doc("Constraints to try removing")] = 20,
 ) -> ConflictData:
     """Find the constraints behind an over- or inconsistently constrained sketch. Each is removed
@@ -461,7 +472,7 @@ def nx_check_sketch(
     if active is not None and int(active.Tag) != int(sk.Tag):
         fail("NX_SKETCH_ACTIVE", "Another sketch is active", hint="Finish the active sketch first")
     session, nx = tx.session, tx.nx
-    trials = []
+    trials: list[Trial] = []
     with tx.scratch(), ksketch.editing(tx, sk) as editing:
         baseline = common.status(tx, editing)
         explicit = common.explicit_conflicts(tx, editing)
@@ -470,7 +481,10 @@ def nx_check_sketch(
         candidates = constraints if bad or explicit else []
         for i, con in enumerate(candidates[:max_checks]):
             tx.checkpoint(done=i, total=min(len(candidates), max_checks))
-            trial = {"constraint": tx.ref(con, "sketch_constraint"), "relieves_conflict": False}
+            trial: Trial = {
+                "constraint": tx.ref(con, "sketch_constraint"),
+                "relieves_conflict": False,
+            }
             mark = session.SetUndoMark(nx.Session.MarkVisibility.Invisible, "NX MCP conflict trial")
             try:
                 errors = editing.sketch.DeleteObjects([con])

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/datum_csys.json",
   "scenario_sha256": "3980ac413a182ee733a4defe476d138659b8236342a8d8cda093d793117e4bc3",
   "domain": "modeling",
@@ -7,16 +7,11 @@
     "nx_create_datum_csys": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_datum_csys": "09709e0657b14a4198982ab4592892e7698754fca7c0fb5ee4f2303f488da93c"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_datum_csys_433572.prt",
-  "started": "2026-10-10T11:45:14Z",
-  "finished": "2026-10-10T11:45:15Z",
+  "recorded": "2026-10-10T11:45:15Z",
   "passed": true,
   "checks": 13,
   "failed_checks": 0,
@@ -26,52 +21,35 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "9c0fb87de23f5f0619f8f32c6d75c807c70693498ea6a620e2611ccd306e1503"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_datum_csys",
       "setup": false,
       "passed": true,
-      "checks": 5,
-      "seconds": 0.047,
-      "result_sha256": "f595cd30834a6d73be16b929f4213f7fcfc92f32880d8bbcd3c031328541d190"
+      "checks": 5
     },
     {
       "index": 3,
       "call": "nx_create_datum_csys",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "63197694e85fb11ed1f86faca8779aafe549c37993985773a2018479fcc126cd"
+      "checks": 2
     },
     {
       "index": 4,
       "call": "nx_create_datum_csys",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "cc4210618746de5c570375878cb27c22937b3a375392a7fb18d87b02ed2a038b"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_create_datum_csys",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "83150484580fc89325e568f9d03c5fd8a2f7c22cb48ffc9e50ba9171d03c00d5"
+      "checks": 3
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_datum_csys_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

@@ -16,14 +16,13 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Offset, PageLimit, PathTo, RefTo, Text, Units
+from nx_mcp.core.types import Doc, Offset, PageLimit, PartRef, PathTo, Text, Units
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import files, parts, readback, result
 from nx_mcp.kit import units as kit_units
 
 TEMPLATES = {"mm": "model-plain-1-mm-template.prt", "in": "model-plain-1-inch-template.prt"}
-PartRef = RefTo("part")
-PartPath = PathTo("new", ".prt")
+PartPath = Annotated[str, PathTo("new", ".prt")]
 
 
 class PartData(TypedDict):
@@ -61,6 +60,7 @@ class SaveData(TypedDict, total=False):
     saved_files: list[str]
     changed_files: list[str]
     other_modified_parts: int
+    verified_parts: int
 
 
 class CloseData(TypedDict):
@@ -70,7 +70,7 @@ class CloseData(TypedDict):
     saved: bool
 
 
-def _row(tx, part) -> dict:
+def _row(tx, part) -> result.Row:
     return tx.ref(part, "part")
 
 
@@ -78,7 +78,7 @@ def _rel(tx, path) -> str:
     return files.relative(path, tx.workspace.root)
 
 
-def _state(tx, part) -> dict:
+def _state(tx, part) -> PartData:
     session_parts = tx.session.Parts
     return {
         "part": _row(tx, part),
@@ -156,7 +156,12 @@ def new_part(tx, target: Path, units: str):
     cost="heavy",
     example={"path": "projects/demo/base.prt", "units": "mm"},
 )
-def nx_create_part(tx: Tx, *, path: PartPath, units: Units = "mm") -> PartData:
+def nx_create_part(
+    tx: Tx,
+    *,
+    path: PartPath,
+    units: Units = "mm",
+) -> PartData:
     """Create a new workspace part, load it and make it the work and display part. Missing
     folders are created; the file is written by the first save."""
     target = Path(path)
@@ -176,7 +181,7 @@ def nx_create_part(tx: Tx, *, path: PartPath, units: Units = "mm") -> PartData:
 def nx_open_part(
     tx: Tx,
     *,
-    path: PathTo("read", ".prt"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("read", ".prt")],
     work: bool = True,
     display: bool = True,
     load_components: Annotated[bool, Doc("Fully load every component prototype")] = False,
@@ -200,7 +205,7 @@ def nx_open_part(
     parts.activate(tx, part, work=work, display=display)
     loaded_count = parts.load_components(tx, part) if load_components else None
     _check_active(tx, part, work=work, display=display)
-    out = {**_state(tx, part), "already_loaded": already}
+    out: OpenData = {**_state(tx, part), "already_loaded": already}
     if loaded_count is not None:
         out["components_loaded"] = loaded_count
     return out
@@ -214,7 +219,13 @@ def nx_open_part(
     cost="light",
     example={"part": "p:1"},
 )
-def nx_activate_part(tx: Tx, *, part: PartRef, work: bool = True, display: bool = True) -> PartData:
+def nx_activate_part(
+    tx: Tx,
+    *,
+    part: PartRef,
+    work: bool = True,
+    display: bool = True,
+) -> PartData:
     """Make a loaded part the work and/or display part; nothing is closed. A new display
     part also becomes the work part."""
     if not (work or display):
@@ -272,7 +283,7 @@ def nx_list_parts(
             continue
         found.append(p)
     selected, page = result.page(found, offset, limit)
-    items = [
+    items: list[PartRow] = [
         {
             "part": _row(tx, p),
             "path": _rel(tx, parts.file_of(p)),
@@ -304,7 +315,7 @@ def nx_save_part(
     tx: Tx,
     *,
     part: PartRef | None = None,
-    path: PartPath | None = None,
+    path: Annotated[str, PathTo("new", ".prt")] | None = None,
 ) -> SaveData:
     """Save a loaded part (default the work part) in place, or as a new workspace .prt
     (path). The save is verified against every loaded file; nothing is overwritten. Saving

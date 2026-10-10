@@ -11,13 +11,23 @@ from typing import Annotated, Any, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, Mat3, Name, Offset, PageLimit, Point3, Pose, RefTo
+from nx_mcp.core.types import (
+    ComponentRef,
+    DrawingViewRef,
+    ExplosionRef,
+    Items,
+    Mat3,
+    Name,
+    Offset,
+    PageLimit,
+    Point3,
+    Pose,
+    RefTo,
+    forbid_extra,
+)
 from nx_mcp.domains.assembly import common, exploded
-from nx_mcp.domains.assembly.common import ComponentRef
 from nx_mcp.kit import assembly, drawing, readback, result, select
 from nx_mcp.kit import pose as kpose
-
-ExplosionRef = RefTo("explosion")
 
 
 class ExplodedRow(TypedDict):
@@ -69,11 +79,11 @@ def nx_create_explosion(tx: Tx, *, name: Name) -> ExplosionData:
 
 
 class Placement(TypedDict):
-    component: ComponentRef  # type: ignore[valid-type]
+    component: ComponentRef
     pose: Pose
 
 
-Placement.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(Placement)
 
 
 class EditExplosionData(TypedDict):
@@ -105,9 +115,9 @@ def _edit_summary(a, say):
 def nx_edit_explosion(
     tx: Tx,
     *,
-    explosion: ExplosionRef,  # type: ignore[valid-type]
+    explosion: ExplosionRef,
     placements: Annotated[list[Placement], Items(1, 1000)] | None = None,
-    reset_components: Annotated[list[ComponentRef], Items(1, 1000)] | None = None,  # type: ignore[valid-type]
+    reset_components: Annotated[list[ComponentRef], Items(1, 1000)] | None = None,
 ) -> EditExplosionData:
     """Set absolute exploded poses of components (nested ones too) or reset them to the
     assembled pose. Assembled poses never change; traces and drawing views follow."""
@@ -199,7 +209,7 @@ class GetExplosionData(TypedDict):
 def nx_get_explosion(
     tx: Tx,
     *,
-    explosion: ExplosionRef,  # type: ignore[valid-type]
+    explosion: ExplosionRef,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> GetExplosionData:
@@ -249,9 +259,9 @@ def _display_summary(a, say):
 def nx_set_explosion_display(
     tx: Tx,
     *,
-    explosion: ExplosionRef | None = None,  # type: ignore[valid-type]
-    drawing_view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
-    model_view: RefTo("modeling_view") | None = None,  # type: ignore[valid-type]
+    explosion: ExplosionRef | None = None,
+    drawing_view: DrawingViewRef | None = None,
+    model_view: Annotated[str, RefTo("modeling_view")] | None = None,
 ) -> DisplayData:
     """Show an explosion, or the assembled state when omitted, in a view. The view is the
     modeling work view unless drawing_view or model_view names one."""
@@ -290,7 +300,7 @@ def nx_set_explosion_display(
     want = int(ex.Tag) if ex is not None else 0
     got = int(api.AskViewExplosion(view.Tag) or 0)
     readback.expect(got == want, "view", "The view did not take the explosion", actual=got)
-    out = {"view": tx.ref(view, kind), "view_kind": kind}
+    out: DisplayData = {"view": tx.ref(view, kind), "view_kind": kind}
     if ex is not None:
         out["explosion"] = tx.ref(ex, "explosion")
     return out

@@ -34,7 +34,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, ByVariant, Doc, Items, Json, Length, PathTo, RefTo
+from nx_mcp.core.types import Angle, BodyRef, ByVariant, Doc, Items, Json, Length, PathTo
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import args, files, measure, neutral, parts, readback, result
 from nx_mcp.kit import units as kit_units
@@ -67,8 +67,8 @@ class NoOptions(TypedDict, total=False):
 
 class StlOptions(TypedDict, total=False):
     binary: Annotated[bool, Doc("false writes ASCII STL (default true)")]
-    chordal_tolerance: Annotated[Length, Doc("Max chord deviation (NX default 0.058)")]  # type: ignore[valid-type]
-    angular_tolerance: Annotated[Angle, Doc("Max angle between facets (NX default 18)")]  # type: ignore[valid-type]
+    chordal_tolerance: Annotated[Length, Doc("Max chord deviation (NX default 0.058)")]
+    angular_tolerance: Annotated[Angle, Doc("Max angle between facets (NX default 18)")]
 
 
 OPTION_FORMS = {
@@ -172,10 +172,9 @@ def _tail(path: Path) -> str | None:
 def nx_export_model(
     tx: Tx,
     *,
-    path: PathTo("new", *ALL_SUFFIXES),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", *ALL_SUFFIXES)],
     format: Literal["step", "step_ap242", "stl", "iges", "parasolid", "jt"],
-    bodies: Annotated[list[RefTo("body")], Items(1, 200), Doc("Only these bodies")]  # type: ignore[valid-type]
-    | None = None,
+    bodies: Annotated[list[BodyRef], Items(1, 200), Doc("Only these bodies")] | None = None,
     options: Options = {},  # noqa: B006 - never mutated; None would be Optional on Python 3.10
 ) -> ExportData:
     """Export the work part, or some of its bodies, to a new neutral CAD file. STEP/AP242
@@ -264,11 +263,9 @@ def nx_export_model(
             shutil.rmtree(temp.parent)
     meta = files.metadata(target, root)
     return {
-        "path": meta["path"],
-        "size": meta["size"],
-        "sha256": meta["sha256"],
+        **meta,
         "format": format,
-        **report,  # type: ignore[typeddict-item]
+        **report,  # type: ignore[typeddict-item]  # _verify's format-specific fields
         "bodies": len(exported),
         "part": tx.ref(part, "part"),
         "part_saved": False,

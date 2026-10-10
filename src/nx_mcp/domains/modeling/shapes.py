@@ -27,14 +27,24 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Axis, Combine, Doc, Items, Length, Point3, Range, RefTo
+from nx_mcp.core.types import (
+    Angle,
+    Axis,
+    BodyRef,
+    Combine,
+    Doc,
+    Items,
+    Length,
+    Point3,
+    Range,
+    RefTo,
+    SketchRef,
+)
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args, builders, curve, geom, measure, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
-SketchRef = RefTo("sketch")
-BodyRef = RefTo("body")
-PathRef = RefTo("sketch", "curve", "edge")
+PathRef = Annotated[str, RefTo("sketch", "curve", "edge")]
 COMBINE_CHANGE = {"unite": "more", "subtract": "less", "intersect": "less"}
 # Relative tolerance of the closed-form read-backs (tube volume, helix length).
 FORMULA_REL = 1e-3
@@ -63,8 +73,8 @@ def _new_bodies(feature, *known):
 def nx_create_rib(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
-    body: BodyRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
+    body: BodyRef,
     thickness: Length,
     orientation: Annotated[
         Literal["perpendicular", "parallel"],
@@ -170,7 +180,7 @@ def nx_create_tube(
     tx: Tx,
     *,
     path: Annotated[
-        list[PathRef],  # type: ignore[valid-type]
+        list[PathRef],
         Items(1, 100),
         Doc("One sketch, or connected curves and edges"),
     ],
@@ -364,8 +374,8 @@ def nx_create_helix(
 def nx_create_emboss_body(
     tx: Tx,
     *,
-    target: BodyRef,  # type: ignore[valid-type]
-    tool_body: BodyRef,  # type: ignore[valid-type]
+    target: BodyRef,
+    tool_body: BodyRef,
     clearance: Annotated[Length, Doc("Gap between the tool and the embossed wall")] = 0.0,
     thickness: Annotated[Length, Doc("Wall thickness of a sheet target's emboss")] | None = None,
     keep_tool: Annotated[bool, Doc("Keep the tool body after the emboss")] = True,

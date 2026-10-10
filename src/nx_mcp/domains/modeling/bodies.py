@@ -23,8 +23,10 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
+    BodyRef,
     Direction,
     Doc,
+    FaceRef,
     Items,
     Length,
     Plane,
@@ -36,7 +38,7 @@ from nx_mcp.core.types import (
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import builders, geom, measure, readback, result, select
 
-BodyList = Annotated[list[RefTo("body")], Items(1, 50)]  # type: ignore[valid-type]
+BodyList = Annotated[list[BodyRef], Items(1, 50)]
 
 
 # ---------------------------------------------------------------------------
@@ -58,11 +60,12 @@ def nx_create_boolean(
     tx: Tx,
     *,
     operation: Literal["unite", "subtract", "intersect"],
-    target: RefTo("body"),  # type: ignore[valid-type]
+    target: BodyRef,
     tools: BodyList,
 ) -> common.FeatureData:
     """Unite, subtract or intersect tool bodies with a target body; the tools are consumed."""
-    if target in tools:
+    tool_refs: list[str] = tools
+    if target in tool_refs:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
     body = common.solid(tx, target, "/target")
     others = common.solids(tx, tools, "/tools")
@@ -142,8 +145,8 @@ class TrimData(TypedDict):
 def nx_create_trim_body(
     tx: Tx,
     *,
-    body: RefTo("body"),  # type: ignore[valid-type]
-    tool: RefTo("datum_plane", "face"),  # type: ignore[valid-type]
+    body: BodyRef,
+    tool: Annotated[str, RefTo("datum_plane", "face")],
     keep: Annotated[
         Literal["back", "front", "both"], Doc("back: against the tool normal; both: split")
     ],
@@ -555,7 +558,7 @@ def _configure(tx, b, action, selected, a):
 def nx_edit_faces(
     tx: Tx,
     *,
-    faces: Annotated[list[RefTo("face")], Items(1, 200)],  # type: ignore[valid-type]
+    faces: Annotated[list[FaceRef], Items(1, 200)],
     action: Literal[
         "move",
         "offset",
@@ -575,7 +578,7 @@ def nx_edit_faces(
     | None = None,
     direction: Annotated[Direction, Doc("move; pattern: linear direction or circular axis")]
     | None = None,
-    replacement: RefTo("face") | None = None,  # type: ignore[valid-type]
+    replacement: FaceRef | None = None,
     diameter: Annotated[Length, Doc("resize: new cylinder or sphere diameter")] | None = None,
     angle: Annotated[Angle, Doc("resize: new cone half angle")] | None = None,
     radius: Annotated[Length, Doc("resize_blend: new blend radius")] | None = None,

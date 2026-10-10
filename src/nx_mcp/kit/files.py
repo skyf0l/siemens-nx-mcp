@@ -18,6 +18,7 @@ import contextlib
 import hashlib
 import struct
 from pathlib import Path
+from typing import TypedDict
 
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import publish_new as publish_new  # one never-overwrite move
@@ -43,7 +44,15 @@ def relative(path, root) -> str:
         return Path(path).as_posix()
 
 
-def metadata(path, root) -> dict:
+class FileMeta(TypedDict):
+    """What :func:`metadata` returns; result rows spread it with ``**meta``."""
+
+    path: str  # workspace-relative
+    size: int
+    sha256: str
+
+
+def metadata(path, root) -> FileMeta:
     """``{path, size, sha256}`` of a file; ``path`` is workspace-relative."""
     file = Path(path)
     return {"path": relative(file, root), "size": file.stat().st_size, "sha256": sha256(file)}

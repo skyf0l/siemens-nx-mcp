@@ -15,7 +15,7 @@ from nx_mcp.bridge import BridgeDescriptor
 from nx_mcp.core import kernel
 from nx_mcp.core.errors import NXError
 from nx_mcp.interactive import ControlPanel, InteractiveHost
-from tests.fakes import Body, Collection
+from tests.kit.objects import Body, Collection
 
 pytestmark = pytest.mark.fake_nx
 BODIES = {"kind": "body"}  # a catalogue read
@@ -124,7 +124,7 @@ def test_agent_drives_holds_nx_without_per_call_unlock(host, rig):
     host.ui.UnlockAccess.reset_mock()
     host.execute("nx_list_objects", BODIES)  # a read keeps NX locked during the call
     rig.e.dev_tools["nx_test_edit"] = lambda: {}
-    host.execute("nx_test_edit", {})  # legacy edits keep today's unlocked call
+    host.execute("nx_test_edit", {})  # a development edit runs unlocked, then relocks
     assert host.ui.UnlockAccess.call_count == 1 and host.ui.LockAccess.call_count == 1
     assert host.lock["value"] == 1 and not host.enabled["value"]
 
@@ -134,7 +134,7 @@ def test_agent_ui_lock_is_not_nested_and_file_steps_run_unlocked():
 
     assert runs_under_ui_lock("nx_list_objects")  # catalogue read
     assert not runs_under_ui_lock("nx_create_part")  # FileNew must not run inside LockAccess
-    assert not runs_under_ui_lock("nx_extrude")  # legacy model tools: unchanged
+    assert not runs_under_ui_lock("nx_test_edit")  # not a catalogue tool: runs unlocked
     assert runs_under_ui_lock("nx_create_datum_plane")  # catalogue model edit, no file
     assert not runs_under_ui_lock("nx_export_model")  # catalogue file tool
 
@@ -307,9 +307,9 @@ def test_agent_can_lower_but_never_raise_its_own_control(host):
     host.tick()
     assert lower.complete.is_set() and lower.error is None and host.mode == "auto"
     assert host.enabled["value"] and not host.owns_lock
-    legacy = queue.submit("nx_set_control", {"mode": "manual"})  # manual = Ask me first
+    manual = queue.submit("nx_set_control", {"mode": "manual"})  # manual = Ask me first
     host.tick()
-    assert legacy.error is None and host.mode == "ask"
+    assert manual.error is None and host.mode == "ask"
     # Only the engineer's choice is remembered for a reload.
     assert not (host.state_dir / "ui-mode.json").exists()
 
@@ -508,7 +508,7 @@ def test_ask_run_and_switch_to_auto(host):
 
 def test_not_now_declines_every_waiting_request(host):
     queue = _queue(host, "ask")
-    first = queue.submit("nx_fit_view")
+    first = queue.submit("nx_set_camera")
     second = queue.submit("nx_set_control", {"mode": "agent"})  # agent asking for control
     host.tick()
     assert host.waiting_count == 2 and "(+1 more)" in host.panel_text()
@@ -522,7 +522,7 @@ def test_not_now_declines_every_waiting_request(host):
 
 def test_unanswered_request_expires_without_running(host):
     queue = _queue(host, "ask")
-    pending = queue.submit("nx_fit_view")
+    pending = queue.submit("nx_set_camera")
     host.tick()
     host.waiting_since -= 61
     host.tick()
@@ -928,7 +928,7 @@ def test_light_catalogue_steps_do_not_warn_that_nx_may_pause(host):
     host.running_method = "nx_list_objects"
     host.current_started_at = time.time()
     assert host.panel_text().splitlines()[0].endswith("nx_list_objects — running")
-    host.running_method = "nx_extrude"  # legacy tools keep the warning
+    host.running_method = "nx_create_extrude"  # heavy catalogue steps keep the warning
     assert host.panel_text().splitlines()[0].endswith("— running, NX may pause")
 
 

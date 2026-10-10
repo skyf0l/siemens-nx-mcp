@@ -75,11 +75,11 @@ def nx_update_assembly(tx: Tx) -> UpdateData:
     for ex in explosions:
         tx.checkpoint()
         traces.extend(exploded.refresh_traces(tx, ex))
-    refreshed = []
+    refreshed: list[result.Row] = []
     for _kind, refresh in sorted(hooks("refresher").items()):
         tx.checkpoint()
         refreshed.extend(refresh(tx, None) or [])
-    views = []
+    views: list[result.Row] = []
     for sheet in list(getattr(part, "DrawingSheets", None) or []):
         tx.checkpoint()
         owned = list(sheet.GetDraftingViews())

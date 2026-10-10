@@ -44,7 +44,7 @@ def nx_create_datum_plane(
     tx: Tx,
     *,
     method: Literal["offset", "point_normal", "three_points"],
-    reference: RefTo("datum_plane", "face") | None = None,  # type: ignore[valid-type]
+    reference: Annotated[str, RefTo("datum_plane", "face")] | None = None,
     distance: Length | None = None,
     origin: Point3 | None = None,
     normal: Vec3 | None = None,
@@ -71,6 +71,7 @@ def nx_create_datum_plane(
         geometry = [builders.point(tx, origin), builders.direction(tx, want, origin)]
         nx_method = "PointDir"
     else:
+        assert points is not None  # checked by args.need
         geometry, nx_method = [builders.point(tx, p) for p in points], "ThreePoints"
     with builders.build(
         tx, tx.part.Features.CreateDatumPlaneBuilder, tx.nx.Features.Feature.Null
@@ -136,10 +137,12 @@ def nx_create_datum_axis(
 ) -> DatumAxisData:
     """Create a fixed datum axis through a point along a direction, or from start to end."""
     if method == "point_direction":
-        args.need(origin=origin, direction=direction)
+        origin = args.required(origin, "origin")
+        args.need(direction=direction)
         at, want = list(origin), geom.unit(direction, field="/direction")
     else:
-        args.need(start=start, end=end)
+        start = args.required(start, "start")
+        args.need(end=end)
         at = list(start)
         if geom.dist(start, end) <= geom.tol(start, end):
             fail("NX_INVALID_ARGUMENT", "start and end must differ", field="/end")
@@ -235,7 +238,10 @@ def nx_create_datum_csys(
     return {
         "feature": tx.ref(feature, kind="feature"),
         "datum_csys": tx.ref(frames[0], kind="datum_csys"),
-        **got,
+        "origin": got["origin"],
+        "x_axis": got["x_axis"],
+        "y_axis": got["y_axis"],
+        "z_axis": got["z_axis"],
     }
 
 

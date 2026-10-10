@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/feature_order.json",
   "scenario_sha256": "e86449a88c69d44d0bc5368df5a9c6db28528d2f2345031cd829e754f32bde47",
   "domain": "modeling",
@@ -7,16 +7,11 @@
     "nx_set_feature_order": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_set_feature_order": "504bff3812bc13f8b1c26ac14bf61de50ed64696b9be7500c22c2f0c92041cb7"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_feature_order_433572.prt",
-  "started": "2026-10-10T11:45:33Z",
-  "finished": "2026-10-10T11:45:35Z",
+  "recorded": "2026-10-10T11:45:35Z",
   "passed": true,
   "checks": 12,
   "failed_checks": 0,
@@ -26,178 +21,133 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.485,
-      "result_sha256": "4b30accdb8e67dab8259ceee8f13c08c1fdac1a7ed91b8dc2efeae2e02a7ea20"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "e90ebe7d4c8a3311d955e6bb19b09758acc9a199b7e774e2a1537f6e5917cd7e"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "cf6165e986ed6479fb4fe9d314260412efad4f761da36e95858fd7d2c806b54b"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "70d8c23d7e619e8ccdabbacc989846899b1e8dac57c65767afec03d1da99bca4"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.079,
-      "result_sha256": "e045db57f80c1065c1cae03f19753233261f47d5628958728bc4deec9e0d56eb"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.109,
-      "result_sha256": "34813b101965f316448008f58603d14880ee274628636e66b958cecdc7ca59db"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "79e748b187ba46ee76cefc462ef6ce99c0bfe1ef5dbf82e9b5f99f354b6ff681"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "2e58a7b54ca3de496d7f85ba3437cad751c300ab906b0c0b267a0a4f26c6d6d1"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "33ea1731979071ba751be0c94dc86af324c2bcb7ec50e7dd2e8cde89e604f07b"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "eddb704cd75efa6f1cf3976bcf19ed39d60f0fb40ea26a8c9c48561cb02a5510"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_create_blend",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "939674ed0d3dd2e312ca5add1be765ff5d3e991d226b010dcf73a92b7d7db176"
+      "checks": 0
     },
     {
       "index": 12,
       "call": "nx_create_datum_plane",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "332c5917864eb6c6ad2913590afa751bea21609a8757f953fa9742adb88e35db"
+      "checks": 0
     },
     {
       "index": 13,
       "call": "nx_set_feature_order",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.062,
-      "result_sha256": "21a26ba3edee2f1e519d42daf2b12caa07920fc36ce2975e56c914f84c1a7f2f"
+      "checks": 3
     },
     {
       "index": 14,
       "call": "nx_get_feature",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.032,
-      "result_sha256": "524ce8c82f042104205b69eeec28c798b559b6e6ec2835d2bfada6817ab9c632"
+      "checks": 1
     },
     {
       "index": 15,
       "call": "nx_set_feature_order",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "4e5109bc990f3b37fbf1e4a292af9d6e7ce829361b5c68cf4a03b8bc170d2225"
+      "checks": 1
     },
     {
       "index": 16,
       "call": "nx_set_feature_order",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "b117f6080a0098abe275d9856b53f68d582fc60fa4134d251519efa4a810e799"
+      "checks": 2
     },
     {
       "index": 17,
       "call": "nx_set_feature_order",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "48c55a27ca94c8fa4da7fcde005db6f7b5d780662684cc2ab713978961333235"
+      "checks": 3
     },
     {
       "index": 18,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "004baea880595bc7363b4a8fc28cb618bef3b79d77dbb017ac41309311b5ebb5"
+      "checks": 1
     },
     {
       "index": 19,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "f86d4685e290933eabeaa8756712829c7484fd14eccaead2111a8a2702666e98"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_feature_order_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

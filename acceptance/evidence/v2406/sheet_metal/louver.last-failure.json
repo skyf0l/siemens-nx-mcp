@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/louver.json",
   "scenario_sha256": "762e7cc6a85edd6326e2cb55f640b58f7a84ec7d0ff0db40a960d6d56fbfff07",
   "domain": "sheet_metal",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155500-dcc142",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155500-dcc142\\sheet_metal_louver_dcc142.prt",
-  "started": "2026-10-10T11:55:00Z",
-  "finished": "2026-10-10T11:55:02Z",
+  "recorded": "2026-10-10T11:55:02Z",
   "passed": false,
   "checks": 3,
   "failed_checks": 4,
@@ -28,90 +23,70 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "00e4ddf20b58e4d11131b837ed7df3df9c0ad42f50035aff7c1b553fa81a7309"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.204,
-      "result_sha256": "2b41cadec90cf932e1e0c94995c5f7dbaae1993603ab09b65fdf425ee28a1304"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "02cb924ddfbaa205105903833d80c68197e38cfd66beb2eeab05315b153e08a4"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "80587633ab01a8d2313f8dfe37e320dfcd841a12b18c9789ef085990bfd1a44f"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "861c06fb6aa43b119cf577c2cf393870fc53b6cb7d17f27783861ba488447636"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "5f8f44321145d01c5c7ab5fe931f518ecc9319e173cf9b4d33ff75b450d323e1"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "66784346751c5e0e8b4e62312263caa2ed1117126ee7f7b159c697090297446a"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "b16371af5db7f4bda6d1118a98965cae2d815dc02b6feda4f722f436b88079f7"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "92b33e66b91101ceff103d5c58ebefbb968c3b777da10c066bd76a3dc276e482"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "f319755b575c8e3fd66f09672b822bbd5361a888fd0bebf9febdcadf4192c93b"
+      "checks": 0
     },
     {
       "index": 11,
@@ -119,8 +94,10 @@
       "setup": false,
       "passed": false,
       "checks": 3,
-      "seconds": 0.079,
-      "result_sha256": "915db57d80f414b1e1284398fba43872def83785ee94f06d7aa788872a8e0338",
+      "error": {
+        "code": "NX_BUILD_FAILED",
+        "message": "Cannot create feature. Try changing input selections or values."
+      },
       "failures": [
         "unexpected error NX_BUILD_FAILED: Cannot create feature. Try changing input selections or values.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -128,12 +105,5 @@
         "data.bend_count: missing (wanted 0)"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155500-dcc142/sheet_metal_louver_dcc142.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

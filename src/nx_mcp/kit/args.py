@@ -9,8 +9,11 @@ name.
 from __future__ import annotations
 
 import math
+from typing import NoReturn, TypeVar
 
 from nx_mcp.core.errors import fail
+
+T = TypeVar("T")
 
 
 def pointer(field):
@@ -25,7 +28,7 @@ def _name(field):
     return str(field).lstrip("/")
 
 
-def _bad(message, field):
+def _bad(message, field) -> NoReturn:
     fail("NX_INVALID_ARGUMENT", message, field=pointer(field))
 
 
@@ -34,11 +37,18 @@ def _is_number(value):
 
 
 # ---- cross-field rules ------------------------------------------------------------
-def need(**fields):
+def need(**fields: object) -> None:
     """Every named field is present (not None)."""
     for name, value in fields.items():
-        if value is None:
-            _bad(f"{name} is required", name)
+        required(value, name)
+
+
+def required(value: T | None, field: str) -> T:
+    """``value``, which must be present (not None): ``need`` for one field, returned so
+    that type checkers see it as given (``origin = args.required(origin, "origin")``)."""
+    if value is None:
+        _bad(f"{_name(field)} is required", field)
+    return value
 
 
 def exactly_one(**fields):

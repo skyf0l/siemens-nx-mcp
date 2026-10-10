@@ -10,7 +10,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Name, PathTo, Range, RefTo, Text, Units
+from nx_mcp.core.types import Doc, DrawingSheetRef, Name, PathTo, Range, Text, Units
 from nx_mcp.kit import drawing, readback, result, select
 from nx_mcp.kit import units as kit_units
 
@@ -101,7 +101,7 @@ def nx_create_drawing_sheet(
     units: Units = "mm",
     projection: Literal["first_angle", "third_angle"] = "third_angle",
     template: TemplateName | None = None,
-    template_path: PathTo("read", ".prt") | None = None,  # type: ignore[valid-type]
+    template_path: Annotated[str, PathTo("read", ".prt")] | None = None,
 ) -> SheetData:
     """Create a drawing sheet from a standard or custom size or a sheet template, and open
     it. Default A3; the installed A0-A4 templates are metric."""
@@ -139,7 +139,10 @@ def nx_create_drawing_sheet(
             width, height = (
                 custom
                 if custom
-                else [v / (25.4 if units == "in" else 1.0) for v in SIZES[size or "a3"]]
+                else [
+                    v / (25.4 if units == "in" else 1.0)
+                    for v in SIZES[size if isinstance(size, str) else "a3"]
+                ]
             )
             b.Length, b.Height = float(width), float(height)
         else:
@@ -204,7 +207,7 @@ def nx_create_drawing_sheet(
     )
     if custom:
         readback.expect_close(dims, custom, "dimensions", 1e-6)
-    if path is not None and template_projection != projection:
+    if template_projection is not None and template_projection != projection:
         tx.warn(
             "NX_UPDATE_WARNING",
             f"The template was drawn for {template_projection.replace('_', ' ')} projection; "
@@ -275,7 +278,7 @@ def sheet_rows(tx, part):
 def nx_activate_drawing_sheet(
     tx: Tx,
     *,
-    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
+    sheet: DrawingSheetRef | None = None,
 ) -> ActivateData:
     """Open a drawing sheet of the work part, or return to the modeling view when sheet is
     omitted. Lists the part's sheets with their views."""

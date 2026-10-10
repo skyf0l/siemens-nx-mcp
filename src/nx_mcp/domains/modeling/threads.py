@@ -9,14 +9,27 @@ from __future__ import annotations
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Annotated, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Doc, Length, Offset, PageLimit, Range, RefTo, Text
+from nx_mcp.core.types import (
+    Angle,
+    Doc,
+    FaceRef,
+    Length,
+    Offset,
+    PageLimit,
+    Range,
+    Text,
+    forbid_extra,
+)
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import builders, measure, readback, result, select
+
+if TYPE_CHECKING:
+    from typing_extensions import TypeIs
 
 MAX_TABLE_BYTES = 20_000_000
 CatalogText = Annotated[str, Text(64), Doc("Exactly as nx_list_thread_sizes lists it")]
@@ -143,7 +156,7 @@ def nx_list_thread_sizes(
     if standard is None:
         if size is not None:
             fail("NX_INVALID_ARGUMENT", "Give the standard of the size", field="/standard")
-        names = sorted({r.get("Standard") for r in rows if r.get("Standard")})
+        names = sorted({r["Standard"] for r in rows if r.get("Standard")})
         found = [
             {"standard": n, "unit": next(r.get("Unit") for r in rows if r.get("Standard") == n)}
             for n in names
@@ -172,8 +185,21 @@ class ManualSpec(_ManualRequired, total=False):
     starts: Annotated[int, Range(ge=1, le=16)]
 
 
-for _td in (TableSpec, ManualSpec):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(TableSpec, ManualSpec)
+
+
+def _is_table(spec: TableSpec | ManualSpec) -> TypeIs[TableSpec]:
+    """A spec naming a standard or size is a table row; any other is manual."""
+    return "standard" in spec or "size" in spec
+
+
+class ThreadReadback(TypedDict):
+    internal: bool
+    pitch: float
+    major_diameter: float
+    minor_diameter: float
+    standard: str | None
+    size: str | None
 
 
 class ThreadData(TypedDict):
@@ -210,8 +236,8 @@ class ThreadData(TypedDict):
 def nx_create_thread(
     tx: Tx,
     *,
-    face: RefTo("face"),  # type: ignore[valid-type]
-    start_face: RefTo("face"),  # type: ignore[valid-type]
+    face: FaceRef,
+    start_face: FaceRef,
     length: Length,
     spec: TableSpec | ManualSpec,
     detailed: Annotated[bool, Doc("Helical geometry instead of a symbolic thread")] = False,
@@ -220,11 +246,11 @@ def nx_create_thread(
 ) -> ThreadData:
     """Add a thread to a cylindrical face, from an installed table row (standard, size) or from
     explicit pitch and diameters. Symbolic threads keep the volume; detailed ones cut it."""
-    if length <= 0:
+    if float(length) <= 0:
         fail("NX_INVALID_ARGUMENT", "length must be positive", field="/length")
-    table = "standard" in spec or "size" in spec
-    row = None
-    if table:
+    row: dict[str, str] | None = None
+    manual: ManualSpec | None = None
+    if _is_table(spec):
         if not spec.get("standard") or not spec.get("size"):
             fail("NX_INVALID_ARGUMENT", "A table thread needs standard and size", field="/spec")
         rows = [
@@ -242,11 +268,12 @@ def nx_create_thread(
             )
         row = rows[0]
     else:
-        if spec["minor_diameter"] >= spec["major_diameter"]:
+        manual = spec
+        if float(spec["minor_diameter"]) >= float(spec["major_diameter"]):
             fail("NX_INVALID_ARGUMENT", "minor_diameter must be below major", field="/spec")
-        if min(spec["pitch"], spec["minor_diameter"]) <= 0:
+        if min(float(spec["pitch"]), float(spec["minor_diameter"])) <= 0:
             fail("NX_INVALID_ARGUMENT", "pitch and diameters must be positive", field="/spec")
-        if not 0 < spec.get("angle", 60.0) < 180:
+        if not 0 < float(spec.get("angle", 60.0)) < 180:
             fail("NX_INVALID_ARGUMENT", "angle must be between 0 and 180", field="/spec/angle")
     target = select.one(tx, face, "face", field="/face")
     start = select.one(tx, start_face, "face", field="/start_face")
@@ -275,19 +302,19 @@ def nx_create_thread(
             b.ThreadMethod = row["Method"]
             b.RadialEngage = row["RadialEngage"]
             b.MatchThreadSizeToCylinder = False
-        else:
+        elif manual is not None:
             b.ThreadInput = T.Input.Manual
-            b.NumStarts = int(spec.get("starts", 1))
-            b.PitchExp.RightHandSide = repr(float(spec["pitch"]))
-            b.MajorDiameterExp.RightHandSide = repr(float(spec["major_diameter"]))
-            b.MinorDiameterExp.RightHandSide = repr(float(spec["minor_diameter"]))
-            b.AngleExp.RightHandSide = repr(float(spec.get("angle", 60.0)))
+            b.NumStarts = int(manual.get("starts", 1))
+            b.PitchExp.RightHandSide = repr(float(manual["pitch"]))
+            b.MajorDiameterExp.RightHandSide = repr(float(manual["major_diameter"]))
+            b.MinorDiameterExp.RightHandSide = repr(float(manual["minor_diameter"]))
+            b.AngleExp.RightHandSide = repr(float(manual.get("angle", 60.0)))
         b.ThreadLimit = T.LimitOption.Value
         b.ThreadLength.RightHandSide = repr(float(length))
         b.ThreadHandedness = T.Handedness.LeftHand if hand == "left" else T.Handedness.RightHand
         b.ReverseThreadDirection = bool(reverse)
         feature = b.commit(validate=True)
-        got = {
+        got: ThreadReadback = {
             "internal": bool(b.IsInternalThread),
             "pitch": float(b.Pitch),
             "major_diameter": float(b.MajorDiameter),
@@ -303,9 +330,9 @@ def nx_create_thread(
             standard=got["standard"],
             size=got["size"],
         )
-    else:
+    elif manual is not None:
         for key in ("pitch", "major_diameter", "minor_diameter"):
-            readback.expect_close(got[key], float(spec[key]), key)
+            readback.expect_close(got[key], float(manual[key]), key)
     out = common.result_of(tx, feature, [body])
     common.changed(before, out["volume"], "less" if detailed else "same")
     return {**out, **got}

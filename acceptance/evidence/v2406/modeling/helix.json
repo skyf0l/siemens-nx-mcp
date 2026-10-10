@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/helix.json",
   "scenario_sha256": "a0509f772f3a3ba1ee042c81407e7e40659c39cc1dcee299a2ca9c6a80584d22",
   "domain": "modeling",
@@ -7,16 +7,11 @@
     "nx_create_helix": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_helix": "13f6208ef949658cc6cebbfdb36fc9e16a09cd67cd1347a1e7dbb66068d50ed0"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_helix_433572.prt",
-  "started": "2026-10-10T11:45:38Z",
-  "finished": "2026-10-10T11:45:39Z",
+  "recorded": "2026-10-10T11:45:39Z",
   "passed": true,
   "checks": 12,
   "failed_checks": 0,
@@ -26,52 +21,35 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "26d88e2d31d2c2e44875001ddcaab8bb077e0b96e6dc943d1131bfeb496a3231"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.109,
-      "result_sha256": "57d3f74c6601ba7904c4858699643f46fef02992efe7c4123d5144f928fa7836"
+      "checks": 3
     },
     {
       "index": 3,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.094,
-      "result_sha256": "106ebd6c8e34756a0f3d096bec23d83a7ee04b2da6b1ef24bf0a4f5a0584ace1"
+      "checks": 4
     },
     {
       "index": 4,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "e61430c4389d43588ab08f108a0b4a154ff9ada453cd9bf15e11d27270730f93"
+      "checks": 2
     },
     {
       "index": 5,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "5ded45d875e5053c5750ec2a2d6876885bf82a9b478aff0d28c0affe9aa4845b"
+      "checks": 3
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_helix_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

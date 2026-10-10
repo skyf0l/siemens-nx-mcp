@@ -1,8 +1,8 @@
-"""Stateful NX seams for failure/recovery tests; not a geometric kernel oracle.
+"""The host ``rig`` fixture: the fake NX objects wired to the real host.
 
-The fake NX objects live in ``tests.kit.objects`` (the shared fake kit); the
-``rig`` fixture wires them to the host's ``NXServices`` (``rig.e``) and runs bridge
-calls through ``host.dispatch.execute`` (``rig.run``).
+``rig.e`` is an ``NXServices`` over the fake objects of ``tests.kit.objects`` and
+``rig.run`` sends bridge calls through ``host.dispatch.execute``. It is a stateful
+seam for host, failure and recovery tests, not a geometric kernel oracle.
 """
 
 from types import ModuleType
@@ -14,21 +14,7 @@ import pytest
 from nx_mcp.host import dispatch
 from nx_mcp.host.services import NXServices
 from nx_mcp.workspace import Workspace
-from tests.kit.objects import (  # noqa: F401  (re-exported for legacy tests)
-    Body,
-    Collection,
-    Component,
-    Curve,
-    Edge,
-    Face,
-    Feature,
-    Object,
-    Part,
-    Session,
-    Sketch,
-    matrix,
-    point,
-)
+from tests.kit.objects import Body, Edge, Face, Feature, Part, Session, Sketch, matrix, point
 
 
 @pytest.fixture

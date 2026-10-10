@@ -17,8 +17,12 @@ import shutil
 import time
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from nx_mcp.core.errors import WARNING_CODES, NXError, fail
+
+if TYPE_CHECKING:
+    from nx_mcp.core.references import Row
 
 # Cooperative budget per cost class (architecture.md 3.3), measured from gate 9.
 # tx.checkpoint() past the budget raises interrupted/NX_CANCELLED (reason "budget").
@@ -50,15 +54,16 @@ def check_owned(services, part, *, field: str | None = None) -> None:
 class Services:
     """The NX-side services seam. Every member is required unless noted."""
 
-    nx = None  # the NXOpen module
-    uf = None  # the UFSession (may be None where UF is not used)
-    session = None  # the NX session
-    workspace = None  # nx_mcp.workspace.Workspace-like: root, resolve(path)
+    # Untyped seams (NXOpen has no stubs; the rest are duck-typed): ``Any``.
+    nx: Any = None  # the NXOpen module
+    uf: Any = None  # the UFSession (may be None where UF is not used)
+    session: Any = None  # the NX session
+    workspace: Any = None  # nx_mcp.workspace.Workspace-like: root, resolve(path)
     build: str | None = None  # NX version string
-    dev = False  # NX_MCP_DEV=1
+    dev: bool = False  # NX_MCP_DEV=1
     session_id = ""
-    store = None  # OperationStore-like: get, put, path
-    references = None  # core.references.References over this object
+    store: Any = None  # OperationStore-like: get, put, path
+    references: Any = None  # core.references.References over this object
     runs = "nx"  # the process these services run in: "nx", or "sidecar" (gate 1)
 
     # parts and units
@@ -101,7 +106,7 @@ class Services:
     def undo_to(self, mark) -> None: ...
     def delete_mark(self, mark) -> None: ...
     def snapshot(self, part) -> dict: ...  # {key: entry}; keys compare structure
-    def describe(self, entry, live: bool) -> dict: ...  # snapshot entry -> result row
+    def describe(self, entry, live: bool) -> Row: ...  # snapshot entry -> result row
     def feature_errors(self, part, before: dict, mark) -> list: ...
     def clear_update_errors(self) -> None: ...
     def invalidate(self, before: dict, after: dict, topology: bool) -> None: ...
@@ -281,9 +286,9 @@ class Display:
 
     def __init__(self, tx: Tx) -> None:
         self._tx = tx
-        self.camera = None
+        self.camera: Any = None  # opaque snapshot from Services.display_camera
         self.records: dict = {}  # key -> [obj, record]
-        self.highlights = None
+        self.highlights: list | None = None
 
     @property
     def kept(self) -> bool:
@@ -345,10 +350,10 @@ class Tx:
         self.touched = False
         self.frame = "work_part_absolute"
         self.units = {"length": None, "angle": "deg"}  # + "sheet_length" (gate 9)
-        self.sheet = None  # the target drawing sheet of a sheet tool (gate 9), or None
+        self.sheet: Any = None  # the target NX drawing sheet of a sheet tool (gate 9), or None
         self.warnings: list[dict] = []
         self.non_undoable_reason: str | None = None
-        self.mark = None
+        self.mark: Any = None  # the NX undo mark of this call
         self.outcome: str | None = None  # "previewed" after tx.preview()
         self.references: str | None = None  # "part_invalidated": overrides changes
         self.files = Files(self)
@@ -422,7 +427,7 @@ class Tx:
         """The exact reference kind of a live NX object (``feature``, ``face``, ...)."""
         return self._services.infer_kind(obj)
 
-    def ref(self, obj, kind: str | None = None, *, anchor: bool = False, part=None) -> dict:
+    def ref(self, obj, kind: str | None = None, *, anchor: bool = False, part=None) -> Row:
         """A result row ``{id, kind, name, part}`` (+ anchor) for ``obj``."""
         kind = kind or self._services.infer_kind(obj)
         return self._services.references.row(obj, kind, part=part, anchor=anchor)

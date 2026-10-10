@@ -17,7 +17,7 @@ from typing import Annotated, Literal, NoReturn, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, RefTo, Text
+from nx_mcp.core.types import Doc, Items, Ref, Text, forbid_extra
 from nx_mcp.kit import readback, result
 
 TYPES = ("string", "integer", "number", "boolean", "date")
@@ -81,8 +81,7 @@ class AttributeValue(_ValueRequired, total=False):
     category: Category
 
 
-for _td in (_ValueRequired, AttributeValue):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(_ValueRequired, AttributeValue)
 
 
 # ---- values --------------------------------------------------------------------------
@@ -120,7 +119,7 @@ def _check_value(spec: AttributeValue, field: str):
     match = DATE.match(value) if isinstance(value, str) else None
     if match is None:
         bad("a date is YYYY-MM-DD or YYYY-MM-DDThh:mm[:ss]")
-    y, mo, d, h, mi, s = (int(g) if g else 0 for g in match.groups())  # type: ignore[union-attr]
+    y, mo, d, h, mi, s = (int(g) if g else 0 for g in match.groups())
     try:
         when = _dt.datetime(y, mo, d, h, mi, s)
     except ValueError as error:
@@ -179,7 +178,7 @@ def _row(tx, info) -> AttributeRow:
     for key, member in (("locked", "Locked"), ("inherited", "Inherited"),
                         ("system", "OwnedBySystem")):  # fmt: skip
         if getattr(info, member, False):
-            row[key] = True  # type: ignore[literal-required]
+            row[key] = True  # type: ignore[literal-required]  # key: one of the flag names above
     return row
 
 
@@ -223,7 +222,7 @@ def _row_of(tx, obj) -> result.Row:
 def nx_get_attributes(
     tx: Tx,
     *,
-    objects: Annotated[list[RefTo()], Items(1, 50), Doc("Default: the work part")] | None = None,  # type: ignore[valid-type]
+    objects: Annotated[list[Ref], Items(1, 50), Doc("Default: the work part")] | None = None,
     names: Annotated[list[Title], Items(1, 100), Doc("Only these titles")] | None = None,
     include_system: Annotated[bool, Doc("Also NX-owned attributes (NX_...)")] = False,
 ) -> GetData:
@@ -305,7 +304,7 @@ def _refuse_read_only(info, ref, name, field):
 def nx_set_attributes(
     tx: Tx,
     *,
-    objects: Annotated[list[RefTo()], Items(1, 50), Doc("Default: the work part")] | None = None,  # type: ignore[valid-type]
+    objects: Annotated[list[Ref], Items(1, 50), Doc("Default: the work part")] | None = None,
     values: Annotated[list[AttributeValue], Items(1, 100)] | None = None,
     delete: Annotated[list[Title], Items(1, 100), Doc("Titles to remove first")] | None = None,
 ) -> SetData:

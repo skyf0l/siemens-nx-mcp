@@ -11,12 +11,22 @@ takes curves.
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Doc, Items, Range, RefTo, Vec3
+from nx_mcp.core.types import (
+    Angle,
+    CurveRef,
+    Doc,
+    EdgeRef,
+    FaceRef,
+    Items,
+    Range,
+    Vec3,
+    forbid_extra,
+)
 from nx_mcp.domains.inspection import common
 from nx_mcp.kit import geom, result, select, surface
 
@@ -54,7 +64,7 @@ class FacesData(TypedDict):
 def nx_analyze_faces(
     tx: Tx,
     *,
-    faces: Annotated[list[RefTo("face")], Items(1, 200)],  # type: ignore[valid-type]
+    faces: Annotated[list[FaceRef], Items(1, 200)],
     samples_per_axis: Annotated[int, Range(ge=1, le=20)] = 5,
     pull_direction: Vec3 | None = None,
     minimum_draft: Annotated[Angle, Doc("Needs pull_direction; 0 to under 90 degrees")]
@@ -63,17 +73,20 @@ def nx_analyze_faces(
     """Sample normals and principal curvatures on a UV grid of faces; with a pull direction
     also signed draft angles. Points outside trimmed faces are skipped."""
     pull = geom.unit(pull_direction, "/pull_direction") if pull_direction is not None else None
+    if minimum_draft is not None:
+        minimum_draft = float(minimum_draft)  # the kernel converted the quantity to degrees
     if minimum_draft is not None and pull is None:
         fail("NX_INVALID_ARGUMENT", "minimum_draft needs pull_direction", field="/minimum_draft")
     if minimum_draft is not None and not 0 <= minimum_draft < 90:
         fail("NX_INVALID_ARGUMENT", "minimum_draft must be 0 to under 90", field="/minimum_draft")
     selected = select.faces(tx, faces)
     samples, skipped = common.face_samples(tx, selected, samples_per_axis)
-    rows, below = [], 0
+    rows: list[FaceSample] = []
+    below = 0
     for face, uv, props in samples:
         normal = common.unit_or_none(props[5]) or [0.0, 0.0, 0.0]
         radii, curvatures = common.radii(props[6][:2])
-        row: dict[str, Any] = {
+        row: FaceSample = {
             "face": tx.ref(face, kind="face"),
             "uv": [float(v) for v in uv],
             "point": common.xyz3(props[0]),
@@ -121,7 +134,7 @@ class CurveData(TypedDict, total=False):
     spline: dict[str, Any]
 
 
-def _sample(tx, obj, t):
+def _sample(tx, obj, t) -> CurveSample:
     with native():
         data = [float(v) for v in tx.uf.ModlGeneral.EvaluateCurve(obj.Tag, float(t), 2)]
     point, first, second = data[:3], data[3:6], data[6:9]
@@ -153,18 +166,18 @@ def _sample(tx, obj, t):
 def nx_analyze_curve(
     tx: Tx,
     *,
-    curve: RefTo("curve"),  # type: ignore[valid-type]
+    curve: CurveRef,
     samples: Annotated[int, Range(ge=2, le=1000)] = 20,
 ) -> CurveData:
     """Sample points, unit tangents and curvature along a curve (not a solid edge).
     Parameters are evenly spaced 0..1; splines add degree, knots and poles."""
     obj = select.one(tx, curve, "curve", field="/curve")
-    rows = []
+    rows: list[CurveSample] = []
     for i in range(samples):
         if i % 100 == 0:
             tx.checkpoint(i, samples)
         rows.append(_sample(tx, obj, i / (samples - 1)))
-    data: dict[str, Any] = {"curve": tx.ref(obj, kind="curve"), "samples": rows}
+    data: CurveData = {"curve": tx.ref(obj, kind="curve"), "samples": rows}
     if hasattr(obj, "Get3DPoles"):
         with native():
             data["spline"] = {
@@ -186,7 +199,7 @@ class Tolerances(TypedDict, total=False):
     curvature: Annotated[float, Range(gt=0), Doc("G2, 1/part unit")]
 
 
-Tolerances.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(Tolerances)
 DEFAULTS = {"position": 0.001, "angle": 0.1, "curvature": 0.01}
 
 
@@ -225,14 +238,14 @@ def _boundary_face(edge, field):
 def nx_check_continuity(
     tx: Tx,
     *,
-    first: RefTo("edge"),  # type: ignore[valid-type]
-    second: RefTo("edge"),  # type: ignore[valid-type]
+    first: EdgeRef,
+    second: EdgeRef,
     tolerances: Tolerances | None = None,
     samples: Annotated[int, Range(ge=2, le=200), Doc("Samples per edge")] = 20,
 ) -> ContinuityData:
     """Check G0/G1/G2 continuity between two sheet boundary edges, sampled from both sides.
     G1 and G2 are null when a sample cannot be evaluated."""
-    limits = {**DEFAULTS, **(tolerances or {})}
+    limits = {**DEFAULTS, **cast("dict[str, float]", tolerances or {})}  # every value is a number
     edges = [
         select.one(tx, ref, "edge", field=f) for ref, f in ((first, "/first"), (second, "/second"))
     ]
@@ -255,8 +268,9 @@ def nx_check_continuity(
     angle = max(angles) if complete else None
     curvature = max(curvatures) if complete else None
     g0 = gap <= limits["position"]
-    g1 = (g0 and angle <= limits["angle"]) if complete else None
-    g2 = (g1 and curvature <= limits["curvature"]) if complete else None
+    # angle and curvature are both set exactly when complete (kit.surface.edge_continuity)
+    g1 = (g0 and angle <= limits["angle"]) if angle is not None else None
+    g2 = (g1 and curvature <= limits["curvature"]) if curvature is not None else None
     return {
         "g0": g0,
         "g1": g1,

@@ -115,7 +115,8 @@ def test_a_plain_fixed_line_that_slides_is_caught_by_the_guard():
     nx = sketch_nx()
     sk = nx.sketch(active=True)
     line = nx.line(sk, (0, 0, 0), (10, 0, 0))
-    sk.constraints.append(Constraint(CT.Fixed, [(line, "NotSet")], sk))  # legacy single fix
+    # A plain NX Fixed (e.g. made in NX), not the tool's CreateFullyFixedConstraints.
+    sk.constraints.append(Constraint(CT.Fixed, [(line, "NotSet")], sk))
     bad = _dimension(nx, sk, {"kind": "length", "first": nx.cref(line), "value": 20})
     assert bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED", bad
     assert bad.error["details"]["fixed_curves_moved"][0]["curve"] == nx.cref(line)

@@ -21,12 +21,14 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    BodyRef,
+    ComponentRef,
     Doc,
     Items,
     Mat3,
@@ -36,17 +38,14 @@ from nx_mcp.core.types import (
     PathTo,
     Point3,
     Pose,
-    RefTo,
     Text,
 )
 from nx_mcp.domains.assembly import common
-from nx_mcp.domains.assembly.common import ComponentRef, ComponentRow, Translation
+from nx_mcp.domains.assembly.common import ComponentRow, Translation
 from nx_mcp.kit import args, assembly, builders, geom, model, parts, readback, result, select
 from nx_mcp.kit import pose as kpose
 from nx_mcp.kit import units as kit_units
 
-PartFile = PathTo("read", ".prt")
-NewPartFile = PathTo("new", ".prt")
 BUILT_IN_SETS = ("Entire Part", "Empty")
 RefSetName = Annotated[str, Text(132, r"^\S(.*\S)?$"), Doc("Reference set name, e.g. MODEL")]
 
@@ -123,9 +122,9 @@ def nx_list_components(
             continue
         found.append((c, names))
     selected, page = result.page(found, offset, limit)
-    items = []
+    items: list[ComponentListRow] = []
     for c, names in selected:
-        row = common.component_row(tx, c, names, with_pose=include_poses)
+        row = cast(ComponentListRow, common.component_row(tx, c, names, with_pose=include_poses))
         state = assembly.load_state(tx, c)
         reference_set = ""
         try:
@@ -133,11 +132,13 @@ def nx_list_components(
         except Exception:  # an unloaded occurrence
             reference_set = ""
         row.update(
-            depth=len(names) - 1,
-            suppressed=bool(c.IsSuppressed),
-            load_state=state["load_state"],
-            part_path=common.relative_path(tx, state["part_path"]) or None,
-            reference_set=reference_set,
+            {
+                "depth": len(names) - 1,
+                "suppressed": bool(c.IsSuppressed),
+                "load_state": state["load_state"],
+                "part_path": common.relative_path(tx, state["part_path"]) or None,
+                "reference_set": reference_set,
+            }
         )
         items.append(row)
     return {"items": items, "page": page}
@@ -156,7 +157,7 @@ class CreateComponentData(TypedDict, total=False):
 
 
 BodyList = Annotated[
-    list[RefTo("body")],  # type: ignore[valid-type]
+    list[BodyRef],
     Items(1, 100),
     Doc("new_in_context: work-part bodies moved into the new part (same position)"),
 ]
@@ -185,8 +186,8 @@ def nx_create_component(
     tx: Tx,
     *,
     mode: Literal["from_file", "new_in_context"] = "from_file",
-    path: Annotated[PartFile, Doc("from_file: the saved .prt")] | None = None,  # type: ignore[valid-type]
-    new_path: Annotated[NewPartFile, Doc("new_in_context: the new part's file")]  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("read", ".prt"), Doc("from_file: the saved .prt")] | None = None,
+    new_path: Annotated[str, PathTo("new", ".prt"), Doc("new_in_context: the new part's file")]
     | None = None,
     units: Annotated[Literal["mm", "in"], Doc("new_in_context: default the work part's")]
     | None = None,
@@ -207,7 +208,9 @@ def nx_create_component(
     if given[needed] is None:
         fail("NX_INVALID_ARGUMENT", f"{mode} needs {needed}", field="/" + needed)
     if mode == "new_in_context":
+        assert new_path is not None  # checked above
         return _new_in_context(tx, Path(new_path), units, objects_to_move or [], name, target)
+    assert path is not None  # checked above
     with tx.checks():
         _check_file(tx, path, "/path")
     part = tx.part
@@ -352,11 +355,15 @@ def _reference_sets(component):
 def nx_edit_component(
     tx: Tx,
     *,
-    components: Annotated[list[ComponentRef], Items(1, 100)],  # type: ignore[valid-type]
+    components: Annotated[list[ComponentRef], Items(1, 100)],
     name: Annotated[Name, Doc("New name; one component only")] | None = None,
-    replace_with: Annotated[PartFile, Doc("Saved .prt that replaces the prototype")]  # type: ignore[valid-type]
+    replace_with: Annotated[
+        str, PathTo("read", ".prt"), Doc("Saved .prt that replaces the prototype")
+    ]
     | None = None,
-    make_unique: Annotated[NewPartFile, Doc("New .prt: a copy of the part for this one")]  # type: ignore[valid-type]
+    make_unique: Annotated[
+        str, PathTo("new", ".prt"), Doc("New .prt: a copy of the part for this one")
+    ]
     | None = None,
     suppressed: bool | None = None,
     reference_set: RefSetName | None = None,
@@ -436,7 +443,7 @@ def nx_edit_component(
         assembly.check(errors, "NX_BUILD_FAILED", f"NX did not {method[:-10].lower()}")
     model.update(tx)
     names = assembly.paths(part)
-    out = []
+    out: list[EditedComponent] = []
     for i, (c, before) in enumerate(zip(values, poses, strict=True)):
         assembly.expect_pose(assembly.pose(c), before, f"placement[{i}]")
         if suppressed is not None:
@@ -453,11 +460,13 @@ def nx_edit_component(
                 f"{'replace_with' if replace_with is not None else 'make_unique'}[{i}]",
                 actual=parts.file_of(c.Prototype),
             )
-        row = common.component_row(tx, c, names.get(int(c.Tag)))
+        row = cast(EditedComponent, common.component_row(tx, c, names.get(int(c.Tag))))
         row.update(
-            suppressed=bool(c.IsSuppressed),
-            reference_set=str(c.ReferenceSet or ""),
-            part_path=common.relative_path(tx, parts.file_of(c.Prototype)),
+            {
+                "suppressed": bool(c.IsSuppressed),
+                "reference_set": str(c.ReferenceSet or ""),
+                "part_path": common.relative_path(tx, parts.file_of(c.Prototype)),
+            }
         )
         out.append(row)
     return {"components": out}
@@ -506,7 +515,7 @@ class PoseData(TypedDict):
 def nx_set_component_pose(
     tx: Tx,
     *,
-    component: ComponentRef,  # type: ignore[valid-type]
+    component: ComponentRef,
     mode: Literal["absolute", "relative"],
     translation: Annotated[Translation, Doc("absolute: position; relative: offset (part units)")],
     rotation: Annotated[Mat3, Doc("absolute: orientation (default identity); relative: turn")]

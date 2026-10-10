@@ -157,7 +157,9 @@ class Receipts:
             )
         return None
 
-    def begin(self, tool: str, args: dict, operation_id: str, part_key: str | None):
+    def begin(
+        self, tool: str, args: dict, operation_id: str, part_key: str | None
+    ) -> tuple[dict | None, dict | None]:
         """``(record, None)`` for a new operation or ``(None, replayed_envelope)``."""
         replayed = self.replay(tool, args, operation_id)
         if replayed is not None:
@@ -177,7 +179,7 @@ class Receipts:
         self.store.put(record)
         return record, None
 
-    def progress(self, record: dict, done=None, total=None) -> None:
+    def progress(self, record: dict | None, done=None, total=None) -> None:
         if record is None:
             return
         if total is None:  # a child's checkpoint keeps the parent's announced total
@@ -185,7 +187,7 @@ class Receipts:
         record["progress"] = {"completed": done, "total": total, "at": timestamp()}
         self.store.put(record)
 
-    def finish(self, record: dict, envelope: dict) -> None:
+    def finish(self, record: dict | None, envelope: dict) -> None:
         """Write the final state. Never raises: a committed result stays committed."""
         if record is None:
             return

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/drawing/get_drawing_view.json",
   "scenario_sha256": "5f430d796ccf638743f63c76e21365db116910e71b794ef1472667d888b29160",
   "domain": "drawing",
@@ -7,16 +7,11 @@
     "nx_get_drawing_view": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_get_drawing_view": "8df1770fe32d273df366c830051eb83072445d5fc26f6ff069692963f43cd204"
   },
-  "run_id": "20261010-154836-7c717c",
-  "owner": "reg_final2_2",
-  "part": null,
-  "started": "2026-10-10T11:50:03Z",
-  "finished": "2026-10-10T11:50:04Z",
+  "recorded": "2026-10-10T12:26:52Z",
   "passed": true,
   "checks": 13,
   "failed_checks": 0,
@@ -26,59 +21,42 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.5,
-      "result_sha256": "c31d5cc3ddd5c81a6ab4a508810225ef4e379b14c965e261be94b7196ffd0267"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_drawing_sheet",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "0d0895fada29cfa74228cb326f94cb998c9b6daaef45dc52099a748a2f31b7d2"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_drawing_view",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.297,
-      "result_sha256": "7ebfc936f081687c9b9e81104a4e50eb3b43ab5ae6c20bee609f2b195c17460c"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_get_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 11,
-      "seconds": 0.031,
-      "result_sha256": "87fa4c89cbcbf115b5e2636467734ee59273edd0abb69b742a3deab5cf05c875"
+      "checks": 11
     },
     {
       "index": 5,
       "call": "nx_get_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "015ac5baa860d440a38c3b29823b40d64a4d001aec47874f8b034e13f9d65d93"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.219,
-      "result_sha256": "163f19f1831cde893c791959f5638f456d7a4fb814cb096f55b4cc36082cec1f"
+      "checks": 0
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [],
-    "failed": []
-  }
+  ]
 }

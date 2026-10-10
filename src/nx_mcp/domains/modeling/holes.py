@@ -19,14 +19,16 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
+    BodyRef,
     Doc,
+    FaceRef,
     Items,
     Length,
     LimitDistance,
     LimitThroughAll,
     Point3,
-    RefTo,
     Text,
+    forbid_extra,
 )
 from nx_mcp.domains.modeling import common, threads
 from nx_mcp.kit import builders, geom, measure, readback, result, select, units
@@ -56,8 +58,7 @@ class HoleThread(_ThreadRequired, total=False):
     depth: Length
 
 
-for _td in (Counterbore, Countersink, HoleThread):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(Counterbore, Countersink, HoleThread)
 
 
 def tip_height(diameter, tip_angle):
@@ -381,7 +382,7 @@ class HoleData(TypedDict):
 def nx_create_hole(
     tx: Tx,
     *,
-    face: RefTo("face"),  # type: ignore[valid-type]
+    face: FaceRef,
     positions: Annotated[list[Point3], Items(1, 100), Doc("Hole centres on the face")],
     form: Literal["simple", "counterbore", "countersink", "threaded"],
     diameter: Annotated[Length, Doc("Drill diameter; for threaded, a tap drill of the size")],
@@ -390,7 +391,7 @@ def nx_create_hole(
     counterbore: Counterbore | None = None,
     countersink: Countersink | None = None,
     thread: HoleThread | None = None,
-    target: RefTo("body") | None = None,  # type: ignore[valid-type]
+    target: BodyRef | None = None,
 ) -> HoleData:
     """Create one NX Hole feature with 1-100 holes on a planar face, drilled into the material.
     nominal is the analytic removed volume of blind holes fully inside the body."""

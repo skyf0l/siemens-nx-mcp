@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/parts_files/upload_file.json",
   "scenario_sha256": "bd99b7738db779b2673b22d3bf27bd00335b67a6833fc1be99169c330b1fb09f",
   "domain": "parts_files",
@@ -7,16 +7,11 @@
     "nx_upload_file": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_upload_file": "5264f6cde61226bb40954ac238dddd0a5c9afbaff148f8cd62baa42278f67016"
   },
-  "run_id": "20261010-154111-17dd9e",
-  "owner": "reg_final2_1",
-  "part": null,
-  "started": "2026-10-10T11:44:02Z",
-  "finished": "2026-10-10T11:44:02Z",
+  "recorded": "2026-10-10T11:44:02Z",
   "passed": true,
   "checks": 28,
   "failed_checks": 0,
@@ -26,122 +21,91 @@
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.015,
-      "result_sha256": "160d6dd7f646defbcafac9162612098435c5a8964a8af260713248f91426df65"
+      "checks": 3
     },
     {
       "index": 2,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.0,
-      "result_sha256": "1087ebc5858dd1204efec436f411f463206ee1e8c8beebcd3f6fb579f8afbff8"
+      "checks": 1
     },
     {
       "index": 3,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.016,
-      "result_sha256": "ea991802106b7666ef1a2f445445f71085b28b3217907abc5964748d97214b26"
+      "checks": 2
     },
     {
       "index": 4,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "a63b5db2c75b456f5e85e68a66142ed1b433c25d7ad8be11784eb228c5663117"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.016,
-      "result_sha256": "0a6122d2b7568635e543fe2e8ef3e63445a52bfeccd27b7a3870e0c6ef46b577"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.015,
-      "result_sha256": "601f47d3108d04e6b3f67fdd2773ba16a7b2a7a0637c0947989bfecb45b30088"
+      "checks": 4
     },
     {
       "index": 7,
       "call": "nx_download_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "63ca1d1362936aea4b001be5c0413c9965bc59f900f60723ea258e95a2f6ee34"
+      "checks": 2
     },
     {
       "index": 8,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "969aff6804ca536c0baf6f4c50944a98c25edaa123bf507dd29d212fa037a1ab"
+      "checks": 2
     },
     {
       "index": 9,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.016,
-      "result_sha256": "6404102813a71be2bc6b50087960d91734703c38b93b00077a133fe0c0ca07e8"
+      "checks": 2
     },
     {
       "index": 10,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "21afe76280271c19fdae71338fd45de6eea1af79edfcfe2a05548a947f399bf4"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "93870606376e4b41e255cc6e8bb6705012056e2121f10f3d46450efe668b1486"
+      "checks": 2
     },
     {
       "index": 12,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "2737809ba539e542080bccb9d56cece4869d38eea69341cb8d0156684497f485"
+      "checks": 2
     },
     {
       "index": 13,
       "call": "nx_upload_file",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.0,
-      "result_sha256": "336ba17dbb0a7c048d3121fec46a0a4668af946798a284a813c15aa5bf885875"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [],
-    "failed": []
-  }
+  ]
 }

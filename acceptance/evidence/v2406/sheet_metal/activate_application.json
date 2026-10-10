@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/activate_application.json",
   "scenario_sha256": "a3932a129d155a9db7dd214fdba899c07fd315f6ef746dea2581f49b04587b0b",
   "domain": "sheet_metal",
@@ -7,16 +7,11 @@
     "nx_activate_application": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_activate_application": "13054338e6c9f2fcd9e0db12efa102dc39341037a7150c0de4c53905a98de12c"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_activate_application_3fd345.prt",
-  "started": "2026-10-10T11:53:54Z",
-  "finished": "2026-10-10T11:53:56Z",
+  "recorded": "2026-10-10T11:53:56Z",
   "passed": true,
   "checks": 19,
   "failed_checks": 0,
@@ -26,115 +21,84 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "18b4d57e9b89598b47af4f1cf2f15e2d7680f96fbcd752ba42b8fc37c953149b"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "982761abc827a8f3949fdadcd2331c62da1e481f12db48878d960429df7f1c86"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "12394392794746a6a2591d2668a50d136ce46854794a294cac532aadbfa438ad"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "5b0a7c5dc8b5bb88ff0408571e0cfbab300d87736897999222119428ed721714"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "2d404dbc0179a4e0db96188c12e7e93e5567b7fcb783586b89c6c7da7eb82b03"
+      "checks": 1
     },
     {
       "index": 6,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.093,
-      "result_sha256": "a767d7c3cf3974589f380669e53e4c5c6bd0affcf204259fc57ac37771fe959c"
+      "checks": 3
     },
     {
       "index": 7,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.204,
-      "result_sha256": "7b33c9cfbceeebcc9d38652666798a7dc24ee235c11518886a27a1d466eb55b8"
+      "checks": 3
     },
     {
       "index": 8,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.187,
-      "result_sha256": "4ec29488d818b689f14af778bcee56569f163757fb62bb917c8d4fe7e7ffb7f6"
+      "checks": 2
     },
     {
       "index": 9,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "25af0230620f6c4759a0a7a2537160cf05683d509868aa0ef063cb4d99a06ee4"
+      "checks": 3
     },
     {
       "index": 10,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.046,
-      "result_sha256": "456272ccacf94fdd4d9c77414a978fb7f2fae318f9ed062acd9852331a941caf"
+      "checks": 3
     },
     {
       "index": 11,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.016,
-      "result_sha256": "d17f319cda616ff6d004f4349bc3ef9d903190b5829f3b378e0412d025232eca"
+      "checks": 2
     },
     {
       "index": 12,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.172,
-      "result_sha256": "1c0e7eb1e9a4ec559adf6f9c2166539565e0ceb50daf3a7c49dd2474e337ef90"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_activate_application_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

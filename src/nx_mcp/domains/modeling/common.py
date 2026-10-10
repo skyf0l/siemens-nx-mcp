@@ -79,7 +79,7 @@ def changed(before, after, how, check="volume"):
     return after
 
 
-def result_of(tx, feature, bodies=None):
+def result_of(tx, feature, bodies=None) -> FeatureData:
     """``{feature, bodies, volume}`` with the bodies' total volume after the change."""
     bodies = feature_bodies(feature) if bodies is None else list(bodies)
     readback.expect(bool(bodies), "bodies", "NX built no body")

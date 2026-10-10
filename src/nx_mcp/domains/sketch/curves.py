@@ -21,9 +21,9 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Point2, Range, RefTo
+from nx_mcp.core.types import CurveRef, Doc, Items, Point2, Range, RefTo, SketchRef, forbid_extra
 from nx_mcp.domains.sketch import common
-from nx_mcp.domains.sketch.common import XY, CurveRef, CurveRow, Degrees, Size, SketchRef
+from nx_mcp.domains.sketch.common import XY, CurveRow, Degrees, Size
 from nx_mcp.kit import builders, geom, measure, readback, result
 from nx_mcp.kit import sketch as ksketch
 
@@ -133,8 +133,7 @@ class CurveSpec(_CurveType, total=False):
     inscribed: bool
 
 
-for _td in (*CURVE_TYPES.values(), CurveSpec):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(*CURVE_TYPES.values(), CurveSpec)
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +355,7 @@ class CurvesData(TypedDict):
 def nx_create_sketch_curves(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     curves: Annotated[
         list[CurveSpec], Items(1, 100), Doc("Fields per type: nx_get_tool_schemas(tool#type)")
     ],
@@ -397,14 +396,14 @@ def nx_create_sketch_curves(
 
 class LineEdit(TypedDict):
     type: Literal["line"]
-    curve: CurveRef  # type: ignore[valid-type]
+    curve: CurveRef
     start: Point2
     end: Point2
 
 
 class ArcEdit(TypedDict):
     type: Literal["arc"]
-    curve: CurveRef  # type: ignore[valid-type]
+    curve: CurveRef
     center: Point2
     radius: Size
     start_angle: Degrees
@@ -413,27 +412,27 @@ class ArcEdit(TypedDict):
 
 class TrimEdit(TypedDict):
     type: Literal["trim"]
-    curve: CurveRef  # type: ignore[valid-type]
-    boundaries: Annotated[list[CurveRef], Items(1, 20)]  # type: ignore[valid-type]
+    curve: CurveRef
+    boundaries: Annotated[list[CurveRef], Items(1, 20)]
     pick: Annotated[Point2, Doc("A point on the piece to remove")]
 
 
 class ExtendEdit(TypedDict):
     type: Literal["extend"]
-    curve: CurveRef  # type: ignore[valid-type]
-    boundaries: Annotated[list[CurveRef], Items(1, 20)]  # type: ignore[valid-type]
+    curve: CurveRef
+    boundaries: Annotated[list[CurveRef], Items(1, 20)]
     pick: Annotated[Point2, Doc("A point near the end to extend")]
 
 
 class ConstructionEdit(TypedDict):
     type: Literal["construction"]
-    curves: Annotated[list[CurveRef], Items(1, 100)]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(1, 100)]
     on: bool
 
 
 class DeleteEdit(TypedDict):
     type: Literal["delete"]
-    object: RefTo("curve", "sketch_constraint")  # type: ignore[valid-type]
+    object: Annotated[str, RefTo("curve", "sketch_constraint")]
 
 
 EDIT_TYPES = {
@@ -451,22 +450,21 @@ class _EditType(TypedDict):
 
 
 class EditSpec(_EditType, total=False):
-    curve: CurveRef  # type: ignore[valid-type]
+    curve: CurveRef
     start: XY
     end: XY
     center: XY
     radius: Size
     start_angle: Degrees
     end_angle: Degrees
-    boundaries: Annotated[list[CurveRef], Items(1, 20)]  # type: ignore[valid-type]
+    boundaries: Annotated[list[CurveRef], Items(1, 20)]
     pick: XY
-    curves: Annotated[list[CurveRef], Items(1, 100)]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(1, 100)]
     on: bool
-    object: RefTo("curve", "sketch_constraint")  # type: ignore[valid-type]
+    object: Annotated[str, RefTo("curve", "sketch_constraint")]
 
 
-for _td in (*EDIT_TYPES.values(), EditSpec):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(*EDIT_TYPES.values(), EditSpec)
 
 
 class EditRow(TypedDict, total=False):
@@ -638,7 +636,7 @@ EDITORS = {
 def nx_edit_sketch_curves(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     edits: Annotated[
         list[EditSpec], Items(1, 100), Doc("Fields per type: nx_get_tool_schemas(tool#type)")
     ],

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/bend_taper.json",
   "scenario_sha256": "1ebf974d7f274692deed6314bcd2176ac34b45c45cb01971847f1b59478b866d",
   "domain": "sheet_metal",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_bend_taper_3fd345.prt",
-  "started": "2026-10-10T11:53:59Z",
-  "finished": "2026-10-10T11:54:00Z",
+  "recorded": "2026-10-10T11:54:00Z",
   "passed": true,
   "checks": 7,
   "failed_checks": 0,
@@ -28,115 +23,84 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.625,
-      "result_sha256": "fb8de3f4039488d6dae60b1bb6ccf93c62b0dbdcda13a364364bc0971b386b6f"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.204,
-      "result_sha256": "a7bde316ad28ca6be699f50290294bf5a39b4e628b45598d327e1fcc3fa9fd1d"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "7bf47ee0b27a57dc9b054165f683762fb1aaec12ff492c8ffe1a31b1974e1a55"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "5e8409547277044acf072ba7b1c9355c3033abe0fa3b7e8feebf023a3f9af7c2"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "edde0c496bf0801a4709d73aba9c9e79985e69314d2c16e3a933e1bcf373ca8f"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "46a222341f70f4ff8d2595a59bd3276c84c55a3010d7e37ce0521a58d521e19e"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.062,
-      "result_sha256": "3238ab5dd1caeda82600f1e752d2ecd41548b14ae54e8beba0d3db5443cfe159"
+      "checks": 1
     },
     {
       "index": 8,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "26f3754e7a62975c0c67765564f402f06627582d26a8b8f50d1cfac569b2a0f2"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "419b2e856e321b47b78b3960faf70a6a4307d0b5d8897e01510c15bf30c8ed90"
+      "checks": 2
     },
     {
       "index": 10,
       "call": "nx_get_sheet_metal",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "907cd98d2ef3f866911e862894a7f1bae4e2f11bd8e7cad753354b6059646349"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "568fc3f45caf904d776830319c1f422bab9f578e15d5ad8b8ccb3ce5cf87529b"
+      "checks": 0
     },
     {
       "index": 12,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.125,
-      "result_sha256": "5be5c874ff7f11b430f8f9a370001b0808ef52ffa0740ae1ef14b94ace079d28"
+      "checks": 4
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_bend_taper_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

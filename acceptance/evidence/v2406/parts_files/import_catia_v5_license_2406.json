@@ -1,18 +1,13 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/parts_files/import_catia_v5_license_2406.json",
   "scenario_sha256": "1a6d2e0e62d8ffe3c3bdc91c1024b7093a384fab3ac110a6acd50a1375cde840",
   "domain": "parts_files",
   "covers": {},
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {},
-  "run_id": "20261010-154424-066da0",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154424-066da0\\parts_files_import_catia_v5_license_2406_066da0.prt",
-  "started": "2026-10-10T11:44:25Z",
-  "finished": "2026-10-10T11:44:25Z",
+  "recorded": "2026-10-10T11:44:25Z",
   "passed": true,
   "checks": 7,
   "failed_checks": 0,
@@ -22,43 +17,28 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.438,
-      "result_sha256": "2e04dcfaaab2ad590edb8d94f27ed8b5fd7080b26f1fe2c5ffa52c43a9780e23"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_upload_file",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.015,
-      "result_sha256": "9b05b76ab6ad3317d2b62236979965d50a4c56ed423fb449cfc5a2a977059b19"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_import_model",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.11,
-      "result_sha256": "b215c5056ea97301edefe14be4ef4b17938aaf9c651ec71855fab9a408c58c99"
+      "checks": 6
     },
     {
       "index": 4,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "456ed9d45eef4a1cd0905898d209701791c91b4bf75b82c4c95addefc08c7ae9"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154424-066da0/parts_files_import_catia_v5_license_2406_066da0.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/drawing/edit_drawing_table.json",
   "scenario_sha256": "f3b2f477df0cb76bd41f5c8c5281ddd3c8712b05101c4dab3e102b95ef20da93",
   "domain": "drawing",
@@ -10,16 +10,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_edit_drawing_table": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920"
   },
-  "run_id": "20261010-154836-7c717c",
-  "owner": "reg_final2_2",
-  "part": null,
-  "started": "2026-10-10T11:49:13Z",
-  "finished": "2026-10-10T11:49:14Z",
+  "recorded": "2026-10-10T12:25:54Z",
   "passed": true,
   "checks": 18,
   "failed_checks": 0,
@@ -29,113 +24,84 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.484,
-      "result_sha256": "b5bb56cbca7eba31e930a00d7d82d78550c822cec9f181982e17efd73eaec292"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_drawing_sheet",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.125,
-      "result_sha256": "219a1ca5b0fc4ba32d73009fc1e640d4b2102c58567c3d14433b4b892c81e758"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_drawing_table",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "c5e61b86e063c8c3724f3afd82a69f44f7aa393c538bb7708cfa817cc5dcb14f"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_drawing_table",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.11,
-      "result_sha256": "4cf33dc24f03581aac46beab850cc4d0d421f73595d358f1388db8bfa8097897"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.093,
-      "result_sha256": "ac35afe2f6cbad99665c5bb137f45fbfd58309836cc2fafc42f9e0678672cd5a"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "1b74359dd7752bbf14865d836fc2c3a0231dcb51abc464009881354fd77d23df"
+      "checks": 3
     },
     {
       "index": 7,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.109,
-      "result_sha256": "6cd55112d7671c14b8b5de4230d87757a12add0884610d66697de712fdb07cfb"
+      "checks": 2
     },
     {
       "index": 8,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "fec1e3aa6176ea54c3ab5f5613dd8c66751a1d80692506a44702ba47f5f37a4b"
+      "checks": 3
     },
     {
       "index": 9,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "1cf0fea0622cfddff9d80669f6a27a9092f096d6d16fc1e5f925ba1c6be71a04"
+      "checks": 3
     },
     {
       "index": 10,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "34b5bb451b8edcc70ff4359b31bb68dd1bfc690f77029ffc7f19f54e7dd191cd"
+      "checks": 3
     },
     {
       "index": 11,
       "call": "nx_edit_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "f0e7641ca4b4efadcc9c5012c80d95471f69dfd1204ebda8bad91508b8cecb95"
+      "checks": 2
     },
     {
       "index": 12,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.203,
-      "result_sha256": "d8333350c8e42e7c0aa72a13a69f134a86558fbece58e6e8f91a05df1c6673c3"
+      "checks": 0
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [],
-    "failed": []
-  }
+  ]
 }

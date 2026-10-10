@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from nx_mcp.core.errors import fail
-from nx_mcp.core.types import Doc, Mat3, Point3, RefTo
+from nx_mcp.core.types import Doc, Mat3, Point3
 from nx_mcp.kit import assembly, files, result, select
 
-ComponentRef = RefTo("component")
 Translation = Annotated[tuple[float, float, float], Doc("[x, y, z] in part units")]
 # Total instances of one component pattern, including the seed.
 MAX_INSTANCES = 100
@@ -20,9 +19,9 @@ class ComponentRow(result.Row, total=False):
     rotation: Mat3
 
 
-def component_row(tx, component, names=None, *, with_pose=True) -> dict:
+def component_row(tx, component, names=None, *, with_pose=True) -> ComponentRow:
     """``{id, kind, name, part, path}`` (+ pose) of an occurrence."""
-    row = tx.ref(component, "component")
+    row = cast(ComponentRow, tx.ref(component, "component"))  # gains the pose keys below
     if names is None:
         names = assembly.paths(tx.part).get(int(component.Tag))
     if names:

@@ -3,24 +3,14 @@
 from __future__ import annotations
 
 import math
-from typing import TypedDict
 
 from nx_mcp.core.errors import fail
+from nx_mcp.core.references import Row as Row  # the row type lives with its producer
 
 MAX_PAGE = 200
 
 
-class Row(TypedDict, total=False):
-    """A reference row: ``{id, kind, name, part}`` (+ ``path`` for occurrences)."""
-
-    id: str
-    kind: str
-    name: str
-    part: str
-    path: str
-
-
-def rows(tx, objs, kind=None):
+def rows(tx, objs, kind=None) -> list[Row]:
     """Reference rows for live objects via ``tx.ref``."""
     return [tx.ref(o, kind=kind) for o in objs]
 

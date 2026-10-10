@@ -15,13 +15,11 @@ from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import Param
 from nx_mcp.core.errors import NXError, classify, fail
-from nx_mcp.core.types import Doc, Point2, Point3, Range, RefTo, Vec3
+from nx_mcp.core.types import Doc, Point2, Point3, Range, Vec3
 from nx_mcp.core.validate import typeddict_fields, validate
 from nx_mcp.kit import expr, geom, result
 from nx_mcp.kit import sketch as ksketch
 
-SketchRef = RefTo("sketch")
-CurveRef = RefTo("curve")
 # Item fields of batched tools: plain numbers in part units / degrees (the listing
 # budget has no room for unit strings in every nested field).
 XY = tuple[float, float]
@@ -70,30 +68,46 @@ class ConstraintRow(TypedDict, total=False):
     expression: ExpressionRow
 
 
+class _SketchRowsRequired(TypedDict):
+    sketch: result.Row
+
+
+class SketchRows(_SketchRowsRequired, total=False):
+    feature: result.Row
+
+
 class Status(TypedDict):
     state: str
     dof: Annotated[int | None, Doc("NX indicator; 2406: curves not fully constrained")]
 
 
-def frame_row(f) -> dict:
-    return {k: f[k] for k in ("origin", "x_axis", "y_axis", "normal")}
+def frame_row(f) -> Frame:
+    return {
+        "origin": f["origin"],
+        "x_axis": f["x_axis"],
+        "y_axis": f["y_axis"],
+        "normal": f["normal"],
+    }
 
 
-def sketch_rows(tx, sk) -> dict:
+def sketch_rows(tx, sk) -> SketchRows:
     """``{"sketch": row, "feature": row}`` of a sketch."""
-    out = {"sketch": tx.ref(sk, "sketch")}
+    out: SketchRows = {"sketch": tx.ref(sk, "sketch")}
     feature = getattr(sk, "Feature", None)
     if feature is not None:
         out["feature"] = tx.ref(feature, "feature")
     return out
 
 
-def curve_row(tx, f, curve, **extra) -> dict:
+def curve_row(tx, f, curve, *, item: int | None = None) -> CurveRow:
     """A curve reference with its geometry read back in the sketch frame ``f``."""
-    return {"curve": tx.ref(curve, "curve"), **ksketch.read(tx, f, curve), **extra}
+    row: CurveRow = {"curve": tx.ref(curve, "curve"), **ksketch.read(tx, f, curve)}
+    if item is not None:
+        row["item"] = item
+    return row
 
 
-def expression_row(tx, exp) -> dict:
+def expression_row(tx, exp) -> ExpressionRow:
     value = expr.value(tx, exp)
     return {
         "expression": tx.ref(exp, "expression"),
@@ -105,8 +119,8 @@ def expression_row(tx, exp) -> dict:
     }
 
 
-def constraint_row(tx, constraint, curves=None) -> dict:
-    row = {
+def constraint_row(tx, constraint, curves=None) -> ConstraintRow:
+    row: ConstraintRow = {
         "constraint": tx.ref(constraint, "sketch_constraint"),
         "type": ksketch.constraint_type(tx, constraint),
     }
@@ -190,7 +204,7 @@ def contains(row, p, tol):
 # ---- solver state ----------------------------------------------------------------
 
 
-def status(tx, sk) -> dict:
+def status(tx, sk) -> Status:
     """``{"state": "under_constrained", "dof": n or None}`` for the whole sketch."""
     state = ksketch.status(tx, sk)
     return {"state": ksketch.snake(state["status"]), "dof": state["dof"]}
@@ -205,7 +219,7 @@ def explicit_conflicts(tx, sk) -> list[dict]:
             continue
         if geom.dist(geom.xyz(curve.StartPoint), geom.xyz(curve.EndPoint)) <= 1e-6:
             continue
-        found = {"horizontal": [], "vertical": []}
+        found: dict[str, list] = {"horizontal": [], "vertical": []}
         for c in ksketch.attached(tx, sk, curve):
             kind = ksketch.constraint_type(tx, c)
             if kind in found:
@@ -225,7 +239,7 @@ def explicit_conflicts(tx, sk) -> list[dict]:
     return pairs
 
 
-def require_solved(tx, sk, before=None) -> dict:
+def require_solved(tx, sk, before=None) -> Status:
     """Fail when the sketch is over/inconsistently constrained or lost a constraint.
 
     ``before`` is the set of constraint tags before the change: the modern solver

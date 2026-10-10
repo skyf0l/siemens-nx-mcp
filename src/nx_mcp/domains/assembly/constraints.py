@@ -28,9 +28,9 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Range, RefTo
+from nx_mcp.core.types import ComponentRef, Doc, Range, RefTo
 from nx_mcp.domains.assembly import common
-from nx_mcp.domains.assembly.common import ComponentRef, ComponentRow
+from nx_mcp.domains.assembly.common import ComponentRow
 from nx_mcp.kit import assembly, model, readback, result, select
 from nx_mcp.kit import pose as kpose
 
@@ -59,7 +59,7 @@ VALUED = ("distance", "angle")
 # Types whose references are the components themselves, and types without alignment.
 WHOLE = ("fix", "bond")
 NO_ALIGNMENT = ("fix", "bond", "fit", "center_1_2", "center_2_2")
-Geometry = RefTo("face", "edge")
+Geometry = Annotated[str, RefTo("face", "edge")]
 Alignment = Literal["infer", "same", "opposite"]
 Value = Annotated[float, Range(ge=0, le=1e6), Doc("distance in part units, or angle in degrees")]
 
@@ -143,11 +143,11 @@ def solved(tx, constraint) -> bool:
     return constraint.GetConstraintStatus() == _cls(tx).SolverStatus.Solved
 
 
-def record(tx, constraint) -> dict:
+def record(tx, constraint) -> ConstraintData:
     """The result row of one constraint: type, alignment, solver status, value, references."""
     cls = _cls(tx)
     alignment = result.enum_name(constraint.ConstraintAlignment, cls.Alignment)
-    out = {
+    out: ConstraintData = {
         "constraint": tx.ref(constraint, "assembly_constraint"),
         "type": kind_name(tx, constraint),
         "alignment": {v: k for k, v in ALIGNMENTS.items()}.get(alignment, alignment.lower()),
@@ -159,7 +159,7 @@ def record(tx, constraint) -> dict:
         with contextlib.suppress(Exception):
             out["value"] = float(constraint.Expression.Value)
     for ref in constraint.GetReferences():
-        item = {}
+        item: ConstraintReference = {}
         obj, geometry = ref.GetMovableObject(), ref.GetGeometry()
         with contextlib.suppress(Exception):
             if tx.kind_of(obj) == "component":
@@ -176,7 +176,7 @@ def poses(part) -> dict:
     return {int(c.Tag): (c, assembly.pose(c)) for c in assembly.direct_children(part)}
 
 
-def moved(tx, before) -> list:
+def moved(tx, before) -> list[ComponentRow]:
     """Rows of the direct components whose pose changed since ``before``."""
     return [
         common.component_row(tx, c)
@@ -296,13 +296,13 @@ def nx_create_assembly_constraint(
     tx: Tx,
     *,
     type: Kind,
-    component: ComponentRef,  # type: ignore[valid-type]
-    geometry: Geometry | None = None,  # type: ignore[valid-type]
-    target_component: ComponentRef | None = None,  # type: ignore[valid-type]
-    target_geometry: Geometry | None = None,  # type: ignore[valid-type]
-    geometry2: Annotated[Geometry, Doc("center_2_2: the component's second face or edge")]  # type: ignore[valid-type]
+    component: ComponentRef,
+    geometry: Geometry | None = None,
+    target_component: ComponentRef | None = None,
+    target_geometry: Geometry | None = None,
+    geometry2: Annotated[Geometry, Doc("center_2_2: the component's second face or edge")]
     | None = None,
-    target_geometry2: Annotated[Geometry, Doc("center types: the target's second face or edge")]  # type: ignore[valid-type]
+    target_geometry2: Annotated[Geometry, Doc("center types: the target's second face or edge")]
     | None = None,
     value: Value | None = None,
     alignment: Alignment = "infer",
@@ -328,7 +328,9 @@ def nx_create_assembly_constraint(
             if type == "bond":
                 refs.append((target, target))
             else:
-                fields = ("geometry", "geometry2", "target_geometry", "target_geometry2")
+                fields: tuple[str, ...] = (
+                    "geometry", "geometry2", "target_geometry", "target_geometry2"
+                )  # fmt: skip
                 if type == "center_1_2":  # NX pairs the first two references
                     fields = ("target_geometry", "target_geometry2", "geometry")
                 refs = []
@@ -375,7 +377,7 @@ def nx_create_assembly_constraint(
 def nx_edit_assembly_constraint(
     tx: Tx,
     *,
-    constraint: RefTo("assembly_constraint"),  # type: ignore[valid-type]
+    constraint: Annotated[str, RefTo("assembly_constraint")],
     value: Value | None = None,
     alignment: Alignment | None = None,
     suppressed: bool | None = None,

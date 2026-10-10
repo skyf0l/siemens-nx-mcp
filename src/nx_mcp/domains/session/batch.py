@@ -73,7 +73,7 @@ def _at(index: int, error: NXError, tool_name: str | None) -> NXError:
     return error
 
 
-def _preflight(operations: list[dict], mode: str = "batch") -> list:
+def _preflight(operations: list[Step], mode: str = "batch") -> list:
     """Every step's spec, checked before any step runs; raise on the first problem.
 
     ``mode`` ``"batch"`` admits batchable tools, ``"preview"`` previewable ones
@@ -93,7 +93,8 @@ def _preflight(operations: list[dict], mode: str = "batch") -> list:
                      hint=f"Only {mode}able tools run here; find them with nx_find_tools")  # fmt: skip
             checked = validate(spec.params, step["arguments"], placeholders=True)
             for path, text in checked.placeholders:
-                if int(re.match(r"^\$([0-9]+)", text).group(1)) >= index:
+                step_ref = re.match(r"^\$([0-9]+)", text)  # validate matched PLACEHOLDER_PATTERN
+                if step_ref is not None and int(step_ref.group(1)) >= index:
                     fail("NX_INVALID_ARGUMENT",
                          f"{pointer(path)}: {text} does not name an earlier step",
                          field=pointer(path),
@@ -142,7 +143,7 @@ def nx_run_batch(
     try:
         for index, step in enumerate(operations):
             child = tx.run(step["tool"], step["arguments"], mode="batch")
-            results.append({"index": index, **child})  # type: ignore[typeddict-item]
+            results.append({"index": index, **child})
         tx.checkpoint(done=total)
     except NXError as error:
         if error.code == "NX_CANCELLED":

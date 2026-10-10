@@ -20,11 +20,11 @@ def test_catalogue_tool_returns_the_envelope(rig):
     row = ok["data"]["items"][0]
     assert row["id"].startswith("b:") and row["part"].startswith("p:") and row["kind"] == "body"
     assert row["anchor"].startswith("@test.prt:")
-    # The short ref and the legacy obj_ spelling resolve to the same body.
-    legacy = rig.ref(body)
-    by_legacy = rig.run("nx_list_objects", {"kind": "body", "owner": legacy})
+    # The short ref and the object registry handle (obj_...) resolve to the same body.
+    handle = rig.ref(body)
+    by_handle = rig.run("nx_list_objects", {"kind": "body", "owner": handle})
     by_short = rig.run("nx_list_objects", {"kind": "body", "owner": row["id"]})
-    assert by_legacy["data"]["items"][0]["id"] == by_short["data"]["items"][0]["id"] == row["id"]
+    assert by_handle["data"]["items"][0]["id"] == by_short["data"]["items"][0]["id"] == row["id"]
 
 
 def test_catalogue_failure_raises_kernel_error_with_envelope(rig):

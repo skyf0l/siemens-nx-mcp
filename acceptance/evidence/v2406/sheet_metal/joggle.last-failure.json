@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/joggle.json",
   "scenario_sha256": "eca68cf4481f1036dab06a13adf9b8d3c09e74ba51f677c92ebfa8ff38ef3f28",
   "domain": "sheet_metal",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_joggle_3fd345.prt",
-  "started": "2026-10-10T11:54:38Z",
-  "finished": "2026-10-10T11:54:40Z",
+  "recorded": "2026-10-10T11:54:40Z",
   "passed": false,
   "checks": 2,
   "failed_checks": 2,
@@ -28,99 +23,77 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.484,
-      "result_sha256": "f9afff2faea87172139bce537ea3453363548acf81c9bae94d03d1a3baf07e57"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.203,
-      "result_sha256": "73bde8f3660dbf225d264fe3c6910a6a5871a8a307f18f1060b6d36a78e75969"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "7b24fdce5099586aa3a67e5452a9212c3cea70e31f46a6f704ce6a595c079e73"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "81227f07639479267e0ca2395025da5fa1663fc0789ba3998bce18e21b89f104"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.079,
-      "result_sha256": "3ca2b08125e2f1df76c5dee31912847229b5421f8bb01dda9a2303fb877389dd"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "82d9c834d1154b88aebcb5300c68f85564238302738d863eeecfb0d2ef27b6b1"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.062,
-      "result_sha256": "7cc627c160e4b52a1d57f6df63391647acfc70a0b8aa085018e7a4f7f3d6139b"
+      "checks": 1
     },
     {
       "index": 8,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "8116a0d53e89362603c1d9ce5eb6533f885bf3df1fcde690d484e5f30d024af0"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "e1149bec80c7fab3f0421df7cc98583097fd129d8a226596d57d46a7ec73f288"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "d97237d4ca29c74977624d7c8bfdda0e2a742474b4fe74e912cdedc9d6c52b98"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "208e0d49e710157f0358b7ba7f8ddbd4ebc97af620b4e773db46ea835360abc3"
+      "checks": 0
     },
     {
       "index": 12,
@@ -128,19 +101,14 @@
       "setup": false,
       "passed": false,
       "checks": 1,
-      "seconds": 0.375,
-      "result_sha256": "841555bb9d1ab09d129b8e4e8975c12c387add71d8e5193d62db24024ac1fb6a",
+      "error": {
+        "code": "NX_LICENSE_UNAVAILABLE",
+        "message": "This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist."
+      },
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_joggle_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

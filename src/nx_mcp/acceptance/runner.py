@@ -19,8 +19,13 @@ projection, to check ``result_id`` and ``omitted``); ``expect`` paths address th
 envelope (``ok``, ``data``, ``error.code``/``category``, ``mutation_outcome``). Only
 steps with an ``expect`` count as checks.
 
-A run writes ``acceptance/evidence/<nx-version>/<domain>/<name>.json`` (commit,
-NX build, timestamps, per-step pass/fail and result digests). ``fold`` builds
+A run writes ``acceptance/evidence/<nx-version>/<domain>/<name>.json`` with the
+deterministic proof only (scenario and tool source digests, NX build, per-step
+pass/fail and check counts, one ``recorded`` time): a file that differs from the
+new record only in ``recorded`` is left untouched, so an unchanged re-run yields
+no diff. Run details (run id, owner, part path, times, step seconds and result
+digests, cleanup, commit) go to the local run log
+``<workspace>/.nx-mcp/acceptance-runs/<run-id>.json``. ``fold`` builds
 ``src/nx_mcp/evidence/<domain>.json`` from passing evidence files only.
 """
 
@@ -33,11 +38,13 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -55,6 +62,8 @@ FIXTURES = SCENARIOS / "fixtures"
 SPECIAL = ("$part", "$fixture", "$run")
 STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail"}
 CLEANUP = ("close", "save", "keep")
+EVIDENCE_FORMAT = 2  # 2: deterministic proof only; run details go to the run log
+RUN_LOG = Path(".nx-mcp") / "acceptance-runs"  # under the workspace, never committed
 
 
 class ScenarioError(ValueError):
@@ -180,8 +189,17 @@ class StepResult:
     failures: list[str] = field(default_factory=list)
     result: Any = None
 
+    def error(self) -> dict | None:
+        """``{code, message}`` of the step's error envelope, else ``None``."""
+        outcome = self.result if isinstance(self.result, dict) else {}
+        problem = outcome.get("error")
+        if outcome.get("ok", True) or not isinstance(problem, dict):
+            return None
+        return {"code": problem.get("code"), "message": problem.get("message")}
+
     def record(self) -> dict:
-        out = {
+        """The run-log entry: everything, including timing and the result digest."""
+        out: dict[str, Any] = {
             "index": self.index,
             "call": self.call,
             "setup": self.setup,
@@ -190,8 +208,30 @@ class StepResult:
             "seconds": round(self.seconds, 3),
             "result_sha256": self.result_sha256,
         }
+        error = None if self.passed else self.error()
+        if error:
+            out["error"] = error
         if self.failures:
             out["failures"] = self.failures
+        return out
+
+    def proof(self, scrub: Callable[[str], str] = str) -> dict:
+        """The evidence entry: only what a re-run reproduces, plus why a failed step
+        failed (``error`` code and message, ``failures``) with local paths scrubbed."""
+        out: dict[str, Any] = {
+            "index": self.index,
+            "call": self.call,
+            "setup": self.setup,
+            "passed": self.passed,
+            "checks": self.checks,
+        }
+        if self.passed:
+            return out
+        error = self.error()
+        if error:
+            out["error"] = {k: None if v is None else scrub(str(v)) for k, v in error.items()}
+        if self.failures:
+            out["failures"] = [scrub(f) for f in self.failures]
         return out
 
 
@@ -258,8 +298,8 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
         failures = expectations.evaluate(outcome, rules)
         expects_error = any(p.startswith("error") for p in rules)
         if not outcome.get("ok") and not expects_error:
-            error = outcome.get("error") or {}
-            failures.insert(0, f"unexpected error {error.get('code')}: {error.get('message')}")
+            problem = outcome.get("error") or {}
+            failures.insert(0, f"unexpected error {problem.get('code')}: {problem.get('message')}")
         result = StepResult(
             index,
             tool,
@@ -287,6 +327,29 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
 
 def utc_now() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def scrubber(replacements: list[tuple[Any, str]]) -> Callable[[str], str]:
+    """A function replacing local values (paths in either slash style, also with the
+    doubled backslashes of a ``repr``; any case) by placeholders, so evidence never
+    records an absolute path or a username. Longer values are replaced first."""
+    rules: list[tuple[re.Pattern[str], str]] = []
+    for value, token in sorted(replacements, key=lambda r: -len(str(r[0] or ""))):
+        text = str(value or "").rstrip("\\/")
+        if len(text) < 3:
+            continue
+        forms = {text, text.replace("\\", "/"), text.replace("/", "\\")}
+        forms |= {f.replace("\\", "\\\\") for f in forms}
+        pattern = "|".join(re.escape(f) for f in sorted(forms, key=len, reverse=True))
+        # A literal replacement: only a backslash is special in a re.sub template.
+        rules.append((re.compile(pattern, re.IGNORECASE), token.replace("\\", "\\\\")))
+
+    def scrub(text: str) -> str:
+        for pattern, token in rules:
+            text = pattern.sub(token, text)
+        return text
+
+    return scrub
 
 
 def commit_sha(root: Path = ROOT) -> str | None:
@@ -417,7 +480,10 @@ def _echo(result: StepResult) -> None:
         print(f"         - {failure}")
 
 
-async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, build, owner) -> dict:
+async def run_scenario(
+    session, path: Path, *, workspace: Path, run_id: str, build, owner
+) -> tuple[dict, dict]:
+    """Run one scenario: ``(evidence, details)``, the committed proof and its run-log entry."""
     data = load_scenario(path)
     domain = path.parent.name
     run_dir = workspace / "smoke" / run_id
@@ -456,29 +522,41 @@ async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, bui
     for message in cleanup.get("failed", []):
         print(f"  cleanup: {message}")
     finished = utc_now()
-    checks = sum(s.checks for s in steps)
     passed = len(steps) == len(data["steps"]) and all(s.passed for s in steps)
-    return {
-        "format": 1,
+    scrub = scrubber(
+        [
+            (run_dir, "$run"),
+            (workspace, "$workspace"),
+            (ROOT, "$source"),
+            (Path.home(), "~"),
+            (run_id, "$run_id"),
+        ]
+    )
+    evidence = {
+        "format": EVIDENCE_FORMAT,
         "scenario": relative(path),
         "scenario_sha256": sha256(path.read_bytes()),
         "domain": domain,
         "covers": data["covers"],
         "nx_version": build[0],
         "nx_build": build[1],
-        "commit": commit_sha(),
         "sources": {tool: source_digest(tool) for tool in data["covers"]},
-        "run_id": run_id,
-        "owner": owner,
+        "recorded": finished,
+        "passed": passed,
+        "checks": sum(s.checks for s in steps),
+        "failed_checks": sum(len(s.failures) for s in steps if s.checks),
+        "steps": [s.proof(scrub) for s in steps],
+    }
+    details = {
+        "scenario": evidence["scenario"],
+        "passed": passed,
         "part": special.get("$part"),
         "started": started,
         "finished": finished,
-        "passed": passed,
-        "checks": checks,
-        "failed_checks": sum(len(s.failures) for s in steps if s.checks),
         "steps": [s.record() for s in steps],
         "cleanup": cleanup,
     }
+    return evidence, details
 
 
 async def loaded_parts(session) -> list[dict] | None:
@@ -551,17 +629,16 @@ async def close_new_parts(
     known = {p.get("path") for p in before}
     after = await loaded_parts(session) or []
     pending = [p for p in reversed(after) if p.get("path") not in known]
-    reasons: dict[str, dict] = {}
+    reasons: dict = {}  # path -> the error of the refused close
     for _ in range(CLOSE_PASSES):
         if not pending:
             break
         refused = []
         live: dict | None = None  # the rows listed after the last close
-        for part in pending:
-            if live is not None:
-                part = live.get(part.get("path"))
-                if part is None:
-                    continue  # NX unloaded it with its assembly
+        for row in pending:
+            part = live.get(row.get("path")) if live is not None else row
+            if part is None:
+                continue  # NX unloaded it with its assembly
             closed = await call_tool(
                 session,
                 "nx_close_part",
@@ -722,16 +799,54 @@ async def restore_panel_mode(
         await asyncio.sleep(poll)
 
 
-def write_evidence(record: dict, root: Path = EVIDENCE) -> Path:
-    """Passing runs replace ``<name>.json``; a failing run is kept beside it."""
+def dump(data: Any) -> bytes:
+    """The written JSON form: two-space indent, UTF-8, LF line ends on every OS."""
+    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def same_proof(path: Path, record: dict) -> bool:
+    """Whether ``path`` already holds ``record`` apart from its ``recorded`` time."""
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+
+    def proof(data: Any) -> Any:
+        return (
+            {k: v for k, v in data.items() if k != "recorded"} if isinstance(data, dict) else data
+        )
+
+    return bool(proof(existing) == proof(record))
+
+
+def write_evidence(record: dict, root: Path = EVIDENCE) -> tuple[Path, bool]:
+    """Passing runs replace ``<name>.json``; a failing run is kept beside it.
+
+    Write-if-changed: a file equal to ``record`` in everything but ``recorded`` stays
+    untouched, so an unchanged re-run yields no diff. Returns ``(path, changed)``.
+    """
     folder = root / record["nx_version"] / record["domain"]
     folder.mkdir(parents=True, exist_ok=True)
     name = Path(record["scenario"]).stem
     target = folder / (name + (".json" if record["passed"] else ".last-failure.json"))
-    target.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    changed = not same_proof(target, record)
+    if changed:
+        temp = target.with_name(target.name + ".tmp")
+        temp.write_bytes(dump(record))
+        os.replace(temp, target)
     if record["passed"]:
         (folder / (name + ".last-failure.json")).unlink(missing_ok=True)
-    return target
+    return target, changed
+
+
+def write_run_log(workspace: Path, log: dict) -> Path:
+    """Write the local run log ``<workspace>/.nx-mcp/acceptance-runs/<run-id>.json``."""
+    path = Path(workspace) / RUN_LOG / f"{log['run_id']}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_bytes(dump(log))
+    os.replace(temp, path)
+    return path
 
 
 async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDENCE) -> int:
@@ -746,16 +861,33 @@ async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDE
             build = await nx_version(session)
             run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
             print(f"NX {build[1]} ({build[0]}), run {run_id}, owner {owner}")
+            log: dict[str, Any] = {
+                "run_id": run_id,
+                "owner": owner,
+                "commit": commit_sha(),
+                "nx_version": build[0],
+                "nx_build": build[1],
+                "workspace": str(workspace),
+                "started": utc_now(),
+                "finished": None,
+                "scenarios": [],
+            }
             for path in paths:
                 lock.refresh()
                 print(f"{relative(path)}")
-                record = await run_scenario(
+                record, details = await run_scenario(
                     session, path, workspace=workspace, run_id=run_id, build=build, owner=owner
                 )
-                written = write_evidence(record, evidence_root)
+                written, changed = write_evidence(record, evidence_root)
+                details.update(evidence=relative(written), evidence_changed=changed)
+                log["scenarios"].append(details)
+                write_run_log(workspace, log)  # after each scenario: a crash keeps the rest
                 verdict = "PASS" if record["passed"] else "FAIL"
-                print(f"  {verdict}: {record['checks']} checks -> {relative(written)}")
+                note = "" if changed else " (unchanged)"
+                print(f"  {verdict}: {record['checks']} checks -> {relative(written)}{note}")
                 failed += not record["passed"]
+            log["finished"] = utc_now()
+            print(f"Run log: {write_run_log(workspace, log)}")
     finally:
         lock.release()
     return 1 if failed else 0
@@ -852,7 +984,7 @@ def fold(
                     scenario_sha256=record["scenario_sha256"],
                     source_sha256=(record.get("sources") or {}).get(tool) or "",
                     checks=record["checks"],
-                    recorded=record["finished"],
+                    recorded=record["recorded"],
                     directory=temp,
                 )
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -861,7 +993,9 @@ def fold(
             if stale.name not in written:
                 stale.unlink()
         for name in sorted(written):
-            os.replace(Path(temp) / name, out_dir / name)
+            fresh, target = Path(temp) / name, out_dir / name
+            if not target.is_file() or target.read_bytes() != fresh.read_bytes():
+                os.replace(fresh, target)  # unchanged files are left untouched
     if out_dir == core_evidence.EVIDENCE_DIR:
         core_evidence.reload()
     return core_evidence.load(out_dir), problems

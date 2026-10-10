@@ -1,5 +1,7 @@
 """The shared fake kernel seam (tests/kit) supports sheet tools and view rollback."""
 
+from typing import Annotated
+
 import pytest
 
 from nx_mcp.core import catalogue
@@ -23,7 +25,9 @@ def registered():
         catalogue.unregister(name)
 
 
-def nx_set_look_kit(tx, *, body: tools.RefTo("body"), fail: bool = False) -> tools.Looked:  # type: ignore[valid-type]
+def nx_set_look_kit(
+    tx, *, body: Annotated[str, tools.RefTo("body")], fail: bool = False
+) -> tools.Looked:
     """Hide a body and zoom."""
     obj = tx.resolve(body, "body")
     tx.display.keep([obj], appearance=True)

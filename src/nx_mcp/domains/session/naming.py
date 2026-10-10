@@ -8,7 +8,7 @@ invalidated (``changes.references`` is ``part_invalidated``); the result carries
 
 from __future__ import annotations
 
-from typing import Annotated, TypedDict, cast
+from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.tx import Tx
@@ -61,7 +61,7 @@ def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: 
     tx.services.invalidate_parts([tx.part])
     tx.references = "part_invalidated"
     return {
-        "object": cast(Row, tx.ref(obj, kind)),
+        "object": tx.ref(obj, kind),
         "name": stored or name,
         "requested": name,
         "references": "part_invalidated",

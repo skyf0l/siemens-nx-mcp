@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/drawing/create_gdt_datum_feature.json",
   "scenario_sha256": "0b2c7315afb355900b24242c76cf0b8a0bdd6b15874d50fbc0ae8c4bd1538d07",
   "domain": "drawing",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_gdt": "b8d7515e39d1c47bbab57e7724955bbb11b3d75f6e37bc48fa5889d3c28f0ca9"
   },
-  "run_id": "20261010-161434-ebded0",
-  "owner": "fix_final",
-  "part": null,
-  "started": "2026-10-10T12:14:37Z",
-  "finished": "2026-10-10T12:14:38Z",
+  "recorded": "2026-10-10T12:25:35Z",
   "passed": false,
   "checks": 4,
   "failed_checks": 4,
@@ -28,81 +23,63 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.532,
-      "result_sha256": "4b603c5e0201629fde44700a250aded5ce528f77ca67565f0cb305544fd656ab"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "e6f593e569b3d6625d9157bee8d35a0a36359ab23ce1dd61f97d9efa26a01959"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "03717fdcadf640871a1f8e420c88d098d637f20bf0bc73f02d15f88cbc4dfd4c"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.015,
-      "result_sha256": "0e1317cb52735027980d4e4624ea36302570a43cb88a58c41d2328df26265e06"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.032,
-      "result_sha256": "31ebabce7ff22e107c2eaa8c0a8100677082e3719a51f4fe25fdc096d64cfe4e"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "61b1812fbdd56b3009354f30e5d6747bf42745a7a6eea4ab12683eb59f83af7f"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "abcf77782df4a51649fd24628769361e99bd5c51dad0e7763b6cf2648de4741e"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.046,
-      "result_sha256": "ce742fd7ab923b666cb471166e636f9de015e4f0ca4dcbf4de691ff35e7eeee1"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "48a1d98fb25c175b84ac25dc142272fe81de230b45a8ad5bab2dbfbf4a6b8f6f"
+      "checks": 0
     },
     {
       "index": 10,
@@ -110,8 +87,10 @@
       "setup": false,
       "passed": false,
       "checks": 2,
-      "seconds": 0.125,
-      "result_sha256": "bcc7d9f39be0e99469f4876e41d93d2bc9937e1c127b360b529c507849194d93",
+      "error": {
+        "code": "NX_LICENSE_UNAVAILABLE",
+        "message": "This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist."
+      },
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -124,18 +103,9 @@
       "setup": false,
       "passed": false,
       "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": null,
       "failures": [
         "argument: $datum.data.annotation.id: no such path in the saved result 'datum'"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-161434-ebded0/drawing_create_gdt_datum_feature_drawing_block_mm.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

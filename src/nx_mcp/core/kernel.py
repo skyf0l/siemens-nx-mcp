@@ -247,7 +247,7 @@ def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # 
     return checked.args
 
 
-def _resolve_placeholders(checked: Checked, prior: list | None) -> None:
+def _resolve_placeholders(checked: Checked, prior: list) -> None:
     for path, text in checked.placeholders:
         index, *keys = text[1:].split(".")
         try:
@@ -314,7 +314,7 @@ def run(spec, args, ctx: Context) -> dict:
     receipts = Receipts(services.store, services.session_id)
     envelope: dict = {"tool": spec.name, "operation_id": operation_id}
     tx: Tx | None = None
-    record = None
+    record: dict | None = None
     mark = None
     part = None
     before: dict = {}

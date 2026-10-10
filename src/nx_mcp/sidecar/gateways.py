@@ -19,7 +19,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from nx_mcp.core.catalogue import DOMAINS, EFFECTS
+from nx_mcp.core.catalogue import Domain, Effect
 from nx_mcp.core.errors import NXError
 from nx_mcp.sidecar import schema
 
@@ -128,7 +128,7 @@ def close_matches(name: str, known) -> list[str]:
     return difflib.get_close_matches(str(name), list(known), n=3, cutoff=0.6)
 
 
-def unknown_tool(name: str, known, *, field: str = "/tool") -> NXError:
+def unknown_tool(name: str, known, *, field: str | None = "/tool") -> NXError:
     matches = close_matches(name, known)
     return NXError(
         "NX_UNKNOWN_TOOL",
@@ -152,8 +152,8 @@ class FindTools(_Strict):
     query: Annotated[
         str, Field(max_length=120, description="Task words, e.g. 'fillet edges'; empty lists all")
     ] = ""
-    domain: Literal[tuple(sorted(DOMAINS))] | None = None  # type: ignore[valid-type]
-    effect: Literal[EFFECTS] | None = None  # type: ignore[valid-type]
+    domain: Domain | None = None
+    effect: Effect | None = None
     offset: Annotated[int, Field(ge=0, le=10_000)] = 0
     limit: Annotated[int, Field(ge=1, le=20)] = 10
 
@@ -188,7 +188,7 @@ class InvokeRead(_Strict):
     detail: Literal["compact", "full"] = "compact"
 
 
-MODELS = {
+MODELS: dict[str, type[BaseModel]] = {
     "nx_find_tools": FindTools,
     "nx_get_tool_schemas": GetToolSchemas,
     "nx_invoke": Invoke,

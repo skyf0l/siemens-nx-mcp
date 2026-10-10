@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/parts_files/export_ap242.json",
   "scenario_sha256": "73293a71fb224fa2c4d05d201c67777b992d82d3b65099a4f98610220d5275eb",
   "domain": "parts_files",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_export_model": "4ebd7211b9224c244a600268a6c25601856bc72fcd94dccb0603f265aa3bce66"
   },
-  "run_id": "20261010-154111-17dd9e",
-  "owner": "reg_final2_1",
-  "part": null,
-  "started": "2026-10-10T11:41:21Z",
-  "finished": "2026-10-10T11:41:30Z",
+  "recorded": "2026-10-10T11:41:30Z",
   "passed": false,
   "checks": 13,
   "failed_checks": 15,
@@ -28,18 +23,14 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "31ae3727a7d7bde40f59927053362bc01951567c9f20afe5f7b2e3f39bdb0585"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_list_objects",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "3ec96beefa2287f48be9df2fb8b0bf201e524830225c5887d5223fe6c360bcd8"
+      "checks": 0
     },
     {
       "index": 3,
@@ -47,8 +38,10 @@
       "setup": false,
       "passed": false,
       "checks": 6,
-      "seconds": 7.391,
-      "result_sha256": "2ef246931e1c3c224445b64df22b4689f00fb2933b60cde4531cd1229824c087",
+      "error": {
+        "code": "NX_EXPORT_FAILED",
+        "message": "The step_ap242 translator wrote no file"
+      },
       "failures": [
         "unexpected error NX_EXPORT_FAILED: The step_ap242 translator wrote no file",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -64,9 +57,7 @@
       "call": "nx_create_transform",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "d79a6188e5f42605a29f081a755fc5fa41cad989f8eb78872b42540ecbced5ad"
+      "checks": 0
     },
     {
       "index": 5,
@@ -74,8 +65,10 @@
       "setup": false,
       "passed": false,
       "checks": 5,
-      "seconds": 0.453,
-      "result_sha256": "0ac4471e0493cbb2dcbcbaf30411fec8fbe2dd69528180cf3d809b346bf8eeff",
+      "error": {
+        "code": "NX_LICENSE_UNAVAILABLE",
+        "message": "NX refused the STEP AP242 export: ***********STEP AP242 License not found***********"
+      },
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: NX refused the STEP AP242 export: ***********STEP AP242 License not found***********",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -90,9 +83,7 @@
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.016,
-      "result_sha256": "94ba92d9baebc3dc01358e60c681a5ab2be64eb3c32e5852ba1f5e5f1c090426"
+      "checks": 1
     },
     {
       "index": 7,
@@ -100,19 +91,14 @@
       "setup": false,
       "passed": false,
       "checks": 1,
-      "seconds": 0.015,
-      "result_sha256": "fd14dbb2a716531c238b9d9651cdadfeefd7f33f1f9eafe3586ff02e5093846e",
+      "error": {
+        "code": "NX_FILE_NOT_FOUND",
+        "message": "The folder does not exist"
+      },
       "failures": [
         "unexpected error NX_FILE_NOT_FOUND: The folder does not exist",
         "page.total: missing (wanted 2)"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154111-17dd9e/parts_files_export_ap242_parts_files_block_mm.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

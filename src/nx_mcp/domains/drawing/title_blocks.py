@@ -26,7 +26,7 @@ import re
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.errors import fail
-from nx_mcp.core.types import Doc, Range, Text
+from nx_mcp.core.types import Doc, Range, Text, forbid_extra
 from nx_mcp.kit import builders, readback
 
 REFERENCE = re.compile(r"<W(?:ID\d+\*\d+)?@([^<>]+)>")
@@ -52,7 +52,7 @@ class CellEdit(TypedDict, total=False):
     lock: bool
 
 
-CellEdit.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(CellEdit)
 
 
 class CellInfo(TypedDict, total=False):

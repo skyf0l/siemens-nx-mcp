@@ -36,9 +36,9 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, classify, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Point2, SketchPoint
+from nx_mcp.core.types import CurveRef, Doc, Items, Point2, SketchPoint, SketchRef, forbid_extra
 from nx_mcp.domains.sketch import common
-from nx_mcp.domains.sketch.common import XY, CurveRef, SketchRef
+from nx_mcp.domains.sketch.common import XY
 from nx_mcp.kit import builders, geom, readback, result
 from nx_mcp.kit import sketch as ksketch
 
@@ -53,20 +53,20 @@ class _Fixed(TypedDict):
 
 
 class FixedConstraint(_Fixed, total=False):
-    curves: Annotated[list[CurveRef], Items(1, 1), Doc("Fix the whole curve")]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(1, 1), Doc("Fix the whole curve")]
     points: Annotated[list[SketchPoint], Items(1, 1), Doc("Or fix one point")]
 
 
 class OneLine(TypedDict):
     type: Literal["horizontal", "vertical"]
-    curves: Annotated[list[CurveRef], Items(1, 1)]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(1, 1)]
 
 
 class TwoCurves(TypedDict):
     type: Literal[
         "parallel", "perpendicular", "equal_length", "equal_radius", "concentric", "tangent"
     ]
-    curves: Annotated[list[CurveRef], Items(2, 2)]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(2, 2)]
 
 
 class Coincident(TypedDict):
@@ -77,13 +77,13 @@ class Coincident(TypedDict):
 class PointOn(TypedDict):
     type: Literal["midpoint", "point_on_curve"]
     points: Annotated[list[SketchPoint], Items(1, 1), Doc("The point to place")]
-    curves: Annotated[list[CurveRef], Items(1, 1), Doc("Target curve")]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(1, 1), Doc("Target curve")]
 
 
 class Symmetric(TypedDict):
     type: Literal["symmetric"]
-    curves: Annotated[list[CurveRef], Items(2, 2)]  # type: ignore[valid-type]
-    centerline: CurveRef  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(2, 2)]
+    centerline: CurveRef
 
 
 CONSTRAINT_TYPES = {
@@ -122,13 +122,12 @@ class _ConstraintType(TypedDict):
 
 
 class ConstraintSpec(_ConstraintType, total=False):
-    curves: Annotated[list[CurveRef], Items(1, 2)]  # type: ignore[valid-type]
+    curves: Annotated[list[CurveRef], Items(1, 2)]
     points: Annotated[list[SketchPoint], Items(1, 2)]
-    centerline: CurveRef  # type: ignore[valid-type]
+    centerline: CurveRef
 
 
-for _td in (FixedConstraint, OneLine, TwoCurves, Coincident, PointOn, Symmetric, ConstraintSpec):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(FixedConstraint, OneLine, TwoCurves, Coincident, PointOn, Symmetric, ConstraintSpec)
 
 
 # ---- local geometry ----------------------------------------------------------------
@@ -435,7 +434,7 @@ class ConstraintsData(TypedDict):
 def nx_create_sketch_constraints(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     constraints: Annotated[
         list[ConstraintSpec], Items(1, 50), Doc("Fields per type: nx_get_tool_schemas(tool#type)")
     ],
@@ -447,13 +446,14 @@ def nx_create_sketch_constraints(
     with ksketch.editing(tx, sketch) as sk:
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
         fixed = common.fixed_positions(tx, sk)
-        applied, rows = [], []
+        applied: list[tuple] = []
+        rows: list[AppliedConstraint] = []
         for i, item in enumerate(items):
             tx.checkpoint(done=i, total=len(items))
             field, kind = f"/constraints/{i}", item["type"]
             objs = _resolve_item(tx, sk, item, field)
             known = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
-            row = {"item": i, "type": kind}
+            row: AppliedConstraint = {"item": i, "type": kind}
             if kind == "fixed":
                 _fix(tx, sk, objs)
             elif kind == "symmetric":
@@ -480,7 +480,10 @@ def nx_create_sketch_constraints(
                     details={"residual": residual, "drag_status": row.get("drag_status")},
                 )
             row.update(
-                constraints=[tx.ref(c, "sketch_constraint") for c in created], residual=residual
+                {
+                    "constraints": [tx.ref(c, "sketch_constraint") for c in created],
+                    "residual": residual,
+                }
             )
             applied.append((kind, objs, field))
             rows.append(row)
@@ -503,7 +506,7 @@ def nx_create_sketch_constraints(
 # ---------------------------------------------------------------------------
 # Dimensions
 
-Target = CurveRef | SketchPoint  # type: ignore[valid-type]
+Target = CurveRef | SketchPoint
 DIM_KINDS = (
     "length",
     "horizontal",
@@ -529,11 +532,11 @@ class _DimKind(TypedDict):
         "parallel_distance",
         "perpendicular_distance",
     ]
-    first: Annotated[Target, Doc("A curve, or a point {curve, point}")]  # type: ignore[valid-type]
+    first: Annotated[Target, Doc("A curve, or a point {curve, point}")]
 
 
 class DimensionSpec(_DimKind, total=False):
-    second: Target  # type: ignore[valid-type]
+    second: Target
     value: Annotated[float, Doc("Part units (degrees for angle); omit to keep the size")]
     origin: XY
     reference: bool
@@ -541,7 +544,7 @@ class DimensionSpec(_DimKind, total=False):
 
 class _OneCurveDim(TypedDict):
     kind: Literal["length", "radius", "diameter"]
-    first: Annotated[CurveRef, Doc("length: a line; radius/diameter: an arc or circle")]  # type: ignore[valid-type]
+    first: Annotated[CurveRef, Doc("length: a line; radius/diameter: an arc or circle")]
 
 
 class OneCurveDimension(_OneCurveDim, total=False):
@@ -552,7 +555,7 @@ class OneCurveDimension(_OneCurveDim, total=False):
 
 class _AxisDim(TypedDict):
     kind: Literal["horizontal", "vertical"]
-    first: Annotated[Target, Doc("A line, or a point with second")]  # type: ignore[valid-type]
+    first: Annotated[Target, Doc("A line, or a point with second")]
 
 
 class AxisDimension(_AxisDim, total=False):
@@ -576,8 +579,8 @@ class PointDimension(_PointDim, total=False):
 
 class _LinesDim(TypedDict):
     kind: Literal["angle", "parallel_distance"]
-    first: Annotated[CurveRef, Doc("A line")]  # type: ignore[valid-type]
-    second: Annotated[CurveRef, Doc("A line (parallel for parallel_distance)")]  # type: ignore[valid-type]
+    first: Annotated[CurveRef, Doc("A line")]
+    second: Annotated[CurveRef, Doc("A line (parallel for parallel_distance)")]
 
 
 class LinesDimension(_LinesDim, total=False):
@@ -588,7 +591,7 @@ class LinesDimension(_LinesDim, total=False):
 
 class _PerpDim(TypedDict):
     kind: Literal["perpendicular_distance"]
-    first: Annotated[CurveRef, Doc("A line")]  # type: ignore[valid-type]
+    first: Annotated[CurveRef, Doc("A line")]
     second: SketchPoint
 
 
@@ -609,8 +612,7 @@ DIMENSION_TYPES = {
     "parallel_distance": LinesDimension,
     "perpendicular_distance": PerpendicularDimension,
 }
-for _td in (*set(DIMENSION_TYPES.values()), DimensionSpec):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(*set(DIMENSION_TYPES.values()), DimensionSpec)
 
 
 class _Dim:
@@ -842,7 +844,7 @@ def _check_value(kind, value, field):
 def nx_create_sketch_dimensions(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     dimensions: Annotated[
         list[DimensionSpec], Items(1, 50), Doc("Fields per kind: nx_get_tool_schemas(tool#kind)")
     ],
@@ -860,7 +862,8 @@ def nx_create_sketch_dimensions(
     with ksketch.editing(tx, sketch) as sk:
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
         fixed = common.fixed_positions(tx, sk)
-        rows, made = [], []
+        rows: list[DimensionRow] = []
+        made: list[tuple] = []
         for i, item in enumerate(items):
             tx.checkpoint(done=i, total=len(items))
             field = f"/dimensions/{i}"
@@ -908,7 +911,7 @@ def nx_create_sketch_dimensions(
                 )
             common.require_fixed_unmoved(tx, fixed)
             made.append((dim, target))
-            row = {
+            row: DimensionRow = {
                 "item": i,
                 "kind": dim.kind,
                 "dimension": tx.ref(constraint, "sketch_constraint"),

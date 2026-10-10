@@ -14,13 +14,14 @@ import importlib
 import os
 import uuid
 from pathlib import Path
+from typing import Any, cast
 
 from nx_mcp import side_effects
-from nx_mcp.bridge import ObjectRegistry
+from nx_mcp.bridge import ObjectKind, ObjectRegistry
 from nx_mcp.core import catalogue
 from nx_mcp.core.errors import classify, fail
 from nx_mcp.core.receipts import OperationStore
-from nx_mcp.core.references import PREFIX, Counter, References
+from nx_mcp.core.references import PREFIX, Counter, References, Row
 from nx_mcp.core.tx import Services
 from nx_mcp.kit import builders, display, drawing, units
 
@@ -88,7 +89,7 @@ def _table_tags(part) -> set:
     return tags
 
 
-def annotations(part) -> list:
+def part_annotations(part) -> list:
     """Notes, labels, GD&T, tables, title blocks... of ``part``, one per tag."""
     values = [*getattr(part, "Notes", []), *getattr(part, "Labels", [])]
     with contextlib.suppress(Exception):  # drafting GD&T frames and datum symbols (NX 2406)
@@ -144,7 +145,7 @@ class NXServices(Services):
         self.objects.session_id = self.session_id
         self.store = OperationStore(workspace.root)
         self.store.recover(self.session_id)
-        self.host = None  # the interactive host (NX MCP panel), if any
+        self.host: Any = None  # the interactive host (NX MCP panel), if any
         self.dev_tools: dict = {}  # development-only bridge methods (nx_dev_python)
         self.history: list = []  # the agent's committed model calls (nx_undo_operation)
         self.checkpoints: dict = {}
@@ -165,7 +166,7 @@ class NXServices(Services):
         return module.UFSession.GetUFSession()
 
     @property
-    def dev(self) -> bool:
+    def dev(self) -> bool:  # type: ignore[override]  # re-read from NX_MCP_DEV on each access
         return os.environ.get("NX_MCP_DEV") == "1"
 
     # -- parts and units -----------------------------------------------------------
@@ -262,10 +263,13 @@ class NXServices(Services):
 
     # -- object registry (opaque obj_ IDs behind core.references) ---------------------
     def register(self, obj, kind: str, part, fallback: str = "") -> dict:
-        """Register ``obj`` of ``part``; its registry row (``id`` is the obj_ ID)."""
+        """Register ``obj`` of ``part``; its registry row (``id`` is the obj_ ID).
+
+        ``kind`` is a registry kind: a snapshot group, or a reference kind mapped by
+        ``core.references.TO_REGISTRY``."""
         key = self.part_key(part)
-        ref = self.objects.register(
-            obj, kind=kind, name=_name(obj, fallback), part_id=key
+        ref: dict = self.objects.register(
+            obj, kind=cast(ObjectKind, kind), name=_name(obj, fallback), part_id=key
         ).model_dump()
         ref.update(
             session_id=self.session_id,
@@ -299,7 +303,10 @@ class NXServices(Services):
     # -- state for requires and ownership -----------------------------------------------
     def state(self) -> dict:
         part = self.work_part()
-        state = {"work_part": part is not None, "interactive": not self.session.IsBatch}
+        state: dict[str, bool | str] = {
+            "work_part": part is not None,
+            "interactive": not self.session.IsBatch,
+        }
         with contextlib.suppress(Exception):
             state["active_sketch"] = self.session.ActiveSketch is not None
         with contextlib.suppress(Exception):
@@ -409,7 +416,7 @@ class NXServices(Services):
             ("drawing_sheet", getattr(part, "DrawingSheets", [])),
             ("drawing_view", getattr(part, "DraftingViews", [])),
             ("dimension", getattr(part, "Dimensions", [])),
-            ("annotation", annotations(part)),
+            ("annotation", part_annotations(part)),
             ("traceline", getattr(part, "Tracelines", [])),
             ("component_pattern", _component_patterns(part)),
             ("expression", getattr(part, "Expressions", [])),
@@ -432,24 +439,27 @@ class NXServices(Services):
                 entry["kind"] = "drawing_table"
         return snap
 
-    def describe(self, entry: dict, live: bool) -> dict:
+    def describe(self, entry: dict, live: bool) -> Row:
         handle = entry.get("id")
-        if live and self.handle_live(handle):
+        if live and handle is not None and self.handle_live(handle):
             obj = self.objects._objects[handle].value
             kind = entry.get("kind")
             if kind not in PREFIX or kind in ("datum", "section"):
-                kind = self.infer_kind(obj, default=None) or {"section": "section_view"}.get(kind)
+                kind = self.infer_kind(obj, default=None) or {"section": "section_view"}.get(
+                    kind or ""
+                )
             if kind in PREFIX:
                 return self.references.row(obj, kind)
         for ref, known in self.references._entries.items():
             if known.handle == handle:
                 return {"id": ref, "kind": known.kind, "name": known.name, "part": known.part_id}
-        return {
+        row = {
             "id": handle,
             "kind": entry.get("kind"),
             "name": entry.get("name") or entry.get("display_name") or "",
             "part": entry.get("part_id"),
         }
+        return cast(Row, row)  # an unknown object: its snapshot may lack id, kind or part
 
     def feature_errors(self, part, before: dict, mark) -> list:
         """New features of the call that report update errors (gate 11).
@@ -489,7 +499,7 @@ class NXServices(Services):
         remains.
         """
         manager = getattr(self.session, "UpdateManager", None)
-        if not hasattr(manager, "LogForUpdate"):
+        if manager is None or not hasattr(manager, "LogForUpdate"):
             return
         with contextlib.suppress(Exception):
             new = [

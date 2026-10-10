@@ -16,7 +16,9 @@ class Out(TypedDict):
 KW = ("one", "two", "three")
 
 
-def nx_create_blend(tx, *, size: Length, edges: Annotated[list[RefTo("edge")], Items(1, 5)]) -> Out:
+def nx_create_blend(
+    tx, *, size: Length, edges: Annotated[list[Annotated[str, RefTo("edge")]], Items(1, 5)]
+) -> Out:
     """Blend edges."""
     return {"n": 1}
 
@@ -113,7 +115,7 @@ def test_signature_rules():
 
 
 def test_read_tool_cannot_take_new_path_and_summary_map_needs_variants():
-    def nx_get_a(tx, *, path: PathTo("new")) -> Out:
+    def nx_get_a(tx, *, path: Annotated[str, PathTo("new")]) -> Out:
         """Doc."""
 
     with pytest.raises(CatalogueError, match="read tool"):
@@ -173,7 +175,7 @@ class _FormA(TypedDict):
 
 
 class _FormB(TypedDict, total=False):
-    edges: Annotated[list[RefTo("edge")], Items(1, 5)]
+    edges: Annotated[list[Annotated[str, RefTo("edge")]], Items(1, 5)]
 
 
 _FORMS = {"a": _FormA, "b": _FormB}

@@ -16,7 +16,7 @@ from nx_mcp.core.types import Doc, Items, RefTo, Text
 from nx_mcp.kit import args, assembly, model, readback, result, select
 
 BUILT_IN = ("entire part", "empty")
-Member = RefTo("body", "curve", "datum", "component", "sketch", "point")
+Member = Annotated[str, RefTo("body", "curve", "datum", "component", "sketch", "point")]
 SetName = Annotated[
     str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_\-]{0,63}$"), Doc("New reference set name")
 ]
@@ -55,7 +55,7 @@ def nx_create_reference_set(
     tx: Tx,
     *,
     name: SetName,
-    objects: Annotated[list[Member], Items(1, 1000)],  # type: ignore[valid-type]
+    objects: Annotated[list[Member], Items(1, 1000)],
 ) -> ReferenceSetData:
     """Create a custom reference set of the work part with exactly these members. Members are
     bodies, curves, datums, sketches or components; apply it with nx_edit_component."""

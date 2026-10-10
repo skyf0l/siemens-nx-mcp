@@ -9,7 +9,7 @@ from nx_mcp.host import dispatch
 from nx_mcp.host.services import NXServices
 from nx_mcp.nx_bridge import start_bridge, stop_bridge
 from nx_mcp.workspace import Workspace
-from tests.fakes import Body
+from tests.kit.objects import Body
 
 pytestmark = pytest.mark.fake_nx
 
@@ -150,7 +150,7 @@ def test_batch_bridge_requires_explicit_feasibility_gate(tmp_path, monkeypatch):
 
 def test_annotations_include_drafting_gdt_and_datum_targets():
     # changes.created comes from this list: drafting GD&T was missing from it.
-    from nx_mcp.host.services import annotations
+    from nx_mcp.host.services import part_annotations
 
     def obj(tag):
         return NS(Tag=tag)
@@ -161,7 +161,7 @@ def test_annotations_include_drafting_gdt_and_datum_targets():
         Gdts=[obj(2), obj(3)],
         Annotations=NS(DraftingDatumTargets=[obj(4)], Fcfs=[obj(2)]),
     )
-    assert sorted(int(o.Tag) for o in annotations(part)) == [1, 2, 3, 4]
+    assert sorted(int(o.Tag) for o in part_annotations(part)) == [1, 2, 3, 4]
 
 
 class Shown(Parts):

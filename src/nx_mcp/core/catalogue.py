@@ -34,7 +34,8 @@ from nx_mcp.core.types import (
 )
 from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwrap, validate
 
-EFFECTS = ("read", "view", "model", "file", "session")
+Effect = Literal["read", "view", "model", "file", "session"]
+EFFECTS: tuple[str, ...] = typing.get_args(Effect)
 COSTS = ("instant", "light", "heavy", "long")
 REQUIRES = ("work_part", "no_active_sketch", "drawing_sheet", "assembly", "interactive")
 APPLICATIONS = ("modeling", "sheet_metal", "drafting")
@@ -71,20 +72,20 @@ VERBS = frozenset(
 )
 GATEWAYS = frozenset({"nx_invoke", "nx_invoke_read"})
 GEOMETRY_DOMAINS = frozenset({"modeling", "sketch", "freeform", "sheet_metal", "assembly"})
-DOMAINS = frozenset(
-    {
-        "session",
-        "parts_files",
-        "sketch",
-        "modeling",
-        "freeform",
-        "assembly",
-        "inspection",
-        "drawing",
-        "sheet_metal",
-        "display",
-    }
-)
+# Alphabetical: the order nx_find_tools lists them in.
+Domain = Literal[
+    "assembly",
+    "display",
+    "drawing",
+    "freeform",
+    "inspection",
+    "modeling",
+    "parts_files",
+    "session",
+    "sheet_metal",
+    "sketch",
+]
+DOMAINS = frozenset(typing.get_args(Domain))
 HOOKS = ("lister", "deleter", "definition", "refresher", "sheet")
 _DOMAIN_PACKAGE = "nx_mcp.domains."
 
@@ -402,12 +403,12 @@ def make_spec(
     if problems:
         raise CatalogueError(f"{name}: " + "; ".join(problems))
     # Defaults and example validate.
-    for p in params.values():
-        if not p.required and p.default is not None:
+    for param in params.values():
+        if not param.required and param.default is not None:
             try:
-                validate({p.name: p}, {p.name: p.default})
+                validate({param.name: param}, {param.name: param.default})
             except Exception as error:
-                problems.append(f"default of {p.name} does not validate: {error}")
+                problems.append(f"default of {param.name} does not validate: {error}")
     example = dict(example or {})
     try:
         validate(params, example)
@@ -465,8 +466,8 @@ def make_spec(
     if restorable and effect != "view":
         problems.append("restorable requires effect 'view'")
     paths: list = []
-    for p in params.values():
-        _collect_paths(p.hint, "/" + p.name, paths)
+    for param in params.values():
+        _collect_paths(param.hint, "/" + param.name, paths)
     if effect == "read" and any(mode in ("new", "save") for _, mode, _ in paths):
         problems.append("a read tool cannot take a new or save path")
     if new_part is not None and (
@@ -528,7 +529,7 @@ def tool(**options) -> Callable[[Callable], Callable]:
 
     def decorate(fn: Callable) -> Callable:
         spec = register(make_spec(fn, **options))
-        fn.spec = spec  # type: ignore[attr-defined]
+        fn.spec = spec  # type: ignore[attr-defined]  # a tool function carries its spec
         return fn
 
     return decorate

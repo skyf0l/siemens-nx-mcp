@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/emboss_body.json",
   "scenario_sha256": "46898263e509e29a07d8f855fe192baa9ec5ff60b4b0f151b305c4a700149505",
   "domain": "modeling",
@@ -7,16 +7,11 @@
     "nx_create_emboss_body": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_emboss_body": "13f6208ef949658cc6cebbfdb36fc9e16a09cd67cd1347a1e7dbb66068d50ed0"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_emboss_body_433572.prt",
-  "started": "2026-10-10T11:45:23Z",
-  "finished": "2026-10-10T11:45:24Z",
+  "recorded": "2026-10-10T11:45:24Z",
   "passed": true,
   "checks": 8,
   "failed_checks": 0,
@@ -26,115 +21,84 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.438,
-      "result_sha256": "b326ef6ce72715f700cc7e35f8383681ec579970bd9dbb0ede091df0f04d1d84"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "f1f9ec6094b57e15b9e5b5b732be271438dadcb0055c2048bfa214f3403ca77b"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "be155fbe26cac251e26e2248fe29b5bd9fe35b5d2fd81e4794bfa98e862da0c7"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.093,
-      "result_sha256": "8ca334858c9b11b00fa46c7b539ad8ad2b26352a2971d96335512c193f81fc26"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.11,
-      "result_sha256": "dcf3a890194898307f721be915a39d2963e81cee5eb05f319339e09205b88db9"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "ed0750f0fa08050d57609be043042482bbfe25a4d6c2b0f5fd3d09f427327ee8"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "af0ab9350198159046fe90f3c13d55c92bb275aadb8d5e1c11a7bd9afae308c0"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "99445f82c8b3fc5a41cc415f480ff329efa23495e144d38b0ea54c08b1ecb994"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "c7fe5cd5f7665823e254d50db1b6161cdb8ab7203ea0a4931b9f231078861a91"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_create_emboss_body",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.078,
-      "result_sha256": "1fc87370c12a16ff43137762bc256c49a9c9bfc07361716e3e221bf1d3b12dac"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_create_emboss_body",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "532607da1843abd55cda751283e681be35e89e9ccce2e691fd860b3535bff998"
+      "checks": 3
     },
     {
       "index": 12,
       "call": "nx_create_emboss_body",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "89db0f234da475855412c9eba317a3ecf362afc67edadf7231db11ed5dd3d004"
+      "checks": 3
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_emboss_body_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

@@ -6,6 +6,7 @@ the same ``host.dispatch`` and catalogue kernel as the interactive host.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import secrets
 from dataclasses import dataclass
@@ -43,13 +44,26 @@ _runtime: BridgeRuntime | None = None
 
 
 def detect_nx_version(session: Any) -> str:
-    try:
-        value = session.GetEnvironmentVariableValue("UGII_VERSION")
-        if value:
-            return str(value)
-    except Exception:
-        pass
-    return "NX build unknown"
+    """NX's own build text, e.g. ``"2406.9160"`` (``Session.FullReleaseNumber`` or
+    ``ReleaseNumber``), else ``UGII_VERSION`` (``"v2406"``).
+
+    The release number is used only when its build key (``evidence.build_key``) is
+    the one ``UGII_VERSION`` gives, so the key that gates evidence never changes.
+    """
+    from nx_mcp.core.evidence import build_key
+
+    variable = None
+    with contextlib.suppress(Exception):
+        variable = session.GetEnvironmentVariableValue("UGII_VERSION") or None
+    for name in ("FullReleaseNumber", "ReleaseNumber"):
+        try:
+            release = str(getattr(session, name) or "").strip()
+        except Exception:
+            continue
+        key = build_key(release)
+        if key and (variable is None or key == build_key(variable)):
+            return release
+    return str(variable) if variable else "NX build unknown"
 
 
 def start_bridge(
@@ -81,7 +95,8 @@ def start_bridge(
     from nx_mcp.host.services import NXServices
 
     session = NXOpen.Session.GetSession()
-    services = NXServices(session, NXOpen, detect_nx_version(session), Workspace(workspace_root))
+    build = detect_nx_version(session)
+    services = NXServices(session, NXOpen, build, Workspace(workspace_root))
     token = secrets.token_hex(32)
     dispatcher = MainThreadDispatcher(
         lambda method, params: dispatch.execute(services, method, params)
@@ -92,7 +107,7 @@ def start_bridge(
         result_directory=Path(workspace_root) / ".nx-mcp" / "bridge-results",
     )
     server.start()
-    descriptor = BridgeDescriptor.create(server.port, services.build, token=token)
+    descriptor = BridgeDescriptor.create(server.port, build, token=token)
     destination = Path(descriptor_path) if descriptor_path else default_descriptor_path()
     descriptor.write(destination)
     _runtime = BridgeRuntime(server, dispatcher, descriptor, destination)

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/assembly/component_mirror.json",
   "scenario_sha256": "94fde0afd3fc358ecc230814b4edf95f3a369cc7d9c0c10d7898d4bf89148090",
   "domain": "assembly",
@@ -7,16 +7,11 @@
     "nx_create_component_mirror": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_component_mirror": "c7bbb5f358d8877d4c1d5dcd61b8a37e64ae124e7727855881fbf6e8e54a8f9b"
   },
-  "run_id": "20261010-160433-361b0c",
-  "owner": "fix_final",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-160433-361b0c\\assembly_component_mirror_361b0c.prt",
-  "started": "2026-10-10T12:04:33Z",
-  "finished": "2026-10-10T12:04:35Z",
+  "recorded": "2026-10-10T12:24:17Z",
   "passed": true,
   "checks": 12,
   "failed_checks": 0,
@@ -26,125 +21,91 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "bab9c410efb9b3ca761353e7bac7757d2b85cacb2ce62f07ad263daf0abb7d12"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "d1119d592c7645aa2979501ebdf640e1e2182f67f7973a641fca1c6b13c1cfb8"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "12508a7fe0485427014002a02ee30db4b229fa94094f67c4c1e73e98945089f4"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "444bdcb9e1ed84f5dc47c963268e6237b5a5e9640d6c8f931a71c09e19f55a45"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "121096fdbd3611ae0c646359df48e5fc64b4535bc6b60624f180708ec5289920"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.157,
-      "result_sha256": "5c2be85ae654f979d728517a4a04f9e525f2996eb90301735dab7037b693c376"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.437,
-      "result_sha256": "b6423da7879862eb38c4244638791351e48a9561b02a808e08a282d2a54b0da8"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.125,
-      "result_sha256": "2812c950b9218912e66455cf1c248c2f60c2bf31947c751cca3107cea4b3b193"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "3f6d1728a8e731248fdf9ad4045c15cf31ae402a1bfa40330523df8cbfd4d69c"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_create_component_mirror",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.078,
-      "result_sha256": "0c33a2edb94d0c3e64202f71851e4a5b9d8bba20afc2388841fdb5fbdc437cec"
+      "checks": 7
     },
     {
       "index": 11,
       "call": "nx_list_components",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.063,
-      "result_sha256": "da9474d31ac2051da1a1d6d224e9045543ca2e37b2c2c15705d1382e71e01d55"
+      "checks": 1
     },
     {
       "index": 12,
       "call": "nx_create_component_mirror",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "10cbb40bf46c44d65fe4d7028873c65526dff1a2b0f706bcf96c343029be764a"
+      "checks": 2
     },
     {
       "index": 13,
       "call": "nx_create_component_mirror",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.016,
-      "result_sha256": "182e5e5b919033b2498a290d2f7178517567d6d6c67db37b4b8633b149dd639b"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-160433-361b0c/assembly_component_mirror_361b0c.prt",
-      "smoke/20261010-160433-361b0c/cm/cm_blk.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

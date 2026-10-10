@@ -191,7 +191,12 @@ def nx_set_appearance(
     cost="light",
     example={"objects": ["b:41"]},
 )
-def nx_get_appearance(tx: Tx, *, objects: Targets, count_only: bool = False) -> AppearanceInfo:
+def nx_get_appearance(
+    tx: Tx,
+    *,
+    objects: Targets,
+    count_only: bool = False,
+) -> AppearanceInfo:
     """Read blank state, colour and transparency of objects; bodies list their faces too.
     count_only returns just how many objects and faces a display change would touch."""
     values = targets(tx, objects, expand=True)
@@ -220,7 +225,7 @@ def _faces(obj):
 def nx_set_highlight(
     tx: Tx,
     *,
-    objects: Annotated[list[RefTo(*TARGET_KINDS)], Items(0, 1000)],  # type: ignore[valid-type]
+    objects: Annotated[list[Annotated[str, RefTo(*TARGET_KINDS)]], Items(0, 1000)],
 ) -> HighlightData:
     """Replace the agent's highlights with these objects (NX selection highlight, no colour
     change); an empty list clears them."""

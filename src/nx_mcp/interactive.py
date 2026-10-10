@@ -71,10 +71,6 @@ BRIDGE_SLICE = 0.01
 ARRIVAL_BUDGET = 0.05
 REPLY_BUDGET = 0.1
 
-# Steps that change only the view or write an image; grouped with read-only
-# inspections in the panel history so model changes stay visible.
-VIEW_ONLY = frozenset({"nx_fit_view", "nx_set_view", "nx_screenshot", "nx_render_view"})
-
 
 def _read_only(method):
     """Catalogue tools whose effect is ``read``."""
@@ -87,7 +83,7 @@ def _model_unchanged(method):
     """Read and view steps: grouped in the panel history (model unchanged)."""
     from nx_mcp.host.dispatch import effect_of
 
-    return _read_only(method) or method in VIEW_ONLY or effect_of(method) in ("read", "view")
+    return effect_of(method) in ("read", "view")
 
 
 def _running_tail(method):
@@ -113,7 +109,7 @@ def runs_under_ui_lock(method):
 
     spec = catalogue_spec(method)
     if spec is None:
-        return _read_only(method)
+        return False
     if spec.effect == "read":
         return True
     return spec.effect in ("model", "view") and not spec.paths and not spec.new_part
@@ -1238,22 +1234,22 @@ class InteractiveHost:
                     result.setdefault("warnings", []).append(warning)
             return result
         except BaseException as raised:
-            exc = raised
+            problem = raised
             if not isinstance(raised, Exception):
                 # SystemExit, KeyboardInterrupt...: an error result for this call only.
                 # Escaping to tick() would drop the panel mode to Ask me first.
-                exc = NXError(
+                problem = NXError(
                     "NX_BUILD_FAILED",
                     f"{type(raised).__name__} raised by {method}: {raised}",
                     details={"mutation_outcome": "unknown"},
                 )
-            self.last_error = str(exc)
-            error = exc
+            self.last_error = str(problem)
+            error = problem
             if watch is not None:
-                self._report_dialogs(None, watch.stop(), error=exc)
-            if exc is raised:
+                self._report_dialogs(None, watch.stop(), error=problem)
+            if problem is raised:
                 raise
-            raise exc from raised
+            raise problem from raised
         finally:
             self.last_duration_seconds = time.monotonic() - self.operation_started
             try:

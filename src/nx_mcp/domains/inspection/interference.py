@@ -28,15 +28,7 @@ from typing import Annotated, Any, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, classify, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import (
-    Doc,
-    Items,
-    Length,
-    PathTo,
-    PlaneByNormal,
-    Range,
-    RefTo,
-)
+from nx_mcp.core.types import Doc, Items, Length, PathTo, PlaneByNormal, Range, RefTo
 from nx_mcp.domains.inspection import common, health
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import capture as kcapture
@@ -47,7 +39,7 @@ MAX_PAIRS = 10000
 CONTACT = 1e-7  # part units: at or below this minimum distance a pair touches
 MAX_CLOSEUPS = 8
 FLAGGED = ("penetration", "contact", "below_clearance")
-Objects = Annotated[list[RefTo("body", "feature", "component")], Items(2, 500)]  # type: ignore[valid-type]
+Objects = Annotated[list[Annotated[str, RefTo("body", "feature", "component")]], Items(2, 500)]
 MaxPairs = Annotated[int, Range(ge=1, le=MAX_PAIRS), Doc("Native pair checks allowed")]
 Clearance = Annotated[Length, Doc("Minimum clearance, part units; 0 = interference only")]
 
@@ -234,6 +226,7 @@ def nx_check_interference(
 ) -> InterferenceData:
     """Check interference and clearance between bodies of the given objects, or of the whole
     assembly. Overlap volumes are per pair; highlight hits with nx_set_highlight."""
+    clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
     found, pairs = _groups(tx, objects)
@@ -381,7 +374,7 @@ def _write_zip(tx, path, folder, report, images):
 def nx_export_inspection_report(
     tx: Tx,
     *,
-    path: PathTo("new", ".zip"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", ".zip")],
     objects: Objects | None = None,
     clearance: Clearance = 0,
     max_pairs: MaxPairs = DEFAULT_PAIRS,
@@ -395,6 +388,7 @@ def nx_export_inspection_report(
         fail("NX_INVALID_ARGUMENT", "section_planes need capture=true", field="/section_planes")
     for i, plane in enumerate(planes):
         geom.unit(plane["normal"], f"/section_planes/{i}/normal")
+    clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
     found, pairs = _groups(tx, objects)
@@ -433,9 +427,7 @@ def nx_export_inspection_report(
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
     return {
-        "path": meta["path"],
-        "size": meta["size"],
-        "sha256": meta["sha256"],
+        **meta,
         "files": names,
         "captures": len(images),
         "counts": checks["counts"],

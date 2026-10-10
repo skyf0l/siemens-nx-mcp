@@ -23,7 +23,7 @@ import math
 from typing import Literal, TypedDict
 
 from nx_mcp.core.errors import fail
-from nx_mcp.core.types import RefTo
+from nx_mcp.core.types import EdgeRef, forbid_extra
 from nx_mcp.domains.drawing.common import edge_facts, geometry, uf_types
 from nx_mcp.kit import builders, drawing, geom, readback, units
 
@@ -33,14 +33,14 @@ SXSEG_ARRAYS = {"half": "CreateHalfSxview", "stepped": "CreateSteppedSxview"}
 
 
 class _EdgePointRequired(TypedDict):
-    edge: RefTo("edge")  # type: ignore[valid-type]
+    edge: EdgeRef
 
 
 class EdgePoint(_EdgePointRequired, total=False):
     at: Literal["start", "end", "center"]
 
 
-EdgePoint.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(EdgePoint)
 
 
 # ---- section line points and cut planes ---------------------------------------------------

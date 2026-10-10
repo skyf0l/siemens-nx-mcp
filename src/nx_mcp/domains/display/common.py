@@ -11,7 +11,7 @@ from nx_mcp.kit.result import Row
 
 # Kinds a display tool accepts; features show their bodies, sketches their curves.
 TARGET_KINDS = ("body", "face", "edge", "curve", "point", "sketch", "component", "feature", "datum")
-Targets = Annotated[list[RefTo(*TARGET_KINDS)], Items(1, 1000)]  # type: ignore[valid-type]
+Targets = Annotated[list[Annotated[str, RefTo(*TARGET_KINDS)]], Items(1, 1000)]
 
 
 class Camera(TypedDict):
@@ -68,11 +68,14 @@ def targets(tx, refs, *, field="/objects", expand=False) -> list:
     return list(found.values())
 
 
-def display_rows(tx, pairs) -> list[dict]:
+def display_rows(tx, pairs) -> list[DisplayRow]:
     """``[{object, blanked, color?, transparency?}]`` for ``(obj, record)`` pairs."""
-    out = []
+    out: list[DisplayRow] = []
     for obj, record in pairs:
-        row = {"object": tx.ref(obj, kind_of(tx, obj)), "blanked": bool(record["blanked"])}
+        row: DisplayRow = {
+            "object": tx.ref(obj, kind_of(tx, obj)),
+            "blanked": bool(record["blanked"]),
+        }
         if "color_index" in record:
             row["color"] = int(record["color_index"])
             transparency = record.get("transparency")
@@ -81,6 +84,13 @@ def display_rows(tx, pairs) -> list[dict]:
     return out
 
 
-def camera_row(cam: dict) -> dict:
+def camera_row(cam: dict) -> Camera:
     """The surface fields of a camera (``kit.display.camera``)."""
-    return {k: cam[k] for k in ("view", "rotation", "origin", "absolute_origin", "scale", "style")}
+    return {
+        "view": cam["view"],
+        "rotation": cam["rotation"],
+        "origin": cam["origin"],
+        "absolute_origin": cam["absolute_origin"],
+        "scale": cam["scale"],
+        "style": cam["style"],
+    }

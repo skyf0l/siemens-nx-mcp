@@ -11,9 +11,17 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
+from typing import TypedDict
 
 from nx_mcp.core.errors import classify, fail
 from nx_mcp.kit import files, parts
+
+
+class SaveAudit(TypedDict):
+    saved_files: list[str]
+    changed_files: list[str]
+    other_modified_parts: int
+    verified_parts: int
 
 
 def fingerprint(path) -> dict:
@@ -39,7 +47,7 @@ def snapshot(tx) -> dict:
     }
 
 
-def verify(before: dict, after: dict, tag: int, native_errors: list, root) -> dict:
+def verify(before: dict, after: dict, tag: int, native_errors: list, root) -> SaveAudit:
     """The audit of a save of part ``tag``; raises ``NX_VERIFICATION_FAILED``."""
     target = after.get(tag)
     unexpected = [
@@ -55,8 +63,8 @@ def verify(before: dict, after: dict, tag: int, native_errors: list, root) -> di
         and target["file"]["exists"]
         and not native_errors
     )
-    audit = {
-        "saved_files": [files.relative(target["path"], root)] if saved else [],
+    audit: SaveAudit = {
+        "saved_files": [files.relative(target["path"], root)] if saved and target else [],
         "changed_files": [
             files.relative(row["path"], root)
             for t, row in after.items()
@@ -81,7 +89,7 @@ def verify(before: dict, after: dict, tag: int, native_errors: list, root) -> di
 
 
 def _status_errors(status) -> list:
-    out = []
+    out: list[dict] = []
     if not status:
         return out
     for i in range(getattr(status, "NumberUnsavedParts", 0) or 0):
@@ -91,7 +99,7 @@ def _status_errors(status) -> list:
     return out
 
 
-def verified_save(tx, part) -> dict:
+def verified_save(tx, part) -> SaveAudit:
     """Save ``part`` in place (drawing previews kept) and verify it; returns the audit."""
     with tx.checks():  # nothing is saved when the loaded files cannot be fingerprinted
         try:

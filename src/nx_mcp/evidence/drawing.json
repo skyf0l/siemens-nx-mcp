@@ -2,7 +2,7 @@
   "nx_activate_drawing_sheet": {
     "v2406": {
       "checks": 15,
-      "recorded": "2026-10-10T11:48:38Z",
+      "recorded": "2026-10-10T12:25:08Z",
       "scenario": "acceptance/drawing/activate_drawing_sheet.json",
       "scenario_sha256": "d718802d0845b3b56b79913d41f83614f4bf7b082dce0c7389d9110f486eccc3",
       "source_sha256": "348755741cf8ceafd88519b8cb237b37e9b16a19e324cba4dd88f5365ca721e2",
@@ -12,7 +12,7 @@
   "nx_create_balloons": {
     "v2406": {
       "checks": 36,
-      "recorded": "2026-10-10T11:48:41Z",
+      "recorded": "2026-10-10T12:25:11Z",
       "scenario": "acceptance/drawing/create_balloons.json",
       "scenario_sha256": "f882bde91c8dcd84b34d01dfe484e4e581ab23ae198f0740fb608bea9d0a18c8",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
@@ -22,7 +22,7 @@
   "nx_create_centerline": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-10T11:48:43Z",
+      "recorded": "2026-10-10T12:25:14Z",
       "scenario": "acceptance/drawing/create_centerline.json",
       "scenario_sha256": "9e96c476416b9b8eb3af72e5040ac08bbf929f43e6e94c778603f24e62bd9104",
       "source_sha256": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61",
@@ -36,7 +36,7 @@
   "nx_create_drawing_dimension": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-10T11:50:15Z",
+      "recorded": "2026-10-10T12:27:06Z",
       "scenario": "acceptance/drawing/inch_units.json",
       "scenario_sha256": "33896cddc2054ffe389bb69c6b996b5bdc3fdcd702c07bd9de667a352738b656",
       "source_sha256": "f758eac4acbfb48a4d0500d197ab27de2d137b2f25180c0e66b23a5277d2dd03",
@@ -58,7 +58,7 @@
   "nx_create_drawing_sheet": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-10T11:50:15Z",
+      "recorded": "2026-10-10T12:27:06Z",
       "scenario": "acceptance/drawing/inch_units.json",
       "scenario_sha256": "33896cddc2054ffe389bb69c6b996b5bdc3fdcd702c07bd9de667a352738b656",
       "source_sha256": "348755741cf8ceafd88519b8cb237b37e9b16a19e324cba4dd88f5365ca721e2",
@@ -68,7 +68,7 @@
   "nx_create_drawing_symbol": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-10T11:48:49Z",
+      "recorded": "2026-10-10T12:25:22Z",
       "scenario": "acceptance/drawing/create_drawing_symbol.json",
       "scenario_sha256": "19ab3112a721def576975d0f043b4854d0aab486ab93c755cae09eba2aed9d92",
       "source_sha256": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61",
@@ -81,7 +81,7 @@
   "nx_create_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-10T11:50:18Z",
+      "recorded": "2026-10-10T12:27:09Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
@@ -97,7 +97,7 @@
   "nx_create_drawing_view": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-10T11:50:26Z",
+      "recorded": "2026-10-10T12:27:21Z",
       "scenario": "acceptance/drawing/view_types.json",
       "scenario_sha256": "7fcd0b8d742d1da7760acdead3dda472ed0ac706052b5ba4f50b60cff9fdb013",
       "source_sha256": "8df1770fe32d273df366c830051eb83072445d5fc26f6ff069692963f43cd204",
@@ -119,7 +119,7 @@
   "nx_create_gdt": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-10T11:50:00Z",
+      "recorded": "2026-10-10T12:26:48Z",
       "scenario": "acceptance/drawing/gdt_views_inch.json",
       "scenario_sha256": "6d70bd00d233413de64a18152546fab39e220d24a054d83a0211a3fa15d555fe",
       "source_sha256": "b8d7515e39d1c47bbab57e7724955bbb11b3d75f6e37bc48fa5889d3c28f0ca9",
@@ -134,7 +134,7 @@
   "nx_create_note": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-10T11:50:15Z",
+      "recorded": "2026-10-10T12:27:06Z",
       "scenario": "acceptance/drawing/inch_units.json",
       "scenario_sha256": "33896cddc2054ffe389bb69c6b996b5bdc3fdcd702c07bd9de667a352738b656",
       "source_sha256": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61",
@@ -144,7 +144,7 @@
   "nx_edit_annotation": {
     "v2406": {
       "checks": 22,
-      "recorded": "2026-10-10T11:49:11Z",
+      "recorded": "2026-10-10T12:25:50Z",
       "scenario": "acceptance/drawing/edit_annotation.json",
       "scenario_sha256": "82b250f60bb144006a2139b44f061f99b88744443fe227bdc69dc77420c36d5c",
       "source_sha256": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61",
@@ -154,7 +154,7 @@
   "nx_edit_dimension": {
     "v2406": {
       "checks": 30,
-      "recorded": "2026-10-10T11:49:13Z",
+      "recorded": "2026-10-10T12:25:52Z",
       "scenario": "acceptance/drawing/edit_dimension.json",
       "scenario_sha256": "392ae363c91fff7898fd8585ec0a24c10cd8ada895fd418d0700aca71843a309",
       "source_sha256": "f758eac4acbfb48a4d0500d197ab27de2d137b2f25180c0e66b23a5277d2dd03",
@@ -164,7 +164,7 @@
   "nx_edit_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-10T11:50:18Z",
+      "recorded": "2026-10-10T12:27:09Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
@@ -180,7 +180,7 @@
   "nx_edit_drawing_view": {
     "v2406": {
       "checks": 27,
-      "recorded": "2026-10-10T11:49:17Z",
+      "recorded": "2026-10-10T12:25:57Z",
       "scenario": "acceptance/drawing/edit_drawing_view.json",
       "scenario_sha256": "55c8a37dab159e4c3eb193afb61cff71ce7da7d0d447c05369c760343c76213f",
       "source_sha256": "8df1770fe32d273df366c830051eb83072445d5fc26f6ff069692963f43cd204",
@@ -190,7 +190,7 @@
   "nx_export_drawing": {
     "v2406": {
       "checks": 29,
-      "recorded": "2026-10-10T11:49:55Z",
+      "recorded": "2026-10-10T12:26:41Z",
       "scenario": "acceptance/drawing/export_drawing.json",
       "scenario_sha256": "1b01be6b48506ecadbb8a320550a5b6ddc9b4dbd50bf5a7fb7f8161986ea871c",
       "source_sha256": "011d3ee84d9a1a5af49549d658c33ecabd11305ff0b9148cc1f06c7864d199a0",
@@ -200,7 +200,7 @@
   "nx_get_dimension": {
     "v2406": {
       "checks": 13,
-      "recorded": "2026-10-10T11:50:02Z",
+      "recorded": "2026-10-10T12:26:50Z",
       "scenario": "acceptance/drawing/get_dimension.json",
       "scenario_sha256": "1f6bb8c2bc3680f90c76ff3936dff788f8f66a498ea8e0eb2ad202ffa7ee73e1",
       "source_sha256": "f758eac4acbfb48a4d0500d197ab27de2d137b2f25180c0e66b23a5277d2dd03",
@@ -210,7 +210,7 @@
   "nx_get_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-10T11:50:18Z",
+      "recorded": "2026-10-10T12:27:09Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
@@ -220,7 +220,7 @@
   "nx_get_drawing_view": {
     "v2406": {
       "checks": 13,
-      "recorded": "2026-10-10T11:50:04Z",
+      "recorded": "2026-10-10T12:26:52Z",
       "scenario": "acceptance/drawing/get_drawing_view.json",
       "scenario_sha256": "5f430d796ccf638743f63c76e21365db116910e71b794ef1472667d888b29160",
       "source_sha256": "8df1770fe32d273df366c830051eb83072445d5fc26f6ff069692963f43cd204",
@@ -230,7 +230,7 @@
   "nx_update_annotations": {
     "v2406": {
       "checks": 6,
-      "recorded": "2026-10-10T11:50:20Z",
+      "recorded": "2026-10-10T12:27:13Z",
       "scenario": "acceptance/drawing/update_annotations.json",
       "scenario_sha256": "162af9c808a1c38e332103d684fb86ff568411ac64f3ec7f0c3c6f8291b7fbcf",
       "source_sha256": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61",

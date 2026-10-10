@@ -18,7 +18,7 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, PathTo, Range, RefTo
+from nx_mcp.core.types import Doc, ExplosionRef, PathTo, Range
 from nx_mcp.domains.assembly import common, exploded
 from nx_mcp.kit import assembly, capture, drawing, files, readback
 from nx_mcp.kit import pose as kpose
@@ -84,8 +84,8 @@ def _state(tx, ex) -> dict:
 def nx_export_explosion_animation(
     tx: Tx,
     *,
-    explosion: RefTo("explosion"),  # type: ignore[valid-type]
-    path: PathTo("new", ".html"),  # type: ignore[valid-type]
+    explosion: ExplosionRef,
+    path: Annotated[str, PathTo("new", ".html")],
     frames: Annotated[int, Range(ge=2, le=30), Doc("Frames from assembled to exploded")] = 12,
     fps: Annotated[int, Range(ge=1, le=60), Doc("Playback frames per second")] = 12,
     width: Annotated[int, Range(ge=128, le=1600), Doc("Frame width in pixels")] = 960,
@@ -114,7 +114,8 @@ def nx_export_explosion_animation(
     view = part.ModelingViews.WorkView
     api = exploded.uf(tx)
     original = int(api.AskViewExplosion(view.Tag) or 0)
-    images, report = [], []
+    images: list[str] = []
+    report: list[Frame] = []
     try:
         with tx.scratch():
             with native(default="NX_BUILD_FAILED"):
@@ -155,8 +156,9 @@ def nx_export_explosion_animation(
     readback.expect(int(api.AskViewExplosion(view.Tag) or 0) == original, "view")
     target.write_text(html(images, fps), encoding="utf-8")
     published = tx.files.publish()[0]
+    meta = files.metadata(published, tx.workspace.root)
     return {
-        **files.metadata(published, tx.workspace.root),
+        **meta,
         "frame_count": frames,
         "fps": fps,
         "width": width,

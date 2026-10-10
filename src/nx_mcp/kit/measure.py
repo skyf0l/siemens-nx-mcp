@@ -5,9 +5,9 @@
     low, high = measure.bounds(tx, bodies)  # absolute axis-aligned box
     n = measure.length(tx, curves)        # arc length, part units
 
-NX measures in millimetres here (``MeasureBodies`` with ``KilogramMillimeter``,
-as the NX 2406 legacy tools did); values are converted to the work part's
-units, so an inch part reports in^3, in^2 and inches. Bounds come from UF
+NX measures in millimetres here (``MeasureBodies`` with ``KilogramMillimeter``);
+values are converted to the work part's units, so an inch part reports in^3,
+in^2 and inches. Bounds come from UF
 ``ModlGeneral.AskBoundingBox`` (absolute coordinates, part units).
 """
 

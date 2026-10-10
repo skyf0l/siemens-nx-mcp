@@ -17,7 +17,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, PathTo, Range
-from nx_mcp.domains.display.common import camera_row
+from nx_mcp.domains.display.common import Camera, camera_row
 from nx_mcp.kit import capture, display, drawing, files
 from nx_mcp.kit.result import Row
 
@@ -50,7 +50,7 @@ class CaptureData(TypedDict, total=False):
     requested: list[int]
     resolution: list[int]
     style: str
-    camera: dict
+    camera: Camera
     sheet: Row
 
 
@@ -72,7 +72,7 @@ def nx_capture_view(
     tx: Tx,
     *,
     quality: Literal["viewport", "studio"] = "viewport",
-    path: PathTo("new", ".png") | None = None,  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", ".png")] | None = None,
     width: Pixels = 1024,
     height: Pixels = 768,
     background: Literal["white", "original", "transparent", "color"] = "white",
@@ -103,7 +103,7 @@ def nx_capture_view(
     root = Path(tx.workspace.root)
     target = Path(path) if path else root / "captures" / f"view-{uuid.uuid4().hex[:12]}.png"
     temp = tx.files.stage(target)
-    out: dict = {"quality": quality, "requested": [width, height]}
+    out: CaptureData = {"quality": quality, "requested": [width, height]}
     if sheet:
         current = drawing.current(part)
         if current is not None:
@@ -140,18 +140,18 @@ def nx_capture_view(
             "use quality=studio for an exact size",
         )
     out.update(
-        path=meta["path"],
-        size=meta["size"],
-        sha256=meta["sha256"],
-        resolution=list(size),
-        style=style,
-        image={
-            "path": meta["path"],
-            "sha256": meta["sha256"],
-            "inline": True,
-            "mime_type": "image/png",
-            "width": size[0],
-            "height": size[1],
-        },
+        {
+            **meta,
+            "resolution": list(size),
+            "style": style,
+            "image": {
+                "path": meta["path"],
+                "sha256": meta["sha256"],
+                "inline": True,
+                "mime_type": "image/png",
+                "width": size[0],
+                "height": size[1],
+            },
+        }
     )
     return out

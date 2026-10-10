@@ -17,9 +17,19 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Axis, Direction, Doc, Length, Range, RefTo
+from nx_mcp.core.types import (
+    Angle,
+    Axis,
+    ComponentRef,
+    Direction,
+    Doc,
+    Length,
+    Range,
+    RefTo,
+    forbid_extra,
+)
 from nx_mcp.domains.assembly import common
-from nx_mcp.domains.assembly.common import MAX_INSTANCES, ComponentRef, ComponentRow
+from nx_mcp.domains.assembly.common import MAX_INSTANCES, ComponentRow
 from nx_mcp.kit import assembly, builders, geom, model, readback, result, select
 from nx_mcp.kit import pose as kpose
 
@@ -55,8 +65,7 @@ class Circular(TypedDict):
     circular: CircularLayout
 
 
-for _td in (LinearLayout, CircularLayout, Linear, Circular):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(LinearLayout, CircularLayout, Linear, Circular)
 
 
 class PatternData(TypedDict, total=False):
@@ -301,7 +310,7 @@ def _copies(tx, seed, poses):
 def nx_create_component_pattern(
     tx: Tx,
     *,
-    component: ComponentRef,  # type: ignore[valid-type]
+    component: ComponentRef,
     layout: Linear | Circular,
     associative: Annotated[bool, Doc("NX pattern (true) or independent copies")] = True,
 ) -> PatternData:
@@ -345,7 +354,7 @@ def _edit_summary(a, say):
 def nx_edit_component_pattern(
     tx: Tx,
     *,
-    pattern: RefTo("component_pattern"),  # type: ignore[valid-type]
+    pattern: Annotated[str, RefTo("component_pattern")],
     count: Count | None = None,
     spacing: Spacing | None = None,
     count2: Count2 | None = None,
@@ -358,8 +367,8 @@ def nx_edit_component_pattern(
              "angle": angle}  # fmt: skip
     if all(v is None for v in given.values()):
         fail("NX_INVALID_ARGUMENT", "Give count, spacing, count2, spacing2 or angle")
-    for name in ("spacing", "spacing2"):
-        if given[name] is not None and given[name] <= 0:
+    for name, length in (("spacing", spacing), ("spacing2", spacing2)):
+        if length is not None and float(length) <= 0:  # the kernel converted it to part units
             fail("NX_INVALID_ARGUMENT", f"{name} must be positive", field="/" + name)
     kinds = _enum(tx)
     with tx.checks():

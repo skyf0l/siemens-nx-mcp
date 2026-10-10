@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/inspection/list_assembly.json",
   "scenario_sha256": "8c3e381357026b188182fef9fdee0de6718d5ad9d1e1c8251f7172eae1434e05",
   "domain": "inspection",
@@ -7,16 +7,11 @@
     "nx_list_objects": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_list_objects": "0c3a6650317a77cfbd99be5bd50004a79fdedf35b57d7821c2ba4dc8a431e5ec"
   },
-  "run_id": "20261010-155510-29a676",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155510-29a676\\inspection_list_assembly_29a676.prt",
-  "started": "2026-10-10T11:55:22Z",
-  "finished": "2026-10-10T11:55:24Z",
+  "recorded": "2026-10-10T11:55:24Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,
@@ -26,179 +21,133 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.485,
-      "result_sha256": "45d02c9f33eaf2e6d73e85597a169665eb260d4d1322f5bd0a4c4b6fb76bf65c"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "e6859baab0c5c929d50bf3e054808443c5783e2d7a955279c9ac4d8d5e9c53f2"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "1548d2e200abd5a9a18f22579ab9f665268b0f1260092443b2185a059389030d"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "27225b958300e57036615900432b8ab4dbd98098cab9514446b5834881929f11"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "4a88a4a15ed3920e976b6e23c6b469bf2c4531c5395e12f4f17a3c98f401fddf"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.141,
-      "result_sha256": "129e07d2b0605a994a0448cab1c0c500cafcef5f96c811198d1d9b86bb8eb71e"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.25,
-      "result_sha256": "9c0af50c7c1566fa9c4fbd5c8e42717b7857ecd0875f95a20fd0a713ceaa4f62"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "9f391004a85b8bf39de22631dee5819a03946171d7346c18ebd6ce0932899e59"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "2fe0c8d206d599afdfcf740d13f1a45e893664917212e415ea25adbb9295c384"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "ed049d259f5bc38b08f14390984ad6ac30d8f7f7bcc0a2a0171739d70bf77439"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_create_reference_set",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "1bbbd69b46fe6cec7ab14614e80cec09b696d51770bdb2e5ed82a9cc4b30d1a4"
+      "checks": 0
     },
     {
       "index": 12,
       "call": "nx_create_explosion",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "2c8dd1d8810cb9fd81aa60b250a17981caf7d0ef7fac87d37a4c8bef2925a589"
+      "checks": 0
     },
     {
       "index": 13,
       "call": "nx_create_assembly_constraint",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "1dbc625e4f812bcda17ded34b583cfe6b8fc15995b781f0c92b81ab5dc0699b2"
+      "checks": 0
     },
     {
       "index": 14,
       "call": "nx_create_component_pattern",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.14,
-      "result_sha256": "5e20968525981d17b46813aeed7d003b7a586950842f3a9ffdfbf6e683b71fcd"
+      "checks": 0
     },
     {
       "index": 15,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.032,
-      "result_sha256": "213f909b697fda83a4f1fcf4222f5a16790830a9992586b9cf4c26a1e12d59b8"
+      "checks": 4
     },
     {
       "index": 16,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "799191cc43709e2bf23e7a9b26b5710c621fc9e8a3d2e4021cea31ae8d041917"
+      "checks": 2
     },
     {
       "index": 17,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "b0cd1328317719edd90c3b58904d7997aec8c8202e566962faa18b1a97776d2e"
+      "checks": 2
     },
     {
       "index": 18,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "44ae0032364c1fd48d00dbb88f84cf00223fe7182db8eca9841b039ff0320286"
+      "checks": 3
     },
     {
       "index": 19,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.016,
-      "result_sha256": "dc604275bec2c3225d43eb3204ecbdbd66856713f3b52bddab1846eee1d0bcf6"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155510-29a676/inspection_list_assembly_29a676.prt",
-      "smoke/20261010-155510-29a676/insp/insp_list_box.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

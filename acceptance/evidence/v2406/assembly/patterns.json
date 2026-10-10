@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/assembly/patterns.json",
   "scenario_sha256": "5093578edcd2e7c93b69469a4b0762e1f8f21f709898b34cc13ef8a9fc818c0f",
   "domain": "assembly",
@@ -8,17 +8,12 @@
     "nx_edit_component_pattern": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_component_pattern": "8273db480b2fe36b97cb51cf2ebaa79f62eaef4df58522d8b16b34791944ff8c",
     "nx_edit_component_pattern": "8273db480b2fe36b97cb51cf2ebaa79f62eaef4df58522d8b16b34791944ff8c"
   },
-  "run_id": "20261010-161434-ebded0",
-  "owner": "fix_final",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-161434-ebded0\\assembly_patterns_ebded0.prt",
-  "started": "2026-10-10T12:14:34Z",
-  "finished": "2026-10-10T12:14:37Z",
+  "recorded": "2026-10-10T12:24:44Z",
   "passed": true,
   "checks": 74,
   "failed_checks": 0,
@@ -28,251 +23,189 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "3c9c933f0f78e3141496dcdeb7330fe0a54a58dc12da6daf152464007d86bbb7"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "edce586f3f349bc975f024b8a3e587672d0fa0cfffacf2634fa6869f5a09ef59"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "d756e01c6d0f342de04a4db79cb92311c22a0967ed0a7059b7e19955e8eb7b4c"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "11e4809d1776685eb0038e5feee8f2c423da578f60952343f1f9e63c698331ce"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 11,
-      "seconds": 0.14,
-      "result_sha256": "f83c020f3e61e099ebe5f3e2c9a93c77d7d7c1786e23cb00aca50c48467723eb"
+      "checks": 11
     },
     {
       "index": 6,
       "call": "nx_list_components",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "a68336a1e8de0f4b8766a038bdeb5eca3c2f8157c91dd1826c42e0e4c5b51339"
+      "checks": 1
     },
     {
       "index": 7,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.125,
-      "result_sha256": "60d9dd56d0b826049e98b4499c6cdc3f5a71d65fe1a2cbaabe9710950867101a"
+      "checks": 6
     },
     {
       "index": 8,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.078,
-      "result_sha256": "35798c0fe7f25ed16664acef1dba2127e27d96d441465a31bbb04dc3e6ce7c21"
+      "checks": 2
     },
     {
       "index": 9,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "3a0c5feb257852e970156f556aba84b8460724e611300f16c51151188e872898"
+      "checks": 2
     },
     {
       "index": 10,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.032,
-      "result_sha256": "42cbd6131781a0093c1743d2ac8d98caa65f7d52f78f6b668c034ee9f30a4056"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.14,
-      "result_sha256": "381f8dc67b254339691964ba08cd9d166da73aa6f71aa7e5ebdd7249683871f8"
+      "checks": 6
     },
     {
       "index": 12,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "7dabaf70241c4fde01381dcf7a0abdccf3570d0edfce0d6ad164c140682a14f7"
+      "checks": 3
     },
     {
       "index": 13,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.062,
-      "result_sha256": "01a69e24b02f443be40ea225bfe7d1f38e7399cbeef2cf236034e0b5823f294c"
+      "checks": 2
     },
     {
       "index": 14,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.157,
-      "result_sha256": "370c636e1c9274a5f7145c7500423eae3eca84e769f43055f18ab055d79ca429"
+      "checks": 6
     },
     {
       "index": 15,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.203,
-      "result_sha256": "6378bfe557de7cbc72c98579928df69f17cc4f7a8eeb3581473a31cfeaf697c1"
+      "checks": 4
     },
     {
       "index": 16,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.078,
-      "result_sha256": "dfd80892a4be932c5f8034a06878ef28511c9dba70ab51d1fc05b14dd03a0da4"
+      "checks": 2
     },
     {
       "index": 17,
       "call": "nx_edit_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.094,
-      "result_sha256": "5faf503a8b79fb18009785ea2158f34b008decf1801b5784a4ba506de737b903"
+      "checks": 2
     },
     {
       "index": 18,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.062,
-      "result_sha256": "7280f4fd124bacdc897e470aeeae3264139391492c88bcdc1357002006301851"
+      "checks": 7
     },
     {
       "index": 19,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.047,
-      "result_sha256": "3d9cefa7f03a1d94dd1c2d610a326098c323b3a8ff02b00c99691616871a0c15"
+      "checks": 4
     },
     {
       "index": 20,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "574f9de5a30b6c8a17990bf12367980cffe581ea3430f49df3f26c451aba569c"
+      "checks": 2
     },
     {
       "index": 21,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "96f1b2c1a202efa282fdcba196d0a177b40c55bff26b2407f5fca503875a8359"
+      "checks": 2
     },
     {
       "index": 22,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "42bf5f9923189248bd3b6e9ef20ad40adff595a09c40f999cc8a583f3be70ceb"
+      "checks": 2
     },
     {
       "index": 23,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.032,
-      "result_sha256": "e0fc6c638c22dfbff9ac1a924485a1f6d7311153cb86308d72a4a5b2bc02c92c"
+      "checks": 2
     },
     {
       "index": 24,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "3547011aabc37ddec617fb11dc4f836342cb446707d1737d1da22cdd7239e5f6"
+      "checks": 2
     },
     {
       "index": 25,
       "call": "nx_edit_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "8a6d6603a406a30c2db13a4e7254f979d6c5da2f546aa93169921b185bb3a3eb"
+      "checks": 0
     },
     {
       "index": 26,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "261836f080992956409d7fb3d685eacfd7c1d878925f9cdf64f34922a58a984d"
+      "checks": 2
     },
     {
       "index": 27,
       "call": "nx_create_component_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "1282d5e68bdb0255c3ccf28647fc68ccf4ccfb8ee1bd8247d0fa04b8c10a3e1f"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-161434-ebded0/assembly_patterns_ebded0.prt",
-      "smoke/20261010-161434-ebded0/assembly_patterns_parts_files_block_mm.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

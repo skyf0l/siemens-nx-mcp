@@ -15,12 +15,23 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Direction, Doc, Items, Length, Range, RefTo
+from nx_mcp.core.types import (
+    Angle,
+    BodyRef,
+    Direction,
+    Doc,
+    EdgeRef,
+    FaceRef,
+    Items,
+    Length,
+    Range,
+    forbid_extra,
+)
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args, builders, measure, select, units
 
-EdgeList = Annotated[list[RefTo("edge")], Items(1, 200)]  # type: ignore[valid-type]
-FaceList = Annotated[list[RefTo("face")], Items(1, 200)]  # type: ignore[valid-type]
+EdgeList = Annotated[list[EdgeRef], Items(1, 200)]
+FaceList = Annotated[list[FaceRef], Items(1, 200)]
 
 
 def _edges(tx, refs):
@@ -33,7 +44,7 @@ class RadiusPoint(TypedDict):
     radius: Length
 
 
-RadiusPoint.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(RadiusPoint)
 
 
 @tool(
@@ -60,7 +71,7 @@ def nx_create_blend(
     edge."""
     args.exactly_one(radius=radius, variable=variable)
     points = []
-    if radius is not None and radius <= 0:
+    if radius is not None and float(radius) <= 0:
         fail("NX_INVALID_ARGUMENT", "radius must be positive", field="/radius")
     if variable is not None:
         if len(edges) != 1:
@@ -121,19 +132,22 @@ def nx_create_chamfer(
 ) -> common.FeatureData:
     """Chamfer edges of one body by a symmetric offset, two offsets, or an offset and angle.
     NX picks the first face from the edge direction; reverse swaps the faces."""
-    if offset <= 0:
+    if float(offset) <= 0:
         fail("NX_INVALID_ARGUMENT", "offset must be positive", field="/offset")
+    second = angle_value = 0.0
     if method == "symmetric":
         if offset2 is not None or angle is not None or reverse:
             fail("NX_INVALID_ARGUMENT", "symmetric takes only offset", field="/method")
     elif method == "two_offsets":
         args.need(offset2=offset2)
-        if angle is not None or offset2 <= 0:
+        if angle is not None or offset2 is None or float(offset2) <= 0:
             fail("NX_INVALID_ARGUMENT", "two_offsets takes a positive offset2", field="/offset2")
+        second = float(offset2)
     else:
         args.need(angle=angle)
-        if offset2 is not None or not 0 < angle < 90:
+        if offset2 is not None or angle is None or not 0 < float(angle) < 90:
             fail("NX_INVALID_ARGUMENT", "offset_angle takes an angle in 0..90", field="/angle")
+        angle_value = float(angle)
     selected, body = _edges(tx, edges)
     before = measure.volume(tx, body)
     options = tx.nx.Features.ChamferBuilder.ChamferOption
@@ -144,10 +158,10 @@ def nx_create_chamfer(
             b.Option = options.SymmetricOffsets
         elif method == "two_offsets":
             b.Option = options.TwoOffsets
-            b.SecondOffsetExp.RightHandSide = repr(float(offset2))
+            b.SecondOffsetExp.RightHandSide = repr(second)
         else:
             b.Option = options.OffsetAndAngle
-            b.AngleExp.RightHandSide = repr(float(angle))
+            b.AngleExp.RightHandSide = repr(angle_value)
         b.FirstOffsetExp.RightHandSide = repr(float(offset))
         b.ReverseOffsets = bool(reverse)
         feature = b.commit()
@@ -169,13 +183,13 @@ def nx_create_chamfer(
 def nx_create_shell(
     tx: Tx,
     *,
-    body: RefTo("body"),  # type: ignore[valid-type]
+    body: BodyRef,
     thickness: Length,
     remove_faces: Annotated[FaceList, Doc("Faces to open; omit for a closed hollow")] | None = None,
     outward: Annotated[bool, Doc("Grow the wall outside the original faces")] = False,
 ) -> common.FeatureData:
     """Hollow a solid body to a wall thickness, opening the removed faces."""
-    if thickness <= 0:
+    if float(thickness) <= 0:
         fail("NX_INVALID_ARGUMENT", "thickness must be positive", field="/thickness")
     target = common.solid(tx, body)
     faces = select.faces(tx, remove_faces or [], "/remove_faces")
@@ -210,13 +224,13 @@ def nx_create_draft(
     tx: Tx,
     *,
     faces: FaceList,
-    stationary_face: RefTo("face"),  # type: ignore[valid-type]
+    stationary_face: FaceRef,
     direction: Direction,
     angle: Angle,
 ) -> common.FeatureData:
     """Draft faces about a stationary face; a positive angle tapers them inward along the draw
     direction."""
-    if not 0 < abs(angle) < 89:
+    if not 0 < abs(float(angle)) < 89:
         fail("NX_INVALID_ARGUMENT", "The draft angle must be within 0..89 degrees", field="/angle")
     selected = select.faces(tx, faces, "/faces")
     fixed = select.one(tx, stationary_face, "face", field="/stationary_face")

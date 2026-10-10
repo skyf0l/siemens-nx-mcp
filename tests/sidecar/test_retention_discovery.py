@@ -40,7 +40,7 @@ async def test_spaced_discovery_and_optional_output_schema(tmp_path):
     server = create_server(AsyncMock(), Workspace(tmp_path), surface="agent")
     result = await server.call_tool("nx_find_tools", {"query": "list   topology"})
     rows = result.structuredContent["data"]["tools"]
-    assert rows[0]["name"] == "nx_list_objects" and "legacy" not in rows[0]
+    assert rows[0]["name"] == "nx_list_objects"
     result = await server.call_tool("nx_get_tool_schemas", {"names": ["nx_list_objects"]})
     described = result.structuredContent["data"]["tools"][0]
     assert "input_schema" in described and "output_schema" not in described

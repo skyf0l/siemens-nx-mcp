@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/datum_axis.json",
   "scenario_sha256": "d949694f8bca0486232f60a147ac103e28c03ab2706743a23ee1de40ccb04de9",
   "domain": "modeling",
@@ -10,16 +10,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_datum_axis": "09709e0657b14a4198982ab4592892e7698754fca7c0fb5ee4f2303f488da93c"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_datum_axis_433572.prt",
-  "started": "2026-10-10T11:45:13Z",
-  "finished": "2026-10-10T11:45:14Z",
+  "recorded": "2026-10-10T11:45:14Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,
@@ -29,61 +24,42 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "ded3792898db8d646524aff5b5216e8706b02c9c036a5f0508b92648251936a2"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_datum_axis",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "f16ae88e8b160620ffac590c6022e91929d551d3f196fba8f9935fe4e10d96ac"
+      "checks": 3
     },
     {
       "index": 3,
       "call": "nx_create_datum_axis",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "044c7eb35e679d39a970e25768188f53fd6e547d1015ba29be31e009cba7914a"
+      "checks": 2
     },
     {
       "index": 4,
       "call": "nx_create_datum_axis",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "0a7d4681f9f35d0b30166dc5ad3d35d556615824cac5daee515c1fe23e9a1cfe"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_create_datum_axis",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "2dd6b8b8edc518501d09e85858c8f2bdf51d51a1cb825fa61073c6ebe1eeb119"
+      "checks": 3
     },
     {
       "index": 6,
       "call": "nx_create_datum_axis",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.032,
-      "result_sha256": "c072c17e29f53c4ddb6756043304f62980f1c50007197c876dce217b88be14c8"
+      "checks": 3
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_datum_axis_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

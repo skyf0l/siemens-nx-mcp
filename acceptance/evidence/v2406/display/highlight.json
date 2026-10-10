@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/display/highlight.json",
   "scenario_sha256": "4cec733659229f39db5c5dd9807d46db09fe1636d2c5af1e3329842808ea09db",
   "domain": "display",
@@ -7,16 +7,11 @@
     "nx_set_highlight": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_set_highlight": "3b1d8839f5d965e78b25ac871ef21a44d724fa0cd46277911cef00b647c42a02"
   },
-  "run_id": "20261010-155535-7a3d9c",
-  "owner": "reg_final2_2",
-  "part": null,
-  "started": "2026-10-10T11:55:44Z",
-  "finished": "2026-10-10T11:55:45Z",
+  "recorded": "2026-10-10T11:55:45Z",
   "passed": true,
   "checks": 10,
   "failed_checks": 0,
@@ -26,70 +21,49 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.485,
-      "result_sha256": "7a15f0cea0bc7f46a6a9692224779070669629a0b1e3229ee9c18a6f8e26a95f"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_list_objects",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "9d2d6d4e1c5f37b49a4cbe116ef1b6e539eecacda4c1df8c0a73e93362d4274a"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_list_objects",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "588ae9985a79863b957b03825be52ac8e29e2a3fc364547bbec9b156acd6c660"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_set_highlight",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.047,
-      "result_sha256": "ae67f855c8e921b02c93c30839a553d23c2b3a41261a22e2a7cb1cb9985ee930"
+      "checks": 4
     },
     {
       "index": 5,
       "call": "nx_set_highlight",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "122f98079bab806f5db54c5d2f8a4e715ae9872217275c95e2ff784d501eac5a"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_set_highlight",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.032,
-      "result_sha256": "ed4d6c642f60dfdf2c13fbcde4d75e3c41e0e00f6627bd7045b3dc2d99d22218"
+      "checks": 2
     },
     {
       "index": 7,
       "call": "nx_set_highlight",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "708b26ae446f22a65d62c343f10aa57183cf6d032f214b95d4804d7c908adce8"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155535-7a3d9c/display_highlight_drawing_block_mm.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

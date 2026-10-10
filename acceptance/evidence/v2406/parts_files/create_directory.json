@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/parts_files/create_directory.json",
   "scenario_sha256": "76dd8d78b4517b0aca423f2f36a401c820bca3c443471bc7c25da02faa11cf9c",
   "domain": "parts_files",
@@ -7,16 +7,11 @@
     "nx_create_directory": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_directory": "5264f6cde61226bb40954ac238dddd0a5c9afbaff148f8cd62baa42278f67016"
   },
-  "run_id": "20261010-154111-17dd9e",
-  "owner": "reg_final2_1",
-  "part": null,
-  "started": "2026-10-10T11:41:19Z",
-  "finished": "2026-10-10T11:41:19Z",
+  "recorded": "2026-10-10T11:41:19Z",
   "passed": true,
   "checks": 18,
   "failed_checks": 0,
@@ -26,86 +21,63 @@
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.015,
-      "result_sha256": "571a5f5a84fa8aa630fda61e23b43b29b093e222d7d8aae98c860dad13cac8f6"
+      "checks": 3
     },
     {
       "index": 2,
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.016,
-      "result_sha256": "4b9587a507ea6494e18fcba74553a8b7fdf7729b5812bded193b6769f688afc1"
+      "checks": 2
     },
     {
       "index": 3,
       "call": "nx_upload_file",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "483c0769e054e64bd3e11d3a6529e8ec50f0c1f4fa98265740809d4f62c0f88f"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "ba01c9044d30113f54f2e440617de0140b7514d46aedce9f274b9ace1dc6158f"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "445a17abf80ad51415224c2cff7feb30aa48fb0e7cc4f10384d2eda7d5d130c2"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "385bb9177102d39e00906c93eb88c4e3a924db8a06080225796d6e404630c7f0"
+      "checks": 2
     },
     {
       "index": 7,
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "6ae9be3a100fe535b68e65591b2e312794aafbe16b139b3b26614663529e5894"
+      "checks": 2
     },
     {
       "index": 8,
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "0addf7194446a95f6542b2bcf9575e52e2624584233c6e3f7afd5a6ce2d7c6d2"
+      "checks": 2
     },
     {
       "index": 9,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "86e5bb328bd831f6fbe0b11c983887980be00377ac89faebe766796b00fbd0fe"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [],
-    "failed": []
-  }
+  ]
 }

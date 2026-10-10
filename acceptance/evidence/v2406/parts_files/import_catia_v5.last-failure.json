@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/parts_files/import_catia_v5.json",
   "scenario_sha256": "42a9060ee0ee38d27e4691019be9a23cfad9da077bfc8fea7f93cf3053c514e8",
   "domain": "parts_files",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_import_model": "b7e3854d7c227d029122b32eecdf775f8f5cd285938a25353fdce1bdf2b29e54"
   },
-  "run_id": "20261010-154424-066da0",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154424-066da0\\parts_files_import_catia_v5_066da0.prt",
-  "started": "2026-10-10T11:44:24Z",
-  "finished": "2026-10-10T11:44:25Z",
+  "recorded": "2026-10-10T11:44:25Z",
   "passed": false,
   "checks": 2,
   "failed_checks": 3,
@@ -28,18 +23,14 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.562,
-      "result_sha256": "6399cf478a7a27817efdffad18feb2789fc2cd6114a44eb6a4f800320ee40e03"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_upload_file",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "c059025846769d88ec3d9c8582264b8076c4f44b5bfc266da197f10c972d5f9c"
+      "checks": 0
     },
     {
       "index": 3,
@@ -47,20 +38,15 @@
       "setup": false,
       "passed": false,
       "checks": 2,
-      "seconds": 0.141,
-      "result_sha256": "26676de69ea098ade40a0412032b071a6731f4523879a62f6371bcbaf822f572",
+      "error": {
+        "code": "NX_LICENSE_UNAVAILABLE",
+        "message": "There are no licenses available for the NX_CATIAV5 translator."
+      },
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: There are no licenses available for the NX_CATIAV5 translator.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
         "data.format: missing (wanted 'catia_v5')"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154424-066da0/parts_files_import_catia_v5_066da0.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

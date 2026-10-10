@@ -19,11 +19,15 @@ from __future__ import annotations
 import contextlib
 import json
 import math
+from typing import TYPE_CHECKING
 
 from nx_mcp.core.errors import fail, native
 from nx_mcp.domains.assembly import common
 from nx_mcp.kit import assembly, geom, model, readback
 from nx_mcp.kit import pose as kpose
+
+if TYPE_CHECKING:  # explosions imports this module
+    from nx_mcp.domains.assembly.explosions import ExplodedRow
 
 TRACE_ATTRIBUTE = "NX_MCP_TRACE_V1"
 
@@ -52,7 +56,7 @@ def exploded_pose(child):
     return assembly.pose(child)
 
 
-def entry_row(tx, entry) -> dict:
+def entry_row(tx, entry) -> ExplodedRow:
     child, component, names, hidden = entry
     t, r = exploded_pose(child)
     at, ar = assembly.pose(component)

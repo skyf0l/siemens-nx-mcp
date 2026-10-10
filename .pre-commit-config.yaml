@@ -26,7 +26,7 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
@@ -53,9 +53,10 @@ repos:
         always_run: true
         stages: [pre-push]
       - id: mypy
-        name: mypy sidecar
+        name: mypy src/nx_mcp
         entry: python -m mypy src/nx_mcp
-        language: system
+        language: python
+        # mypy plus the package's runtime dependencies (pyproject.toml), so imports resolve.
+        additional_dependencies: ["mypy>=1.11,<2", "pydantic>=2.11,<3", "mcp>=1.27,<2"]
         pass_filenames: false
-        always_run: true
-        stages: [pre-push]
+        files: ^(src/nx_mcp/.*\.py|pyproject\.toml)$

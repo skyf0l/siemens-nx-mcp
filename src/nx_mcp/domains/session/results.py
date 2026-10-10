@@ -180,7 +180,7 @@ def nx_get_result(
         out.update(kind="value", value=value)
     if omitted:
         out["omitted"] = omitted
-    return out  # type: ignore[return-value]
+    return out  # type: ignore[return-value]  # built field by field
 
 
 @tool(
@@ -268,4 +268,4 @@ def nx_delete_results(
         out["policy"] = report["policy"]
         for key in ("snapshot_count", "bytes_before", "selected_count", "bytes_after_cleanup"):
             out[key] += report[key]
-    return out  # type: ignore[return-value]
+    return out  # type: ignore[return-value]  # built field by field

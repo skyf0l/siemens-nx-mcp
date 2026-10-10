@@ -28,7 +28,18 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, Length, Point3, Range, RefTo, SheetPoint, Text
+from nx_mcp.core.types import (
+    DrawingViewRef,
+    FaceRef,
+    Items,
+    Length,
+    Point3,
+    Range,
+    RefTo,
+    SheetPoint,
+    Text,
+    forbid_extra,
+)
 from nx_mcp.domains.drawing.common import (
     add_leader,
     check_leader,
@@ -41,7 +52,24 @@ from nx_mcp.domains.drawing.common import (
 )
 from nx_mcp.kit import args, builders, drawing, geom, readback, result, select
 
-CHARACTERISTICS = {
+Characteristic = Literal[
+    "straightness",
+    "flatness",
+    "circularity",
+    "cylindricity",
+    "profile_of_a_line",
+    "profile_of_a_surface",
+    "angularity",
+    "perpendicularity",
+    "parallelism",
+    "position",
+    "concentricity",
+    "symmetry",
+    "circular_runout",
+    "total_runout",
+    "axis_intersection",
+]
+CHARACTERISTICS: dict[Characteristic, str] = {
     "straightness": "Straightness",
     "flatness": "Flatness",
     "circularity": "Circularity",
@@ -76,12 +104,12 @@ Modifier = Literal["mmc", "lmc", "rfs"]
 
 
 class _Frame(TypedDict):
-    characteristic: Literal[tuple(CHARACTERISTICS)]  # type: ignore[valid-type]
+    characteristic: Characteristic
     tolerance: Annotated[float, Range(gt=0, le=10000)]
 
 
 class FrameSpec(_Frame, total=False):
-    datums: Annotated[list[RefTo("annotation")], Items(1, 3)]  # type: ignore[valid-type]
+    datums: Annotated[list[Annotated[str, RefTo("annotation")]], Items(1, 3)]
     material: Modifier
     zone: Literal["diameter", "spherical_diameter", "square"]
     datum_material: Annotated[list[Literal["none", "mmc", "lmc", "rfs"]], Items(1, 3)]
@@ -90,10 +118,17 @@ class FrameSpec(_Frame, total=False):
     free_state: bool
 
 
-FrameSpec.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(FrameSpec)
 
 
-TARGETS = {
+TargetType = Literal[
+    "point",
+    "line",
+    "circular",
+    "rectangular",
+    "annular",
+]
+TARGETS: dict[TargetType, str] = {
     "point": "Point",
     "line": "Line",
     "circular": "Circular",
@@ -112,7 +147,7 @@ Kind = Literal["datum_feature", "fcf", "view_datum_feature", "view_fcf", "view_d
 
 
 class _Target(TypedDict):
-    type: Literal[tuple(TARGETS)]  # type: ignore[valid-type]
+    type: TargetType
 
 
 class TargetSpec(_Target, total=False):
@@ -123,7 +158,7 @@ class TargetSpec(_Target, total=False):
     height: Length
 
 
-TargetSpec.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(TargetSpec)
 
 
 class GdtData(TypedDict, total=False):
@@ -280,10 +315,10 @@ def nx_create_gdt(
     tx: Tx,
     *,
     kind: Kind,
-    faces: Annotated[list[RefTo("face")], Items(1, 20)] | None = None,  # type: ignore[valid-type]
+    faces: Annotated[list[FaceRef], Items(1, 20)] | None = None,
     position: Point3 | None = None,
-    view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
-    object: RefTo("edge", "face") | None = None,  # type: ignore[valid-type]  # noqa: A002
+    view: DrawingViewRef | None = None,
+    object: Annotated[str, RefTo("edge", "face")] | None = None,  # noqa: A002
     origin: SheetPoint | None = None,
     letter: Annotated[str, Text(3, r"^[A-Z]{1,3}$")] | None = None,
     frame: FrameSpec | None = None,

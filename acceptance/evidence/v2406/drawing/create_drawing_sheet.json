@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/drawing/create_drawing_sheet.json",
   "scenario_sha256": "b1f1b539ff55767b1dd45fc17cb327f4680637183419a6f41deda951c221f0f6",
   "domain": "drawing",
@@ -7,16 +7,11 @@
     "nx_create_drawing_sheet": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_drawing_sheet": "348755741cf8ceafd88519b8cb237b37e9b16a19e324cba4dd88f5365ca721e2"
   },
-  "run_id": "20261010-154836-7c717c",
-  "owner": "reg_final2_2",
-  "part": null,
-  "started": "2026-10-10T11:48:45Z",
-  "finished": "2026-10-10T11:48:47Z",
+  "recorded": "2026-10-10T12:25:19Z",
   "passed": true,
   "checks": 46,
   "failed_checks": 0,
@@ -26,122 +21,91 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.5,
-      "result_sha256": "20f54007a936470cbb4eece5b64f9e0d6a305a62d1dce0b9cbfda4a6fea31705"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 9,
-      "seconds": 0.078,
-      "result_sha256": "44d880997f4a8536856e0e43cd8cc44c3544a09667bd03f06a91e4295d4b3097"
+      "checks": 9
     },
     {
       "index": 3,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.078,
-      "result_sha256": "7b044a936d007dfe59d40ffe3d3e539cdf7056cdea160fa0aebc2a54411ac2b3"
+      "checks": 6
     },
     {
       "index": 4,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.078,
-      "result_sha256": "439b0276b15a7a3c221553923ed02bf27fccb9411c16ae6e9f3bd9f5831d5654"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.266,
-      "result_sha256": "27a325f249e243adede2dace423f98b004ec712d5421144d794a523b6edc1f2a"
+      "checks": 7
     },
     {
       "index": 6,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.062,
-      "result_sha256": "4c1388909273c60e52042a71d79eec1eb53002d445143fdabe5e74d3510853a1"
+      "checks": 3
     },
     {
       "index": 7,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "07ae41696a4924a1819860197751606eef1b99a1e920e7b59235b059a609bbc7"
+      "checks": 3
     },
     {
       "index": 8,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "7ddcd2e5e788116f05e823c91ef29406eca7f76cc19529ee7f2671781384e85c"
+      "checks": 3
     },
     {
       "index": 9,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.062,
-      "result_sha256": "a106d4ead3eef5a4a6d93cd7ed11921a1599e0f5bf03bedd76b0c8e93d1b73ff"
+      "checks": 3
     },
     {
       "index": 10,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "ce41bd501079a5fbebfa6c5d66ccfa0f367f663c75501179e009ddcc580b4cd5"
+      "checks": 3
     },
     {
       "index": 11,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "dbbaf56bd87ef82bcdcd4ba067ac4efcd3ebe8d117a0e0c304213eaeb4697382"
+      "checks": 3
     },
     {
       "index": 12,
       "call": "nx_create_drawing_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.0,
-      "result_sha256": "9c1882148d9aa77e060b537997de2d9c2ff9d1bb6788cd30ef5de378b8cb7575"
+      "checks": 3
     },
     {
       "index": 13,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.25,
-      "result_sha256": "efa51104d350922ebc02f5bfd82c32fc2e64bb2907cb134fd3f9f68b07e849ad"
+      "checks": 0
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [],
-    "failed": []
-  }
+  ]
 }

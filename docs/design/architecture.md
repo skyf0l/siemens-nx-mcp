@@ -69,16 +69,24 @@ validators accept and reject the same generated samples.
 | `RefKind(*kinds)` | accepted reference kinds | description (gate 1 checks the pattern; section 4) |
 | `Quantity(dim)` | `length`, `sheet_length` or `angle`; allows unit strings | `[number, string]`, `maxLength` 40 |
 | `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir` or `save` | `string` |
+| `RefTo(*kinds, doc=None)` | shorthand for `Text(128, ref pattern)`, `RefKind(*kinds)`, `Doc` | as its parts |
+| `PathTo(mode, *suffixes)` | shorthand for `Text(260)`, `PathArg`, `Doc("Workspace path")` | as its parts |
 
-The aliases follow surface 1.4: `Ref`, `RefTo(*kinds)`, `Point2`, `SheetPoint`, `Point3`,
+`core.validate.unwrap` expands the two shorthands in place, so every reader sees the plain
+markers. A reference or path is written `Annotated[str, RefTo("edge", "face")]`: type
+checkers see `str`, so the aliases narrow (`x is not None`) and compare like strings.
+
+The aliases follow surface 1.4: `Ref`, `BodyRef`, `FaceRef`, `EdgeRef`, `CurveRef`,
+`FeatureRef`, `SketchRef`, `PartRef`, `ComponentRef`, `ExplosionRef`, `DimensionRef`,
+`DrawingSheetRef`, `DrawingViewRef`, `DrawingTableRef`, `Point2`, `SheetPoint`, `Point3`,
 `Vec3`, `Mat3`, `Pose`, `Length`, `SheetLength`, `Angle`, `Units = Literal["mm", "in"]`,
 `Plane`, `Axis`, `Direction`, `SketchPoint`, `Limit`, `Combine`, `Page`, `Name`, `PathIn`,
 `PathOut`.
 
-- Unions are written with `|`: `Plane = RefTo("datum_plane", "face") | PrincipalPlane |
-  PlaneByNormal`.
-- A `TypedDict` sets `__pydantic_config__ = {"extra": "forbid"}` as a plain dict, so no
-  pydantic import is needed.
+- Unions are written with `|`: `Plane = Annotated[str, RefTo("datum_plane", "face")] |
+  PrincipalPlane | PlaneByNormal`.
+- A `TypedDict` argument calls `forbid_extra(...)`, which sets `__pydantic_config__ =
+  {"extra": "forbid"}` as a plain dict, so no pydantic import is needed.
 - Fixed vectors are `tuple[float, float, float]`, which gives `minItems == maxItems`.
 
 **Unit rule.**
@@ -233,10 +241,10 @@ and expressions), `material.py`, `hooks.py`.
 
 ## 2. Worked example: `nx_create_datum_plane`
 
-Today this tool lives in `modeling_server.nx_datum_plane`, `DatumFeaturesMixin._datum_plane`,
-a `request_summary` template, the manifest and copied vector helpers. In the new form it is one
-function, one test and one scenario. The legacy `flip` argument is dropped: a negative distance
-goes the other way.
+Before the migration this tool was spread over `modeling_server.nx_datum_plane`,
+`DatumFeaturesMixin._datum_plane`, a `request_summary` template, the manifest and copied vector
+helpers. Now it is one function, one test and one scenario. The `flip` argument was dropped: a
+negative distance goes the other way.
 
 ```python
 # src/nx_mcp/domains/modeling/datums.py
@@ -269,7 +277,7 @@ class DatumPlaneData(TypedDict):
 def nx_create_datum_plane(
     tx: Tx, *,
     method: Literal["offset", "point_normal", "three_points"],
-    reference: RefTo("datum_plane", "face") | None = None,
+    reference: Annotated[str, RefTo("datum_plane", "face")] | None = None,
     distance: Length | None = None,
     origin: Point3 | None = None,
     normal: Vec3 | None = None,
@@ -475,7 +483,7 @@ A single native call cannot be interrupted, and the host never pumps NX's main l
 
 ## 4. As built
 
-The migration (F1-F4) is complete: the legacy executor and its mixins, `certified.py`,
+The migration (F1-F4) is complete: the pre-catalogue executor and its mixins, `certified.py`,
 `integration_server.py`, the `*_server.py` stubs, the manifest, `request_summary.py` and the
 other name lists are deleted. The plan and the per-step as-built notes are in
 [docs/history/migration.md](../history/migration.md). What holds today:
@@ -519,8 +527,13 @@ other name lists are deleted. The plan and the per-step as-built notes are in
   is removed when the call ends.
 - **Acceptance.** `python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>` replays
   scenarios through a fresh stdio sidecar (`$part` is `smoke/<run-id>/...`), closes every part
-  it loaded, and writes `acceptance/evidence/<build>/<domain>/<name>.json`;
-  `python -m nx_mcp.acceptance fold` rebuilds `src/nx_mcp/evidence/*.json` from passing runs.
+  it loaded, and writes `acceptance/evidence/<build>/<domain>/<name>.json`: deterministic
+  proof only (scenario and tool source digests, NX build, per-step pass/fail and checks, one
+  `recorded` time), left untouched when only `recorded` would change, so an unchanged re-run
+  yields no diff. Run id, owner, part paths, times, result digests and cleanup go to the local
+  run log `<workspace>/.nx-mcp/acceptance-runs/<run-id>.json`.
+  `python -m nx_mcp.acceptance fold` rebuilds `src/nx_mcp/evidence/*.json` from passing runs
+  (deterministic: `recorded` comes from the evidence files).
   `scripts/generate_capability_matrix.py` and `scripts/generate_tool_reference.py` render
   `docs/capability-matrix.md` and `docs/tools.md` from the catalogue and that evidence.
 

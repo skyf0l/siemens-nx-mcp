@@ -24,11 +24,10 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Pose, RefTo, Text
+from nx_mcp.core.types import Doc, FeatureRef, Items, Pose, Text, forbid_extra
 from nx_mcp.kit import args, expr, readback, result
 from nx_mcp.kit import sketch as ksketch
 
-FeatureRef = RefTo("feature")
 ExpressionName = Annotated[
     str, Text(100, r"^[A-Za-z_][A-Za-z0-9_]{0,99}$"), Doc("Expression name (case-sensitive)")
 ]
@@ -185,7 +184,7 @@ class FeatureInfo(TypedDict):
     errors: list[str]
 
 
-def _parameter(tx, e) -> dict:
+def _parameter(tx, e) -> Parameter:
     try:
         value = expr.value(tx, e)
     except Exception:
@@ -200,7 +199,7 @@ def _parameter(tx, e) -> dict:
     }
 
 
-def info(tx, f) -> dict:
+def info(tx, f) -> FeatureInfo:
     part = tx.part
     state = states(tx, part).get(int(f.Tag), (f, bool(getattr(f, "Suppressed", False)), True))
     children = child_map(list(part.Features)).get(int(f.Tag), set())
@@ -238,7 +237,7 @@ def info(tx, f) -> dict:
     cost="instant",
     example={"feature": "f:12"},
 )
-def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:  # type: ignore[valid-type]
+def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:
     """Read a feature: type, timeline position, state, parents and children. Parameters list
     each expression with its formula, value, units and editability."""
     return info(tx, _feature(tx, feature))
@@ -259,8 +258,7 @@ class TransformDefinition(TypedDict):
     transform: Pose
 
 
-for _td in (ParameterValue, TransformDefinition):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(ParameterValue, TransformDefinition)
 
 
 def _parameter_targets(tx, f, parameters):
@@ -274,7 +272,7 @@ def _parameter_targets(tx, f, parameters):
             try:
                 exp = expr.alias(f, name)
             except Exception as error:
-                error.field = field + "/name"  # type: ignore[attr-defined]
+                error.field = field + "/name"
                 raise
         if int(exp.Tag) in seen:
             fail("NX_INVALID_ARGUMENT", f"{name} names an expression twice", field=field)
@@ -307,7 +305,7 @@ def _parameter_targets(tx, f, parameters):
 def nx_edit_feature(
     tx: Tx,
     *,
-    feature: FeatureRef,  # type: ignore[valid-type]
+    feature: FeatureRef,
     parameters: Annotated[list[ParameterValue], Items(1, 25)] | None = None,
     definition: TransformDefinition | None = None,
 ) -> FeatureInfo:
@@ -333,7 +331,7 @@ def nx_edit_feature(
                 expr.bind(tx, exp, value)
             except Exception as error:
                 if getattr(error, "field", "") is None:
-                    error.field = field + "/value"  # type: ignore[attr-defined]
+                    error.field = field + "/value"  # type: ignore[attr-defined]  # any exception without a field
                 raise
         update(tx)
         for exp, value, field in targets:
@@ -362,8 +360,22 @@ class SuppressionData(TypedDict):
     still_suppressed: list[Row]
 
 
-def _row(tx, f, **extra) -> dict:
-    return {**tx.ref(f, kind="feature"), **extra}
+def _row(
+    tx,
+    f,
+    *,
+    index: int | None = None,
+    suppressed: bool | None = None,
+    requested: bool | None = None,
+) -> Row:
+    row: Row = {**tx.ref(f, kind="feature")}
+    if index is not None:
+        row["index"] = index
+    if suppressed is not None:
+        row["suppressed"] = suppressed
+    if requested is not None:
+        row["requested"] = requested
+    return row
 
 
 @tool(
@@ -379,7 +391,7 @@ def _row(tx, f, **extra) -> dict:
 def nx_set_feature_suppression(
     tx: Tx,
     *,
-    features: Annotated[list[FeatureRef], Items(1, MAX_FEATURES)],  # type: ignore[valid-type]
+    features: Annotated[list[FeatureRef], Items(1, MAX_FEATURES)],
     suppressed: bool,
 ) -> SuppressionData:
     """Suppress or unsuppress features. Dependents follow a suppress; unsuppress restores only
@@ -426,7 +438,7 @@ def nx_set_feature_suppression(
         for tag, (f, s, _) in after.items()
         if tag in before and before[tag][1] != s
     ]
-    still = []
+    still: list[Row] = []
     if not suppressed:
         children = child_map(list(part.Features))
         for tag in descendants(children, sorted(asked)):
@@ -461,7 +473,7 @@ class CurrentData(TypedDict):
 def nx_set_current_feature(
     tx: Tx,
     *,
-    feature: FeatureRef | None = None,  # type: ignore[valid-type]
+    feature: FeatureRef | None = None,
 ) -> CurrentData:
     """Roll the timeline to a feature, or to the end when feature is omitted. Later features
     become inactive and new features are inserted after the current one."""
@@ -516,8 +528,8 @@ class OrderData(TypedDict):
 def nx_set_feature_order(
     tx: Tx,
     *,
-    feature: FeatureRef,  # type: ignore[valid-type]
-    anchor: FeatureRef,  # type: ignore[valid-type]
+    feature: FeatureRef,
+    anchor: FeatureRef,
     position: Literal["before", "after"],
 ) -> OrderData:
     """Move a feature directly before or after another. A feature cannot move before a parent
@@ -654,7 +666,9 @@ def nx_update_model(tx: Tx) -> HealthData:
     errors roll the model back."""
     part = tx.part
     update(tx)
-    errors, warnings, suppressed = [], [], 0
+    errors: list[dict] = []
+    warnings: list[dict] = []
+    suppressed = 0
     for f in part.Features:
         tx.checkpoint()
         for kind, out in (("Error", errors), ("Warning", warnings)):
@@ -663,12 +677,13 @@ def nx_update_model(tx: Tx) -> HealthData:
         suppressed += bool(getattr(f, "Suppressed", False))
     bodies = list(part.Bodies)
     check = getattr(getattr(tx.uf, "Modeling", None), "AskBodyConsistency", None)
-    for body in bodies if check is not None else []:
-        count = check(body.Tag)[0]
-        if count:
-            errors.append(
-                {"body": body.JournalIdentifier, "message": f"{count} consistency faults"}
-            )
+    if check is not None:
+        for body in bodies:
+            count = check(body.Tag)[0]
+            if count:
+                errors.append(
+                    {"body": body.JournalIdentifier, "message": f"{count} consistency faults"}
+                )
     return {
         "features": len(list(part.Features)),
         "errors": errors,

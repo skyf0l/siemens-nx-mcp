@@ -22,7 +22,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
 from mcp.server.lowlevel.server import NotificationOptions
 from mcp.types import CallToolResult, Tool, ToolAnnotations
@@ -70,7 +70,7 @@ FULL_INSTRUCTIONS = (
 )
 
 
-def annotations(effect: str, name: str, label: str | None = None) -> ToolAnnotations:
+def tool_annotations(effect: str, name: str, label: str | None = None) -> ToolAnnotations:
     """MCP hints from a spec effect (surface 1.3)."""
     verb = name.split("_")[1] if name.count("_") >= 2 else ""
     return ToolAnnotations(
@@ -116,7 +116,7 @@ class Surface:
                 name=name,
                 description=gateways.DESCRIPTIONS[name],
                 inputSchema=gateways.tool_schema(name),
-                annotations=annotations(effects.get(name, "read"), name),
+                annotations=tool_annotations(effects.get(name, "read"), name),
             )
             for name in gateways.NAMES
         ]
@@ -129,7 +129,7 @@ class Surface:
             inputSchema=schema.narrow_variants(
                 schema.input_schema(spec), spec, self.proxy.variants(spec)
             ),
-            annotations=annotations(spec.effect, spec.name),
+            annotations=tool_annotations(spec.effect, spec.name),
         )
 
     async def list_tools(self) -> list[Tool]:
@@ -212,6 +212,7 @@ class Surface:
         if name in ("nx_find_tools", "nx_get_tool_schemas"):
             await self.proxy.refresh()
             return self._find(request) if name == "nx_find_tools" else self._schemas(request)
+        request = cast("gateways.Invoke | gateways.InvokeRead", request)  # the other gateways
         target = request.tool
         if target in gateways.NAMES:
             problem = NXError(
@@ -222,8 +223,8 @@ class Surface:
             return result(failure(target, problem, "not_started"))
         if name == "nx_invoke_read" and self.effect_of(target) != "read":
             if self.effect_of(target) is None:
-                error = gateways.unknown_tool(target, self.known())
-                return result(failure(target, error, "not_started"))
+                unknown = gateways.unknown_tool(target, self.known())
+                return result(failure(target, unknown, "not_started"))
             problem = NXError(
                 "NX_UNSUPPORTED_OPTION",
                 f"{target} is not a read-only tool (effect {self.effect_of(target)})",

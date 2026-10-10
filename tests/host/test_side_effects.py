@@ -6,7 +6,7 @@ import sys
 
 from nx_mcp import side_effects
 from nx_mcp.core.errors import NXError
-from tests.fakes import Body
+from tests.kit.objects import Body
 
 
 class NXList(list):

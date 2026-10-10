@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/inspection/inch_units.json",
   "scenario_sha256": "fa48a1268825663eb9140d5ea778061d1d837ed2a95103e6f965e14aadfe744e",
   "domain": "inspection",
@@ -11,8 +11,7 @@
     "nx_measure_wall_thickness": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_measure_mass": "a963c712e4a265bd14a8bff80a6ca6dedd674a83402ef1cf9c0837bb1fa1ede7",
     "nx_measure_distance": "a963c712e4a265bd14a8bff80a6ca6dedd674a83402ef1cf9c0837bb1fa1ede7",
@@ -20,11 +19,7 @@
     "nx_check_interference": "6a43afee130d0b65cff1ed115ea48d5b387b35983363156def8441884d544166",
     "nx_measure_wall_thickness": "a963c712e4a265bd14a8bff80a6ca6dedd674a83402ef1cf9c0837bb1fa1ede7"
   },
-  "run_id": "20261010-155510-29a676",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155510-29a676\\inspection_inch_units_29a676.prt",
-  "started": "2026-10-10T11:55:15Z",
-  "finished": "2026-10-10T11:55:17Z",
+  "recorded": "2026-10-10T11:55:17Z",
   "passed": true,
   "checks": 19,
   "failed_checks": 0,
@@ -34,160 +29,119 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.484,
-      "result_sha256": "a23c6d0183d311cd02f1249b35a0753f44fdc6f037d44f52d687e4412dd2cbe0"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "ec5717c3ae44cad0315dc88859c3460d40f1e34fc731f02a2a39c250ac3b1b2d"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "92e6310c9d32bcbc7cddd23f8649ff3a4b06d7a98c81dc57be764f95e7844bb8"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.093,
-      "result_sha256": "b1df6ae41ce0bc65b977220e6fd446a0d57baa881fa89ff343bf5d9237858443"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "953b4003d80155fbd815dafdfcdaf5172a9cc5d0d64db0d0c964d4a6bca82c6d"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "5b967abd29dd27e715320c788eb8917dd5d0850b38d714724b011ea5dccfbb82"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "fafdc4b09283e80541ff3965ba7c245fab5fa62a81318db32615b83784434cef"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.093,
-      "result_sha256": "63754215df3928b6b52bd66bf3434f2a179c3054b37021d56915bf1f452d3e72"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "598021b5ae260c2a1093b4a9de9d13acc386d2003996a07e60e61ad2c41afbb7"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_set_material",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "b122134c8136a84b5f1c045101fe3e845a9bdd2b6a6ed3ff0c9f3e798db1672f"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.032,
-      "result_sha256": "ccda723676bc03f34de99383880ee70a6168bf6f39635c0111121ed8e61b6ed8"
+      "checks": 7
     },
     {
       "index": 12,
       "call": "nx_measure_distance",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "95988c92a95a3e51a843e1a9eb25b8f9253842e1825358afebed608666ffc3f7"
+      "checks": 3
     },
     {
       "index": 13,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "89a3c965764b917a9607e4e602dbdad87c513d192e62830732183616a22b041f"
+      "checks": 2
     },
     {
       "index": 14,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "7067d680f4edf4ce6e3f262b25e08cea19db18612cda5c58d9c1a00018d4a55a"
+      "checks": 0
     },
     {
       "index": 15,
       "call": "nx_measure_wall_thickness",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "d3e7d47d2e4a7322566c26166e60258e1c1a574ca36f006ab0d34cc34e1002c6"
+      "checks": 2
     },
     {
       "index": 16,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "2ffa07d8cc258dd508646903ebaa60de18740e2103cd3045010690aecf45cfd7"
+      "checks": 3
     },
     {
       "index": 17,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "4d321f23e193a3ac2e326f0b03e180ece22e823c68ec47ff35ac63e8bfc309a9"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155510-29a676/inspection_inch_units_29a676.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

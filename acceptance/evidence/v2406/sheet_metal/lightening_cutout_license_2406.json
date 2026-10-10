@@ -1,18 +1,13 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/lightening_cutout_license_2406.json",
   "scenario_sha256": "08f96123410d0e90f6a06264ee2445d89a9afa77642dfe9cfbaf480cabc27924",
   "domain": "sheet_metal",
   "covers": {},
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {},
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_lightening_cutout_license_2406_3fd345.prt",
-  "started": "2026-10-10T11:54:43Z",
-  "finished": "2026-10-10T11:54:44Z",
+  "recorded": "2026-10-10T11:54:44Z",
   "passed": true,
   "checks": 6,
   "failed_checks": 0,
@@ -22,115 +17,84 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "a160c1ebc5b1fa04a789c87c464803e8dd3ee0c15d56c7c6f9498127c57afb52"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.203,
-      "result_sha256": "0b55445b1492de77bbd265e85d33723b56ca1c22506e35b8218f37879496176f"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "f1f1648a31e95a4f40bb1be2ee5195acafb72609f0fafe89cde0d5f30b8a8e9d"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "7fb9e2baf7ebd97dfe558973caf3a977853034e216ab6757a20ca159ad7827f6"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "e5d316117f066d7d4f024f4b4fc9039eedab3ab66ec4a02b48afd3c3696cbc4b"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "35a6c64a7ff5df4d9b88d3eeda8311b231fc66e1ed2559213512c7d630cba24d"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.062,
-      "result_sha256": "ac1285c8a3e84280e23838797d4d3330ef0e8f34fabfaf1d467e91d3f74be6aa"
+      "checks": 1
     },
     {
       "index": 8,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "030d4c0ba619c614915f24b3aaf0f1a247c8f20f8fbcd4adef2e0254125dfc0a"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "64489ca27ffdcc1fdf3801892435246f8e6614eb2f8b88d3dac44a1bbeb06ece"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "c26627b256046a6e9794d7fd799ce39344610376f13ddcc26a586aab954c3ca4"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.094,
-      "result_sha256": "9b3eeb0f1781f15afa9c3de60b0ccbe21d66a3e425bfe0242d0c286d75133dbd"
+      "checks": 3
     },
     {
       "index": 12,
       "call": "nx_get_sheet_metal",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "b4e005262296fb1ba131f8928d8dbed321dccf66b479b22baffbc9b842baf6d3"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_lightening_cutout_license_2406_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

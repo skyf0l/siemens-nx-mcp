@@ -21,7 +21,17 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, RefTo, SheetLength, SheetPoint, Text
+from nx_mcp.core.types import (
+    DrawingSheetRef,
+    DrawingTableRef,
+    DrawingViewRef,
+    EdgeRef,
+    Items,
+    SheetLength,
+    SheetPoint,
+    Text,
+    forbid_extra,
+)
 from nx_mcp.domains.drawing import hole_callouts, title_blocks
 from nx_mcp.domains.drawing.common import (
     NATIVE_TABLE,
@@ -35,7 +45,8 @@ from nx_mcp.domains.drawing.common import (
 from nx_mcp.kit import args, builders, drawing, parts, readback, result, select
 
 DEFAULT_ROW_HEIGHT_MM = 7.0
-BEND_COLUMNS = {
+BendColumn = Literal["id", "name", "angle", "direction", "radius"]
+BEND_COLUMNS: dict[BendColumn, str] = {
     "id": "BendID",
     "name": "BendName",
     "angle": "BendAngle",
@@ -46,7 +57,7 @@ ONE_PARTS_LIST = "UGII_UPDATE_ALL_ID_SYMBOLS_WITH_PLIST"
 Cell = Annotated[str, Text(1024)]
 Rows = Annotated[list[Annotated[list[Cell], Items(1, 20)]], Items(1, 100)]
 Widths = Annotated[list[SheetLength], Items(1, 20)]
-BendColumns = Annotated[list[Literal[tuple(BEND_COLUMNS)]], Items(1, 5)]  # type: ignore[valid-type]
+BendColumns = Annotated[list[BendColumn], Items(1, 5)]
 
 
 class TableInfo(TypedDict, total=False):
@@ -204,15 +215,15 @@ def nx_create_drawing_table(
     *,
     kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
     position: SheetPoint,
-    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
-    view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
+    sheet: DrawingSheetRef | None = None,
+    view: DrawingViewRef | None = None,
     scope: Literal["leaves", "top_level", "all"] = "leaves",
     columns: BendColumns | None = None,
     automatic: bool = True,
     rows: Rows | None = None,
     widths: Widths | None = None,
     row_height: SheetLength | None = None,
-    origin: RefTo("edge") | None = None,  # type: ignore[valid-type]
+    origin: EdgeRef | None = None,
     origin_point: Literal["auto", "start", "end", "center"] = "auto",
 ) -> TableInfo:
     """Place a parts list, bend, title block, revision or hole table. Parts lists need an
@@ -379,7 +390,7 @@ class ColumnEdit(_Column, total=False):
     protected: bool
 
 
-ColumnEdit.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(ColumnEdit)
 
 
 @tool(
@@ -410,7 +421,7 @@ ColumnEdit.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-define
 def nx_edit_drawing_table(
     tx: Tx,
     *,
-    table: RefTo("drawing_table"),  # type: ignore[valid-type]
+    table: DrawingTableRef,
     kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
     rows: Rows | None = None,
     widths: Widths | None = None,
@@ -650,8 +661,8 @@ def _edit_grid(tx, obj, rows, widths, row_height, sh):
 def nx_get_drawing_table(
     tx: Tx,
     *,
-    table: RefTo("drawing_table") | None = None,  # type: ignore[valid-type]
-    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
+    table: DrawingTableRef | None = None,
+    sheet: DrawingSheetRef | None = None,
 ) -> TableInfo:
     """Read a drawing table, or the title block of a sheet. Gives kind, evaluated rows, columns,
     update mode and position; title blocks list cells (label, lock, text with <W@TITLE> links,
@@ -697,8 +708,8 @@ class BalloonData(TypedDict):
 def nx_create_balloons(
     tx: Tx,
     *,
-    parts_list: RefTo("drawing_table"),  # type: ignore[valid-type]
-    view: RefTo("drawing_view"),  # type: ignore[valid-type]
+    parts_list: DrawingTableRef,
+    view: DrawingViewRef,
 ) -> BalloonData:
     """Create parts-list balloons for the components shown in a drawing view. Components that
     already have a balloon in the view get none."""

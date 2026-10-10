@@ -39,12 +39,12 @@ import shutil
 import struct
 import time
 from pathlib import Path
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NoReturn, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import classify, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import ByVariant, Doc, Json, PathTo, RefTo
+from nx_mcp.core.types import ByVariant, Doc, Json, PathTo, SketchRef
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.domains.parts_files.exchange import Bounds, _settings, _tail
 from nx_mcp.domains.parts_files.parts import new_part
@@ -136,7 +136,7 @@ class ImportData(TypedDict):
 # --- source checks (before NX sees the file) ------------------------------------------
 
 
-def _bad(message: str, hint: str | None = None):
+def _bad(message: str, hint: str | None = None) -> NoReturn:
     fail("NX_INVALID_ARGUMENT", message, field="/path",
          hint=hint or "Upload the complete file; no translator was started")  # fmt: skip
 
@@ -210,9 +210,16 @@ def dxf_facts(data: bytes) -> dict:
     pairs = _dxf_pairs(data.decode("latin-1").lstrip("﻿"))
     if not pairs or pairs[-1] != (0, "EOF"):
         raise ValueError("no EOF marker (truncated?)")
-    sections, entities, header = set(), {}, {}
-    handles, exact, points, z = 0, True, [], []
-    section, var, entity, values = None, None, None, {}
+    sections: set[str] = set()
+    entities: dict[str, int] = {}
+    header: dict[str, str] = {}
+    handles, exact = 0, True
+    points: list[tuple[float, float]] = []
+    z: list[float] = []
+    section: str | None = None
+    var: str | None = None
+    entity: str | None = None
+    values: dict[int, float] = {}
 
     def close():
         nonlocal exact
@@ -426,7 +433,7 @@ def _diagnostics(folder: Path, root, format: str) -> dict:
 
 
 def _product_names(text: str) -> set[str]:
-    names = set()
+    names: set[str] = set()
     pattern = r"PRODUCT\s*\(\s*'((?:[^']|'')*)'\s*,\s*'((?:[^']|'')*)'"
     for pair in re.findall(pattern, text, re.IGNORECASE):
         names.update(Path(v.replace("''", "'")).stem.casefold() for v in pair)
@@ -475,12 +482,11 @@ def _check_options(format, flatten, target, sketch, new_part_path, source_suffix
 def nx_import_model(
     tx: Tx,
     *,
-    path: PathTo("read", *ALL_SUFFIXES),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("read", *ALL_SUFFIXES)],
     format: Literal["step", "iges", "parasolid", "stl", "dxf_dwg", "catia_v5"],
     target: Literal["work_part", "new_part", "sketch"] = "work_part",
-    new_part_path: PathTo("new", ".prt") | None = None,  # type: ignore[valid-type]
-    sketch: Annotated[RefTo("sketch"), Doc("target sketch: its X/Y take the file's X/Y")]  # type: ignore[valid-type]
-    | None = None,
+    new_part_path: Annotated[str, PathTo("new", ".prt")] | None = None,
+    sketch: Annotated[SketchRef, Doc("target sketch: its X/Y take the file's X/Y")] | None = None,
     flatten: Annotated[bool, Doc("STEP: false keeps the assembly structure as components")] = True,
     options: Options = {},  # noqa: B006 - never mutated; None would be Optional on Python 3.10
 ) -> ImportData:

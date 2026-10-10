@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/modeling/tube_inch.json",
   "scenario_sha256": "335f50cdef975ca6934a7722df761de371e7fb217e22bfe7da99deb9b06de5d5",
   "domain": "modeling",
@@ -7,16 +7,11 @@
     "nx_create_tube": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_tube": "13f6208ef949658cc6cebbfdb36fc9e16a09cd67cd1347a1e7dbb66068d50ed0"
   },
-  "run_id": "20261010-154505-433572",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_tube_inch_433572.prt",
-  "started": "2026-10-10T11:46:35Z",
-  "finished": "2026-10-10T11:46:36Z",
+  "recorded": "2026-10-10T11:46:36Z",
   "passed": true,
   "checks": 3,
   "failed_checks": 0,
@@ -26,61 +21,42 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "b6ccfc81110960000746c9e04dd9546a6c4b1be55135a9a1796cb1ae7ff8eb3e"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "53ff57aad3ecf9292a57d0e3bb66e2c05c59481a9e86f4164fc3852a3f2063ca"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.046,
-      "result_sha256": "d7e23652a10605dc43989dca2b42dce48dbc69bae7f828a26a34d22e3a27ef00"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "216c72e3cdfb21c1f3ebda256b23eb952285f6702d78a80ec24cc1512dd40f8e"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_tube",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.062,
-      "result_sha256": "a53a70f971094e672fafafb68df932e1a92600b17eb7f7646e64f02da011d8e5"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.032,
-      "result_sha256": "362fff964ba8f3b4c3fbe590d8b837e001a3ed6181522948c9ba3f20e3dfeaa4"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154505-433572/modeling_tube_inch_433572.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

@@ -265,7 +265,7 @@ async def test_scenario_runs_through_the_gateways_and_writes_evidence(tmp_path, 
     workspace.mkdir()
     server = create_server(nx, Workspace(workspace), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        record = await runner.run_scenario(
+        record, details = await runner.run_scenario(
             session,
             scenario_dir,
             workspace=workspace,
@@ -283,20 +283,30 @@ async def test_scenario_runs_through_the_gateways_and_writes_evidence(tmp_path, 
     assert method == "nx_create_datum_plane" and params["reference"] == "obj_face_0001"
     assert params["intent"].startswith("Acceptance modeling/fake, step 3")
     assert [c[0] for c in nx.calls].count("nx_create_datum_plane") == 2  # step 5 stays local
-    assert all(s["result_sha256"] for s in record["steps"])
+    assert all(s["result_sha256"] for s in details["steps"])
     # Cleanup: the scenario part is closed unsaved by ID. The engineer's part is never
     # displayed again by the run (re-displaying a part can switch NX's application).
-    assert record["cleanup"]["closed"] == [part] and not record["cleanup"]["failed"]
-    assert record["cleanup"]["not_restored"] == "C:/eng/bracket.prt"
+    assert details["cleanup"]["closed"] == [part] and not details["cleanup"]["failed"]
+    assert details["cleanup"]["not_restored"] == "C:/eng/bracket.prt"
     method, params = nx.calls[-1]
     assert method == "nx_close_part" and params["save"] is False
     assert params["part"] == nx.row(part)["part"]["id"]
     assert "nx_activate_part" not in [c[0] for c in nx.calls]
     assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"]
 
+    # Evidence holds the deterministic proof only; run details go to the run log.
+    assert list(record) == [
+        "format", "scenario", "scenario_sha256", "domain", "covers", "nx_version",
+        "nx_build", "sources", "recorded", "passed", "checks", "failed_checks", "steps",
+    ]  # fmt: skip
+    assert record["format"] == runner.EVIDENCE_FORMAT
+    assert all(list(s) == ["index", "call", "setup", "passed", "checks"] for s in record["steps"])
+    assert details["part"] == part and details["finished"] and details["cleanup"]["closed"]
+
     evidence_root = tmp_path / "evidence"
-    written = runner.write_evidence(record, evidence_root)
-    assert written == evidence_root / "v2406" / "modeling" / "fake.json"
+    written, changed = runner.write_evidence(record, evidence_root)
+    assert changed and written == evidence_root / "v2406" / "modeling" / "fake.json"
+    assert b"\r" not in written.read_bytes()
     folded, problems = runner.fold(evidence_root, tmp_path / "out")
     assert problems == []
     entry = folded["nx_create_datum_plane"]["v2406"]
@@ -309,7 +319,7 @@ async def test_scenario_runs_through_the_gateways_and_writes_evidence(tmp_path, 
     folded, problems = runner.fold(evidence_root, tmp_path / "out")
     assert folded == {} and "rerun" in problems[0]
     assert not list((tmp_path / "out").glob("*.json"))
-    failed = runner.write_evidence({**record, "passed": False}, evidence_root)
+    failed, _ = runner.write_evidence({**record, "passed": False}, evidence_root)
     assert failed.name == "fake.last-failure.json"
 
 
@@ -319,11 +329,12 @@ async def test_a_failing_expectation_fails_the_scenario(tmp_path, scenario_dir):
     scenario_dir.write_text(json.dumps(broken), encoding="utf-8")
     server = create_server(FakeNX(), Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        record = await runner.run_scenario(
+        record, details = await runner.run_scenario(
             session, scenario_dir, workspace=tmp_path, run_id="r2", build=("v2406", ""), owner="t"
         )
     assert not record["passed"] and record["failed_checks"] == 1
     assert "close 30" in record["steps"][2]["failures"][0]
+    assert details["steps"][2]["failures"] == record["steps"][2]["failures"]
 
 
 async def test_parts_are_closed_when_a_setup_step_fails(tmp_path, scenario_dir):
@@ -333,11 +344,11 @@ async def test_parts_are_closed_when_a_setup_step_fails(tmp_path, scenario_dir):
     nx = FakeNX()
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        record = await runner.run_scenario(
+        record, details = await runner.run_scenario(
             session, scenario_dir, workspace=tmp_path, run_id="r3", build=("v2406", ""), owner="t"
         )
     assert not record["passed"] and len(record["steps"]) == 2  # stopped at the failed setup
-    assert len(record["cleanup"]["closed"]) == 1
+    assert len(details["cleanup"]["closed"]) == 1
     assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"]
 
 
@@ -346,11 +357,78 @@ async def test_cleanup_keep_leaves_parts_loaded(tmp_path, scenario_dir):
     nx = FakeNX()
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        record = await runner.run_scenario(
+        record, details = await runner.run_scenario(
             session, scenario_dir, workspace=tmp_path, run_id="r4", build=("v2406", ""), owner="t"
         )
-    assert record["cleanup"] == {"mode": "keep", "closed": [], "failed": []}
+    assert details["cleanup"] == {"mode": "keep", "closed": [], "failed": []}
     assert len(nx.parts) == 2
+
+
+async def test_a_second_identical_run_leaves_the_evidence_file_byte_identical(
+    tmp_path, scenario_dir, monkeypatch
+):
+    evidence_root = tmp_path / "evidence"
+    times = iter(f"2026-10-10T12:00:{n:02}Z" for n in range(60))
+    monkeypatch.setattr(runner, "utc_now", lambda: next(times))
+    outputs = []
+    for run_id in ("20261010-120000-aaaaaa", "20261011-090000-bbbbbb"):
+        workspace = tmp_path / run_id  # another run, another workspace, another part path
+        workspace.mkdir()
+        server = create_server(FakeNX(), Workspace(workspace), surface="agent")
+        async with create_connected_server_and_client_session(server) as session:
+            record, _ = await runner.run_scenario(
+                session, scenario_dir, workspace=workspace, run_id=run_id,
+                build=("v2406", "2406.9160"), owner=run_id,
+            )  # fmt: skip
+        path, changed = runner.write_evidence(record, evidence_root)
+        outputs.append((record, changed, path.read_bytes(), path.stat().st_mtime_ns))
+    (first, wrote, data, mtime), (second, rewrote, again, mtime_again) = outputs
+    assert first["recorded"] != second["recorded"]  # only the time differs
+    assert wrote and not rewrote and data == again and mtime == mtime_again
+    assert json.loads(data)["recorded"] == first["recorded"]
+    # A real change (another NX build) rewrites the file, with the new time.
+    path, changed = runner.write_evidence({**second, "nx_build": "2406.9200"}, evidence_root)
+    assert changed and json.loads(path.read_bytes())["recorded"] == second["recorded"]
+
+
+async def test_failure_evidence_keeps_the_error_without_local_paths(tmp_path, scenario_dir):
+    broken = json.loads(json.dumps(SCENARIO))
+    broken["steps"].insert(1, {"call": "nx_create_datum_plane", "args": {"method": "x"}})
+    scenario_dir.write_text(json.dumps(broken), encoding="utf-8")
+    server = create_server(FakeNX(), Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        record, details = await runner.run_scenario(
+            session, scenario_dir, workspace=tmp_path, run_id="r7", build=("v2406", ""), owner="t"
+        )
+    step = record["steps"][1]
+    assert not step["passed"] and step["error"]["code"] and step["error"]["message"]
+    assert step["failures"][0].startswith(f"unexpected error {step['error']['code']}")
+    assert details["steps"][1]["result_sha256"] and "seconds" not in step
+    path, _ = runner.write_evidence(record, tmp_path / "evidence")
+    assert path.name == "fake.last-failure.json"
+
+
+def test_scrubber_replaces_local_paths_in_every_spelling(tmp_path):
+    workspace = Path("C:/Users/someone/NX_MCP_WORKSPACE")
+    scrub = runner.scrubber(
+        [(workspace / "smoke" / "20261010-x", "$run"), (workspace, "$workspace"),
+         (Path("C:/Users/someone"), "~"), ("20261010-x", "$run_id")]
+    )  # fmt: skip
+    text = (
+        r"cannot open C:\Users\someone\NX_MCP_WORKSPACE\smoke\20261010-x\a.prt; "
+        "c:/users/someone/nx_mcp_workspace/b.prt; "
+        r"repr 'C:\\Users\\someone\\x.stp'; run 20261010-x"
+    )
+    assert scrub(text) == (
+        r"cannot open $run\a.prt; $workspace/b.prt; repr '~\\x.stp'; run $run_id"
+    )
+
+
+def test_the_run_log_keeps_the_run_details_outside_the_repository(tmp_path):
+    log = {"run_id": "20261010-1-abc", "owner": "me", "scenarios": [{"part": "C:/x.prt"}]}
+    path = runner.write_run_log(tmp_path, log)
+    assert path == tmp_path / ".nx-mcp" / "acceptance-runs" / "20261010-1-abc.json"
+    assert json.loads(path.read_text(encoding="utf-8")) == log
 
 
 class PanelNX(FakeNX):
@@ -403,16 +481,16 @@ async def test_the_dev_panel_mode_is_restored_after_a_scenario(
     monkeypatch.setattr(runner, "press_panel", nx.click)
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        record = await runner.run_scenario(
+        record, details = await runner.run_scenario(
             session, scenario_dir, workspace=tmp_path, run_id="r5", build=("v2406", ""), owner="t"
         )
     assert record["passed"], record["steps"]
     if dev:  # "Ask me first" left by the scenario: the runner clicks Agent drives again.
         assert nx.mode == "agent" and nx.clicks == ["agent"]
-        assert record["cleanup"]["panel"] == {"from": "ask", "to": "agent", "restored": True}
-        assert not record["cleanup"]["failed"]
+        assert details["cleanup"]["panel"] == {"from": "ask", "to": "agent", "restored": True}
+        assert not details["cleanup"]["failed"]
     else:  # Production panels are never touched, not even read.
-        assert nx.mode == "ask" and nx.clicks == [] and "panel" not in record["cleanup"]
+        assert nx.mode == "ask" and nx.clicks == [] and "panel" not in details["cleanup"]
         assert [c for c in nx.calls if c[1].get("mode") == "status"] == []
 
 
@@ -445,11 +523,11 @@ async def test_the_runner_never_overrides_the_engineers_panel_choice(
     monkeypatch.setattr(runner, "press_panel", nx.click)
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        record = await runner.run_scenario(
+        record, details = await runner.run_scenario(
             session, scenario_dir, workspace=tmp_path, run_id="r6", build=("v2406", ""), owner="t"
         )
     assert record["passed"], record["steps"]
-    assert nx.mode == engineer and nx.clicks == [] and "panel" not in record["cleanup"]
+    assert nx.mode == engineer and nx.clicks == [] and "panel" not in details["cleanup"]
 
 
 def test_repository_scenarios_cover_every_catalogue_tool_and_variant():
@@ -497,6 +575,29 @@ def test_committed_evidence_folds_back_to_the_committed_files(tmp_path):
     for path in committed.glob("*.json"):
         assert json.loads(path.read_text()) == json.loads((tmp_path / path.name).read_text())
     assert {p.name for p in committed.glob("*.json")} == {p.name for p in tmp_path.glob("*.json")}
+
+
+def test_fold_is_deterministic(tmp_path):
+    """Identical evidence folds to byte-identical files; a re-fold touches nothing."""
+    first, second = tmp_path / "a", tmp_path / "b"
+    runner.fold(runner.EVIDENCE, first)
+    runner.fold(runner.EVIDENCE, second)
+    files = sorted(p.name for p in first.glob("*.json"))
+    assert files and files == sorted(p.name for p in second.glob("*.json"))
+    for name in files:
+        data = (first / name).read_bytes()
+        assert data == (second / name).read_bytes() and b"\r" not in data
+    stamps = {name: (first / name).stat().st_mtime_ns for name in files}
+    runner.fold(runner.EVIDENCE, first)
+    assert stamps == {name: (first / name).stat().st_mtime_ns for name in files}
+    # ``recorded`` comes from the evidence files, never from the time of the fold.
+    recorded = {
+        json.loads(p.read_text(encoding="utf-8"))["recorded"]
+        for p in runner.EVIDENCE.glob("*/*/*.json")
+        if not p.name.endswith(".last-failure.json")
+    }
+    folded = runner.core_evidence.load(first)
+    assert {e["recorded"] for builds in folded.values() for e in builds.values()} <= recorded
 
 
 class AssemblyNX(FakeNX):

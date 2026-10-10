@@ -49,5 +49,6 @@ def test_default_matrix_lists_every_catalogue_tool():
     rows = matrix.load_catalogue()
     assert {r["name"] for r in rows} == set(catalogue.load())
     rendered = matrix.render(rows)
-    assert "## Catalogue tools" in rendered and "## Legacy tools" not in rendered
+    sections = [line for line in rendered.splitlines() if line.startswith("## ")]
+    assert sections == ["## Catalogue tools"]  # one section: every tool is a catalogue tool
     assert all(f"| {r['name']} |" in rendered for r in rows)

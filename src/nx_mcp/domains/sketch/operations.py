@@ -27,9 +27,9 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Length, RefTo
+from nx_mcp.core.types import CurveRef, Doc, Items, Length, RefTo, SketchRef
 from nx_mcp.domains.sketch import common
-from nx_mcp.domains.sketch.common import CurveRef, CurveRow, SketchRef
+from nx_mcp.domains.sketch.common import CurveRow
 from nx_mcp.kit import args, builders, geom, readback, result, select, units
 from nx_mcp.kit import curve as kcurve
 from nx_mcp.kit import sketch as ksketch
@@ -198,9 +198,9 @@ def _chamfer(tx, sk, a, b, d1, d2):
 def nx_create_sketch_corner(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
-    first: CurveRef,  # type: ignore[valid-type]
-    second: CurveRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
+    first: CurveRef,
+    second: CurveRef,
     kind: Literal["fillet", "chamfer"],
     radius: Length | None = None,
     distance: Annotated[Length | None, Doc("Chamfer cut along first")] = None,
@@ -381,14 +381,14 @@ def _mirror(tx, sk, inputs, mirror_line):
 def nx_create_sketch_copy(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
-    curves: Annotated[list[CurveRef], Items(1, 100)],  # type: ignore[valid-type]
+    sketch: SketchRef,
+    curves: Annotated[list[CurveRef], Items(1, 100)],
     mode: Literal["offset", "mirror"],
     distance: Length | None = None,
     side: Annotated[
         Literal["auto", "left", "right"], Doc("Offset side of the first curve's direction")
     ] = "auto",
-    mirror_line: RefTo("curve", "datum_axis") | None = None,  # type: ignore[valid-type]
+    mirror_line: Annotated[str, RefTo("curve", "datum_axis")] | None = None,
 ) -> CopyData:
     """Copy sketch curves as an associative offset or mirror. Offsets of ellipses and splines
     are approximated to 0.001 mm; a mirror line is a line of this sketch or a datum axis in its
@@ -504,9 +504,9 @@ def _intersect(tx, sk, refs):
 def nx_create_sketch_projection(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     objects: Annotated[
-        list[RefTo("edge", "curve", "face")],  # type: ignore[valid-type]
+        list[Annotated[str, RefTo("edge", "curve", "face")]],
         Items(1, 200),
         Doc("project: edges or curves; intersect: faces"),
     ],
@@ -533,7 +533,7 @@ def nx_create_sketch_projection(
                 if abs(ksketch.height(f, kcurve.point_at(tx, c, t))) > tol
             ]
             readback.expect(not off, "curves_in_plane", curves=off)
-        data = {"sketch": tx.ref(sk.sketch, "sketch")}
+        data: ProjectionData = {"sketch": tx.ref(sk.sketch, "sketch")}
         if feature is not None:
             data["feature"] = tx.ref(feature, "feature")
         data["curves"] = [common.curve_row(tx, f, c) for c in created]

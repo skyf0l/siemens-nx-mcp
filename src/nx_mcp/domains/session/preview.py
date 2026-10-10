@@ -232,7 +232,7 @@ def _capture(tx) -> dict:
         if fit:
             tx.display.restore()
     published = tx.files.publish()[0]
-    return files.metadata(published, root)
+    return dict(files.metadata(published, root))  # PreviewData.image stays a plain object
 
 
 @tool(
@@ -313,7 +313,7 @@ def nx_preview_changes(
             for n in names
             if formulas.get(n) != changed.get(n)
         ],
-        "results": results,  # type: ignore[typeddict-item]
+        "results": results,  # type: ignore[typeddict-item]  # child result dicts
         "count": len(results),
         "references": references,
         "image": image,
@@ -366,4 +366,4 @@ def nx_finish_preview(
         child = tx.run(step["tool"], _translate(step["arguments"], mapping), mode="preview")
         results.append({"index": index, **child})
     tx.checkpoint(done=total)
-    return {"preview_id": preview_id, "action": "accept", "results": results, "count": total}  # type: ignore[typeddict-item]
+    return {"preview_id": preview_id, "action": "accept", "results": results, "count": total}  # type: ignore[typeddict-item]  # child result dicts

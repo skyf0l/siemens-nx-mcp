@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/display/camera.json",
   "scenario_sha256": "4bcd493de83e126221539609d6157d25b8dfce327d07bec373902cce40f767d7",
   "domain": "display",
@@ -9,18 +9,13 @@
     "nx_restore_display": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_get_camera": "3d264c50e55936d1412560e769b27b4eff2978d793fe9bf994afd1c592941ed6",
     "nx_set_camera": "3d264c50e55936d1412560e769b27b4eff2978d793fe9bf994afd1c592941ed6",
     "nx_restore_display": "38a3a4dcae0e7c7c7c015d3a74942a7be42cbc80c63e868747f1b94637731fcf"
   },
-  "run_id": "20261010-155535-7a3d9c",
-  "owner": "reg_final2_2",
-  "part": null,
-  "started": "2026-10-10T11:55:37Z",
-  "finished": "2026-10-10T11:55:39Z",
+  "recorded": "2026-10-10T11:55:39Z",
   "passed": true,
   "checks": 48,
   "failed_checks": 0,
@@ -30,160 +25,119 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.484,
-      "result_sha256": "21b8c99edb9dbb574824188f2088b638c36c354c2d7f2990aa92419e53e91649"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.516,
-      "result_sha256": "e80642e1f087861233d4a2fd35e21d99c6d7fb50db509291f6201854218de0ac"
+      "checks": 6
     },
     {
       "index": 3,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
-      "checks": 5,
-      "seconds": 0.031,
-      "result_sha256": "edcc449a4a1b686dde5aaec55a887c67ee2a78f91fb744a41f9761ccccb9400c"
+      "checks": 5
     },
     {
       "index": 4,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.032,
-      "result_sha256": "b82f6dac5dd829f87a7bda9b5171311dd407e3bfe4903244691d4b4c0ff68b61"
+      "checks": 4
     },
     {
       "index": 5,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "7d1758ae57483df22e5803f2026d2700439d05b43e1f181a6c9a485ad5a22015"
+      "checks": 3
     },
     {
       "index": 6,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "a87e392d4bd0e99beddf90facd980460e9651e0bb3d92049cce4d20d5901366a"
+      "checks": 2
     },
     {
       "index": 7,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.516,
-      "result_sha256": "2cd877d54ac6f32ac0aab8803c6cd3686b06f08f6aab4bf2f80bf4f4abfbe5f3"
+      "checks": 3
     },
     {
       "index": 8,
       "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "60bdd819644f4ed5aa250583b1914159b4a7658acc7eeaf3ad814349bea29ffb"
+      "checks": 3
     },
     {
       "index": 9,
       "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "934f784cb056b773a4996793ed06bda74c919c2f023beaa5357e22bfb99486ad"
+      "checks": 1
     },
     {
       "index": 10,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.531,
-      "result_sha256": "01ba742b19c9089e3274d263dbc06ca133b4c773e354b404d9f6e7a84f71e1a9"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 5,
-      "seconds": 0.047,
-      "result_sha256": "71ff549e040fc3cb9d6fb5c4fad35e8e7487ddee7ea52f01a484cf853117d445"
+      "checks": 5
     },
     {
       "index": 12,
       "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "597aef0e6e55b987ea53aab364525ada4fe2c3635898f242b618a35be3d0e3b9"
+      "checks": 3
     },
     {
       "index": 13,
       "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "130863673c9d8b342e24ef43aac68da2ca0982432b24243bdefd7949c99c04fa"
+      "checks": 2
     },
     {
       "index": 14,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.015,
-      "result_sha256": "b5bcf559529cde808f1cc797c3418568866ee5f6699187a142e1e0e8ba19ba6f"
+      "checks": 3
     },
     {
       "index": 15,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.032,
-      "result_sha256": "4272e204d08779d54c53be7f432e7de7b947d8110bc7279361d22c403f5affbd"
+      "checks": 2
     },
     {
       "index": 16,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "2da5ba4cb6ad406dc1d1045069f0cbd23d34a4d49200bb4c9bfb1cb4af75f7d9"
+      "checks": 2
     },
     {
       "index": 17,
       "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "f00b71bec9a9e56252c2608d118e04f275e253c449d6f19994454cb885f31484"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155535-7a3d9c/display_camera_drawing_block_mm.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

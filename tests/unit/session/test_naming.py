@@ -42,5 +42,5 @@ def test_rename_refuses_bad_names_and_stale_refs():
     stale = run(nx, "nx_set_name", object="f:999", name="A")
     assert stale.error["code"] == "NX_STALE_REFERENCE"
     assert stale.mutation_outcome == "not_started" and f.Name == "EXTRUDE(1)"
-    legacy_name = run(nx, "nx_set_name", object="EXTRUDE(1)", name="A")
-    assert legacy_name.error["code"] == "NX_INVALID_ARGUMENT"  # references only
+    display_name = run(nx, "nx_set_name", object="EXTRUDE(1)", name="A")
+    assert display_name.error["code"] == "NX_INVALID_ARGUMENT"  # references only

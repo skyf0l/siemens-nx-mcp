@@ -85,7 +85,9 @@ def created_name(result: dict[str, Any]) -> str | None:
     also brings its sketch feature, datums and points), so name the step's own
     result, else the most meaningful created kind, never a list of internals.
     """
-    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    data = result.get("data")
+    if not isinstance(data, dict):
+        data = {}
     for key in _CREATED_KEYS:
         value = result.get(key) or data.get(key)  # a development-tool result or catalogue envelope
         if isinstance(value, dict) and value.get("name"):

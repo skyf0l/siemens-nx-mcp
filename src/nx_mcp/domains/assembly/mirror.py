@@ -18,9 +18,9 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, Plane
+from nx_mcp.core.types import ComponentRef, Items, Plane
 from nx_mcp.domains.assembly import common
-from nx_mcp.domains.assembly.common import ComponentRef, ComponentRow
+from nx_mcp.domains.assembly.common import ComponentRow
 from nx_mcp.kit import args, assembly, builders, geom, model, readback, select
 
 
@@ -47,7 +47,7 @@ class MirrorData(TypedDict):
 def nx_create_component_mirror(
     tx: Tx,
     *,
-    components: Annotated[list[ComponentRef], Items(1, 100)],  # type: ignore[valid-type]
+    components: Annotated[list[ComponentRef], Items(1, 100)],
     plane: Plane,
 ) -> MirrorData:
     """Mirror direct components of the work part across a plane into new components. Each new
@@ -77,7 +77,7 @@ def nx_create_component_mirror(
         actual=len(added),
     )  # fmt: skip
     names = assembly.paths(part)
-    out = []
+    out: list[MirroredPair] = []
     for i, source in enumerate(values):
         want = geom.reflect(assembly.pose(source)[0], origin, normal)
         copy = min(added, key=lambda c: geom.dist(assembly.pose(c)[0], want))

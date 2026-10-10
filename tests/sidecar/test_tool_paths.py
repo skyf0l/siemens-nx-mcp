@@ -23,7 +23,7 @@ async def test_authoring_tool_schemas_are_explicit_and_path_scoped(tmp_path, mon
 
 
 @pytest.mark.asyncio
-async def test_display_tools_are_catalogue_tools_and_legacy_ones_are_gone(tmp_path):
+async def test_display_tools_are_catalogue_tools_and_the_replaced_ones_are_gone(tmp_path):
     server = create_server(NS(), Workspace(tmp_path), surface="full")
     tools = {t.name: t for t in await server.list_tools()}
     assert tools["nx_set_visibility"].inputSchema["properties"]["mode"]["enum"] == [

@@ -11,7 +11,7 @@ create or edit puts the previous sections and sectioning state back itself.
 from __future__ import annotations
 
 import contextlib
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import deleter, lister, tool
 from nx_mcp.core.errors import fail
@@ -68,7 +68,7 @@ def guarded(tx, part, view):
         raise
 
 
-def _data(tx, part, view, section) -> dict:
+def _data(tx, part, view, section) -> SectionData:
     state = display.section_state(tx, part, view, section)
     return {
         "section": tx.ref(section, "section_view"),
@@ -138,7 +138,7 @@ def nx_create_section_view(
 def nx_edit_section_view(
     tx: Tx,
     *,
-    section: RefTo("section_view"),  # type: ignore[valid-type]
+    section: Annotated[str, RefTo("section_view")],
     plane: PlaneByNormal | None = None,
     enabled: bool | None = None,
     cap: bool | None = None,

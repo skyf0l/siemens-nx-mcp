@@ -13,7 +13,7 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.kit import result, select
@@ -78,6 +78,16 @@ def thickness(tx, body) -> float:
     return result.measured(manager(tx).GetBodyThickness(body), "thickness")
 
 
+class BendData(TypedDict):
+    radius: float
+    angle: float
+    neutral_factor: float
+
+
+class BendState(BendData):
+    state: str
+
+
 class BendRow(TypedDict):
     face: result.Row
     state: str
@@ -86,7 +96,7 @@ class BendRow(TypedDict):
     neutral_factor: float
 
 
-def bend_data(tx, face) -> dict:
+def bend_data(tx, face) -> BendData:
     """``{radius, angle, neutral_factor}`` of one inner bend face."""
     params = manager(tx).GetBendParameters(face)
     return {
@@ -96,15 +106,15 @@ def bend_data(tx, face) -> dict:
     }
 
 
-def bends(tx, body) -> list[tuple]:
+def bends(tx, body) -> list[tuple[Any, BendState]]:
     """``[(face, {state, radius, angle, neutral_factor})]`` of a sheet-metal body."""
     faces, states = manager(tx).GetInnerBendFaces(body)
     enum = namespace(tx).SheetmetalBendState
-    out = []
+    out: list[tuple[Any, BendState]] = []
     for face, state in zip(faces, states, strict=True):
         out.append((face, {"state": snake(result.enum_name(state, enum)), **bend_data(tx, face)}))
     return out
 
 
-def bend_rows(tx, found) -> list[BendRow]:
+def bend_rows(tx, found: list[tuple[Any, BendState]]) -> list[BendRow]:
     return [{"face": tx.ref(face, "face"), **data} for face, data in found]

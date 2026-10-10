@@ -11,7 +11,8 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypedDict
+from collections.abc import Mapping
+from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
@@ -83,15 +84,15 @@ def _text(value):
     return text or None
 
 
-def read(tx) -> dict:
+def read(tx) -> DefaultsData:
     """The work part's sheet-metal defaults (numbers in their expressions' units)."""
     prefs = preferences(tx)
-    out: dict = {}
+    numbers: dict[str, float | None] = {}
     for key, name in NUMBERS.items():
         exp = getattr(prefs, "Get" + name)()
-        out[key] = expr.value(tx, exp) if exp is not None else None
+        numbers[key] = expr.value(tx, exp) if exp is not None else None
     choices = tx.nx.Preferences.SheetMetalPreferencesBuilder
-    out["parameter_entry"] = snake(
+    entry = snake(
         result.enum_name(
             prefs.GetParameterEntryType(), choices.ParameterEntryTypes, list(ENTRY.values())
         )
@@ -99,13 +100,20 @@ def read(tx) -> dict:
     method = result.enum_name(
         prefs.GetBendDefinitionMethod(), choices.BendDefinitionMethodOptions, list(METHODS.values())
     )
-    out["bend_definition"] = next((k for k, v in METHODS.items() if v == method), snake(method))
-    out["bend_table"] = _text(prefs.GetBendTable())
-    out["bend_allowance_formula"] = _text(prefs.GetBendAllowanceFormula())
-    out["bend_deduction_formula"] = _text(prefs.GetBendDeductionFormula())
-    out["material"] = _text(prefs.GetMaterialName())
-    out["tool"] = _text(prefs.GetToolName())
-    return out
+    return {
+        "thickness": numbers["thickness"],
+        "bend_radius": numbers["bend_radius"],
+        "bend_relief_width": numbers["bend_relief_width"],
+        "bend_relief_depth": numbers["bend_relief_depth"],
+        "neutral_factor": numbers["neutral_factor"],
+        "parameter_entry": entry,
+        "bend_definition": next((k for k, v in METHODS.items() if v == method), snake(method)),
+        "bend_table": _text(prefs.GetBendTable()),
+        "bend_allowance_formula": _text(prefs.GetBendAllowanceFormula()),
+        "bend_deduction_formula": _text(prefs.GetBendDeductionFormula()),
+        "material": _text(prefs.GetMaterialName()),
+        "tool": _text(prefs.GetToolName()),
+    }
 
 
 @tool(
@@ -157,7 +165,7 @@ def nx_set_sheet_metal_defaults(
     bend_relief_depth: Length | None = None,
     parameter_entry: ParameterEntry | None = None,
     bend_definition: BendDefinition | None = None,
-    bend_table: PathTo("read") | None = None,  # type: ignore[valid-type]
+    bend_table: Annotated[str, PathTo("read")] | None = None,
     bend_formula: Annotated[Formula, Doc("Allowance or deduction formula")] | None = None,
     material: TableName | None = None,
     tool: TableName | None = None,
@@ -181,10 +189,11 @@ def nx_set_sheet_metal_defaults(
     }
     if not given and bend_formula is None and all(v is None for v in texts.values()):
         fail("NX_INVALID_ARGUMENT", "Give at least one sheet-metal default to change")
-    if thickness is not None and thickness <= 0:
+    if thickness is not None and float(thickness) <= 0:
         fail("NX_INVALID_ARGUMENT", "thickness must be positive", field="/thickness")
     for key in ("bend_radius", "bend_relief_width", "bend_relief_depth"):
-        if numbers[key] is not None and numbers[key] < 0:
+        value = numbers[key]
+        if value is not None and float(value) < 0:
             fail("NX_INVALID_ARGUMENT", f"{key} cannot be negative", field="/" + key)
     if bend_formula is not None and bend_definition not in (None, *FORMULAS):
         fail("NX_INVALID_ARGUMENT", "bend_formula belongs to a formula bend_definition",
@@ -216,18 +225,21 @@ def nx_set_sheet_metal_defaults(
         b.commit()
     model.update(tx)
     got = read(tx)
+    read_back: Mapping[str, Any] = got  # looked up by the argument names
     for key, value in given.items():
         readback.expect(
-            got[key] is not None and geom.close(got[key], float(value), 1e-9),
+            read_back[key] is not None and geom.close(read_back[key], float(value), 1e-9),
             key,
-            f"NX kept {key} = {got[key]}, not {value}",
+            f"NX kept {key} = {read_back[key]}, not {value}",
             wanted=value,
-            got=got[key],
+            got=read_back[key],
         )
     for key in ("parameter_entry", "bend_definition", "material", "tool"):
         if texts[key] is not None:
-            readback.expect(got[key] == texts[key], key, wanted=texts[key], got=got[key])
+            readback.expect(
+                read_back[key] == texts[key], key, wanted=texts[key], got=read_back[key]
+            )
     if bend_formula is not None:
-        readback.expect(got[method] == bend_formula, "bend_formula", wanted=bend_formula,
-                        got=got[method])  # fmt: skip
+        readback.expect(read_back[method] == bend_formula, "bend_formula", wanted=bend_formula,
+                        got=read_back[method])  # fmt: skip
     return got

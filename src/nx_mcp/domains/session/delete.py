@@ -81,7 +81,7 @@ def nx_delete_objects(
     them are reported as dependents."""
     deleters = hooks("deleter")
     groups: dict[str, list] = {}
-    rows: dict[int, dict] = {}
+    rows: dict[int, Row] = {}
     with tx.checks():
         for i, ref in enumerate(objects):
             obj = tx.resolve(ref)

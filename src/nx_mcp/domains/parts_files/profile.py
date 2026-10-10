@@ -20,7 +20,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, PathTo, Point3, RefKind, RefTo, Text, Vec3
-from nx_mcp.kit import files, geom, select
+from nx_mcp.kit import args, files, geom, select
 from nx_mcp.kit import sketch as kit_sketch
 from nx_mcp.kit import units as kit_units
 
@@ -125,8 +125,8 @@ def _layers(tx, overrides) -> dict:
 def nx_export_profile(
     tx: Tx,
     *,
-    source: RefTo("sketch", "face"),  # type: ignore[valid-type]
-    path: PathTo("new", ".dxf"),  # type: ignore[valid-type]
+    source: Annotated[str, RefTo("sketch", "face")],
+    path: Annotated[str, PathTo("new", ".dxf")],
     frame: Frame | None = None,
     layer: Layer = "0",
     layers: Annotated[list[LayerOverride], Items(1, 1000), Doc("[curve/edge, layer] pairs")]
@@ -151,7 +151,7 @@ def nx_export_profile(
             fail("NX_TOO_MANY_OBJECTS" if curves else "NX_WRONG_GEOMETRY",
                  f"The source must have 1..{MAX_CURVES} curves", field="/source")  # fmt: skip
         if frame is not None:
-            origin = [float(v) for v in frame[0]]
+            origin = args.vec3(frame[0], "/frame")
             x, y, normal = geom.orthonormal_frame(frame[1], frame[2], field="/frame")
             if not geom.parallel(normal, plane["normal"], 1e-8):
                 fail("NX_WRONG_GEOMETRY", "The frame must lie in the source plane", field="/frame")

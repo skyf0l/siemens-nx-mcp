@@ -22,9 +22,12 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
     Axis,
+    BodyRef,
     ByVariant,
     Direction,
     Doc,
+    FaceRef,
+    FeatureRef,
     Items,
     Json,
     Length,
@@ -32,12 +35,13 @@ from nx_mcp.core.types import (
     Point3,
     Range,
     RefTo,
+    forbid_extra,
 )
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args, builders, geom, measure, readback, result, select
 
-BodyList = Annotated[list[RefTo("body")], Items(1, 50)]  # type: ignore[valid-type]
-FeatureList = Annotated[list[RefTo("feature")], Items(1, 50)]  # type: ignore[valid-type]
+BodyList = Annotated[list[BodyRef], Items(1, 50)]
+FeatureList = Annotated[list[FeatureRef], Items(1, 50)]
 MAX_INSTANCES = 1000
 
 
@@ -198,7 +202,7 @@ def nx_create_mirror(
     """Mirror solid bodies into new bodies, or features into their own bodies, about a
     plane (associative to a datum plane). target selects which list is used."""
     wanted, other = ("bodies", "features") if target == "bodies" else ("features", "bodies")
-    given = {"bodies": bodies, "features": features}
+    given: dict[str, list[str] | None] = {"bodies": bodies, "features": features}
     if not given[wanted]:
         fail("NX_INVALID_ARGUMENT", f"target {target} needs {wanted}", field=f"/{wanted}")
     if given[other]:
@@ -241,7 +245,7 @@ class CircularForm(TypedDict):
 
 class AlongCurveForm(TypedDict):
     curve: Annotated[
-        RefTo("edge", "curve"),  # type: ignore[valid-type]
+        Annotated[str, RefTo("edge", "curve")],
         Doc("Path edge or curve; the seed should project inside it"),
     ]
     count: Count
@@ -273,7 +277,7 @@ class SpiralForm(_SpiralRequired, total=False):
 
 
 class _FillRequired(TypedDict):
-    boundary: Annotated[RefTo("face"), Doc("Planar face the grid through the seed fills")]  # type: ignore[valid-type]
+    boundary: Annotated[FaceRef, Doc("Planar face the grid through the seed fills")]
     direction: Annotated[Direction, Doc("In-plane grid direction")]
     spacing: Length
 
@@ -301,8 +305,7 @@ LAYOUT_FORMS = {
     "fill": FillForm,
     "general": GeneralForm,
 }
-for _td in LAYOUT_FORMS.values():
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(*LAYOUT_FORMS.values())
 
 Layout = Literal["linear", "circular", "along_curve", "polygon", "spiral", "fill", "general"]
 Parameters = Annotated[
@@ -590,7 +593,7 @@ def nx_create_pattern(
     *,
     features: FeatureList,
     layout: Layout,
-    parameters: Parameters,  # type: ignore[valid-type]
+    parameters: Parameters,
 ) -> PatternData:
     """Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a
     face, or at explicit points. Counts include the seed; NX computes spiral and fill counts."""

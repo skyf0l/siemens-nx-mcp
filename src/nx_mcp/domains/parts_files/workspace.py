@@ -105,7 +105,7 @@ def _reserved(path: Path, root: Path) -> bool:
 def nx_list_files(
     tx: Tx,
     *,
-    path: PathTo("dir") = "",  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("dir")] = "",
     prefix: Annotated[str, Text(128), Doc("Only names starting with this text")] | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
@@ -125,10 +125,16 @@ def nx_list_files(
         if e.name.casefold().startswith(needle) and not _reserved(e, root)
     ]
     selected, page = result.page(entries, offset, limit)
-    items: list[dict] = []
+    items: list[FileRow] = []
     for entry in selected:
         if entry.is_file():
-            items.append({**files.metadata(entry, root), "kind": "file"})
+            meta = files.metadata(entry, root)
+            items.append(
+                {
+                    **meta,
+                    "kind": "file",
+                }
+            )
         else:
             items.append({"path": files.relative(entry, root), "kind": "directory"})
     return {"path": files.relative(folder, root) or ".", "items": items, "page": page}
@@ -143,7 +149,7 @@ def nx_list_files(
     runs="sidecar",
     example={"path": "projects/demo/parts"},
 )
-def nx_create_directory(tx: Tx, *, path: PathTo("dir")) -> DirectoryData:  # type: ignore[valid-type]
+def nx_create_directory(tx: Tx, *, path: Annotated[str, PathTo("dir")]) -> DirectoryData:
     """Create a workspace folder and its missing parents. An existing folder succeeds with
     created false; an existing file is refused."""
     folder = Path(path)
@@ -184,7 +190,7 @@ Sha256 = Annotated[str, Text(64, r"^[0-9a-f]{64}$"), Doc("Lowercase SHA-256 of t
 def nx_upload_file(
     tx: Tx,
     *,
-    path: PathTo("new", *UPLOAD_SUFFIXES),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", *UPLOAD_SUFFIXES)],
     data_base64: Base64,
     offset: Annotated[int, Range(ge=0, le=MAX_UPLOAD), Doc("Byte offset of this chunk")],
     total_size: Annotated[int, Range(ge=0, le=MAX_UPLOAD), Doc("Size of the whole file")],
@@ -284,7 +290,10 @@ def nx_download_file(
         )
     file = Path(path)
     meta = files.metadata(file, _root(tx))
-    out: dict = {**meta, "delivery": delivery}
+    out: DownloadData = {
+        **meta,
+        "delivery": delivery,
+    }
     if delivery == "image":
         if meta["size"] > INLINE_IMAGE_BYTES:
             fail(
@@ -314,10 +323,12 @@ def nx_download_file(
             data = stream.read(length or CHUNK_BYTES)
         end = start + len(data)
         out.update(
-            offset=start,
-            bytes_returned=len(data),
-            next_offset=end if end < meta["size"] else None,
-            eof=end >= meta["size"],
-            data_base64=base64.b64encode(data).decode(),
+            {
+                "offset": start,
+                "bytes_returned": len(data),
+                "next_offset": end if end < meta["size"] else None,
+                "eof": end >= meta["size"],
+                "data_base64": base64.b64encode(data).decode(),
+            }
         )
     return out

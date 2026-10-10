@@ -14,12 +14,12 @@ NX 2406 findings kept here:
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Range, RefTo
+from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Range, RefTo
 from nx_mcp.domains.inspection import common
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import geom, measure, result, select
@@ -37,7 +37,7 @@ DISTANCE_KINDS = (
 )
 ANGLE_KINDS = ("curve", "edge", "face", "datum_plane", "datum_axis")
 Scope = Annotated[Literal["auto", "part", "assembly"], Doc("Without bodies: part or assembly")]
-Targets = Annotated[list[RefTo("body", "feature", "component")], Items(1, 500)]  # type: ignore[valid-type]
+Targets = Annotated[list[Annotated[str, RefTo("body", "feature", "component")]], Items(1, 500)]
 
 
 def _targets_text(args):
@@ -78,8 +78,8 @@ def _measurables(tx, ref, field):
 def nx_measure_distance(
     tx: Tx,
     *,
-    first: RefTo(*DISTANCE_KINDS),  # type: ignore[valid-type]
-    second: RefTo(*DISTANCE_KINDS),  # type: ignore[valid-type]
+    first: Annotated[str, RefTo(*DISTANCE_KINDS)],
+    second: Annotated[str, RefTo(*DISTANCE_KINDS)],
 ) -> DistanceData:
     """Measure the minimum distance and the closest points between two objects; features and
     components measure their bodies. Zero means touching or overlapping."""
@@ -94,6 +94,7 @@ def nx_measure_distance(
             distance = result.measured(distance)
             if best is None or distance < best[0]:
                 best = (distance, geom.xyz(p1), geom.xyz(p2), (x, kx), (y, ky))
+    assert best is not None  # _measurables never returns an empty list
     distance, p1, p2, (x, kx), (y, ky) = best
     return {
         "distance": distance,
@@ -148,8 +149,8 @@ def _direction(tx, obj, kind, field):
 def nx_measure_angle(
     tx: Tx,
     *,
-    first: RefTo(*ANGLE_KINDS),  # type: ignore[valid-type]
-    second: RefTo(*ANGLE_KINDS),  # type: ignore[valid-type]
+    first: Annotated[str, RefTo(*ANGLE_KINDS)],
+    second: Annotated[str, RefTo(*ANGLE_KINDS)],
 ) -> AngleData:
     """Measure the angle (0-180 degrees) between lines, straight edges, planar faces or datums.
     Lines run start to end, edges vertex to vertex; faces use the outward normal."""
@@ -198,7 +199,8 @@ def nx_measure_mass(
     """Measure volume, area, mass, centre of gravity and inertia of solid bodies. Mass is kg
     from assigned densities; inertia is kg*unit^2 about the centre of gravity."""
     found = kbodies.solids(common.target_bodies(tx, bodies, scope), field="/bodies")
-    rows, area = [], 0.0
+    rows: list[BodyVolume] = []
+    area: float | None = 0.0
     for body in found:
         tx.checkpoint()
         props = measure.mass(tx, [body])
@@ -259,7 +261,7 @@ def nx_measure_bounds(
             field="/precision",
             hint="Use precision conservative or reset the WCS to absolute",
         )
-    rows = []
+    rows: list[BodyBounds] = []
     for body in found:
         tx.checkpoint()
         low, high = measure.bounds(tx, [body], exact=exact)
@@ -321,8 +323,8 @@ def _first_exit(tx, body, origin, direction):
 def nx_measure_wall_thickness(
     tx: Tx,
     *,
-    body: RefTo("body"),  # type: ignore[valid-type]
-    faces: Annotated[list[RefTo("face")], Items(1, 200)] | None = None,  # type: ignore[valid-type]
+    body: BodyRef,
+    faces: Annotated[list[FaceRef], Items(1, 200)] | None = None,
     samples_per_axis: Annotated[int, Range(ge=1, le=20)] = 5,
     tolerance: Annotated[
         float, Range(gt=0, le=1), Doc("Inward ray start offset, part units")
@@ -343,14 +345,16 @@ def nx_measure_wall_thickness(
                 fail("NX_WRONG_OWNER", "The face is not on this body", field=f"/faces/{i}")
     samples, skipped = common.face_samples(tx, selected, samples_per_axis)
     modeling = tx.uf.Modeling
-    rows, values, unresolved = [], [], 0
+    rows: list[ThicknessSample] = []
+    values: list[float] = []
+    unresolved = 0
     for index, (face, _uv, props) in enumerate(samples):
         if index % 50 == 0:
             tx.checkpoint(index, len(samples))
         point, normal = common.xyz3(props[0]), common.xyz3(props[5])
         inward = geom.scale(geom.unit(normal), -1.0)
         origin = geom.add(point, geom.scale(inward, tolerance))
-        row: dict[str, Any] = {"face": tx.ref(face, kind="face"), "point": point}
+        row: ThicknessSample = {"face": tx.ref(face, kind="face"), "point": point}
         with native():
             inside = int(modeling.AskPointContainment(origin, target.Tag)) == common.INSIDE
         hit = _first_exit(tx, target, origin, inward) if inside else None
@@ -361,7 +365,9 @@ def nx_measure_wall_thickness(
             exit_point = common.xyz3(hit.HitPoint)
             thickness = geom.dist(point, exit_point)
             values.append(thickness)
-            row.update(status="measured", thickness=thickness, opposite_point=exit_point)
+            row["status"] = "measured"
+            row["thickness"] = thickness
+            row["opposite_point"] = exit_point
             opposite = own.get(int(hit.HitFace))
             if opposite is not None:
                 row["opposite_face"] = tx.ref(opposite, kind="face")

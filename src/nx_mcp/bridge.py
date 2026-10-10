@@ -46,6 +46,8 @@ ObjectKind = Literal[
     "traceline",
     "explosion",
     "modeling_view",
+    "drawing_table",
+    "sketch_constraint",
 ]
 
 

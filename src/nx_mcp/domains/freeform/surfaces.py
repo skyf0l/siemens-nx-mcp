@@ -22,12 +22,11 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Length, RefTo
+from nx_mcp.core.types import CurveRef, Doc, EdgeRef, Items, Length
 from nx_mcp.domains.freeform import common
 from nx_mcp.kit import builders, curve, geom, readback, select, surface, units
 
-CurveRef = RefTo("curve")
-Section = Annotated[list[CurveRef], Items(1, 100), Doc("Curves of one section, in order")]  # type: ignore[valid-type]
+Section = Annotated[list[CurveRef], Items(1, 100), Doc("Curves of one section, in order")]
 MAX_CURVES = 1000
 
 # Read-back tolerances: angle in degrees; curvature 0.01 1/mm (scaled to part units).
@@ -249,8 +248,8 @@ def _verify(tx, continuity, kind):
 def nx_create_bridge_surface(
     tx: Tx,
     *,
-    first: RefTo("edge"),  # type: ignore[valid-type]
-    second: RefTo("edge"),  # type: ignore[valid-type]
+    first: EdgeRef,
+    second: EdgeRef,
     continuity: Annotated[
         Literal["g0", "g1", "g2"], Doc("Position, tangent or curvature at both ends")
     ],

@@ -13,12 +13,11 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Length, Point3, Range, RefTo, Vec3
+from nx_mcp.core.types import Doc, EdgeRef, ExplosionRef, Length, Point3, Range, RefTo, Vec3
 from nx_mcp.domains.assembly import common, exploded
 from nx_mcp.kit import builders, geom, model, readback, result, select
 
 Percent = Annotated[float, Range(ge=0, le=100), Doc("Percent of the edge's arc length")]
-EdgeRef = RefTo("edge")
 
 
 class TraceData(TypedDict, total=False):
@@ -58,9 +57,9 @@ def _edge(tx, ref, entries, field):
 def nx_create_explosion_trace(
     tx: Tx,
     *,
-    explosion: RefTo("explosion"),  # type: ignore[valid-type]
-    start_edge: EdgeRef,  # type: ignore[valid-type]
-    end_edge: EdgeRef,  # type: ignore[valid-type]
+    explosion: ExplosionRef,
+    start_edge: EdgeRef,
+    end_edge: EdgeRef,
     start_percent: Percent = 0,
     end_percent: Percent = 0,
     start_direction: Annotated[Vec3, Doc("Leaving direction at the start, default +Z")]
@@ -138,7 +137,7 @@ def nx_create_explosion_trace(
 def nx_edit_explosion_trace(
     tx: Tx,
     *,
-    trace: RefTo("traceline"),  # type: ignore[valid-type]
+    trace: Annotated[str, RefTo("traceline")],
     start_percent: Percent | None = None,
     end_percent: Percent | None = None,
     start_offset: Annotated[Length, Doc("Straight leg length at the start")] | None = None,
@@ -168,9 +167,9 @@ def nx_edit_explosion_trace(
             line.EndOffset = float(end_offset)
     exploded.refresh_traces(tx, ex)
     exploded.regenerate(tx)
-    for name, value in (("StartOffset", start_offset), ("EndOffset", end_offset)):
-        if value is not None:
-            readback.expect_close(float(getattr(line, name)), value, name)
+    for name, offset in (("StartOffset", start_offset), ("EndOffset", end_offset)):
+        if offset is not None:
+            readback.expect_close(float(getattr(line, name)), offset, name)
     start, end = exploded.endpoints(line)
     return {
         "trace": tx.ref(line, "traceline"),

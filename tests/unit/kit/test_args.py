@@ -20,6 +20,12 @@ def test_pointer():
     assert args.pointer("limit.value") == "/limit/value"
 
 
+def test_required_returns_the_value():
+    assert args.required(0, "offset") == 0
+    err = _error(args.required, None, "origin")
+    assert (err.field, str(err.message)) == ("/origin", "origin is required")
+
+
 def test_cross_field_rules():
     args.need(a=1, b=0)
     assert _error(args.need, a=1, b=None).field == "/b"

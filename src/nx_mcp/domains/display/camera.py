@@ -47,7 +47,7 @@ def nx_get_camera(tx: Tx) -> CameraData:
     shown drawing sheet. origin is the value nx_set_camera takes back."""
     part = display.shown_part(tx)
     tx.frame = "display_part_absolute"
-    out: dict = {"part": tx.ref(part, "part"), "interactive": not tx.session.IsBatch}
+    out: CameraData = {"part": tx.ref(part, "part"), "interactive": not tx.session.IsBatch}
     if display.sheet_shown(part):
         sheet = drawing.current(part)
         if sheet is not None:

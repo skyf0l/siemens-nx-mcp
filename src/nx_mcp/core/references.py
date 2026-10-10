@@ -24,6 +24,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.types import KIND_GROUPS, expand_kinds
@@ -65,6 +66,18 @@ TO_REGISTRY = {**dict.fromkeys(KIND_GROUPS["datum"], "datum"), "section_view": "
 _SHORT = re.compile(r"^([a-z]{1,3}):([1-9][0-9]{0,11})$")
 _ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
 BLOCK = 1000
+
+
+class Row(TypedDict, total=False):
+    """A reference row: ``{id, kind, name, part}`` (+ ``path`` for occurrences,
+    ``anchor`` for features, bodies and sketches)."""
+
+    id: str
+    kind: str
+    name: str
+    part: str
+    path: str
+    anchor: str
 
 
 class Counter:
@@ -154,7 +167,7 @@ class References:
         self._identity: dict[tuple[str, str, str], str] = {}
 
     # -- rows ---------------------------------------------------------------
-    def row(self, obj, kind: str, *, part=None, anchor: bool = False) -> dict:
+    def row(self, obj, kind: str, *, part=None, anchor: bool = False) -> Row:
         """``{id, kind, name, part}`` (+ ``anchor``) for a live NX object."""
         if kind not in PREFIX:
             fail("NX_INVALID_ARGUMENT", f"Unknown reference kind {kind!r}")
@@ -179,7 +192,7 @@ class References:
             entry.handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
         if entry.anchor is None and (kind in ANCHORED or anchor):
             entry.anchor = self._anchor(obj, kind, part)
-        out = {"id": entry.id, "kind": kind, "name": entry.name, "part": entry.part_id}
+        out: Row = {"id": entry.id, "kind": kind, "name": entry.name, "part": entry.part_id}
         if entry.anchor and (kind in ANCHORED or anchor):
             out["anchor"] = entry.anchor
         return out
@@ -269,7 +282,7 @@ class References:
             details={"ref": ref, "kind": kind, "expected": sorted(wanted)},
         )
 
-    def find_anchor(self, anchor: str, kind: str) -> dict | None:
+    def find_anchor(self, anchor: str, kind: str) -> Row | None:
         """The row of the unique current object matching ``anchor``, or None."""
         match = _ANCHOR.match(anchor or "")
         if not match:

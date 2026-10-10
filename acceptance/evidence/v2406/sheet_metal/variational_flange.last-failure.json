@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/variational_flange.json",
   "scenario_sha256": "9e856733854a5fbc17b3b7148717dff76e72e0f91510e030b6486468600e5d5d",
   "domain": "sheet_metal",
@@ -9,16 +9,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_variational_flange_3fd345.prt",
-  "started": "2026-10-10T11:54:51Z",
-  "finished": "2026-10-10T11:54:53Z",
+  "recorded": "2026-10-10T11:54:53Z",
   "passed": false,
   "checks": 5,
   "failed_checks": 6,
@@ -28,72 +23,56 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.485,
-      "result_sha256": "e6fbc9ef322b31003845092189f87bfb17cbf760bfec4c3866886cb52446afea"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.203,
-      "result_sha256": "758a510d5d4323cf7c5c915689807c660c68c66de7670ec3757ee48560fbb932"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "becd2975f6f2a520e026d66f9ec63334677e17d99854717859123485aeabdc6d"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "6b966f1ab8102a1b5298b9bfec08109b1c558fd50893af063d5c6aaa1748850c"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "0320663ae165f7897af358ffac3e01e74bd285302206b192c3a0c2df698a9ac4"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "190cca95f11457fd3bce63a60af91b71422bd540f39b95a1a7651a1e657ac984"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_sheet_metal_feature",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "e9fa8389f093810cc84aad2f91b41b86d1f0dd51517e01b897301a3b6fb565e9"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "75cba7c82e399ed57e1c6d221acbffbbfb42f6db4aef931701658ea920ec5960"
+      "checks": 0
     },
     {
       "index": 9,
@@ -101,8 +80,10 @@
       "setup": false,
       "passed": false,
       "checks": 5,
-      "seconds": 0.078,
-      "result_sha256": "9de14c2c692bbb4186aadbe1076a975943155a0078e58164209f150c316a2100",
+      "error": {
+        "code": "NX_LICENSE_UNAVAILABLE",
+        "message": "This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist."
+      },
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -112,12 +93,5 @@
         "data.bends.0.radius: missing (wanted {'close': 3.0, 'tol': 1e-06})"
       ]
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_variational_flange_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

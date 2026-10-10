@@ -31,6 +31,13 @@ class SplineData(TypedDict):
     end: Point3
 
 
+class _Shape(TypedDict):  # what _verify reads back
+    degree: int
+    periodic: bool
+    start: Point3
+    end: Point3
+
+
 def _points(values, field):
     points = [[float(c) for c in p] for p in values]
     for i in range(1, len(points)):
@@ -70,7 +77,7 @@ def _configure(tx, b, points, method, degree, periodic):
         manager.Append(data)
 
 
-def _verify(tx, spline, points, method, degree, periodic):
+def _verify(tx, spline, points, method, degree, periodic) -> _Shape:
     """Read back degree, periodicity and the defining points or poles."""
     got = int(spline.Order) - 1
     readback.expect(got == degree, "degree", f"NX built degree {got}", degree=got)

@@ -22,7 +22,7 @@ from typing import Annotated, Any, Literal, TypedDict
 from nx_mcp.core.catalogue import refresher, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Point3, RefTo
+from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Point3
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.kit import builders, drawing, geom, model, readback, result, select
 
@@ -99,9 +99,8 @@ def nx_create_sheet_metal_callout(
     tx: Tx,
     *,
     kind: Literal["body", "bend"],
-    body: RefTo("body"),  # type: ignore[valid-type]
-    faces: Annotated[list[RefTo("face")], Items(1, 50), Doc("Bend faces (kind=bend)")]  # type: ignore[valid-type]
-    | None = None,
+    body: BodyRef,
+    faces: Annotated[list[FaceRef], Items(1, 50), Doc("Bend faces (kind=bend)")] | None = None,
     position: Point3,
     automatic: Annotated[bool, Doc("Re-measure after model changes")] = True,
 ) -> CalloutData:

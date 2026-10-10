@@ -103,7 +103,7 @@ def check(payload: Any, path: str, rule: Any) -> str | None:
         elif op == "count":
             ok = isinstance(actual, (list, dict, str)) and len(actual) == wanted
         elif op == "count_kind":
-            counts: dict[str, int] = {}
+            counts: dict[str | None, int] = {}
             for row in actual if isinstance(actual, list) else []:
                 kind = row.get("kind") if isinstance(row, dict) else None
                 counts[kind] = counts.get(kind, 0) + 1

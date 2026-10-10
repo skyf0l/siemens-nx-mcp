@@ -22,7 +22,20 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Point3, Range, RefTo, SheetPoint
+from nx_mcp.core.types import (
+    BodyRef,
+    Doc,
+    DrawingSheetRef,
+    DrawingViewRef,
+    EdgeRef,
+    ExplosionRef,
+    FeatureRef,
+    Items,
+    Point3,
+    Range,
+    SheetPoint,
+    forbid_extra,
+)
 from nx_mcp.domains.drawing import style as view_style
 from nx_mcp.domains.drawing import view_kinds as kinds
 from nx_mcp.domains.drawing.common import (
@@ -243,16 +256,16 @@ def nx_create_drawing_view(
         "revolved_section",
         "break_out",
     ],
-    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
-    parent: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
+    sheet: DrawingSheetRef | None = None,
+    parent: DrawingViewRef | None = None,
     orientation: Literal["top", "front", "back", "right", "left", "bottom", "isometric"]
     | None = None,
-    body: RefTo("body") | None = None,  # type: ignore[valid-type]
-    explosion: RefTo("explosion") | None = None,  # type: ignore[valid-type]
+    body: BodyRef | None = None,
+    explosion: ExplosionRef | None = None,
     direction: Literal["right", "left", "top", "bottom"] | None = None,
     spacing: Annotated[float, Range(gt=0, le=10000), Doc("Sheet units")] | None = None,
-    hinge: RefTo("edge") | None = None,  # type: ignore[valid-type]
-    cut: RefTo("edge") | None = None,  # type: ignore[valid-type]
+    hinge: EdgeRef | None = None,
+    cut: EdgeRef | None = None,
     cut_point: Literal["start", "end", "center"] = "start",
     bend: EdgePoint | None = None,
     rotation: EdgePoint | None = None,
@@ -265,7 +278,7 @@ def nx_create_drawing_view(
     center: Point3 | None = None,
     radius: Annotated[float, Range(gt=0, le=1e6), Doc("Part units")] | None = None,
     depth: Annotated[float, Range(gt=0, le=1e6), Doc("Below center, part units")] | None = None,
-    flat_pattern: RefTo("feature") | None = None,  # type: ignore[valid-type]
+    flat_pattern: FeatureRef | None = None,
     position: SheetPoint | None = None,
     scale: Scale | None = None,
 ) -> ViewData:
@@ -592,7 +605,7 @@ class ViewStyle(TypedDict, total=False):
     construction_geometry: bool
 
 
-ViewStyle.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(ViewStyle)
 
 
 class ViewInfo(ViewData):
@@ -626,7 +639,7 @@ def view_info(tx, view, sheet):
 def nx_edit_drawing_view(
     tx: Tx,
     *,
-    view: RefTo("drawing_view"),  # type: ignore[valid-type]
+    view: DrawingViewRef,
     position: SheetPoint | None = None,
     scale: Scale | None = None,
     style: ViewStyle | None = None,  # noqa: A002 - surface name
@@ -694,7 +707,7 @@ def _apply_style(tx, view, changes):
 def nx_get_drawing_view(
     tx: Tx,
     *,
-    view: RefTo("drawing_view"),  # type: ignore[valid-type]
+    view: DrawingViewRef,
 ) -> ViewInfo:
     """Read a drawing view: type, sheet position, actual scale and border. Also whether it
     lies on the sheet, its display style and construction-geometry state."""

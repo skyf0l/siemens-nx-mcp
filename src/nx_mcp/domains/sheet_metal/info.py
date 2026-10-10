@@ -6,7 +6,7 @@ from typing import Any, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Offset, PageLimit, RefTo
+from nx_mcp.core.types import BodyRef, Offset, PageLimit
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.kit import result, select
 
@@ -24,14 +24,16 @@ class SheetMetalData(TypedDict):
     page: dict[str, Any]
 
 
-def body_row(tx, body) -> dict:
-    row: dict = {"body": tx.ref(body, "body"), "sheet_metal": common.is_sheet_metal(tx, body)}
+def body_row(tx, body) -> BodyRow:
+    row: BodyRow = {"body": tx.ref(body, "body"), "sheet_metal": common.is_sheet_metal(tx, body)}
     if row["sheet_metal"]:
         found = common.bends(tx, body)
         row.update(
-            thickness=common.thickness(tx, body),
-            bend_count=len(found),
-            bends=common.bend_rows(tx, found),
+            {
+                "thickness": common.thickness(tx, body),
+                "bend_count": len(found),
+                "bends": common.bend_rows(tx, found),
+            }
         )
     return row
 
@@ -50,7 +52,7 @@ def body_row(tx, body) -> dict:
 def nx_get_sheet_metal(
     tx: Tx,
     *,
-    body: RefTo("body") | None = None,  # type: ignore[valid-type]
+    body: BodyRef | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> SheetMetalData:
@@ -58,7 +60,7 @@ def nx_get_sheet_metal(
     actual thickness and each bend's face, state (bent/flat), inner radius, angle and K."""
     bodies = [select.one(tx, body, "body", field="/body")] if body else list(tx.part.Bodies)
     selected, page = result.page(bodies, offset, limit)
-    items = []
+    items: list[BodyRow] = []
     for b in selected:
         tx.checkpoint()
         items.append(body_row(tx, b))

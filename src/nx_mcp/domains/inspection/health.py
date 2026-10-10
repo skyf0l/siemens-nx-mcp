@@ -29,6 +29,14 @@ class Issue(TypedDict, total=False):
     faults: list[dict[str, Any]]
 
 
+class Counts(TypedDict):
+    errors: int
+    warnings: int
+    parts_checked: int
+    features_checked: int
+    bodies_checked: int
+
+
 class HealthData(TypedDict):
     healthy: bool
     errors: int
@@ -52,11 +60,11 @@ def _fault(tx, owner, code, tag):
     return fault
 
 
-def diagnose(tx, scope="part"):
+def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
     """``(issues, counts)`` of the work part or the whole loaded assembly."""
     part = tx.part
     checked = {int(part.Tag): part}
-    issues: list[dict[str, Any]] = []
+    issues: list[Issue] = []
     if scope == "assembly":
         for component, path in parts.components(part):
             tx.checkpoint()
@@ -118,7 +126,7 @@ def diagnose(tx, scope="part"):
                         ],
                     }
                 )
-    counts = {
+    counts: Counts = {
         "errors": sum(i["severity"] == "error" for i in issues),
         "warnings": sum(i["severity"] == "warning" for i in issues),
         "parts_checked": len(checked),

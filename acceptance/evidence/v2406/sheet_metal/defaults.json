@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/sheet_metal/defaults.json",
   "scenario_sha256": "2fe16b227736cc75a2eeed764b56bd518faf4228f53b4dfa31fee18114591f56",
   "domain": "sheet_metal",
@@ -8,17 +8,12 @@
     "nx_set_sheet_metal_defaults": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_get_sheet_metal_defaults": "02508ec6c439e267d5637240012cb25e2d2fae8d1c1e42b5ade36851b5b06753",
     "nx_set_sheet_metal_defaults": "02508ec6c439e267d5637240012cb25e2d2fae8d1c1e42b5ade36851b5b06753"
   },
-  "run_id": "20261010-155354-3fd345",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_defaults_3fd345.prt",
-  "started": "2026-10-10T11:54:23Z",
-  "finished": "2026-10-10T11:54:24Z",
+  "recorded": "2026-10-10T11:54:24Z",
   "passed": true,
   "checks": 30,
   "failed_checks": 0,
@@ -28,106 +23,77 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.437,
-      "result_sha256": "3184856c972a618564400edf4e9f65b1f166189b7c2719d7184af732bc512f66"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_get_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.047,
-      "result_sha256": "f7d2eacb9e28b3629aa84714b5c84eb72065c5150644d4b9165f0fc8a603b470"
+      "checks": 6
     },
     {
       "index": 3,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.047,
-      "result_sha256": "3d9003426c3fd1b1b279b8100a374cef4a56e946b8844192b761ff54be7c2537"
+      "checks": 4
     },
     {
       "index": 4,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "c1ecb04c799b7eb598e1294aeb19c9ed394c83c0c2f3edd03181563969f9dd6e"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "eeafcaf04b6da4cf65a16b890aa082aa8e19cd411996b67fe0efee47324b7deb"
+      "checks": 2
     },
     {
       "index": 6,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.062,
-      "result_sha256": "711d84a4415bcc426c09d1f7cb65b36a493d4c35295d3c9246d05ea0f371092c"
+      "checks": 2
     },
     {
       "index": 7,
       "call": "nx_get_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "8164e274fce18d5c588cf1f038069f7dae66caac9dae401b629d28fabe50e7e1"
+      "checks": 3
     },
     {
       "index": 8,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "1726997aae69b10b078461d27d63d9c581a2d9c952b9ae4f38acbc097b016900"
+      "checks": 3
     },
     {
       "index": 9,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "148a7ee17bd86f9312d04df55cadf2c5b375dae22a5dd9224575998c22e12430"
+      "checks": 3
     },
     {
       "index": 10,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "b8f96e8757a8c52174fbab27b485006499d10b39bb6ccc810c537744e739c54b"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_set_sheet_metal_defaults",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "755f300972cc572331badac503d1918a69e17364575ef086fb61dd5191abbe4b"
+      "checks": 2
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155354-3fd345/sheet_metal_defaults_3fd345.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

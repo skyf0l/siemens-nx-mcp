@@ -12,10 +12,10 @@
   "nx_cancel_operation": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-10T11:41:01Z",
+      "recorded": "2026-10-10T12:46:21Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
-      "source_sha256": "21e99a6af71dc4e432a05d5c9cd73378948e37481489f23d51d985a35c9eeee0",
+      "source_sha256": "e1051b75f6d3ccb52d256f4449d497324d0c6e36787cc4dc7b604180b04c89cd",
       "variants": []
     }
   },
@@ -65,10 +65,10 @@
   "nx_get_operation": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-10T11:41:01Z",
+      "recorded": "2026-10-10T12:46:21Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
-      "source_sha256": "21e99a6af71dc4e432a05d5c9cd73378948e37481489f23d51d985a35c9eeee0",
+      "source_sha256": "e1051b75f6d3ccb52d256f4449d497324d0c6e36787cc4dc7b604180b04c89cd",
       "variants": []
     }
   },
@@ -85,10 +85,10 @@
   "nx_get_status": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-10T11:41:01Z",
+      "recorded": "2026-10-10T12:46:21Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
-      "source_sha256": "21e99a6af71dc4e432a05d5c9cd73378948e37481489f23d51d985a35c9eeee0",
+      "source_sha256": "e1051b75f6d3ccb52d256f4449d497324d0c6e36787cc4dc7b604180b04c89cd",
       "variants": []
     }
   },

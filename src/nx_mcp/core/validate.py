@@ -13,12 +13,14 @@ import math
 import re
 import types
 import typing
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, Union
 
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.types import (
     PLACEHOLDER_PATTERN,
+    SHORTHANDS,
     ByVariant,
     Items,
     Json,
@@ -35,12 +37,14 @@ _NONE = type(None)
 
 
 def unwrap(hint) -> tuple[Any, dict]:
-    """``(base, {marker_type: marker})`` of a possibly ``Annotated`` hint."""
+    """``(base, {marker_type: marker})`` of a possibly ``Annotated`` hint; a shorthand
+    such as ``RefTo`` counts as the markers it stands for, in place."""
     markers: dict = {}
     while typing.get_origin(hint) is Annotated:
         base, *extra = typing.get_args(hint)
         for marker in extra:
-            markers.setdefault(type(marker), marker)
+            for part in marker.expand() if isinstance(marker, SHORTHANDS) else (marker,):
+                markers.setdefault(type(part), part)
         hint = base
     return hint, markers
 
@@ -354,7 +358,7 @@ class _Walker:
             raise _bad(path, f"needs {items.min}..{items.max} items, got {len(value)}")
 
 
-def validate(params: dict, args, *, placeholders: bool = False) -> Checked:
+def validate(params: Mapping[str, Any], args, *, placeholders: bool = False) -> Checked:
     """Validate ``args`` against ``params`` (``{name: Param}`` from the catalogue)."""
     if not isinstance(args, dict):
         raise _bad([], "arguments must be an object")

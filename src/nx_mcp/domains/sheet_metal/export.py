@@ -18,7 +18,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Length, PathTo, RefTo
+from nx_mcp.core.types import Doc, FeatureRef, Items, Length, PathTo, forbid_extra
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.kit import args, builders, files, result, select, units
 from nx_mcp.kit import dxf as outline
@@ -63,7 +63,7 @@ class DxfOptions(TypedDict, total=False):
     mold: Annotated[Literal["inner", "outer", "both"], Doc("Also write mold lines")]
 
 
-DxfOptions.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(DxfOptions)
 
 
 class ExportData(TypedDict):
@@ -108,8 +108,8 @@ def _valid_dxf(data: bytes) -> bool:
 def nx_export_flat_pattern(
     tx: Tx,
     *,
-    flat_pattern: RefTo("feature"),  # type: ignore[valid-type]
-    path: PathTo("new", ".dxf", ".geo"),  # type: ignore[valid-type]
+    flat_pattern: FeatureRef,
+    path: Annotated[str, PathTo("new", ".dxf", ".geo")],
     format: Literal["dxf", "geo"] = "dxf",  # noqa: A002 - surface name
     dxf: DxfOptions | None = None,
     include: Annotated[
@@ -125,7 +125,7 @@ def nx_export_flat_pattern(
     if format == "geo" and dxf:
         fail("NX_INVALID_ARGUMENT", "DXF options do not apply to GEO", field="/dxf")
     chosen = DEFAULT_INCLUDE if include is None else args.distinct("/include", include, "options")
-    if tolerance is not None and tolerance <= 0:
+    if tolerance is not None and float(tolerance) <= 0:
         fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field="/tolerance")
     options = dxf or {}
     revision = options.get("revision", "r2018") if format == "dxf" else None

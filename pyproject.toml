@@ -73,19 +73,18 @@ quote-style = "double"
 python_version = "3.10"
 warn_unreachable = true
 warn_redundant_casts = true
-warn_unused_ignores = false
-# NX-runtime modules depend on the Siemens NXOpen SDK, which ships only inside a
-# live NX session (Windows) and has no type stubs. They cannot be statically
-# type-checked in CI, so they are excluded from the gate.
-exclude = [
-    "src/nx_mcp/nx_bridge.py",
-    "src/nx_mcp/tools/",
-]
+warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 # NXOpen is injected at runtime inside NX; treat it as untyped rather than erroring.
 module = "NXOpen.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# core.tx.Services documents the NX-side seam with empty method stubs; each concrete
+# services class implements the members it needs.
+module = "nx_mcp.core.tx"
+disable_error_code = ["empty-body"]
 
 [tool.setuptools.package-data]
 nx_mcp = [

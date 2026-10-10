@@ -65,7 +65,7 @@ def nx_create_block(
     return {"feature": tx.ref(feature), "size": size}
 
 
-def nx_delete_first(tx, *, feature: RefTo("feature")) -> Count:  # type: ignore[valid-type]
+def nx_delete_first(tx, *, feature: Annotated[str, RefTo("feature")]) -> Count:
     """Delete one feature."""
     obj = tx.resolve(feature, "feature")
     tx.part.objects.remove(obj)
@@ -73,7 +73,11 @@ def nx_delete_first(tx, *, feature: RefTo("feature")) -> Count:  # type: ignore[
 
 
 def nx_export_note(
-    tx, *, path: PathTo("new", ".txt"), fail_after: bool = False, publish_then_fail: bool = False
+    tx,
+    *,
+    path: Annotated[str, PathTo("new", ".txt")],
+    fail_after: bool = False,
+    publish_then_fail: bool = False,
 ) -> Written:
     """Write a text file to the workspace."""
     temp = tx.files.stage(path)
@@ -122,8 +126,8 @@ def nx_create_label(
     *,
     origin: SheetPoint,
     height: SheetLength = 3.5,
-    sheet: RefTo("drawing_sheet") | None = None,  # type: ignore[valid-type]
-    view: RefTo("drawing_view") | None = None,  # type: ignore[valid-type]
+    sheet: Annotated[str, RefTo("drawing_sheet")] | None = None,
+    view: Annotated[str, RefTo("drawing_view")] | None = None,
 ) -> Placed:
     """Place a label on a drawing sheet."""
     return {
@@ -180,7 +184,7 @@ def nx_create_steps(tx, *, steps: Annotated[int, Doc("Steps")] = 3) -> Count:
     return {"count": steps}
 
 
-def nx_save_other(tx, *, part: RefTo("part")) -> Written:  # type: ignore[valid-type]
+def nx_save_other(tx, *, part: Annotated[str, RefTo("part")]) -> Written:
     """Save a named part."""
     target = tx.resolve(part, "part")
     tx.require_owned(target, field="/part")
@@ -192,7 +196,7 @@ def nx_import_block(
     tx,
     *,
     target: Literal["work_part", "new_part"] = "work_part",
-    new_part_path: PathTo("new", ".prt") | None = None,  # type: ignore[valid-type]
+    new_part_path: Annotated[str, PathTo("new", ".prt")] | None = None,
 ) -> Count:
     """Import a block into the work part or into a new part."""
     if new_part_path is not None:

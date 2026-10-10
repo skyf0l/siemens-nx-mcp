@@ -107,7 +107,7 @@ class OperationData(TypedDict, total=False):
     reverted_by: str | None
     reason: str | None  # why the state is unknown
     error: dict | None
-    result: dict | None  # the committed result (envelope; older receipts: stored result)
+    result: dict | None  # the committed call's envelope
 
 
 class CancelData(TypedDict):
@@ -122,7 +122,7 @@ class CancelData(TypedDict):
 
 
 def workspace_info(root) -> WorkspaceInfo:
-    return {"root": str(root), **RULES}  # type: ignore[typeddict-item]
+    return {"root": str(root), **RULES}  # type: ignore[typeddict-item]  # RULES holds the other fields
 
 
 def _part(session_part, root, row=None, units=None) -> PartInfo | None:
@@ -283,7 +283,7 @@ def nx_get_status(
         "workspace": workspace_info(root),
         "operation": running_info(status, services.store),
     }
-    return _select(data, include)  # type: ignore[return-value]
+    return _select(data, include)  # type: ignore[return-value]  # the fields include picks
 
 
 # ---------------------------------------------------------------------------
@@ -337,7 +337,7 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
     return {
         "operation_id": operation,
         "state": state,
-        "tool": record.get("tool") or record.get("method"),
+        "tool": record.get("tool"),
         "mutation_outcome": record.get("mutation_outcome"),
         "started_at": record.get("started_at"),
         "finished_at": record.get("finished_at"),
@@ -346,7 +346,7 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
         "reverted_by": record.get("reverted_by"),
         "reason": record.get("reason"),
         "error": error if state != "committed" else None,
-        "result": (stored or record.get("result")) if state == "committed" else None,
+        "result": stored if state == "committed" else None,
     }
 
 
@@ -367,14 +367,14 @@ def nx_cancel_operation(tx: Tx, *, operation: OperationRef) -> CancelData:
     with tx.checks():
         record = _record(tx, operation)
         state = str(record.get("state") or "unknown")
-        name = record.get("tool") or record.get("method")
+        name = record.get("tool")
         if state == "unknown" and "fingerprint" not in record:
             fail("NX_NOT_FOUND", f"No receipt for operation {operation}", field="/operation",
                  hint="Check the id; nx_get_operation shows its state")  # fmt: skip
         if state != "running":
             fail("NX_IN_USE", f"Operation {operation} is {state}; only a running call can be "
                  "cancelled", field="/operation", details={"state": state, "tool": name})  # fmt: skip
-        if catalogue.get(name) is None:
+        if not isinstance(name, str) or catalogue.get(name) is None:
             fail("NX_UNSUPPORTED_OPTION", f"{name} does not support cancellation",
                  field="/operation", details={"tool": name})  # fmt: skip
     tx.touched = True

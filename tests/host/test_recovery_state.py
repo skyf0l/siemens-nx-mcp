@@ -5,7 +5,7 @@ import pytest
 
 from nx_mcp.core import kernel
 from nx_mcp.core.errors import NXError
-from tests.fakes import Body, Part
+from tests.kit.objects import Body, Part
 
 pytestmark = pytest.mark.fake_nx
 

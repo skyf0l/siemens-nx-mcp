@@ -1,7 +1,7 @@
 """Fake NXOpen objects shared by every test rig (not a geometric kernel oracle).
 
-Moved here from ``tests/fakes`` so the legacy ``rig`` fixture, the legacy test
-rigs and the kit/domain unit tests use one set of objects.
+The host ``rig`` fixture (``tests/kit/rig.py``), the other host test rigs and the
+kit/domain unit tests use this one set of objects.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/freeform/spline.json",
   "scenario_sha256": "e0d32949735b9c3f173f03b994b57e86fb1fa6360fc8fb10d34924c44a097540",
   "domain": "freeform",
@@ -10,16 +10,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_spline": "3ebc166cb96b11204999855423f7583e62d667c7067aa649be09f835dbac155d"
   },
-  "run_id": "20261010-154643-0f4d47",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154643-0f4d47\\freeform_spline_0f4d47.prt",
-  "started": "2026-10-10T11:46:54Z",
-  "finished": "2026-10-10T11:46:55Z",
+  "recorded": "2026-10-10T11:46:55Z",
   "passed": true,
   "checks": 25,
   "failed_checks": 0,
@@ -29,97 +24,70 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "c00f4970f769b42baf41e401d39e2dda236d492296f0f2fc24419c3a55552e37"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.078,
-      "result_sha256": "2e02d481a49a8fa1a819f7106c1cee0a3d877d9b4c968202d85a92e1c1765cc0"
+      "checks": 7
     },
     {
       "index": 3,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.063,
-      "result_sha256": "91fbc32886ba63e2c0640f5e21f78b029c9832d1fc1214654c32d92f8ea70ba6"
+      "checks": 2
     },
     {
       "index": 4,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.046,
-      "result_sha256": "672d964a26a558441296f6bb664b8ad4f4194a93444dca4c1bc5f901c1ffb7ad"
+      "checks": 2
     },
     {
       "index": 5,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "ad1fbd9cfd6dd6ed9b3558c5ac7ed4ef64a037e1d242fc1e7c690947ac334ce6"
+      "checks": 3
     },
     {
       "index": 6,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "070c85267fd1890fb4ba230002574096e1a96d64d63b592beaf2cfc6b79f781b"
+      "checks": 3
     },
     {
       "index": 7,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "746705f3f27aadd8164de76dd7359aa9cdea3c65908056932c16d5fb9b9672c1"
+      "checks": 3
     },
     {
       "index": 8,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "c73149def6e7a2f82ab476b51e8499aba26fabf3966b334e5a4865545e49b474"
+      "checks": 2
     },
     {
       "index": 9,
       "call": "nx_create_spline",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "1e1d090f26a9aaa437ab8f08ec27b6f2c75094a39f5df9862267d5f522cf662f"
+      "checks": 2
     },
     {
       "index": 10,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.032,
-      "result_sha256": "2adcf8235d2cf31337a5aa1505cd8a12104ac91e7771a07e3d561c523c8e2c0f"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154643-0f4d47/freeform_spline_0f4d47.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

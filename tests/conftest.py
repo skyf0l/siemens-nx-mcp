@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.fakes import rig  # noqa: F401
+from tests.kit.rig import rig  # noqa: F401
 
 
 @pytest.fixture(autouse=True)

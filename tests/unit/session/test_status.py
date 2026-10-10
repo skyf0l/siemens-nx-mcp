@@ -152,7 +152,7 @@ def test_committed_catalogue_operation_carries_its_result(tmp_path, store):
     assert ok.data["started_at"] and ok.data["finished_at"]
 
 
-def test_failed_and_legacy_receipts(tmp_path, store):
+def test_failed_receipt_reports_its_error_and_no_result(tmp_path, store):
     receipts = Receipts(store, "s")
     record, _ = receipts.begin("nx_create_extrude", {}, "op_failed_01", None)
     error = {"code": "NX_BUILD_FAILED", "category": "geometry_failed", "message": "m", "hint": "h"}
@@ -162,10 +162,6 @@ def test_failed_and_legacy_receipts(tmp_path, store):
     assert failed["error"] == {"code": "NX_BUILD_FAILED", "category": "geometry_failed",
                                "message": "m"}  # fmt: skip
     assert failed["result"] is None
-    store.put({"operation_id": "op_legacy_01", "method": "nx_hole", "state": "committed",
-               "mutation_outcome": "committed", "result": {"status": "success"}})  # fmt: skip
-    legacy = side(tmp_path, st.nx_get_operation, operation="op_legacy_01").data
-    assert legacy["tool"] == "nx_hole" and legacy["result"] == {"status": "success"}
 
 
 def test_running_batch_reports_progress_and_can_be_cancelled(tmp_path, store):
@@ -184,7 +180,7 @@ def test_running_batch_reports_progress_and_can_be_cancelled(tmp_path, store):
     assert again["cancel_requested"] is True
 
 
-def test_cancel_refuses_unknown_finished_and_legacy_operations(tmp_path, store):
+def test_cancel_refuses_unknown_finished_and_uncatalogued_operations(tmp_path, store):
     unknown = side(tmp_path, st.nx_cancel_operation, operation="op_never_seen")
     assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.mutation_outcome == "not_started"
     receipts = Receipts(store, "s")
@@ -193,11 +189,11 @@ def test_cancel_refuses_unknown_finished_and_legacy_operations(tmp_path, store):
     done = side(tmp_path, st.nx_cancel_operation, operation="op_done_0001")
     assert done.error["code"] == "NX_IN_USE" and done.error["details"]["state"] == "committed"
     assert done.mutation_outcome == "not_started"
-    store.put({"operation_id": "op_legacy_02", "method": "nx_hole", "state": "running",
+    store.put({"operation_id": "op_not_catalogue", "tool": "nx_removed_tool", "state": "running",
                "mutation_outcome": "unknown"})  # fmt: skip
-    legacy = side(tmp_path, st.nx_cancel_operation, operation="op_legacy_02")
-    assert legacy.error["code"] == "NX_UNSUPPORTED_OPTION"
-    for op in ("op_never_seen", "op_done_0001", "op_legacy_02"):
+    other = side(tmp_path, st.nx_cancel_operation, operation="op_not_catalogue")
+    assert other.error["code"] == "NX_UNSUPPORTED_OPTION"
+    for op in ("op_never_seen", "op_done_0001", "op_not_catalogue"):
         assert not store.path(op).with_suffix(".cancel").exists()
 
 

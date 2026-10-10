@@ -14,7 +14,7 @@ from typing import Annotated
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Length, Point3, RefTo
+from nx_mcp.core.types import BodyRef, CurveRef, Doc, FaceRef, Items, Length, Point3
 from nx_mcp.domains.freeform import common
 from nx_mcp.kit import builders, curve, geom, measure, readback, select, units
 
@@ -42,8 +42,8 @@ class SewData(common.SheetData):
 def nx_create_sew(
     tx: Tx,
     *,
-    target: RefTo("body"),  # type: ignore[valid-type]
-    tools: Annotated[list[RefTo("body")], Items(1, 100)],  # type: ignore[valid-type]
+    target: BodyRef,
+    tools: Annotated[list[BodyRef], Items(1, 100)],
     tolerance: Annotated[Length, Doc("Largest gap to close")] | None = None,
     solid: Annotated[bool, Doc("Require a closed solid result")] = False,
 ) -> SewData:
@@ -110,7 +110,7 @@ class ThickenData(common.SheetData):
 def nx_create_thicken(
     tx: Tx,
     *,
-    faces: Annotated[list[RefTo("face")], Items(1, 200)],  # type: ignore[valid-type]
+    faces: Annotated[list[FaceRef], Items(1, 200)],
     offset1: Annotated[Length, Doc("First offset along the face normal")],
     offset2: Annotated[Length, Doc("Second offset along the face normal")] = 0.0,
 ) -> ThickenData:
@@ -159,8 +159,8 @@ def nx_create_thicken(
 def nx_create_trim_sheet(
     tx: Tx,
     *,
-    body: RefTo("body"),  # type: ignore[valid-type]
-    boundaries: Annotated[list[RefTo("curve")], Items(1, 100)],  # type: ignore[valid-type]
+    body: BodyRef,
+    boundaries: Annotated[list[CurveRef], Items(1, 100)],
     region_point: Annotated[Point3, Doc("A point on the region to keep or discard")],
     keep: Annotated[bool, Doc("Keep the region (false: discard it)")] = True,
 ) -> common.SheetData:

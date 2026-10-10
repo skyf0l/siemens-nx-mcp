@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
@@ -40,6 +40,7 @@ _JID_ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
 Tolerance = Annotated[float, Range(gt=0, le=1), Doc("Radius and normal tolerance")]
 GeometryType = Literal["any", "plane", "cylinder", "circle", "line"]
 Order = Literal["nearest", "highest", "lowest"]
+OwnerRef = Annotated[str, RefTo("body", "feature", "component")]
 AnchorText = Annotated[str, Text(400), Doc("Anchor from nx_create_anchor or a result row")]
 
 
@@ -182,7 +183,7 @@ def _part_path(tx):
 def nx_find_geometry(
     tx: Tx,
     *,
-    owner: RefTo("body", "feature", "component") | None = None,  # type: ignore[valid-type]
+    owner: OwnerRef | None = None,
     kind: Literal["face", "edge"] = "face",
     geometry_type: GeometryType = "any",
     normal: Vec3 | None = None,
@@ -211,8 +212,11 @@ def nx_find_geometry(
         tolerance=tolerance,
     )
     selected, page = result.page(ranked, offset, limit)
-    items = [{**tx.ref(obj, kind=kind), **facts} for _rank, obj, facts in selected]
-    selector: str | None = {
+    items = [
+        cast(GeometryRow, {**tx.ref(obj, kind=kind), **facts})  # a row plus _describe's facts
+        for _rank, obj, facts in selected
+    ]
+    rule: dict[str, Any] = {
         "part": _part_path(tx),
         "kind": kind,
         "geometry_type": geometry_type,
@@ -220,13 +224,17 @@ def nx_find_geometry(
         "axis": axis,
         "tolerance": tolerance,
     }
-    for key, value in (("normal", normal), ("radius", radius), ("near", near)):
-        if value is not None:
-            selector[key] = [float(v) for v in value] if key != "radius" else float(value)
+    if normal is not None:
+        rule["normal"] = [float(v) for v in normal]
+    if radius is not None:
+        rule["radius"] = float(radius)
+    if near is not None:
+        rule["near"] = [float(v) for v in near]
+    selector: dict[str, Any] | None = rule
     if owner_obj is not None:
         anchor = _anchor_of(tx, owner_obj, owner_kind)
         # Without a persistent owner anchor the rule cannot be re-run on the same owner.
-        selector = dict(selector, owner=anchor, owner_kind=owner_kind) if anchor else None
+        selector = dict(rule, owner=anchor, owner_kind=owner_kind) if anchor else None
     text = json.dumps(selector, separators=(",", ":")) if selector else None
     return {"items": items, "selector": text, "page": page}
 
@@ -289,7 +297,7 @@ def _group_holes(tx, bores, tol):
 def nx_find_holes(
     tx: Tx,
     *,
-    owner: RefTo("body", "feature", "component") | None = None,  # type: ignore[valid-type]
+    owner: OwnerRef | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> HolesData:
@@ -310,10 +318,10 @@ def nx_find_holes(
     selected, page = result.page(ordered, offset, limit)
     keys = ("radius", "axis", "axis_point", "full")
     items = [
-        {**tx.ref(face, kind="face"), **{k: facts[k] for k in keys}, "group": group}
+        cast(HoleRow, {**tx.ref(face, kind="face"), **{k: facts[k] for k in keys}, "group": group})
         for face, facts, group in selected
     ]
-    out_groups = [
+    out_groups: list[HoleGroup] = [
         {
             "group": g["group"],
             "axis": g["axis"],
@@ -347,7 +355,7 @@ class AnchorData(TypedDict):
 def nx_create_anchor(
     tx: Tx,
     *,
-    object: RefTo("body", "face", "edge"),  # type: ignore[valid-type]  # noqa: A002
+    object: Annotated[str, RefTo("body", "face", "edge")],  # noqa: A002
 ) -> AnchorData:
     """Make a persistent anchor for a body, face or edge of the work part. It survives edits
     that keep the entity, save and reopen; re-resolve it with nx_resolve_reference."""
@@ -475,25 +483,25 @@ def nx_resolve_reference(
         match = _HANDLE_ANCHOR.match(anchor)
         obj, kind = _resolve_handle(tx, match) if match else _resolve_jid(tx, anchor)
         return {"object": tx.ref(obj, kind=kind), "via": "anchor"}
-    selector = _parse_selector(selector)
-    _same_part(tx, selector["part"], "/selector")
-    owner_obj = _selector_owner(tx, selector)
-    rule = {k: selector.get(k) for k in ("normal", "radius", "near")}
-    _check_rule(selector["kind"], selector["geometry_type"], order=selector["order"], **rule)
+    parsed = _parse_selector(selector)
+    _same_part(tx, parsed["part"], "/selector")
+    owner_obj = _selector_owner(tx, parsed)
+    rule = {k: parsed.get(k) for k in ("normal", "radius", "near")}
+    _check_rule(parsed["kind"], parsed["geometry_type"], order=parsed["order"], **rule)
     ranked = search(
         tx,
         owner_obj=owner_obj,
-        kind=selector["kind"],
-        geometry_type=selector["geometry_type"],
-        order=selector["order"],
-        axis=selector["axis"],
-        tolerance=selector["tolerance"],
+        kind=parsed["kind"],
+        geometry_type=parsed["geometry_type"],
+        order=parsed["order"],
+        axis=parsed["axis"],
+        tolerance=parsed["tolerance"],
         **rule,
     )
     if not ranked:
         fail("NX_NOT_FOUND", "No geometry satisfies the selector now", field="/selector")
     if len(ranked) > 1 and abs(ranked[0][0] - ranked[1][0]) <= tie_tolerance:
-        candidates = [{**tx.ref(o, kind=selector["kind"]), "rank": r} for r, o, _ in ranked[:2]]
+        candidates = [{**tx.ref(o, kind=parsed["kind"]), "rank": r} for r, o, _ in ranked[:2]]
         fail(
             "NX_AMBIGUOUS_REFERENCE",
             "The best two candidates tie; narrow the selector or lower tie_tolerance",
@@ -501,4 +509,4 @@ def nx_resolve_reference(
             details={"candidates": candidates},
         )
     rank, obj, _facts = ranked[0]
-    return {"object": tx.ref(obj, kind=selector["kind"]), "via": "selector", "rank": rank}
+    return {"object": tx.ref(obj, kind=parsed["kind"]), "via": "selector", "rank": rank}

@@ -23,7 +23,17 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, RefTo, SheetLength, SheetPoint, Text
+from nx_mcp.core.types import (
+    DimensionRef,
+    DrawingViewRef,
+    EdgeRef,
+    FeatureRef,
+    Items,
+    SheetLength,
+    SheetPoint,
+    Text,
+    forbid_extra,
+)
 from nx_mcp.domains.drawing import fits
 from nx_mcp.domains.drawing.common import edge_facts, geometry, true_shape, uf_types
 from nx_mcp.kit import args, builders, drawing, facts, geom, readback, result, select, units
@@ -52,8 +62,6 @@ FIT_DISPLAY = {
     "symbol_and_limits": "FitSymbolsAndLimits",
 }
 FIT_TOL_MM = 1e-7  # NX's computed fit deviations against ISO 286.
-
-EdgeRef = RefTo("edge")
 
 
 class DimensionRow(result.Row, total=False):
@@ -200,7 +208,7 @@ def _summary(a, say):
 def nx_create_drawing_dimension(
     tx: Tx,
     *,
-    view: RefTo("drawing_view"),  # type: ignore[valid-type]
+    view: DrawingViewRef,
     kind: Literal[
         "linear",
         "radius",
@@ -214,17 +222,17 @@ def nx_create_drawing_dimension(
         "chain",
         "hole_callout",
     ],
-    first: EdgeRef | None = None,  # type: ignore[valid-type]
-    second: EdgeRef | None = None,  # type: ignore[valid-type]
+    first: EdgeRef | None = None,
+    second: EdgeRef | None = None,
     orientation: Literal["aligned", "horizontal", "vertical"] = "aligned",
     origin: SheetPoint | None = None,
-    datum: EdgeRef | None = None,  # type: ignore[valid-type]
+    datum: EdgeRef | None = None,
     datum_point: Literal["start", "end", "center"] = "start",
-    objects: Annotated[list[EdgeRef], Items(1, MAX_ORDINATES)] | None = None,  # type: ignore[valid-type]
+    objects: Annotated[list[EdgeRef], Items(1, MAX_ORDINATES)] | None = None,
     object_point: Literal["auto", "start", "end", "center"] = "auto",
     direction: Literal["horizontal", "vertical"] = "horizontal",
     margin: SheetLength | None = None,
-    hole: RefTo("feature") | None = None,  # type: ignore[valid-type]
+    hole: FeatureRef | None = None,
 ) -> DimensionData:
     """Create an associative dimension on edges in a drawing view, checked against the model.
     Linear: one edge or two edges' start points; ordinate: objects from a datum point;
@@ -238,7 +246,7 @@ def nx_create_drawing_dimension(
 
         return hole_callouts.create_callout(tx, view, hole, first, origin)
     if kind in SETS:
-        args.need(objects=objects)
+        objects = args.required(objects, "objects")
         if len(objects) < 2:
             fail("NX_INVALID_ARGUMENT", f"A {kind} set needs at least two objects",
                  field="/objects")  # fmt: skip
@@ -247,7 +255,8 @@ def nx_create_drawing_dimension(
 
         return more.dimension_set(tx, view, kind, objects, object_point, direction, origin)
     if kind == "ordinate":
-        args.need(datum=datum, objects=objects)
+        args.need(datum=datum)
+        objects = args.required(objects, "objects")
         args.distinct("/objects", objects, "edges")
         if datum in objects:
             fail("NX_INVALID_ARGUMENT", "datum cannot also be in objects", field="/objects")
@@ -508,8 +517,7 @@ class DimensionTolerance(TypedDict, total=False):
     display: Literal["symbol", "deviations", "symbol_and_deviations", "symbol_and_limits"]
 
 
-for _td in (DimensionFormat, DimensionTolerance):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+forbid_extra(DimensionFormat, DimensionTolerance)
 
 
 class DimensionInfo(TypedDict, total=False):
@@ -589,7 +597,7 @@ def dimension_info(tx, d):
 def nx_get_dimension(
     tx: Tx,
     *,
-    dimension: RefTo("dimension"),  # type: ignore[valid-type]
+    dimension: DimensionRef,
 ) -> DimensionInfo:
     """Read a drawing dimension: measured value, format, tolerance and sheet position.
     valid is false for a retained dimension that lost its geometry."""
@@ -784,21 +792,23 @@ def _rebind_view(d):
 def nx_edit_dimension(
     tx: Tx,
     *,
-    dimension: RefTo("dimension"),  # type: ignore[valid-type]
+    dimension: DimensionRef,
     format: DimensionFormat | None = None,  # noqa: A002 - surface name
     tolerance: DimensionTolerance | None = None,
-    edges: Annotated[list[EdgeRef], Items(1, 2)] | None = None,  # type: ignore[valid-type]
+    edges: Annotated[list[EdgeRef], Items(1, 2)] | None = None,
 ) -> DimensionInfo:
     """Change a dimension's format or tolerance, or rebind it to 1-2 edges.
     Fit: ISO 286 hole/shaft class (H7, g6); limits are checked."""
     if not format and not tolerance and not edges:
         fail("NX_INVALID_ARGUMENT", "Give format, tolerance or edges")
-    fit = bool(tolerance) and tolerance.get("type") == "fit"
+    fit = bool(tolerance and tolerance.get("type") == "fit")
     if tolerance:
         _fit_request(tolerance)
     for field, part in (("format", format), ("tolerance", tolerance)):
         if part and "decimals" in part and not 0 <= part["decimals"] <= 8:
             fail("NX_INVALID_ARGUMENT", "decimals must be 0-8", field=f"/{field}/decimals")
+    first: str | None
+    second: str | None
     first, second = (list(edges) + [None])[:2] if edges else (None, None)
     if second is not None and second == first:
         fail("NX_INVALID_ARGUMENT", "edges must differ", field="/edges/1")

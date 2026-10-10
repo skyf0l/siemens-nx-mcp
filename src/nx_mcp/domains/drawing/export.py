@@ -18,7 +18,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, PathTo, RefTo
+from nx_mcp.core.types import DrawingSheetRef, Items, PathTo
 from nx_mcp.kit import builders, drawing, files, parts, result, select
 
 HEADERS = {
@@ -75,9 +75,9 @@ def _valid(data, kind):
 def nx_export_drawing(
     tx: Tx,
     *,
-    path: PathTo("new", ".pdf", ".dxf", ".dwg"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", ".pdf", ".dxf", ".dwg")],
     format: Literal["pdf", "dxf", "dwg"] = "pdf",  # noqa: A002 - surface name
-    sheets: Annotated[list[RefTo("drawing_sheet")], Items(1, 50)] | None = None,  # type: ignore[valid-type]
+    sheets: Annotated[list[DrawingSheetRef], Items(1, 50)] | None = None,
 ) -> ExportData:
     """Export drawing sheets of the work part to a new PDF (all or the given sheets) or a
     DXF/DWG file (one sheet). Unsaved changes are included; the part is not saved."""

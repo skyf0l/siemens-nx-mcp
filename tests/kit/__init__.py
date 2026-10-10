@@ -3,7 +3,7 @@
 ``fake_nx(units)`` (``tests/kit/fake.py``) is the fake NX session;
 ``run(nx, tool, **args)`` (``tests/kit/kernel.py``) calls a catalogue tool on it
 through the real kernel. The fake NX objects (``tests/kit/objects.py``) also back
-the legacy ``rig`` fixture in ``tests/fakes``.
+the host ``rig`` fixture (``tests/kit/rig.py``).
 
 ``fake_nx`` gives builder factories that record configure/commit/``Destroy()``
 (``last``, ``live_builders``, ``on_commit``, ``lacks``, ``refuse``), owned

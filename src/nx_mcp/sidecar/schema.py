@@ -84,7 +84,7 @@ OUTCOMES = (
 
 
 def _annotated(base, meta: list):
-    return Annotated[(base, *meta)] if meta else base  # type: ignore[valid-type]
+    return Annotated[(base, *meta)] if meta else base
 
 
 def _integral(value):
@@ -149,9 +149,9 @@ class _Converter:
                 float, [*meta, *self._range(markers), Strict(), Field(allow_inf_nan=False)]
             )
         if base is str:
-            text = markers.get(Text)
+            limits = markers.get(Text)
             constraint = (
-                [StringConstraints(max_length=text.max, pattern=text.pattern)] if text else []
+                [StringConstraints(max_length=limits.max, pattern=limits.pattern)] if limits else []
             )
             return _annotated(str, [*meta, Strict(), *constraint])
         origin = typing.get_origin(base)
@@ -159,13 +159,13 @@ class _Converter:
             (item,) = typing.get_args(base)
             items = markers.get(Items)
             bounds = [Field(min_length=items.min, max_length=items.max)] if items else []
-            return _annotated(list[self(item)], [*meta, *bounds])  # type: ignore[misc]
+            return _annotated(list[self(item)], [*meta, *bounds])
         if origin is tuple:
             args = tuple(self(a) for a in typing.get_args(base))
-            return _annotated(tuple[args], meta)  # type: ignore[valid-type]
+            return _annotated(tuple[args], meta)
         if origin is dict:
             key, value = typing.get_args(base) or (str, Any)
-            return _annotated(dict[key, self(value)], meta)  # type: ignore[valid-type]
+            return _annotated(dict[key, self(value)], meta)
         if is_typeddict(base):
             return _annotated(self._typeddict(base), meta)
         if self.output:
@@ -187,9 +187,9 @@ class _Converter:
             name: (te.Required if name in required else te.NotRequired)[self(sub)]
             for name, sub in typeddict_fields(td).items()
         }
-        converted = te.TypedDict(td.__name__, fields)  # type: ignore[operator]
+        converted = te.TypedDict(td.__name__, fields)
         if not self.output:
-            converted.__pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[attr-defined]
+            converted.__pydantic_config__ = ConfigDict(extra="forbid")
         self.typeddicts[td] = converted
         return converted
 
@@ -200,8 +200,8 @@ def _arguments_type(spec):
         name: (te.Required if p.required else te.NotRequired)[convert(p.hint)]
         for name, p in spec.params.items()
     }
-    model = te.TypedDict(f"{spec.name}_arguments", fields)  # type: ignore[operator]
-    model.__pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[attr-defined]
+    model = te.TypedDict(f"{spec.name}_arguments", fields)
+    model.__pydantic_config__ = ConfigDict(extra="forbid")
     return model
 
 
@@ -219,14 +219,14 @@ def _variant_union(spec, by: dict):
     for value in spec.variant_values():
         fields = {
             name: (te.Required if p.required else te.NotRequired)[
-                Literal[value]  # type: ignore[valid-type]
+                Literal[value]
                 if name == spec.variants
                 else convert(by[name].forms[value] if name in by else p.hint)
             ]
             for name, p in spec.params.items()
         }
-        branch = te.TypedDict(f"{spec.name}_{value}", fields)  # type: ignore[operator]
-        branch.__pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[attr-defined]
+        branch = te.TypedDict(f"{spec.name}_{value}", fields)  # type: ignore[misc]  # built per variant
+        branch.__pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[attr-defined]  # read by Pydantic
         branches.append(branch)
     return Annotated[Union[tuple(branches)], Field(discriminator=spec.variants)]  # noqa: UP007
 

@@ -103,7 +103,7 @@ class ExportData(TypedDict):
 def nx_export_expressions(
     tx: Tx,
     *,
-    path: PathTo("new", ".exp"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", ".exp")],
     names: Annotated[list[NamePattern], Items(1, 100)] | None = None,
     sort: Literal["name", "timestamp"] = "name",
 ) -> ExportData:
@@ -134,7 +134,7 @@ def nx_export_expressions(
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
     return {
-        **meta,  # type: ignore[typeddict-item]
+        **meta,
         "count": len(exported),
         "names": exported[:MAX_ROWS],
         "truncated": len(exported) > MAX_ROWS,
@@ -168,7 +168,7 @@ def _state(part) -> dict:
     return {e.Name: (e, str(e.RightHandSide)) for e in part.Expressions}
 
 
-def _row(tx, e) -> dict:
+def _row(tx, e) -> ExpressionRow:
     return {
         "expression": tx.ref(e, kind="expression"),
         "formula": str(e.RightHandSide),
@@ -276,7 +276,7 @@ def _import(tx, source, mode, before) -> list[str]:
 def nx_import_expressions(
     tx: Tx,
     *,
-    path: PathTo("read", ".exp"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("read", ".exp")],
     mode: Annotated[
         Literal["replace", "keep", "delete"],
         Doc("replace: file formulas win; keep: existing stay; delete: remove unused listed"),
@@ -341,8 +341,8 @@ def nx_import_expressions(
         "path": files.relative(source, tx.workspace.root),
         "mode": mode,
         "file_expressions": len(entries),
-        "created": [_row(tx, e) for e in created[:MAX_ROWS]],  # type: ignore[misc]
-        "changed": [{**_row(tx, e), "previous": old} for e, old in changed[:MAX_ROWS]],  # type: ignore[misc,typeddict-item]
+        "created": [_row(tx, e) for e in created[:MAX_ROWS]],
+        "changed": [{**_row(tx, e), "previous": old} for e, old in changed[:MAX_ROWS]],
         "deleted": deleted[:MAX_ROWS],
         "skipped": skipped[:MAX_ROWS],
         "warnings": warnings[:50],

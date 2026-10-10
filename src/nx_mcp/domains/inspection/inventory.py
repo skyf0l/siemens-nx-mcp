@@ -10,7 +10,7 @@ face ids) or ``views`` (a drawing sheet's views).
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import fail
@@ -91,7 +91,7 @@ def nx_list_objects(
     tx: Tx,
     *,
     kind: ListKind,
-    owner: RefTo("body", "face", "feature") | None = None,  # type: ignore[valid-type]
+    owner: Annotated[str, RefTo("body", "face", "feature")] | None = None,
     name_contains: Annotated[str, Text(64), Doc("Case-insensitive name filter")] | None = None,
     type: Annotated[str, Text(32, r"^[a-z_]+$"), Doc("Kind-specific type, e.g. plane")]
     | None = None,
@@ -118,9 +118,9 @@ def nx_list_objects(
     if type:
         found = [f for f in found if f[2].get("type") == type]
     selected, page = result.page(found, offset, limit)
-    items = []
+    items: list[ObjectRow] = []
     for obj, k, extra in selected:
-        row = {**tx.ref(obj, kind=k), **extra}
+        row = cast(ObjectRow, {**tx.ref(obj, kind=k), **extra})  # a row plus the lister's summary
         if include is not None:
             row["details"] = {**(row.get("details") or {}), **_expand(tx, obj, k)}
         items.append(row)

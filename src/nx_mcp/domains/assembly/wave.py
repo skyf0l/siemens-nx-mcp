@@ -23,8 +23,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Point3, RefTo, Vec3
-from nx_mcp.domains.assembly.common import ComponentRef
+from nx_mcp.core.types import ComponentRef, Doc, FaceRef, Items, Point3, RefTo, Vec3
 from nx_mcp.kit import assembly, builders, geom, measure, readback, result, select
 from nx_mcp.kit.bodies import is_body
 
@@ -45,9 +44,8 @@ LINK_TYPES = {
     "sketch": "SketchLink",
 }
 EXTRACT_TYPES = {"body": "Body", "face": "Face", "region": "RegionOfFaces"}
-SourceRef = RefTo("body", "face", "curve", "edge", "datum", "sketch")
-ExtractRef = RefTo("body", "face")
-FaceRef = RefTo("face")
+SourceRef = Annotated[str, RefTo("body", "face", "curve", "edge", "datum", "sketch")]
+ExtractRef = Annotated[str, RefTo("body", "face")]
 REL = 1e-6  # relative band for volume, area and length read-backs
 CONTEXT_HINT = (
     "Keep the assembly displayed and make the target component's part the work part: "
@@ -318,9 +316,8 @@ def nx_create_wave_link(
     tx: Tx,
     *,
     kind: LinkKind,
-    sources: Annotated[list[SourceRef], Items(1, 50)],  # type: ignore[valid-type]
-    component: Annotated[ComponentRef, Doc("Shows part-object sources")]  # type: ignore[valid-type]
-    | None = None,
+    sources: Annotated[list[SourceRef], Items(1, 50)],
+    component: Annotated[ComponentRef, Doc("Shows part-object sources")] | None = None,
     associative: Annotated[bool, Doc("false: a dumb copy, no link")] = True,
     at_timestamp: Annotated[bool, Doc("Fix the link at the current timestamp")] = False,
 ) -> LinkData:
@@ -434,12 +431,12 @@ def nx_create_extract(
     tx: Tx,
     *,
     kind: ExtractKind,
-    objects: Annotated[  # type: ignore[valid-type]
+    objects: Annotated[
         list[ExtractRef],
         Items(1, 50),
         Doc("body: bodies; face: connected faces; region: the seed face"),
     ],
-    boundary: Annotated[list[FaceRef], Items(1, 50), Doc("region: faces that bound it")]  # type: ignore[valid-type]
+    boundary: Annotated[list[FaceRef], Items(1, 50), Doc("region: faces that bound it")]
     | None = None,
     associative: Annotated[bool, Doc("false: a dumb copy")] = True,
     at_timestamp: Annotated[bool, Doc("Ignore later features of the source")] = False,

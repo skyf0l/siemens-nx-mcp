@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/parts_files/create_part.json",
   "scenario_sha256": "64e83bf5e2026ad4822a96dbf52a3020a4725b8ec437de549d37c5c34d3d6422",
   "domain": "parts_files",
@@ -7,16 +7,11 @@
     "nx_create_part": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_part": "7d37f8a3f6ea7b8247b818cb18f293012dc64e6960622eda3481242a68ac7dd0"
   },
-  "run_id": "20261010-154111-17dd9e",
-  "owner": "reg_final2_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154111-17dd9e\\parts_files_create_part_17dd9e.prt",
-  "started": "2026-10-10T11:41:19Z",
-  "finished": "2026-10-10T11:41:21Z",
+  "recorded": "2026-10-10T11:41:21Z",
   "passed": true,
   "checks": 33,
   "failed_checks": 0,
@@ -26,133 +21,98 @@
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 6,
-      "seconds": 0.453,
-      "result_sha256": "2577cd0274b4521422ff831b5b562d4825aefa58f218eb60a153fc87e69006af"
+      "checks": 6
     },
     {
       "index": 2,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.312,
-      "result_sha256": "462b30cd18c860ad948a8e65118358409139e0e8519bcacc7a8d30e4662962c1"
+      "checks": 4
     },
     {
       "index": 3,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "93c3ee403c7e95ac7f015648d0d4ee288a82d91cdf00671dfc18ba13526f4e37"
+      "checks": 3
     },
     {
       "index": 4,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.078,
-      "result_sha256": "06a256eb74d0083b429641d6b9b9cdfc5506792f3cb33757a2d6ff93cc2156a5"
+      "checks": 3
     },
     {
       "index": 5,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.062,
-      "result_sha256": "587ddaa583b84ce80191dab7519bddfdbbdefb82594968b54cf8be43dcf04eac"
+      "checks": 4
     },
     {
       "index": 6,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.0,
-      "result_sha256": "3f1ece76fb593b37d0735f2e8594881bea6e222e1edec36318389678d8d834a0"
+      "checks": 1
     },
     {
       "index": 7,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.157,
-      "result_sha256": "4bd1c5ac873c956b760eb353822533730d37a3b7d251688073299c12632c8fa9"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.25,
-      "result_sha256": "448f88b29dbf00f1211de685914831023ea995f14173899c1139a385504c721d"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "c207b27b8049e292286ffb49a50185b067c3c63606a2184429a7fb899af17359"
+      "checks": 2
     },
     {
       "index": 10,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "5840a4cd3a8ed741a66bcb46c722704dcba3d79947fdd56947b67fe604e81677"
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "dd2d9b0e27ca11bbb34f3e77084e5246518f7b32694ba2bfa2efeb2661ad2472"
+      "checks": 2
     },
     {
       "index": 12,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "b4e625d5abe0f6e9c350d3ee7f87503ce8a2af770a214620d99698c0495c5d78"
+      "checks": 2
     },
     {
       "index": 13,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.016,
-      "result_sha256": "a2ceaf84bdb66a6a2e00bad95caf200cb8b6635fa35fa9cde409881a3455c631"
+      "checks": 3
     },
     {
       "index": 14,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.016,
-      "result_sha256": "defca734a708052aa288d3fe47e2180109e439b64b6223c8eddb8b3e603afe4c"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-154111-17dd9e/parts_files_create_part_17dd9e.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

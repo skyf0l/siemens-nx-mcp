@@ -78,7 +78,7 @@ def test_validator_rejects_extra_missing_and_out_of_bounds():
 
 def test_items_text_and_literal():
     spec = params(
-        refs=Annotated[list[T.RefTo("edge")], T.Items(1, 2)],
+        refs=Annotated[list[Annotated[str, T.RefTo("edge")]], T.Items(1, 2)],
         mode=Literal["a", "b"],
         name=T.Name,
     )
@@ -140,14 +140,14 @@ def test_union_errors_name_the_best_matching_form():
     from typing import TypedDict
 
     class Path(TypedDict):
-        path: Annotated[list[T.RefTo("edge")], T.Items(1, 5)]
+        path: Annotated[list[Annotated[str, T.RefTo("edge")]], T.Items(1, 5)]
         help_point: T.Point3
 
     class PathMore(Path, total=False):
         percent: Annotated[float, T.Range(ge=0, le=100)]
 
     class On(TypedDict):
-        on: T.RefTo("face")
+        on: Annotated[str, T.RefTo("face")]
 
     spec = params(placement=T.PrincipalPlane | On | PathMore)
     bad = {"path": ["e:1"], "help_point": [0, 0, 0], "percent": 150}
@@ -174,7 +174,7 @@ def test_null_is_refused_for_required_fields_and_allowed_for_optional_ones():
 
 
 def test_placeholders_only_in_ref_fields():
-    spec = params(feature=T.RefTo("feature"), name=T.Name)
+    spec = params(feature=Annotated[str, T.RefTo("feature")], name=T.Name)
     ok = validate(spec, {"feature": "$2.data.feature", "name": "A"}, placeholders=True)
     assert ok.placeholders == [(("feature",), "$2.data.feature")]
     with pytest.raises(NXError):
@@ -184,7 +184,37 @@ def test_placeholders_only_in_ref_fields():
 
 
 def test_paths_are_recorded_with_mode():
-    spec = params(path=T.PathTo("new", ".step", ".stp"))
+    spec = params(path=Annotated[str, T.PathTo("new", ".step", ".stp")])
     ok = validate(spec, {"path": "out/a.step"})
     ((path, marker),) = ok.paths
     assert path == ("path",) and marker.mode == "new" and marker.suffixes == (".step", ".stp")
+
+
+def test_ref_and_path_shorthands_expand_in_place():
+    from nx_mcp.core.validate import unwrap
+
+    _, markers = unwrap(Annotated[T.BodyRef, T.Doc("ignored: the first Doc wins")])
+    assert markers == {
+        T.Text: T.Text(128, T.REF_PATTERN),
+        T.RefKind: T.RefKind("body"),
+        T.Doc: T.Doc("Ref: body"),
+    }
+    _, markers = unwrap(Annotated[str, T.RefTo("face", doc="Ref: bend face")])
+    assert markers[T.Doc] == T.Doc("Ref: bend face")
+    assert unwrap(T.Ref)[1][T.Doc] == T.Doc("Ref: any")
+    _, markers = unwrap(Annotated[str, T.PathTo("new", ".STEP")])
+    assert markers == {
+        T.Text: T.Text(260),
+        T.PathArg: T.PathArg("new", (".step",)),
+        T.Doc: T.Doc("Workspace path"),
+    }
+
+
+def test_forbid_extra_marks_typeddicts_for_pydantic():
+    from typing import TypedDict
+
+    class Spec(TypedDict):
+        a: int
+
+    T.forbid_extra(Spec)
+    assert Spec.__pydantic_config__ == {"extra": "forbid"}

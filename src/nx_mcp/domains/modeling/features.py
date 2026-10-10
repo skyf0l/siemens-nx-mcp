@@ -7,13 +7,22 @@ from typing import Annotated
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Axis, Combine, Direction, Doc, Items, Limit, RefTo
+from nx_mcp.core.types import (
+    Angle,
+    Axis,
+    Combine,
+    Direction,
+    Doc,
+    Items,
+    Limit,
+    LimitDistance,
+    SketchRef,
+)
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args, builders, geom, measure, readback, select, units
 from nx_mcp.kit import sketch as ksketch
 
-SketchRef = RefTo("sketch")
-ZERO = {"type": "distance", "value": 0.0}
+ZERO: LimitDistance = {"type": "distance", "value": 0.0}
 COMBINE_CHANGE = {"unite": "more", "subtract": "less", "intersect": "less"}
 
 
@@ -79,7 +88,7 @@ def _principal(vector):
 def nx_create_extrude(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     end: Limit,
     start: Limit | None = None,
     symmetric: Annotated[bool, Doc("end distance to both sides; omit start")] = False,
@@ -94,10 +103,14 @@ def nx_create_extrude(
             fail(
                 "NX_INVALID_ARGUMENT", "symmetric takes an end distance and no start", field="/end"
             )
-        if end["value"] <= 0:
+        if float(end["value"]) <= 0:
             fail("NX_INVALID_ARGUMENT", "symmetric needs a positive distance", field="/end/value")
-        start = {"type": "distance", "value": -end["value"]}
-    if start["type"] == end["type"] == "distance" and end["value"] <= start["value"]:
+        start = {"type": "distance", "value": -float(end["value"])}
+    if (
+        start["type"] == "distance"
+        and end["type"] == "distance"
+        and float(end["value"]) <= float(start["value"])
+    ):
         fail("NX_INVALID_ARGUMENT", "end must lie beyond start", field="/end/value")
     if "through_all" in (start["type"], end["type"]) and combine is None:
         fail("NX_INVALID_ARGUMENT", "through_all needs combine targets", field="/combine")
@@ -118,7 +131,7 @@ def nx_create_extrude(
     if combine is None:
         common.changed(0.0, out["volume"], "positive")
         axis = _principal(want)
-        if axis is not None and start["type"] == end["type"] == "distance":
+        if axis is not None and start["type"] == "distance" and end["type"] == "distance":
             # The body spans exactly [start, end] along the extrude direction.
             low, high = measure.bounds(tx, common.feature_bodies(feature))
             sign = want[axis]
@@ -156,7 +169,7 @@ def _axis(tx, value):
 def nx_create_revolve(
     tx: Tx,
     *,
-    sketch: SketchRef,  # type: ignore[valid-type]
+    sketch: SketchRef,
     axis: Axis,
     start_angle: Angle = 0.0,
     end_angle: Angle = 360.0,
@@ -200,8 +213,8 @@ def nx_create_revolve(
 def nx_create_sweep(
     tx: Tx,
     *,
-    section: SketchRef,  # type: ignore[valid-type]
-    guide: SketchRef,  # type: ignore[valid-type]
+    section: SketchRef,
+    guide: SketchRef,
     combine: Combine | None = None,
 ) -> common.FeatureData:
     """Sweep a closed section sketch along a guide sketch, as a new body or combined with
@@ -258,7 +271,7 @@ def nx_create_sweep(
 def nx_create_loft(
     tx: Tx,
     *,
-    sections: Annotated[list[SketchRef], Items(2, 20), Doc("Section sketches in order")],  # type: ignore[valid-type]
+    sections: Annotated[list[SketchRef], Items(2, 20), Doc("Section sketches in order")],
     solid: bool = True,
 ) -> common.FeatureData:
     """Loft a body through 2-20 section sketches in order (NX Through Curves); solid=false

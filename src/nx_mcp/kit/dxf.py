@@ -97,7 +97,9 @@ def dxf_facts(data: bytes) -> dict:
     layers: set[str] = set()
     box = _Box()
     section = previous = None
-    kind, record, pending = None, {}, [None, None]
+    kind = None
+    record: dict = {}  # "points", "center" and group codes -> values
+    pending: list = [None, None]  # the x, y of the point being read
     want_version = False
 
     def flush():

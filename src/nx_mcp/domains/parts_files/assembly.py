@@ -92,7 +92,7 @@ def _sources(tx, part) -> tuple[list[Path], int]:
 def nx_export_assembly(
     tx: Tx,
     *,
-    path: PathTo("new"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new")],
     format: Literal["zip", "clone"],
     prefix: Annotated[str, Text(32, r"^[A-Za-z0-9_-]{1,32}$"), Doc("clone: file name prefix")]
     | None = None,
@@ -114,12 +114,13 @@ def nx_export_assembly(
         sources, occurrences = _sources(tx, part)
     if format == "zip":
         return _package(tx, part, sources, occurrences, target)
+    assert prefix is not None  # a clone without prefix failed above
     return _clone(tx, part, sources, target, prefix, activate)
 
 
-def _package(tx, part, sources, occurrences, target) -> dict:
+def _package(tx, part, sources, occurrences, target) -> AssemblyExportData:
     root = Path(tx.workspace.root)
-    manifest = [files.metadata(f, root) for f in sources]
+    manifest: list[FileEntry] = [{**files.metadata(f, root)} for f in sources]
     temp = files.temp_path(root, target.name, tx.operation_id)
     tx.touched = True
     try:
@@ -159,7 +160,7 @@ def _package(tx, part, sources, occurrences, target) -> dict:
     }
 
 
-def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) -> dict:
+def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) -> AssemblyExportData:
     root = Path(tx.workspace.root)
     top = Path(parts.file_of(part)).resolve()
     base = Path(os.path.commonpath([str(p.parent) for p in sources]))
@@ -218,7 +219,7 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
             "The copied assembly does not use the copied component files",
             resolved=sorted(files.relative(p, root) for p in resolved),
         )
-        manifest = [
+        manifest: list[FileEntry] = [
             {
                 "source": files.relative(s, root),
                 "path": files.relative(t, root),
@@ -239,7 +240,7 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
                 indent=2,
             ).encode(),
         )
-        out = {
+        out: AssemblyExportData = {
             "path": files.relative(destination, root),
             "format": "clone",
             "top_part": files.relative(mapping[top], root),

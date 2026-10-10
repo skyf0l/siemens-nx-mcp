@@ -46,10 +46,10 @@ def test_success_failure_and_partial_lines_say_what_happened_to_the_model(tmp_pa
 def test_read_only_steps_are_grouped_but_fully_logged(tmp_path):
     activity = Activity(tmp_path / "activity.log")
     activity.start_session()
-    run(activity, "nx_blend", "Blend 1 edge R2 mm")
+    run(activity, "nx_create_blend", "Blend 1 edge R2 mm")
     for at in range(3):
-        run(activity, "nx_list_bodies", "List bodies", read_only=True, at=at)
-    run(activity, "nx_fit_view", "Fit the view", read_only=True, at=4)
+        run(activity, "nx_list_objects", "List bodies", read_only=True, at=at)
+    run(activity, "nx_set_camera", "Fit the view", read_only=True, at=4)
     lines = activity.recent()
     assert len(lines) == 2 and "4 read-only or view steps (model unchanged)" in lines[1]
     assert len((tmp_path / "activity.log").read_text(encoding="utf-8").splitlines()) == 5

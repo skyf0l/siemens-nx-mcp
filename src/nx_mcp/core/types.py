@@ -173,18 +173,39 @@ def expand_kinds(kinds) -> frozenset[str]:
     return frozenset(out)
 
 
-def RefTo(*kinds: str):  # noqa: N802 - reads as a type in signatures
-    """A reference to one of ``kinds`` (any kind when empty)."""
-    what = "/".join(kinds) if kinds else "any"
-    return Annotated[
-        str,
-        Text(128, REF_PATTERN),
-        RefKind(*kinds),
-        Doc(f"Ref: {what}"),
-    ]
+@dataclass(frozen=True, init=False)
+class RefTo:
+    """``Annotated[str, RefTo(*kinds)]``: a reference to one of ``kinds`` (any kind when
+    empty). Shorthand for ``Text(128, REF_PATTERN)``, ``RefKind(*kinds)`` and a ``Doc``
+    (``doc``, else "Ref: <kinds>"); ``core.validate.unwrap`` expands it in place. Static
+    checkers see the field as ``str``, so aliases such as ``BodyRef`` narrow and compare."""
+
+    kinds: tuple[str, ...]
+    doc: str | None
+
+    def __init__(self, *kinds: str, doc: str | None = None) -> None:
+        object.__setattr__(self, "kinds", tuple(kinds))
+        object.__setattr__(self, "doc", doc)
+
+    def expand(self) -> tuple[Text, RefKind, Doc]:
+        what = "/".join(self.kinds) if self.kinds else "any"
+        return Text(128, REF_PATTERN), RefKind(*self.kinds), Doc(self.doc or f"Ref: {what}")
 
 
-Ref = RefTo()
+Ref = Annotated[str, RefTo()]
+PartRef = Annotated[str, RefTo("part")]
+BodyRef = Annotated[str, RefTo("body")]
+FaceRef = Annotated[str, RefTo("face")]
+EdgeRef = Annotated[str, RefTo("edge")]
+CurveRef = Annotated[str, RefTo("curve")]
+FeatureRef = Annotated[str, RefTo("feature")]
+SketchRef = Annotated[str, RefTo("sketch")]
+ComponentRef = Annotated[str, RefTo("component")]
+ExplosionRef = Annotated[str, RefTo("explosion")]
+DimensionRef = Annotated[str, RefTo("dimension")]
+DrawingSheetRef = Annotated[str, RefTo("drawing_sheet")]
+DrawingViewRef = Annotated[str, RefTo("drawing_view")]
+DrawingTableRef = Annotated[str, RefTo("drawing_table")]
 
 # ---------------------------------------------------------------------------
 # Geometry
@@ -215,18 +236,28 @@ Offset = Annotated[int, Range(ge=0, le=1_000_000), Doc("First row to return")]
 PageLimit = Annotated[int, Range(ge=1, le=200), Doc("Rows per page")]
 
 
-def PathTo(mode: str, *suffixes: str):  # noqa: N802 - reads as a type in signatures
-    """A workspace path argument with ``mode`` and optional allowed suffixes."""
-    return Annotated[
-        str,
-        Text(260),
-        PathArg(mode, tuple(s.lower() for s in suffixes)),  # type: ignore[arg-type]
-        Doc("Workspace path"),
-    ]
+@dataclass(frozen=True, init=False)
+class PathTo:
+    """``Annotated[str, PathTo(mode, *suffixes)]``: a workspace path argument with ``mode``
+    and optional allowed suffixes. Shorthand for ``Text(260)``, ``PathArg`` and a ``Doc``;
+    ``core.validate.unwrap`` expands it in place."""
+
+    mode: Literal["read", "new", "dir", "save"]
+    suffixes: tuple[str, ...]
+
+    def __init__(self, mode: Literal["read", "new", "dir", "save"], *suffixes: str) -> None:
+        object.__setattr__(self, "mode", mode)
+        object.__setattr__(self, "suffixes", tuple(s.lower() for s in suffixes))
+
+    def expand(self) -> tuple[Text, PathArg, Doc]:
+        return Text(260), PathArg(self.mode, self.suffixes), Doc("Workspace path")
 
 
-PathIn = PathTo("read")
-PathOut = PathTo("new")
+# Markers that stand for several others (``core.validate.unwrap`` expands them).
+SHORTHANDS = (RefTo, PathTo)
+
+PathIn = Annotated[str, PathTo("read")]
+PathOut = Annotated[str, PathTo("new")]
 # Another tool's arguments (batch and preview children), checked by that tool's schema.
 Arguments = Annotated[dict, Json(), Doc("The tool's own arguments")]
 
@@ -249,13 +280,13 @@ class AxisByPoint(TypedDict):
     direction: Vec3
 
 
-Plane = RefTo("datum_plane", "face") | PrincipalPlane | PlaneByNormal
-Axis = RefTo("datum_axis", "edge", "face") | PrincipalAxis | AxisByPoint
-Direction = Vec3 | RefTo("edge", "datum_axis", "face") | PrincipalAxis
+Plane = Annotated[str, RefTo("datum_plane", "face")] | PrincipalPlane | PlaneByNormal
+Axis = Annotated[str, RefTo("datum_axis", "edge", "face")] | PrincipalAxis | AxisByPoint
+Direction = Vec3 | Annotated[str, RefTo("edge", "datum_axis", "face")] | PrincipalAxis
 
 
 class SketchPoint(TypedDict):
-    curve: RefTo("curve")  # type: ignore[valid-type]
+    curve: CurveRef
     point: Literal["start", "end", "center", "mid"]
 
 
@@ -270,7 +301,7 @@ class LimitThroughAll(TypedDict):
 
 class LimitUntilFace(TypedDict):
     type: Literal["until_face"]
-    face: RefTo("face")  # type: ignore[valid-type]
+    face: FaceRef
 
 
 Limit = LimitDistance | LimitThroughAll | LimitUntilFace
@@ -278,7 +309,7 @@ Limit = LimitDistance | LimitThroughAll | LimitUntilFace
 
 class Combine(TypedDict):
     operation: Literal["unite", "subtract", "intersect"]
-    targets: Annotated[list[RefTo("body")], Items(1, 20)]  # type: ignore[valid-type]
+    targets: Annotated[list[BodyRef], Items(1, 20)]
 
 
 class _PoseRequired(TypedDict):
@@ -289,8 +320,15 @@ class Pose(_PoseRequired, total=False):
     rotation: Mat3
 
 
+def forbid_extra(*typeddicts: Any) -> None:
+    """Forbid extra fields on these TypedDict arguments: the sidecar's Pydantic adapters
+    read ``__pydantic_config__`` (an attribute static checkers do not know on a class)."""
+    for td in typeddicts:
+        td.__pydantic_config__ = {"extra": "forbid"}
+
+
 # Extra fields are forbidden on every TypedDict argument (read by the sidecar).
-for _td in (
+forbid_extra(
     PrincipalPlane,
     PlaneByNormal,
     PrincipalAxis,
@@ -301,8 +339,7 @@ for _td in (
     LimitUntilFace,
     Combine,
     Pose,
-):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
+)
 
 # ---------------------------------------------------------------------------
 # Unit strings

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/drawing/create_centerline.json",
   "scenario_sha256": "9e96c476416b9b8eb3af72e5040ac08bbf929f43e6e94c778603f24e62bd9104",
   "domain": "drawing",
@@ -11,16 +11,11 @@
     ]
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_create_centerline": "b85dcf15afeb01b5cdef6f302e4f19c8027312f4ad97772877b0a25496f38f61"
   },
-  "run_id": "20261010-154836-7c717c",
-  "owner": "reg_final2_2",
-  "part": null,
-  "started": "2026-10-10T11:48:41Z",
-  "finished": "2026-10-10T11:48:43Z",
+  "recorded": "2026-10-10T12:25:14Z",
   "passed": true,
   "checks": 23,
   "failed_checks": 0,
@@ -30,194 +25,147 @@
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "15af9bbb9ebfbc2a759d314d6d966b17262a40a4d3575ee882bfd5bb782738f7"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "291421c261ad05a7a22820d2f7d9c2fc3880b4e3986ff917fb20dd6c4d3f2ff6"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.032,
-      "result_sha256": "c83829afa3751f1bf031ddd97d75b3aec3440ebda1c4edf7c072a2d89052db7d"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "6a6eed4ddef3b4fbd28dbfdf2b32d5f43c6e0979ee1ec9443d13de3ed80498e4"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "a1befea0972ae970624a78f394fc872bfd4ce2f3341cfbfbea7cbf75e8873cf2"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "c4e4f0e761ad40047d7e132d81c9b2a5f53638c7ecddb75ec2098625f4817c3f"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "7fb5dbb5bd1853c6c9877201c2373f3b814424b02eb2ed13c5c16b8b93932050"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "d8987f073068c22050468e39d6abfae06ff5caa070115286877fafa4e78ed287"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "db314b63dd0ec1a89146c19b3fb49b9d603c23426522cae75b4afd18365d21e0"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_create_drawing_sheet",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.079,
-      "result_sha256": "de82984fbe88176bf55d65d3a66638ac2c9542346ccb31e4c8d3113114a909db"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_create_drawing_view",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.296,
-      "result_sha256": "2685d0c528017169b5fe5feb705320e1ef5745724fa6ff723521c1a8b2bd56ef"
+      "checks": 0
     },
     {
       "index": 12,
       "call": "nx_create_drawing_view",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.11,
-      "result_sha256": "32ff07227dde0d48d35bac169235472ad4d0ed136fd9fc8ae1727eab8d914ebb"
+      "checks": 0
     },
     {
       "index": 13,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.062,
-      "result_sha256": "12a383c1f38507e873f4999cee681488401a6810fcafb50223353836b242f60f"
+      "checks": 3
     },
     {
       "index": 14,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.063,
-      "result_sha256": "6d97205fc2076ca6a775986078590f1c0cf39677786b4e9cb6af6cc55c884f35"
+      "checks": 1
     },
     {
       "index": 15,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "ffc944e1af0c20b5531e3e5520d02880be8c533583cbff263302c471118364da"
+      "checks": 1
     },
     {
       "index": 16,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.047,
-      "result_sha256": "f1ee6f01e6253d9a7e5225537aaf7ee148dec55168c96c1f66bcb5b94b478515"
+      "checks": 4
     },
     {
       "index": 17,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.031,
-      "result_sha256": "139b71e01d4142dedb565968d3ca5be11e2f66de1ba77728d483ded986031499"
+      "checks": 4
     },
     {
       "index": 18,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "d19e0bd6114b05a4feee10f83f953b233b10373b87f8991b0cf884a7a1be6aff"
+      "checks": 3
     },
     {
       "index": 19,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.031,
-      "result_sha256": "5c99eba3590b10f7d1c89fbafc4afa241cf6353605fc855cf89f34f20c230513"
+      "checks": 4
     },
     {
       "index": 20,
       "call": "nx_create_centerline",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.031,
-      "result_sha256": "27502a702751aafeb333e00489e6b614e9d0ddda018012866898a1d332bae050"
+      "checks": 3
     },
     {
       "index": 21,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.219,
-      "result_sha256": "21decc99bcabc9776a5301b6b910cd0c04e281542b85f4083a8796370d33ef35"
+      "checks": 0
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [],
-    "failed": []
-  }
+  ]
 }

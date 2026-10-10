@@ -18,7 +18,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import PathTo, Text
-from nx_mcp.domains.display.common import DisplayRow, camera_row, display_rows
+from nx_mcp.domains.display.common import Camera, DisplayRow, camera_row, display_rows
 from nx_mcp.domains.display.sections import guarded
 from nx_mcp.kit import args, bodies, display, files, geom, parts, readback, select
 
@@ -31,7 +31,7 @@ class RestoreData(TypedDict, total=False):
     restored: str
     objects: list[DisplayRow]
     count: int
-    camera: dict
+    camera: Camera
     sections: int
     identical: bool
 
@@ -116,13 +116,14 @@ def nx_restore_display(
     tx: Tx,
     *,
     restore_id: RestoreId | None = None,
-    presentation: PathTo("read", ".json") | None = None,  # type: ignore[valid-type]
+    presentation: Annotated[str, PathTo("read", ".json")] | None = None,
 ) -> RestoreData:
     """Undo a display change by its restore_id (newest first), or apply a presentation file
     saved by nx_save_presentation. Restored objects are read back."""
     args.exactly_one(restore_id=restore_id, presentation=presentation)
     if presentation is not None:
         return _restore_presentation(tx, Path(presentation))
+    assert restore_id is not None  # exactly_one: no presentation, so a restore_id
     with tx.checks():
         part = display.shown_part(tx, work=True)
         snapshot = display.snapshots.get(restore_id, tx.services.part_key(part))
@@ -138,7 +139,7 @@ def nx_restore_display(
         tx.display.keep_camera()
     tx.services.restore_display(camera, pairs, None)
     _expect_records(tx, pairs, appearance)
-    out: dict = {"restored": restore_id, "count": len(pairs), "identical": True}
+    out: RestoreData = {"restored": restore_id, "count": len(pairs), "identical": True}
     if camera is not None:
         got = display.camera(tx, view)
         display.expect_camera(got, camera.get("rotation"), camera.get("origin"),
@@ -177,7 +178,7 @@ def _read(path: Path) -> dict:
     return data
 
 
-def _restore_presentation(tx, path: Path) -> dict:
+def _restore_presentation(tx, path: Path) -> RestoreData:
     data = _read(path)
     with tx.checks():
         part = display.shown_part(tx, work=True)
@@ -254,7 +255,7 @@ def _restore_presentation(tx, path: Path) -> dict:
 def nx_save_presentation(
     tx: Tx,
     *,
-    path: PathTo("new", ".json"),  # type: ignore[valid-type]
+    path: Annotated[str, PathTo("new", ".json")],
 ) -> PresentationData:
     """Save the camera, the active section and the appearance of every body and component
     to a new JSON file. nx_restore_display(presentation=...) applies it again."""
@@ -292,9 +293,7 @@ def nx_save_presentation(
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
     return {
-        "path": meta["path"],
-        "size": meta["size"],
-        "sha256": meta["sha256"],
+        **meta,
         "objects": len(saved),
         "sections": 1 if section else 0,
     }

@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "scenario": "acceptance/inspection/interference.json",
   "scenario_sha256": "ee4f4deed5ffc4ba469a898197d2b02e8fb7511c490ca9fdc4c6771020418100",
   "domain": "inspection",
@@ -8,17 +8,12 @@
     "nx_export_inspection_report": []
   },
   "nx_version": "v2406",
-  "nx_build": "v2406",
-  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
+  "nx_build": "2406.9160",
   "sources": {
     "nx_check_interference": "6a43afee130d0b65cff1ed115ea48d5b387b35983363156def8441884d544166",
     "nx_export_inspection_report": "6a43afee130d0b65cff1ed115ea48d5b387b35983363156def8441884d544166"
   },
-  "run_id": "20261010-155510-29a676",
-  "owner": "reg_final2_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155510-29a676\\inspection_interference_29a676.prt",
-  "started": "2026-10-10T11:55:17Z",
-  "finished": "2026-10-10T11:55:22Z",
+  "recorded": "2026-10-10T11:55:22Z",
   "passed": true,
   "checks": 54,
   "failed_checks": 0,
@@ -28,242 +23,182 @@
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.469,
-      "result_sha256": "8ba757d6cfc8f8d97f3f3d43593a4b018163d6728f9bdd79b80e95573eed8c2d"
+      "checks": 0
     },
     {
       "index": 2,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "0329d71738831c8489644031cd72ef1dc98d68db7bdb75e80bb613c34fe7785b"
+      "checks": 0
     },
     {
       "index": 3,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "8d8e5957fd8c5f537daff42c758e82066d4b82944b8aab82fbdfe1b81c73084c"
+      "checks": 0
     },
     {
       "index": 4,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.125,
-      "result_sha256": "79669d574cd41e86f5dfd3ba4952e6e35e29c278d01afb7cb9d8863201330b46"
+      "checks": 0
     },
     {
       "index": 5,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "ff04f6f1a29d59df8a6e3bf73dd9e76e628349832175f62962222c2af85605cc"
+      "checks": 0
     },
     {
       "index": 6,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.141,
-      "result_sha256": "0878a5e8f671268a3381a12ac653bc27065dd924d23c3a9558a7ad15de47ff0e"
+      "checks": 0
     },
     {
       "index": 7,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.25,
-      "result_sha256": "c552efc2f9657d725dda6532526aedf956490e3fe80c9ec6fed859b65f93634e"
+      "checks": 0
     },
     {
       "index": 8,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.094,
-      "result_sha256": "91d1a18264baa540938f3adbb970216c501506ee953f4c19373d806989807de5"
+      "checks": 0
     },
     {
       "index": 9,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "0c3cfce07b19326a78f5813b877260c83403ea38372aad57181b8d35473ddab2"
+      "checks": 0
     },
     {
       "index": 10,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "6c14fb7fd8e1a78b5415437a2b1ff9b892312d285b880764440216a4099c6eb0"
+      "checks": 0
     },
     {
       "index": 11,
       "call": "nx_create_component",
       "setup": true,
       "passed": true,
-      "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "85da743ce8733e5d53d2b02ee7ee018efeaf3387dcbac223c00dec8b4748ad1a"
+      "checks": 0
     },
     {
       "index": 12,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 12,
-      "seconds": 0.172,
-      "result_sha256": "ac5ccce95f3016a3a0c0ef2228d727ca32ae165191cec216f688385bf088004d"
+      "checks": 12
     },
     {
       "index": 13,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "93d3008be7dce3c365e4414ce21644053422d2570f4b254594a2e446718bd534"
+      "checks": 1
     },
     {
       "index": 14,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.125,
-      "result_sha256": "800d8064faf424a73fc2975686cd1ea9224dbc36d524dd1cad56f105b9ecfdc2"
+      "checks": 2
     },
     {
       "index": 15,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 0.031,
-      "result_sha256": "b4c82077163112a8bab60a0bf513980eebbfa4d45ddcbb943bf64fc50e40a512"
+      "checks": 7
     },
     {
       "index": 16,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 4,
-      "seconds": 0.032,
-      "result_sha256": "29fcfecafcbb8364926bb963e9952d47dc2ffd500f02506fc343f9e655fb87c7"
+      "checks": 4
     },
     {
       "index": 17,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "588665ea3be2f6dcf626b62caf655e87605d071ac59ef83141048b1db0ac802b"
+      "checks": 2
     },
     {
       "index": 18,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 5,
-      "seconds": 0.032,
-      "result_sha256": "27b4e28bc4793ef6fd9414b7c19dd76fe8465a654a711a307134a805f86d2b69"
+      "checks": 5
     },
     {
       "index": 19,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "b034a42f6fb91f6159b93e162727f05e669f4e17f5bf1089325a268bb5906142"
+      "checks": 2
     },
     {
       "index": 20,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "8dd258c7ad870e8aa6aeb8b028ff692f5a6240d70256fa14a2b3a753aec63cb8"
+      "checks": 1
     },
     {
       "index": 21,
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 7,
-      "seconds": 1.735,
-      "result_sha256": "64e86cefa43a9c60152f34464edc8ec919f15736207ae7cf571ade0e6c786133"
+      "checks": 7
     },
     {
       "index": 22,
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.219,
-      "result_sha256": "3024953c966686d421effef5a3f76b095d45de7debac9fbb4fc548446e3392da"
+      "checks": 3
     },
     {
       "index": 23,
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.031,
-      "result_sha256": "08c6ec7a84d66f2a0f6fa87cb4048e805f50cf26e108609f8386a3737c01ac0d"
+      "checks": 2
     },
     {
       "index": 24,
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 2,
-      "seconds": 0.047,
-      "result_sha256": "00c6f2b5b6ba02bfad9f9fbbd824ceb1306d64ec48bc4a1e8ccea36332186108"
+      "checks": 2
     },
     {
       "index": 25,
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "ea861bd74169461ad749df7b3da68d2f9a4dff218d483ea1fad70bcf711a6cd6"
+      "checks": 3
     },
     {
       "index": 26,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1,
-      "seconds": 0.015,
-      "result_sha256": "ce3eb809e4f0e1068adf36357ffa6bb1703b20634cd8b4dce774294e721f372f"
+      "checks": 1
     }
-  ],
-  "cleanup": {
-    "mode": "close",
-    "closed": [
-      "smoke/20261010-155510-29a676/inspection_interference_29a676.prt",
-      "smoke/20261010-155510-29a676/insp/insp_box10.prt"
-    ],
-    "failed": []
-  }
+  ]
 }

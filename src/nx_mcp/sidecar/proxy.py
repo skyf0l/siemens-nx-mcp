@@ -17,11 +17,11 @@ import hashlib
 import json
 import os
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
-from pydantic import ValidationError
+from pydantic import AnyUrl, ValidationError
 
 from nx_mcp.core import errors, evidence
 from nx_mcp.core.errors import NXError
@@ -29,6 +29,9 @@ from nx_mcp.core.receipts import new_operation_id
 from nx_mcp.core.validate import validate
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
+
+if TYPE_CHECKING:
+    from nx_mcp.sidecar.local import SidecarServices
 
 COMPACT_ITEMS = 20
 INLINE_IMAGE_BYTES = 8 * 1024 * 1024
@@ -106,9 +109,9 @@ def from_bridge_error(tool: str, effect: str, error: NXError, operation_id=None)
 def _walk_paths(args: dict, pointer: str):
     """``(container, key)`` pairs that hold the value at ``pointer`` (``*`` = every item)."""
     parts = pointer.strip("/").split("/")
-    frontier = [(None, None, args)]
+    frontier: list[tuple[Any, Any, Any]] = [(None, None, args)]  # (container, key, value)
     for part in parts:
-        nxt = []
+        nxt: list[tuple[Any, Any, Any]] = []
         for _, _, node in frontier:
             if part == "*" and isinstance(node, list):
                 nxt.extend((node, i, v) for i, v in enumerate(node))
@@ -160,7 +163,7 @@ class CatalogueProxy:
         self.workspace = workspace
         self.store = store
         self._build = build
-        self._services = None  # sidecar/local.py services, made on first use
+        self._services: SidecarServices | None = None  # sidecar/local.py, made on first use
         # Session state of the connected NX, from nx_get_status: the license failures
         # it remembers. ``_key`` is the bridge descriptor it was read for.
         self._key: tuple | None = None
@@ -400,7 +403,7 @@ class CatalogueProxy:
         """An inline PNG (``data.image``) and a resource link to a workspace file the
         result names (``data.path`` with ``data.sha256``), so clients fetch bytes
         through ``nx-artifact://`` instead of the conversation."""
-        out = []
+        out: list[ImageContent | ResourceLink] = []
         image = self._image(envelope)
         if image is not None:
             out.append(image)
@@ -414,7 +417,7 @@ class CatalogueProxy:
                         ResourceLink(
                             type="resource_link",
                             name=file.name,
-                            uri="nx-artifact://workspace/" + quote(relative, safe=""),
+                            uri=AnyUrl("nx-artifact://workspace/" + quote(relative, safe="")),
                             size=file.stat().st_size,
                         )
                     )
