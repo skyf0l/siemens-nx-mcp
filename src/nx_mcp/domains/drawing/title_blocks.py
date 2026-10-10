@@ -31,6 +31,9 @@ from nx_mcp.kit import builders, readback
 
 REFERENCE = re.compile(r"<W(?:ID\d+\*\d+)?@([^<>]+)>")
 SINGLE = re.compile(r"^<W(?:ID\d+\*\d+)?@([^<>]+)>$")
+# Every work-part attribute link NX evaluates: ``<W@X>``, bound ``<WID5*0@X>`` and the
+# value form ``<W$=@X>``.
+LINK = re.compile(r"<W(?:ID\d+\*\d+)?(?:\$=)?@([^<>]+)>")
 
 Label = Annotated[str, Text(64, r"^\S(.{0,62}\S)?$"), Doc("Cell label")]
 AttributeTitle = Annotated[
@@ -150,12 +153,12 @@ def check_edits(edits):
 
 
 def check_attributes(tx, part, edits):
-    """Refuse links to work-part attributes that do not exist (NX would blank the cell).
-    Sheet fields (``$SH_...``) are NX's own."""
+    """Refuse links (``<W@X>``, ``<W$=@X>``) to work-part attributes that do not exist (NX
+    would blank the cell). Sheet fields (``$SH_...``) are NX's own."""
     kind = tx.nx.NXObject.AttributeType.Any
     for i, edit in enumerate(edits):
         text = wanted_text(edit) or ""
-        for title in REFERENCE.findall(text):
+        for title in LINK.findall(text):
             if not title.startswith("$") and not part.HasUserAttribute(title, kind, -1):
                 fail("NX_NOT_FOUND", f"The work part has no attribute {title!r}",
                      field=f"/cells/{i}", hint="Set it first with nx_set_attributes")  # fmt: skip

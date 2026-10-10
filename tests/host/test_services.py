@@ -162,3 +162,49 @@ def test_annotations_include_drafting_gdt_and_datum_targets():
         Annotations=NS(DraftingDatumTargets=[obj(4)], Fcfs=[obj(2)]),
     )
     assert sorted(int(o.Tag) for o in annotations(part)) == [1, 2, 3, 4]
+
+
+class Shown(Parts):
+    """Parts that change the display (and with it the work) part like NX."""
+
+    def SetDisplay(self, part, *_):
+        type(self).Display = type(self).Work = part
+        return part, None
+
+    def SetWork(self, part):
+        type(self).Work = part
+
+
+def test_failed_development_snippet_restores_display_and_work_parts(tmp_path):
+    s = services(tmp_path)
+    s.session.Parts = shown = Shown()
+    assembly, piece, other = NS(Tag=1), NS(Tag=2), NS(Tag=3)
+    s.snapshot = lambda part: {}
+    Shown.Display, Shown.Work = assembly, piece
+
+    def switch_then_raise():
+        shown.SetDisplay(other)
+        s.session.values.append(1)
+        raise RuntimeError("after a display change")
+
+    s.dev_tools["nx_dev_python"] = switch_then_raise
+    with pytest.raises(NXToolError) as error:
+        dispatch.execute(s, "nx_dev_python", {})
+    assert error.value.details["mutation_outcome"] == "rolled_back"
+    assert s.session.values == [] and Shown.Display is assembly and Shown.Work is piece
+
+
+def test_failed_rollback_of_a_development_snippet_is_partial_and_keeps_the_mark(tmp_path):
+    s = services(tmp_path)
+
+    def broken_undo(mark, *_):
+        raise RuntimeError("undo refused")
+
+    s.session.UndoToMark = broken_undo
+    s.dev_tools["nx_dev_python"] = lambda: 1 / 0
+    with pytest.raises(NXToolError) as error:
+        dispatch.execute(s, "nx_dev_python", {})
+    details = error.value.details
+    assert details["mutation_outcome"] == "partial"
+    assert details["rollback_errors"] == ["undo: undo refused"]
+    assert s.session.marks  # kept for a manual undo

@@ -508,6 +508,13 @@ other name lists are deleted. The plan and the per-step as-built notes are in
   enforces the budget per cost class (instant/light 30 s, heavy 300 s, long 1800 s).
 - **Compact schemas.** Listings omit reference and unit patterns (gate 1 checks them); repeated
   subschemas move to `$defs`. Budgets are enforced by `tests/sidecar/test_budget.py`.
+- **No NX prompts.** `host/dispatch.execute` runs every call under `services.quiet()`
+  (`host/quiet.py`): NX's default update-failure action is `Undo` (NX undoes a failed update,
+  code 670024 -> `NX_UPDATE_FAILED`, the kernel rolls back; never "Error During Update") and
+  listing-window output goes to a file and into the result; the engineer's settings return
+  after the call. `host/dialogs.py` counts only modal dialogs (disabled owner); in development
+  mode a new one answers the running call at once with `NX_MODAL_DIALOG_OPEN`. A failed
+  `nx_dev_python` snippet is undone and the display and work parts it started with return.
 - **Files.** `Files.publish` never overwrites; staging under `.nx-mcp/staging/<operation_id>/`
   is removed when the call ends.
 - **Acceptance.** `python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>` replays

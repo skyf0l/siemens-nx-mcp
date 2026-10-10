@@ -221,6 +221,7 @@ def test_locked_unknown_and_repeated_cells_are_refused_before_nx():
         ([{"label": "Drawn By", "attribute": "DB_MISSING"}], "NX_NOT_FOUND", "/cells/0"),
         ([{"label": "Drawn By", "text": "<W@$SH_X> <W@DB_MISSING>"}], "NX_NOT_FOUND",
          "/cells/0"),
+        ([{"label": "Drawn By", "text": "BY <W$=@DB_MISSING>"}], "NX_NOT_FOUND", "/cells/0"),
     ]:  # fmt: skip
         bad = edit(nx, ref, cells)
         assert (bad.error["code"], bad.error["field"]) == (code, field), (cells, bad)

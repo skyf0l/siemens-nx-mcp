@@ -175,6 +175,31 @@ class NXServices(Services):
     def parts(self) -> list:
         return list(self.session.Parts)
 
+    def shown_parts(self) -> tuple:
+        """``(display part, work part)`` now, for :meth:`show_parts` after a failure."""
+        parts = self.session.Parts
+        return getattr(parts, "Display", None), getattr(parts, "Work", None)
+
+    def show_parts(self, shown: tuple) -> None:
+        """Make the parts of :meth:`shown_parts` the display and work parts again.
+
+        A failed development snippet may have changed them; the display goes first (NX
+        moves the work part with it). Changing the display part while an application
+        runs keeps that application, so NX shows no dialog. Raises when NX refuses."""
+        display, work = shown
+        parts = self.session.Parts
+
+        def same(a, b) -> bool:
+            return a is not None and b is not None and int(a.Tag) == int(b.Tag)
+
+        if display is not None and not same(getattr(parts, "Display", None), display):
+            _, status = parts.SetDisplay(display, False, False)
+            if status is not None and hasattr(status, "Dispose"):
+                with contextlib.suppress(Exception):
+                    status.Dispose()
+        if work is not None and not same(getattr(parts, "Work", None), work):
+            parts.SetWork(work)
+
     def part_key(self, part) -> str:
         tag = int(part.Tag)
         if tag not in self._generations:
@@ -344,6 +369,13 @@ class NXServices(Services):
                     if not self.owns(part):
                         out[self.part_key(part)] = bool(part.IsModified)
         return out
+
+    def quiet(self, calm=None):
+        """No NX prompt while a call runs (host/quiet.py): update failures undo instead
+        of asking, listing-window output goes to ``calm.listing``."""
+        from nx_mcp.host import quiet
+
+        return quiet.quiet(self.session, self.nx, Path(self.workspace.root) / ".nx-mcp", calm)
 
     # -- undo, snapshots, invalidation ----------------------------------------------------
     @contextlib.contextmanager

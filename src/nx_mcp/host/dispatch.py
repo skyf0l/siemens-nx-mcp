@@ -29,6 +29,7 @@ from nx_mcp.core.errors import NXToolError, classify
 from nx_mcp.core.receipts import new_operation_id
 from nx_mcp.core.tx import NOT_GRANTED_HINT
 from nx_mcp.core.validate import validate
+from nx_mcp.host.quiet import Calm
 
 catalogue.load()
 
@@ -81,14 +82,43 @@ def cost_of(method: str) -> str | None:
 
 
 def execute(services, method: str, params: dict):
-    """Run one bridge call: a catalogue tool, or a development tool."""
+    """Run one bridge call: a catalogue tool, or a development tool.
+
+    Under ``services.quiet()`` (host/quiet.py): an NX update failure undoes itself
+    instead of opening NX's "Error During Update" dialog, and listing-window output
+    goes into the result instead of NX's "Information" window."""
     spec = catalogue.get(method)
-    if spec is not None:
-        return run(services, spec, params)
-    handler = services.dev_tools.get(method)
-    if handler is None:
+    handler = None if spec is not None else services.dev_tools.get(method)
+    if spec is None and handler is None:
         raise NXToolError("NX_TOOL_NOT_FOUND", method)
-    return run_dev_tool(services, method, handler, params)
+    calm = Calm()
+    guard = getattr(services, "quiet", None)
+    try:
+        with guard(calm) if guard is not None else contextlib.nullcontext():
+            if spec is not None:
+                result = run(services, spec, params)
+            else:
+                result = run_dev_tool(services, method, handler, params)
+    except NXToolError as error:
+        if calm.listing:
+            error.details["listing"] = calm.listing
+            envelope = error.details.get("envelope")
+            if isinstance(envelope, dict):
+                envelope.setdefault("warnings", []).append(_listing_warning(calm.listing))
+        raise
+    if calm.listing:
+        if spec is None:  # a development tool: the snippet's output
+            result["stdout"] = str(result.get("stdout") or "") + calm.listing
+        else:
+            result.setdefault("warnings", []).append(_listing_warning(calm.listing))
+    return result
+
+
+def _listing_warning(text: str) -> dict:
+    return {
+        "code": "NX_UPDATE_WARNING",
+        "message": "NX listing-window output (kept out of NX's Information window): " + text,
+    }
 
 
 def run(services, spec, params: dict) -> dict:
@@ -119,6 +149,7 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     except TypeError as error:
         raise NXToolError("NX_INVALID_ARGUMENT", str(error)) from error
     part = services.work_part()
+    shown = services.shown_parts()
     before = services.snapshot(part) if part is not None else {}
     mark = services.set_mark("NX MCP: " + method)
     services.epoch += 1
@@ -126,23 +157,23 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     try:
         result = dict(handler(**params) or {})
     except BaseException as error:  # a snippet's SystemExit is a failed call, not a host exit
-        outcome = "rolled_back"
-        try:
-            services.undo_to(mark)
-            services.delete_mark(mark)
-            services.invalidate_parts(services.parts())
-            services.clear_update_errors()
-        except Exception:
-            outcome = "partial"
         failure = error if isinstance(error, NXToolError) else classify(error)
-        failure.details.update(operation_id=operation_id, mutation_outcome=outcome)
+        failure.details.update(operation_id=operation_id, **_roll_back_dev(services, mark, shown))
         raise failure from error
     finally:
         with contextlib.suppress(Exception):
             services.track(loaded)  # parts the call created or opened are the agent's
-    after = services.snapshot(part) if part is not None else {}
+    try:
+        after = services.snapshot(part) if part is not None else {}
+    except Exception:  # the snippet closed the part it started in
+        services.invalidate_parts(services.parts())
+        return _dev_result(services, result, operation_id)
     services.invalidate(before, after, True)
     services.record_history(mark, part, operation_id, method)
+    return _dev_result(services, result, operation_id)
+
+
+def _dev_result(services, result: dict, operation_id: str) -> dict:
     return {
         "status": "success",
         **result,
@@ -151,6 +182,30 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
         "mutation_outcome": "committed",
         "warnings": list(result.get("warnings", [])),
     }
+
+
+def _roll_back_dev(services, mark, shown) -> dict:
+    """Undo a failed development call to its mark (every part: NX undo is session-wide)
+    and show the display and work parts it started with; every step runs even if an
+    earlier one fails. ``{"mutation_outcome": ..., "rollback_errors": [...]}``."""
+    errors: list[str] = []
+    for step, action in (
+        ("undo", lambda: services.undo_to(mark)),
+        ("delete mark", lambda: services.delete_mark(mark)),
+        ("display and work part", lambda: services.show_parts(shown)),
+        ("references", lambda: services.invalidate_parts(services.parts())),
+        ("update errors", services.clear_update_errors),
+    ):
+        if step == "delete mark" and errors:
+            continue  # the undo failed: keep the mark for a manual undo
+        try:
+            action()
+        except Exception as error:
+            errors.append(f"{step}: {error}")
+    out: dict = {"mutation_outcome": "partial" if errors else "rolled_back"}
+    if errors:
+        out["rollback_errors"] = errors
+    return out
 
 
 # ---------------------------------------------------------------------------

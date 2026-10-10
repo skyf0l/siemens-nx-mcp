@@ -1302,7 +1302,12 @@ class InteractiveHost:
         """
         from nx_mcp.host import dialogs
 
-        open_now = dialogs.scan()
+        def scan():
+            # NX's main window disabled by the host (Agent drives) proves no modality.
+            disabled = (self.main_hwnd,) if getattr(self, "window_disabled", False) else ()
+            return dialogs.scan(host_disabled=disabled)
+
+        open_now = scan()
         if open_now and refuse:
             raise NXToolError(
                 "NX_MODAL_DIALOG_OPEN",
@@ -1311,7 +1316,7 @@ class InteractiveHost:
                 details={"mutation_outcome": "not_started",
                          "dialogs": [d.row() for d in open_now]},
             )  # fmt: skip
-        return dialogs.Watch(open_now, on_new=self._dialog_appeared).start()
+        return dialogs.Watch(open_now, on_new=self._dialog_appeared, scanner=scan).start()
 
     def _dialog_appeared(self, dialog):
         """From the watch thread: log it now, while NX still waits for an answer."""
@@ -1322,6 +1327,34 @@ class InteractiveHost:
             )
         except Exception as exc:
             self.last_error = "Activity history: " + str(exc)
+        if getattr(self, "dev", False):
+            self._answer_blocked_call(dialog)
+
+    def _answer_blocked_call(self, dialog):
+        """Development only: answer the call a new modal dialog blocks with an error now.
+
+        The call itself stays in NX until someone answers the dialog (never the agent);
+        the agent learns at once instead of waiting for the bridge timeout. Production
+        only reports the dialog (``_report_dialogs``)."""
+        from nx_mcp.host import dialogs
+
+        try:
+            self.dispatcher.fail_running(
+                NXToolError(
+                    "NX_MODAL_DIALOG_OPEN",
+                    dialogs.message([dialog], still_open=True),
+                    suggestion="Stop and ask the engineer to answer the NX dialog; never "
+                    "click it. The call's outcome is unknown until then: check it with "
+                    "nx_get_operation",
+                    details={
+                        "mutation_outcome": "unknown",
+                        "dialogs": [dialog.row()],
+                        "method": self.running_method,
+                    },
+                )
+            )
+        except Exception as exc:
+            self.last_error = "Cannot answer the blocked call: " + str(exc)
 
     def _report_dialogs(self, result, seen, error=None):
         """Name the dialogs a call opened in its result (or error); never clicks them."""
@@ -1329,7 +1362,8 @@ class InteractiveHost:
             return
         from nx_mcp.host import dialogs
 
-        still = {d.hwnd for d in dialogs.scan()}
+        disabled = (self.main_hwnd,) if getattr(self, "window_disabled", False) else ()
+        still = {d.hwnd for d in dialogs.scan(host_disabled=disabled)}
         groups = [
             (True, [d for d in seen if d.hwnd in still]),
             (False, [d for d in seen if d.hwnd not in still]),
@@ -1612,7 +1646,9 @@ class InteractiveHost:
         """Run a Python snippet on the NX UI thread (development launcher only).
 
         Names: NXOpen, session, part (work part), services, resolve(id). Set
-        `result` to return a value; print() output is returned as stdout.
+        `result` to return a value; print(), stderr and listing-window output are
+        returned as stdout. A raised snippet is undone to the call's mark and the
+        display and work parts it started with are shown again (dispatch.run_dev_tool).
         """
         import contextlib
         import io
@@ -1625,7 +1661,10 @@ class InteractiveHost:
             "resolve": lambda ref: self.services.resolve(ref),
         }
         output = io.StringIO()
-        with contextlib.redirect_stdout(output):
+        # print() and tracebacks/warnings written to stderr come back in the result,
+        # never in NX's listing window; ListingWindow writes go to a file meanwhile
+        # (dispatch.execute -> host/quiet.py) and are appended to stdout.
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             exec(compile(code, "<nx_dev_python>", "exec"), namespace)  # noqa: S102 - dev only
         return {
             "status": "success",

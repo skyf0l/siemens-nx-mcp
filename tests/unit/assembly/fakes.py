@@ -15,11 +15,16 @@ with a ``ComponentAssembly`` that mirrors NX 2406 behaviour the domain relies on
   ``Assem`` explode/unexplode/view calls, trace lines and smart points on occurrence
   edges (percent of a straight edge).
 - ``CreateReferenceSet`` seeds every component when ``nx.seed_reference_sets``.
+- ``CreateNewComponentBuilder`` commits its ``FileNew`` and adds the new part at the
+  CSYS, moving the selected bodies into it; ``CreateMakeUniquePartBuilder`` points
+  the selected occurrence at a new part named by ``SetMakeUniqueName``;
+  ``CreateReflectComponentBuilder`` adds a reflected occurrence per component.
 """
 
 from __future__ import annotations
 
 import itertools
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 from nx_mcp.kit import geom
@@ -101,11 +106,12 @@ class Component(Object):
         self.occurrences[int(proto.Tag)] = occ
         return occ
 
-    def face(self):
+    def face(self, kind="plane"):
         occ = Face("FACE")
         occ.IsOccurrence = True
         occ.OwningComponent = self
         occ.OwningPart = self.fake.asm
+        self.fake.nx.face_data[occ.Tag] = (kind, [0, 0, 0], [0, 0, 1])
         return occ
 
 
@@ -123,14 +129,16 @@ class ErrorList:
 
 
 # ---- constraints ------------------------------------------------------------------------
-TYPE = NS(Fix=1, Touch=2, Distance=3, Parallel=4, Perpendicular=5, Angle=6, Concentric=7)
+TYPE = NS(Fix=1, Touch=2, Distance=3, Parallel=4, Perpendicular=5, Angle=6, Concentric=7,
+          AlignLock=8, Fit=9, Bond=40, Center12=41, Center22=42)  # fmt: skip
 ALIGN = NS(InferAlign=10, CoAlign=11, ContraAlign=12)
 STATUS = NS(Solved=20, NotSolved=21, OverConstrained=22, Suppressed=23)
 
 
 class Reference:
-    def __init__(self, movable, geometry):
+    def __init__(self, movable, geometry, uses_axis=False):
         self._movable, self._geometry = movable, geometry
+        self.uses_axis = uses_axis
 
     def GetMovableObject(self):
         return self._movable
@@ -151,8 +159,8 @@ class Constraint(Object):
         self.status = STATUS.NotSolved
         self.OwningPart = fake.asm
 
-    def CreateConstraintReference(self, movable, geometry, *_):
-        self.refs.append(Reference(movable, geometry))
+    def CreateConstraintReference(self, movable, geometry, uses_axis=False, *_):
+        self.refs.append(Reference(movable, geometry, uses_axis))
 
     def SetExpression(self, text):
         self.Expression.RightHandSide = text
@@ -587,8 +595,98 @@ def _wire(nx, fake):
         def Destroy(self):
             self.destroyed = True
 
+    class NewComponent:
+        def __init__(self):
+            self.objects = []
+            self.ObjectForNewComponent = NS(Add=self.objects.append)
+            self.NewComponentName = ""
+            self.ComponentOrigin = None
+            self.Csys = None
+            self.NewFile = None
+            self.OriginalObjectsDeleted = False
+            self.destroyed = False
+            fake.new_builders.append(self)
+
+        def Commit(self):
+            new = self.NewFile.Commit()
+            session.Parts.Work = session.Parts.Display = asm
+            pose = (geom.xyz(self.Csys.Origin), geom.rows(self.Csys.Orientation))
+            c = fake.add(new, self.NewComponentName, pose)
+            for body in self.objects:
+                if self.OriginalObjectsDeleted:
+                    asm.Bodies.remove(body)
+                new.Bodies.append(Body("MOVED"))
+            return c
+
+        def Destroy(self):
+            self.destroyed = True
+
+    class MakeUnique:
+        def __init__(self):
+            self.selected = []
+            self.SelectedComponents = NS(Add=self.selected.append)
+            self.destroyed = False
+
+        def Commit(self):
+            for c in self.selected:
+                old = c.Prototype
+                new = FilePart(nx, old.unique_name)
+                new.Bodies.extend(old.Bodies)
+                c.Prototype = new
+                c.Name = Path(old.unique_name).stem.upper()  # NX names it after the part
+            session.Parts.Work = session.Parts.Display = asm
+            return None
+
+        def Destroy(self):
+            self.destroyed = True
+
+    class Reflect:
+        def __init__(self, source, occurrence):
+            assert source is asm and occurrence is None
+            self.sources, self.plane, self.reflected = [], None, []
+            self.destroyed = False
+            fake.reflect_builders.append(self)
+
+        def SetComponentsToReflect(self, components):
+            self.sources = list(components)
+
+        def SetReflectionPlane(self, plane):
+            self.plane = plane
+
+        def Commit(self):
+            origin, normal = self.plane.origin, self.plane.normal
+            for c in self.sources:
+                d = geom.dot(geom.sub(c.t, origin), normal)
+                t = geom.sub(c.t, geom.scale(normal, 2.0 * d + fake.reflect_error))
+                self.reflected.append(fake.add(c.Prototype, c.Name, (t, c.r)))
+            session.Parts.Work = session.Parts.Display = asm
+            return None
+
+        def GetReflectedComponents(self):
+            return self.reflected[-1:]  # NX 2406 returns one of them
+
+        def Destroy(self):
+            self.destroyed = True
+
     fake.replace_builders = []
-    asm.AssemblyManager = NS(CreateReplaceComponentBuilder=Replace)
+    fake.new_builders = []
+    fake.reflect_builders = []
+    fake.reflect_error = 0.0
+    asm.AssemblyManager = NS(
+        CreateReplaceComponentBuilder=Replace,
+        CreateNewComponentBuilder=NewComponent,
+        CreateMakeUniquePartBuilder=MakeUnique,
+        CreateReflectComponentBuilder=Reflect,
+    )
+    asm.Planes = NS(
+        CreatePlane=lambda o, n, _u: NS(origin=geom.xyz(o), normal=geom.unit(geom.xyz(n)))
+    )
+    asm.CoordinateSystems.CreateCoordinateSystem = lambda origin, m, _assoc: NS(
+        Origin=origin, Orientation=m
+    )
+    nx.nx.Assemblies = NS(
+        CreateNewComponentBuilder=NS(ComponentOriginType=NS(Absolute=0, Newcsys=1, Wcs=2))
+    )
 
     # reference sets
     asm.reference_sets = []
@@ -702,6 +800,8 @@ def assembly_nx():
     pin = nx.new_part("parts/pin.prt")
     pin.Save()
     pin.GetAllReferenceSets = lambda: []
+    for proto in (blk, pin):
+        proto.SetMakeUniqueName = lambda path, proto=proto: setattr(proto, "unique_name", path)
     asm = nx.new_part("asm.prt")
     fake = AssemblyFake(nx, asm)
     nx.assembly = fake

@@ -134,6 +134,18 @@ def test_dev_lock_is_held_and_released(tmp_path):
     assert not lock.path.exists()
 
 
+def test_dev_lock_already_held_by_the_owner_is_kept(tmp_path):
+    held = runner.DevLock(tmp_path, "agent", wait=0)
+    held.acquire()  # the agent's own `dev_lock.py acquire`
+    run = runner.DevLock(tmp_path, "agent", wait=0)
+    run.acquire()
+    run.refresh()
+    run.release()  # the runner did not acquire it: the agent keeps it
+    assert json.loads(run.path.read_text())["owner"] == "agent"
+    held.release()
+    assert not held.path.exists()
+
+
 class FakeNX:
     """Answers like the bridge: legacy dicts for setup tools, kernel envelopes otherwise."""
 
@@ -411,6 +423,42 @@ async def test_the_dev_panel_mode_is_restored_after_a_scenario(
     else:  # Production panels are never touched, not even read.
         assert nx.mode == "ask" and nx.clicks == [] and "panel" not in record["cleanup"]
         assert [c for c in nx.calls if c[1].get("mode") == "status"] == []
+
+
+class EngineerNX(PanelNX):
+    """The engineer clicks ``engineer`` on the panel during the first scenario step."""
+
+    def __init__(self, mode, engineer):
+        super().__init__(mode)
+        self.engineer = engineer
+
+    async def call(self, method, params):
+        result = await super().call(method, params)
+        if self.engineer and method != "nx_list_parts" and params.get("mode") != "status":
+            self.mode, self.engineer = self.engineer, None
+        return result
+
+
+@pytest.mark.parametrize(
+    ("scenario", "start", "engineer"),
+    [(None, "agent", "auto"), (None, "auto", "agent"), (CONTROL, "auto", "agent")],
+)
+async def test_the_runner_never_overrides_the_engineers_panel_choice(
+    tmp_path, scenario_dir, monkeypatch, scenario, start, engineer
+):
+    """Only a mode the scenario lowered itself is restored, and only upwards."""
+    if scenario is not None:
+        scenario_dir.write_text(json.dumps(scenario), encoding="utf-8")
+    nx = EngineerNX(start, engineer)
+    monkeypatch.setattr(runner, "find_dev_panel", lambda: 4242)
+    monkeypatch.setattr(runner, "press_panel", nx.click)
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        record = await runner.run_scenario(
+            session, scenario_dir, workspace=tmp_path, run_id="r6", build=("v2406", ""), owner="t"
+        )
+    assert record["passed"], record["steps"]
+    assert nx.mode == engineer and nx.clicks == [] and "panel" not in record["cleanup"]
 
 
 def test_repository_scenarios_cover_every_catalogue_tool_and_variant():

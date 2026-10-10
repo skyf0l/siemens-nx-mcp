@@ -9,9 +9,17 @@ Python threads while a dialog waits) and scans after it; a new dialog is
 reported in the result (warning ``NX_MODAL_DIALOG``) and in the activity log.
 
 A blocking dialog is a visible, enabled top-level Win32 dialog (class
-``#32770``) of the NX process whose owner is an NX window. NX's own "Work in
-Progress" progress box has no owner and is ignored. One scan is an
-``EnumWindows`` pass (about 0.4 ms); off Windows it finds nothing.
+``#32770``) of the NX process whose owner is an NX window that is disabled: a
+modal dialog disables its owner, a modeless box left open does not and is
+ignored. When the host disabled the owner itself (Agent drives disables NX's main
+window) that proves nothing, so the dialog must also have a modal frame
+(``DS_MODALFRAME`` / ``WS_EX_DLGMODALFRAME``, as NX's message boxes have). NX's own
+"Work in Progress" progress box has no owner and is ignored.
+
+One scan is an ``EnumWindows`` pass (about 0.4 ms) reading only what needs no
+window message (class, owner, enabled and visible flags, styles). Titles and texts
+are read with ``InternalGetWindowText`` (no ``WM_GETTEXT`` to NX's busy UI thread)
+and only for confirmed modal dialogs. Off Windows it finds nothing.
 """
 
 from __future__ import annotations
@@ -21,11 +29,13 @@ import os
 import sys
 import threading
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 DIALOG_CLASS = "#32770"
 POLL_SECONDS = 0.25
 GW_OWNER = 4
+GWL_STYLE, GWL_EXSTYLE = -16, -20
+DS_MODALFRAME, WS_EX_DLGMODALFRAME = 0x80, 0x1
 
 
 @dataclass(frozen=True)
@@ -42,6 +52,8 @@ class Window:
     owner_pid: int = 0
     texts: tuple[str, ...] = ()
     buttons: tuple[str, ...] = ()
+    owner_enabled: bool = False  # a modal dialog disables its owner
+    modal_frame: bool = True  # DS_MODALFRAME or WS_EX_DLGMODALFRAME
 
 
 @dataclass(frozen=True)
@@ -61,14 +73,27 @@ class Dialog:
                 "buttons": list(self.buttons)}  # fmt: skip
 
 
-def blocking(windows: Iterable[Window], pid: int) -> list[Dialog]:
+def is_modal(w: Window, pid: int, host_disabled: Iterable[int] = ()) -> bool:
+    """Whether ``w`` is a modal dialog blocking the NX process ``pid``.
+
+    ``host_disabled``: owner windows the host disabled itself (Agent drives); their
+    disabled state proves nothing, so a dialog they own needs a modal frame."""
+    if w.pid != pid or w.cls != DIALOG_CLASS or not (w.visible and w.enabled):
+        return False
+    if not w.owner or w.owner_pid != pid:
+        return False  # unowned (NX's "Work in Progress") or another program's
+    if w.owner_enabled:
+        return False  # modeless: NX still takes input
+    return w.owner not in set(host_disabled) or w.modal_frame
+
+
+def blocking(windows: Iterable[Window], pid: int, host_disabled: Iterable[int] = ()):
     """The modal dialogs among ``windows`` that block the NX process ``pid``."""
     found = []
+    disabled = set(host_disabled)
     for w in windows:
-        if w.pid != pid or w.cls != DIALOG_CLASS or not (w.visible and w.enabled):
+        if not is_modal(w, pid, disabled):
             continue
-        if not w.owner or w.owner_pid != pid:
-            continue  # unowned (NX's "Work in Progress") or another program's
         buttons = tuple(b.replace("&", "") for b in w.buttons if b and b != "X")
         found.append(Dialog(w.hwnd, w.title, "\n".join(t for t in w.texts if t), buttons))
     return found
@@ -93,17 +118,20 @@ def message(dialogs: list[Dialog], *, still_open: bool) -> str:
 # Win32
 
 
-def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
+def _user32():  # pragma: no cover - needs Windows
     import ctypes
     from ctypes import wintypes as w
 
     user = ctypes.windll.user32
-    callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+    user.GetWindowLongW.restype = ctypes.c_long
+    user.InternalGetWindowText.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
+    return ctypes, w, user
 
-    def text(hwnd) -> str:
-        buffer = ctypes.create_unicode_buffer(1024)
-        user.GetWindowTextW(hwnd, buffer, 1024)
-        return buffer.value
+
+def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
+    """The visible top-level ``#32770`` windows of ``pid``; sends no window message."""
+    ctypes, w, user = _user32()
+    callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
 
     def cls(hwnd) -> str:
         buffer = ctypes.create_unicode_buffer(256)
@@ -121,21 +149,13 @@ def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
         if pid_of(hwnd) != pid or not user.IsWindowVisible(hwnd) or cls(hwnd) != DIALOG_CLASS:
             return True
         owner = user.GetWindow(hwnd, GW_OWNER) or 0
-        texts: list[str] = []
-        buttons: list[str] = []
-
-        def child(hwnd_child, _):
-            name = cls(hwnd_child)
-            if name == "Static":
-                texts.append(text(hwnd_child))
-            elif name == "Button":
-                buttons.append(text(hwnd_child))
-            return True
-
-        user.EnumChildWindows(hwnd, callback(child), 0)
+        style = user.GetWindowLongW(hwnd, GWL_STYLE) & 0xFFFFFFFF
+        exstyle = user.GetWindowLongW(hwnd, GWL_EXSTYLE) & 0xFFFFFFFF
         out.append(Window(
-            int(hwnd), pid, DIALOG_CLASS, text(hwnd), True, bool(user.IsWindowEnabled(hwnd)),
-            int(owner), pid_of(owner) if owner else 0, tuple(texts), tuple(buttons),
+            int(hwnd), pid, DIALOG_CLASS, "", True, bool(user.IsWindowEnabled(hwnd)),
+            int(owner), pid_of(owner) if owner else 0,
+            owner_enabled=bool(owner and user.IsWindowEnabled(owner)),
+            modal_frame=bool(style & DS_MODALFRAME or exstyle & WS_EX_DLGMODALFRAME),
         ))  # fmt: skip
         return True
 
@@ -143,15 +163,61 @@ def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
     return out
 
 
-def scan(pid: int | None = None, windows: Callable[[int], list[Window]] | None = None):
-    """The blocking dialogs of process ``pid`` (this process); [] when unknown."""
+def _texts(hwnd: int) -> tuple:  # pragma: no cover - needs Windows
+    """``(title, static texts, button texts)`` of a confirmed modal dialog, read with
+    ``InternalGetWindowText``: no ``WM_GETTEXT`` is sent to NX's UI thread."""
+    ctypes, w, user = _user32()
+    callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+
+    def text(handle) -> str:
+        buffer = ctypes.create_unicode_buffer(1024)
+        user.InternalGetWindowText(handle, buffer, 1024)
+        return buffer.value
+
+    texts: list[str] = []
+    buttons: list[str] = []
+
+    def child(handle, _):
+        buffer = ctypes.create_unicode_buffer(256)
+        user.GetClassNameW(handle, buffer, 256)
+        if buffer.value == "Static":
+            texts.append(text(handle))
+        elif buffer.value == "Button":
+            buttons.append(text(handle))
+        return True
+
+    user.EnumChildWindows(hwnd, callback(child), 0)
+    return text(hwnd), tuple(texts), tuple(buttons)
+
+
+def scan(
+    pid: int | None = None,
+    windows: Callable[[int], list[Window]] | None = None,
+    *,
+    host_disabled: Iterable[int] = (),
+    texts: Callable[[int], tuple] | None = None,
+) -> list[Dialog]:
+    """The blocking dialogs of process ``pid`` (this process); [] when unknown.
+
+    Texts are read (``texts(hwnd)`` -> ``(title, texts, buttons)``) only for the
+    windows :func:`is_modal` confirms; ``host_disabled`` as for :func:`is_modal`."""
     if windows is None and sys.platform != "win32":
         return []
     pid = os.getpid() if pid is None else pid
+    disabled = set(host_disabled)
     try:
-        return blocking((windows or _windows)(pid), pid)
+        modal = [w for w in (windows or _windows)(pid) if is_modal(w, pid, disabled)]
+        read = texts if texts is not None else (_texts if windows is None else None)
+        if read is not None:
+            modal = [_with_texts(w, read) for w in modal]
+        return blocking(modal, pid, disabled)
     except Exception:
         return []  # A diagnostic must never fail the call it watches.
+
+
+def _with_texts(w: Window, read) -> Window:
+    title, texts, buttons = read(w.hwnd)
+    return replace(w, title=title or w.title, texts=texts or w.texts, buttons=buttons or w.buttons)
 
 
 class Watch:
@@ -168,15 +234,18 @@ class Watch:
         self.scanner = scanner
         self.interval = interval
         self._stop = threading.Event()
+        self._notify = threading.Lock()
         self._thread: threading.Thread | None = None
 
-    def poll(self) -> list[Dialog]:
+    def poll(self, *, notify: bool = True) -> list[Dialog]:
         fresh = new_dialogs(self.before + self.seen, self.scanner())
         for dialog in fresh:
             self.seen.append(dialog)
-            if self.on_new is not None:
-                with contextlib.suppress(Exception):
-                    self.on_new(dialog)
+            if notify and self.on_new is not None:
+                with self._notify:  # never after stop(): the call has ended
+                    if not self._stop.is_set():
+                        with contextlib.suppress(Exception):
+                            self.on_new(dialog)
         return fresh
 
     def _run(self) -> None:
@@ -189,8 +258,11 @@ class Watch:
         return self
 
     def stop(self) -> list[Dialog]:
-        self._stop.set()
+        """Every dialog seen, a last scan included; ``on_new`` is not called from now
+        on (the call has ended: a late answer must not reach the next call)."""
+        with self._notify:
+            self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=2)
-        self.poll()
+        self.poll(notify=False)
         return list(self.seen)

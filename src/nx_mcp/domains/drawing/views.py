@@ -497,8 +497,9 @@ def _create_broken(tx, view_ref, axis, breaks, gap):
         before = drawing.borders(tx, view)
         center = drawing.position(view)
     with drawing.on_sheet(tx, sheet) as sh:
-        for band in bands:
-            kinds.add_break(tx, sh, view, band, gap)
+        anchors = kinds.break_anchors(tx, view, bands)  # before the first break
+        for band, pair in zip(bands, anchors, strict=True):
+            kinds.add_break(tx, sh, view, band, gap, pair)
         tx.part.DraftingViews.UpdateViews([view])
         tol = kinds.sheet_tolerance(tx, sheet)
         readback.expect_close(drawing.position(view), center, "position", tol)

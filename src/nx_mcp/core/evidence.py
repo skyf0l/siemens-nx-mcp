@@ -152,6 +152,8 @@ def remember_license(spec, build: str | None, args, error) -> dict | None:
     details = getattr(error, "details", None) or {}
     if details.get("remembered_from") or details.get("child_tool"):
         return None  # a remembered refusal, or a batch child (recorded on its own spec)
+    if details.get("argument_license"):
+        return None  # gated by this call's arguments (e.g. one referenced object), not the call
     variant = spec.variant_of(args if isinstance(args, dict) else {})
     if not available(spec, build_key(build), variant):
         return None  # untested: evidence already hides it

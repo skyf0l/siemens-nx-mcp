@@ -10,7 +10,9 @@ NX 2406 findings encoded here:
 - Without the PMI datum license ``CreatePmiDatumFeatureSymbolBuilder`` raises 948801
   ("License Error ... token feature does not exist") on every call: datum feature
   symbols, and frames that reference datum letters, report NX_LICENSE_UNAVAILABLE. The
-  ``datum_feature`` variant therefore has no 2406 evidence and is refused there.
+  ``datum_feature`` variant therefore has no 2406 evidence and is refused there. A
+  frame's failure depends on its arguments (frames without PMI datums need no
+  license), so it is marked ``argument_license`` and not remembered for the session.
 - NX moves a frame onto its annotation plane silently: the read-back position is
   returned with the requested one and a warning.
 - The drafting builders (``CreateDraftingFeatureControlFrameBuilder``,
@@ -24,7 +26,7 @@ from __future__ import annotations
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Items, Length, Point3, Range, RefTo, SheetPoint, Text
 from nx_mcp.domains.drawing.common import (
@@ -162,15 +164,30 @@ def check_frame(frame, field="/frame"):
 def _letters(tx, refs):
     """Datum letters of PMI datum feature symbols (needs the PMI datum license)."""
     letters = []
-    datums = tx.part.Annotations.Datums
     for i, ref in enumerate(refs):
         obj = select.resolve(tx, ref, "annotation", field=f"/frame/datums/{i}", work_part=True)
         if not _is(tx, obj, "Datum"):
             fail("NX_WRONG_KIND", "datums must be datum feature symbols",
                  field=f"/frame/datums/{i}")  # fmt: skip
-        with builders.build(tx, datums.CreatePmiDatumFeatureSymbolBuilder, obj) as reader:
-            letters.append(str(reader.Letter))
+        letters.append(_pmi_letter(tx, obj, f"/frame/datums/{i}"))
     return letters
+
+
+def _pmi_letter(tx, obj, field):
+    """The letter of a PMI datum feature symbol. Without the PMI datum license NX
+    refuses the read (948801); the refusal depends on this argument, so it is marked
+    ``argument_license`` and the session does not remember the whole variant."""
+    try:
+        with builders.build(tx, tx.part.Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder,
+                            obj) as reader:  # fmt: skip
+            return str(reader.Letter)
+    except NXError as error:
+        if error.code != "NX_LICENSE_UNAVAILABLE":
+            raise
+        fail("NX_LICENSE_UNAVAILABLE",
+             f"Reading a PMI datum letter needs the PMI datum license: {error.message}",
+             field=field, nx_code=error.nx_code, details={"argument_license": True},
+             hint="Reference drafting datum symbols (view_datum_feature), or give no datums")  # fmt: skip
 
 
 def _configure_frame(tx, b, frame, letters):
@@ -366,13 +383,12 @@ def _drafting_letters(tx, refs):
         field = f"/frame/datums/{i}"
         obj = select.resolve(tx, ref, "annotation", field=field, work_part=True)
         if _is(tx, obj, "DraftingDatum"):
-            factory = datums.CreateDraftingDatumFeatureSymbolBuilder
+            with builders.build(tx, datums.CreateDraftingDatumFeatureSymbolBuilder, obj) as r:
+                letters.append(str(r.Letter))
         elif _is(tx, obj, "Datum"):
-            factory = datums.CreatePmiDatumFeatureSymbolBuilder
+            letters.append(_pmi_letter(tx, obj, field))
         else:
             fail("NX_WRONG_KIND", "datums must be datum feature symbols", field=field)
-        with builders.build(tx, factory, obj) as reader:
-            letters.append(str(reader.Letter))
     return letters
 
 

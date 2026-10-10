@@ -7,20 +7,27 @@ plane through ``FaceOrPlane`` and a face through a coincident ``NewPlane``
 before NX (a failed native commit leaves its message on the next feature); NX
 removes the material on the side the tool normal points to; ``CreateTrimBody2Builder``
 rejects ``Feature.Null`` (pass None); Delete Face lacks ``AllowPartialDelete``.
+Synchronous edits: Resize Face takes its faces in a ``SelectFaceList`` and a cone's half
+angle (the wide end stays put); Resize Chamfer needs both offsets set even when
+symmetric; Delete Face deletes blend chains through ``BlendCollector`` with type Blend;
+a face whose edit NX rolls back gets a new reference.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import definition, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    Angle,
     Direction,
     Doc,
     Items,
     Length,
+    Plane,
     Point3,
     Pose,
     Range,
@@ -341,6 +348,192 @@ def edit_transform(tx, feature, value):
 # Synchronous face edits
 
 
+class _FacePatternRequired(TypedDict):
+    layout: Literal["linear", "circular"]
+    count: Annotated[int, Range(ge=2, le=360), Doc("Instances including the seed")]
+
+
+class FacePattern(_FacePatternRequired, total=False):
+    spacing: Annotated[Length, Doc("linear: distance along direction")]
+    angle: Annotated[Angle, Doc("circular: angle between instances")]
+    origin: Annotated[Point3, Doc("circular: a point on the axis (along direction)")]
+
+
+class EditFacesData(common.FeatureData):
+    faces: int
+
+
+# Arguments each action needs (resize takes diameter or angle, checked on its own).
+NEEDS = {
+    "move": {"distance", "direction"},
+    "offset": {"distance"},
+    "replace": {"replacement"},
+    "delete": set(),
+    "resize": set(),
+    "resize_blend": {"radius"},
+    "resize_chamfer": {"distance"},
+    "pattern": {"pattern", "direction"},
+    "mirror": {"plane"},
+    "delete_blend": set(),
+}
+FACTORIES = {
+    "move": "CreateAdmMoveFaceBuilder",
+    "offset": "CreateOffsetFaceBuilder",
+    "replace": "CreateReplaceFaceBuilder",
+    "delete": "CreateDeleteFaceBuilder",
+    "resize": "CreateResizeFaceBuilder",
+    "resize_blend": "CreateResizeBlendBuilder",
+    "resize_chamfer": "CreateResizeChamferBuilder",
+    "pattern": "CreatePatternFaceBuilder",
+    "mirror": "CreateMirrorFaceBuilder",
+    "delete_blend": "CreateDeleteFaceBuilder",
+}
+ROUND = (select.FACE_CYLINDER, select.FACE_SPHERE)
+
+
+def _check_arguments(action, given):
+    needs = NEEDS[action]
+    if action == "resize":
+        sizes = [k for k in ("diameter", "angle") if given[k] is not None]
+        if len(sizes) != 1:
+            fail("NX_INVALID_ARGUMENT", "resize needs diameter or angle (cone)", field="/diameter")
+        needs = set(sizes)
+    for name, value in given.items():
+        if (value is not None) != (name in needs):
+            verb = "needs" if name in needs else "does not take"
+            fail("NX_INVALID_ARGUMENT", f"{action} {verb} {name}", field="/" + name)
+    for name in ("diameter", "radius"):
+        if given[name] is not None and given[name] <= 0:
+            fail("NX_INVALID_ARGUMENT", f"{name} must be positive", field="/" + name)
+    if action == "resize_chamfer" and given["distance"] <= 0:
+        fail("NX_INVALID_ARGUMENT", "The chamfer offset must be positive", field="/distance")
+    if action == "resize" and given["angle"] is not None and not 0 < given["angle"] < 90:
+        fail("NX_INVALID_ARGUMENT", "The cone half angle is between 0 and 90", field="/angle")
+
+
+def _resize_targets(tx, selected, diameter):
+    """Refuse, before NX, faces the size does not fit: cylinders and spheres take a
+    diameter, cones an angle."""
+    for i, face in enumerate(selected):
+        kind = select.face_data(tx, face)[0]
+        ok = kind in ROUND if diameter is not None else kind == select.FACE_CONE
+        if not ok:
+            wanted = "cylindrical or spherical" if diameter is not None else "conical"
+            fail("NX_WRONG_GEOMETRY", f"resize with this size needs {wanted} faces",
+                 field=f"/faces/{i}")  # fmt: skip
+
+
+def _resized(tx, selected, diameter, angle):
+    """Read the new size back from each resized face (UF face data radius / half angle)."""
+    for i, face in enumerate(selected):
+        data = tx.uf.Modeling.AskFaceData(face.Tag)
+        if diameter is not None:
+            readback.expect_close(2.0 * float(data[4]), float(diameter), f"diameter[{i}]", tol=1e-6)
+        else:
+            readback.expect_close(
+                math.degrees(float(data[5])), float(angle), f"angle[{i}]", tol=1e-6
+            )
+
+
+def _pattern_check(p):
+    """Check the layout's own fields before NX."""
+    where = "/pattern"
+    own = {"linear": {"spacing"}, "circular": {"angle", "origin"}}[p["layout"]]
+    for key in ("spacing", "angle", "origin"):
+        if (p.get(key) is not None) != (key in own):
+            verb = "needs" if key in own else "does not take"
+            fail("NX_INVALID_ARGUMENT", f"A {p['layout']} pattern {verb} {key}",
+                 field=f"{where}/{key}")  # fmt: skip
+    if p["layout"] == "linear" and p["spacing"] == 0:
+        fail("NX_INVALID_ARGUMENT", "Spacing must not be zero", field=where + "/spacing")
+    if p["layout"] == "linear" and p["count"] > 100:
+        fail("NX_INVALID_ARGUMENT", "At most 100 linear instances", field=where + "/count")
+    if p["layout"] == "circular" and (
+        p["angle"] <= 0 or (p["count"] - 1) * p["angle"] > 360.0 - 1e-9
+    ):
+        fail("NX_INVALID_ARGUMENT", "Use a positive angle with (count - 1) * angle < 360",
+             field=where + "/angle")  # fmt: skip
+
+
+def _pattern(tx, b, pattern, vector):
+    types = tx.nx.Features.PatternFaceBuilder.PatternTypes
+    if pattern["layout"] == "linear":
+        b.Type = types.Rectangular
+        b.XVector = builders.direction(tx, vector, field="/direction")
+        b.XCount.RightHandSide = str(int(pattern["count"]))
+        b.XDistance.RightHandSide = repr(float(pattern["spacing"]))
+        b.YCount.RightHandSide = "1"
+    else:
+        origin = [float(v) for v in pattern["origin"]]
+        update = tx.nx.SmartObject.UpdateOption.WithinModeling
+        smart = builders.direction(tx, vector, origin, "/direction")
+        b.Type = types.Circular
+        b.Axis = tx.part.Axes.CreateAxis(builders.point(tx, origin), smart, update)
+        b.CircularCount.RightHandSide = str(int(pattern["count"]))
+        b.Angle.RightHandSide = repr(float(pattern["angle"]))
+
+
+def _configure(tx, b, action, selected, a):
+    """Fill the action's builder (the faces through one dumb face rule)."""
+    part = tx.part
+    rule = part.ScRuleFactory.CreateRuleFaceDumb(selected)
+    if action == "move":
+        b.FaceToMove.FaceCollector.ReplaceRules([rule], False)
+        b.Motion.Option = tx.nx.GeometricUtilities.ModlMotion.Options.Distance
+        b.Motion.DistanceVector = builders.direction(tx, a["vector"], field="/direction")
+        b.Motion.DistanceValue.RightHandSide = repr(float(a["distance"]))
+    elif action == "offset":
+        b.FaceCollector.ReplaceRules([rule], False)
+        b.Distance.RightHandSide = repr(abs(float(a["distance"])))
+        b.Direction = a["distance"] < 0
+    elif action == "replace":
+        b.ReplaceFaces.ReplaceRules([rule], False)
+        b.ReplacementFaces.ReplaceRules(
+            [part.ScRuleFactory.CreateRuleFaceDumb([a["other"]])], False
+        )
+    elif action in ("delete", "delete_blend"):
+        types = tx.nx.Features.DeleteFaceBuilder.SelectTypes
+        if action == "delete":
+            b.Type = types.Face
+            b.FaceCollector.ReplaceRules([rule], False)
+        else:
+            b.Type = types.Blend
+            b.BlendCollector.ReplaceRules([rule], False)
+        b.Heal = True
+        b.option("AllowPartialDelete", False)  # absent on NX 2406
+    elif action == "resize":
+        b.Face.Add(selected)
+        if a["diameter"] is not None:
+            b.Diameter.RightHandSide = repr(float(a["diameter"]))
+        else:
+            b.Angle.RightHandSide = repr(float(a["angle"]))
+    elif action == "resize_blend":
+        for i, ok in enumerate(list(b.IsBlendFace(selected))):
+            if not ok:
+                fail("NX_WRONG_GEOMETRY", "NX does not recognize this face as a blend",
+                     field=f"/faces/{i}")  # fmt: skip
+        b.BlendFace.ReplaceRules([rule], False)
+        b.Radius.RightHandSide = repr(float(a["radius"]))
+    elif action == "resize_chamfer":
+        b.Faces.ReplaceRules([rule], False)
+        b.ChamferType = tx.nx.Features.ResizeChamferBuilder.SectionType.SymmetricOffset
+        for offset in (b.Offset1, b.Offset2):
+            offset.RightHandSide = repr(float(a["distance"]))
+        b.Angle.RightHandSide = "45"
+    elif action == "pattern":
+        b.Face.ReplaceRules([rule], False)
+        _pattern(tx, b, a["pattern"], a["vector"])
+    else:  # mirror
+        b.FaceToMirror.FaceCollector.ReplaceRules([rule], False)
+        b.MirrorPlaneOption = tx.nx.Features.MirrorFaceBuilder.MirrorPlaneOptions.New
+        origin, normal = a["mirror"]
+        b.NewMirrorPlane = part.Planes.CreatePlane(
+            tx.nx.Point3d(*origin),
+            tx.nx.Vector3d(*normal),
+            tx.nx.SmartObject.UpdateOption.WithinModeling,
+        )
+
+
 @tool(
     effect="model",
     label="Edit faces",
@@ -348,10 +541,12 @@ def edit_transform(tx, feature, value):
     keywords=(
         "move face",
         "offset face",
-        "replace face",
         "delete face",
+        "resize hole",
+        "resize blend",
+        "pattern face",
+        "imported",
         "synchronous",
-        "push pull",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="action",
@@ -363,55 +558,61 @@ def nx_edit_faces(
     tx: Tx,
     *,
     faces: Annotated[list[RefTo("face")], Items(1, 200)],  # type: ignore[valid-type]
-    action: Literal["move", "offset", "replace", "delete"],
-    distance: Annotated[Length, Doc("move: along direction; offset: outward if > 0")] | None = None,
-    direction: Direction | None = None,
+    action: Literal[
+        "move",
+        "offset",
+        "replace",
+        "delete",
+        "resize",
+        "resize_blend",
+        "resize_chamfer",
+        "pattern",
+        "mirror",
+        "delete_blend",
+    ],
+    distance: Annotated[
+        Length,
+        Doc("move: along direction; offset: outward if > 0; resize_chamfer: new symmetric offset"),
+    ]
+    | None = None,
+    direction: Annotated[Direction, Doc("move; pattern: linear direction or circular axis")]
+    | None = None,
     replacement: RefTo("face") | None = None,  # type: ignore[valid-type]
-) -> common.FeatureData:
-    """Edit faces of any solid, imported ones included (synchronous modeling). Move them along
-    a direction, offset them, replace them by another face, or delete and heal."""
-    needs = {
-        "move": {"distance", "direction"},
-        "offset": {"distance"},
-        "replace": {"replacement"},
-        "delete": set(),
-    }[action]
-    given = {"distance": distance, "direction": direction, "replacement": replacement}
-    for name, value in given.items():
-        if (value is not None) != (name in needs):
-            verb = "needs" if name in needs else "does not take"
-            fail("NX_INVALID_ARGUMENT", f"{action} {verb} {name}", field="/" + name)
+    diameter: Annotated[Length, Doc("resize: new cylinder or sphere diameter")] | None = None,
+    angle: Annotated[Angle, Doc("resize: new cone half angle")] | None = None,
+    radius: Annotated[Length, Doc("resize_blend: new blend radius")] | None = None,
+    pattern: FacePattern | None = None,
+    plane: Annotated[Plane, Doc("mirror: mirror plane")] | None = None,
+) -> EditFacesData:
+    """Edit faces of any solid, imported ones included (synchronous modeling). Move, offset,
+    replace or delete and heal faces; resize a hole, boss, cone, blend or chamfer; pattern or
+    mirror faces; delete blend chains."""
+    given = {
+        "distance": distance,
+        "direction": direction,
+        "replacement": replacement,
+        "diameter": diameter,
+        "angle": angle,
+        "radius": radius,
+        "pattern": pattern,
+        "plane": plane,
+    }
+    _check_arguments(action, given)
+    if pattern is not None:
+        _pattern_check(pattern)
     selected = select.faces(tx, faces, "/faces")
     body = common.one_body(selected, "/faces")
-    vector = select.direction(tx, direction, "/direction") if direction is not None else None
-    other = select.one(tx, replacement, "face", field="/replacement") if replacement else None
+    a = dict(given)
+    a["vector"] = select.direction(tx, direction, "/direction") if direction is not None else None
+    a["other"] = select.one(tx, replacement, "face", field="/replacement") if replacement else None
+    if plane is not None:
+        a["mirror"] = select.plane(tx, plane, "/plane")[1:]
+    if action == "resize":
+        _resize_targets(tx, selected, diameter)
     before = measure.volume(tx, body)
-    part = tx.part
-    factory = {
-        "move": part.Features.CreateAdmMoveFaceBuilder,
-        "offset": part.Features.CreateOffsetFaceBuilder,
-        "replace": part.Features.CreateReplaceFaceBuilder,
-        "delete": part.Features.CreateDeleteFaceBuilder,
-    }[action]
-    with builders.build(tx, factory, None) as b:
-        rule = part.ScRuleFactory.CreateRuleFaceDumb(selected)
-        if action == "move":
-            b.FaceToMove.FaceCollector.ReplaceRules([rule], False)
-            b.Motion.Option = tx.nx.GeometricUtilities.ModlMotion.Options.Distance
-            b.Motion.DistanceVector = builders.direction(tx, vector, field="/direction")
-            b.Motion.DistanceValue.RightHandSide = repr(float(distance))
-        elif action == "offset":
-            b.FaceCollector.ReplaceRules([rule], False)
-            b.Distance.RightHandSide = repr(abs(float(distance)))
-            b.Direction = distance < 0
-        elif action == "replace":
-            b.ReplaceFaces.ReplaceRules([rule], False)
-            b.ReplacementFaces.ReplaceRules([part.ScRuleFactory.CreateRuleFaceDumb([other])], False)
-        else:
-            b.Type = tx.nx.Features.DeleteFaceBuilder.SelectTypes.Face
-            b.FaceCollector.ReplaceRules([rule], False)
-            b.Heal = True
-            b.option("AllowPartialDelete", False)  # absent on NX 2406
+    count = len(body.GetFaces())
+    with builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:
+        _configure(tx, b, action, selected, a)
         feature = b.commit(validate=True)
     check = getattr(tx.uf.Modeling, "AskBodyConsistency", None)
     if check is not None:
@@ -419,6 +620,11 @@ def nx_edit_faces(
         readback.expect(
             not faults, "consistency", "The face edit left an invalid body", faults=faults
         )
+    if action == "resize":
+        _resized(tx, selected, diameter, angle)
     out = common.result_of(tx, feature, [body])
     common.changed(before, out["volume"], "differs")
-    return out
+    after = len(body.GetFaces())
+    if action in ("pattern", "mirror"):
+        readback.expect(after > count, "faces", "NX added no faces", before=count, after=after)
+    return {**out, "faces": after}

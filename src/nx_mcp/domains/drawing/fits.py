@@ -42,7 +42,8 @@ SHAFT_LOWER = {
     "n": (4, 8, 10, 12, 15, 17, 20, 23, 27, 31, 34, 37, 40),
     "p": (6, 12, 15, 18, 22, 26, 32, 37, 43, 50, 56, 62, 68),
 }
-# Holes K-P with the delta rule: ES = -ei(shaft) + delta, delta = IT(n) - IT(n-1).
+# Holes K-P with the delta rule: ES = -ei(shaft) + delta, delta = IT(n) - IT(n-1)
+# for sizes over 3 mm; delta = 0 up to 3 mm.
 HOLE_DELTA_MAX = {"K": 8, "M": 8, "N": 8, "P": 7}
 
 CLASS = re.compile(r"^(JS|js|[A-Za-z])(\d{1,2})$")
@@ -113,7 +114,8 @@ def hole(letter, grade, size_mm):
     if letter.lower() in SHAFT_UPPER:
         ei = -SHAFT_UPPER[letter.lower()][r]
         return float(ei + it), float(ei)
-    delta = it - IT[grade - 1][r]
+    # ISO 286-1: delta applies only above 3 mm; up to 3 mm ES = -ei of the shaft.
+    delta = it - IT[grade - 1][r] if r > 0 else 0
     es = -SHAFT_LOWER[letter.lower()][r] + delta
     return float(es), float(es - it)
 

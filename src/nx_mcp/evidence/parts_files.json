@@ -56,7 +56,7 @@
   "nx_export_assembly": {
     "v2406": {
       "checks": 42,
-      "recorded": "2026-10-09T17:56:01Z",
+      "recorded": "2026-10-10T11:02:08Z",
       "scenario": "acceptance/parts_files/export_assembly.json",
       "scenario_sha256": "8c8e029557121acd27979ef83f15c829350724259fded8646f9a410db65d69b4",
       "source_sha256": "14cdace652d7654b8a1441bc37ee87ced49561a4c0e86717b6b1aaf9fbf7b17e",
@@ -69,10 +69,10 @@
   "nx_export_model": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-09T20:59:05Z",
+      "recorded": "2026-10-10T11:01:35Z",
       "scenario": "acceptance/parts_files/export_model.json",
       "scenario_sha256": "084028bb266effe1237cffee76a5195e0e6fb9f2583fac252dc85569884eb0b7",
-      "source_sha256": "390d1306b6b1c3694fd3c420acb24b182203593e386b3634e0db8ae1fc09d9fc",
+      "source_sha256": "486836481a5ee7b18e078094e6f6f8e6e4579b63f86d83660c795e24c779e2c9",
       "variants": [
         "iges",
         "jt",
@@ -85,7 +85,7 @@
   "nx_export_profile": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-09T17:56:40Z",
+      "recorded": "2026-10-10T11:02:10Z",
       "scenario": "acceptance/parts_files/export_profile.json",
       "scenario_sha256": "7fd6e2f4c2594578a63de3189fee5e4b049906d4599506ba3ba45e6088d57eab",
       "source_sha256": "69d4d6b43230b219d555117a2375bd07288db879d769aae07ad95fb08893cb68",

@@ -448,12 +448,21 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
         try:
             # Compare before undoing: a failure that created or deleted nothing keeps
             # every reference (undo restores the same NX objects).
-            unchanged = False
+            unchanged, failed_snap = False, None
             try:
-                unchanged = part is not None and set(services.snapshot(part)) == set(before)
+                failed_snap = services.snapshot(part) if part is not None else None
+                unchanged = failed_snap is not None and set(failed_snap) == set(before)
             except Exception:
                 unchanged = False
             services.undo_to(mark)
+            if not unchanged and failed_snap is not None and spec.invalidates != "topology":
+                # Undo removed what a non-topology handler created (a constraint, a
+                # pattern): the same objects are back, so retire only the created IDs.
+                with contextlib.suppress(Exception):
+                    restored = services.snapshot(part)
+                    if set(restored) == set(before):
+                        services.invalidate(failed_snap, restored, False)
+                        unchanged = True
             references = "preserved" if unchanged else "part_invalidated"
             if not unchanged:
                 services.invalidate_parts(services.parts())

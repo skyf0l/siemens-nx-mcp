@@ -155,8 +155,10 @@ class StepCreator(NS):
         out = Path(self.OutputFile)
         schema = "AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 1 }"
         if self.ExportAs == 2:  # Ap242
-            if not fake.ap242_licensed:
-                raise NXException(2, "Interrupt")  # NX 2406 without the AP242 license
+            if not fake.ap242_licensed:  # NX 2406 without the AP242 license
+                with Path(fake.session.LogFile.FileName).open("a") as syslog:
+                    syslog.write("STEP AP242 License not found\n")
+                raise NXException(2, "Interrupt")
             schema = "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }"
         if fake.export_writes:
             out.write_bytes(neutral_files.step(len(bodies), _units(fake, part), schema))
@@ -378,6 +380,9 @@ def with_parts(nx, root):
     nx.step_creators = []
     nx.exporters = []
     nx.ap242_licensed = False
+    syslog = nx.root.parent / f"{nx.root.name}.syslog"  # NX's syslog, outside the workspace
+    syslog.write_text("NX syslog\n")
+    nx.session.LogFile = NS(FileName=str(syslog))
     nx.step_importers = []
     nx.structure = {}  # resolved casefold path of an assembly -> prototype paths
     nx.curves = {}

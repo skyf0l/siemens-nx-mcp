@@ -138,9 +138,14 @@ class ToolSpec:
         return evidence.for_tool(self.name)
 
     def variant_of(self, args: Mapping) -> str | None:
-        """The value of the variant field in ``args`` (None without variants)."""
+        """The value of the variant field in ``args``, else its default (None without
+        variants), so an omitted defaulted field is gated and remembered as the
+        variant that actually runs."""
         if isinstance(self.variants, str):
             value = args.get(self.variants)
+            if value is None:
+                param = self.params.get(self.variants)
+                value = None if param is None or param.required else param.default
             return value if isinstance(value, str) else None
         return None
 

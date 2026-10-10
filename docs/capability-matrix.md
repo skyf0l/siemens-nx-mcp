@@ -3,13 +3,13 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `617e94e1a2682e75ff476f565a7406c5c21597fe1e575f1445653e6899d0fd75`.
+Canonical SHA-256 (catalogue evidence): `98149a8a13fcbbca9b1edf5f7d85ac8ea9735089692f562886c39ef23e877618`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 156 |
+| Native-tested | 157 |
 | Experimental | 1 |
 
 ## Catalogue tools
@@ -37,7 +37,8 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_centerline | Native-tested | drawing | model | v2406: all variants; 23 checks in acceptance/drawing/create_centerline.json |
 | nx_create_chamfer | Native-tested | modeling | model | v2406: all variants; 12 checks in acceptance/modeling/chamfer.json |
 | nx_create_checkpoint | Native-tested | session | session | v2406: tested; 44 checks in acceptance/session/history.json |
-| nx_create_component | Native-tested | assembly | model | v2406: tested; 108 checks in acceptance/assembly/components.json |
+| nx_create_component | Native-tested | assembly | model | v2406: all variants; 38 checks in acceptance/assembly/new_component.json |
+| nx_create_component_mirror | Native-tested | assembly | model | v2406: tested; 12 checks in acceptance/assembly/component_mirror.json |
 | nx_create_component_pattern | Native-tested | assembly | model | v2406: tested; 74 checks in acceptance/assembly/patterns.json |
 | nx_create_datum_axis | Native-tested | modeling | model | v2406: all variants; 14 checks in acceptance/modeling/datum_axis.json |
 | nx_create_datum_csys | Native-tested | modeling | model | v2406: tested; 13 checks in acceptance/modeling/datum_csys.json |
@@ -49,7 +50,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_drawing_sheet | Native-tested | drawing | model | v2406: tested; 23 checks in acceptance/drawing/inch_units.json |
 | nx_create_drawing_symbol | Native-tested | drawing | model | v2406: all variants; 19 checks in acceptance/drawing/create_drawing_symbol.json |
 | nx_create_drawing_table | Native-tested | drawing | model | v2406: all variants; 53 checks in acceptance/drawing/title_block.json |
-| nx_create_drawing_view | Native-tested | drawing | model | v2406: all variants; 51 checks in acceptance/drawing/view_types.json |
+| nx_create_drawing_view | Native-tested | drawing | model | v2406: all variants; 54 checks in acceptance/drawing/view_types.json |
 | nx_create_emboss_body | Native-tested | modeling | model | v2406: tested; 8 checks in acceptance/modeling/emboss_body.json |
 | nx_create_explosion | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_create_explosion_trace | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
@@ -92,14 +93,14 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_download_file | Native-tested | parts_files | read | v2406: all variants; 27 checks in acceptance/parts_files/download_file.json |
 | nx_edit_annotation | Native-tested | drawing | model | v2406: tested; 22 checks in acceptance/drawing/edit_annotation.json |
 | nx_edit_assembly_constraint | Native-tested | assembly | model | v2406: tested; 82 checks in acceptance/assembly/constraints.json |
-| nx_edit_component | Native-tested | assembly | model | v2406: tested; 108 checks in acceptance/assembly/components.json |
+| nx_edit_component | Native-tested | assembly | model | v2406: tested; 38 checks in acceptance/assembly/new_component.json |
 | nx_edit_component_pattern | Native-tested | assembly | model | v2406: tested; 74 checks in acceptance/assembly/patterns.json |
 | nx_edit_dimension | Native-tested | drawing | model | v2406: tested; 30 checks in acceptance/drawing/edit_dimension.json |
 | nx_edit_drawing_table | Native-tested | drawing | model | v2406: all variants; 53 checks in acceptance/drawing/title_block.json |
 | nx_edit_drawing_view | Native-tested | drawing | model | v2406: tested; 27 checks in acceptance/drawing/edit_drawing_view.json |
 | nx_edit_explosion | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_edit_explosion_trace | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
-| nx_edit_faces | Native-tested | modeling | model | v2406: all variants; 13 checks in acceptance/modeling/edit_faces.json |
+| nx_edit_faces | Native-tested | modeling | model | v2406: all variants; 32 checks in acceptance/modeling/sync_edits.json |
 | nx_edit_feature | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/edit_feature.json |
 | nx_edit_section_view | Native-tested | display | view | v2406: tested; 40 checks in acceptance/display/sections.json |
 | nx_edit_sketch_curves | Native-tested | sketch | model | v2406: all variants; 32 checks in acceptance/sketch/edit_sketch_curves.json |

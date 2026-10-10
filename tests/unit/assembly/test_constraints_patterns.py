@@ -112,6 +112,76 @@ def test_geometry_must_belong_to_its_component_and_target_must_differ(nx):
     assert same.error["field"] == "/target_component"
 
 
+def test_bond_references_the_components_themselves(nx):
+    ok = run(nx, "nx_create_assembly_constraint", type="bond", component=nx.b.ref,
+             target_component=nx.a.ref)  # fmt: skip
+    assert ok.ok, ok
+    c = nx.assembly.positioner.Constraints[-1]
+    assert c.ConstraintType == TYPE.Bond and [r.GetGeometry() for r in c.refs] == [nx.b, nx.a]
+    assert ok.data["type"] == "bond"
+    surplus = run(nx, "nx_create_assembly_constraint", type="bond", component=nx.b.ref,
+                  target_component=nx.a.ref, geometry=geometry(nx, nx.b))  # fmt: skip
+    assert surplus.error["field"] == "/geometry" and surplus.mutation_outcome == "not_started"
+
+
+def test_align_lock_uses_the_axis_of_a_face_and_fit_needs_faces(nx):
+    ok = run(nx, "nx_create_assembly_constraint", type="align_lock", component=nx.b.ref,
+             geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+             target_geometry=geometry(nx, nx.a, "edge"))  # fmt: skip
+    assert ok.ok and ok.data["type"] == "align_lock", ok
+    c = nx.assembly.positioner.Constraints[-1]
+    assert c.ConstraintType == TYPE.AlignLock and [r.uses_axis for r in c.refs] == [True, False]
+    edge = run(nx, "nx_create_assembly_constraint", type="fit", component=nx.b.ref,
+               geometry=geometry(nx, nx.b, "edge"), target_component=nx.a.ref,
+               target_geometry=geometry(nx, nx.a))  # fmt: skip
+    assert edge.error["code"] == "NX_WRONG_GEOMETRY" and edge.error["field"] == "/geometry"
+    fit = run(nx, "nx_create_assembly_constraint", type="fit", component=nx.b.ref,
+              geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+              target_geometry=geometry(nx, nx.a))  # fmt: skip
+    assert fit.ok and fit.data["type"] == "fit"
+    assert nx.assembly.positioner.Constraints[-1].ConstraintType == TYPE.Fit
+
+
+def test_center_types_take_the_pairs_in_order(nx):
+    b1, b2, a1, a2 = (geometry(nx, c) for c in (nx.b, nx.b, nx.a, nx.a))
+    one = run(nx, "nx_create_assembly_constraint", type="center_1_2", component=nx.b.ref,
+              geometry=b1, target_component=nx.a.ref, target_geometry=a1,
+              target_geometry2=a2)  # fmt: skip
+    assert one.ok and one.data["type"] == "center_1_2", one
+    c = nx.assembly.positioner.Constraints[-1]
+    assert c.ConstraintType == TYPE.Center12
+    assert [nx.ref_of(r.GetGeometry(), "face") for r in c.refs] == [a1, a2, b1]  # the pair first
+    assert [r.GetMovableObject() for r in c.refs] == [nx.a, nx.a, nx.b]
+    assert [r.uses_axis for r in c.refs] == [False, False, False]
+    pin = nx.ref_of(nx.b.face("cylinder"), "face")
+    axis = run(nx, "nx_create_assembly_constraint", type="center_1_2", component=nx.b.ref,
+               geometry=pin, target_component=nx.a.ref, target_geometry=a1,
+               target_geometry2=a2)  # fmt: skip
+    assert axis.ok, axis
+    assert [r.uses_axis for r in nx.assembly.positioner.Constraints[-1].refs] == [
+        False,
+        False,
+        True,
+    ]
+    two = run(nx, "nx_create_assembly_constraint", type="center_2_2", component=nx.b.ref,
+              geometry=b1, geometry2=b2, target_component=nx.a.ref, target_geometry=a1,
+              target_geometry2=a2)  # fmt: skip
+    assert two.ok and two.data["type"] == "center_2_2"
+    assert len(nx.assembly.positioner.Constraints[-1].refs) == 4
+    missing = run(nx, "nx_create_assembly_constraint", type="center_2_2", component=nx.b.ref,
+                  geometry=b1, target_component=nx.a.ref, target_geometry=a1,
+                  target_geometry2=a2)  # fmt: skip
+    assert missing.error["field"] == "/geometry2"
+    surplus = run(nx, "nx_create_assembly_constraint", type="center_1_2", component=nx.b.ref,
+                  geometry=b1, geometry2=b2, target_component=nx.a.ref, target_geometry=a1,
+                  target_geometry2=a2)  # fmt: skip
+    assert surplus.error["field"] == "/geometry2"
+    flipped = run(nx, "nx_create_assembly_constraint", type="center_1_2", component=nx.b.ref,
+                  geometry=b1, target_component=nx.a.ref, target_geometry=a1,
+                  target_geometry2=a2, alignment="same")  # fmt: skip
+    assert flipped.error["field"] == "/alignment"
+
+
 def test_edit_constraint_value_alignment_suppression(nx):
     ok = run(nx, "nx_create_assembly_constraint", type="distance", component=nx.b.ref,
              geometry=geometry(nx, nx.b), target_component=nx.a.ref,

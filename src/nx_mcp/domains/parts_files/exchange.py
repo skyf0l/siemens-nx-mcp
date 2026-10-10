@@ -11,9 +11,12 @@ writes edited bodies as last saved (a moved body stays where it was saved), new 
 as they are. The translator writes into
 ``.nx-mcp/staging``; the file is read back (``kit.neutral``: schema, units, solids or
 triangles, extent against the bodies) and published without overwriting anything.
-STEP AP242 needs its own NX license; without it NX 2406 raises "Interrupt" (code 2,
-mapped to ``NX_LICENSE_UNAVAILABLE``) for a modified part, and its external job for an
-unmodified part writes no file (``NX_EXPORT_FAILED`` with a license hint).
+STEP AP242 needs its own NX license; without it NX 2406 raises "Interrupt" (code 2) for
+a modified part and writes "STEP AP242 License not found" to the syslog. Code 2 maps to
+``NX_LICENSE_UNAVAILABLE`` only when the syslog lines of this call or the translator log
+say so (any other interrupt is ``NX_EXPORT_FAILED``, so it is not remembered as a missing
+license). Its external job for an unmodified part writes no file (``NX_EXPORT_FAILED``
+with a license hint).
 
 Import (``nx_import_model``) lives in ``importing.py``.
 """
@@ -23,12 +26,13 @@ from __future__ import annotations
 import contextlib
 import glob
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, ByVariant, Doc, Items, Json, Length, PathTo, RefTo
 from nx_mcp.domains.parts_files import _saving
@@ -47,8 +51,11 @@ SUFFIXES = {
 }
 ALL_SUFFIXES = tuple(dict.fromkeys(s for group in SUFFIXES.values() for s in group))
 # NX 2406 raises "Interrupt" (code 2) when the STEP AP242 translator license is missing
-# (syslog: "STEP AP242 License not found").
-AP242_LICENSE_CODE = 2
+# (syslog: "STEP AP242 License not found"); code 2 alone is any interrupt.
+AP242_INTERRUPT_CODE = 2
+LICENSE_MISSING = re.compile(r"licen[cs]e\s+(?:is\s+)?(?:not\s+found|not\s+available|unavailable)",
+                             re.IGNORECASE)  # fmt: skip
+SYSLOG_TAIL = 65536
 # An unmodified part is translated by the external step242 job, which writes nothing then.
 AP242_HINT = "STEP AP242 needs its own NX translator license; use format step (AP214)"
 JT_RELATIVE_TOL = 0.005  # JT tessellation tolerance relative to the model size
@@ -116,6 +123,35 @@ def _settings(*names: str, code: str) -> Path:
     return path
 
 
+def _syslog(tx) -> tuple[Path | None, int]:
+    """NX's syslog and its current size (the lines this call writes start there)."""
+    try:
+        path = Path(str(tx.session.LogFile.FileName))
+        return path, path.stat().st_size
+    except Exception:
+        return None, 0
+
+
+def _license_proof(syslog: tuple[Path | None, int], log: Path) -> str | None:
+    """The syslog (since ``syslog``'s offset) or translator-log line that says a
+    license is missing, or None."""
+    texts = []
+    path, start = syslog
+    if path is not None:
+        try:
+            with path.open("rb") as stream:
+                stream.seek(max(start, path.stat().st_size - SYSLOG_TAIL))
+                texts.append(stream.read().decode(errors="replace"))
+        except OSError:
+            pass
+    texts.append(_tail(log) or "")
+    for text in texts:
+        for line in text.splitlines():
+            if LICENSE_MISSING.search(line):
+                return line.strip()[:300]
+    return None
+
+
 def _tail(path: Path) -> str | None:
     try:
         return path.read_text(errors="replace")[-LOG_TAIL:]
@@ -181,22 +217,27 @@ def nx_export_model(
     modified = bool(part.IsModified)
     file_before = _saving.fingerprint(parts.file_of(part))
     root = Path(tx.workspace.root)
-    temp = files.temp_path(root, target.name, tx.operation_id)
-    tx.touched = True
+    temp = tx.files.stage(target)  # published through tx.files: a late failure is partial
+    log = temp.with_suffix(".log")
+    syslog = _syslog(tx) if format == "step_ap242" else (None, 0)
     try:
         builder = None
-        codes = {AP242_LICENSE_CODE: "NX_LICENSE_UNAVAILABLE"} if format == "step_ap242" else None
         try:
-            with native(codes, default="NX_EXPORT_FAILED"):
+            with native(default="NX_EXPORT_FAILED"):
                 create, configure = WRITERS[format]
                 builder = create(tx)  # destroyed in finally even if configuring fails
                 configure(tx, builder, format, part, selected, settings, temp, opts)
                 builder.Commit()
+        except NXError as error:
+            proof = _license_proof(syslog, log) if error.nx_code == AP242_INTERRUPT_CODE else None
+            if format != "step_ap242" or proof is None:
+                raise
+            fail("NX_LICENSE_UNAVAILABLE", f"NX refused the STEP AP242 export: {proof}",
+                 nx_code=AP242_INTERRUPT_CODE, hint=AP242_HINT)  # fmt: skip
         finally:
             if builder is not None:
                 with contextlib.suppress(Exception):
                     builder.Destroy()
-        log = temp.with_suffix(".log")
         written = _written(temp)
         if written is None:
             fail(
@@ -215,7 +256,9 @@ def nx_export_model(
         readback.expect(
             _saving.fingerprint(parts.file_of(part)) == file_before, "part_file_unchanged"
         )
-        files.publish_new(written, target)
+        if written != temp:
+            written.replace(temp)  # e.g. an ASCII STL written as <name>.stl.txt
+        tx.files.publish()
     finally:
         with contextlib.suppress(OSError):
             shutil.rmtree(temp.parent)

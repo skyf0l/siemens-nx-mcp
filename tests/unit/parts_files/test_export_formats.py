@@ -237,3 +237,39 @@ def test_step_ap242_without_a_file_hints_at_the_license(nx, root, ugii):
     nx.ap242_licensed, nx.export_writes = True, False
     bad = export(nx, path="a.step", format="step_ap242")
     assert bad.error["code"] == "NX_EXPORT_FAILED" and "license" in bad.error["hint"]
+
+
+def test_an_ap242_interrupt_without_a_license_message_is_an_export_failure(nx, root, ugii):
+    from nx_mcp.core import evidence
+
+    modified_part(nx)
+    nx.ap242_licensed = True
+    nx.export_error = NXException(2, "Interrupt")  # e.g. the engineer pressed Esc
+    bad = export(nx, path="a.step", format="step_ap242")
+    assert bad.error["code"] == "NX_EXPORT_FAILED" and bad.error["nx_code"] == 2, bad
+    assert evidence.licenses() == []
+    nx.ap242_licensed, nx.export_error = False, None  # the syslog says the license is missing
+    refused = export(nx, path="a.step", format="step_ap242")
+    assert refused.error["code"] == "NX_LICENSE_UNAVAILABLE", refused
+    assert "STEP AP242 License not found" in refused.error["message"]
+    evidence.forget_licenses()
+
+
+def test_a_failure_after_the_export_is_published_is_partial(nx, root, monkeypatch):
+    modified_part(nx)
+
+    def broken(*a, **k):
+        raise OSError("disk went away")
+
+    monkeypatch.setattr(exchange.files, "metadata", broken)
+    bad = export(nx, path="out/m.stl", format="stl")
+    assert bad.mutation_outcome == "partial", bad  # not rolled_back: the file stays
+    assert (root / "out" / "m.stl").is_file()
+    assert not (root / ".nx-mcp" / "staging").exists()
+
+
+def test_an_ascii_stl_written_with_an_extra_suffix_is_published(nx, root):
+    modified_part(nx)
+    ok = export(nx, path="t.stl", format="stl", options={"binary": False})
+    assert ok.ok, ok
+    assert (root / "t.stl").is_file() and not list(root.glob("t.stl.*"))

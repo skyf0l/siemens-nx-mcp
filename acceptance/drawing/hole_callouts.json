@@ -505,6 +505,48 @@
   {
    "call": "nx_find_geometry",
    "setup": true,
+   "save": "one",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     70,
+     40,
+     20
+    ],
+    "limit": 1,
+    "radius": 3.5
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$v.data.view.id",
+    "kind": "hole_callout",
+    "first": "$one.data.items.0.id",
+    "origin": [
+     260,
+     150
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.callout.text": {
+     "equals": [
+      "Ø 7 - 9 DEEP"
+     ]
+    },
+    "data.callout.parameters": {
+     "equals": {
+      "diameter": 7.0,
+      "depth": 9.0
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
    "save": "corner",
    "args": {
     "kind": "edge",

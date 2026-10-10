@@ -44,6 +44,16 @@ def test_baseline_and_chain_values():
         ("hole", "H7", 18, 18, 0),  # 18 belongs to 10-18
         ("hole", "H7", 18.001, 21, 0),
         ("hole", "K7", 10, 5, -10),  # delta rule
+        # up to 3 mm there is no delta (ISO 286-2 tables)
+        ("hole", "M7", 3, -2, -12),
+        ("hole", "M7", 1, -2, -12),
+        ("hole", "M7", 3.01, 0, -12),  # 3-6: -4 + delta 4
+        ("hole", "K7", 3, 0, -10),
+        ("hole", "N7", 3, -4, -14),
+        ("hole", "P7", 3, -6, -16),
+        ("hole", "M6", 3, -2, -8),
+        ("hole", "N8", 3.01, -2, -20),
+        ("hole", "K6", 3.01, 2, -6),
         ("hole", "K7", 25, 6, -15),
         ("hole", "M7", 15, 0, -18),
         ("hole", "N7", 50, -8, -33),

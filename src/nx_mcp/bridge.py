@@ -347,6 +347,8 @@ class _PendingBridgeCall:
     summary: str | None = None
     # A caller is blocked on this call (counted in MainThreadDispatcher.parked).
     parked: bool = False
+    # Answered early by ``MainThreadDispatcher.fail_running``; the late result is dropped.
+    answered: bool = False
 
 
 class MainThreadDispatcher:
@@ -375,6 +377,7 @@ class MainThreadDispatcher:
         # Python's GIL) until it does. The interactive host compares this with the
         # server's connections in flight to tell when a worker wants to run.
         self.parked = 0
+        self._running: _PendingBridgeCall | None = None
 
     def _park(self, pending: _PendingBridgeCall) -> None:
         with self._count_lock:
@@ -515,14 +518,36 @@ class MainThreadDispatcher:
                 return
             pending.started = True
             pending.started_at = time.monotonic()
+            self._running = pending
         # The queue consumer is serialized; release the queue lock so a waiting
         # caller can distinguish queued expiry from a running, unknown outcome.
+        result: dict[str, Any] | None = None
+        failure: Exception | None = None
         try:
-            pending.result = self._executor(pending.method, pending.params)
+            result = self._executor(pending.method, pending.params)
         except Exception as error:
-            pending.error = error
+            failure = error
         finally:
+            with self._lock:
+                self._running = None
+                if not pending.answered:
+                    pending.result, pending.error = result, failure
             self._finish(pending)
+
+    def fail_running(self, error: Exception) -> bool:
+        """Answer the running call now with ``error`` (from another thread).
+
+        For a call that cannot finish on its own, such as one waiting behind a modal
+        NX dialog: its caller gets ``error`` at once, and the result the NX thread
+        produces later is dropped. False when no call is running."""
+        with self._lock:
+            pending = self._running
+            if pending is None or pending.answered or pending.complete.is_set():
+                return False
+            pending.answered = True
+            pending.result, pending.error = None, error
+        self._finish(pending)
+        return True
 
 
 class BridgeClient:

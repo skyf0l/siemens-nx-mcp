@@ -209,3 +209,16 @@ def test_by_variant_forms_are_checked_by_gate_1_and_listed_per_variant():
     # The forms must be keyed by the variant field's values.
     with pytest.raises(CatalogueError, match="ByVariant"):
         spec(nx_create_by, example={"method": "a", "p": {"size": 2}})
+
+
+def nx_create_kind(tx, *, size: Length, kind: Literal["a", "b"] = "b") -> Out:
+    """Doc."""
+
+
+def test_variant_of_uses_the_default_of_an_omitted_variant_field():
+    s = spec(nx_create_kind, variants="kind", example={"size": 1})
+    assert s.variant_of({"size": 1}) == "b"  # omitted: the default variant runs
+    assert s.variant_of({"size": 1, "kind": None}) == "b"
+    assert s.variant_of({"size": 1, "kind": "a"}) == "a"
+    required = spec(nx_create_by, variants="method", example={"method": "a", "p": {"size": 2}})
+    assert required.variant_of({}) is None

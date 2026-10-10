@@ -136,3 +136,27 @@ def test_hole_table_needs_a_view_and_an_origin():
     for result in (no_origin, no_view):
         assert result.mutation_outcome == "not_started"
     assert not nx.builders
+
+
+class _Feature:
+    def __init__(self, tag, edges, kind, origins=()):
+        self.Tag, self._edges, self.FeatureType, self._origins = tag, edges, kind, origins
+
+    def GetEdges(self):
+        return self._edges
+
+    def GetOrigins(self):
+        return list(self._origins)
+
+
+def test_callout_count_covers_only_the_selected_holes():
+    edges = [NS(Tag=t) for t in (11, 12, 21, 22)]
+    package = type("HolePackage", (_Feature,), {})(1, edges, "HOLE PACKAGE", origins=range(4))
+    first = _Feature(2, edges[:2], "SIMPLE HOLE")
+    tx = NS(part=NS(Features=[package, first]))
+    whole, pkg = holes.hole_of_feature(tx, package, "/hole")
+    assert holes.shown_count(pkg, whole=whole is pkg) == 4  # the package: 4X
+    one, pkg = holes.hole_of_feature(tx, first, "/hole")
+    assert one is first and holes.shown_count(pkg, whole=one is pkg) == 1  # one instance
+    target, pkg = holes.hole_of_edge(tx, edges[0], "/first")
+    assert target is first and holes.shown_count(pkg, whole=False) == 1  # one edge

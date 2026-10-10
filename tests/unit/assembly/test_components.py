@@ -1,8 +1,10 @@
 import math
+from pathlib import Path
 
 import pytest
 
 from tests.kit import run
+from tests.kit.objects import Body
 from tests.unit.assembly.fakes import assembly_nx, place
 
 RZ90 = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
@@ -180,3 +182,60 @@ def test_component_tools_need_an_assembly(nx):
     ok = run(nx, "nx_edit_component", components=["o:1"], suppressed=True)
     assert ok.error["code"] == "NX_WRONG_PART_CONTEXT" and ok.mutation_outcome == "not_started"
     assert math.isfinite(1.0)
+
+
+# ---- new component in context and make unique ---------------------------------------
+
+
+def test_new_in_context_creates_the_part_at_the_pose_and_moves_bodies(nx):
+    body = Body("SLAB")
+    nx.asm.Bodies.append(body)
+    body.OwningPart = nx.asm
+    body.IsOccurrence = False
+    ref = nx.ref_of(body, "body")
+    ok = run(nx, "nx_create_component", mode="new_in_context", new_path="parts/new.prt",
+             pose={"translation": [5, 0, 0], "rotation": RZ90}, objects_to_move=[ref])  # fmt: skip
+    assert ok.ok and ok.mutation_outcome == "committed", ok
+    c = nx.assembly.components()[0]
+    assert c.Name == "NEW" and Path(c.Prototype.FullPath).name == "new.prt"
+    assert pose_of(ok.data["component"]) == ([5, 0, 0], RZ90)
+    assert ok.data["part_path"] == "parts/new.prt" and ok.data["moved_bodies"] == 1
+    assert ok.data["units"] == "mm" and ok.data["part"]["kind"] == "part"
+    assert body not in nx.asm.Bodies and len(c.Prototype.Bodies) == 1
+    builder = nx.assembly.new_builders[0]
+    assert builder.destroyed and builder.OriginalObjectsDeleted and builder.ComponentOrigin == 1
+    assert builder.NewFile.destroyed and builder.NewFile.TemplateFileName.endswith(
+        "mm-template.prt"
+    )
+
+
+def test_new_in_context_argument_rules(nx):
+    both = run(nx, "nx_create_component", mode="new_in_context", path="parts/blk.prt",
+               new_path="parts/n.prt")  # fmt: skip
+    assert both.error["field"] == "/path" and both.mutation_outcome == "not_started"
+    none = run(nx, "nx_create_component", mode="new_in_context")
+    assert none.error["field"] == "/new_path"
+    plain = run(nx, "nx_create_component", path="parts/blk.prt", units="mm")
+    assert plain.error["field"] == "/units"
+    taken = run(nx, "nx_create_component", mode="new_in_context", new_path="other/blk.prt")
+    assert taken.error["code"] == "NX_NAME_CONFLICT" and taken.error["field"] == "/new_path"
+    exists = run(nx, "nx_create_component", mode="new_in_context", new_path="parts/blk.prt")
+    assert exists.error["code"] == "NX_ALREADY_EXISTS"
+    assert not nx.assembly.components()
+
+
+def test_make_unique_points_one_component_at_a_new_part(nx):
+    a = place(nx, nx.blk, "A")
+    b = place(nx, nx.blk, "B", (20, 0, 0))
+    ok = run(nx, "nx_edit_component", components=[b.ref], make_unique="parts/blk_u.prt")
+    assert ok.ok, ok
+    assert a.Prototype is nx.blk and Path(b.Prototype.FullPath).name == "blk_u.prt"
+    row = ok.data["components"][0]
+    assert row["part_path"] == "parts/blk_u.prt" and pose_of(row)[0] == [20, 0, 0]
+    two = run(nx, "nx_edit_component", components=[a.ref, b.ref], make_unique="parts/x.prt")
+    assert two.error["field"] == "/make_unique" and two.mutation_outcome == "not_started"
+    clash = run(nx, "nx_edit_component", components=[a.ref], make_unique="parts/blk_u.prt")
+    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.error["field"] == "/make_unique"
+    both = run(nx, "nx_edit_component", components=[a.ref], make_unique="parts/y.prt",
+               replace_with="parts/pin.prt")  # fmt: skip
+    assert both.error["field"] == "/make_unique"

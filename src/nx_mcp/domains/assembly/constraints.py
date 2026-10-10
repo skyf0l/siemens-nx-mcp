@@ -8,6 +8,16 @@ NX 2406 findings encoded here:
   solver may move either component unless one is fixed: ``moved`` lists every
   direct component whose pose changed.
 - Align is a Touch constraint with co-alignment (the legacy mate "align").
+- Align/Lock aligns two axes and locks the rotation about them: a cylindrical face
+  gives its axis (``usesAxis``), an edge its own line or circle axis.
+- Fit takes two faces of equal radius; Bond welds the components (its references
+  are the components themselves, like Fix).
+- Center 1-to-2 centers one face or edge between two of the target; NX takes the
+  first two references as the pair, so the target's go first (else CannotSolve).
+  Center 2-to-2 centers a pair of the component between a pair of the target. A cylindrical or
+  conical face there is referenced by its axis (``usesAxis``), else it stays unsolved.
+- ``Constraint.Type`` has no distance-to-edge type (NX 2406); Gear, RackPinion and
+  Screw are couplers between existing joint constraints, not geometry pairs.
 """
 
 from __future__ import annotations
@@ -33,9 +43,22 @@ TYPES = {
     "perpendicular": "Perpendicular",
     "angle": "Angle",
     "concentric": "Concentric",
+    "align_lock": "AlignLock",
+    "fit": "Fit",
+    "bond": "Bond",
+    "center_1_2": "Center12",
+    "center_2_2": "Center22",
 }
+NAMES = {v: k for k, v in TYPES.items() if k != "align"}
+Kind = Literal[
+    "fix", "touch", "align", "distance", "parallel", "perpendicular", "angle", "concentric",
+    "align_lock", "fit", "bond", "center_1_2", "center_2_2",
+]  # fmt: skip
 ALIGNMENTS = {"infer": "InferAlign", "same": "CoAlign", "opposite": "ContraAlign"}
 VALUED = ("distance", "angle")
+# Types whose references are the components themselves, and types without alignment.
+WHOLE = ("fix", "bond")
+NO_ALIGNMENT = ("fix", "bond", "fit", "center_1_2", "center_2_2")
 Geometry = RefTo("face", "edge")
 Alignment = Literal["infer", "same", "opposite"]
 Value = Annotated[float, Range(ge=0, le=1e6), Doc("distance in part units, or angle in degrees")]
@@ -108,7 +131,7 @@ def kind_name(tx, constraint) -> str:
     if native_type == "Touch":
         align = result.enum_name(constraint.ConstraintAlignment, cls.Alignment)
         return "align" if align == "CoAlign" else "touch"
-    return native_type.lower()
+    return NAMES.get(native_type, native_type.lower())
 
 
 def status_name(tx, constraint) -> str:
@@ -174,7 +197,7 @@ def _unsatisfied(tx, constraint, message):
     )
 
 
-def _geometry(tx, ref, owner, field, concentric):
+def _geometry(tx, ref, owner, field, type):
     obj = select.resolve(tx, ref, "face", "edge", field=field)
     if not getattr(obj, "IsOccurrence", False) or not assembly.same(
         getattr(obj, "OwningComponent", None), owner
@@ -184,11 +207,48 @@ def _geometry(tx, ref, owner, field, concentric):
             "Select a face or edge of that component (occurrence geometry)",
             field=field,
         )
-    if concentric and (
+    if type == "concentric" and (
         tx.kind_of(obj) != "edge" or obj.SolidEdgeType != tx.nx.Edge.EdgeType.Circular
     ):
         fail("NX_WRONG_GEOMETRY", "Concentric needs circular edges", field=field)
+    if type == "fit" and tx.kind_of(obj) != "face":
+        fail("NX_WRONG_GEOMETRY", "Fit needs cylindrical or spherical faces", field=field)
     return obj
+
+
+def _uses_axis(tx, type, obj) -> bool:
+    """Align/Lock takes the axis of any face; the center types that of a cylinder or cone."""
+    if tx.kind_of(obj) != "face":
+        return False
+    if type == "align_lock":
+        return True
+    if type in ("center_1_2", "center_2_2"):
+        with contextlib.suppress(Exception):
+            return select.face_data(tx, obj)[0] in (select.FACE_CYLINDER, select.FACE_CONE)
+    return False
+
+
+def _arguments(type, given, alignment):
+    """Refuse missing and surplus arguments of ``type`` (``given``: name -> value)."""
+    needed = {
+        "geometry": type not in WHOLE,
+        "target_component": type != "fix",
+        "target_geometry": type not in WHOLE,
+        "geometry2": type == "center_2_2",
+        "target_geometry2": type in ("center_1_2", "center_2_2"),
+        "value": type in VALUED,
+    }
+    for name, need in needed.items():
+        if need and given[name] is None:
+            fail("NX_INVALID_ARGUMENT", f"{type} needs {name}", field="/" + name)
+        if not need and given[name] is not None:
+            fail("NX_INVALID_ARGUMENT", f"{type} takes no {name}", field="/" + name)
+    if type in NO_ALIGNMENT and alignment != "infer":
+        fail("NX_INVALID_ARGUMENT", f"{type} takes no alignment", field="/alignment")
+    if type == "angle" and given["value"] > 180:
+        fail("NX_INVALID_ARGUMENT", "An angle is 0 to 180 degrees", field="/value")
+    if type == "align" and alignment == "opposite":
+        fail("NX_INVALID_ARGUMENT", "align faces the same way; use touch", field="/alignment")
 
 
 @tool(
@@ -203,8 +263,22 @@ def _geometry(tx, ref, owner, field, concentric):
         "perpendicular": "Perpendicular {component} to {target_component}",
         "angle": "Angle {value} deg {component} to {target_component}",
         "concentric": "Concentric {component} with {target_component}",
+        "align_lock": "Align/lock {component} with {target_component}",
+        "fit": "Fit {component} into {target_component}",
+        "bond": "Bond {component} to {target_component}",
+        "center_1_2": "Center {component} between faces of {target_component}",
+        "center_2_2": "Center {component} pair between {target_component}",
     },
-    keywords=("mate", "assembly constraint", "touch align", "concentric", "fix component"),
+    keywords=(
+        "mate",
+        "assembly constraint",
+        "touch align",
+        "concentric",
+        "fix component",
+        "align lock",
+        "fit bond",
+        "center",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch", "assembly"),
     variants="type",
     cost="heavy",
@@ -221,38 +295,27 @@ def _geometry(tx, ref, owner, field, concentric):
 def nx_create_assembly_constraint(
     tx: Tx,
     *,
-    type: Literal[
-        "fix", "touch", "align", "distance", "parallel", "perpendicular", "angle", "concentric"
-    ],
+    type: Kind,
     component: ComponentRef,  # type: ignore[valid-type]
     geometry: Geometry | None = None,  # type: ignore[valid-type]
     target_component: ComponentRef | None = None,  # type: ignore[valid-type]
     target_geometry: Geometry | None = None,  # type: ignore[valid-type]
+    geometry2: Annotated[Geometry, Doc("center_2_2: the component's second face or edge")]  # type: ignore[valid-type]
+    | None = None,
+    target_geometry2: Annotated[Geometry, Doc("center types: the target's second face or edge")]  # type: ignore[valid-type]
+    | None = None,
     value: Value | None = None,
     alignment: Alignment = "infer",
 ) -> ConstraintData:
-    """Constrain a direct component: fix it, or relate a face or edge of it to one of a sibling.
-    It must solve. Concentric takes circular edges; unfixed, either component may move."""
-    if type == "fix":
-        for name, given in (("geometry", geometry), ("target_component", target_component),
-                            ("target_geometry", target_geometry), ("value", value)):  # fmt: skip
-            if given is not None:
-                fail("NX_INVALID_ARGUMENT", f"fix takes no {name}", field="/" + name)
-        if alignment != "infer":
-            fail("NX_INVALID_ARGUMENT", "fix takes no alignment", field="/alignment")
-    else:
-        for name, given in (("geometry", geometry), ("target_component", target_component),
-                            ("target_geometry", target_geometry)):  # fmt: skip
-            if given is None:
-                fail("NX_INVALID_ARGUMENT", f"{type} needs {name}", field="/" + name)
-        if type in VALUED and value is None:
-            fail("NX_INVALID_ARGUMENT", f"{type} needs value", field="/value")
-        if type not in VALUED and value is not None:
-            fail("NX_INVALID_ARGUMENT", "value is only for distance and angle", field="/value")
-        if type == "angle" and value > 180:
-            fail("NX_INVALID_ARGUMENT", "An angle is 0 to 180 degrees", field="/value")
-        if type == "align" and alignment == "opposite":
-            fail("NX_INVALID_ARGUMENT", "align faces the same way; use touch", field="/alignment")
+    """Constrain a direct component: fix it, bond it to a sibling, or relate faces or edges of
+    it to a sibling's. It must solve. Concentric takes circular edges, fit equal-radius faces,
+    align_lock axes; center_1_2 centers geometry between target_geometry and target_geometry2."""
+    given = {
+        "geometry": geometry, "target_component": target_component,
+        "target_geometry": target_geometry, "geometry2": geometry2,
+        "target_geometry2": target_geometry2, "value": value,
+    }  # fmt: skip
+    _arguments(type, given, alignment)
     with tx.checks():
         moving = common.component(tx, component, "/component", unsuppressed=True)
         refs = [(moving, moving)]
@@ -262,11 +325,17 @@ def nx_create_assembly_constraint(
                 fail(
                     "NX_INVALID_ARGUMENT", "Use two different components", field="/target_component"
                 )
-            concentric = type == "concentric"
-            refs = [
-                (moving, _geometry(tx, geometry, moving, "/geometry", concentric)),
-                (target, _geometry(tx, target_geometry, target, "/target_geometry", concentric)),
-            ]
+            if type == "bond":
+                refs.append((target, target))
+            else:
+                fields = ("geometry", "geometry2", "target_geometry", "target_geometry2")
+                if type == "center_1_2":  # NX pairs the first two references
+                    fields = ("target_geometry", "target_geometry2", "geometry")
+                refs = []
+                for name in fields:
+                    if given[name] is not None:
+                        owner = moving if name.startswith("geometry") else target
+                        refs.append((owner, _geometry(tx, given[name], owner, "/" + name, type)))
     if type == "align" and alignment == "infer":
         alignment = "same"
     cls = _cls(tx)
@@ -278,7 +347,7 @@ def nx_create_assembly_constraint(
             constraint.ConstraintType = getattr(cls.Type, TYPES[type])
             constraint.ConstraintAlignment = getattr(cls.Alignment, ALIGNMENTS[alignment])
             for owner, obj in refs:
-                constraint.CreateConstraintReference(owner, obj, False, False)
+                constraint.CreateConstraintReference(owner, obj, _uses_axis(tx, type, obj), False)
             if value is not None:
                 constraint.SetExpression(repr(float(value)))
             net.AddConstraint(constraint)

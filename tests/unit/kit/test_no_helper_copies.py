@@ -28,6 +28,8 @@ HELPERS = {
     # result / units / drawing / errors
     "enum_name", "page", "seen_true_shape", "drawing_work_view", "work_view_is_drawing",
     "native_input_error", "native_formula",
+    # sketch
+    "snake",
 }  # fmt: skip
 
 # (module, function) copies not removed yet, with the reason. Remove an entry when
@@ -65,6 +67,37 @@ def test_allowlist_has_no_stale_entries():
 
 
 KIT = ROOT / "kit"
+
+
+def _body(node):
+    """A function's statements without its docstring, names and positions stripped."""
+    body = node.body
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+        body = body[1:]
+    args = [a.arg for a in node.args.args]
+    text = ast.dump(ast.Module(body=body, type_ignores=[]), annotate_fields=False)
+    for i, name in enumerate(args):  # parameter names do not make a different helper
+        text = text.replace(f"'{name}'", f"'_arg{i}'")
+    return text
+
+
+def _kit_bodies():
+    out = {}
+    for path in sorted(KIT.glob("*.py")):
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.FunctionDef) and len(node.body) > 0:
+                out.setdefault(_body(node), f"kit/{path.name}:{node.name}")
+    return out
+
+
+def test_no_module_level_copy_of_a_kit_helper_body_under_another_name():
+    kit = _kit_bodies()
+    copies = []
+    for rel, path in _modules():
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.FunctionDef) and _body(node) in kit:
+                copies.append(f"{rel.as_posix()}:{node.name} copies {kit[_body(node)]}")
+    assert not copies, f"Import these from nx_mcp.kit instead of copying them: {copies}"
 
 
 @pytest.mark.parametrize("path", sorted(KIT.glob("*.py")), ids=lambda p: p.name)

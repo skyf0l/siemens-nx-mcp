@@ -787,6 +787,105 @@
     "error.field": "/tolerance/type",
     "mutation_outcome": "not_started"
    }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "topf",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "args": {
+    "face": "$topf.data.items.0.id",
+    "positions": [
+     [
+      10,
+      40,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 3,
+    "depth": {
+     "type": "distance",
+     "value": 5
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h3",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     10.0,
+     40.0,
+     20.0
+    ],
+    "limit": 1,
+    "radius": 1.5
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "d3",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "diameter",
+    "first": "$h3.data.items.0.id",
+    "origin": [
+     60,
+     230
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$d3.data.dimension.id",
+    "tolerance": {
+     "type": "fit",
+     "hole": "M7"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.value": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.tolerance.upper": {
+     "close": -0.002,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.012,
+     "tol": 1e-09
+    },
+    "data.tolerance.limits.hole": {
+     "close": [
+      2.988,
+      2.998
+     ],
+     "tol": 1e-09
+    }
+   }
   }
  ]
 }

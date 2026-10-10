@@ -1,0 +1,38 @@
+{
+ "covers": {
+  "nx_create_component_mirror": []
+ },
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cm/cm_blk.prt", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "bsk", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true,
+   "args": {"sketch": "$bsk.data.sketch.id",
+            "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [20, 10]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$bsk.data.sketch.id"}},
+  {"call": "nx_create_extrude", "setup": true,
+   "args": {"sketch": "$bsk.data.sketch.id", "end": {"type": "distance", "value": 5}}},
+  {"call": "nx_save_part", "setup": true, "args": {}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_component", "setup": true, "save": "A",
+   "args": {"path": "$run/cm/cm_blk.prt", "name": "A", "pose": {"translation": [30, 5, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "B",
+   "args": {"path": "$run/cm/cm_blk.prt", "name": "B", "pose": {"translation": [50, -20, 4]}}},
+  {"call": "nx_create_component_mirror",
+   "args": {"components": ["$A.data.component.id", "$B.data.component.id"],
+            "plane": {"origin": [10, 0, 0], "normal": [1, 0, 0]}},
+   "expect": {"mutation_outcome": "committed", "data.components": {"count": 2},
+              "data.components.0.source.name": "A", "data.components.1.source.name": "B",
+              "data.components.0.mirrored.translation": {"close": [-10, 5, 0], "tol": 1e-06},
+              "data.components.1.mirrored.translation": {"close": [-30, -20, 4], "tol": 1e-06},
+              "data.plane.normal": {"close": [1, 0, 0], "tol": 1e-09}}},
+  {"call": "nx_list_components", "args": {"include_poses": true},
+   "expect": {"page.total": 4}},
+  {"call": "nx_create_component_mirror",
+   "args": {"components": ["$A.data.component.id", "$A.data.component.id"], "plane": {"principal": "yz"}},
+   "expect": {"error.field": "/components/1", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_component_mirror",
+   "args": {"components": ["$A.data.component.id"], "plane": {"principal": "ab"}},
+   "expect": {"error.field": "/plane/principal", "mutation_outcome": "not_started"}}
+ ]
+}

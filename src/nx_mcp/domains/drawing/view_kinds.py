@@ -250,16 +250,25 @@ def _refuse_hidden_centerlines(tx, sheet, bounds, bands):
                 )
 
 
-def add_break(tx, sh, view, band, gap):
-    """One regular break with straight lines across the view, anchored in the model."""
-    k, lo, hi = band
-    D = tx.nx.Drawings.BrokenViewBuilder
+def break_anchors(tx, view, bands):
+    """Model anchors of each band's two break lines, all mapped from the view as it is
+    before the first break (a committed break changes the view's sheet-to-model map)."""
     center = drawing.position(view)
-    anchors = []
-    for value in (lo, hi):
-        p = list(center)
-        p[k] = value
-        anchors.append([float(v) for v in tx.uf.View.MapDrawingToModel(view.Tag, p)][:3])
+    out = []
+    for k, lo, hi in bands:
+        pair = []
+        for value in (lo, hi):
+            p = list(center)
+            p[k] = value
+            pair.append([float(v) for v in tx.uf.View.MapDrawingToModel(view.Tag, p)][:3])
+        out.append(pair)
+    return out
+
+
+def add_break(tx, sh, view, band, gap, anchors):
+    """One regular break with straight lines across the view at model ``anchors``."""
+    k = band[0]
+    D = tx.nx.Drawings.BrokenViewBuilder
     with builders.build(tx, tx.part.DraftingViews.CreateBrokenViewBuilder, None) as b:
         b.MasterView.Value = view
         b.BreakType = D.TypeBreak.Regular

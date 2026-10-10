@@ -1,0 +1,150 @@
+{
+  "format": 1,
+  "scenario": "acceptance/assembly/component_mirror.json",
+  "scenario_sha256": "94fde0afd3fc358ecc230814b4edf95f3a369cc7d9c0c10d7898d4bf89148090",
+  "domain": "assembly",
+  "covers": {
+    "nx_create_component_mirror": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "43178b3e7264e917646118f22be3668e402066d0",
+  "sources": {
+    "nx_create_component_mirror": "032add9627fa15545a6c0c321a85ca88ac969743646b8675d28624287c5a813e"
+  },
+  "run_id": "20261010-145706-4d4595",
+  "owner": "wc_assembly3",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-145706-4d4595\\assembly_component_mirror_4d4595.prt",
+  "started": "2026-10-10T10:57:09Z",
+  "finished": "2026-10-10T10:57:11Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.422,
+      "result_sha256": "70e8bca5d9d29750404dc1deec2eaf120e431f6db7513126caf266fa6b2770d9"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.078,
+      "result_sha256": "e935b6550ae4073d50767af4cc4f2403b4135c5bd212ab08b622d0cf46639da6"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "3b057071f4885da0bda8d7f79a691e76fd38ce4f37a08a43870d947907f272bc"
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.062,
+      "result_sha256": "1cc83b10bcf5ca4f3945efb2ff0cd32c985b0eda2d72d41fe80ff34566d05627"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.063,
+      "result_sha256": "0159024794687de61d837a2bf83579cb7d42fb1558e26c3bdad69664cbcdb09b"
+    },
+    {
+      "index": 6,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.172,
+      "result_sha256": "92f25307b39da707bddb8f2e2b2280ba3d22f74cfb52e5ab42fc1b2c5f73b3f5"
+    },
+    {
+      "index": 7,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.343,
+      "result_sha256": "8f9b5ee20d0fe7f7dda469ab46e169ff302a802fe8e29bbb056c9df0b498e2c8"
+    },
+    {
+      "index": 8,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.125,
+      "result_sha256": "9c442b54afe52f3bb5374d701594d945274c5378a40db3a3b8c9469a90e4b53b"
+    },
+    {
+      "index": 9,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 0.079,
+      "result_sha256": "4cd81db73dcc81a95bff37d8cae4e7324e443e8026899521ebf723194293f842"
+    },
+    {
+      "index": 10,
+      "call": "nx_create_component_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 7,
+      "seconds": 0.093,
+      "result_sha256": "d3020342e65076a0888a9dc3fe12a6f864b45d9b275e575956859f211885a39c"
+    },
+    {
+      "index": 11,
+      "call": "nx_list_components",
+      "setup": false,
+      "passed": true,
+      "checks": 1,
+      "seconds": 0.047,
+      "result_sha256": "06cac551f0e660b9afc928a68ec49f95495d2a3a73794e380923aa921e2e4e64"
+    },
+    {
+      "index": 12,
+      "call": "nx_create_component_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.063,
+      "result_sha256": "789b38275af211d356b9392e9e2e669f81e25742b9d594f16a21b313458691de"
+    },
+    {
+      "index": 13,
+      "call": "nx_create_component_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.0,
+      "result_sha256": "182e5e5b919033b2498a290d2f7178517567d6d6c67db37b4b8633b149dd639b"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-145706-4d4595/assembly_component_mirror_4d4595.prt",
+      "smoke/20261010-145706-4d4595/cm/cm_blk.prt"
+    ],
+    "failed": []
+  }
+}

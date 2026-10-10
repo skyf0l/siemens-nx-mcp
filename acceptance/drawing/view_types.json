@@ -617,10 +617,15 @@
     "parent": "$half.data.view.id",
     "breaks": [
      [
-      435,
-      455
+      383,
+      396
+     ],
+     [
+      436,
+      456
      ]
-    ]
+    ],
+    "gap": 3
    },
    "expect": {
     "mutation_outcome": "committed",
@@ -628,9 +633,25 @@
      "close": 0.5,
      "tol": 1e-09
     },
+    "data.breaks": {
+     "count": 2
+    },
     "data.breaks.0.gap": {
-     "close": 10,
+     "close": 3,
      "tol": 1e-09
+    },
+    "data.breaks.1.gap": {
+     "close": 3,
+     "tol": 1e-09
+    },
+    "data.bounds": {
+     "close": [
+      383.65,
+      21.15,
+      469.35,
+      53.85
+     ],
+     "tol": 1e-06
     }
    }
   },

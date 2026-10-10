@@ -13,7 +13,7 @@ NX 2406 findings encoded here:
   too). It is composed from the dimension's ``HoleCalloutSettings`` (display flag,
   prefix, value, suffix, line breaks); those values follow the feature after an edit.
 - NX gives a multi-hole package no count: ``<n>X`` is appended before the callout and
-  stays as created.
+  stays as created; only when the whole package is selected (one instance or edge: no count).
 - A hole table takes bodies with their view (``SelectedObjects.AddWithViews``); a view
   alone is "Invalid selected objects". Labels are numbered across the part; rows are a
   title, a header (``Hole No.``, X, Y, Z), group rows (size text) and hole rows.
@@ -28,6 +28,7 @@ from nx_mcp.core.catalogue import refresher
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing.common import geometry, update
 from nx_mcp.kit import builders, drawing, facts, geom, readback, result, select, units
+from nx_mcp.kit.sketch import snake  # unknown parameter and feature names
 
 RADIAL_GAP_MM = 15.0  # Default callout text distance outside the hole.
 LINE_BREAK = "LineBreak"
@@ -58,11 +59,6 @@ DIAMETER = "Ø"
 
 
 # ---- pure helpers -------------------------------------------------------------------------
-
-
-def snake(name):
-    """``CounterBoreDiameter`` -> ``counter_bore_diameter`` (unknown parameter names)."""
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def clean_value(text):
@@ -212,6 +208,12 @@ def hole_of_feature(tx, feature, field):
     fail("NX_WRONG_KIND", "Select a Hole feature", field=field)
 
 
+def shown_count(package, whole):
+    """The ``<n>X`` count of a callout: the package's holes when the whole package is
+    selected, 1 for one hole instance or one edge."""
+    return len(list(package.GetOrigins())) if whole else 1
+
+
 def circles(tx, feature, view):
     """Circular edges of a hole feature seen true shape in ``view``, as edge facts."""
     z = drawing.axes(view)[2]
@@ -324,7 +326,7 @@ def create_callout(tx, view_ref, hole, first, origin):
             toward = drawing.axes(view)[2]  # the hole edge nearest the viewer, the largest
             picked = max(seen, key=lambda s: (round(geom.dot(s[1]["center"], toward), 6),
                                               s[1]["radius"]))  # fmt: skip
-        count = len(list(package.GetOrigins()))
+        count = shown_count(package, whole=hole is not None and target is package)
         smallest = min(info["radius"] for _e, info in seen)
     info = picked[1]
     pick = [c + info["radius"] * x for c, x in zip(info["center"], info["x_axis"], strict=True)]

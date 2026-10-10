@@ -8,23 +8,45 @@ NX 2406 findings encoded here:
 - ``MoveComponent`` pivots about the assembly origin (``kit.pose.move_args``).
 - Editing a component (rename, suppress, reference set, replace) must not move it:
   the pose is read back and a change rolls the edit back.
+- New component in context: ``CreateNewComponentBuilder`` creates the part from a
+  ``FileNew`` (not displayed) and places it at a CSYS (``ComponentOrigin``
+  ``Newcsys``), so moved bodies keep their assembly position. NX writes the file on
+  the part's first save.
+- Make unique: ``Part.SetMakeUniqueName`` names the copy, then
+  ``MakeUniquePartBuilder`` points the selected occurrence at it and renames it
+  after the new part; other occurrences keep the original part.
 """
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Mat3, Name, Offset, PageLimit, PathTo, Point3, Pose, Text
+from nx_mcp.core.types import (
+    Doc,
+    Items,
+    Mat3,
+    Name,
+    Offset,
+    PageLimit,
+    PathTo,
+    Point3,
+    Pose,
+    RefTo,
+    Text,
+)
 from nx_mcp.domains.assembly import common
 from nx_mcp.domains.assembly.common import ComponentRef, ComponentRow, Translation
-from nx_mcp.kit import args, assembly, builders, geom, model, parts, readback, result
+from nx_mcp.kit import args, assembly, builders, geom, model, parts, readback, result, select
 from nx_mcp.kit import pose as kpose
+from nx_mcp.kit import units as kit_units
 
 PartFile = PathTo("read", ".prt")
+NewPartFile = PathTo("new", ".prt")
 BUILT_IN_SETS = ("Entire Part", "Empty")
 RefSetName = Annotated[str, Text(132, r"^\S(.*\S)?$"), Doc("Reference set name, e.g. MODEL")]
 
@@ -125,17 +147,34 @@ def nx_list_components(
 # nx_create_component
 
 
-class CreateComponentData(TypedDict):
+class CreateComponentData(TypedDict, total=False):
     component: ComponentRow
     part_path: str
+    part: result.Row
+    units: str
+    moved_bodies: int
+
+
+BodyList = Annotated[
+    list[RefTo("body")],  # type: ignore[valid-type]
+    Items(1, 100),
+    Doc("new_in_context: work-part bodies moved into the new part (same position)"),
+]
+
+
+def _create_summary(a, say):
+    if a.get("mode") == "new_in_context":
+        return f"Create new component {Path(str(a.get('new_path', ''))).name}"
+    return f"Add component {Path(str(a.get('path', ''))).name}"
 
 
 @tool(
     effect="model",
     label="Add component",
-    summary=lambda a, say: f"Add component {Path(str(a.get('path', ''))).name}",
-    keywords=("add component", "insert part", "place part", "add existing", "assemble"),
+    summary=_create_summary,
+    keywords=("add component", "insert part", "place part", "new component", "assemble"),
     requires=("work_part", "no_active_sketch"),
+    variants="mode",
     cost="light",
     batchable=True,
     previewable=True,
@@ -145,13 +184,30 @@ class CreateComponentData(TypedDict):
 def nx_create_component(
     tx: Tx,
     *,
-    path: PartFile,  # type: ignore[valid-type]
+    mode: Literal["from_file", "new_in_context"] = "from_file",
+    path: Annotated[PartFile, Doc("from_file: the saved .prt")] | None = None,  # type: ignore[valid-type]
+    new_path: Annotated[NewPartFile, Doc("new_in_context: the new part's file")]  # type: ignore[valid-type]
+    | None = None,
+    units: Annotated[Literal["mm", "in"], Doc("new_in_context: default the work part's")]
+    | None = None,
+    objects_to_move: BodyList | None = None,
     name: Name | None = None,
     pose: Pose | None = None,
 ) -> CreateComponentData:
-    """Add a saved part as a component of the work part at an absolute pose (identity when
-    omitted). The work part becomes an assembly."""
+    """Add a saved part, or a new empty part (new_in_context), as a component of the work part.
+    It sits at an absolute pose (identity when omitted); new_in_context may move work-part
+    bodies into the new part, which nx_save_part saves. The work part becomes an assembly."""
     target = kpose.as_pose(pose) if pose is not None else ([0.0, 0.0, 0.0], kpose.identity())
+    wrong = ("new_path", "units", "objects_to_move") if mode == "from_file" else ("path",)
+    given = {"path": path, "new_path": new_path, "units": units, "objects_to_move": objects_to_move}
+    for field in wrong:
+        if given[field] is not None:
+            fail("NX_INVALID_ARGUMENT", f"{mode} takes no {field}", field="/" + field)
+    needed = "path" if mode == "from_file" else "new_path"
+    if given[needed] is None:
+        fail("NX_INVALID_ARGUMENT", f"{mode} needs {needed}", field="/" + needed)
+    if mode == "new_in_context":
+        return _new_in_context(tx, Path(new_path), units, objects_to_move or [], name, target)
     with tx.checks():
         _check_file(tx, path, "/path")
     part = tx.part
@@ -180,6 +236,72 @@ def nx_create_component(
     }
 
 
+def _new_in_context(tx, path, units, objects, name, target):
+    """Create an empty part at ``path`` as a component at ``target`` (moving ``objects``)."""
+    part = tx.part
+    with tx.checks():
+        parts.check_new_name(tx, path, field="/new_path")
+        bodies = select.bodies(tx, objects, "/objects_to_move")
+    units = units or kit_units.part_units(tx, part)
+    before = {int(c.Tag) for c in assembly.direct_children(part)}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    nx = tx.nx
+    with native(default="NX_BUILD_FAILED"):
+        new_file = tx.session.Parts.FileNew()
+    try:
+        with builders.build(tx, part.AssemblyManager.CreateNewComponentBuilder) as b:
+            new_file.TemplateFileName = parts.TEMPLATES[units]
+            new_file.Units = nx.Part.Units.Millimeters if units == "mm" else nx.Part.Units.Inches
+            new_file.NewFileName = str(path)
+            new_file.MakeDisplayedPart = False
+            new_file.DisplayPartOption = nx.DisplayPartOption.AllowAdditional
+            b.NewComponentName = (name or path.stem).upper()
+            b.ComponentOrigin = nx.Assemblies.CreateNewComponentBuilder.ComponentOriginType.Newcsys
+            b.Csys = part.CoordinateSystems.CreateCoordinateSystem(
+                nx.Point3d(*target[0]), builders.matrix(tx, target[1]), False
+            )
+            for body in bodies:
+                b.ObjectForNewComponent.Add(body)
+            b.OriginalObjectsDeleted = True
+            b.NewFile = new_file
+            b.commit()
+    finally:
+        with contextlib.suppress(Exception):
+            new_file.Destroy()
+    model.update(tx)
+    added = [c for c in assembly.direct_children(part) if int(c.Tag) not in before]
+    readback.expect(len(added) == 1, "component", "NX added no component", actual=len(added))
+    c = added[0]
+    prototype = c.Prototype
+    readback.expect(
+        parts.same_file(parts.file_of(prototype), path),
+        "prototype",
+        "The component uses another file",
+        actual=parts.file_of(prototype),
+    )
+    actual_units = kit_units.part_units(tx, prototype)
+    readback.expect(actual_units == units, "units", actual=actual_units)
+    assembly.expect_pose(assembly.pose(c), target)
+    gone = [i for i, body in enumerate(bodies) if _alive(body, part)]
+    readback.expect(not gone, "objects_to_move", "Bodies stayed in the work part", actual=gone)
+    if bodies:
+        count = len(list(prototype.Bodies))
+        readback.expect(count >= len(bodies), "moved_bodies", actual=count)
+    return {
+        "component": common.component_row(tx, c, [str(c.Name)]),
+        "part_path": common.relative_path(tx, path),
+        "part": tx.ref(prototype, "part"),
+        "units": units,
+        "moved_bodies": len(bodies),
+    }
+
+
+def _alive(body, part) -> bool:
+    """Whether ``body`` is still a body of ``part`` (moved bodies are deleted)."""
+    tag = int(body.Tag)
+    return any(int(b.Tag) == tag for b in part.Bodies)
+
+
 # ---------------------------------------------------------------------------
 # nx_edit_component
 
@@ -195,9 +317,12 @@ class EditComponentData(TypedDict):
 
 
 def _edit_summary(a, say):
-    keys = ("name", "replace_with", "suppressed", "reference_set")
+    keys = ("name", "replace_with", "make_unique", "suppressed", "reference_set")
     what = [k for k in keys if a.get(k) is not None]
-    verbs = {"name": "rename", "replace_with": "replace", "reference_set": "reference set"}
+    verbs = {
+        "name": "rename", "replace_with": "replace", "make_unique": "make unique",
+        "reference_set": "reference set",
+    }  # fmt: skip
     words = [verbs.get(k) or ("suppress" if a.get("suppressed") else "unsuppress") for k in what]
     return f"Edit {say('components')}: " + ", ".join(words)
 
@@ -213,7 +338,13 @@ def _reference_sets(component):
     effect="model",
     label="Edit components",
     summary=_edit_summary,
-    keywords=("rename component", "replace component", "suppress component", "use reference set"),
+    keywords=(
+        "rename component",
+        "replace component",
+        "suppress component",
+        "use reference set",
+        "make unique",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch", "assembly"),
     cost="heavy",
     example={"components": ["o:4"], "suppressed": True},
@@ -225,20 +356,41 @@ def nx_edit_component(
     name: Annotated[Name, Doc("New name; one component only")] | None = None,
     replace_with: Annotated[PartFile, Doc("Saved .prt that replaces the prototype")]  # type: ignore[valid-type]
     | None = None,
+    make_unique: Annotated[NewPartFile, Doc("New .prt: a copy of the part for this one")]  # type: ignore[valid-type]
+    | None = None,
     suppressed: bool | None = None,
     reference_set: RefSetName | None = None,
 ) -> EditComponentData:
-    """Rename, replace the part of, suppress or unsuppress, or set the reference set of direct
-    components of the work part. Placement never changes. Remove one with nx_delete_objects."""
-    if name is None and replace_with is None and suppressed is None and reference_set is None:
-        fail("NX_INVALID_ARGUMENT", "Give name, replace_with, suppressed or reference_set")
+    """Rename, replace or make unique the part of, suppress, or set the reference set of direct
+    components. make_unique gives one component a copy of its part that only it uses (NX
+    names the component after the copy).
+    Placement never changes. Remove one with nx_delete_objects."""
+    edits = (name, replace_with, make_unique, suppressed, reference_set)
+    if all(v is None for v in edits):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give name, replace_with, make_unique, suppressed or reference_set",
+        )
     if name is not None and len(components) != 1:
         fail("NX_INVALID_ARGUMENT", "Rename one component at a time", field="/name")
+    if make_unique is not None and len(components) != 1:
+        fail("NX_INVALID_ARGUMENT", "Make one component unique at a time", field="/make_unique")
+    if make_unique is not None and replace_with is not None:
+        fail("NX_INVALID_ARGUMENT", "Replace or make unique, not both", field="/make_unique")
     args.distinct("/components", components, "components")
     with tx.checks():
         values = [common.component(tx, r, f"/components/{i}") for i, r in enumerate(components)]
         if replace_with is not None:
             _check_file(tx, replace_with, "/replace_with")
+        if make_unique is not None:
+            parts.check_new_name(tx, make_unique, field="/make_unique")
+            if values[0].Prototype is None:
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    "The component's part is not loaded",
+                    field="/components/0",
+                    hint="Open the assembly with load_components=true",
+                )
         if reference_set is not None and replace_with is None:
             for i, c in enumerate(values):
                 names = _reference_sets(c)
@@ -261,6 +413,8 @@ def nx_edit_component(
             b.commit()
             assembly.check(b.GetErrorList(), "NX_BUILD_FAILED", "NX did not replace the part")
         model.update(tx)
+    if make_unique is not None:
+        _make_unique(tx, values[0], Path(make_unique))
     if reference_set is not None:
         for i, c in enumerate(values):
             names = _reference_sets(c)
@@ -292,10 +446,11 @@ def nx_edit_component(
                 str(c.ReferenceSet) == reference_set, f"reference_set[{i}]",
                 actual=str(c.ReferenceSet),
             )  # fmt: skip
-        if replace_with is not None:
+        new_file = replace_with if replace_with is not None else make_unique
+        if new_file is not None:
             readback.expect(
-                parts.same_file(parts.file_of(c.Prototype), replace_with),
-                f"replace_with[{i}]",
+                parts.same_file(parts.file_of(c.Prototype), new_file),
+                f"{'replace_with' if replace_with is not None else 'make_unique'}[{i}]",
                 actual=parts.file_of(c.Prototype),
             )
         row = common.component_row(tx, c, names.get(int(c.Tag)))
@@ -306,6 +461,16 @@ def nx_edit_component(
         )
         out.append(row)
     return {"components": out}
+
+
+def _make_unique(tx, component, path):
+    """Point ``component`` at a new copy of its part saved later as ``path``."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with builders.build(tx, tx.part.AssemblyManager.CreateMakeUniquePartBuilder) as b:
+        b.SelectedComponents.Add(component)
+        component.Prototype.SetMakeUniqueName(str(path))
+        b.commit()
+    model.update(tx)
 
 
 # ---------------------------------------------------------------------------

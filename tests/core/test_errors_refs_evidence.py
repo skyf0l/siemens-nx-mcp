@@ -39,6 +39,13 @@ def test_native_maps_license_listed_and_default_codes():
     assert e.value.code == "NX_ERROR" and "KeyError" in e.value.message
 
 
+def test_an_update_failure_nx_undid_is_update_failed():
+    # The host's update-failure action is Undo (host/quiet.py): NX raises 670024.
+    error = classify(NativeError(670024, "Update undo happened."), default="NX_ERROR")
+    assert error.code == "NX_UPDATE_FAILED" and error.nx_code == 670024
+    assert error.category == "geometry_failed" and "undid" in error.message
+
+
 def test_traceback_only_in_dev(monkeypatch):
     monkeypatch.delenv("NX_MCP_DEV", raising=False)
     assert "traceback" not in classify(ValueError("x")).details
@@ -198,3 +205,23 @@ def test_license_memory_keeps_tested_variants_only(monkeypatch):
     assert [e["variant"] for e in evidence.licenses()] == ["a"]
     evidence.forget_licenses()
     assert evidence.licenses() == []
+
+
+def test_license_memory_and_gate_3_use_the_default_variant(monkeypatch):
+    from tests.core.test_catalogue import nx_create_kind
+    from tests.core.test_catalogue import spec as make_spec
+
+    spec = make_spec(nx_create_kind, variants="kind", example={"size": 1})
+    monkeypatch.setattr(evidence, "_CACHE", {spec.name: {"v2406": {"variants": ["b"]}}})
+    assert evidence.check(spec, "v2406", {"size": 1}) is None  # default b is tested
+    monkeypatch.setattr(evidence, "_CACHE", {spec.name: {"v2406": {"variants": ["a"]}}})
+    assert evidence.check(spec, "v2406", {"size": 1}).code == "NX_VERSION_UNSUPPORTED"
+    monkeypatch.setattr(evidence, "_CACHE", {spec.name: {"v2406": {"variants": ["a", "b"]}}})
+    error = errors.NXError("NX_LICENSE_UNAVAILABLE", "no seat", nx_code=948801)
+    try:
+        entry = evidence.remember_license(spec, "NX 2406", {"size": 1}, error)
+        assert entry["variant"] == "b"  # not None, which would block every variant
+        assert evidence.license_refusal(spec, {"size": 1, "kind": "a"}) is None
+        assert evidence.license_refusal(spec, {"size": 1}) is not None
+    finally:
+        evidence.forget_licenses()

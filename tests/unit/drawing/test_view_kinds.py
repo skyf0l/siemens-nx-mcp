@@ -147,6 +147,22 @@ def test_broken_view_removes_each_band_and_keeps_its_position():
     assert nx.live_builders == 0
 
 
+def test_all_break_anchors_are_mapped_before_the_first_break():
+    nx, view = broken_nx()
+    original, committed = nx.uf.View.MapDrawingToModel, []
+    nx.on_commit("BrokenViewBuilder", lambda b, done=nx.hooks["BrokenViewBuilder"]: (
+        committed.append(b), done(b))[1])  # fmt: skip
+    # After a break NX maps sheet points of the shortened view differently.
+    nx.uf.View.MapDrawingToModel = lambda tag, p: [
+        original(tag, p)[0] + 100 * len(committed), *original(tag, p)[1:]]  # fmt: skip
+    ok = run(nx, "nx_create_drawing_view", type="broken", parent=view.ref,
+             breaks=[[160, 200], [100, 120]])  # fmt: skip
+    assert ok.ok, ok
+    second = nx.last("BrokenViewBuilder")
+    assert second.BreakLine1ModelAnchor.Coordinates.X == -50.0  # from the unbroken view
+    assert second.BreakLine2ModelAnchor.Coordinates.X == -30.0
+
+
 def test_broken_view_bands_are_checked_before_nx():
     nx, view = broken_nx()
     line = Object("CENTERLINE")

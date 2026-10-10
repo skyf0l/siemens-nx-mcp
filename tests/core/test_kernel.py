@@ -1,5 +1,6 @@
 """Every kernel gate and outcome on the in-memory services (architecture.md 3)."""
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -153,6 +154,22 @@ def test_touched_failure_rolls_back_and_invalidates_part(svc):
         stale.resolve(row["id"], ("feature",))
     assert error.value.code == "NX_STALE_REFERENCE"
     assert error.value.details["current"]["name"] == "KEEP"  # anchor's unique match
+
+
+def test_non_topology_failure_restored_by_undo_preserves_references(svc):
+    keep = svc.part.add("feature", "KEEP")
+    assert run(svc, "nx_get_count")["ok"]
+    row = svc.references.row(keep, "feature")
+    spec = dataclasses.replace(SPECS["nx_create_block"], invalidates="deleted")
+    bad = kernel.run(
+        spec, {"size": 1, "fail_with": "NX_CONSTRAINT_UNSATISFIED"}, kernel.Context(svc)
+    )
+    assert bad["mutation_outcome"] == "rolled_back" and svc.part.objects == [keep]
+    # The undo restored the same objects: old refs resolve, the created ones are retired.
+    assert bad["changes"]["references"] == "preserved"
+    assert svc.references.resolve(row["id"], ("feature",)) is keep
+    stale = [k for k in svc.registry._stale_ids if k != row["id"]]
+    assert stale  # the rolled-back feature and body
 
 
 def test_new_feature_in_error_is_update_failed_and_rolled_back(svc):

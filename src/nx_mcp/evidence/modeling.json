@@ -279,16 +279,22 @@
   },
   "nx_edit_faces": {
     "v2406": {
-      "checks": 13,
-      "recorded": "2026-10-09T17:58:32Z",
-      "scenario": "acceptance/modeling/edit_faces.json",
-      "scenario_sha256": "939a11fa9c112598551a815109e90dabd7e308656579c51d934cd71cb3aedd96",
-      "source_sha256": "b836c35aac449ba747ca939174f1e0c649befd59899c9070fae141e91cc99bfd",
+      "checks": 32,
+      "recorded": "2026-10-10T10:50:13Z",
+      "scenario": "acceptance/modeling/sync_edits.json",
+      "scenario_sha256": "26189c57666b642989423ec03d7930d8fcdc66e6b5460265f13b4e498d315e8c",
+      "source_sha256": "40e7264270435719d283af0599483171ea4081b0c4770dcbe98db0bd1450c469",
       "variants": [
         "delete",
+        "delete_blend",
+        "mirror",
         "move",
         "offset",
-        "replace"
+        "pattern",
+        "replace",
+        "resize",
+        "resize_blend",
+        "resize_chamfer"
       ]
     }
   },

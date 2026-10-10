@@ -201,3 +201,33 @@ def test_annotation_listing_includes_drafting_gdt_and_targets():
     part = NS(Notes=[], Labels=[], Gdts=[frame],
               Annotations=NS(Datums=[], Fcfs=[], DraftingDatumTargets=[target]))  # fmt: skip
     assert {o.Tag for o in hooks._annotations(part)} == {frame.Tag, target.Tag}
+
+
+def test_a_pmi_datum_license_refusal_is_not_remembered_for_the_whole_variant(monkeypatch):
+    from nx_mcp.core import evidence
+    from tests.kit.objects import NXException
+
+    nx = gdt_nx()
+    pmi = nx._own(type("Datum", (Object,), {})("Datum"), "annotation")
+
+    def unlicensed(obj):
+        raise NXException(948801, "License Error: token feature does not exist")
+
+    nx.part.Annotations.Datums.CreatePmiDatumFeatureSymbolBuilder = unlicensed
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_gdt": {"v2406": {
+        "variants": ["view_fcf"]}}})  # fmt: skip
+    evidence.forget_licenses()
+    flat = {"characteristic": "flatness", "tolerance": 0.05}
+    try:
+        refused = run(nx, "nx_create_gdt", kind="view_fcf", frame={
+            "characteristic": "position", "tolerance": 0.1, "datums": [pmi.ref]},
+            **view_args(nx, nx.hole, [150, 120]))  # fmt: skip
+        assert refused.error["code"] == "NX_LICENSE_UNAVAILABLE", refused
+        assert refused.error["field"] == "/frame/datums/0"
+        assert evidence.licenses() == []  # argument-dependent: the variant stays usable
+        ok = run(nx, "nx_create_gdt", kind="view_fcf", frame=flat,
+                 **view_args(nx, nx.front, [60, 40]))  # fmt: skip
+        assert ok.ok, ok
+    finally:
+        evidence.forget_licenses()
+    assert nx.live_builders == 0

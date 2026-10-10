@@ -150,6 +150,8 @@ def check_work_only(tx, part, *, field: str | None = "/display") -> None:
 SHEET_METAL_APP = "UG_APP_SBSM"
 SHEET_METAL_FEATURES = ("SB_", "FLAT_PATTERN", "FLAT_SOLID")
 SCRATCH_TEMPLATE = "model-plain-1-mm-template.prt"
+# Blank modeling templates of a new part by units.
+TEMPLATES = {"mm": SCRATCH_TEMPLATE, "in": "model-plain-1-inch-template.prt"}
 
 
 def has_sheet_metal(part) -> bool:

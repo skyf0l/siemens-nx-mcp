@@ -81,7 +81,7 @@
   "nx_create_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-09T22:28:00Z",
+      "recorded": "2026-10-10T11:02:13Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
@@ -96,11 +96,11 @@
   },
   "nx_create_drawing_view": {
     "v2406": {
-      "checks": 51,
-      "recorded": "2026-10-09T22:21:55Z",
+      "checks": 54,
+      "recorded": "2026-10-10T11:00:27Z",
       "scenario": "acceptance/drawing/view_types.json",
-      "scenario_sha256": "cea9c1deb025c1af34008ae4acb8ff686916042fe384d81391f64e610f6300c0",
-      "source_sha256": "38225dc0c7af43c812964c26b12b171a83466bf9f23b689659015416274777c7",
+      "scenario_sha256": "7fcd0b8d742d1da7760acdead3dda472ed0ac706052b5ba4f50b60cff9fdb013",
+      "source_sha256": "8df1770fe32d273df366c830051eb83072445d5fc26f6ff069692963f43cd204",
       "variants": [
         "auxiliary",
         "base",
@@ -119,10 +119,10 @@
   "nx_create_gdt": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-09T22:14:05Z",
+      "recorded": "2026-10-10T11:02:17Z",
       "scenario": "acceptance/drawing/gdt_views_inch.json",
       "scenario_sha256": "6d70bd00d233413de64a18152546fab39e220d24a054d83a0211a3fa15d555fe",
-      "source_sha256": "811df3aa4f779e20efb947cb936704d2ef29699bff345c559c2033acb0e22404",
+      "source_sha256": "b8d7515e39d1c47bbab57e7724955bbb11b3d75f6e37bc48fa5889d3c28f0ca9",
       "variants": [
         "fcf",
         "view_datum_feature",
@@ -164,7 +164,7 @@
   "nx_edit_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-09T22:28:00Z",
+      "recorded": "2026-10-10T11:02:13Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
@@ -210,7 +210,7 @@
   "nx_get_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-09T22:28:00Z",
+      "recorded": "2026-10-10T11:02:13Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
       "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",

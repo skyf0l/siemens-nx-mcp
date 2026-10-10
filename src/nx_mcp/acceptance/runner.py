@@ -336,7 +336,10 @@ def source_digest(tool: str) -> str | None:
 
 
 class DevLock:
-    """``scripts/dev_lock.py`` held by the runner for its whole run."""
+    """``scripts/dev_lock.py`` held by the runner for its whole run.
+
+    ``release`` gives up only a lock this runner acquired: an agent that holds the
+    lock (``dev_lock.py acquire --owner``) and runs ``call``/``run`` keeps it."""
 
     def __init__(self, workspace: Path, owner: str, *, wait: float = 1800, stale: float = 20):
         script = ROOT / "scripts" / "dev_lock.py"
@@ -349,9 +352,13 @@ class DevLock:
         self.owner = owner
         self.wait = wait
         self.stale = stale * 60
+        self.inherited: bool | None = None
 
     def acquire(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.inherited is None:  # the first acquire: was the lock already the owner's?
+            current = self.module.read(self.path)
+            self.inherited = bool(current and current.get("owner") == self.owner)
         deadline = time.monotonic() + self.wait
         while not self.module.try_acquire(self.path, self.owner, self.stale):
             if time.monotonic() > deadline:
@@ -361,6 +368,10 @@ class DevLock:
     refresh = acquire
 
     def release(self) -> None:
+        """Release the lock this runner acquired; a lock the owner already held before
+        the run (``dev_lock.py acquire`` by the agent) stays theirs."""
+        if self.inherited:
+            return
         current = self.module.read(self.path)
         if current and current.get("owner") == self.owner:
             self.path.unlink(missing_ok=True)
@@ -439,7 +450,10 @@ async def run_scenario(session, path: Path, *, workspace: Path, run_id: str, bui
         special["$fixture"] = str(target)
     started = utc_now()
     before = await loaded_parts(session)
-    panel = find_dev_panel()
+    # Only a scenario that changes the panel itself (nx_set_control) gets it restored:
+    # any other change during a run is the engineer's and stays.
+    controls = any(step.get("call") == "nx_set_control" for step in data["steps"])
+    panel = find_dev_panel() if controls else None
     mode = await panel_mode(session) if panel is not None else None
     try:
         steps = await run_steps(
@@ -632,6 +646,7 @@ async def close_new_parts(
 # The NX MCP panel's mode buttons (interactive.ID_MODES): a WM_COMMAND with one
 # of these ids is the engineer's click.
 PANEL_BUTTONS = {"auto": 111, "agent": 112, "ask": 113}
+PANEL_RANK = {"ask": 0, "auto": 1, "agent": 2}  # interactive._RANK: control given to the agent
 DEV_PANEL_TITLE = "NX MCP DEV"
 
 
@@ -700,11 +715,12 @@ async def restore_panel_mode(
 
     A scenario may leave NX in "Ask me first" (session/set_control.json): the agent
     cannot raise its own control, so the runner clicks the mode button on the
-    development panel the way the engineer would. ``None`` when nothing changed.
+    development panel the way the engineer would. It only ever raises the mode back:
+    a higher mode now is the engineer's choice. ``None`` when nothing was pressed.
     """
     current = await panel_mode(session)
-    if current is None or current == mode:
-        return None
+    if current is None or PANEL_RANK[current] >= PANEL_RANK[mode]:
+        return None  # Unchanged, or raised by the engineer: never lower their choice.
     report: dict[str, Any] = {"from": current, "to": mode, "restored": False}
     press_panel(panel, mode)
     deadline = time.monotonic() + wait

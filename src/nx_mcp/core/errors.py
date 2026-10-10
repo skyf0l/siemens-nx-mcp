@@ -159,6 +159,9 @@ WARNING_CODES = frozenset(
 # Native license checkout failures (NX 2406: 948801 missing token feature,
 # 949895 license feature not available).
 LICENSE_ERROR_CODES = frozenset({948801, 949895})
+# "Update undo happened.": an update failed and NX undid it, as the host's update
+# failure action (host/quiet.py) asks instead of opening "Error During Update".
+UPDATE_UNDONE_CODE = 670024
 
 # Today's codes (raised by legacy services the kernel still calls) -> new code.
 LEGACY_CODES: dict[str, str] = {
@@ -441,6 +444,13 @@ def classify(error: BaseException, codes: dict | None = None, default: str = "NX
             nx_code=nx_code,
             details=details,
         )
+    if nx_code == UPDATE_UNDONE_CODE:
+        return NXError(
+            "NX_UPDATE_FAILED",
+            "The NX model update failed and NX undid it: " + str(error),
+            nx_code=nx_code,
+            details=details,
+        )
     if nx_code is not None and codes and nx_code in codes:
         return NXError(codes[nx_code], str(error), nx_code=nx_code, details=details)
     if nx_code is None:
@@ -453,7 +463,8 @@ def classify(error: BaseException, codes: dict | None = None, default: str = "NX
 def native(codes: dict | None = None, default: str = "NX_ERROR"):
     """Map native NX exceptions raised inside the block to stable codes.
 
-    ``ErrorCode`` 948801/949895 -> ``NX_LICENSE_UNAVAILABLE``; a code listed in
+    ``ErrorCode`` 948801/949895 -> ``NX_LICENSE_UNAVAILABLE``; 670024 (an update
+    failure NX undid) -> ``NX_UPDATE_FAILED``; a code listed in
     ``codes`` (``{nx_code: "NX_..."}``) -> that code; any other native error ->
     ``default``; a plain Python exception -> ``NX_ERROR`` with its type name.
     ``nx_code`` and the native message are always kept; a traceback only with

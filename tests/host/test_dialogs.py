@@ -149,3 +149,86 @@ def test_no_dialog_no_report(tmp_path):
     result = {"ok": True, "warnings": []}
     interactive.InteractiveHost._report_dialogs(host(tmp_path), result, [])
     assert result["warnings"] == []
+
+
+@pytest.mark.parametrize("dev", [True, False])
+def test_dev_mode_answers_a_call_blocked_by_a_new_dialog_at_once(tmp_path, dev):
+    from nx_mcp.bridge import MainThreadDispatcher
+
+    released, results = threading.Event(), []
+    stub = host(tmp_path)
+    stub.dev = dev
+
+    def blocked(method, params):  # NX's UI thread inside the dialog's modal loop
+        released.wait(5)
+        return {"status": "success"}
+
+    stub.dispatcher = MainThreadDispatcher(blocked, timeout=0.5)
+    stub._answer_blocked_call = lambda d: interactive.InteractiveHost._answer_blocked_call(stub, d)
+
+    def call():
+        try:
+            results.append(stub.dispatcher.call("nx_dev_python", {}))
+        except NXToolError as error:
+            results.append(error)
+
+    caller = threading.Thread(target=call)
+    caller.start()
+    runner = threading.Thread(target=lambda: stub.dispatcher.drain(timeout=1))
+    runner.start()
+    while stub.dispatcher._running is None:
+        threading.Event().wait(0.01)
+    interactive.InteractiveHost._dialog_appeared(stub, dialogs.Dialog(5, "Error During Update"))
+    caller.join(2)
+    if dev:  # answered at once, while the call still waits in NX
+        (error,) = results
+        assert error.code == "NX_MODAL_DIALOG_OPEN" and not released.is_set()
+        assert error.details["mutation_outcome"] == "unknown"
+        assert error.details["dialogs"][0]["title"] == "Error During Update"
+    else:  # production: reported only; the caller waits (here: the bridge timeout)
+        assert results[0].code == "NX_MAIN_THREAD_UNAVAILABLE"
+    released.set()
+    runner.join(2)
+    assert len(results) == 1 and stub.dispatcher._running is None  # late result dropped
+
+
+def test_a_modeless_box_left_open_does_not_block():
+    # A modal dialog disables its owner; a modeless #32770 box leaves NX enabled.
+    modeless = sheet_metal_warning(owner_enabled=True)
+    assert dialogs.blocking([modeless], PID) == []
+    assert dialogs.scan(PID, windows=lambda pid: [modeless], texts=lambda h: ("", (), ())) == []
+
+
+def test_an_owner_the_host_disabled_needs_a_modal_frame():
+    # Agent drives: the host disabled NX's main window itself, which proves nothing.
+    plain = sheet_metal_warning(modal_frame=False)
+    assert dialogs.blocking([plain], PID, host_disabled={MAIN}) == []
+    assert dialogs.blocking([plain], PID) != []  # NX disabled it: modal
+    assert dialogs.blocking([sheet_metal_warning()], PID, host_disabled={MAIN}) != []
+
+
+def test_texts_are_read_only_for_confirmed_modal_dialogs():
+    windows = [
+        sheet_metal_warning(hwnd=1, title="", texts=(), buttons=()),  # modal: read
+        sheet_metal_warning(hwnd=2, owner=0, owner_pid=0),  # "Work in Progress"
+        sheet_metal_warning(hwnd=3, owner_enabled=True),  # modeless
+        sheet_metal_warning(hwnd=4, enabled=False),  # under another dialog
+    ]
+    read = []
+
+    def texts(hwnd):
+        read.append(hwnd)
+        return "Error During Update", ("Update failed",), ("&OK",)
+
+    (found,) = dialogs.scan(PID, windows=lambda pid: windows, texts=texts)
+    assert read == [1]
+    assert (found.title, found.text, found.buttons) == ("Error During Update", "Update failed",
+                                                        ("OK",))  # fmt: skip
+
+
+def test_the_watch_never_notifies_after_stop():
+    heard = []
+    watch = dialogs.Watch([], on_new=heard.append, scanner=lambda: [dialogs.Dialog(3, "Late")])
+    assert [d.title for d in watch.stop()] == ["Late"]  # reported in the result...
+    watch.poll()
+    assert heard == []  # ...but never answers a call that has ended (or the next one)

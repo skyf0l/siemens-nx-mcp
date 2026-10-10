@@ -1,0 +1,818 @@
+{
+ "covers": {
+  "nx_edit_faces": [
+   "resize",
+   "resize_blend",
+   "resize_chamfer",
+   "pattern",
+   "mirror",
+   "delete_blend"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/sync_src.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       60
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "src",
+   "args": {
+    "sketch": "$sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "limit": 1,
+    "owner": "$src.data.bodies.0.id",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      20,
+      30,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 10,
+    "depth": {
+     "type": "through_all"
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "limit": 1,
+    "owner": "$src.data.bodies.0.id",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      80,
+      30,
+      20
+     ]
+    ],
+    "form": "countersink",
+    "diameter": 6,
+    "depth": {
+     "type": "through_all"
+    },
+    "countersink": {
+     "diameter": 12,
+     "angle": 90
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "limit": 1,
+    "owner": "$src.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     50,
+     0,
+     20
+    ]
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$e1.data.items.0.id"
+    ],
+    "radius": 3
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "limit": 1,
+    "owner": "$src.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     50,
+     60,
+     20
+    ]
+   }
+  },
+  {
+   "call": "nx_create_chamfer",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$e2.data.items.0.id"
+    ],
+    "method": "symmetric",
+    "offset": 2
+   }
+  },
+  {
+   "call": "nx_export_model",
+   "setup": true,
+   "args": {
+    "path": "$run/sync/src.step",
+    "format": "step"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_import_model",
+   "setup": true,
+   "save": "imp",
+   "args": {
+    "path": "$run/sync/src.step",
+    "format": "step"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$imp.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 117357.478007,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     15,
+     30,
+     10
+    ],
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole.data.items.0.id"
+    ],
+    "action": "resize",
+    "diameter": 14
+   },
+   "expect": {
+    "data.volume": {
+     "close": 115849.513533,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$imp.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 7,
+    "order": "highest"
+   },
+   "expect": {
+    "page.total": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "blend",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     50,
+     0.8,
+     19.2
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$blend.data.items.0.id"
+    ],
+    "action": "resize_blend",
+    "radius": 5
+   },
+   "expect": {
+    "data.volume": {
+     "close": 115506.150595,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$imp.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 5,
+    "order": "highest"
+   },
+   "expect": {
+    "page.total": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     50,
+     59,
+     19
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$ch.data.items.0.id"
+    ],
+    "action": "resize_chamfer",
+    "distance": 4
+   },
+   "expect": {
+    "data.volume": {
+     "close": 114906.150595,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$imp.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.max": {
+     "close": [
+      100,
+      60,
+      20
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     13,
+     30,
+     10
+    ],
+    "radius": 7
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole.data.items.0.id"
+    ],
+    "action": "pattern",
+    "pattern": {
+     "layout": "linear",
+     "count": 2,
+     "spacing": 20
+    },
+    "direction": {
+     "principal": "x"
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 111827.389794,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$imp.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 7,
+    "order": "highest"
+   },
+   "expect": {
+    "page.total": 2
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     13,
+     30,
+     10
+    ],
+    "radius": 7
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole.data.items.0.id"
+    ],
+    "action": "pattern",
+    "pattern": {
+     "layout": "circular",
+     "count": 2,
+     "angle": 90,
+     "origin": [
+      20,
+      45,
+      0
+     ]
+    },
+    "direction": [
+     0,
+     0,
+     1
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 108748.628994,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$imp.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 7,
+    "order": "highest"
+   },
+   "expect": {
+    "page.total": 3
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole2",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     33,
+     30,
+     10
+    ],
+    "radius": 7
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole2.data.items.0.id"
+    ],
+    "action": "mirror",
+    "plane": {
+     "origin": [
+      50,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 105669.868193,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$imp.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 7,
+    "order": "nearest",
+    "near": [
+     67,
+     30,
+     10
+    ]
+   },
+   "expect": {
+    "page.total": 4,
+    "data.items.0.radius": {
+     "close": 7,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "blend",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "radius": 5,
+    "order": "highest"
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$blend.data.items.0.id"
+    ],
+    "action": "delete_blend"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 106206.372785,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$imp.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 5,
+    "order": "highest"
+   },
+   "expect": {
+    "page.total": 0
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "action": "resize",
+    "diameter": 8
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "rolled_back",
+    "error.field": "/faces/0"
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole.data.items.0.id"
+    ],
+    "action": "resize",
+    "diameter": 8,
+    "angle": 30
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole.data.items.0.id"
+    ],
+    "action": "pattern",
+    "direction": [
+     1,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.field": "/pattern",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cone",
+   "args": {
+    "kind": "face",
+    "geometry_type": "any",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "order": "nearest",
+    "near": [
+     84.5,
+     30,
+     18.5
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$cone.data.items.0.id"
+    ],
+    "action": "resize",
+    "angle": 30
+   },
+   "expect": {
+    "data.volume": {
+     "close": 106123.579789,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$imp.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 106123.579789,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "limit": 1,
+    "owner": "$imp.data.bodies.0.id",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "action": "resize_blend",
+    "radius": 2
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "rolled_back",
+    "error.field": "/faces/0"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "limit": 1,
+    "order": "nearest",
+    "near": [
+     13,
+     30,
+     10
+    ],
+    "radius": 7
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$hole.data.items.0.id"
+    ],
+    "action": "mirror",
+    "plane": {
+     "origin": [
+      200,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {},
+   "expect": {
+    "data.volume": {
+     "close": 106123.579789,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}
