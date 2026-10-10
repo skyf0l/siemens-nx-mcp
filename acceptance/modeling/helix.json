@@ -1,0 +1,130 @@
+{
+ "covers": {
+  "nx_create_helix": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": {
+     "principal": "z"
+    },
+    "radius": 10,
+    "pitch": 5,
+    "turns": 4
+   },
+   "expect": {
+    "data.length": {
+     "close": 252.12193115033028,
+     "tol": 0.02521219311503303
+    },
+    "data.start": {
+     "close": [
+      10,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.end": {
+     "close": [
+      10,
+      0,
+      20
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": {
+     "origin": [
+      50,
+      0,
+      0
+     ],
+     "direction": [
+      1,
+      0,
+      0
+     ]
+    },
+    "radius": 5,
+    "pitch": 2,
+    "height": 9,
+    "hand": "left",
+    "start_angle": 90
+   },
+   "expect": {
+    "data.turns": {
+     "close": 4.5,
+     "tol": 1e-09
+    },
+    "data.length": {
+     "close": 141.65785863200796,
+     "tol": 0.014165785863200796
+    },
+    "data.start": {
+     "close": [
+      50,
+      0,
+      5
+     ],
+     "tol": 0.001
+    },
+    "data.end": {
+     "close": [
+      59,
+      0,
+      -5
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": {
+     "principal": "z"
+    },
+    "radius": 10,
+    "pitch": 5,
+    "turns": 4,
+    "height": 20
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": {
+     "principal": "z"
+    },
+    "radius": 0,
+    "pitch": 5,
+    "turns": 4
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/radius"
+   }
+  }
+ ]
+}

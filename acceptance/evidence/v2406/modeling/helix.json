@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "scenario": "acceptance/modeling/helix.json",
+  "scenario_sha256": "a0509f772f3a3ba1ee042c81407e7e40659c39cc1dcee299a2ca9c6a80584d22",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_helix": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "v2406",
+  "commit": "2e7399a63f2569f4c4fc0427a253098d44aa50cd",
+  "sources": {
+    "nx_create_helix": "5566f98b78c7b90c3e593e7393eb6b7d4fa96ce86e2fccedea8ebf26f04d2ce5"
+  },
+  "run_id": "20261010-081715-8a1285",
+  "owner": "wc_features",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-081715-8a1285\\modeling_helix_8a1285.prt",
+  "started": "2026-10-10T04:17:15Z",
+  "finished": "2026-10-10T04:17:18Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0,
+      "seconds": 2.5,
+      "result_sha256": "c1283a8622ef5da3fc269090d9e3e131f7610008e7209703755d9f79f60b938c"
+    },
+    {
+      "index": 2,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.125,
+      "result_sha256": "4a2f99c74ef31c63f39b632fbe8848201ea556eb636096aaaa6922ae85b5b682"
+    },
+    {
+      "index": 3,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 4,
+      "seconds": 0.094,
+      "result_sha256": "ab2d549717e0483adf5315b5f881a4dc5f8a483e25230880529218dcf532f9c3"
+    },
+    {
+      "index": 4,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 2,
+      "seconds": 0.031,
+      "result_sha256": "a04bf6c2ec3f3bfa1f98d12f651a801cf70e3c8d35a452355767a2accf2af509"
+    },
+    {
+      "index": 5,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3,
+      "seconds": 0.047,
+      "result_sha256": "6d56b18932684e9c6fefe2fbb4df4edec14223134bddaa5c24c14f2520da739f"
+    }
+  ],
+  "cleanup": {
+    "mode": "close",
+    "closed": [
+      "smoke/20261010-081715-8a1285/modeling_helix_8a1285.prt"
+    ],
+    "failed": []
+  }
+}

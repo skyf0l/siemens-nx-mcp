@@ -1,0 +1,264 @@
+{
+ "covers": {
+  "nx_create_tube": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "p_c",
+   "args": {
+    "sketch": "$p.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       50,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$p.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "arc",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      40,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "arc_c",
+   "args": {
+    "sketch": "$arc.data.sketch.id",
+    "curves": [
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 90
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$arc.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      -10,
+      -5
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "b_c",
+   "args": {
+    "sketch": "$b.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       50,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$b.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "sketch": "$b.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "save": "t",
+   "args": {
+    "path": [
+     "$p_c.data.curves.0.curve.id"
+    ],
+    "outer_diameter": 10,
+    "inner_diameter": 8
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1413.7166941154069,
+     "tol": 0.001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$t.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      -5,
+      -5
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      50,
+      5,
+      5
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": [
+     "$arc.data.sketch.id"
+    ],
+    "outer_diameter": 4
+   },
+   "expect": {
+    "data.volume": {
+     "close": 394.7841760435743,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": [
+     "$p.data.sketch.id"
+    ],
+    "outer_diameter": 4,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$blk.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 9371.68146928204,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": [
+     "$p_c.data.curves.0.curve.id"
+    ],
+    "outer_diameter": 4,
+    "inner_diameter": 4
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/inner_diameter"
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": [
+     "$p.data.sketch.id",
+     "$p_c.data.curves.0.curve.id"
+    ],
+    "outer_diameter": 4
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/path"
+   }
+  }
+ ]
+}

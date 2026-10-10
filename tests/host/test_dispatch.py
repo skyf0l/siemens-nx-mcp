@@ -80,6 +80,18 @@ def test_development_tools_keep_their_shape_and_record_ownership(rig, monkeypatc
     assert services.owns(new) and services.created(new) and not services.owns(rig.part)
 
 
+def test_a_development_snippets_system_exit_is_a_rolled_back_error(rig):
+    from nx_mcp.core.errors import NXToolError
+
+    def snippet():
+        raise SystemExit(2)
+
+    rig.e.dev_tools["nx_test_exit"] = snippet
+    with pytest.raises(NXToolError) as error:
+        rig.run("nx_test_exit", {})
+    assert error.value.details["mutation_outcome"] == "rolled_back"
+
+
 def test_panel_summary_comes_from_the_spec(rig):
     line = dispatch.render_summary(
         rig.e, "nx_create_datum_plane", {"method": "offset", "reference": "fc:7", "distance": 15}

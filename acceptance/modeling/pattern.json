@@ -1,6 +1,9 @@
 {
  "covers": {
-  "nx_create_pattern": []
+  "nx_create_pattern": [
+   "linear",
+   "circular"
+  ]
  },
  "fixture": null,
  "part": "new",
@@ -128,16 +131,15 @@
     "features": [
      "$cut1.data.feature.id"
     ],
-    "layout": {
-     "linear": {
-      "direction": [
-       1,
-       0,
-       0
-      ],
-      "count": 3,
-      "spacing": 10
-     }
+    "layout": "linear",
+    "parameters": {
+     "direction": [
+      1,
+      0,
+      0
+     ],
+     "count": 3,
+     "spacing": 10
     }
    },
    "expect": {
@@ -213,21 +215,20 @@
     "features": [
      "$cut2.data.feature.id"
     ],
-    "layout": {
-     "linear": {
-      "direction": {
-       "principal": "x"
-      },
-      "count": 2,
-      "spacing": "25 mm",
-      "direction2": [
-       0,
-       1,
-       0
-      ],
-      "count2": 2,
-      "spacing2": 5
-     }
+    "layout": "linear",
+    "parameters": {
+     "direction": {
+      "principal": "x"
+     },
+     "count": 2,
+     "spacing": "25 mm",
+     "direction2": [
+      0,
+      1,
+      0
+     ],
+     "count2": 2,
+     "spacing2": 5
     }
    },
    "expect": {
@@ -368,12 +369,11 @@
     "features": [
      "$cut3.data.feature.id"
     ],
-    "layout": {
-     "circular": {
-      "axis": "$ax.data.datum_axis.id",
-      "count": 6,
-      "angle": 60
-     }
+    "layout": "circular",
+    "parameters": {
+     "axis": "$ax.data.datum_axis.id",
+     "count": 6,
+     "angle": 60
     }
    },
    "expect": {
@@ -390,29 +390,28 @@
     "features": [
      "$cut3.data.feature.id"
     ],
-    "layout": {
-     "circular": {
-      "axis": {
-       "origin": [
-        150,
-        0,
-        0
-       ],
-       "direction": [
-        0,
-        0,
-        1
-       ]
-      },
-      "count": 7,
-      "angle": 60
-     }
+    "layout": "circular",
+    "parameters": {
+     "axis": {
+      "origin": [
+       150,
+       0,
+       0
+      ],
+      "direction": [
+       0,
+       0,
+       1
+      ]
+     },
+     "count": 7,
+     "angle": 60
     }
    },
    "expect": {
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
-    "error.field": "/layout/circular/angle"
+    "error.field": "/parameters/angle"
    }
   },
   {
@@ -421,23 +420,22 @@
     "features": [
      "$cut2.data.feature.id"
     ],
-    "layout": {
-     "linear": {
-      "direction": [
-       1,
-       0,
-       0
-      ],
-      "count": 2,
-      "spacing": 5,
-      "count2": 2
-     }
+    "layout": "linear",
+    "parameters": {
+     "direction": [
+      1,
+      0,
+      0
+     ],
+     "count": 2,
+     "spacing": 5,
+     "count2": 2
     }
    },
    "expect": {
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
-    "error.field": "/layout/linear"
+    "error.field": "/parameters"
    }
   },
   {

@@ -146,3 +146,19 @@ def test_batch_bridge_requires_explicit_feasibility_gate(tmp_path, monkeypatch):
     monkeypatch.delenv("NX_MCP_ALLOW_UNVERIFIED_PYTHON_BRIDGE", raising=False)
     with pytest.raises(RuntimeError, match="has not been verified"):
         start_bridge(tmp_path)
+
+
+def test_annotations_include_drafting_gdt_and_datum_targets():
+    # changes.created comes from this list: drafting GD&T was missing from it.
+    from nx_mcp.host.services import annotations
+
+    def obj(tag):
+        return NS(Tag=tag)
+
+    part = NS(
+        Notes=[obj(1)],
+        Labels=[],
+        Gdts=[obj(2), obj(3)],
+        Annotations=NS(DraftingDatumTargets=[obj(4)], Fcfs=[obj(2)]),
+    )
+    assert sorted(int(o.Tag) for o in annotations(part)) == [1, 2, 3, 4]

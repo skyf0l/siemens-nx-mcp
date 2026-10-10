@@ -1,0 +1,92 @@
+{
+ "covers": {
+  "nx_create_tube": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "in"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "p_c",
+   "args": {
+    "sketch": "$p.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       2,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$p.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "save": "t",
+   "args": {
+    "path": [
+     "$p_c.data.curves.0.curve.id"
+    ],
+    "outer_diameter": 0.5,
+    "inner_diameter": "6.35 mm"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 0.2945243112740431,
+     "tol": 1e-05
+    },
+    "units.length": "in"
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$t.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.max": {
+     "close": [
+      2,
+      0.25,
+      0.25
+     ],
+     "tol": 1e-05
+    }
+   }
+  }
+ ]
+}

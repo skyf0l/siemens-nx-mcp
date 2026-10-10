@@ -49,6 +49,7 @@ _KIND_BY_CLASS = (
 _ANNOTATION_GROUPS = (
     "Datums",
     "Fcfs",
+    "DraftingDatumTargets",
     "IdSymbols",
     "PartsLists",
     "BendTables",
@@ -90,6 +91,8 @@ def _table_tags(part) -> set:
 def annotations(part) -> list:
     """Notes, labels, GD&T, tables, title blocks... of ``part``, one per tag."""
     values = [*getattr(part, "Notes", []), *getattr(part, "Labels", [])]
+    with contextlib.suppress(Exception):  # drafting GD&T frames and datum symbols (NX 2406)
+        values.extend(getattr(part, "Gdts", None) or [])
     group = getattr(part, "Annotations", None)
     if group is not None:
         for name in _ANNOTATION_GROUPS:

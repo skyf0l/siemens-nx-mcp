@@ -1237,12 +1237,23 @@ class InteractiveHost:
                         warning = {"code": "NX_UPDATE_WARNING", "message": warning}
                     result.setdefault("warnings", []).append(warning)
             return result
-        except BaseException as exc:
+        except BaseException as raised:
+            exc = raised
+            if not isinstance(raised, Exception):
+                # SystemExit, KeyboardInterrupt...: an error result for this call only.
+                # Escaping to tick() would drop the panel mode to Ask me first.
+                exc = NXToolError(
+                    "NX_OPERATION_FAILED",
+                    f"{type(raised).__name__} raised by {method}: {raised}",
+                    details={"mutation_outcome": "unknown"},
+                )
             self.last_error = str(exc)
             error = exc
             if watch is not None:
                 self._report_dialogs(None, watch.stop(), error=exc)
-            raise
+            if exc is raised:
+                raise
+            raise exc from raised
         finally:
             self.last_duration_seconds = time.monotonic() - self.operation_started
             try:

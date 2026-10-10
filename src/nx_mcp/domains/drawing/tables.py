@@ -160,7 +160,7 @@ def table_info(tx, obj, kind=None):
         out["automatic"] = bool(tx.uf.Plist.AskPrefs(obj.Tag).AutoUpdate)
     elif kind == "bend":
         out["columns"], out["automatic"] = _bend_columns(tx, obj)
-    if kind == "hole":  # X/Y in the sheet's units
+    elif kind == "hole":  # X/Y in the sheet's units
         out["holes"] = hole_callouts.parse_hole_table(out.get("rows") or [])
         if sheet is not None:
             out["units"] = sh.units

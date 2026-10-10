@@ -116,6 +116,15 @@ def test_smart_objects_and_collectors():
     s = nx.sketch()
     section = builders.section(nx.tx, s)
     assert section is not None
+    # A builder's own section (rib, tube) is filled in place.
+    from tests.kit.fake import FakeSection
+
+    own = FakeSection()
+    assert builders.section(nx.tx, s, into=own) is own and len(own.added) == 1
+    edge = block.edges[0]
+    assert builders.curve_section(nx.tx, [edge], into=own) is own
+    assert own.added[-1][0] == [("EdgeDumb", [edge])] and own.allowed is not None
+    assert own.DistanceTolerance == own.ChainingTolerance == pytest.approx(0.001)
 
 
 def test_destroy_helper():

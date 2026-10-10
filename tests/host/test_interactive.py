@@ -119,6 +119,54 @@ def test_agent_ui_lock_is_not_nested_and_handoff_releases_input(monkeypatch):
     assert host.services.history and host.services.checkpoints
 
 
+@pytest.mark.parametrize("raised", [SystemExit(3), KeyboardInterrupt()])
+def test_base_exceptions_from_a_tool_are_errors_and_keep_the_panel_mode(monkeypatch, raised):
+    # Regression: a SystemExit in an nx_dev_python snippet escaped to tick() and
+    # dropped the panel from Agent drives to Ask me first.
+    from types import SimpleNamespace
+
+    from nx_mcp.host import dispatch
+    from nx_mcp.interactive import InteractiveHost
+
+    class UI:
+        def AskLockStatus(self):
+            return 1
+
+        def UnlockAccess(self):
+            pass
+
+    host = InteractiveHost.__new__(InteractiveHost)
+    host.thread = threading.get_ident()
+    host.mode, host.owns_lock = "agent", True
+    host.ui = UI()
+    host.nx = SimpleNamespace(UI=SimpleNamespace(Status=SimpleNamespace(Lock=1)))
+    host.session = SimpleNamespace(Parts=SimpleNamespace(Display=None))
+    host.completed = 0
+    host.publish = lambda: None
+    host.services = SimpleNamespace(history=[], checkpoints={})
+
+    def boom(_services, method, params):
+        raise raised
+
+    monkeypatch.setattr(dispatch, "execute", boom)
+    dispatcher = MainThreadDispatcher(host.execute, timeout=1)
+    results = []
+    caller = threading.Thread(target=lambda: _call(dispatcher, results))
+    caller.start()
+    while not dispatcher.drain(timeout=1):
+        pass
+    caller.join(1)
+    assert isinstance(results[0], NXToolError) and type(raised).__name__ in results[0].message
+    assert host.mode == "agent" and host.owns_lock
+
+
+def _call(dispatcher, results):
+    try:
+        results.append(dispatcher.call("nx_dev_python", {"code": "raise SystemExit"}))
+    except NXToolError as error:
+        results.append(error)
+
+
 @pytest.mark.asyncio
 async def test_interactive_transport_services_health_during_blocked_request():
     import asyncio

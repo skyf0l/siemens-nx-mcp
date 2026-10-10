@@ -1,5 +1,5 @@
-"""Blend, chamfer, shell, draft, boolean, mirror, pattern, trim, scale, transform, face edits
-and materials on the shared fake, through the real kernel."""
+"""Blend, chamfer, shell, draft, boolean, trim, scale, transform, face edits and materials
+(mirror and pattern: test_patterns) on the shared fake, through the real kernel."""
 
 from types import SimpleNamespace as NS
 
@@ -126,87 +126,6 @@ def test_boolean_operations_and_rules():
     changes(nx, "BooleanBuilder", a, 2000.0)
     grew = run(nx, "nx_create_boolean", operation="subtract", target=a.ref, tools=[b.ref])
     assert grew.error["details"]["check"] == "volume"
-
-
-def test_mirror_checks_the_reflection_and_hides_sources():
-    nx = modeling_nx()
-    block = nx.block(40, 20, 10)
-
-    def mirrored(b):
-        return feature(nx, "MIRROR_BODY", [new_body(nx, [-40, 0, 0, 0, 20, 10])])
-
-    nx.on_commit("MirrorBodyBuilder", mirrored)
-    ok = run(nx, "nx_create_mirror", bodies=[block.ref], plane={"principal": "yz"},
-             keep_original=False)  # fmt: skip
-    assert ok.ok, ok
-    assert block.IsBlanked and ok.data["volume"] == 8000
-    nx.on_commit("MirrorBodyBuilder", lambda b: feature(nx, "MIRROR_BODY",
-                 [new_body(nx, [0, 0, 0, 40, 20, 10])]))  # fmt: skip
-    bad = run(nx, "nx_create_mirror", bodies=[block.ref],
-              plane={"origin": [0, 0, 0], "normal": [1, 0, 0]})  # fmt: skip
-    assert bad.error["details"]["check"] == "mirror[0]" and bad.mutation_outcome == "rolled_back"
-
-
-def pattern_nx():
-    nx = modeling_nx()
-    block = nx.block(40, 20, 10)
-    seed = feature(nx, "HOLE PACKAGE", [block])
-    counts = {}
-
-    def commit(b):
-        counts["x"] = float(b.PatternService.RectangularDefinition.XSpacing.NCopies.RightHandSide)
-        block.volume -= 50
-        return feature(nx, "PATTERN_FEATURE", [block])
-
-    def builder(kind, *args):
-        made = make(kind, *args)
-        if kind == "PatternFeatureBuilder" and args and args[0] is not None:
-            rect = made.PatternService.RectangularDefinition
-            rect.XSpacing.NCopies.Value = counts["x"] + nx.miscount
-            rect.YSpacing.NCopies.Value = 1
-        return made
-
-    make = nx.builder
-    nx.builder = builder
-    nx.miscount = 0
-    nx.on_commit("PatternFeatureBuilder", commit)
-    return nx, block, seed
-
-
-def test_linear_pattern_reads_back_the_count():
-    nx, block, seed = pattern_nx()
-    layout = {"linear": {"direction": [1, 0, 0], "count": 3, "spacing": "0.5 in"}}
-    ok = run(nx, "nx_create_pattern", features=[nx.ref_of(seed, "feature")], layout=layout)
-    assert ok.ok and ok.data["count"] == 3, ok
-    d = next(b for b in nx.builders if b.commits).PatternService.RectangularDefinition
-    assert d.XSpacing.PitchDistance.RightHandSide == repr(12.7)
-    nx.miscount = 1
-    bad = run(nx, "nx_create_pattern", features=[nx.ref_of(seed, "feature")], layout=layout)
-    assert bad.error["details"]["check"] == "count" and nx.live_builders == 0
-
-
-@pytest.mark.parametrize(
-    "layout",
-    [
-        {"circular": {"axis": {"principal": "z"}, "count": 7, "angle": 60}},
-        {"linear": {"direction": [1, 0, 0], "count": 2, "spacing": 5, "count2": 2}},
-        {
-            "linear": {
-                "direction": [1, 0, 0],
-                "count": 2,
-                "spacing": 5,
-                "direction2": [2, 0, 0],
-                "count2": 2,
-                "spacing2": 3,
-            }
-        },  # fmt: skip
-    ],
-)
-def test_pattern_layout_errors(layout):
-    nx, block, seed = pattern_nx()
-    bad = run(nx, "nx_create_pattern", features=[nx.ref_of(seed, "feature")], layout=layout)
-    assert bad.error["category"] == "invalid_argument", bad
-    assert nx.live_builders == 0 and not any(b.commits for b in nx.builders)
 
 
 def test_trim_keeps_the_requested_side_and_split_adds_up():

@@ -48,6 +48,21 @@ def test_grid_tables_need_rectangular_rows_and_positive_widths():
     assert dup.error["field"] == "/columns/1"
 
 
+def test_bend_table_info_keeps_the_bend_columns(monkeypatch):
+    # Regression: the hole/grid branch overwrote bend columns with widths (KeyError 'field').
+    from nx_mcp.domains.drawing import tables
+
+    tab = Mock(AskNmColumns=Mock(return_value=2), AskColumnWidth=Mock(return_value=5.0))
+    tx = NS(ref=lambda o, k: "dt:1", uf=NS(Tabnot=tab))
+    monkeypatch.setattr(tables, "table_tag", lambda tx, obj: 7)
+    monkeypatch.setattr(tables, "cells", lambda tx, tag: [["1", "90"]])
+    monkeypatch.setattr(tables.drawing, "sheet_of_annotation", lambda tx, obj: None)
+    cols = [{"field": "id"}, {"field": "angle"}]
+    monkeypatch.setattr(tables, "_bend_columns", lambda tx, obj: (cols, True))
+    out = tables.table_info(tx, object(), "bend")
+    assert out["columns"] == cols and out["automatic"] is True
+
+
 def test_parts_lists_need_an_assembly_and_one_per_part_when_the_site_says_so():
     nx = tables_nx()
     no_asm = run(nx, "nx_create_drawing_table", kind="parts_list", sheet=nx.sheet_obj.ref,

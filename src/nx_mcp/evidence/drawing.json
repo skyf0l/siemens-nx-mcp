@@ -81,10 +81,10 @@
   "nx_create_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-09T21:45:08Z",
+      "recorded": "2026-10-09T22:28:00Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
-      "source_sha256": "3244c87035778bc40fadbf2b584966c0304e2d936a44cb9382a6b89e3ab55c7c",
+      "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
       "variants": [
         "bend",
         "hole",
@@ -164,10 +164,10 @@
   "nx_edit_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-09T21:45:08Z",
+      "recorded": "2026-10-09T22:28:00Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
-      "source_sha256": "3244c87035778bc40fadbf2b584966c0304e2d936a44cb9382a6b89e3ab55c7c",
+      "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
       "variants": [
         "bend",
         "hole",
@@ -210,10 +210,10 @@
   "nx_get_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-09T21:45:08Z",
+      "recorded": "2026-10-09T22:28:00Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "2824b9f0e5f2ab05dc29c6b103b6d8a9d97fb4230d236656e4927275ea195474",
-      "source_sha256": "3244c87035778bc40fadbf2b584966c0304e2d936a44cb9382a6b89e3ab55c7c",
+      "source_sha256": "11a01f581eb7afc8abc4791d4f5dd3fa6967bd7e8b2fa7452823cf2537cd4920",
       "variants": []
     }
   },

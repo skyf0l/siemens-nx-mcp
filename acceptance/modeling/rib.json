@@ -1,0 +1,576 @@
+{
+ "covers": {
+  "nx_create_rib": [
+   "perpendicular",
+   "parallel"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "l_c",
+   "args": {
+    "sketch": "$l.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       40,
+       0
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       40,
+       0
+      ],
+      "end": [
+       40,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       40,
+       5
+      ],
+      "end": [
+       5,
+       5
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       5,
+       5
+      ],
+      "end": [
+       5,
+       40
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       5,
+       40
+      ],
+      "end": [
+       0,
+       40
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       0,
+       40
+      ],
+      "end": [
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$l.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "lb",
+   "args": {
+    "sketch": "$l.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "symmetric": true
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "g",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "g_c",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       5,
+       35
+      ],
+      "end": [
+       35,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$g.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      60,
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "a_c",
+   "args": {
+    "sketch": "$a.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$a.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "cup",
+   "args": {
+    "sketch": "$a.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "in",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      60,
+      0,
+      2
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "in_c",
+   "args": {
+    "sketch": "$in.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       2,
+       2
+      ],
+      "corner2": [
+       38,
+       18
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$in.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "args": {
+    "sketch": "$in.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$cup.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "w",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      60,
+      0,
+      10
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "w_c",
+   "args": {
+    "sketch": "$w.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       20,
+       2
+      ],
+      "end": [
+       20,
+       18
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$w.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "w2",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      60,
+      0,
+      10
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "w2_c",
+   "args": {
+    "sketch": "$w2.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       10,
+       2
+      ],
+      "end": [
+       10,
+       18
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$w2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "save": "pr",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 2,
+    "orientation": "parallel",
+    "combine": false
+   },
+   "expect": {
+    "data.volume": {
+     "close": 900,
+     "tol": 0.001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$pr.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      5,
+      -1,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      35,
+      1,
+      35
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "save": "pr1",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 2,
+    "orientation": "parallel",
+    "side": "one_side",
+    "combine": false
+   },
+   "expect": {
+    "data.volume": {
+     "close": 900,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$pr1.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min.1": {
+     "close": -2,
+     "tol": 0.0001
+    },
+    "data.max.1": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "save": "pr2",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 2,
+    "orientation": "parallel",
+    "side": "other_side",
+    "combine": false
+   },
+   "expect": {
+    "data.volume": {
+     "close": 900,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$pr2.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min.1": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.max.1": {
+     "close": 2,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": "0.1 in",
+    "orientation": "parallel"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8643.0,
+     "tol": 0.001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$w.data.sketch.id",
+    "body": "$cup.data.bodies.0.id",
+    "thickness": 2,
+    "flip": true
+   },
+   "expect": {
+    "data.volume": {
+     "close": 3648,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$w2.data.sketch.id",
+    "body": "$cup.data.bodies.0.id",
+    "thickness": 2,
+    "draft": 3,
+    "combine": false,
+    "flip": true
+   },
+   "expect": {
+    "data.volume": {
+     "close": 309.6655659858342,
+     "tol": 0.05
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 2,
+    "orientation": "parallel",
+    "draft": 3
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/draft"
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/thickness"
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$w2.data.sketch.id",
+    "body": "$cup.data.bodies.0.id",
+    "thickness": 2
+   },
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back"
+   }
+  }
+ ]
+}

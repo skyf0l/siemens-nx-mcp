@@ -1,9 +1,7 @@
-"""Body operations: boolean, mirror, pattern, trim/split, scale, transform, face edits
-(tool-surface 3.6).
+"""Body operations: boolean, trim/split, scale, transform, face edits (tool-surface 3.6;
+mirror and pattern live in ``patterns``).
 
-NX 2406 lessons kept here: ``MirrorBodyBuilder.Plane`` takes a datum plane (a
-face or principal plane becomes a fixed datum plane) and has no delete-source
-option, so ``keep_original=false`` blanks the source; Trim/Split take a datum
+NX 2406 lessons kept here: Trim/Split take a datum
 plane through ``FaceOrPlane`` and a face through a coincident ``NewPlane``
 (NX does not extend a selected face); a plane that misses the body is refused
 before NX (a failed native commit leaves its message on the next feature); NX
@@ -16,23 +14,20 @@ from __future__ import annotations
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import definition, tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
-    Angle,
-    Axis,
     Direction,
     Doc,
     Items,
     Length,
-    Plane,
     Point3,
     Pose,
     Range,
     RefTo,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, geom, measure, readback, result, select
+from nx_mcp.kit import builders, geom, measure, readback, result, select
 
 BodyList = Annotated[list[RefTo("body")], Items(1, 50)]  # type: ignore[valid-type]
 
@@ -75,235 +70,6 @@ def nx_create_boolean(
     out = common.result_of(tx, feature)
     common.changed(before, out["volume"], "at_least" if operation == "unite" else "at_most")
     return out
-
-
-# ---------------------------------------------------------------------------
-# Mirror
-
-
-def _plane(tx, value, field):
-    """``(datum plane, origin, unit normal)``: a datum plane ref is used as is (associative);
-    a face, principal or explicit plane becomes a fixed datum plane."""
-    obj, origin, normal = select.plane(tx, value, field)
-    if obj is not None and hasattr(obj, "Normal"):
-        return obj, origin, normal
-    return builders.fixed_plane(tx, origin, normal), origin, normal
-
-
-def reflect(point, origin, normal):
-    d = geom.dot(geom.sub(point, origin), normal)
-    return geom.sub(point, geom.scale(normal, 2.0 * d))
-
-
-@tool(
-    effect="model",
-    label="Mirror bodies",
-    summary=lambda a, say: "Mirror " + common.bodies_text(a),
-    keywords=("mirror", "mirror body", "reflect", "symmetric copy", "mirror geometry"),
-    requires=("work_part", "no_active_sketch"),
-    cost="heavy",
-    previewable=True,
-    example={"bodies": ["b:3"], "plane": {"principal": "yz"}},
-)
-def nx_create_mirror(
-    tx: Tx,
-    *,
-    bodies: BodyList,
-    plane: Plane,
-    keep_original: bool = True,
-) -> common.FeatureData:
-    """Mirror solid bodies about a plane into new bodies (associative to a datum plane).
-    keep_original=false hides the sources."""
-    sources = common.solids(tx, bodies)
-    datum, origin, normal = _plane(tx, plane, "/plane")
-    masses = [measure.mass(tx, [b]) for b in sources]
-    with builders.build(tx, tx.part.Features.CreateMirrorBodyBuilder, None) as b:
-        b.MirrorBodyCollector.ReplaceRules(
-            builders.collector(tx, sources, "Body").GetRules(), False
-        )
-        b.Plane.Value = datum
-        b.option("DeleteSourceBody", False)
-        feature = b.commit()
-    made = common.feature_bodies(feature)
-    readback.expect(len(made) == len(sources), "bodies", "NX mirrored a different body count")
-    got = [measure.mass(tx, [m]) for m in made]
-    for i, m in enumerate(masses):
-        wanted = reflect(m["centroid"], origin, normal) if m["centroid"] else None
-        match = [
-            g
-            for g in got
-            if geom.close(g["volume"], m["volume"], 1e-6)
-            and (
-                wanted is None
-                or geom.dist(g["centroid"], wanted) <= 1e-5 * max(1.0, *map(abs, wanted))
-            )
-        ]
-        readback.expect(bool(match), f"mirror[{i}]", "A mirrored body is not the reflection")
-    if not keep_original:
-        with native():
-            tx.session.DisplayManager.BlankObjects(sources)
-    return common.result_of(tx, feature)
-
-
-# ---------------------------------------------------------------------------
-# Pattern
-
-
-class _LinearRequired(TypedDict):
-    direction: Direction
-    count: Annotated[int, Range(ge=2, le=1000), Doc("Instances including the seed")]
-    spacing: Length
-
-
-class LinearLayout(_LinearRequired, total=False):
-    direction2: Direction
-    count2: Annotated[int, Range(ge=1, le=1000)]
-    spacing2: Length
-
-
-class CircularLayout(TypedDict):
-    axis: Axis
-    count: Annotated[int, Range(ge=2, le=360), Doc("Instances including the seed")]
-    angle: Annotated[Angle, Doc("Angle between instances")]
-
-
-class Linear(TypedDict):
-    linear: LinearLayout
-
-
-class Circular(TypedDict):
-    circular: CircularLayout
-
-
-for _td in (LinearLayout, CircularLayout, Linear, Circular):
-    _td.__pydantic_config__ = {"extra": "forbid"}  # type: ignore[attr-defined]
-
-
-class PatternData(TypedDict):
-    feature: result.Row
-    bodies: list[result.Row]
-    volume: float
-    count: int
-
-
-def _pattern_summary(a, say):
-    layout = a["layout"]
-    kind = "linear" if "linear" in layout else "circular"
-    return f"Pattern {say('features')} {kind} x{layout[kind].get('count')}"
-
-
-def _smart_axis(tx, value, field):
-    obj, origin, want = select.axis(tx, value, field)
-    update = tx.nx.SmartObject.UpdateOption.WithinModeling
-    if obj is not None and hasattr(obj, "Direction") and not hasattr(obj, "Normal"):
-        smart = tx.part.Directions.CreateDirection(obj, tx.nx.Sense.Forward, update)
-    else:
-        smart = builders.direction(tx, want, origin, field)
-    return tx.part.Axes.CreateAxis(builders.point(tx, origin), smart, update)
-
-
-@tool(
-    effect="model",
-    label="Pattern features",
-    summary=_pattern_summary,
-    keywords=("pattern", "array", "linear pattern", "circular pattern", "polar array", "copies"),
-    requires=("work_part", "no_active_sketch"),
-    cost="heavy",
-    previewable=True,
-    example={
-        "features": ["f:8"],
-        "layout": {"linear": {"direction": [1, 0, 0], "count": 3, "spacing": 10}},
-    },
-)
-def nx_create_pattern(
-    tx: Tx,
-    *,
-    features: Annotated[list[RefTo("feature")], Items(1, 50)],  # type: ignore[valid-type]
-    layout: Linear | Circular,
-) -> PatternData:
-    """Pattern features linearly (one or two directions) or circularly about an axis. Counts
-    include the seed; a circular pattern must not wrap onto the seed."""
-    args.distinct("/features", features, "features")
-    if "linear" in layout:
-        lin = layout["linear"]
-        second = [lin.get(k) is not None for k in ("direction2", "count2", "spacing2")]
-        if any(second) and not all(second):
-            fail(
-                "NX_INVALID_ARGUMENT",
-                "A second direction needs direction2, count2 and spacing2",
-                field="/layout/linear",
-            )
-        total = lin["count"] * (lin.get("count2") or 1)
-    else:
-        circ = layout["circular"]
-        if circ["angle"] <= 0 or (circ["count"] - 1) * circ["angle"] > 360.0 - 1e-9:
-            fail(
-                "NX_INVALID_ARGUMENT",
-                "Use a positive angle with (count - 1) * angle < 360",
-                field="/layout/circular/angle",
-            )
-        total = circ["count"]
-    if total > 1000:
-        fail("NX_TOO_MANY_OBJECTS", "At most 1000 instances", field="/layout")
-    seeds = []
-    for i, ref in enumerate(features):
-        f = tx.resolve(ref, "feature", work_part=True)
-        if getattr(f, "IsInternal", False):
-            fail("NX_INVALID_ARGUMENT", "Pattern the owning feature", field=f"/features/{i}")
-        seeds.append(f)
-    hosts = {int(b.Tag): b for f in seeds for b in common.feature_bodies(f)}
-    before = measure.volume(tx, list(hosts.values())) if hosts else 0.0
-    G = tx.nx.GeometricUtilities
-    with builders.build(tx, tx.part.Features.CreatePatternFeatureBuilder, None) as b:
-        b.FeatureList.Add(seeds)
-        b.PatternMethod = tx.nx.Features.PatternFeatureBuilder.PatternMethodOptions.Simple
-        service = b.PatternService
-        if "linear" in layout:
-            service.PatternType = G.PatternDefinition.PatternEnum.Linear
-            d = service.RectangularDefinition
-            first = select.direction(tx, lin["direction"], "/layout/linear/direction")
-            d.XDirection = builders.direction(tx, first, field="/layout/linear/direction")
-            d.XSpacing.NCopies.RightHandSide = str(int(lin["count"]))
-            d.XSpacing.PitchDistance.RightHandSide = repr(float(lin["spacing"]))
-            if lin.get("direction2") is not None:
-                other = select.direction(tx, lin["direction2"], "/layout/linear/direction2")
-                if geom.parallel(first, other, 1e-6):
-                    fail(
-                        "NX_INVALID_ARGUMENT",
-                        "The pattern directions must not be parallel",
-                        field="/layout/linear/direction2",
-                    )
-                d.UseYDirectionToggle = True
-                d.YDirection = builders.direction(tx, other, field="/layout/linear/direction2")
-                d.YSpacing.NCopies.RightHandSide = str(int(lin["count2"]))
-                d.YSpacing.PitchDistance.RightHandSide = repr(float(lin["spacing2"]))
-            else:
-                d.YSpacing.NCopies.RightHandSide = "1"
-        else:
-            service.PatternType = G.PatternDefinition.PatternEnum.Circular
-            d = service.CircularDefinition
-            d.RotationAxis = _smart_axis(tx, circ["axis"], "/layout/circular/axis")
-            spacing = d.AngularSpacing
-            spacing.SpaceType = G.PatternSpacing.SpacingType.Offset
-            spacing.NCopies.RightHandSide = str(int(circ["count"]))
-            spacing.PitchAngle.RightHandSide = repr(float(circ["angle"]))
-            d.RadialSpacing.NCopies.RightHandSide = "1"
-        feature = b.commit()
-    with builders.build(tx, tx.part.Features.CreatePatternFeatureBuilder, feature) as b:
-        service = b.PatternService
-        if "linear" in layout:
-            d = service.RectangularDefinition
-            count = int(round(d.XSpacing.NCopies.Value))
-            if lin.get("count2"):
-                count *= int(round(d.YSpacing.NCopies.Value))
-        else:
-            count = int(round(service.CircularDefinition.AngularSpacing.NCopies.Value))
-    readback.expect(count == total, "count", "NX built a different instance count", count=count)
-    bodies = list(hosts.values()) or common.feature_bodies(feature)
-    out = common.result_of(tx, feature, bodies)
-    if hosts:
-        common.changed(before, out["volume"], "differs")
-    return {**out, "count": count}
 
 
 # ---------------------------------------------------------------------------

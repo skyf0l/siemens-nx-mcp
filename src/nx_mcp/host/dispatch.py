@@ -125,7 +125,7 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     loaded = services.loaded()
     try:
         result = dict(handler(**params) or {})
-    except Exception as error:
+    except BaseException as error:  # a snippet's SystemExit is a failed call, not a host exit
         outcome = "rolled_back"
         try:
             services.undo_to(mark)

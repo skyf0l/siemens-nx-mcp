@@ -1,0 +1,164 @@
+{
+ "covers": {
+  "nx_create_emboss_body": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "t",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "t_c",
+   "args": {
+    "sketch": "$t.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$t.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "tgt",
+   "args": {
+    "sketch": "$t.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "k",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      6
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "k_c",
+   "args": {
+    "sketch": "$k.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       15,
+       5
+      ],
+      "corner2": [
+       25,
+       15
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$k.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "tool",
+   "args": {
+    "sketch": "$k.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_create_emboss_body",
+   "args": {
+    "target": "$tgt.data.bodies.0.id",
+    "tool_body": "$tool.data.bodies.0.id",
+    "clearance": 1
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7280,
+     "tol": 0.001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_emboss_body",
+   "args": {
+    "target": "$tgt.data.bodies.0.id",
+    "tool_body": "$tool.data.bodies.0.id",
+    "clearance": -1
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/clearance"
+   }
+  },
+  {
+   "call": "nx_create_emboss_body",
+   "args": {
+    "target": "$tgt.data.bodies.0.id",
+    "tool_body": "$tgt.data.bodies.0.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/tool_body"
+   }
+  }
+ ]
+}

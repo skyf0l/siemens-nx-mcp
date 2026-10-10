@@ -384,7 +384,7 @@ def run(spec, args, ctx: Context) -> dict:
         services.after_commit(spec)
         receipts.finish(record, envelope)
         return envelope
-    except Exception as exc:  # 15
+    except BaseException as exc:  # 15 (SystemExit/KeyboardInterrupt from a handler too)
         error = classify(exc)
         _remember_license(spec, raw_args, services, error)
         touched = bool(

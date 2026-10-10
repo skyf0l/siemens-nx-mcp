@@ -138,10 +138,13 @@ def collector(tx, objects, kind):
     return result
 
 
-def section(tx, sketch):
-    """A section over every curve of a sketch feature (profile of extrude/revolve)."""
+def section(tx, sketch, into=None):
+    """A section over every curve of a sketch feature (profile of extrude/revolve).
+
+    ``into`` fills a builder's own section (rib, tube) instead of a new one.
+    """
     part = tx.part
-    result = part.Sections.CreateSection()
+    result = part.Sections.CreateSection() if into is None else into
     options = part.ScRuleFactory.CreateRuleOptions()
     try:
         rule = part.ScRuleFactory.CreateRuleCurveFeature([sketch.Feature], None, options)
@@ -191,11 +194,11 @@ def fixed_plane(tx, origin, normal):
     )
 
 
-def curve_section(tx, objects, start=None):
+def curve_section(tx, objects, start=None, into=None):
     """A section over curves and edges (dumb rules) for loft, mesh, trim and bridge inputs.
 
     ``start`` (a work-part point) picks the section's start: NX chains from the end
-    nearest it. Distance and chaining tolerances are 0.001 mm in part units, so
+    nearest it. ``into`` fills a builder's own section instead of a new one. Distance and chaining tolerances are 0.001 mm in part units, so
     inch parts scale; the angle tolerance is 0.5 degrees.
     """
     objects = list(objects)
@@ -203,7 +206,12 @@ def curve_section(tx, objects, start=None):
         fail("NX_INVALID_ARGUMENT", "A section needs at least one curve")
     part = tx.part
     tolerance = units.part_tolerance(tx)
-    result = part.Sections.CreateSection(tolerance, tolerance, 0.5)
+    if into is None:
+        result = part.Sections.CreateSection(tolerance, tolerance, 0.5)
+    else:
+        result = into
+        result.DistanceTolerance = result.ChainingTolerance = tolerance
+        result.AngleTolerance = 0.5
     result.SetAllowedEntityTypes(tx.nx.Section.AllowTypes.OnlyCurves)
     edges = [o for o in objects if facts.is_edge(o)]
     curves = [o for o in objects if not facts.is_edge(o)]
