@@ -475,7 +475,7 @@ class InteractiveHost:
             MainThreadDispatcher,
         )
         from nx_mcp.host.services import NXServices
-        from nx_mcp.workspace import Workspace
+        from nx_mcp.workspace import Workspace, default_workspace
 
         self.session = NXOpen.Session.GetSession()
         self.nx = NXOpen
@@ -508,8 +508,7 @@ class InteractiveHost:
         self.resident = resident
         self.timer = None
         batch_descriptor = Path(os.environ.get("LOCALAPPDATA", "")) / "nx-mcp" / "bridge.json"
-        default_workspace = Path(os.environ.get("NX_MCP_WORKSPACE", r"D:\CAD\NX_MCP_WORKSPACE"))
-        if self.root.resolve() == default_workspace.resolve() and batch_descriptor.exists():
+        if self.root.resolve() == default_workspace().resolve() and batch_descriptor.exists():
             raise RuntimeError(
                 "Stop the batch bridge before attaching the interactive host to this workspace"
             )

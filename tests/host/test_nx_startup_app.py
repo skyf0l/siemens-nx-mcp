@@ -29,6 +29,11 @@ class FakeHost:
     def __init__(self, agent_control):
         self.mode, self.auto_start, self.stopped, self.ticks = "manual", agent_control, False, 0
         self.last_error = None
+        self.notice = None
+        self.panel = types.SimpleNamespace(hwnd=4242)
+
+    def _set_notice(self, text):
+        self.notice = text
 
     def tick(self):
         self.ticks += 1
@@ -154,3 +159,98 @@ def test_failing_restart_backs_off_records_once_and_gives_up(tmp_path, monkeypat
     clock["now"] += app.RESTART_BACKOFF_MAX
     app.tick()
     assert len(stops) == app.RESTART_ATTEMPTS
+
+
+JOURNAL = BOOTSTRAP.parents[1] / "journals" / "start_2406.py"
+
+
+def journal_ready(app, monkeypatch, started, fail=False):
+    """No Win32 timer window in tests: arm() only records its loader."""
+    monkeypatch.setattr(app, "purge_nx_mcp", lambda: None)
+    monkeypatch.setitem(sys.modules, "nx_mcp.interactive", fake_interactive(started, fail))
+    monkeypatch.setattr(app.importlib, "import_module", lambda name: sys.modules[name])
+    monkeypatch.setattr(app, "nx_has_main_window", lambda: True)
+    monkeypatch.setattr(app, "foreign_bootstrap_window", lambda: False)
+    shown = []
+    monkeypatch.setattr(app, "show_window", shown.append)
+
+    def arm(loader):
+        if not app.state["armed"]:
+            app.state.update(armed=True, loader=loader)
+
+    monkeypatch.setattr(app, "arm", arm)
+    return shown
+
+
+def test_journal_line_one_runs_in_the_resident_interpreter():
+    assert JOURNAL.read_text(encoding="utf-8").splitlines()[0] == "# nx: threaded"
+
+
+def test_play_starts_one_host_and_then_reports_it_running(tmp_path, monkeypatch):
+    app = load(tmp_path, monkeypatch)
+    started = []
+    shown = journal_ready(app, monkeypatch, started)
+    assert "started" in app.play() and started == [(True, True)]
+    host = app.state["host"]
+    report = app.play()  # A second play: no second bridge.
+    assert report == "NX MCP bridge is already running in this NX (started by the journal)."
+    assert started == [(True, True)] and app.state["host"] is host
+    assert host.notice == report and shown == [4242]  # Said on the panel, panel brought up.
+    host.stop()  # Stop bridge on the panel: playing again starts a fresh host.
+    assert "started" in app.play() and len(started) == 2 and app.state["host"] is not host
+
+
+def test_play_finds_the_host_of_the_startup_app(tmp_path, monkeypatch):
+    app = load(tmp_path, monkeypatch)
+    started = []
+    journal_ready(app, monkeypatch, started)
+    # Leave sys.modules as found: absent before the test, absent after it.
+    monkeypatch.setitem(sys.modules, app.MODULE_NAME, None)
+    monkeypatch.delitem(sys.modules, app.MODULE_NAME)
+    app.startup()  # NX loads the app at launch (under some name) ...
+    app.tick()  # ... and its timer starts the host once NX's window is up.
+    registered = sys.modules[app.MODULE_NAME]  # What start_2406.py imports.
+    assert registered.state is app.state
+    report = registered.play()
+    assert report.endswith("(started by the startup app).") and started == [(True, True)]
+
+
+def test_play_defers_to_a_bootstrap_in_another_interpreter(tmp_path, monkeypatch):
+    app = load(tmp_path, monkeypatch)
+    started = []
+    shown = journal_ready(app, monkeypatch, started)
+    monkeypatch.setattr(app, "foreign_bootstrap_window", lambda: True)
+    monkeypatch.setattr(app, "panel_windows", lambda: [7, 8])
+    assert "already running" in app.play()
+    assert not started and not app.state["armed"] and shown == [7, 8]
+
+
+def test_play_reports_a_host_that_cannot_start(tmp_path, monkeypatch):
+    app = load(tmp_path, monkeypatch)
+    started = []
+    journal_ready(app, monkeypatch, started, fail=True)
+    with pytest.raises(RuntimeError, match="bad edit"):
+        app.play()
+    assert "bad edit" in app.ERROR_FILE.read_text() and app.state["host"] is None
+
+
+def test_journal_plays_the_registered_bootstrap(monkeypatch, capsys):
+    import runpy
+
+    calls = []
+    fake = types.ModuleType("nx_mcp_startup")
+    fake.play = lambda: calls.append(1) or "already running"
+    monkeypatch.setitem(sys.modules, "nx_mcp_startup", fake)
+    runpy.run_path(str(JOURNAL))
+    assert calls == [1] and capsys.readouterr().out.strip() == "already running"
+
+
+def test_workspace_defaults_to_the_home_folder(tmp_path, monkeypatch):
+    from nx_mcp.workspace import default_workspace
+
+    monkeypatch.delenv("NX_MCP_WORKSPACE")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    spec = importlib.util.spec_from_file_location("nx_mcp_startup_home", BOOTSTRAP)
+    app = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(app)
+    assert app.WORKSPACE == str(default_workspace()) == str(tmp_path / "NX_MCP_WORKSPACE")

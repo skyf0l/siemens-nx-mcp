@@ -5,6 +5,10 @@ from <UGII_USER_DIR>/startup at launch, so no journal has to be played by hand.
 
     python scripts/dev_start_nx.py --user-dir C:\\path\\to\\nx_user_dir
     python scripts/dev_start_nx.py --wait 120   # wait until NX shows its main window
+
+NX inherits this environment: NX_MCP_WORKSPACE if set (else the hosts use
+<home>/NX_MCP_WORKSPACE, like the sidecar); --env NX_MCP_WORKSPACE=... overrides it.
+Without --user-dir no startup app loads; play nx_app/journals/start_2406.py instead.
 """
 
 import argparse

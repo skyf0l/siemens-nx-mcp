@@ -30,13 +30,18 @@ The NX side loads this checkout's `src` directory; it needs no `mcp` or `pydanti
 
 ## Start the NX side
 
-Set `NX_MCP_WORKSPACE` for NX to a dedicated CAD directory (for example
-`D:\NX_MCP_WORKSPACE`), then:
+NX and the sidecar must use the same workspace. Both default to
+`<home>\NX_MCP_WORKSPACE` (for example `C:\Users\<you>\NX_MCP_WORKSPACE`); set
+`NX_MCP_WORKSPACE` for both to use another directory. Then:
 
-- **NX 2406:** point NX at this checkout's `nx_app` folder once
+- **NX 2406, every session:** point NX at this checkout's `nx_app` folder once
   (`UGII_USER_DIR=<checkout>\nx_app`, or a line in `custom_dirs.dat`) and start NX
   normally. NX loads the startup application `nx_app/startup/nx_mcp_startup.py`
   and keeps it loaded; nothing is played.
+- **NX 2406, one session:** in an NX started without `nx_app`, play
+  `nx_app/journals/start_2406.py` (Alt+F8, Run). It starts the same host and panel
+  and returns; the bridge stays up until NX exits. Playing it again, or in an NX
+  that already runs the startup application, only reports that the bridge is running.
 - **NX 2606:** in graphical NX, play `nx_app/journals/start_2606.py`. It
   returns; a Win32 timer runs queued calls on the NX UI thread.
 - **Batch:** `nx_app/journals/start_batch.py` under `run_journal.exe`.
@@ -47,14 +52,14 @@ attach batch and graphical hosts to the same workspace.
 ## Configure the sidecar
 
 ```powershell
-$env:NX_MCP_WORKSPACE = 'D:\NX_MCP_WORKSPACE'
+$env:NX_MCP_WORKSPACE = 'C:\CAD\NX_MCP_WORKSPACE'  # optional: only if NX uses it too
 $env:NX_MCP_BRIDGE_DESCRIPTOR = Join-Path $env:LOCALAPPDATA 'nx-mcp\interactive-bridge.json'
 python -m nx_mcp.server
 ```
 
 | Variable | Meaning |
 | --- | --- |
-| `NX_MCP_WORKSPACE` | Required, same value for NX and sidecar. Every path must resolve inside it |
+| `NX_MCP_WORKSPACE` | Workspace shared by NX and the sidecar, default `<home>\NX_MCP_WORKSPACE`; set the same value for both or neither. Every path must resolve inside it |
 | `NX_MCP_BRIDGE_DESCRIPTOR` | Bridge descriptor written by the NX host (port, token, NX build) |
 | `NX_MCP_SURFACE` | `agent` (default): 4 gateways (`nx_find_tools`, `nx_get_tool_schemas`, `nx_invoke`, `nx_invoke_read`) plus 14 core tools. `full`: the gateways plus every catalogue tool tested on the connected build |
 | `NX_MCP_DEV` | `1` only in the development loop: untested tools become visible and callable |

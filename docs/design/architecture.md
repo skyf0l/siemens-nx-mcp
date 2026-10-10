@@ -21,7 +21,9 @@ NX know-how lives once in `kit/`, and evidence is machine-checked acceptance out
 
 - The sidecar imports without NX. NX-side code is stdlib only (no pydantic).
 - On NX 2406 the host is the startup app `nx_app/startup/nx_mcp_startup.py`: first line
-  `# nx: threaded`, ticked by a UI-thread timer, never holding NX's main loop.
+  `# nx: threaded`, ticked by a UI-thread timer, never holding NX's main loop. The
+  journal `nx_app/journals/start_2406.py` (also `# nx: threaded`) plays the same
+  bootstrap in an NX started without it and never starts a second bridge.
 - Undo/rollback, workspace checks on both process boundaries, version and evidence gating,
   and license mapping stay at least as strong as today.
 - There is no automatic hand-back of control, and all behaviour stays tested.

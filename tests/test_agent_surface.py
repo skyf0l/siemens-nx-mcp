@@ -80,12 +80,9 @@ async def test_discovery_paging_and_argument_errors(tmp_path):
     assert (await server.call_tool("missing", {})).isError
 
 
-def test_profile_validation(tmp_path, monkeypatch):
+def test_profile_validation(tmp_path):
     with pytest.raises(ValueError, match="NX_MCP_SURFACE"):
         create_server(AsyncMock(), Workspace(tmp_path), surface="typo")
-    monkeypatch.delenv("NX_MCP_WORKSPACE")
-    with pytest.raises(ValueError, match="NX_MCP_WORKSPACE"):
-        create_server(AsyncMock(), surface="agent")
 
 
 def test_dual_http_profiles(tmp_path, monkeypatch):

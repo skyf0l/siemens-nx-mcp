@@ -1,8 +1,8 @@
 """Run release acceptance serially against a live graphical NX session.
 
 Run only trusted source from a reviewed release. This never deploys or restarts NX.
-Requires NX_MCP_URL (the HTTP surface, for the session snapshots) and
-NX_MCP_WORKSPACE. The acceptance runner (``python -m nx_mcp.acceptance run``)
+Requires NX_MCP_URL (the HTTP surface, for the session snapshots); NX_MCP_WORKSPACE
+(default <home>/NX_MCP_WORKSPACE) must name the workspace NX serves. The acceptance runner (``python -m nx_mcp.acceptance run``)
 replays every scenario of acceptance/<domain>/ through a fresh stdio sidecar and
 writes its evidence under --output, never into the installed source tree. Stops at
 the first failed domain and retains all logs/evidence; no blind mutation retry, no
@@ -130,8 +130,6 @@ def main():
         raise RuntimeError(
             "Use a new output directory so receipts cannot be confused with an earlier run"
         )
-    if not os.environ.get("NX_MCP_WORKSPACE"):
-        raise RuntimeError("Set NX_MCP_WORKSPACE to the workspace the NX bridge serves")
     args.output.mkdir(parents=True)
     report = {"started": datetime.now(timezone.utc).isoformat(), "suites": [], "passed": False}
     source = Path(__file__).resolve().parents[1]

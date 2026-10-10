@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sys
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from nx_mcp.bridge import DescriptorBridgeClient
-from nx_mcp.workspace import Workspace
+from nx_mcp.workspace import Workspace, default_workspace
 
 logger = logging.getLogger("nx_mcp")
 
@@ -30,12 +28,9 @@ def create_server(
     """
     from nx_mcp.sidecar.server import install, profile_from_env
 
-    if workspace is None and (workspace_root := os.environ.get("NX_MCP_WORKSPACE")):
-        workspace = Workspace(Path(workspace_root))
     if workspace is None:
-        raise ValueError(
-            "Set NX_MCP_WORKSPACE to the CAD workspace directory shared with the NX bridge"
-        )
+        # The same default as the NX hosts: NX_MCP_WORKSPACE, else <home>/NX_MCP_WORKSPACE.
+        workspace = Workspace(default_workspace())
     profile = profile_from_env(surface)
     bridge = bridge or DescriptorBridgeClient()
     server = FastMCP("nx-mcp")

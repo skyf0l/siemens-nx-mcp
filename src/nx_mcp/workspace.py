@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path, PureWindowsPath
+
+WORKSPACE_ENV = "NX_MCP_WORKSPACE"
+
+
+def default_workspace() -> Path:
+    """The workspace NX and the sidecar share: NX_MCP_WORKSPACE, else <home>/NX_MCP_WORKSPACE.
+
+    Bootstraps that run before nx_mcp is importable use the same stdlib expression,
+    ``os.environ.get("NX_MCP_WORKSPACE") or str(Path.home() / "NX_MCP_WORKSPACE")``.
+    """
+    return Path(os.environ.get(WORKSPACE_ENV) or Path.home() / "NX_MCP_WORKSPACE")
 
 
 class WorkspaceViolation(ValueError):

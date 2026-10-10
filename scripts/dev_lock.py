@@ -58,10 +58,12 @@ def main() -> int:
     parser.add_argument(
         "--stale", type=float, default=20, help="minutes before a lock is abandoned"
     )
-    parser.add_argument("--workspace", default=os.environ.get("NX_MCP_WORKSPACE"))
+    # The default of nx_mcp.workspace.default_workspace(), without importing nx_mcp.
+    parser.add_argument(
+        "--workspace",
+        default=os.environ.get("NX_MCP_WORKSPACE") or str(Path.home() / "NX_MCP_WORKSPACE"),
+    )
     args = parser.parse_args()
-    if not args.workspace:
-        parser.error("set NX_MCP_WORKSPACE or pass --workspace")
     path = lock_path(args.workspace)
     path.parent.mkdir(parents=True, exist_ok=True)
     if args.action == "status":

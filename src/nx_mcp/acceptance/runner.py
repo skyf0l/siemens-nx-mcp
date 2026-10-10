@@ -52,6 +52,7 @@ from typing import Any
 from nx_mcp.acceptance import expect as expectations
 from nx_mcp.core import catalogue
 from nx_mcp.core import evidence as core_evidence
+from nx_mcp.workspace import default_workspace
 
 # The checkout (scenarios, fixtures, scripts/dev_lock.py); an installed release
 # points NX_MCP_SOURCE_ROOT at its source/ folder.
@@ -1026,7 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
     call_parser.add_argument("--keep", action="store_true", help="leave new parts loaded")
     for p in (run_parser, call_parser):
         p.add_argument("--owner", required=True, help="dev_lock.py owner")
-        p.add_argument("--workspace", default=os.environ.get("NX_MCP_WORKSPACE"))
+        p.add_argument("--workspace", default=str(default_workspace()))
     sub.add_parser("fold", help="build src/nx_mcp/evidence/<domain>.json from evidence files")
     args = parser.parse_args(argv)
     if args.command == "fold":
@@ -1039,8 +1040,6 @@ def main(argv: list[str] | None = None) -> int:
         for problem in problems:
             print("PROBLEM:", problem)
         return 1 if problems else 0
-    if not args.workspace:
-        parser.error("set NX_MCP_WORKSPACE or pass --workspace")
     workspace = Path(args.workspace).resolve()
     if args.command == "run":
         return asyncio.run(

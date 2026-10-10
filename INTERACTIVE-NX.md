@@ -1,6 +1,7 @@
 # Interactive NX MCP, NX 2406 and 2606
 
-On NX 2406 run the bridge as an NX startup application (next section). On NX 2606,
+On NX 2406 run the bridge as an NX startup application, or play
+`nx_app/journals/start_2406.py` in an NX started without it (next section). On NX 2606,
 play `nx_app/journals/start_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window has three mode buttons at the top (**Mode: (•) Auto ( ) Agent drives ( ) Ask me first**, see [Panel modes](#panel-modes)), the agent's activity, **Open log** and **Stop bridge**, and the **Allow agent to change <part>** checkbox when the work part is yours. Long native operations can temporarily block NX; a mode change and stopping take effect between calls.
 
 ## NX 2406: run the bridge as an NX startup application (recommended)
@@ -10,7 +11,7 @@ NX 2406 unloads a played Python journal's interpreter as soon as it returns
 once. Keeping a journal running instead holds
 NX's main loop inside a journal command: NX work that needs that loop - the
 first part of a fresh session (starting Modeling), the first PDF export - then
-waits forever and **NX freezes**. Do not use the resident journal for real work.
+waits forever and **NX freezes**. Never keep a journal running to host the bridge.
 
 Use the startup application instead: `nx_app/startup/nx_mcp_startup.py`. Its
 first line, `# nx: threaded`, makes NX keep the module loaded for the whole
@@ -25,11 +26,40 @@ Setup, once per machine:
    or, if `UGII_USER_DIR` is already used, add the folder as a line to your
    `custom_dirs.dat` (`UGII_CUSTOM_DIRECTORY_FILE`). NX loads
    `<folder>\startup\*.py` at launch.
-2. Set `NX_MCP_WORKSPACE` for NX (and the sidecar).
+2. NX and the sidecar must use the same workspace. Both default to
+   `<home>\NX_MCP_WORKSPACE`; set `NX_MCP_WORKSPACE` for both to use another one.
 3. Start NX normally. The **NX MCP control** panel appears once NX's main window
    is up; the host starts in Auto. Startup failures go to
    `<workspace>/.nx-mcp/resident-error.txt`.
 The bootstrap stays loaded until NX exits; **Stop bridge** stops the host.
+
+### NX 2406 without the startup application: play `start_2406.py`
+
+For an NX session started without `nx_app` (another user directory, a colleague's
+machine, one-off use), play `nx_app/journals/start_2406.py` once in graphical NX
+(**Alt+F8**, enter the file, **Run**). It runs the startup application's own code
+(`play()` in `nx_mcp_startup.py`): the host and panel start at once, the journal
+returns, and the bridge keeps running until NX exits or you press **Stop bridge**.
+
+Why this journal does not die or freeze: its first line is also `# nx: threaded`.
+NX 2406 runs such a journal in its main Python interpreter, which stays loaded
+for the whole session, so the timer it arms keeps ticking after it returns (a
+journal without that line runs in a sub-interpreter that NX unloads on return,
+and its timer never fires). Nothing keeps running inside the journal command, so
+the first Modeling start and the first PDF export work as with the startup app.
+Verified on NX 2406.9160: timer ticking 50 s after the journal returned, then a
+first Modeling session and a first PDF export in the same fresh session, no
+dialogs.
+
+Use the startup application when NX should always come up with the bridge; play
+the journal when NX was started without it. Both coexist: the journal finds the
+bootstrap the startup app (or an earlier play) loaded, and if its host is running
+it only shows the panel with `NX MCP bridge is already running in this NX
+(started by the startup app)`; it never starts a second bridge. After **Stop
+bridge**, playing the journal starts the host again. If the host cannot start,
+the journal fails with the error (also in `resident-error.txt`). The journal
+should also host NX 2606, which keeps journals loaded anyway, but that is not
+verified; on 2606 keep using `start_2606.py`.
 
 Closing the control panel stops the bridge and unlocks NX, leaving the application and parts open.
 

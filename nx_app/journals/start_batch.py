@@ -11,12 +11,11 @@ if source_root.is_dir():
     sys.path.insert(0, str(source_root))
 
 from nx_mcp.nx_bridge import pump_bridge, start_bridge, stop_bridge  # noqa: E402
+from nx_mcp.workspace import default_workspace  # noqa: E402
 
 
 def main() -> None:
-    workspace = os.environ.get("NX_MCP_WORKSPACE")
-    if not workspace:
-        raise RuntimeError("Set NX_MCP_WORKSPACE before starting the NX MCP bridge")
+    workspace = str(default_workspace())
     stop_file = os.environ.get("NX_MCP_BRIDGE_STOP_FILE")
     if not stop_file:
         raise RuntimeError(

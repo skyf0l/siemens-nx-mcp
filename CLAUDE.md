@@ -19,9 +19,11 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
   parts_files, sketch, modeling, freeform, assembly, inspection, drawing,
   sheet_metal, display).
 - `host/dispatch.py` -> `core/kernel.py`, with `host/services.py` (`NXServices`).
-  Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406), `nx_app/journals/start_2606.py`
-  (2606), `nx_app/journals/start_batch.py` (batch, `nx_bridge.py`); `interactive.py` is the
-  UI-thread host and panel.
+  Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406 startup app; `nx_app/journals/start_2406.py`
+  plays the same bootstrap), `nx_app/journals/start_2606.py` (2606),
+  `nx_app/journals/start_batch.py` (batch, `nx_bridge.py`); `interactive.py` is the
+  UI-thread host and panel. Workspace: `NX_MCP_WORKSPACE`, else `<home>/NX_MCP_WORKSPACE`
+  (`workspace.default_workspace()`); NX and the sidecar must use the same one.
 - `sidecar/`: `server.py` generates the `agent` profile (default: 4 gateways + 14 core
   tools, 18 in all) and `full` (gateways + every visible catalogue tool); `proxy.py`,
   `gateways.py`, `schema.py`, `local.py`, `artifacts.py`.
@@ -64,9 +66,14 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 
 NX 2406 runs the host as the startup application `nx_app/startup/nx_mcp_startup.py`;
 its first line `# nx: threaded` keeps it loaded for the session and a UI-thread timer
-ticks the host. Keep that line first. Never hold NX's main loop in a long-running
-journal: NX work that needs the loop (first Modeling start, first PDF export) then
-freezes NX (the old resident 2406 journals did exactly that and were removed).
+ticks the host. Keep that line first. In an NX started without `nx_app`, play
+`nx_app/journals/start_2406.py`: also `# nx: threaded` first (NX then runs it in its
+main interpreter, which outlives the journal; without the line it runs in a
+sub-interpreter unloaded on return), it calls the same bootstrap's `play()` and only
+reports "already running" when the startup app or an earlier play hosts the bridge.
+Never hold NX's main loop in a long-running journal: NX work that needs the loop
+(first Modeling start, first PDF export) then freezes NX (the old resident 2406
+journals did exactly that and were removed).
 
 ## Live NX development loop
 

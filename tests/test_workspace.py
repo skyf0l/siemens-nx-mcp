@@ -53,3 +53,52 @@ def test_symlink_cannot_escape_workspace(tmp_path):
         pytest.skip("Symlinks require host privileges")
     with pytest.raises(WorkspaceViolation):
         Workspace(root).resolve("escape/outside.prt")
+
+
+ROOT = Path(__file__).resolve().parents[1]
+# Bootstraps that run before nx_mcp is importable repeat default_workspace() verbatim.
+STDLIB_DEFAULT = 'os.environ.get("NX_MCP_WORKSPACE") or str(Path.home() / "NX_MCP_WORKSPACE")'
+STDLIB_USERS = ["nx_app/startup/nx_mcp_startup.py", "scripts/dev_lock.py", "scripts/dev_reload.py"]
+IMPORT_USERS = [
+    "src/nx_mcp/server.py",
+    "src/nx_mcp/interactive.py",
+    "src/nx_mcp/acceptance/runner.py",
+    "scripts/bench/common.py",
+    "nx_app/journals/start_2606.py",
+    "nx_app/journals/start_batch.py",
+]
+
+
+def test_default_workspace_is_the_variable_else_the_home_folder(tmp_path, monkeypatch):
+    from nx_mcp.workspace import default_workspace
+
+    monkeypatch.setenv("NX_MCP_WORKSPACE", str(tmp_path / "set"))
+    assert default_workspace() == tmp_path / "set"
+    monkeypatch.delenv("NX_MCP_WORKSPACE")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    assert default_workspace() == tmp_path / "NX_MCP_WORKSPACE"
+
+
+@pytest.mark.parametrize("variable", ["set", None])
+def test_every_host_script_and_the_sidecar_share_the_default(tmp_path, monkeypatch, variable):
+    import os
+
+    from nx_mcp.workspace import default_workspace
+
+    if variable:
+        monkeypatch.setenv("NX_MCP_WORKSPACE", str(tmp_path / variable))
+    else:
+        monkeypatch.delenv("NX_MCP_WORKSPACE")
+    for name in STDLIB_USERS:
+        assert STDLIB_DEFAULT in (ROOT / name).read_text(encoding="utf-8"), name
+    assert Path(eval(STDLIB_DEFAULT, {"os": os, "Path": Path})) == default_workspace()
+    for name in IMPORT_USERS:
+        assert "default_workspace()" in (ROOT / name).read_text(encoding="utf-8"), name
+
+
+def test_no_drive_specific_workspace_defaults():
+    sources = [*(ROOT / "src").rglob("*.py"), *(ROOT / "scripts").rglob("*.py")]
+    sources += [*(ROOT / "nx_app").rglob("*.py")]
+    for source in sources:
+        text = source.read_text(encoding="utf-8")
+        assert r"D:\CAD" not in text and r"D:\NX_MCP_WORKSPACE" not in text, source

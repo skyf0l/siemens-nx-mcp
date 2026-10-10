@@ -112,7 +112,16 @@ async def test_removed_profile_flags_have_no_effect(monkeypatch: pytest.MonkeyPa
     assert not {"nx_run_journal", "nx_record_start", "nx_record_stop"} & names
 
 
-def test_server_requires_a_workspace(monkeypatch: pytest.MonkeyPatch):
+def test_server_defaults_to_the_home_workspace(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    from nx_mcp.sidecar import server as sidecar_server
+
+    installed = []
+    monkeypatch.setattr(
+        sidecar_server,
+        "install",
+        lambda server, bridge, workspace, *a, **k: installed.append(workspace),
+    )
     monkeypatch.delenv("NX_MCP_WORKSPACE")
-    with pytest.raises(ValueError, match="NX_MCP_WORKSPACE"):
-        create_server(StubBridge(), surface="full")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    create_server(StubBridge(), surface="full")
+    assert installed[0].root == (tmp_path / "NX_MCP_WORKSPACE").resolve()

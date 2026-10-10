@@ -23,12 +23,14 @@ def read_json(path: Path):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workspace", default=os.environ.get("NX_MCP_WORKSPACE"))
+    # The default of nx_mcp.workspace.default_workspace(), without importing nx_mcp.
+    parser.add_argument(
+        "--workspace",
+        default=os.environ.get("NX_MCP_WORKSPACE") or str(Path.home() / "NX_MCP_WORKSPACE"),
+    )
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--wait-agent", action="store_true", help="also wait for agent control")
     args = parser.parse_args()
-    if not args.workspace:
-        parser.error("set NX_MCP_WORKSPACE or pass --workspace")
     state_dir = Path(args.workspace) / ".nx-mcp"
     state_file = state_dir / "dev-state.json"
     before = read_json(state_file)

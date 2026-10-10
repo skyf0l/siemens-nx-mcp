@@ -12,13 +12,14 @@ import sys
 from pathlib import Path
 
 from nx_mcp.bridge import DescriptorBridgeClient
+from nx_mcp.workspace import default_workspace
 
 HERE = Path(__file__).resolve().parent
 DESCRIPTOR = os.environ.get(
     "NX_MCP_BRIDGE_DESCRIPTOR",
     str(Path(os.environ["LOCALAPPDATA"]) / "nx-mcp" / "interactive-bridge.json"),
 )
-WORKSPACE = Path(os.environ.get("NX_MCP_WORKSPACE", r"C:\Users\testuser\NX_MCP_WORKSPACE"))
+WORKSPACE = default_workspace()
 SMOKE = "smoke/bench_control"
 OUT = WORKSPACE / SMOKE / "results"
 
