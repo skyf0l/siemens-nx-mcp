@@ -337,13 +337,16 @@ class ControlPanel:
         """Place the controls in a width x height client area (WM_SIZE)."""
         if not hasattr(self, "stop"):
             return  # WM_SIZE while CreateWindowEx builds the window
+        self._client = (width, height)
         move = self.user.MoveWindow
         right = max(width - PAD_RIGHT, MIN_CLIENT[0] - PAD_RIGHT)
         buttons = max(height - 12 - 28, MIN_CLIENT[1] - 12 - 28)
         move(self.mode_label, 12, 12, 48, 20, True)
         move(self.radios["auto"], 66, 8, 72, 24, True)
         move(self.radios["ask"], 144, 8, 124, 24, True)
-        list_height = buttons - 28 - 4 - 38
+        # The grant checkbox row is reserved only while it shows (show_grant).
+        grant_row = 28 if getattr(self, "_grant", None) is not None else 0
+        list_height = buttons - grant_row - 8 - 38
         move(self.label, 12, 38, right - 12, list_height, True)
         move(self.grant, 12, buttons - 28, right - 12, 22, True)
         move(self.run_once, 12, buttons, 110, 28, True)
@@ -416,7 +419,10 @@ class ControlPanel:
         """Show the "Allow agent to change <part>" checkbox, or hide it (None)."""
         if grant == getattr(self, "_grant", None):
             return
+        shown_before = getattr(self, "_grant", None) is not None
         self._grant = grant
+        if (grant is not None) != shown_before and hasattr(self, "_client"):
+            self._layout(*self._client)  # the list gives or takes the checkbox row
         if grant is None:
             self.user.ShowWindow(self.grant, 0)
             return
