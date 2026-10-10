@@ -19,8 +19,8 @@ Environment:
                        the sidecar's default too: nx_mcp.workspace.default_workspace)
   NX_MCP_UI_DESCRIPTOR bridge descriptor path (default %LOCALAPPDATA%/nx-mcp/interactive-bridge.json)
   NX_MCP_SRC           nx_mcp source root (default: ../../src next to this folder)
-  NX_MCP_DEV=1         development behaviour: the agent gets control without a
-                       click, the host reloads from disk on <workspace>/.nx-mcp/dev-restart
+  NX_MCP_DEV=1         development behaviour: the panel says "NX MCP DEV", the host
+                       reloads from disk on <workspace>/.nx-mcp/dev-restart
                        (scripts/dev_reload.py) and nx_dev_python is available.
 This module is the only code NX keeps loaded; nx_mcp is imported from disk by it.
 """
@@ -61,7 +61,6 @@ state = {
     "armed": False,
     "host": None,
     "generation": 0,
-    "agent_control": DEV,
     "retired": [],  # Old hosts keep native callback delegates alive until NX exits.
     "keep": [],  # This module's own native delegates.
     "busy": False,
@@ -208,7 +207,6 @@ def start_host():
             WORKSPACE,
             DESCRIPTOR,
             resident=True,  # Ticked by this module, not by a timer of its own.
-            agent_control=state["agent_control"],
             dev=DEV,
             driver="startup",
         )
@@ -218,22 +216,19 @@ def start_host():
         if missing:
             host.last_error = "NXOpen namespaces not importable: " + "; ".join(missing)
         ERROR_FILE.unlink(missing_ok=True)
-        write_state(running=True, ok=True, agent_control=state["agent_control"], error=None)
+        write_state(running=True, ok=True, error=None)
     except Exception as exc:
         state["host"] = None
         with contextlib.suppress(OSError):
             STATE_DIR.mkdir(parents=True, exist_ok=True)
             ERROR_FILE.write_text(traceback.format_exc(), encoding="utf-8")
-        write_state(running=True, ok=False, agent_control=state["agent_control"], error=str(exc))
+        write_state(running=True, ok=False, error=str(exc))
 
 
 def restart_host():
     host = state["host"]
-    if host is not None:
-        # Keep the engineer's choice: after "Take control back" stay with them.
-        state["agent_control"] = host.mode == "agent" or bool(getattr(host, "auto_start", False))
-        if not host.stopped:
-            host.stop()
+    if host is not None and not host.stopped:
+        host.stop()  # The new host keeps the panel mode (ui-mode.json).
     start_host()
 
 
@@ -250,7 +245,7 @@ def restart_failed(exc):
         # Give up on this request; scripts/dev_reload.py sees a failed generation.
         RESTART_FILE.unlink(missing_ok=True)
         state["generation"] += 1
-        write_state(running=True, ok=False, agent_control=state["agent_control"], error=message)
+        write_state(running=True, ok=False, error=message)
         state["restart_failures"], state["restart_after"] = 0, 0.0
         state["restart_error"] = None
         return
@@ -311,7 +306,7 @@ def arm(loader):
     )
     state["hwnd"] = hwnd
     user32.SetTimer(hwnd, 1, TICK_MS, None)
-    write_state(running=True, ok=True, agent_control=state["agent_control"], error=None, armed=True)
+    write_state(running=True, ok=True, error=None, armed=True)
 
 
 def register():

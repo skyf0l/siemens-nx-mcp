@@ -1,8 +1,8 @@
 """Session status and operation receipts (tool-surface 3.1).
 
 ``nx_get_status`` replaces ``nx_status`` and ``nx_workspace_info``: NX build,
-bridge state, panel mode, work/display part, workspace rules and the running
-operation. It answers without waiting behind a running NX step: the interactive
+bridge state, panel mode (``auto`` or ``ask``: only the engineer changes it on the
+NX MCP panel), work/display part, workspace rules and the running operation. It answers without waiting behind a running NX step: the interactive
 host answers it on the bridge worker from its UI-thread snapshot while a step
 runs (:func:`envelope_from_snapshot`), and the sidecar answers it itself when the
 bridge is down (:func:`offline_envelope`, bridge ``unavailable``).
@@ -27,7 +27,6 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Text
-from nx_mcp.domains.session.control import ControlData, control_data
 from nx_mcp.kit import files, parts, result
 
 SECTIONS = ("bridge", "parts", "control", "workspace", "operation")
@@ -44,6 +43,31 @@ RULES = {
     "reserved": ".nx-mcp (internal state; never read or written by tools)",
     "current_directory": "none: pass explicit paths on every call",
 }
+
+
+MODE_LABELS = {"auto": "Auto", "ask": "Ask me first"}
+
+
+class ControlData(TypedDict):
+    mode: str  # the NX MCP panel mode: auto or ask
+    mode_label: str  # the panel's name for the mode: Auto or Ask me first
+    busy: bool  # the engineer is in an NX command or dialog
+    waiting: int  # agent calls waiting for the engineer's answer (Ask me first)
+    activity: str  # running, waiting_for_answer, waiting_for_engineer_command or idle
+    running: str | None  # the agent call running now
+
+
+def control_data(status: dict) -> ControlData:
+    """The control section from the interactive host's status (or its snapshot)."""
+    mode = str(status.get("mode") or "")
+    return {
+        "mode": mode,
+        "mode_label": MODE_LABELS.get(mode, mode),
+        "busy": bool(status.get("engineer_busy")),
+        "waiting": int(status.get("waiting_for_engineer") or 0),
+        "activity": str(status.get("activity") or "idle"),
+        "running": status.get("running_method") or None,
+    }
 
 
 class BridgeInfo(TypedDict):
@@ -242,9 +266,10 @@ def offline_envelope(root, error: dict, params: dict, *, build=None) -> dict:
         "work part",
         "workspace root",
         "panel mode",
+        "ask me first",
         "is nx busy",
     ),  # fmt: skip
-    cost="instant",
+    cost="light",
     example={"include": ["bridge", "parts"]},
 )
 def nx_get_status(
@@ -255,7 +280,8 @@ def nx_get_status(
 ) -> StatusData:
     """NX build, bridge state, panel mode, work and display part, workspace root and rules.
     Also the running operation; answers while NX runs a step (from a snapshot) and
-    when the bridge is down. Panel modes: auto, agent (Agent drives), ask."""
+    when the bridge is down. Panel mode: auto or ask (Ask me first); only the engineer
+    changes it."""
     services = tx.services
     status = services.control_status()
     session_parts = services.session.Parts
@@ -320,7 +346,7 @@ def _record(tx: Tx, operation: str) -> dict:
         "batch progress",
         "retry safely",
     ),  # fmt: skip
-    cost="instant",
+    cost="light",
     runs="sidecar",
     example={"operation": "op_0123456789abcdef"},
 )
@@ -355,7 +381,7 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
     label="Cancel operation",
     summary="Cancel operation {operation}",
     keywords=("cancel", "stop batch", "abort operation", "interrupt", "stop running call"),
-    cost="instant",
+    cost="light",
     runs="sidecar",
     example={"operation": "op_0123456789abcdef"},
 )

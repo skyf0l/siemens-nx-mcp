@@ -138,7 +138,7 @@ def nx_undo_operation(tx: Tx) -> UndoData:
     summary='Create undo checkpoint "{label}"',
     keywords=("checkpoint", "save point", "undo point", "restore point", "snapshot model"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"label": "before fillets"},
 )
 def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointData:
@@ -163,7 +163,7 @@ def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointDa
     label="List checkpoints",
     summary="List undo checkpoints",
     keywords=("checkpoints", "undo history", "undo depth", "restore points"),
-    cost="instant",
+    cost="light",
     example={},
 )
 def nx_list_checkpoints(tx: Tx) -> CheckpointsData:

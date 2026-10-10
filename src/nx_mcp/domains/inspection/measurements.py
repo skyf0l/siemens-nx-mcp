@@ -143,7 +143,7 @@ def _direction(tx, obj, kind, field):
     summary="Angle {first} to {second}",
     keywords=("angle between", "measure angle", "inclination", "perpendicular check"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"first": "fc:12", "second": "fc:14"},
 )
 def nx_measure_angle(

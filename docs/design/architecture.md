@@ -26,7 +26,8 @@ NX know-how lives once in `kit/`, and evidence is machine-checked acceptance out
   bootstrap in an NX started without it and never starts a second bridge.
 - Undo/rollback, workspace checks on both process boundaries, version and evidence gating,
   and license mapping stay at least as strong as today.
-- There is no automatic hand-back of control, and all behaviour stays tested.
+- The panel has two modes, Auto (default, also in development) and Ask me first; only the
+  engineer changes the mode, no tool does, and all behaviour stays tested.
 
 ---
 
@@ -124,7 +125,7 @@ imports every package in `domains/`. A *derived* field is never written by hand.
 | `variants` | decorator | discriminator field (`"method"`) or a map to sub-schemas (`#flange`) |
 | `refresh_annotations` | decorator; default true for `model` tools in geometry domains | run the managed-annotation refresh after a commit |
 | `invalidates` | decorator; default `"topology"` | `"topology"`: face and edge refs of touched parts go stale. `"deleted"`: only deleted objects (datums, annotations, display) |
-| `cost` | decorator | `instant`, `light`, `heavy` or `long` (3.3) |
+| `cost` | decorator | `light` (default), `heavy` or `long` (3.3) |
 | `runs` | decorator; default `"nx"` | `"sidecar"` for workspace and result tools that never reach NX |
 | `example` | decorator | one minimal argument set, returned by `nx_get_tool_schemas` |
 | `handler` | the decorated function | called as `handler(tx, **converted_args)` |
@@ -234,7 +235,7 @@ and expressions), `material.py`, `hooks.py`.
 | Package | Modules |
 |---|---|
 | `host/` (NX) | `dispatch.py`: every bridge call goes to the kernel (`execute`), panel summaries come from `spec`, the part grant (`grant_state`/`set_grant`). `services.py`: `NXServices` (work part, snapshots, undo marks, receipts, object registry, ownership, update-error cleanup) |
-| NX hosts | `interactive.py`: UI-thread host (timer tick, Win32 panel with the three modes and the "Allow agent to change <part>" grant, holds); `activity.py`: panel history and `.nx-mcp/activity.log`; `nx_bridge.py`: batch lifecycle. Bootstraps: `nx_app/startup/nx_mcp_startup.py` (2406), `nx_app/journals/start_2606.py`, `nx_app/journals/start_batch.py` |
+| NX hosts | `interactive.py`: UI-thread host (timer tick, Win32 panel with the two modes (Auto, Ask me first) and the "Allow agent to change <part>" grant, holds); `activity.py`: panel history and `.nx-mcp/activity.log`; `nx_bridge.py`: batch lifecycle. Bootstraps: `nx_app/startup/nx_mcp_startup.py` (2406), `nx_app/journals/start_2606.py`, `nx_app/journals/start_batch.py` |
 | Bridge | `bridge.py`: descriptor, authenticated loopback server and client (protocol, token and the 1 MiB limit); `result_transport.py`: bounded receipts with pageable full results |
 | `sidecar/` | `server.py`: `create_server()`/`install()`, profile from `NX_MCP_SURFACE`. `agent` (default) lists 4 gateways + 14 core tools; `full` lists the gateways and every visible catalogue tool, with `readOnlyHint`/`destructiveHint` from `effect`. `schema.py`: core types -> Pydantic and JSON Schema. `proxy.py`: validates, resolves paths and calls the bridge. `local.py`: `runs="sidecar"` tools. `gateways.py`: `nx_find_tools` (ranked, filtered by evidence for the descriptor's build), `nx_get_tool_schemas`, `nx_invoke`, `nx_invoke_read`. `artifacts.py`: result snapshots and the `nx-artifact://` resource. `http_surface.py` (top level): optional HTTP transport |
 | `acceptance/` | `runner.py` replays `acceptance/<domain>/*.json` through a real stdio MCP client (the production path). Fixtures in `acceptance/fixtures/` are saved in NX 2406 and copied to `smoke/<agent>/`. Every `expect` is machine-checked. A passing run writes `src/nx_mcp/evidence/<domain>.json` for the connected build |
@@ -415,7 +416,7 @@ always reports `not_started`.
 | 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. `.nx-mcp` is reserved; `new` must not exist, `read` must exist, and `save` may write only the part's own file |
 | 3 | Evidence/version | S (build from the descriptor), N · C | The tool and the value of its variant field must be tested on the connected build. On an unknown build only `read` and `view` tools run. A refusal is `unavailable/NX_VERSION_UNSUPPORTED`. Listings show only what runs: untested variants leave the schema enum, `tool#variant` schemas and `nx_find_tools`, and a tool with no variant left is hidden; before NX connects listings assume the default build (v2406) and say so, and a change sends `tools/list_changed`. `NX_MCP_DEV=1` still offers untested variants, marked. A tested tool/variant that failed with `NX_LICENSE_UNAVAILABLE` is remembered for the NX session: refused before NX ("remembered from <time>") and hidden via `nx_get_status` `bridge.license_unavailable` until NX restarts |
 | 4 | `requires` | N · C | Read-only state checks (`NX_NO_WORK_PART`, `NX_SKETCH_ACTIVE`, `NX_WRONG_APPLICATION`, ...) whose hint names the tool to run. They run before the hold, so the engineer is never asked to approve a request that cannot succeed, and again after it |
-| 5 | Engineer control hold | N (host) | While the engineer has control, the request waits; the panel card shows `spec.summary` and the agent's `intent`. **Give control** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` and `nx_set_control(mode=manual)` skip the hold, and batch children inherit the parent's control. Control changes only by the engineer's click or the agent's explicit `nx_set_control(manual)`, so agents may hold it for hours. One exception: a host fault that cannot restore the UI lock releases NX, and the panel says so |
+| 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`); **Run once** or **Run & switch to Auto** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. Only the engineer changes the mode; no tool does |
 | 6 | Part ownership | N · C | In production, `model` and `file` effects and `nx_close_part` may change only parts the agent created, opened when they were not already loaded, or was granted by the engineer on the panel. The work part is checked first. After the handler, any non-owned part whose `IsModified` flipped forces a rollback. Error: `engineer_control/NX_PART_NOT_GRANTED`. Off with `NX_MCP_DEV=1` |
 | 7 | Receipt | N | Every non-`read` effect gets a fingerprint of tool plus canonical arguments. The same id with the same arguments replays the committed result (`replayed: true`); different arguments give `NX_IDEMPOTENCY_CONFLICT`. Children write progress into the parent's receipt |
 | 8 | Undo mark | N | `model` only: a visible mark `NX MCP: <label>`. Children share the parent's mark; a preview's mark is always undone |
@@ -465,8 +466,7 @@ Handlers never set undo marks, write receipts or touch the panel.
 
 | Cost | Typical tools | Kernel behaviour |
 |---|---|---|
-| `instant` | registry and state reads | none |
-| `light` | sketch curves, datums, annotations | allowed in a batch |
+| `light` | registry and state reads, sketch curves, datums, annotations | allowed in a batch (model tools); the panel says only "running" |
 | `heavy` | builders, model update | one call each; the panel says "NX may pause" |
 | `long` | translators, PDF, assembly-wide checks | may outlast the 120 s bridge wait. The sidecar then returns `unknown` with `retry: after_status_check`, and the agent polls `nx_get_operation` |
 
@@ -515,7 +515,7 @@ other name lists are deleted. The plan and the per-step as-built notes are in
 - **View rollback.** `view` handlers record what they change with `tx.display.keep*`; a failure
   restores it. `restorable=True` returns a `restore_id`.
 - **Long operations.** `tx.checkpoint(done, total)` reports progress, honours cancellation and
-  enforces the budget per cost class (instant/light 30 s, heavy 300 s, long 1800 s).
+  enforces the budget per cost class (light 30 s, heavy 300 s, long 1800 s).
 - **Compact schemas.** Listings omit reference and unit patterns (gate 1 checks them); repeated
   subschemas move to `$defs`. Budgets are enforced by `tests/sidecar/test_budget.py`.
 - **No NX prompts.** `host/dispatch.execute` runs every call under `services.quiet()`
@@ -561,7 +561,7 @@ other name lists are deleted. The plan and the per-step as-built notes are in
    test.
 5. **Live NX.**
    - Take `scripts/dev_lock.py acquire --owner <agent>`, then run
-     `scripts/dev_reload.py --wait-agent`, then `dev_lock.py release`. Keep each session under
+     `scripts/dev_reload.py --wait-ready`, then `dev_lock.py release`. Keep each session under
      15 minutes.
    - Look up builder members with `scripts/dev_python.py`.
    - Use disposable parts under `smoke/<agent>/` only. Never modify, save or close parts you

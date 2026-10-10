@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/status_operations.json",
-  "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
+  "scenario_sha256": "157f92d3ba8b68a08309448cf459e5bdc9176abe28a8e72f39473687e72af4df",
   "domain": "session",
   "covers": {
     "nx_get_status": [],
@@ -11,11 +11,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_status": "af76bb65ab297478321765c286ddcd393b0c96a4657298805cb5e25df53b9709",
-    "nx_get_operation": "af76bb65ab297478321765c286ddcd393b0c96a4657298805cb5e25df53b9709",
-    "nx_cancel_operation": "af76bb65ab297478321765c286ddcd393b0c96a4657298805cb5e25df53b9709"
+    "nx_get_status": "83c194567c1bd16b333ef49b10dc6d133d05da76ab659dd2add9c6a76bb4f770",
+    "nx_get_operation": "83c194567c1bd16b333ef49b10dc6d133d05da76ab659dd2add9c6a76bb4f770",
+    "nx_cancel_operation": "83c194567c1bd16b333ef49b10dc6d133d05da76ab659dd2add9c6a76bb4f770"
   },
-  "recorded": "2026-10-10T13:11:42Z",
+  "recorded": "2026-10-10T14:12:28Z",
   "passed": true,
   "checks": 38,
   "failed_checks": 0,

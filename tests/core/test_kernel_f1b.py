@@ -217,7 +217,6 @@ def test_budget_overrun_is_cancelled_and_rolls_back(svc, monkeypatch):
 
 def test_budget_defaults_follow_the_cost_classes():
     assert tx_module.COST_BUDGET_SECONDS == {
-        "instant": 30.0,
         "light": 30.0,
         "heavy": 300.0,
         "long": 1800.0,

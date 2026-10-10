@@ -71,12 +71,12 @@ protect the HTTP endpoint, so it refuses non-loopback addresses unless
 
 ## Working with the engineer
 
-The NX MCP control panel has three modes: **Auto** (default; you keep working,
-each agent step takes NX only while it runs and waits while you are in a command),
-**Agent drives** (NX stays locked for the agent until you switch) and **Ask me
-first** (every step waits for your answer). The agent may change only parts it
-created or opened, or a work part you grant with **Allow agent to change <part>**.
-Control is never handed back automatically. See [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
+The NX MCP control panel has two modes: **Auto** (default, also in development;
+you keep working, each agent step takes NX only while it runs, waits while you are
+in a command or dialog, and never runs under a modal NX dialog) and **Ask me
+first** (every step waits for your answer). Only you change the mode; no tool does.
+The agent may change only parts it created or opened, or a work part you grant with
+**Allow agent to change <part>**. See [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 
 ## Calls, references and recovery
 

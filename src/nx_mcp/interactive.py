@@ -12,14 +12,18 @@ where they were set up.
 Every bridge call runs through ``host.dispatch`` and the catalogue kernel with the
 host's ``NXServices`` (``self.services``).
 
-Panel modes (the radio buttons on the NX MCP panel):
+Panel modes (the two radio buttons on the NX MCP panel; only the engineer changes
+them):
 
-- ``auto``: the engineer works in NX. Each agent call takes NX for itself only
-  (NX's main window is disabled, no ``UI.LockAccess``), runs and gives NX back.
-  Reads never wait; other calls wait while the engineer is busy in an NX
-  command (``engineer_busy``), at most BUSY_WAIT_SECONDS. Long steps ask first.
-- ``agent`` ("Agent drives"): NX input stays locked for the agent between calls.
-- ``ask`` ("Ask me first"): every call waits for the engineer's answer.
+- ``auto`` ("Auto", the default): the engineer works in NX. Each agent call takes
+  NX for itself only (NX's main window is disabled, no ``UI.LockAccess``), runs
+  and gives NX back. Reads never wait; other calls wait silently while the
+  engineer is busy in an NX command or dialog (``engineer_busy``), at most
+  BUSY_WAIT_SECONDS, and a non-read call is refused while a modal NX dialog is
+  open (``NX_MODAL_DIALOG_OPEN``). No request card: long steps simply run.
+- ``ask`` ("Ask me first", alias ``manual``): every call but the status read waits
+  for the engineer's answer on the request card (Run once, Run & switch to Auto,
+  Not now).
 
 Requests wake the host at once: the listening socket posts FD_ACCEPT to the
 panel window (``WSAAsyncSelect``), which runs a tick right away. NX holds
@@ -51,13 +55,9 @@ BUSY_WAIT_SECONDS = 120
 PANEL_ROWS = 8  # Panel body lines: running/idle line or request card, then history.
 NOTICE_SECONDS = 30  # A notice replaces the idle line this long.
 
-MODES = ("auto", "agent", "ask")
-MODE_LABELS = {"auto": "Auto", "agent": "Agent drives", "ask": "Ask me first"}
-# How much control a mode gives the agent. The agent may lower it itself; only
-# the engineer can raise it (a request to raise it waits for the panel's answer).
-_RANK = {"ask": 0, "auto": 1, "agent": 2}
-MODE_ALIASES = {"manual": "ask"}  # nx_set_control(mode="manual") = hand NX back
-CONTROL_TOOL = "nx_set_control"  # the panel-mode tool (domains/session/control.py)
+MODES = ("auto", "ask")
+MODE_LABELS = {"auto": "Auto", "ask": "Ask me first"}
+MODE_ALIASES = {"manual": "ask"}  # the old name of Ask me first
 STATUS_TOOL = "nx_get_status"  # the status read (domains/session/status.py)
 
 # Panel window messages: the bridge's listening socket has a connection
@@ -87,51 +87,14 @@ def _model_unchanged(method):
 
 
 def _running_tail(method):
-    """Catalogue tools of cost instant/light do not pause NX noticeably (arch. 3.3)."""
+    """Catalogue tools of cost light do not pause NX noticeably (arch. 3.3)."""
     from nx_mcp.host.dispatch import cost_of
 
-    return " — running" if cost_of(method) in ("instant", "light") else " — running, NX may pause"
-
-
-def _long(method):
-    """Catalogue cost class "long": Auto asks the engineer before running it."""
-    from nx_mcp.host.dispatch import cost_of
-
-    return cost_of(method) == "long"
-
-
-def runs_under_ui_lock(method):
-    """Agent drives keeps NX's UI lock during these calls (no per-call unlock and
-    relock): reads, and catalogue view/model steps that open no file and create no
-    part. Everything else runs unlocked as before: FileNew inside LockAccess can
-    strand NX's UI lock (seen on NX 2606), and part loads may need it too."""
-    from nx_mcp.host.dispatch import catalogue_spec
-
-    spec = catalogue_spec(method)
-    if spec is None:
-        return False
-    if spec.effect == "read":
-        return True
-    return spec.effect in ("model", "view") and not spec.paths and not spec.new_part
+    return " — running" if cost_of(method) == "light" else " — running, NX may pause"
 
 
 def _span(seconds):
     return f"{seconds // 60} minutes" if seconds >= 120 else f"{seconds} s"
-
-
-def control_target(params):
-    """The mode an nx_set_control call asks for ("status" for a read)."""
-    mode = params.get("mode", "status")
-    return MODE_ALIASES.get(mode, mode)
-
-
-def runs_while_engineer_has_control(pending):
-    """Status reads and handing NX back never wait for the engineer."""
-    if pending.method == STATUS_TOOL:
-        return True
-    if pending.method == CONTROL_TOOL:
-        return control_target(pending.params) in ("status", "ask")
-    return False
 
 
 def remembered_mode(state_dir):
@@ -207,7 +170,7 @@ def nx_main_window():
 
 # Panel control IDs.
 ID_STOP, ID_DECLINE, ID_OPEN_LOG, ID_GRANT, ID_RUN_ONCE, ID_RUN_AUTO = 103, 104, 105, 106, 107, 108
-ID_MODES = {111: "auto", 112: "agent", 113: "ask"}
+ID_MODES = {111: "auto", 113: "ask"}
 ANSWERS = {ID_RUN_ONCE: "run_once", ID_RUN_AUTO: "run_auto", ID_DECLINE: "decline"}
 
 
@@ -297,13 +260,12 @@ class ControlPanel:
                 0, cls_name, text, style, x, y, width, height, self.hwnd, ident, None, None
             )
 
-        # Mode: (•) Auto ( ) Agent drives ( ) Ask me first. BS_RADIOBUTTON (not
-        # auto): a click only asks for the mode; the host sets the check marks.
+        # Mode: (•) Auto ( ) Ask me first. BS_RADIOBUTTON (not auto): a click
+        # only asks for the mode; the host sets the check marks.
         mode_label = control("STATIC", "Mode:", 0x50000000, 12, 12, 48, 20)
         self.radios = {
             "auto": control("BUTTON", "Auto", 0x50010004, 66, 8, 72, 24, 111),
-            "agent": control("BUTTON", "Agent drives", 0x50000004, 144, 8, 118, 24, 112),
-            "ask": control("BUTTON", "Ask me first", 0x50000004, 268, 8, 124, 24, 113),
+            "ask": control("BUTTON", "Ask me first", 0x50000004, 144, 8, 124, 24, 113),
         }
         # One list, newest first: the running step (or idle line / request card) on
         # top, then recent activity. The title says the mode and what the agent does.
@@ -376,8 +338,7 @@ class ControlPanel:
 
     def update(self, text, title=None, mode=None, card=None):
         """Body text, window title, the checked mode, and the request card's buttons:
-        None (no card), "ask" (Run once, Run & switch to Auto, Not now) or "auto"
-        (Run once, Not now)."""
+        None (no card) or "ask" (Run once, Run & switch to Auto, Not now)."""
         state = (text, title, mode, card)
         if state == getattr(self, "_text", None):
             return
@@ -391,9 +352,7 @@ class ControlPanel:
                 self.user.SendMessageW(radio, 0xF1, 1 if name == mode else 0, 0)  # BM_SETCHECK
         if card != previous[3]:
             self.user.ShowWindow(self.run_once, 5 if card else 0)
-            self.user.ShowWindow(self.run_auto, 5 if card == "ask" else 0)
-            # "Not now" closes the gap when "Run & switch to Auto" is hidden.
-            self.user.MoveWindow(self.decline, 304 if card == "ask" else 128, 234, 110, 28, True)
+            self.user.ShowWindow(self.run_auto, 5 if card else 0)
             self.user.ShowWindow(self.decline, 5 if card else 0)
             self.user.ShowWindow(self.open_log, 0 if card else 5)
         # Paint only this panel before native work. Never pump arbitrary NX
@@ -428,7 +387,6 @@ class InteractiveHost:
     resident = False
     timer = None
     mode = "auto"
-    auto_start = False  # Read by the startup app on a dev reload; the mode file wins.
     requested_mode = None
     answer_requested = None
     # The request card: calls waiting for the engineer's answer.
@@ -442,19 +400,14 @@ class InteractiveHost:
     simulated_busy = False  # Development seam: makes engineer_busy() true.
     notice = None
     notice_until = None
-    handover_error = None
     open_log_requested = False
     grant_toggle_requested = False
     current_summary = None
     current_intent = None
     current_started_at = None
-    idle_since = None
-    recap = None
     window_disabled = False
-    owns_lock = False
     _activity = None
     _light = False  # A call runs with NX taken for that call only (Auto, approved).
-    _control_approved = False  # The engineer approved an nx_set_control call.
     _engineer_had_nx = True  # The engineer could edit since the agent's last call.
     _has_fingerprint = False
     _fingerprint = None
@@ -492,7 +445,6 @@ class InteractiveHost:
         self.stop_file.unlink(missing_ok=True)
         self.mode = "auto"
         self.requested_mode = None
-        self.owns_lock = False
         self.busy = False
         self.stop_requested = False
         self.stopped = False
@@ -518,7 +470,7 @@ class InteractiveHost:
             nx_bridge.detect_nx_version(self.session),
             Workspace(self.root),
         )
-        self.services.host = self  # nx_set_control and nx_get_status reach the panel
+        self.services.host = self  # nx_get_status reports the panel mode
         token = secrets.token_hex(32)
         progress = threading.Event()  # Set by bridge workers: a call queued or answered.
         self.dispatcher = MainThreadDispatcher(
@@ -647,10 +599,6 @@ class InteractiveHost:
         # Bridge-worker health reads use an immutable UI-thread snapshot only.
         # They must not wait behind the native operation they are diagnosing.
         snapshot = getattr(self, "_snapshot", None)
-        if method == CONTROL_TOOL and control_target(params) == "status" and snapshot:
-            from nx_mcp.domains.session.control import envelope_from_snapshot
-
-            return envelope_from_snapshot(snapshot, params)
         if method == STATUS_TOOL and snapshot and snapshot.get("running_method"):
             from nx_mcp.domains.session import status
 
@@ -780,8 +728,7 @@ class InteractiveHost:
             if self.waiting_intent:
                 lines.append(f"   “{self.waiting_intent}”  (agent's note)")
             left = max(0, int(HOLD_SECONDS - (time.monotonic() - self.waiting_since)))
-            why = "This step can take long. " if self.mode == "auto" else ""
-            lines.append(f"{why}Answer within {left} s. Finish your current NX command first.")
+            lines.append(f"Answer within {left} s. Finish your current NX command first.")
             return "\n".join(lines)
         if self.busy_wait is not None:
             pending = self.busy_wait
@@ -792,24 +739,11 @@ class InteractiveHost:
             if intent:
                 lines.append("    " + _clip(f"“{intent}”", LINE_WIDTH - 4))
             return self._with_history(lines)
-        first = self.handover_error or self._notice_line()
-        if self.mode == "agent":
-            if not self.owns_lock:
-                idle = "⏸  Waiting until you finish your command, then NX is locked for the agent"
-            elif self.idle_since:
-                since = time.strftime("%H:%M", time.localtime(self.idle_since))
-                idle = f"·  Idle since {since} — waiting for the agent's next request"
-            else:
-                idle = "·  Waiting for the agent's first request"
-            return self._with_history([first or idle])
-        if self.mode == "auto":
-            idle = "·  Auto — you work in NX, agent steps run between your commands"
-        else:
+        if self.mode == "ask":
             idle = "·  Ask me first — agent steps wait for your OK here"
-        lines = [first or idle]
-        if self.recap:
-            lines.append(self.recap)
-        return self._with_history(lines)
+        else:
+            idle = "·  Auto — you work in NX, agent steps run between your commands"
+        return self._with_history([self._notice_line() or idle])
 
     def panel_state(self):
         """Body text, window title, the checked mode and the request card's buttons."""
@@ -824,9 +758,8 @@ class InteractiveHost:
             title = f"{product} — {label} · agent waiting for you"
         else:
             title = f"{product} — {label}"
-        card = None
-        if self.waiting_count and not self.requested_mode:
-            card = "ask" if self.mode == "ask" else "auto"
+        # Only Ask me first holds calls for an answer: Auto never shows a card.
+        card = "ask" if self.waiting_count and not self.requested_mode else None
         return self.panel_text(), title, self.requested_mode or self.mode, card
 
     def status(self):
@@ -837,8 +770,6 @@ class InteractiveHost:
             activity = "waiting_for_answer"
         elif waiting_command:
             activity = "waiting_for_engineer_command"
-        elif self.mode == "agent":
-            activity = "reserved_idle" if self.owns_lock else "reserving"
         else:
             activity = "idle"
         return {
@@ -861,12 +792,9 @@ class InteractiveHost:
             "sampled_at": time.time(),
             "snapshot_only": False,
             "pause_semantics": "between operations; does not interrupt a native call",
-            "reserved_for_agent": bool(self.mode == "agent" and self.owns_lock),
-            "ui_locked_by_bridge": self.owns_lock,
             "actual_ui_lock": self.ui.AskLockStatus() == self.nx.UI.Status.Lock,
             "native_lock_value": str(self.ui.AskLockStatus()),
             "can_open_part": self.ui.CanOpenPart(),
-            "last_unlock": getattr(self, "last_unlock", None),
             "nx_window_input_enabled": bool(self.user.IsWindowEnabled(self.main_hwnd)),
             "engineer_busy": self.engineer_busy(),
             "main_thread_id": self.native_thread,
@@ -889,59 +817,18 @@ class InteractiveHost:
             "driver": self.driver,
         }
 
-    # -- control ---------------------------------------------------------------
+    # -- panel mode ------------------------------------------------------------
 
-    def control(self, mode="status", *, by_engineer=False):
-        """Report or switch the panel mode. Lowering the agent's control never fails:
-        NX is released before any bookkeeping."""
+    def set_mode(self, mode):
+        """The engineer picked a panel mode (a radio button or "Run & switch to Auto").
+        The choice is kept across development reloads (ui-mode.json)."""
         if threading.get_ident() != self.thread:
-            raise RuntimeError("UI control called off NX thread")
+            raise RuntimeError("UI mode change called off NX thread")
         mode = MODE_ALIASES.get(mode, mode)
-        if mode != "status":
-            if mode not in MODES:
-                raise NXError(
-                    "NX_INVALID_ARGUMENT", "mode must be status, auto, agent or ask (manual = ask)"
-                )
-            previous = self.mode
-            self.handover_error = None
-            if previous == "agent" and mode != "agent":
-                # Release first: the engineer gets NX back even if the bookkeeping
-                # below fails. Nothing on this path raises.
-                self._release_to_engineer()
-                self._engineer_had_nx = True
-                self._end_agent_session()
-            self.mode = mode
-            if mode == "agent" and previous != "agent":
-                self.activity.start_session()
-                self.idle_since = time.time()
-                self.recap = None
-                self.notice = None
-            if mode == "agent":
-                self._reserve_if_free()  # Pending while the engineer is busy in NX.
-            if by_engineer:
-                self._remember_mode(mode)
-        try:
-            return self.status()
-        except Exception as exc:
-            self._record_release_error("Status after mode change", exc)
-            return {"interactive": True, "mode": self.mode, "last_error": self.last_error}
-
-    def agent_control(self, mode):
-        """nx_set_control from the agent: it may lower its control, never raise it
-        unless the engineer approved the request on the panel."""
-        target = MODE_ALIASES.get(mode, mode)
-        if (
-            target in _RANK
-            and _RANK[target] > _RANK.get(self.mode, 0)
-            and not self._control_approved
-        ):
-            raise NXError(
-                "NX_CONTROL_PAUSED",
-                "Only the engineer can give the agent more control of NX. Ask them in chat "
-                "to pick the mode on the NX MCP panel.",
-                details={"mutation_outcome": "not_started"},
-            )
-        return self.control(target)
+        if mode not in MODES:
+            raise NXError("NX_INVALID_ARGUMENT", "mode must be auto or ask (manual = ask)")
+        self.mode = mode
+        self._remember_mode(mode)
 
     def _remember_mode(self, mode):
         try:
@@ -955,52 +842,14 @@ class InteractiveHost:
         message = f"{step}: {exc}"
         self.last_error = message if not self.last_error else self.last_error + "; " + message
 
-    def _reserve_if_free(self):
-        """Agent drives: lock NX input for the agent unless the engineer is busy."""
-        if self.owns_lock and self.window_disabled:
-            return True
-        if not self.owns_lock and self.engineer_busy():
-            return False
-        try:
-            if not self.owns_lock:
-                self.ui.LockAccess()
-                self.owns_lock = True
-            if not self.window_disabled:
-                self.user.EnableWindow(self.main_hwnd, False)
-                self.window_disabled = True
-        except Exception as exc:
-            self.last_error = "Cannot lock NX for the agent: " + str(exc)
-            self._release_to_engineer()
-            return False
-        return True
-
     def _release_to_engineer(self):
-        """Re-enable NX's window and drop the bridge's UI lock; never raises."""
+        """Re-enable NX's main window after a call; never raises."""
         if self.window_disabled:
             try:
                 self.user.EnableWindow(self.main_hwnd, True)
                 self.window_disabled = False
             except Exception as exc:
                 self._record_release_error("Cannot re-enable the NX window", exc)
-        if self.owns_lock:
-            before = None
-            try:
-                before = str(self.ui.AskLockStatus())
-            except Exception as exc:
-                self._record_release_error("Cannot read the NX UI lock", exc)
-            try:
-                self.ui.UnlockAccess()
-                self.owns_lock = False
-            except Exception as exc:
-                self._record_release_error("Cannot unlock NX", exc)
-            try:
-                self.last_unlock = {
-                    "before": before,
-                    "after": str(self.ui.AskLockStatus()),
-                    "can_open_part": self.ui.CanOpenPart(),
-                }
-            except Exception as exc:
-                self._record_release_error("Cannot read the NX UI lock", exc)
 
     def _take_light(self):
         """Take NX for one call: disable its main window (no LockAccess). Returns
@@ -1017,27 +866,6 @@ class InteractiveHost:
             self._record_release_error("Cannot disable the NX window", exc)
             return False
 
-    def _end_agent_session(self):
-        """After Agent drives: clear highlights and recap; errors are recorded, never raised."""
-        if hasattr(self.services, "clear_highlights"):
-            try:
-                self.services.clear_highlights()
-            except Exception as exc:
-                self._record_release_error("Cannot clear highlights", exc)
-        try:
-            self.recap = self.activity.session_recap()
-        except Exception as exc:
-            self._record_release_error("Activity recap", exc)
-
-    def _lose_reservation(self, reason):
-        """A host fault that cannot keep NX locked gives NX back and says so."""
-        self._release_to_engineer()
-        if self.mode == "agent":
-            self.mode = "ask"
-            self._engineer_had_nx = True
-            self._end_agent_session()
-            self._set_notice("NX MCP gave NX back to you (Ask me first): " + reason)
-
     # -- engineer activity -----------------------------------------------------
 
     def busy_signals(self):
@@ -1050,9 +878,8 @@ class InteractiveHost:
             except Exception:
                 signals[name] = False
 
-        if not self.owns_lock:  # Our own lock says nothing about the engineer.
-            probe("ui_locked", lambda: self.ui.AskLockStatus() == self.nx.UI.Status.Lock)
-            probe("command_active", lambda: not self.ui.CanOpenPart())
+        probe("ui_locked", lambda: self.ui.AskLockStatus() == self.nx.UI.Status.Lock)
+        probe("command_active", lambda: not self.ui.CanOpenPart())
         if not self.window_disabled:  # A modal dialog disables NX's main window.
             probe("modal_dialog", lambda: not self.user.IsWindowEnabled(self.main_hwnd))
         probe("menu_or_drag", self._gui_thread_busy)
@@ -1172,10 +999,9 @@ class InteractiveHost:
 
         if threading.get_ident() != self.thread:
             raise RuntimeError("NX request called off registering UI thread")
-        if method in (CONTROL_TOOL, STATUS_TOOL):  # never waits for the engineer
+        if method == STATUS_TOOL:  # never waits for the engineer
             return dispatch.execute(self.services, method, params)
-        reserved = self.mode == "agent" and self.owns_lock
-        if not (reserved or self._light):
+        if not self._light:
             raise NXError(
                 "NX_CONTROL_PAUSED",
                 "The engineer has NX and has not approved this step. Ask them to answer "
@@ -1193,11 +1019,6 @@ class InteractiveHost:
                 details={"mutation_outcome": "not_started"},
             )
         self._check_engineer_change()
-        if reserved and not runs_under_ui_lock(method):
-            # FileNew must not run inside LockAccess: NX v2606 can strand its
-            # internal UI lock. The disabled main window reserves user input while
-            # native operations execute on this same UI thread.
-            self.ui.UnlockAccess()
         self.last_method = method
         self.running_method = method
         self.operation_started = time.monotonic()
@@ -1214,7 +1035,7 @@ class InteractiveHost:
                 self.publish()
             except Exception as exc:
                 self.last_error = "UI status publication failed: " + str(exc)
-            watch = self._watch_dialogs(refuse=reserved and not _read_only(method))
+            watch = self._watch_dialogs(refuse=not _read_only(method))
             result = dispatch.execute(self.services, method, params)
             self._report_dialogs(result, watch.stop())
             watch = None
@@ -1235,8 +1056,8 @@ class InteractiveHost:
         except BaseException as raised:
             problem = raised
             if not isinstance(raised, Exception):
-                # SystemExit, KeyboardInterrupt...: an error result for this call only.
-                # Escaping to tick() would drop the panel mode to Ask me first.
+                # SystemExit, KeyboardInterrupt...: an error result for this call only,
+                # never an escape into NX's message loop.
                 problem = NXError(
                     "NX_BUILD_FAILED",
                     f"{type(raised).__name__} raised by {method}: {raised}",
@@ -1267,17 +1088,7 @@ class InteractiveHost:
             self.running_method = None
             self.operation_started = None
             self.current_summary = self.current_intent = self.current_started_at = None
-            self.idle_since = time.time()
             self._remember_model()
-            if reserved:
-                # Agent drives: NX stays locked between calls. Relock after an
-                # unlocked call, or a call that dropped the lock itself.
-                try:
-                    if self.ui.AskLockStatus() != self.nx.UI.Status.Lock:
-                        self.ui.LockAccess()
-                except Exception as exc:
-                    self.last_error = "Cannot restore agent UI reservation: " + str(exc)
-                    self._lose_reservation("NX could not be locked again after a step.")
             try:
                 self.publish()
             except Exception as exc:
@@ -1290,15 +1101,17 @@ class InteractiveHost:
     def _watch_dialogs(self, refuse=False):
         """Watch for modal NX dialogs a call opens; ``refuse`` a call while one is open.
 
-        Refused only where a dialog is unexpected: a model or view step in Agent drives,
-        where NX input is locked, so the engineer cannot have opened it. In Auto and Ask
-        me first the busy wait decides (an engineer's dialog delays such steps up to
-        BUSY_WAIT_SECONDS); reads are never refused because of a dialog.
+        Every non-read call is refused (``NX_MODAL_DIALOG_OPEN``, nothing started) when
+        a modal NX dialog is open as it starts. The busy wait came first: an engineer's
+        command or dialog delays the call up to BUSY_WAIT_SECONDS (``engineer_busy``);
+        this scan is the last check after the host took NX, so a dialog that opened in
+        between, or one the busy probes miss (a dialog owned by another NX window), can
+        never have a model, view or file step run under it. Reads are never refused.
         """
         from nx_mcp.host import dialogs
 
         def scan():
-            # NX's main window disabled by the host (Agent drives) proves no modality.
+            # NX's main window disabled by the host for this call proves no modality.
             disabled = (self.main_hwnd,) if getattr(self, "window_disabled", False) else ()
             return dialogs.scan(host_disabled=disabled)
 
@@ -1393,13 +1206,13 @@ class InteractiveHost:
             if self.stop_requested or self.stop_file.exists():
                 self.stop()
                 return
-            before = (self.mode, self.owns_lock, self.waiting_count)
+            before = (self.mode, self.waiting_count)
             if self.requested_mode:
                 mode, self.requested_mode = self.requested_mode, None
                 try:
-                    self.control(mode, by_engineer=True)
+                    self.set_mode(mode)
                 except NXError as exc:
-                    self.last_error = self.handover_error = str(exc)
+                    self.last_error = str(exc)
             if self.open_log_requested:
                 self.open_log_requested = False
                 self._open_log()
@@ -1407,8 +1220,6 @@ class InteractiveHost:
                 self.grant_toggle_requested = False
                 self._toggle_grant()
             self._apply_answer()
-            if self.mode == "agent" and not self.owns_lock:
-                self._reserve_if_free()
             self._let_bridge_run(ARRIVAL_BUDGET)
             ran = self._schedule()
             if ran:
@@ -1419,11 +1230,7 @@ class InteractiveHost:
                 except Exception as exc:
                     self.last_error = "UI status snapshot failed: " + str(exc)
                 self._let_bridge_run(REPLY_BUDGET)
-            if (
-                ran
-                or self.ticks % 10 == 0
-                or before != (self.mode, self.owns_lock, self.waiting_count)
-            ):
+            if ran or self.ticks % 10 == 0 or before != (self.mode, self.waiting_count):
                 # The status snapshot answers health reads: keep it current once NX
                 # is released after a step and when the mode changes.
                 try:
@@ -1436,7 +1243,7 @@ class InteractiveHost:
             self.last_error = str(exc)
             # Last-resort native callback cleanup must not escape.
             with contextlib.suppress(BaseException):
-                self._lose_reservation("NX MCP hit an internal error: " + str(exc)[:80])
+                self._release_to_engineer()
         finally:
             self.busy = False
             if ran or self._rewake:
@@ -1447,23 +1254,12 @@ class InteractiveHost:
     # -- scheduling ------------------------------------------------------------
 
     def _never_waits(self, pending):
-        """Status reads and mode changes that do not give the agent more control."""
-        if pending.method == STATUS_TOOL:
-            return True
-        if pending.method == CONTROL_TOOL:
-            target = control_target(pending.params)
-            return target not in _RANK or _RANK[target] <= _RANK.get(self.mode, 0)
-        return False
+        """The status read never waits: not for a card, not for a busy engineer."""
+        return pending.method == STATUS_TOOL
 
     def _needs_answer(self, pending):
-        """Waits for the engineer's answer on the request card."""
-        if pending.approved:
-            return False
-        if pending.method == CONTROL_TOOL:
-            return True  # Only control raises reach here (_never_waits).
-        if self.mode == "ask":
-            return True
-        return self.mode == "auto" and _long(pending.method)
+        """Waits for the engineer's answer on the request card: Ask me first only."""
+        return self.mode == "ask" and not pending.approved
 
     def _schedule(self):
         """Run at most one agent call; True when one ran."""
@@ -1478,13 +1274,6 @@ class InteractiveHost:
         for pending in held:
             if pending.seen_at is None:
                 pending.seen_at = now
-        if self.mode == "agent":
-            self._clear_waiting()
-            if not self._reserve_if_free():
-                return self._wait_for_engineer(held)
-            self.busy_wait = None
-            first = held[0]
-            return bool(self.dispatcher.drain_where(lambda p: p is first))
         card = [p for p in held if self._needs_answer(p)]
         if card:
             self._show_card(card)  # May expire the card: those calls are answered.
@@ -1502,8 +1291,6 @@ class InteractiveHost:
         if self._needs_answer(first) or first.complete.is_set():
             self.busy_wait = None
             return False  # Calls run in order: the rest waits behind the card.
-        if first.method == CONTROL_TOOL:
-            return self._run_approved_control(first)
         if not _read_only(first.method) and self.engineer_busy():
             return self._wait_for_engineer([first])
         self.busy_wait = None
@@ -1511,8 +1298,7 @@ class InteractiveHost:
 
     def _unasked_read(self, pending):
         return (
-            pending.method != CONTROL_TOOL
-            and not pending.complete.is_set()
+            not pending.complete.is_set()
             and _read_only(pending.method)
             and not self._needs_answer(pending)
         )
@@ -1529,13 +1315,6 @@ class InteractiveHost:
             if took:
                 self._release_to_engineer()
             self._engineer_had_nx = True
-
-    def _run_approved_control(self, pending):
-        try:
-            self._control_approved = True
-            return bool(self.dispatcher.drain_where(lambda p: p is pending))
-        finally:
-            self._control_approved = False
 
     def _wait_for_engineer(self, pending_calls):
         """The engineer is busy in NX: wait, at most BUSY_WAIT_SECONDS per call."""
@@ -1606,7 +1385,7 @@ class InteractiveHost:
             pending.approved = True
         self._clear_waiting()
         if answer == "run_auto":
-            self.control("auto", by_engineer=True)
+            self.set_mode("auto")
 
     def _clear_waiting(self):
         self.card = ()
@@ -1699,11 +1478,7 @@ class InteractiveHost:
     def stop(self):
         from nx_mcp.bridge import BridgeDescriptor
 
-        try:
-            self.control("ask")
-        except Exception as exc:
-            self._record_release_error("Handover on stop", exc)
-            self._release_to_engineer()
+        self._release_to_engineer()  # NX's window is never left disabled.
         self.stopped = True
         # Each teardown step runs even if an earlier one fails.
         for step, action in (
@@ -1723,13 +1498,10 @@ class InteractiveHost:
             pass
 
 
-def start(
-    workspace, descriptor_path, resident=False, *, agent_control=None, dev=False, driver=None
-):
+def start(workspace, descriptor_path, resident=False, *, dev=False, driver=None):
     """Start the host. The panel mode is the one last chosen in this NX process
-    (kept across development reloads), else Agent drives when agent_control is
-    True (default: in the development loop) and Auto otherwise. dev marks the
-    panel of the development loop. driver names what ticks the host: "timer"
+    (kept across development reloads), else Auto, in production and in the
+    development loop alike. dev marks the panel of the development loop. driver names what ticks the host: "timer"
     (its own Win32 timer), "journal" (a resident journal loop) or "startup" (an
     NX startup application); resident hosts default to "journal"."""
     global _host
@@ -1749,10 +1521,8 @@ def start(
             candidate.panel.close()
         _retired.append(candidate)
         raise
-    if agent_control is None:
-        agent_control = dev
     state_dir = getattr(candidate, "state_dir", None)
-    mode = (state_dir and remembered_mode(state_dir)) or ("agent" if agent_control else "auto")
+    mode = (state_dir and remembered_mode(state_dir)) or "auto"
     candidate.mode = mode
     candidate._remember_mode(mode)
     candidate.dev = dev

@@ -219,7 +219,7 @@ def _faces(obj):
     ),
     keywords=("highlight", "select", "clear highlights", "emphasize", "point out"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"objects": ["fc:88"]},
 )
 def nx_set_highlight(

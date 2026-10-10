@@ -125,7 +125,7 @@ def _size(value) -> int:
         "snapshot",
         "truncated",
     ),  # fmt: skip
-    cost="instant",
+    cost="light",
     runs="sidecar",
     example={"result_id": "result_0123456789abcdef0123456789abcdef", "field": "/data/curves"},
 )
@@ -196,7 +196,7 @@ def nx_get_result(
         "free disk space",
         "retention",
     ),  # fmt: skip
-    cost="instant",
+    cost="light",
     runs="sidecar",
     example={"dry_run": True, "max_age_seconds": 86400},
 )

@@ -36,7 +36,7 @@ from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwra
 
 Effect = Literal["read", "view", "model", "file", "session"]
 EFFECTS: tuple[str, ...] = typing.get_args(Effect)
-COSTS = ("instant", "light", "heavy", "long")
+COSTS = ("light", "heavy", "long")
 REQUIRES = ("work_part", "no_active_sketch", "drawing_sheet", "assembly", "interactive")
 APPLICATIONS = ("modeling", "sheet_metal", "drafting")
 VERBS = frozenset(
@@ -459,8 +459,8 @@ def make_spec(
         if missing:
             problems.append(f"summary names unknown parameters {missing}")
     # Admission rules.
-    if batchable and (effect != "model" or cost not in ("instant", "light")):
-        problems.append("batchable requires effect 'model' and cost instant/light")
+    if batchable and (effect != "model" or cost != "light"):
+        problems.append("batchable requires effect 'model' and cost light")
     if previewable and effect != "model":
         problems.append("previewable requires effect 'model'")
     if restorable and effect != "view":

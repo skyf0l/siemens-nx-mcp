@@ -249,7 +249,7 @@ def nx_activate_part(
         + "parts in NX"
     ),
     keywords=("open parts", "loaded parts", "session parts", "modified parts", "part list"),
-    cost="instant",
+    cost="light",
     example={"modified": True},
 )
 def nx_list_parts(

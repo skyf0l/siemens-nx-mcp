@@ -16,11 +16,10 @@ from tests.unit.parts_files.support import side
 
 def panel_status(running=None, operation_id=None):
     return {
-        "mode": "agent",
-        "reserved_for_agent": True,
+        "mode": "auto",
         "engineer_busy": False,
         "waiting_for_engineer": 0,
-        "activity": "running" if running else "reserved_idle",
+        "activity": "running" if running else "idle",
         "running_method": running,
         "running_operation_id": operation_id,
         "operation_elapsed_seconds": 2.5 if running else None,
@@ -56,10 +55,14 @@ def test_status_reads_the_panel_mode_and_filters_sections(monkeypatch):
     monkeypatch.setattr(services(nx), "control_status", panel_status, raising=False)
     ok = run(nx, "nx_get_status", include=["control", "bridge"])
     assert set(ok.data) == {"control", "bridge"}
-    assert (
-        ok.data["control"]["mode_label"] == "Agent drives"
-        and ok.data["control"]["owner"] == "agent"
-    )
+    assert ok.data["control"] == {
+        "mode": "auto",
+        "mode_label": "Auto",
+        "busy": False,
+        "waiting": 0,
+        "activity": "idle",
+        "running": None,
+    }
     assert ok.data["bridge"]["interactive"] is True
 
 

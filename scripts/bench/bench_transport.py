@@ -1,7 +1,6 @@
 """3b. Where the non-NX part of a call's latency goes: socket, worker thread, tick.
 
-Measures client latency of the worker-thread-only snapshot read
-(nx_set_control status: never touches the UI thread) and of nx_get_status (one tick),
+Measures client latency of a bare TCP connect and of nx_get_status (one tick),
 and records inside NX when the bridge worker thread enqueues each request relative
 to the UI-thread ticks (does the worker only get the GIL while a tick runs?).
 
@@ -81,7 +80,6 @@ async def series(n):
     c = client()
     out = {
         "tcp connect only (127.0.0.1)": [],
-        "nx_set_control status (worker thread only)": [],
         "nx_get_status (one UI tick)": [],
     }
     for _ in range(n):
@@ -89,9 +87,6 @@ async def series(n):
         r, w = await asyncio.open_connection(desc["host"], desc["port"])
         out["tcp connect only (127.0.0.1)"].append((pc() - t) * 1000)
         w.close()
-        t = pc()
-        await c.call("nx_set_control", {"mode": "status"})
-        out["nx_set_control status (worker thread only)"].append((pc() - t) * 1000)
         t = pc()
         await c.call("nx_get_status", {})
         out["nx_get_status (one UI tick)"].append((pc() - t) * 1000)

@@ -64,6 +64,7 @@ def _named(fn, name):
         (lambda: ok_tool, {"keywords": ("a",)}, "keywords"),
         (lambda: ok_tool, {"summary": "Blend {radius}"}, "unknown parameters"),
         (lambda: ok_tool, {"batchable": True, "cost": "heavy"}, "batchable"),
+        (lambda: ok_tool, {"cost": "instant"}, "unknown cost"),  # merged into light
         (lambda: ok_tool, {"previewable": True, "effect": "file"}, "previewable"),
         (lambda: ok_tool, {"variants": "size"}, "Literal"),
         (lambda: ok_tool, {"example": {"size": "3 deg", "edges": ["e:1"]}}, "example"),
@@ -224,3 +225,9 @@ def test_variant_of_uses_the_default_of_an_omitted_variant_field():
     assert s.variant_of({"size": 1, "kind": "a"}) == "a"
     required = spec(nx_create_by, variants="method", example={"method": "a", "p": {"size": 2}})
     assert required.variant_of({}) is None
+
+
+def test_cost_classes_are_light_heavy_and_long():
+    """``instant`` was merged into ``light``: both had the same budget and panel text."""
+    assert catalogue.COSTS == ("light", "heavy", "long")
+    assert {s.cost for s in catalogue.load().values()} <= set(catalogue.COSTS)

@@ -26,8 +26,8 @@ def load(tmp_path, monkeypatch, dev=True):
 
 
 class FakeHost:
-    def __init__(self, agent_control):
-        self.mode, self.auto_start, self.stopped, self.ticks = "manual", agent_control, False, 0
+    def __init__(self):
+        self.mode, self.stopped, self.ticks = "auto", False, 0
         self.last_error = None
         self.notice = None
         self.panel = types.SimpleNamespace(hwnd=4242)
@@ -37,11 +37,9 @@ class FakeHost:
 
     def tick(self):
         self.ticks += 1
-        if self.auto_start:
-            self.mode, self.auto_start = "agent", False
 
     def stop(self):
-        self.mode, self.stopped = "manual", True
+        self.stopped = True
 
 
 def fake_interactive(started, fail=False):
@@ -49,12 +47,12 @@ def fake_interactive(started, fail=False):
     module._host = None
     module.import_nxopen_namespaces = lambda: []
 
-    def start(workspace, descriptor, resident, *, agent_control, dev, driver):
+    def start(workspace, descriptor, resident, *, dev, driver):
         if fail:
             raise SyntaxError("bad edit")
         assert resident and driver == "startup"
-        module._host = FakeHost(agent_control)
-        started.append((dev, agent_control))
+        module._host = FakeHost()
+        started.append(dev)
 
     module.start = start
     return module
@@ -77,12 +75,12 @@ def test_host_starts_once_nx_has_a_window_and_ticks(tmp_path, monkeypatch):
     app.tick()
     app.tick()
     host = app.state["host"]
-    assert started == [(True, True)] and host.ticks == 1 and host.mode == "agent"
+    assert started == [True] and host.ticks == 1 and host.mode == "auto"
     state = json.loads((tmp_path / ".nx-mcp" / "dev-state.json").read_text())
     assert state["ok"] and state["driver"] == "startup" and state["generation"] == 1
 
 
-def test_dev_restart_keeps_the_engineers_choice_and_survives_bad_code(tmp_path, monkeypatch):
+def test_dev_restart_starts_a_new_host_and_survives_bad_code(tmp_path, monkeypatch):
     app = load(tmp_path, monkeypatch)
     started = []
     monkeypatch.setattr(app, "purge_nx_mcp", lambda: None)
@@ -91,10 +89,9 @@ def test_dev_restart_keeps_the_engineers_choice_and_survives_bad_code(tmp_path, 
     monkeypatch.setattr(app.importlib, "import_module", lambda name: sys.modules[name])
     app.tick()
     first = app.state["host"]
-    first.mode, first.auto_start = "manual", False  # The engineer took control back.
     app.RESTART_FILE.write_text("")
     app.tick()
-    assert first.stopped and started[-1] == (True, False)
+    assert first.stopped and started == [True, True] and app.state["host"] is not first
     monkeypatch.setitem(sys.modules, "nx_mcp.interactive", fake_interactive(started, fail=True))
     app.RESTART_FILE.write_text("")
     app.tick()
@@ -114,7 +111,7 @@ def test_production_mode_starts_with_the_engineer_in_control(tmp_path, monkeypat
     app.tick()
     app.RESTART_FILE.write_text("")
     app.tick()  # Reload requests are ignored outside development mode.
-    assert started == [(False, False)]
+    assert started == [False]
 
 
 def test_failing_restart_backs_off_records_once_and_gives_up(tmp_path, monkeypatch):
@@ -190,11 +187,11 @@ def test_play_starts_one_host_and_then_reports_it_running(tmp_path, monkeypatch)
     app = load(tmp_path, monkeypatch)
     started = []
     shown = journal_ready(app, monkeypatch, started)
-    assert "started" in app.play() and started == [(True, True)]
+    assert "started" in app.play() and started == [True]
     host = app.state["host"]
     report = app.play()  # A second play: no second bridge.
     assert report == "NX MCP bridge is already running in this NX (started by the journal)."
-    assert started == [(True, True)] and app.state["host"] is host
+    assert started == [True] and app.state["host"] is host
     assert host.notice == report and shown == [4242]  # Said on the panel, panel brought up.
     host.stop()  # Stop bridge on the panel: playing again starts a fresh host.
     assert "started" in app.play() and len(started) == 2 and app.state["host"] is not host
@@ -212,7 +209,7 @@ def test_play_finds_the_host_of_the_startup_app(tmp_path, monkeypatch):
     registered = sys.modules[app.MODULE_NAME]  # What start_2406.py imports.
     assert registered.state is app.state
     report = registered.play()
-    assert report.endswith("(started by the startup app).") and started == [(True, True)]
+    assert report.endswith("(started by the startup app).") and started == [True]
 
 
 def test_play_defers_to_a_bootstrap_in_another_interpreter(tmp_path, monkeypatch):

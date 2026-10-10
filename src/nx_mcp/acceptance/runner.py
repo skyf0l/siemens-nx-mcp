@@ -506,11 +506,6 @@ async def run_scenario(
         special["$fixture"] = str(target)
     started = utc_now()
     before = await loaded_parts(session)
-    # Only a scenario that changes the panel itself (nx_set_control) gets it restored:
-    # any other change during a run is the engineer's and stays.
-    controls = any(step.get("call") == "nx_set_control" for step in data["steps"])
-    panel = find_dev_panel() if controls else None
-    mode = await panel_mode(session) if panel is not None else None
     try:
         steps = await run_steps(
             session, data["steps"], special, label=f"{domain}/{path.stem}", echo=_echo
@@ -520,12 +515,6 @@ async def run_scenario(
         cleanup = await close_new_parts(
             session, before, data.get("cleanup", "close"), own_dir=run_dir, workspace=workspace
         )
-        if panel is not None and mode is not None:
-            restored = await restore_panel_mode(session, panel, mode)
-            if restored is not None:
-                cleanup["panel"] = restored
-                if not restored["restored"]:
-                    cleanup["failed"].append(f"could not restore the panel mode {mode!r}")
     for message in cleanup.get("failed", []):
         print(f"  cleanup: {message}")
     finished = utc_now()
@@ -714,96 +703,6 @@ async def close_new_parts(
             reason = ": ".join(str(x) for x in (error.get("code"), error.get("message")) if x)
             report["failed"].append(f"could not re-activate {target.get('path')}: {reason}")
     return report
-
-
-# The NX MCP panel's mode buttons (interactive.ID_MODES): a WM_COMMAND with one
-# of these ids is the engineer's click.
-PANEL_BUTTONS = {"auto": 111, "agent": 112, "ask": 113}
-PANEL_RANK = {"ask": 0, "auto": 1, "agent": 2}  # interactive._RANK: control given to the agent
-DEV_PANEL_TITLE = "NX MCP DEV"
-
-
-def find_dev_panel() -> int | None:
-    """The window handle of the development loop's NX MCP panel, else ``None``.
-
-    Only the panel of ``dev_start_nx.py`` (title "NX MCP DEV ...") in the NX
-    process of the bridge descriptor counts: production panels are never touched.
-    """
-    if sys.platform != "win32":
-        return None
-    descriptor = descriptor_path()
-    try:
-        pid = int(json.loads(descriptor.read_text(encoding="utf-8"))["pid"]) if descriptor else 0
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    if not pid:
-        return None
-    import ctypes
-    from ctypes import wintypes as w
-
-    user = ctypes.WinDLL("user32", use_last_error=True)
-    callback_type = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
-    user.EnumWindows.argtypes = [callback_type, w.LPARAM]
-    user.GetWindowThreadProcessId.argtypes = [w.HWND, ctypes.POINTER(w.DWORD)]
-    user.GetWindowTextW.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
-    user.GetClassNameW.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
-    found: list[int] = []
-
-    def visit(hwnd, _):
-        owner = w.DWORD()
-        user.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-        if owner.value != pid:
-            return True
-        name = ctypes.create_unicode_buffer(256)
-        title = ctypes.create_unicode_buffer(256)
-        user.GetClassNameW(hwnd, name, 256)
-        user.GetWindowTextW(hwnd, title, 256)
-        if name.value.startswith("NxMcpPanel") and title.value.startswith(DEV_PANEL_TITLE):
-            found.append(int(hwnd))
-            return False
-        return True
-
-    user.EnumWindows(callback_type(visit), 0)
-    return found[0] if found else None
-
-
-def press_panel(panel: int, mode: str) -> None:
-    """Click the panel's mode button (posted: NX applies it on its next tick)."""
-    import ctypes
-
-    ctypes.windll.user32.PostMessageW(panel, 0x111, PANEL_BUTTONS[mode], 0)  # WM_COMMAND
-
-
-async def panel_mode(session) -> str | None:
-    """The panel mode (``nx_set_control`` status; never waits), ``None`` without a panel."""
-    status = await call_tool(session, "nx_set_control", {"mode": "status"}, intent=None)
-    mode = (status.get("data") or {}).get("mode") if status.get("ok") else None
-    return mode if mode in PANEL_BUTTONS else None
-
-
-async def restore_panel_mode(
-    session, panel: int, mode: str, *, wait: float = 15.0, poll: float = 0.5
-) -> dict | None:
-    """Put the development panel back in ``mode`` when a scenario changed it.
-
-    A scenario may leave NX in "Ask me first" (session/set_control.json): the agent
-    cannot raise its own control, so the runner clicks the mode button on the
-    development panel the way the engineer would. It only ever raises the mode back:
-    a higher mode now is the engineer's choice. ``None`` when nothing was pressed.
-    """
-    current = await panel_mode(session)
-    if current is None or PANEL_RANK[current] >= PANEL_RANK[mode]:
-        return None  # Unchanged, or raised by the engineer: never lower their choice.
-    report: dict[str, Any] = {"from": current, "to": mode, "restored": False}
-    press_panel(panel, mode)
-    deadline = time.monotonic() + wait
-    while True:
-        if await panel_mode(session) == mode:
-            report["restored"] = True
-            return report
-        if time.monotonic() > deadline:
-            return report
-        await asyncio.sleep(poll)
 
 
 def dump(data: Any) -> bytes:

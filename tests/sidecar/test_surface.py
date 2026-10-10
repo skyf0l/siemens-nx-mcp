@@ -71,6 +71,20 @@ async def test_agent_profile_lists_gateways_and_existing_core_tools(tmp_path, te
     assert listed.inputSchema["properties"]["limit"]["maximum"] == 200
 
 
+async def test_nx_set_control_is_gone_and_the_agent_profile_has_18_tools(tmp_path, monkeypatch):
+    """Only the engineer changes the panel mode: no tool does, nx_get_status reports it."""
+    from nx_mcp.sidecar import server as surface
+
+    monkeypatch.delenv("NX_MCP_DEV", raising=False)
+    evidence.reload()
+    assert "nx_set_control" not in catalogue.load()
+    assert "nx_set_control" not in surface.CORE_TOOLS and len(surface.CORE_TOOLS) == 14
+    names = [t.name for t in await server(tmp_path).list_tools()]
+    assert names == [*gateways.NAMES, *surface.CORE_TOOLS] and len(names) == 18
+    full = {t.name for t in await server(tmp_path, surface="full").list_tools()}
+    assert "nx_set_control" not in full and "nx_get_status" in full
+
+
 async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_path, monkeypatch):
     """Derived from the real evidence files and catalogue: the full profile lists the
     gateways and every catalogue tool tested on the build."""

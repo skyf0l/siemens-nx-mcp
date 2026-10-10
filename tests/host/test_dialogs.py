@@ -200,7 +200,7 @@ def test_a_modeless_box_left_open_does_not_block():
 
 
 def test_an_owner_the_host_disabled_needs_a_modal_frame():
-    # Agent drives: the host disabled NX's main window itself, which proves nothing.
+    # The host disabled NX's main window itself for a call, which proves nothing.
     plain = sheet_metal_warning(modal_frame=False)
     assert dialogs.blocking([plain], PID, host_disabled={MAIN}) == []
     assert dialogs.blocking([plain], PID) != []  # NX disabled it: modal

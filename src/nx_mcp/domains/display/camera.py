@@ -39,7 +39,7 @@ class CameraData(TypedDict, total=False):
     label="Get camera",
     summary="Read the camera",
     keywords=("view info", "camera", "view orientation", "view matrix", "zoom scale"),
-    cost="instant",
+    cost="light",
     example={},
 )
 def nx_get_camera(tx: Tx) -> CameraData:
@@ -76,7 +76,7 @@ def _summary(a, say):
     summary=_summary,
     keywords=("fit view", "isometric", "orient view", "rotate view", "zoom", "pan", "set view"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     restorable=True,
     example={"orientation": "isometric", "fit": True},
 )

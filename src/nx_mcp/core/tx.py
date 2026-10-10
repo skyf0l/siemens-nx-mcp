@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 # Cooperative budget per cost class (architecture.md 3.3), measured from gate 9.
 # tx.checkpoint() past the budget raises interrupted/NX_CANCELLED (reason "budget").
-COST_BUDGET_SECONDS = {"instant": 30.0, "light": 30.0, "heavy": 300.0, "long": 1800.0}
+COST_BUDGET_SECONDS = {"light": 30.0, "heavy": 300.0, "long": 1800.0}
 DEFAULT_BUDGET_SECONDS = 300.0
 
 NOT_GRANTED_HINT = (
@@ -150,13 +150,6 @@ class Services:
     def control_status(self) -> dict | None:
         """The NX MCP panel's state (mode, activity, ...), None without the panel."""
         return None
-
-    def control(self, mode: str) -> dict:
-        """Switch the panel mode for the agent: lowering its control always works; more
-        control only after the engineer approved the request on the panel (the host
-        holds the call until then). Returns :meth:`control_status`."""
-        fail("NX_VIEWPORT_UNAVAILABLE", "No NX MCP panel in this session",
-             hint="Run the bridge in interactive NX with the NX MCP panel")  # fmt: skip
 
 
 def publish_new(temp, target, *, field: str | None = "/path") -> Path:

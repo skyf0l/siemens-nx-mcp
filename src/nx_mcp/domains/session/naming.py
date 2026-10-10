@@ -38,7 +38,7 @@ def _kind(tx: Tx, ref: str, obj) -> str:
     summary='Rename {object} to "{name}"',
     keywords=("rename", "name", "set name", "rename feature", "rename body", "label object"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"object": "f:12", "name": "Boss"},
 )
 def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: A002

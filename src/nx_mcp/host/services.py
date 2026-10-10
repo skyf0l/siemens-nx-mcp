@@ -19,7 +19,7 @@ from typing import Any, cast
 from nx_mcp import side_effects
 from nx_mcp.bridge import ObjectKind, ObjectRegistry
 from nx_mcp.core import catalogue
-from nx_mcp.core.errors import classify, fail
+from nx_mcp.core.errors import fail
 from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import PREFIX, Counter, References, Row
 from nx_mcp.core.tx import Services
@@ -730,17 +730,9 @@ class NXServices(Services):
         except Exception:
             return mark is not None
 
-    # -- the NX MCP panel (nx_set_control) -------------------------------------
+    # -- the NX MCP panel (nx_get_status) --------------------------------------
     def control_status(self) -> dict | None:
         return None if self.host is None else self.host.status()
-
-    def control(self, mode: str) -> dict:
-        if self.host is None:
-            return Services.control(self, mode)
-        try:
-            return self.host.agent_control(mode)
-        except Exception as exc:
-            raise classify(exc) from exc
 
     def revision(self) -> int:
         return self.epoch

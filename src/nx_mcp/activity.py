@@ -62,14 +62,9 @@ class Entry:
     code: str | None = None
     created: str | None = None
     inspections: int = 0  # >0: a group of read-only steps
-    session: int = 0
     note: str | None = None  # an engineer or NX event, not an agent step
     label: str = "ENGINEER"  # the log column of a note
     mark: str = "✎"  # the panel mark of a note
-
-    @property
-    def changed_model(self) -> bool:
-        return self.inspections == 0 and self.note is None
 
 
 def _clip(text: str, width: int = LINE_WIDTH) -> str:
@@ -117,12 +112,6 @@ class Activity:
     log_path: Path | None = None
     keep: int = 50
     entries: deque = field(default_factory=deque)
-    session: int = 0
-    _session_started: float | None = None
-
-    def start_session(self) -> None:
-        self.session += 1
-        self._session_started = time.time()
 
     def record(
         self,
@@ -158,12 +147,11 @@ class Activity:
             reason=reason,
             code=code,
             created=created_name(result) if ok and isinstance(result, dict) else None,
-            session=self.session,
         )
         self._write(entry)
         last = self.entries[-1] if self.entries else None
         if read_only and ok:
-            if last is not None and last.inspections and last.session == self.session:
+            if last is not None and last.inspections:
                 last.inspections += 1
                 last.started = started
                 return last
@@ -179,7 +167,6 @@ class Activity:
             started=time.time() if at is None else at,
             summary=ENGINEER_CHANGE,
             note=ENGINEER_CHANGE,
-            session=self.session,
         )
         self._write(entry)
         self.entries.append(entry)
@@ -195,7 +182,6 @@ class Activity:
             note=text,
             label="NX DIALOG",
             mark="⚠",
-            session=self.session,
         )
         self._write(entry)
         self.entries.append(entry)
@@ -230,22 +216,6 @@ class Activity:
 
     def recent(self, count: int = 4) -> list[str]:
         return [self.line(entry) for entry in list(self.entries)[-count:]]
-
-    def session_recap(self) -> str | None:
-        """One line on what the agent's latest control session did."""
-        mine = [e for e in self.entries if e.session == self.session and e.changed_model]
-        if not mine or self._session_started is None:
-            return None
-        changes = sum(1 for e in mine if e.ok)
-        failed = len(mine) - changes
-        span = (
-            time.strftime("%H:%M", time.localtime(self._session_started))
-            + "–"
-            + time.strftime("%H:%M", time.localtime(mine[-1].started + mine[-1].duration))
-        )
-        plural = "change" if changes == 1 else "changes"
-        tail = f", {failed} failed" if failed else ""
-        return f"Agent's last session: {changes} {plural}{tail} ({span})"
 
     def _write(self, entry: Entry) -> None:
         """Append one full line to the activity log; never fail the operation."""

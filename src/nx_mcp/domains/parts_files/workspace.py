@@ -145,7 +145,7 @@ def nx_list_files(
     label="Create workspace folder",
     summary="Create folder {path}",
     keywords=("mkdir", "new folder", "create directory", "project folder"),
-    cost="instant",
+    cost="light",
     runs="sidecar",
     example={"path": "projects/demo/parts"},
 )

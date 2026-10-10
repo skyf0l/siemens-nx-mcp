@@ -11,8 +11,8 @@ reported in the result (warning ``NX_MODAL_DIALOG``) and in the activity log.
 A blocking dialog is a visible, enabled top-level Win32 dialog (class
 ``#32770``) of the NX process whose owner is an NX window that is disabled: a
 modal dialog disables its owner, a modeless box left open does not and is
-ignored. When the host disabled the owner itself (Agent drives disables NX's main
-window) that proves nothing, so the dialog must also have a modal frame
+ignored. When the host disabled the owner itself (it disables NX's main window
+while an agent call runs) that proves nothing, so the dialog must also have a modal frame
 (``DS_MODALFRAME`` / ``WS_EX_DLGMODALFRAME``, as NX's message boxes have). NX's own
 "Work in Progress" progress box has no owner and is ignored.
 
@@ -76,7 +76,7 @@ class Dialog:
 def is_modal(w: Window, pid: int, host_disabled: Iterable[int] = ()) -> bool:
     """Whether ``w`` is a modal dialog blocking the NX process ``pid``.
 
-    ``host_disabled``: owner windows the host disabled itself (Agent drives); their
+    ``host_disabled``: owner windows the host disabled itself (during a call); their
     disabled state proves nothing, so a dialog they own needs a modal frame."""
     if w.pid != pid or w.cls != DIALOG_CLASS or not (w.visible and w.enabled):
         return False

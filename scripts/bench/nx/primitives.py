@@ -1,5 +1,5 @@
 # Runs inside NX via nx_dev_python, on the UI thread, inside the host's execute():
-# the host has already released LockAccess and the main window is disabled.
+# NX holds no LockAccess and the host disabled the main window for this call (Auto).
 # Every path restores exactly that state before returning.
 import json
 import time
@@ -66,7 +66,7 @@ try:
     record("UI.AskLockStatus", a)
     record("UI.CanOpenPart", b)
 
-    # Window is disabled on entry (agent mode): enable then disable again.
+    # Window is disabled on entry (taken for the call): enable then disable again.
     a, b = [], []
     for _ in range(N):
         t = pc()
@@ -85,7 +85,7 @@ try:
         a.append(ms(t))
     record("IsWindowEnabled(main)", a)
 
-    # Full take + release of the primitives, as control() would do them.
+    # Full take + release with LockAccess (a lock-based handover), for comparison.
     take, release, cycle = [], [], []
     user.EnableWindow(hwnd, True)  # engineer state: enabled, unlocked
     for _ in range(N):
@@ -109,7 +109,7 @@ try:
     record("full take+release cycle (primitives)", cycle)
 finally:
     unlock_fully()
-    user.EnableWindow(hwnd, False)  # back to the agent-mode entry state
+    user.EnableWindow(hwnd, False)  # back to the call's entry state
 exit_state = {"lock": str(ui.AskLockStatus()), "enabled": bool(user.IsWindowEnabled(hwnd))}
 print(
     "JSON:"

@@ -21,7 +21,6 @@ def run(activity, method, summary, *, read_only=False, result=None, error=None, 
 
 def test_success_failure_and_partial_lines_say_what_happened_to_the_model(tmp_path):
     activity = Activity(tmp_path / "activity.log")
-    activity.start_session()
     run(
         activity,
         "nx_extrude",
@@ -45,7 +44,6 @@ def test_success_failure_and_partial_lines_say_what_happened_to_the_model(tmp_pa
 
 def test_read_only_steps_are_grouped_but_fully_logged(tmp_path):
     activity = Activity(tmp_path / "activity.log")
-    activity.start_session()
     run(activity, "nx_create_blend", "Blend 1 edge R2 mm")
     for at in range(3):
         run(activity, "nx_list_objects", "List bodies", read_only=True, at=at)
@@ -53,21 +51,6 @@ def test_read_only_steps_are_grouped_but_fully_logged(tmp_path):
     lines = activity.recent()
     assert len(lines) == 2 and "4 read-only or view steps (model unchanged)" in lines[1]
     assert len((tmp_path / "activity.log").read_text(encoding="utf-8").splitlines()) == 5
-
-
-def test_recap_counts_only_this_sessions_model_changes():
-    activity = Activity()
-    activity.start_session()
-    run(activity, "nx_extrude", "Old session change")
-    activity.start_session()
-    assert activity.session_recap() is None
-    run(activity, "nx_extrude", "Extrude")
-    run(activity, "nx_blend", "Blend")
-    run(activity, "nx_list_bodies", "List", read_only=True)
-    failure = NXError("X", "no", details={"mutation_outcome": "rolled_back"})
-    run(activity, "nx_hole", "Hole", error=failure)
-    recap = activity.session_recap()
-    assert recap.startswith("Agent's last session: 2 changes, 1 failed (")
 
 
 def test_lines_are_clipped_and_history_is_bounded():
@@ -134,7 +117,6 @@ def test_catalogue_envelopes_name_the_result_and_the_model_state(tmp_path):
     from nx_mcp.core.errors import NXError
 
     activity = Activity(tmp_path / "activity.log")
-    activity.start_session()
     ok = {"ok": True, "data": {"feature": {"id": "f:3", "name": "DATUM_PLANE(3)"}}}
     run(activity, "nx_create_datum_plane", "Datum plane 15 mm from top", result=ok)
     failed_read = NXError("NX_STALE_REFERENCE", "b:4 is stale")

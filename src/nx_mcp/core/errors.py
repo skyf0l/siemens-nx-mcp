@@ -127,7 +127,7 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
             "NX_PART_NOT_GRANTED",
             "NX_MODAL_DIALOG_OPEN",
         ),
-        "The engineer has NX; ask in chat before requesting control again",
+        "The engineer has NX; ask in chat before retrying",
     ),
     "bridge": (
         "after_wait",

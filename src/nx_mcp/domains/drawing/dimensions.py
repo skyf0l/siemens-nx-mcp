@@ -591,7 +591,7 @@ def dimension_info(tx, d):
     summary="Dimension {dimension}",
     keywords=("dimension value", "dimension format", "tolerance", "decimal places", "retained"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"dimension": "dm:9"},
 )
 def nx_get_dimension(

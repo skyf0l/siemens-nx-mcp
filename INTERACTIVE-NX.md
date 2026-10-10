@@ -2,7 +2,7 @@
 
 On NX 2406 run the bridge as an NX startup application, or play
 `nx_app/journals/start_2406.py` in an NX started without it (next section). On NX 2606,
-play `nx_app/journals/start_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window has three mode buttons at the top (**Mode: (•) Auto ( ) Agent drives ( ) Ask me first**, see [Panel modes](#panel-modes)), the agent's activity, **Open log** and **Stop bridge**, and the **Allow agent to change <part>** checkbox when the work part is yours. Long native operations can temporarily block NX; a mode change and stopping take effect between calls.
+play `nx_app/journals/start_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window has two mode buttons at the top (**Mode: (•) Auto ( ) Ask me first**, see [Panel modes](#panel-modes)), the agent's activity, **Open log** and **Stop bridge**, and the **Allow agent to change <part>** checkbox when the work part is yours. Long native operations can temporarily block NX; a mode change and stopping take effect between calls.
 
 ## NX 2406: run the bridge as an NX startup application (recommended)
 
@@ -65,20 +65,20 @@ Closing the control panel stops the bridge and unlocks NX, leaving the applicati
 
 ## Panel modes
 
-Pick the mode with the three buttons at the top of the panel. The window title
-always says the mode and what the agent is doing.
+Pick the mode with the two buttons at the top of the panel. Only you change the
+mode; the agent cannot. The window title always says the mode and what the agent
+is doing.
 
 | Mode | Window title | What the agent's steps do |
 |---|---|---|
-| **Auto** (default) | `NX MCP — Auto`; `NX MCP — Auto · agent step running` while a step runs; `NX MCP — Auto · agent waiting for you` while one waits | You keep working in NX. Each step takes NX only while it runs (NX's main window is briefly disabled, nothing stays locked) and gives it straight back. |
-| **Agent drives** (default in the development loop) | `NX MCP — Agent drives` | NX input stays locked for the agent, also between steps, until you pick another mode. |
+| **Auto** (default, also in the development loop) | `NX MCP — Auto`; `NX MCP — Auto · agent step running` while a step runs; `NX MCP — Auto · agent waiting for you` while one waits for your command to end | You keep working in NX. Each step takes NX only while it runs (NX's main window is briefly disabled, nothing stays locked) and gives it straight back. No request card. |
 | **Ask me first** | `NX MCP — Ask me first`; `NX MCP — Agent is waiting` when a step waits for your answer | Every step waits for your answer on the panel. |
 
 **Auto.** The idle line reads `·  Auto — you work in NX, agent steps run
 between your commands`. Read-only steps (listing, measuring) run at once, even
-in the middle of your command. A step that changes something waits while you
-are busy in NX: an NX command or dialog is open, a menu is open, you are
-dragging, or a mouse button is held. The panel then shows
+in the middle of your command. A step that changes something waits silently
+while you are busy in NX: an NX command or dialog is open, a menu is open, you
+are dragging, or a mouse button is held. The panel then shows
 
 ```
 ⏸  Waiting until you finish your command (12 s): Blend 2 edges R3 mm
@@ -87,8 +87,15 @@ dragging, or a mouse button is held. The panel then shows
 
 and the step runs as soon as NX is free. After 2 minutes it is not run; the
 agent gets `NX_UI_BUSY` (nothing changed, retry later). Steps that can take long
-(exports, imports, assembly-wide updates) ask first with the request card
-(**Run once** / **Not now**); each long step asks once.
+(exports, imports, assembly-wide updates) simply run; their running line says
+`— running, NX may pause`.
+
+A modal NX dialog never has an agent step run under it. If one is open when a
+step that changes the model, the view or a file is about to start (for example
+it opened just after the busy check), the step is refused with
+`NX_MODAL_DIALOG_OPEN` and nothing ran; reads still answer. A dialog that opens
+during a step is named in the step's result and in the activity log. The agent
+never clicks a dialog: it asks you to answer it.
 
 When you change the model between two agent steps (a feature, an expression,
 Ctrl+Z, hide/show, another display part), the next agent step notices it and
@@ -96,15 +103,6 @@ the panel shows `✎  14:32:40  You changed the model — agent will re-read its
 references`. Only then are the agent's references and checkpoints dropped: your
 changes have no operation receipt and must never be undone by a later agent
 rollback. If you changed nothing, the agent continues where it was.
-
-**Agent drives** locks NX with `UI.LockAccess` and keeps it locked between steps
-(no unlock and relock per step; only steps that create, open or export files run
-unlocked, as FileNew inside the lock can strand it). If you are busy in NX when
-you pick it, NX is locked as soon as you finish (`⏸  Waiting until you finish
-your command, then NX is locked for the agent`). NX is never handed back
-automatically: pick Auto or Ask me first when you want it back. The top lines
-then recap the agent's session (`Agent's last session: 6 changes, 1 failed
-(14:31–14:33)`).
 
 **Ask me first.** Agent requests are held, not refused. The title becomes
 **NX MCP — Agent is waiting**, the NX taskbar button flashes (focus is never
@@ -117,23 +115,19 @@ quoted and labelled as the agent's note. You then choose:
 - **Run once**: the waiting steps run in order; the panel stays in Ask me first,
   so the next step asks again.
 - **Run & switch to Auto**: the waiting steps run and the panel switches to Auto.
-- **Not now**: they fail with `NX_UI_DECLINED`; the agent is told to ask in chat.
-- No answer within 60 s: they fail with `NX_UI_PAUSED` and nothing ran.
+- **Not now**: they fail with `NX_CONTROL_DECLINED`; the agent is told to ask in chat.
+- No answer within 60 s: they fail with `NX_CONTROL_PAUSED` and nothing ran.
 
 Picking Ask me first while the agent works pauses after the current step.
 
-**What the agent may change itself.** Status reads never wait. The agent may
-always give you more control (`nx_set_control(mode="auto")` from Agent drives,
-`mode="ask"` from anywhere; `mode="manual"` is the old name of ask). A request
-for more control (`mode="auto"` from Ask me first, `mode="agent"` from Auto or
-Ask me first) shows the request card like any other step, so the agent can never
-leave Ask me first, or lock NX, without your click. `nx_set_control(mode="status")`
-reports `mode` (`auto`, `agent` or `ask`), `owner` (agent or engineer), `busy`
-(you are in an NX command), `waiting` (steps on the request card) and `activity`.
+**What the agent sees.** Only the status read (`nx_get_status`) never waits. Its
+`control` section reports `mode` (`auto` or `ask`), `mode_label` (`Auto` or
+`Ask me first`), `busy` (you are in an NX command or dialog), `waiting` (steps on
+the request card), `activity` and the step `running` now. No tool changes the
+mode: the agent asks you in chat when it needs another one.
 
 The mode you pick is kept when the bridge restarts in the same NX session
-(development reloads, `.nx-mcp/ui-mode.json`); a mode the agent picked is not. A
-new NX session starts in Auto (Agent drives in the development loop).
+(development reloads, `.nx-mcp/ui-mode.json`). A new NX session starts in Auto.
 
 ## How fast a step starts
 
@@ -184,19 +178,19 @@ check once in graphical NX:
    the agent gets `NX_UI_BUSY` and nothing changed.
 4. Between two agent steps, add a feature yourself (or press Ctrl+Z). The next
    agent step adds the ✎ line. Without your edit no ✎ line appears.
-5. Ask for a STEP export in Auto: the card appears with **Run once** and
-   **Not now**.
+5. Ask for a STEP export in Auto: no card appears; the running line says
+   `— running, NX may pause` and NX is usable again when it ends.
 6. Pick **Ask me first**: every step shows the card with **Run once**, **Run &
    switch to Auto** and **Not now**; try each, and 60 s without an answer.
-7. Pick **Agent drives**: NX is locked between steps. Pick **Auto**: NX is
-   usable at once.
+7. Pick **Auto** again: NX is usable at once and the next step runs without a
+   card.
 
 ## Development loop (never for production work)
 
 Start NX with the startup application in development mode:
 `python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1`. The
-agent gets control without a click, `scripts/dev_python.py` works, and
-`python scripts/dev_reload.py --wait-agent` reloads all of `nx_mcp` from disk
+panel starts in Auto as in production, `scripts/dev_python.py` works, and
+`python scripts/dev_reload.py --wait-ready` reloads all of `nx_mcp` from disk
 (about two seconds; open parts stay open, object IDs reset): the bootstrap stops
 the host, drops every `nx_mcp` module and starts a fresh host. It exits 1 and
 prints the traceback if the new code does not load; the next reload recovers.
@@ -219,11 +213,9 @@ line, in plain words with its start time and the agent's note below it:
 ```
 
 The panel cannot repaint during a native call, so the running line shows a
-start time, not a counter. Quick steps (cost `instant` or `light`) say only
-`running`; heavier ones add `NX may pause`. When the step ends it becomes a ✓/✗/⚠ line in place.
-In Agent drives, when the agent is idle, the top line reads `·  Idle since
-14:32 — waiting for the agent's next request`, so you know it is safe to switch
-to Auto.
+start time, not a counter. Quick steps (cost `light`) say only `running`;
+heavier ones (`heavy`, `long`) add `NX may pause`. When the step ends it becomes
+a ✓/✗/⚠ line in place.
 
 Failures always state what happened to the model; a long summary is shortened
 before the model state is. Read-only and view-only steps are grouped into one

@@ -2,7 +2,7 @@
 
 Requires NX started with the startup app in development mode
 (scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1). Exit code 0 when
-the new host started (and, with --wait-agent, the agent has control), 1 when
+the new host started (and, with --wait-ready, published its panel state), 1 when
 the code failed to load (the traceback is printed), 2 on timeout.
 """
 
@@ -29,7 +29,13 @@ def main() -> int:
         default=os.environ.get("NX_MCP_WORKSPACE") or str(Path.home() / "NX_MCP_WORKSPACE"),
     )
     parser.add_argument("--timeout", type=float, default=30.0)
-    parser.add_argument("--wait-agent", action="store_true", help="also wait for agent control")
+    parser.add_argument(
+        "--wait-ready",
+        "--wait-agent",  # the old name
+        dest="wait_ready",
+        action="store_true",
+        help="also wait until the new host has published its panel state",
+    )
     args = parser.parse_args()
     state_dir = Path(args.workspace) / ".nx-mcp"
     state_file = state_dir / "dev-state.json"
@@ -48,12 +54,13 @@ def main() -> int:
                 if error.exists():
                     print(error.read_text(encoding="utf-8"))
                 return 1
-            if not args.wait_agent:
+            if not args.wait_ready:
                 print(f"Generation {state['generation']} running.")
                 return 0
             ui = read_json(state_dir / "ui-state.json") or {}
-            if ui.get("mode") == "agent" and ui.get("sampled_at", 0) > state["updated_at"]:
-                print(f"Generation {state['generation']} running; agent has control.")
+            if ui.get("sampled_at", 0) > state["updated_at"]:
+                mode = ui.get("mode_label") or ui.get("mode")
+                print(f"Generation {state['generation']} running; panel mode {mode}.")
                 return 0
         time.sleep(0.2)
     print("Timed out waiting for the development journal (is NX busy or showing a dialog?).")

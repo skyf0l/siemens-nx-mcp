@@ -57,72 +57,60 @@ def test_conservative_bounds_gap():
     assert envelope_gap([0, 0, 0, 10, 10, 10], [13, 14, 10, 23, 24, 20]) == 5
 
 
-def test_agent_ui_lock_is_not_nested_and_handoff_releases_input(monkeypatch):
+def test_auto_calls_never_lock_nx_and_give_the_window_back(monkeypatch):
     from types import SimpleNamespace
 
     from nx_mcp.host import dispatch
     from nx_mcp.interactive import InteractiveHost
 
     class UI:
-        count = 1
-
         def AskLockStatus(self):
-            return int(self.count > 0)
+            return 0
 
         def LockAccess(self):
-            self.count += 1
+            raise AssertionError("Auto never calls UI.LockAccess")
 
-        def UnlockAccess(self):
-            self.count = max(0, self.count - 1)
+        UnlockAccess = LockAccess
 
         def CanOpenPart(self):
-            return self.count == 0
-
-    class Parts:
-        Display = None
-
-        def __iter__(self):
-            return iter(())
+            return True
 
     host = InteractiveHost.__new__(InteractiveHost)
     host.thread = threading.get_ident()
-    host.mode = "agent"
-    host.owns_lock = True
-    host.window_disabled = False
+    host.mode = "auto"
     host.ui = UI()
     host.nx = SimpleNamespace(UI=SimpleNamespace(Status=SimpleNamespace(Lock=1)))
     host.main_hwnd = 1
-    enabled = []
-    host.user = SimpleNamespace(EnableWindow=lambda h, v: enabled.append(v))
-    host.session = SimpleNamespace(Parts=Parts())
-    host.completed = 0
-    host.status = lambda: {}
-    host.publish = lambda: None
+    window = {"enabled": True}
 
-    def execute(method, params):
-        if method == "nx_create_part":
-            assert host.ui.count == 0  # FileNew must run without an NX UI lock.
+    def enable(_hwnd, value):
+        window["enabled"] = bool(value)
+
+    host.user = SimpleNamespace(EnableWindow=enable, IsWindowEnabled=lambda h: window["enabled"])
+    host.session = SimpleNamespace(Parts=SimpleNamespace(Display=None))
+    host.completed = 0
+    host.publish = lambda: None
+    host.services = SimpleNamespace(history=[], checkpoints={})
+    seen = []
+
+    def execute(_services, method, params):
+        seen.append((method, window["enabled"]))
         return {"status": "success"}
 
-    host.services = SimpleNamespace(history=[1], checkpoints={"cp": 1})
-    monkeypatch.setattr(
-        dispatch, "execute", lambda _services, method, params: execute(method, params)
-    )
-    host.execute("nx_list_bodies", {})
-    assert host.ui.count == 1  # Reads run inside the held lock: no unlock/relock pair.
-    host.execute("nx_create_part", {})
-    assert host.ui.count == 1  # Reacquire the lock released by FileNew exactly once.
-    host.control("manual")  # manual = Ask me first
-    assert host.ui.count == 0 and not enabled and host.mode == "ask"
-    # References and checkpoints survive the handover; only an engineer edit seen
-    # before the agent's next step invalidates them.
-    assert host.services.history and host.services.checkpoints
+    monkeypatch.setattr(dispatch, "execute", execute)
+    host.dispatcher = MainThreadDispatcher(host.execute, timeout=1)
+    for method in ("nx_create_part", "nx_list_parts"):
+        pending = SimpleNamespace(method=method)
+        host.dispatcher.drain_where = lambda match, p=pending: host.execute(p.method, {}) or True
+        assert host._run_light(pending)
+    # NX's window was disabled for each call only, never UI-locked, and is enabled again.
+    assert seen == [("nx_create_part", False), ("nx_list_parts", False)]
+    assert window["enabled"] and not host.window_disabled and host.mode == "auto"
 
 
 @pytest.mark.parametrize("raised", [SystemExit(3), KeyboardInterrupt()])
 def test_base_exceptions_from_a_tool_are_errors_and_keep_the_panel_mode(monkeypatch, raised):
-    # Regression: a SystemExit in an nx_dev_python snippet escaped to tick() and
-    # dropped the panel from Agent drives to Ask me first.
+    # Regression: a SystemExit in an nx_dev_python snippet escaped to tick().
     from types import SimpleNamespace
 
     from nx_mcp.host import dispatch
@@ -130,14 +118,11 @@ def test_base_exceptions_from_a_tool_are_errors_and_keep_the_panel_mode(monkeypa
 
     class UI:
         def AskLockStatus(self):
-            return 1
-
-        def UnlockAccess(self):
-            pass
+            return 0
 
     host = InteractiveHost.__new__(InteractiveHost)
     host.thread = threading.get_ident()
-    host.mode, host.owns_lock = "agent", True
+    host.mode, host._light = "auto", True  # a call the scheduler runs in Auto
     host.ui = UI()
     host.nx = SimpleNamespace(UI=SimpleNamespace(Status=SimpleNamespace(Lock=1)))
     host.session = SimpleNamespace(Parts=SimpleNamespace(Display=None))
@@ -157,7 +142,7 @@ def test_base_exceptions_from_a_tool_are_errors_and_keep_the_panel_mode(monkeypa
         pass
     caller.join(1)
     assert isinstance(results[0], NXError) and type(raised).__name__ in results[0].message
-    assert host.mode == "agent" and host.owns_lock
+    assert host.mode == "auto"
 
 
 def _call(dispatcher, results):
@@ -188,7 +173,7 @@ async def test_interactive_transport_services_health_during_blocked_request():
         client = BridgeClient("127.0.0.1", server.port, token="test", timeout=2)
         running = asyncio.create_task(client.call("work", {}))
         assert await asyncio.to_thread(entered.wait, 1)
-        status = await asyncio.wait_for(client.call("nx_set_control", {}), 1)
+        status = await asyncio.wait_for(client.call("nx_get_status", {}), 1)
         assert status["snapshot_only"] and not running.done()
         release.set()
         assert (await running)["done"]
@@ -337,25 +322,25 @@ def test_request_arrival_ticks_at_once_or_right_after_a_busy_tick():
     assert host.tick.call_count == 1 and host._rewake  # the busy tick wakes again
 
 
-def test_start_options_set_agent_control_and_dev_title(monkeypatch):
+def test_start_defaults_to_auto_also_in_dev_and_sets_the_dev_title(monkeypatch):
     from types import SimpleNamespace
 
     from nx_mcp import interactive
 
     def init(self, *args):
-        self.mode, self.auto_start, self.stopped = "manual", False, False
+        self.mode, self.stopped = "ask", False
         self.status = lambda: {}
         self.services = SimpleNamespace(dev_tools={})
 
     monkeypatch.setattr(interactive, "_host", None)
     monkeypatch.setattr(interactive.InteractiveHost, "__init__", init)
-    interactive.start("w", "d", True, agent_control=True, dev=True)
+    interactive.start("w", "d", True, dev=True)
     host = interactive._host
-    assert host.mode == "agent" and host.dev
+    assert host.mode == "auto" and host.dev
     host.requested_mode = host.running_method = None
     host.waiting_count = 0
     host.panel_text = lambda: ""
-    assert host.panel_state()[1] == "NX MCP DEV — Agent drives"
+    assert host.panel_state()[1] == "NX MCP DEV — Auto"
     assert "nx_dev_python" in host.services.dev_tools  # Dev launcher only.
     host.stopped = True
     interactive.start("w", "d", True)

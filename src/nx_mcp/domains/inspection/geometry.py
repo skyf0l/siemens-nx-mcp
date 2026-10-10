@@ -349,7 +349,7 @@ class AnchorData(TypedDict):
     summary="Anchor {object}",
     keywords=("persistent reference", "anchor", "handle", "stable id", "survive edits"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"object": "fc:12"},
 )
 def nx_create_anchor(

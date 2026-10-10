@@ -234,7 +234,7 @@ def info(tx, f) -> FeatureInfo:
         "edit parameters",
     ),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={"feature": "f:12"},
 )
 def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:

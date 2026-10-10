@@ -59,7 +59,8 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 - Live NX: hold the dev lock, use disposable parts under `<workspace>/smoke/<agent>/`,
   close the parts you created when done. Never modify, save or close parts you did
   not create, and never touch `.nx-mcp/ui-stop` or `.nx-mcp/dev-exit`.
-- No automatic hand-back of control: only the engineer changes the panel mode.
+- Panel modes: Auto (default, also in development) and Ask me first. Only the engineer
+  changes the mode (no tool does); never click the panel or NX dialogs.
 - No git commands or package installs unless asked; lint only your own files.
 
 ## NX 2406 host
@@ -80,7 +81,7 @@ journals did exactly that and were removed).
 ```powershell
 python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX 2406
 python scripts/dev_lock.py acquire --owner <agent>                    # before any NX use
-python scripts/dev_reload.py --wait-agent        # reload host code; exit 1 prints the traceback
+python scripts/dev_reload.py --wait-ready        # reload host code; exit 1 prints the traceback
 python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay scenarios
 python -m nx_mcp.acceptance call --inline '[...]' --owner <agent>     # ad-hoc calls, no evidence
 python scripts/dev_python.py "print(dir(NXOpen.Features.HoleFeatureBuilder))"  # probe NXOpen

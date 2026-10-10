@@ -36,7 +36,6 @@ def host(rig, tmp_path, monkeypatch):
     h.__dict__.update(
         thread=threading.get_ident(),
         mode="ask",
-        owns_lock=False,
         window_disabled=False,
         ui=ui,
         nx=rig.nx,
@@ -77,8 +76,8 @@ def host(rig, tmp_path, monkeypatch):
         KillTimer=Mock(),
     )
     h.lock, h.enabled = lock, enabled  # test handles
-    rig.e.host = h  # nx_set_control reaches the host through the kernel
-    monkeypatch.setenv("NX_MCP_DEV", "1")  # nx_set_control has no v2606 evidence
+    rig.e.host = h  # nx_get_status reaches the panel through the kernel
+    monkeypatch.setenv("NX_MCP_DEV", "1")  # the nx_test_* development tools
     monkeypatch.setattr(
         ctypes, "windll", NS(kernel32=NS(GetCurrentThreadId=lambda: 123)), raising=False
     )
@@ -114,57 +113,16 @@ def _busy(host, value=True):
     host.simulated_busy = value
 
 
-# -- Agent drives -----------------------------------------------------------
+# -- Calls -------------------------------------------------------------------
 
 
-def test_agent_drives_holds_nx_without_per_call_unlock(host, rig):
-    host.control("agent")
-    assert host.owns_lock and host.window_disabled and host.lock["value"] == 1
-    host.ui.LockAccess.reset_mock()
-    host.ui.UnlockAccess.reset_mock()
-    host.execute("nx_list_objects", BODIES)  # a read keeps NX locked during the call
-    rig.e.dev_tools["nx_test_edit"] = lambda: {}
-    host.execute("nx_test_edit", {})  # a development edit runs unlocked, then relocks
-    assert host.ui.UnlockAccess.call_count == 1 and host.ui.LockAccess.call_count == 1
-    assert host.lock["value"] == 1 and not host.enabled["value"]
-
-
-def test_agent_ui_lock_is_not_nested_and_file_steps_run_unlocked():
-    from nx_mcp.interactive import runs_under_ui_lock
-
-    assert runs_under_ui_lock("nx_list_objects")  # catalogue read
-    assert not runs_under_ui_lock("nx_create_part")  # FileNew must not run inside LockAccess
-    assert not runs_under_ui_lock("nx_test_edit")  # not a catalogue tool: runs unlocked
-    assert runs_under_ui_lock("nx_create_datum_plane")  # catalogue model edit, no file
-    assert not runs_under_ui_lock("nx_export_model")  # catalogue file tool
-
-
-def test_agent_drives_waits_for_a_busy_engineer_before_locking(host):
-    queue = _queue(host, "ask")
-    _busy(host)
-    host.requested_mode = "agent"
-    host.tick()
-    assert host.mode == "agent" and not host.owns_lock and host.enabled["value"]
-    assert host.status()["activity"] == "reserving"
-    assert host.panel_text().startswith("⏸  Waiting until you finish your command")
-    pending = queue.submit("nx_list_objects", BODIES)
-    host.tick()
-    assert not pending.complete.is_set() and host.busy_wait is pending
-    assert host.panel_state()[1] == "NX MCP — Agent drives · agent waiting for you"
-    _busy(host, False)
-    host.tick()
-    assert host.owns_lock and pending.complete.is_set() and pending.error is None
-
-
-def test_operation_failure_relocks_ui_and_refresh_failure_is_warning(host, rig):
+def test_calls_run_only_through_the_scheduler_and_refresh_failure_is_a_warning(host, rig):
     with pytest.raises(NXError, match="NX MCP panel"):
-        host.execute("nx_list_objects", BODIES)
-    host.control("agent")
-    assert host.status()["mode"] == "agent"
+        host.execute("nx_list_objects", BODIES)  # not taken for this call
+    host.mode, host._light = "auto", True  # as the scheduler runs an Auto step
     rig.e.dev_tools["nx_test_fail"] = Mock(side_effect=RuntimeError("native error"))
     with pytest.raises(NXError):
         host.execute("nx_test_fail", {})
-    assert host.ui.AskLockStatus() == 1
     rig.part.ModelingViews.WorkView.UpdateDisplay.side_effect = RuntimeError("refresh")
     result = host.execute("nx_list_objects", BODIES)
     assert not any("View refresh" in w for w in result["warnings"])
@@ -175,33 +133,34 @@ def test_operation_failure_relocks_ui_and_refresh_failure_is_warning(host, rig):
     rig.part.DrawingSheets.CurrentDrawingSheet = object()
     drawing = host.execute("nx_test_edit", {})
     assert not any("View refresh" in w for w in drawing["warnings"])
-    host.ui.LockAccess.side_effect = RuntimeError("lock failure")
-    host.execute("nx_test_edit", {})  # unlocked call; relocking fails
-    assert host.mode == "ask" and "Cannot restore" in host.last_error
-    assert host.enabled["value"] and "gave NX back" in host.panel_text()
+    host.ui.LockAccess.assert_not_called()  # no mode ever locks NX's UI
+    host.ui.UnlockAccess.assert_not_called()
+    assert host.mode == "auto"
 
 
 # -- Mode changes -----------------------------------------------------------
 
 
-def test_leaving_agent_drives_releases_nx_and_keeps_references_without_edits(host, rig):
+def test_mode_changes_keep_references_without_edits_and_only_two_modes_exist(host, rig):
     body = Body()
     rig.part.Bodies.append(body)
-    host.control("agent")
+    host.mode, host._light = "auto", True  # as the scheduler runs an Auto step
     ref = rig.ref(body)
     host.execute("nx_list_objects", BODIES)
     rig.e.checkpoints["cp_" + "0" * 32] = {"mark": 1, "part_id": "p", "index": 0}
-    host.control("ask")
-    assert not host.owns_lock and host.status()["nx_window_input_enabled"]
-    host.mode = "auto"
-    host._light = True  # as the scheduler runs an Auto step
+    host.set_mode("ask")
+    host.set_mode("auto")
     host.execute("nx_list_objects", BODIES)  # the engineer changed nothing in between
     assert rig.e.objects.resolve(ref) is body and rig.e.checkpoints
-    with pytest.raises(NXError):
-        host.control("bad")
+    assert interactive.MODES == ("auto", "ask")
+    for gone in ("agent", "bad"):
+        with pytest.raises(NXError):
+            host.set_mode(gone)  # Agent drives no longer exists
+    host.set_mode("manual")  # the old name of Ask me first
+    assert host.mode == "ask" and host.status()["modes"] == ["auto", "ask"]
     host.thread = -1
     with pytest.raises(RuntimeError):
-        host.control("ask")
+        host.set_mode("ask")
     with pytest.raises(RuntimeError):
         host.execute("nx_get_status", {})
 
@@ -229,7 +188,7 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     log = (host.state_dir / "activity.log").read_text(encoding="utf-8")
     assert "ENGINEER  You changed the model" in log
     ref = rig.ref(body)
-    host._engineer_had_nx = False  # Agent drives: NX stayed locked in between
+    host._engineer_had_nx = False  # no call gave NX back in between
     model["marks"] = 7
     host.execute("nx_list_objects", BODIES)
     assert rig.e.objects.resolve(ref) is body
@@ -261,24 +220,26 @@ def test_unknown_fingerprint_counts_as_a_change(host, rig):
 
 
 def test_tick_modes_status_persistence_and_exception_handoff(host):
-    host.requested_mode = "agent"
-    host.tick()
-    assert host.mode == "agent" and host.owns_lock
-    assert json.loads((host.state_dir / "ui-mode.json").read_text())["mode"] == "agent"
     host.requested_mode = "auto"
+    host.tick()
+    assert host.mode == "auto"
+    assert json.loads((host.state_dir / "ui-mode.json").read_text())["mode"] == "auto"
+    host.requested_mode = "ask"
     host.ticks = 9
     host.tick()
-    assert host.mode == "auto" and (host.state_dir / "ui-state.json").is_file()
-    assert host.enabled["value"] and not host.owns_lock
+    assert host.mode == "ask" and (host.state_dir / "ui-state.json").is_file()
+    assert json.loads((host.state_dir / "ui-state.json").read_text())["mode"] == "ask"
     host.requested_mode = "bad"
     host.tick()
-    assert "mode must" in host.last_error
-    host.control("agent")
+    assert "mode must" in host.last_error and host.mode == "ask"
+    host.set_mode("auto")
+    host.window_disabled, host.enabled["value"] = True, False  # a call had taken NX
     host.dispatcher.drain.side_effect = RuntimeError("dispatcher")
     host.dispatcher.drain_where.side_effect = RuntimeError("dispatcher")
     host.tick()
     assert not host.busy and "dispatcher" in host.last_error
-    assert host.mode == "ask" and host.enabled["value"] and not host.owns_lock
+    assert host.mode == "auto" and host.enabled["value"] and not host.window_disabled
+    host.ui.LockAccess.assert_not_called()
     host.busy = True
     n = host.ticks
     host.tick()
@@ -291,58 +252,25 @@ def test_tick_modes_status_persistence_and_exception_handoff(host):
     host.server.stop.assert_called_once()
 
 
-def test_agent_can_lower_but_never_raise_its_own_control(host):
-    queue = _queue(host, "ask")
-    raise_ = queue.submit("nx_set_control", {"mode": "agent"})
-    host.tick()
-    assert not raise_.complete.is_set() and host.waiting_count == 1  # on the card
-    assert "Take control of NX" in host.panel_text()
-    with pytest.raises(NXError, match="Only the engineer"):
-        host.execute("nx_set_control", {"mode": "auto"})  # never around the card
-    host.answer_requested = "decline"
-    host.tick()
-    assert raise_.error.code == "NX_CONTROL_DECLINED" and host.mode == "ask"
-    host.control("agent")
-    lower = queue.submit("nx_set_control", {"mode": "auto"})
-    host.tick()
-    assert lower.complete.is_set() and lower.error is None and host.mode == "auto"
-    assert host.enabled["value"] and not host.owns_lock
-    manual = queue.submit("nx_set_control", {"mode": "manual"})  # manual = Ask me first
-    host.tick()
-    assert manual.error is None and host.mode == "ask"
-    # Only the engineer's choice is remembered for a reload.
-    assert not (host.state_dir / "ui-mode.json").exists()
-
-
-def test_approved_control_request_switches_mode(host):
-    queue = _queue(host, "auto")
-    pending = queue.submit("nx_set_control", {"mode": "agent"})
-    host.tick()
-    assert host.waiting_count == 1 and host.panel_state()[3] == "auto"
-    host.answer_requested = "run_once"
-    host.tick()
-    assert pending.error is None and host.mode == "agent" and host.owns_lock
-
-
 def test_mode_is_remembered_for_this_nx_process_only(tmp_path, monkeypatch):
     def init(self, *args):
-        self.mode, self.stopped, self.state_dir = "auto", False, tmp_path
+        self.mode, self.stopped, self.state_dir = "ask", False, tmp_path
         self.status = lambda: {"mode": self.mode}
         self.services = NS(dev_tools={})
 
     monkeypatch.setattr(interactive, "_host", None)
     monkeypatch.setattr(interactive, "_retired", [])
     monkeypatch.setattr(InteractiveHost, "__init__", init)
-    assert interactive.start("w", "d", True, agent_control=True)["mode"] == "agent"
+    assert interactive.start("w", "d", True, dev=True)["mode"] == "auto"  # development
     interactive._host.stopped = True
     (tmp_path / "ui-mode.json").write_text(json.dumps({"pid": os.getpid(), "mode": "ask"}))
-    assert interactive.start("w", "d", True, agent_control=True)["mode"] == "ask"
+    assert interactive.start("w", "d", True, dev=True)["mode"] == "ask"  # a dev reload
     interactive._host.stopped = True
     (tmp_path / "ui-mode.json").write_text(json.dumps({"pid": -1, "mode": "ask"}))
     assert interactive.start("w", "d", True, dev=False)["mode"] == "auto"  # production
     interactive._host.stopped = True
-    (tmp_path / "ui-mode.json").unlink()
-    assert interactive.start("w", "d", True, dev=True)["mode"] == "agent"  # development
+    (tmp_path / "ui-mode.json").write_text(json.dumps({"pid": os.getpid(), "mode": "agent"}))
+    assert interactive.start("w", "d", True)["mode"] == "auto"  # a removed mode
 
 
 # -- Auto -------------------------------------------------------------------
@@ -363,9 +291,7 @@ def test_auto_runs_each_call_with_the_light_take(host, rig):
     assert host.enabled["value"] and not host.window_disabled
     host.ui.LockAccess.assert_not_called()
     # The agent's next health read (a worker-thread snapshot) already sees NX released.
-    snapshot = host.dispatch("nx_set_control", {"mode": "status"})
-    assert snapshot["ok"] and snapshot["data"]["mode"] == "auto"
-    assert snapshot["data"]["owner"] == "engineer" and not host.owns_lock
+    assert host._snapshot["mode"] == "auto" and host._snapshot["nx_window_input_enabled"]
     host.panel.wake.assert_called()  # tick again at once for a queued follow-up
 
 
@@ -429,33 +355,31 @@ def test_auto_reads_never_wait_and_leave_a_busy_engineers_window_alone(host):
     host.user.EnableWindow.assert_not_called()  # never re-enabled under the dialog
 
 
-def test_auto_asks_before_a_long_step(host, rig, monkeypatch):
-    monkeypatch.setattr(interactive, "_long", lambda method: method == "nx_test_long")
+def test_auto_never_shows_a_card_not_even_for_a_long_step(host, rig, monkeypatch):
+    from nx_mcp.host import dispatch
+
+    monkeypatch.setattr(
+        dispatch, "cost_of", lambda method: "long" if method == "nx_test_long" else "light"
+    )
     queue = _queue(host, "auto")
-    rig.e.dev_tools["nx_test_long"] = Mock(return_value={})
+    seen = []
+
+    def long_step():
+        seen.append(host.panel_text().splitlines()[0])
+        return {}
+
+    rig.e.dev_tools["nx_test_long"] = long_step
     rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
-    long_step = queue.submit("nx_test_long", {"intent": "Export the STEP"})
+    first = queue.submit("nx_test_long", {"intent": "Export the STEP"})
     after = queue.submit("nx_test_edit")
     read = queue.submit("nx_list_objects", BODIES)
-    host.tick()
-    assert read.complete.is_set()  # reads do not wait behind the card
-    host.tick()
-    assert not long_step.complete.is_set() and not after.complete.is_set()  # in order
-    text, title, mode, card = host.panel_state()
-    assert text.startswith("▶ Agent wants to: Test long") and "can take long" in text
-    assert title == "NX MCP — Auto · agent waiting for you" and card == "auto"
-    host._flash_nx.assert_called_once()
-    host.answer_requested = "run_once"
-    host.tick()
-    assert long_step.error is None and host.mode == "auto"
-    host.tick()
-    assert after.error is None
-    second = queue.submit("nx_test_long")
-    host.tick()
-    assert host.waiting_count == 1  # each long step asks once
-    host.answer_requested = "decline"
-    host.tick()
-    assert second.error.code == "NX_CONTROL_DECLINED"
+    for _ in range(3):
+        host.tick()
+        assert host.waiting_count == 0 and host.panel_state()[3] is None  # never a card
+    assert first.error is None and after.error is None and read.error is None
+    assert seen[0].endswith("Test long — running, NX may pause")  # it simply runs
+    host._flash_nx.assert_not_called()
+    assert host.mode == "auto" and host.enabled["value"]
 
 
 def test_auto_idle_and_running_lines(host):
@@ -509,7 +433,7 @@ def test_ask_run_and_switch_to_auto(host):
 def test_not_now_declines_every_waiting_request(host):
     queue = _queue(host, "ask")
     first = queue.submit("nx_set_camera")
-    second = queue.submit("nx_set_control", {"mode": "agent"})  # agent asking for control
+    second = queue.submit("nx_list_objects", BODIES)
     host.tick()
     assert host.waiting_count == 2 and "(+1 more)" in host.panel_text()
     host.answer_requested = "decline"
@@ -530,11 +454,26 @@ def test_unanswered_request_expires_without_running(host):
     assert "expired after 60 s" in host.panel_text()
 
 
-def test_handing_control_back_never_waits(host):
-    queue = _queue(host, "ask")
-    pending = queue.submit("nx_set_control", {"mode": "manual"})
+def test_ask_shows_a_card_for_every_call_but_the_status_read(host, rig):
+    rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
+    for method, params in (
+        ("nx_test_edit", {}),  # a model step
+        ("nx_set_camera", {}),  # a view step
+        ("nx_create_part", {"path": "x.prt"}),  # a file step
+        ("nx_list_objects", BODIES),  # a read
+    ):
+        queue = _queue(host, "ask")
+        pending = queue.submit(method, params)
+        host.tick()
+        assert not pending.complete.is_set() and host.waiting_count == 1, method
+        assert host.panel_state()[3] == "ask", method  # Run once, Run & switch, Not now
+        host.answer_requested = "decline"
+        host.tick()
+        assert pending.error.code == "NX_CONTROL_DECLINED" and host.waiting_count == 0
+    rig.e.dev_tools["nx_test_edit"].assert_not_called()
+    status = queue.submit("nx_get_status")
     host.tick()
-    assert pending.complete.is_set() and pending.error is None and host.waiting_count == 0
+    assert status.complete.is_set() and host.waiting_count == 0  # never waits
 
 
 def test_switching_to_ask_pauses_after_the_current_step(host, rig):
@@ -558,24 +497,18 @@ def test_switching_to_ask_pauses_after_the_current_step(host, rig):
 
 
 def test_titles_follow_mode_and_state(host):
-    expected = {
-        "auto": "NX MCP — Auto",
-        "agent": "NX MCP — Agent drives",
-        "ask": "NX MCP — Ask me first",
-    }
+    expected = {"auto": "NX MCP — Auto", "ask": "NX MCP — Ask me first"}
     for mode, title in expected.items():
-        host.mode, host.owns_lock = mode, mode == "agent"
+        host.mode = mode
         assert host.panel_state()[1:] == (title, mode, None)
-    host.mode, host.owns_lock = "agent", True
-    assert host.panel_text().startswith("·  Waiting for the agent's first request")
-    host.idle_since = time.time()
-    assert host.panel_text().startswith("·  Idle since ")
-    host.mode, host.owns_lock = "ask", False
+    host.mode = "auto"
+    assert host.panel_text().startswith("·  Auto — you work in NX")
+    host.mode = "ask"
     assert host.panel_text().startswith("·  Ask me first — agent steps wait for your OK")
     host.dev = True
     assert host.panel_state()[1] == "NX MCP DEV — Ask me first"
-    host.requested_mode = "agent"  # the click shows at once
-    assert host.panel_state()[2] == "agent"
+    host.requested_mode = "auto"  # the click shows at once
+    assert host.panel_state()[2] == "auto"
 
 
 def test_panel_commands_and_cleanup(host):
@@ -592,8 +525,12 @@ def test_panel_commands_and_cleanup(host):
     panel.label = 2
     panel.hwnd = 3
     panel._class = NS(lpszClassName="class")
-    for ident, mode in ((111, "auto"), (112, "agent"), (113, "ask")):
+    assert interactive.ID_MODES == {111: "auto", 113: "ask"}  # two radio buttons
+    for ident, mode in ((111, "auto"), (113, "ask")):
         assert panel._message(1, 0x111, ident, 0) == 0 and host.requested_mode == mode
+    host.requested_mode = None
+    panel._message(1, 0x111, 112, 0)  # the removed Agent drives button
+    assert host.requested_mode is None
     for ident, answer in ((107, "run_once"), (108, "run_auto"), (104, "decline")):
         panel._message(1, 0x111, ident, 0)
         assert host.answer_requested == answer
@@ -625,10 +562,9 @@ def _panel():
         UpdateWindow=Mock(),
         ShowWindow=Mock(),
         SendMessageW=Mock(),
-        MoveWindow=Mock(),
     )
     panel.label, panel.hwnd = 2, 3
-    panel.radios = {"auto": 11, "agent": 12, "ask": 13}
+    panel.radios = {"auto": 11, "ask": 13}
     panel.run_once, panel.run_auto, panel.decline, panel.open_log = 4, 5, 6, 7
     return panel
 
@@ -647,12 +583,7 @@ def test_panel_update_sets_title_radios_and_card_buttons():
     shown = dict(c.args for c in panel.user.ShowWindow.call_args_list)
     assert shown == {4: 5, 5: 5, 6: 5, 7: 0}  # the card's three answers replace Open log
     checks = {c.args[0]: c.args[2] for c in panel.user.SendMessageW.call_args_list}
-    assert checks == {11: 0, 12: 0, 13: 1}
-    panel.user.ShowWindow.reset_mock()
-    panel.update("text", "NX MCP — Auto · agent waiting for you", "auto", "auto")
-    shown = dict(c.args for c in panel.user.ShowWindow.call_args_list)
-    assert shown == {4: 5, 5: 0, 6: 5, 7: 0}  # no "Run & switch to Auto" in Auto
-    assert panel.user.MoveWindow.call_args.args[:2] == (6, 128)
+    assert checks == {11: 0, 13: 1}
     panel.user.ShowWindow.reset_mock()
     panel.update("▶  14:32:05  Extrude\n✓  14:32:01  Sketch", "NX MCP — Auto", "auto", None)
     shown = dict(c.args for c in panel.user.ShowWindow.call_args_list)
@@ -722,12 +653,12 @@ def test_start_reuses_live_host_and_cleans_partial_initialization(monkeypatch, h
 
 
 def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
-    host.control("agent")
+    host.mode, host._light = "auto", True  # as the scheduler runs an Auto step
+    host.window_disabled, host.enabled["value"] = True, False  # NX taken for this call
     observed = []
 
     def operation():
         def reader():
-            observed.append(host.dispatch("nx_set_control", {"mode": "status"}))
             observed.append(host.dispatch("nx_get_status", {"include": ["control", "operation"]}))
 
         thread = threading.Thread(target=reader)
@@ -740,38 +671,40 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
         # The running step is the top line of the history; the title says the mode.
         top = text.splitlines()[0]
         assert top.startswith("▶  ") and top.endswith("Test busy — running, NX may pause")
-        assert host.panel.update.call_args.args[1] == "NX MCP — Agent drives · agent step running"
+        assert host.panel.update.call_args.args[1] == "NX MCP — Auto · agent step running"
         return {}
 
     rig.e.dev_tools["nx_test_busy"] = operation
     host.execute("nx_test_busy", {"operation_id": "op_busy_0001"})
-    assert observed[0]["ok"] and observed[0]["mutation_outcome"] == "not_applicable"
-    assert observed[0]["data"]["activity"] == "running"
-    assert observed[0]["data"]["running"] == "nx_test_busy"
-    assert observed[0]["data"]["owner"] == "agent"
-    status = observed[1]  # nx_get_status from the snapshot, never queued
-    assert status["ok"] and status["data"]["operation"]["tool"] == "nx_test_busy"
+    status = observed[0]  # nx_get_status from the snapshot, never queued
+    assert status["ok"] and status["mutation_outcome"] == "not_applicable"
+    assert status["data"]["operation"]["tool"] == "nx_test_busy"
     assert status["data"]["operation"]["operation_id"] == "op_busy_0001"
-    assert status["data"]["control"]["activity"] == "running"
+    assert status["data"]["control"] == {
+        "mode": "auto",
+        "mode_label": "Auto",
+        "busy": False,
+        "waiting": 0,
+        "activity": "running",
+        "running": "nx_test_busy",
+    }
     host.dispatcher.drain.assert_not_called()
-    assert host.status()["activity"] == "reserved_idle"
+    assert host.status()["activity"] == "idle"
     assert host.status()["last_duration_seconds"] >= 0
     idle, *history = host.panel_text().splitlines()
-    assert idle.startswith("·  Idle since ") and history[0].startswith("✓ ")
-    assert not host.status()["nx_window_input_enabled"]
+    assert idle.startswith("·  Auto — ") and history[0].startswith("✓ ")
 
 
 def test_diagnostic_write_failure_does_not_fail_committed_operation(host, rig):
-    host.control("agent")
+    host.mode, host._light = "auto", True
     host.publish = Mock(side_effect=OSError("disk full"))
     result = host.execute("nx_list_objects", BODIES)
     assert result["ok"]
     assert host.running_method is None and host.operation_started is None
-    assert host.owns_lock
 
 
-def test_history_idle_text_and_recap_follow_real_operations(host, rig):
-    host.control("agent")
+def test_history_and_idle_text_follow_real_operations(host, rig):
+    host.mode, host._light = "auto", True
     rig.e.dev_tools["nx_test_make"] = lambda: {
         "status": "success",
         "feature": {"name": "EXTRUDE(2)"},
@@ -787,15 +720,13 @@ def test_history_idle_text_and_recap_follow_real_operations(host, rig):
         host.execute("nx_test_fail", {})
     # One list, newest first, under the idle line; no separate status block.
     idle, *history = host.panel_text().splitlines()
-    assert idle.startswith("·  Idle since ") and host.current_summary is None
+    assert idle.startswith("·  Auto — ") and host.current_summary is None
     assert history[0].startswith("✗ ") and "model unchanged" in history[0]
     assert "1 read-only or view step (model unchanged)" in history[1]
     assert history[2].startswith("✓ ") and "Test make → EXTRUDE(2)" in history[2]
-    host.control("auto")
-    idle, recap, *history = host.panel_text().splitlines()
-    assert idle.startswith("·  Auto — ")
-    assert recap.startswith("Agent's last session: 1 change, 1 failed")
-    assert history[0].startswith("✗ ")
+    host.set_mode("ask")
+    idle, *history = host.panel_text().splitlines()
+    assert idle.startswith("·  Ask me first — ") and history[0].startswith("✗ ")
     log = (host.state_dir / "activity.log").read_text(encoding="utf-8")
     assert "note: “Add the boss”" in log and log.count("\n") == 3
 
@@ -822,7 +753,7 @@ def test_notice_gives_way_to_the_idle_line(host):
 def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig):
     from types import SimpleNamespace as NS2
 
-    host.control("agent")
+    host.mode, host._light = "auto", True
     host.driver = "journal"  # Only the resident journal host starves NX's main loop.
     real_session = host.session
     host.session = NS2(ApplicationName="UG_APP_NOPART", Parts=[])
@@ -843,26 +774,6 @@ def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig
     host.session = real_session
 
 
-def test_handover_releases_nx_before_bookkeeping_that_fails(host, rig):
-    host.control("agent")
-    assert host.ui.AskLockStatus() == 1 and not host.user.IsWindowEnabled(1)
-    rig.e.clear_highlights = Mock(side_effect=RuntimeError("highlight failure"))
-    host._activity = Mock(session_recap=Mock(side_effect=RuntimeError("recap failure")))
-    result = host.control("ask")
-    assert host.user.IsWindowEnabled(1) and host.ui.AskLockStatus() == 0
-    assert not host.owns_lock and not host.window_disabled and host.mode == "ask"
-    assert result["mode"] == "ask"
-    assert "highlight failure" in host.last_error and "recap failure" in host.last_error
-
-
-def test_handover_never_raises_when_unlock_fails(host):
-    host.control("agent")
-    host.ui.UnlockAccess.side_effect = RuntimeError("unlock failure")
-    host.control("auto")
-    assert host.user.IsWindowEnabled(1) and host.mode == "auto"
-    assert "Cannot unlock NX: unlock failure" in host.last_error
-
-
 def test_light_release_never_raises_and_reenables_nx(host, rig):
     queue = _queue(host, "auto")
     rig.e.dev_tools["nx_test_fail"] = Mock(side_effect=RuntimeError("native error"))
@@ -875,17 +786,18 @@ def test_light_release_never_raises_and_reenables_nx(host, rig):
     assert "Cannot re-enable the NX window" in host.last_error
 
 
-def test_stop_tears_down_even_if_handover_and_teardown_steps_fail(host, monkeypatch):
-    host.control("agent")
-    monkeypatch.setattr(host, "control", Mock(side_effect=RuntimeError("handover failure")))
+def test_stop_gives_nx_back_and_tears_down_even_if_steps_fail(host, monkeypatch):
+    host.window_disabled, host.enabled["value"] = True, False  # stopped during a call
     host.dispatcher.stop.side_effect = RuntimeError("dispatcher failure")
     host.stop()
-    assert host.stopped and host.enabled["value"] and host.lock["value"] == 0
+    assert host.stopped and host.enabled["value"] and not host.window_disabled
     host.user.KillTimer.assert_called_once_with(None, 7)
     host.server.stop.assert_called_once()
     host.panel.close.assert_called_once()
-    assert "handover failure" in host.last_error and "dispatcher failure" in host.last_error
+    assert "dispatcher failure" in host.last_error
     assert not host.descriptor_path.exists()
+    host.ui.LockAccess.assert_not_called()
+    host.ui.UnlockAccess.assert_not_called()
 
 
 def test_grant_checkbox_shows_for_the_engineers_part_and_toggles(host, rig, monkeypatch):
@@ -942,16 +854,26 @@ def _dialog_open(monkeypatch, is_open):
     monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [warning] if is_open() else [])
 
 
-def test_agent_drives_refuses_a_model_step_under_a_dialog_but_answers_reads(host, rig, monkeypatch):
+def test_auto_refuses_a_step_under_a_dialog_that_opened_after_the_busy_check(
+    host, rig, monkeypatch
+):
+    # The busy probes saw nothing (the dialog opened in between, or its owner is not
+    # NX's main window); the scan after the host took NX refuses the step.
     _dialog_open(monkeypatch, lambda: True)
-    host.control("agent")
+    queue = _queue(host, "auto")
     rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
-    with pytest.raises(NXError) as refused:
-        host.execute("nx_test_edit", {})
-    assert refused.value.code == "NX_MODAL_DIALOG_OPEN"
-    assert refused.value.details["mutation_outcome"] == "not_started"
+    edit = queue.submit("nx_test_edit", {})
+    view = queue.submit("nx_set_camera", {})
+    read = queue.submit("nx_list_objects", BODIES)
+    for _ in range(3):
+        host.tick()
+    for refused in (edit, view):
+        assert refused.error.code == "NX_MODAL_DIALOG_OPEN"
+        assert refused.error.details["mutation_outcome"] == "not_started"
     rig.e.dev_tools["nx_test_edit"].assert_not_called()
-    assert host.execute("nx_list_objects", BODIES)["ok"]  # reads are never refused
+    assert read.error is None  # reads are never refused
+    assert host.enabled["value"] and not host.window_disabled  # NX given back
+    assert host.waiting_count == 0  # Auto never shows a card
 
 
 def test_auto_waits_for_an_engineers_dialog_then_runs_and_reads_answer(host, rig, monkeypatch):

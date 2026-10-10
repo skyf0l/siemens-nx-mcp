@@ -122,7 +122,7 @@ def read(tx) -> DefaultsData:
     summary="Read sheet-metal defaults",
     keywords=("sheet metal preferences", "default thickness", "bend radius", "k factor", "relief"),
     requires=("work_part",),
-    cost="instant",
+    cost="light",
     example={},
 )
 def nx_get_sheet_metal_defaults(tx: Tx) -> DefaultsData:
