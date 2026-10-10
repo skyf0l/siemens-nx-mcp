@@ -1,4 +1,4 @@
-"""Serve compatible and compact profiles against one serial NX bridge.
+"""Serve the full and agent profiles against one serial NX bridge.
 
 Binds 127.0.0.1:8765 by default. Host and port come from arguments or
 NX_MCP_HTTP_HOST / NX_MCP_HTTP_PORT. The HTTP endpoint has no authentication of

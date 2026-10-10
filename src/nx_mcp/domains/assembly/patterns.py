@@ -28,9 +28,9 @@ from nx_mcp.core.types import (
     RefTo,
     forbid_extra,
 )
-from nx_mcp.domains.assembly import common
+from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import MAX_INSTANCES, ComponentRow
-from nx_mcp.kit import assembly, builders, geom, model, readback, result, select
+from nx_mcp.kit import builders, geom, model, readback, result, select
 from nx_mcp.kit import pose as kpose
 
 Count = Annotated[int, Range(ge=2, le=MAX_INSTANCES), Doc("Instances including the seed")]
@@ -183,7 +183,7 @@ def _total(info) -> int:
 
 
 def _component_rows(tx, comps) -> list:
-    names = assembly.paths(tx.part)
+    names = structure.paths(tx.part)
     return [common.component_row(tx, c, names.get(int(c.Tag))) for c in comps]
 
 
@@ -319,7 +319,7 @@ def nx_create_component_pattern(
     lay = _layout(tx, layout)
     with tx.checks():
         seed = common.component(tx, component, "/component", unsuppressed=True)
-    wanted = expected(assembly.pose(seed), lay)
+    wanted = expected(structure.pose(seed), lay)
     if associative:
         pattern = _native(tx, seed, lay)
         info = describe(tx, pattern)
@@ -332,7 +332,7 @@ def nx_create_component_pattern(
         for key in ("spacing", "count2", "spacing2", "angle"):
             if key in lay:
                 info[key] = lay[key]
-    match([assembly.pose(c) for c in comps], wanted)
+    match([structure.pose(c) for c in comps], wanted)
     return {**_public(info), "components": _component_rows(tx, comps)}
 
 
@@ -438,7 +438,7 @@ def nx_edit_component_pattern(
         if info.get("count2", 1) > 1 and "_direction2" in info:
             lay.update(count2=info["count2"], spacing2=info["spacing2"],
                        direction2=info["_direction2"])  # fmt: skip
-        match([assembly.pose(c) for c in comps], expected(assembly.pose(seed), lay))
+        match([structure.pose(c) for c in comps], expected(structure.pose(seed), lay))
     else:
         readback.expect(len(comps) == total, "instances.count", count=len(comps))
     if replaced:

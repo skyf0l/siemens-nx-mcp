@@ -12,9 +12,9 @@ import contextlib
 
 from nx_mcp.core.catalogue import deleter, lister
 from nx_mcp.core.errors import fail, native
-from nx_mcp.domains.assembly import common, constraints, exploded, patterns
+from nx_mcp.domains.assembly import common, constraints, exploded, patterns, structure
 from nx_mcp.domains.assembly.reference_sets import members
-from nx_mcp.kit import assembly, model
+from nx_mcp.kit import model
 
 
 def _whole_part(owner):
@@ -52,7 +52,7 @@ def list_explosions(tx, owner, owner_kind):
 def list_component_patterns(tx, owner, owner_kind):
     _whole_part(owner)
     collection = getattr(tx.part.ComponentAssembly, "ComponentPatterns", None)
-    if collection is None or assembly.root(tx.part) is None:
+    if collection is None or structure.root(tx.part) is None:
         return []
     out = []
     for pattern in collection.GetAllComponentPatterns():
@@ -83,7 +83,7 @@ def list_assembly_constraints(tx, owner, owner_kind):
 def delete_components(tx, objects):
     part = tx.part
     for c in objects:
-        if not assembly.is_direct_child(part, c):
+        if not structure.is_direct_child(part, c):
             fail("NX_WRONG_OWNER", f"{c.Name} is not a direct component of the work part",
                  hint=common.OWNER_HINT)  # fmt: skip
     with native(default="NX_BUILD_FAILED"):

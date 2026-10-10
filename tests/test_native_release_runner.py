@@ -36,27 +36,6 @@ def test_receipt_manifest_hashes_nested_artifacts(tmp_path):
     ]
 
 
-@pytest.mark.asyncio
-async def test_agent_ux_client_forwards_tool_name_arguments(tmp_path):
-    from types import SimpleNamespace
-    from unittest.mock import AsyncMock
-
-    runner = runpy.run_path(
-        str(Path(__file__).resolve().parents[1] / "scripts/validate_agent_ux.py")
-    )
-    session = SimpleNamespace(
-        call_tool=AsyncMock(
-            return_value=SimpleNamespace(isError=False, structuredContent={"status": "success"})
-        )
-    )
-    client = runner["Client"](session, tmp_path / "ux")
-    client.schemas = {"nx_create_reference_set": {"properties": {}}}
-    await client.call("nx_create_reference_set", name="SOLIDS", objects=["body"])
-    session.call_tool.assert_awaited_once_with(
-        "nx_create_reference_set", {"name": "SOLIDS", "objects": ["body"]}
-    )
-
-
 def expected_tool_count(script: Path) -> int:
     """Evaluate a script's EXPECTED_TOOL_COUNT assignment without running the suite."""
     tree = ast.parse(script.read_text(encoding="utf-8"))

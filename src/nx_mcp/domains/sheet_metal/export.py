@@ -20,8 +20,8 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, FeatureRef, Items, Length, PathTo, forbid_extra
 from nx_mcp.domains.sheet_metal import common
+from nx_mcp.domains.sheet_metal import dxf as outline
 from nx_mcp.kit import args, builders, files, result, select, units
-from nx_mcp.kit import dxf as outline
 
 REVISIONS = {
     "r12": "R12",

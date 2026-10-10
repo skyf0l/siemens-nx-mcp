@@ -1,10 +1,10 @@
-"""kit.dxf: entity counts and extents of ASCII DXF and Trumpf GEO files."""
+"""sheet_metal.dxf: entity counts and extents of ASCII DXF and Trumpf GEO files."""
 
 import math
 
 import pytest
 
-from nx_mcp.kit import dxf
+from nx_mcp.domains.sheet_metal import dxf
 
 
 def ascii_dxf(*entities, version="AC1032"):

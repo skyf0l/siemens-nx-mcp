@@ -6,8 +6,7 @@ NX MCP is a two-process Siemens NX automation server. The sidecar
 (`python -m nx_mcp.server`) owns stdio, schemas, validation and workspace paths and
 imports without NX. The NX-side host owns NXOpen and the session; they talk over an
 authenticated loopback bridge. Design of record: `docs/design/architecture.md`
-(section 5 = agent rules) and `docs/design/tool-surface.md`; old material is in
-`docs/history/`.
+(section 5 = agent rules) and `docs/design/tool-surface.md`.
 
 ## Layout (`src/nx_mcp`)
 
@@ -104,5 +103,5 @@ python -m pytest -q -p no:cacheprovider -m "not real_nx" --basetemp .pytest-tmp
 python -m mypy src/nx_mcp
 ```
 
-`fake_nx` tests verify only the simulated NXOpen seam; `real_nx` acceptance on the
+Fake-NX tests verify only the simulated NXOpen seam; `real_nx` acceptance on the
 dedicated NX runner is the release gate.

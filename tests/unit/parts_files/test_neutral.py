@@ -1,6 +1,6 @@
 import pytest
 
-from nx_mcp.kit import neutral
+from nx_mcp.domains.parts_files import neutral
 from tests.kit import neutral_files as make
 
 BOXES = [[0, 0, 0, 40, 20, 10], [200, 0, 0, 210, 20, 30]]

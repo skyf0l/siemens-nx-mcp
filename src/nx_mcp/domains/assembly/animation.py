@@ -19,8 +19,8 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, ExplosionRef, PathTo, Range
-from nx_mcp.domains.assembly import common, exploded
-from nx_mcp.kit import assembly, capture, drawing, files, readback
+from nx_mcp.domains.assembly import common, exploded, structure
+from nx_mcp.kit import capture, drawing, files, readback
 from nx_mcp.kit import pose as kpose
 
 PAGE = (
@@ -67,7 +67,7 @@ def html(images, fps) -> str:
 
 def _state(tx, ex) -> dict:
     return {
-        tag: (exploded.exploded_pose(child), assembly.pose(component))
+        tag: (exploded.exploded_pose(child), structure.pose(component))
         for tag, (child, component, _n, _h) in exploded.tree(ex).items()
     }
 
@@ -104,7 +104,7 @@ def nx_export_explosion_animation(
             fail("NX_INVALID_ARGUMENT", "The explosion has no unsuppressed component",
                  field="/explosion")  # fmt: skip
     poses = [
-        (int(c.Tag), assembly.pose(c), exploded.exploded_pose(child))
+        (int(c.Tag), structure.pose(c), exploded.exploded_pose(child))
         for child, c, _n, _h in entries
     ]
     before = _state(tx, ex)

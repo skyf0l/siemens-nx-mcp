@@ -82,7 +82,6 @@ COLOR_NAMES = {
     "gray": "MEDIUM_GRAY_NAME",
 }
 MAX_RECORDS = 10000  # objects and faces one display change may touch
-CAMERA_TOL = 1e-9  # relative read-back tolerance of the camera
 
 
 # ---- parts and views ------------------------------------------------------------------------

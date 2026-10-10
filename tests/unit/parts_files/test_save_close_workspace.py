@@ -7,8 +7,6 @@ from unittest.mock import Mock
 
 import pytest
 
-pytestmark = pytest.mark.fake_nx
-
 
 @pytest.mark.parametrize(
     ("method", "params"),

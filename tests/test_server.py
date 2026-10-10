@@ -13,28 +13,7 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from nx_mcp.core import catalogue
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
-
-pytestmark = pytest.mark.integration
-
-
-class StubBridge:
-    async def call(self, method: str, params: dict):
-        return {
-            "connected": True,
-            "nx_version": "NX test",
-            "bridge_protocol": 1,
-            "active_part": None,
-        }
-
-
-class RecordingBridge:
-    def __init__(self, response: dict):
-        self.response = response
-        self.calls: list[tuple[str, dict]] = []
-
-    async def call(self, method: str, params: dict):
-        self.calls.append((method, params))
-        return self.response
+from tests.kit.bridges import RecordingBridge, StubBridge
 
 
 def test_server_lists_every_tool_without_nx_imports(tmp_path):

@@ -15,7 +15,6 @@ from nx_mcp.core.errors import fail, native
 UNIT_NAMES = {"mm": "MilliMeter", "in": "Inch", "deg": "Degrees", "rad": "Radian", "unitless": None}
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,99}")
 MAX_FORMULA = 4096
-FORMULA_HINT = "Use NX expression syntax with existing expression names and units"
 # NX 2406 "Dimension error": an expression of the wrong dimension (angle on a length).
 DIMENSION_ERROR = 3270081
 

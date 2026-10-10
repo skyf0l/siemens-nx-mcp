@@ -17,7 +17,6 @@ from nx_mcp.core.errors import NXError
 from nx_mcp.interactive import ControlPanel, InteractiveHost
 from tests.kit.objects import Body, Collection
 
-pytestmark = pytest.mark.fake_nx
 BODIES = {"kind": "body"}  # a catalogue read
 
 

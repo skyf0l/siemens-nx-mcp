@@ -19,9 +19,9 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ComponentRef, Items, Plane
-from nx_mcp.domains.assembly import common
+from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import ComponentRow
-from nx_mcp.kit import args, assembly, builders, geom, model, readback, select
+from nx_mcp.kit import args, builders, geom, model, readback, select
 
 
 class MirroredPair(TypedDict):
@@ -58,7 +58,7 @@ def nx_create_component_mirror(
         _, origin, normal = select.plane(tx, plane, "/plane")
     part = tx.part
     nx = tx.nx
-    before = {int(c.Tag) for c in assembly.direct_children(part)}
+    before = {int(c.Tag) for c in structure.direct_children(part)}
     with builders.build(tx, part.AssemblyManager.CreateReflectComponentBuilder, part, None) as b:
         with native(default="NX_BUILD_FAILED"):
             b.SetComponentsToReflect(values)
@@ -71,17 +71,17 @@ def nx_create_component_mirror(
             )
         b.commit()
     model.update(tx)
-    added = [c for c in assembly.direct_children(part) if int(c.Tag) not in before]
+    added = [c for c in structure.direct_children(part) if int(c.Tag) not in before]
     readback.expect(
         len(added) == len(values), "components", "NX mirrored another count",
         actual=len(added),
     )  # fmt: skip
-    names = assembly.paths(part)
+    names = structure.paths(part)
     out: list[MirroredPair] = []
     for i, source in enumerate(values):
-        want = geom.reflect(assembly.pose(source)[0], origin, normal)
-        copy = min(added, key=lambda c: geom.dist(assembly.pose(c)[0], want))
-        got = assembly.pose(copy)[0]
+        want = geom.reflect(structure.pose(source)[0], origin, normal)
+        copy = min(added, key=lambda c: geom.dist(structure.pose(c)[0], want))
+        got = structure.pose(copy)[0]
         readback.expect(
             geom.dist(got, want) <= 1e-6, f"origin[{i}]", "The mirrored origin is off",
             actual=got,

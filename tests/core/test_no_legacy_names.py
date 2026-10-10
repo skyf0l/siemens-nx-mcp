@@ -1,8 +1,7 @@
 """The migration to the catalogue and kernel is finished: no "legacy" layer is left.
 
 The package, its tests and the design docs read as one design, so the word does not
-appear in ``src/nx_mcp``, ``tests`` or ``docs/design`` (``docs/history`` keeps the
-record). Binary files such as ``.prt`` fixtures are not scanned. An exception needs a
+appear in ``src/nx_mcp``, ``tests`` or ``docs/design``. Binary files such as ``.prt`` fixtures are not scanned. An exception needs a
 written reason here.
 """
 

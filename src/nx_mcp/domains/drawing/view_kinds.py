@@ -29,7 +29,6 @@ from nx_mcp.kit import builders, drawing, geom, readback, units
 
 DEFAULT_GAP_MM = 10.0
 AXES = {"x": 0, "y": 1}
-SXSEG_ARRAYS = {"half": "CreateHalfSxview", "stepped": "CreateSteppedSxview"}
 
 
 class _EdgePointRequired(TypedDict):

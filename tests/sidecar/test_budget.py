@@ -81,8 +81,9 @@ def own_definition(spec) -> int:
     tools, so the per-tool caps and the median measure the tool's own definition; the
     full listing's mean cap above counts them.
     """
-    return schema.definition_size(
-        spec.name, spec.description, schema.input_schema(spec, call_keys=False)
+    generated = schema.input_schema(spec, call_keys=False)
+    return (
+        len(spec.name) + len(spec.description) + len(json.dumps(generated, separators=(",", ":")))
     )
 
 

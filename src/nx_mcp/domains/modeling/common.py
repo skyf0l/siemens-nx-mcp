@@ -17,6 +17,14 @@ class FeatureData(TypedDict):
     volume: float
 
 
+def float_or_none(text):
+    """``float(text)``, or ``None`` when NX's text is missing or not a number."""
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
 def bodies_text(args, field="bodies") -> str:
     """``1 body`` / ``3 bodies`` for a panel summary."""
     n = len(args.get(field) or [])

@@ -19,8 +19,6 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.kit import result, select
 from nx_mcp.kit.sketch import snake
 
-APPLICATION = "UG_APP_SBSM"
-
 
 def namespace(tx):
     """``NXOpen.Features.SheetMetal`` (imported by the host at start)."""

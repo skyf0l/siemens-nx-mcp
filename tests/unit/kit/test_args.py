@@ -54,30 +54,3 @@ def test_points_and_vectors():
     assert args.vec3((1, 2, 3), "origin") == [1.0, 2.0, 3.0]
     assert _error(args.vec3, [1, 2], "origin").message == "origin must contain three numbers"
     assert _error(args.vec3, [1, True, 2], "origin").message == "origin must be finite"
-    assert args.point2([1, 2]) == [1.0, 2.0]
-    assert _error(args.point2, [1, 2, 3], "center").message == "center must be local [x, y]"
-    assert args.sheet_point([10, 20.5]) == [10.0, 20.5]
-    assert "sheet units" in _error(args.sheet_point, [1], "origin").message
-    assert args.points3([[0, 0, 0], [1, 1, 1]], minimum=2) == [[0, 0, 0], [1, 1, 1]]
-    assert _error(args.points3, [[0, 0]]).field == "/points/0"
-    assert _error(args.points3, [[0, 0, 0]], minimum=2).message == "Expected 2..1000 points"
-
-
-def test_references():
-    assert args.ref("b:1", "body") == "b:1"
-    assert (
-        _error(args.ref, " ", "feature", "a feature ID").message == "feature must be a feature ID"
-    )
-    assert args.refs(["a", "b"], "edges", 1, 50) == ["a", "b"]
-    assert "non-empty list of 1-50 object IDs" in _error(args.refs, [], "edges", 1, 50).message
-    assert _error(args.refs, "a", "edges").message == "edges must be a non-empty list of object IDs"
-    assert _error(args.refs, ["a"], "objects", 2, 2).message == "objects must list 2 object IDs"
-    assert "at most 3" in _error(args.refs, list("abcd"), "edges", 1, 3).message
-    assert "non-empty" in _error(args.refs, ["a", ""], "edges").message
-    err = _error(args.refs, ["a", "a"], "edges")
-    assert "duplicates" in err.message and "distinct" in err.message and "repeat" in err.message
-
-
-def test_choice():
-    assert args.choice("mm", "units", {"mm", "in"}) == "mm"
-    assert _error(args.choice, "cm", "units", {"mm", "in"}).message == "units must be one of in, mm"

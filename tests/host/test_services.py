@@ -11,8 +11,6 @@ from nx_mcp.nx_bridge import start_bridge, stop_bridge
 from nx_mcp.workspace import Workspace
 from tests.kit.objects import Body
 
-pytestmark = pytest.mark.fake_nx
-
 
 class Parts(list):
     Work = Display = None

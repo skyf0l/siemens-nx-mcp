@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nx-mcp"
-version = "0.2.0.dev23"
+dynamic = ["version"]
 description = "MCP server for Siemens NX (UG) CAD operations"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,18 +26,18 @@ dev = [
 
 [project.scripts]
 nx-mcp = "nx_mcp.server:main"
-nx-mcp-smoke = "nx_mcp.real_smoke:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "nx_mcp.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = ["-ra", "--strict-markers"]
 markers = [
-    "integration: exercises an MCP or bridge boundary without a live NX session",
-    "fake_nx: exercises a fake NXOpen implementation and is not real-NX validation",
     "real_nx: requires a dedicated Windows runner with Siemens NX and a started bridge",
 ]
 
@@ -58,10 +58,6 @@ src = ["src"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
-
-[tool.ruff.lint.per-file-ignores]
-# Snippets run inside NX after scripts/bench/nx/_prelude.py, which defines their helpers.
-"scripts/bench/nx/*.py" = ["F821"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["nx_mcp"]

@@ -1,9 +1,9 @@
 """Assembly occurrences: direct children, poses, moves, load state, NX error lists.
 
-    t, r = assembly.pose(component)                 # p_assembly = r p_local + t
-    assembly.move(tx, component, (t, r))           # absolute pose, read back
-    assembly.load_state(tx, component)             # {"part_path", "load_state"}
-    assembly.check(errors)                          # an NX ErrorList: NX_UPDATE_FAILED
+    t, r = structure.pose(component)        # p_assembly = r p_local + t
+    structure.move(tx, component, (t, r))   # absolute pose, read back
+    structure.load_state(tx, component)     # {"part_path", "load_state"}
+    structure.check(errors)                 # an NX ErrorList: NX_UPDATE_FAILED
 
 Occurrence paths come from ``kit.parts.components`` (depth first, names from the
 root). The NX 2406 pivot of ``MoveComponent`` is handled by ``kit.pose.move_args``.
@@ -14,7 +14,7 @@ from __future__ import annotations
 import contextlib
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import builders, geom, parts, readback
+from nx_mcp.kit import builders, display, geom, parts, readback
 from nx_mcp.kit import pose as kpose
 
 
@@ -23,18 +23,13 @@ def root(part):
     return getattr(getattr(part, "ComponentAssembly", None), "RootComponent", None)
 
 
-def same(a, b) -> bool:
-    """Same NX object by tag (NXOpen may hand out several wrappers)."""
-    return a is not None and b is not None and int(a.Tag) == int(b.Tag)
-
-
 def direct_children(part) -> list:
     top = root(part)
     return list(top.GetChildren()) if top is not None else []
 
 
 def is_direct_child(part, component) -> bool:
-    return same(getattr(component, "Parent", None), root(part))
+    return display.same(getattr(component, "Parent", None), root(part))
 
 
 def paths(part) -> dict:

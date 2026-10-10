@@ -22,8 +22,8 @@ import math
 from typing import TYPE_CHECKING
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.domains.assembly import common
-from nx_mcp.kit import assembly, geom, model, readback
+from nx_mcp.domains.assembly import common, structure
+from nx_mcp.kit import geom, model, readback
 from nx_mcp.kit import pose as kpose
 
 if TYPE_CHECKING:  # explosions imports this module
@@ -53,13 +53,13 @@ def tree(explosion) -> dict:
 
 
 def exploded_pose(child):
-    return assembly.pose(child)
+    return structure.pose(child)
 
 
 def entry_row(tx, entry) -> ExplodedRow:
     child, component, names, hidden = entry
     t, r = exploded_pose(child)
-    at, ar = assembly.pose(component)
+    at, ar = structure.pose(component)
     return {
         "component": common.component_row(tx, component, names, with_pose=False),
         "translation": t,
@@ -175,7 +175,7 @@ def anchor_positions(tx, explosion, records) -> list:
                 assembled.append(geom.xyz(point.Coordinates))
     out = []
     for ((child, component, _n, _h), _edge), p in zip(found, assembled, strict=True):
-        local = kpose.compose(kpose.inverse(assembly.pose(component)), (p, kpose.identity()))[0]
+        local = kpose.compose(kpose.inverse(structure.pose(component)), (p, kpose.identity()))[0]
         out.append(kpose.compose(exploded_pose(child), (local, kpose.identity()))[0])
     return out
 

@@ -13,7 +13,6 @@ venv/
 .mypy_cache/
 .pytest_cache/
 .pytest-tmp*/
-.nx-smoke-workspace/
 .ruff_cache/
 .ruff/
 *.egg-info

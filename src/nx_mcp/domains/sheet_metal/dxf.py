@@ -29,7 +29,7 @@ def _pairs(text):
         yield code, lines[i + 1].strip()
 
 
-def _number(value):
+def _float_or_none(value):
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -131,7 +131,7 @@ def dxf_facts(data: bytes) -> dict:
         if code == 8:
             layers.add(value)
         elif code in POINT_CODES:
-            number = _number(value)
+            number = _float_or_none(value)
             pending[POINT_CODES[code]] = number
             if code in (20, 21):
                 if kind in ("ARC", "CIRCLE") and code == 20:
@@ -140,7 +140,7 @@ def dxf_facts(data: bytes) -> dict:
                     record["points"].append((pending[0], pending[1]))
                 pending = [None, None]
         elif code in (40, 50, 51):
-            number = _number(value)
+            number = _float_or_none(value)
             if number is not None:
                 record[code] = number
     flush()
@@ -170,8 +170,8 @@ def geo_facts(data: bytes) -> dict:
     points: dict[int, tuple[float, float]] = {}
     entities: dict[str, int] = {}
     header = _block(lines, "1")
-    area = _number(header[5]) if len(header) > 5 else None
-    thickness = next((_number(v) for v in _block(lines, "11") if v), None)
+    area = _float_or_none(header[5]) if len(header) > 5 else None
+    thickness = next((_float_or_none(v) for v in _block(lines, "11") if v), None)
     i = 0
     while i < len(lines):
         word = lines[i]

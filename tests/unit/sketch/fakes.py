@@ -129,12 +129,6 @@ class Ellipse(Curve):
         return sum(math.dist(pts[k], pts[k + 1]) for k in range(n))
 
 
-def ellipse_perimeter_exact(a, b):
-    from nx_mcp.kit.sketch import ellipse_perimeter
-
-    return ellipse_perimeter(a, b)
-
-
 class Constraint(Object):
     def __init__(self, kind, geometry, sketch):
         super().__init__("CONSTRAINT")

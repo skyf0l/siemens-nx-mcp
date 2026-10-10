@@ -1,5 +1,5 @@
-"""Additive core seams for the session domain: Arguments (Json), tx.preview outcomes,
-tx.scratch's mark, receipt progress totals."""
+"""Core seams the session tools use: the Arguments (Json) type, tx.preview outcomes,
+tx.scratch's mark and receipt progress totals."""
 
 from types import SimpleNamespace as NS
 

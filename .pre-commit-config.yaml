@@ -21,7 +21,7 @@ repos:
       - id: name-tests-test
         args: [--pytest-test-first]
         # Shared fixtures and fakes, not test modules.
-        exclude: ^tests/(kit/|core/(fakes|tools)\.py$|fakes/|unit/[^/]+/(fakes|support)\.py$)
+        exclude: ^tests/(kit/|core/(fakes|tools)\.py$|unit/[^/]+/(fakes|support)\.py$)
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20

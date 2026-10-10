@@ -230,7 +230,6 @@ DIMENSION_POINT = {
     "mid": "Midpoint",
 }
 DRAG_POINT = {"start": "StartPoint", "end": "EndPoint", "center": "Center"}
-DRAG_SOLVED = "Updated"
 FULL_TURN = 2 * math.pi
 
 

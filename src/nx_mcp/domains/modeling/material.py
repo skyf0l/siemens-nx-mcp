@@ -100,13 +100,6 @@ def _ascii_unit(text: str) -> str:
     return "".join(text.split())
 
 
-def _float_or_none(text):
-    try:
-        return float(text)
-    except (TypeError, ValueError):
-        return None
-
-
 def parse_property(value: str, dim: str) -> float | None:
     """One NX library property string in the reported unit, or ``None`` when unreadable."""
     text = str(value or "").strip()
@@ -115,7 +108,11 @@ def parse_property(value: str, dim: str) -> float | None:
         if len(lines) < 3 or len(lines[1]) < 2:
             return None
         temperature_unit, unit = _ascii_unit(lines[1][0]), _ascii_unit(" ".join(lines[1][1:]))
-        rows = [(_float_or_none(r[0]), _float_or_none(r[1])) for r in lines[2:] if len(r) >= 2]
+        rows = [
+            (common.float_or_none(r[0]), common.float_or_none(r[1]))
+            for r in lines[2:]
+            if len(r) >= 2
+        ]
         rows = [(t, v) for t, v in rows if t is not None and v is not None]
         if not rows:
             return None
@@ -123,7 +120,7 @@ def parse_property(value: str, dim: str) -> float | None:
         number = min(rows, key=lambda row: abs(row[0] - room))[1]
     else:
         head, _, rest = text.partition(" ")
-        number, unit = _float_or_none(head), _ascii_unit(rest)
+        number, unit = common.float_or_none(head), _ascii_unit(rest)
     factor = UNITS[dim].get(unit)
     if number is None or factor is None:
         return None

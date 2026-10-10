@@ -45,10 +45,10 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import classify, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ByVariant, Doc, Json, PathTo, SketchRef
-from nx_mcp.domains.parts_files import _saving
+from nx_mcp.domains.parts_files import _saving, neutral
 from nx_mcp.domains.parts_files.exchange import Bounds, _settings, _tail
 from nx_mcp.domains.parts_files.parts import new_part
-from nx_mcp.kit import files, measure, neutral, parts, readback, result
+from nx_mcp.kit import files, measure, parts, readback, result
 from nx_mcp.kit import sketch as ksketch
 from nx_mcp.kit import units as kit_units
 

@@ -84,13 +84,6 @@ def check_units(tx, row, field):
         )
 
 
-def _float(text):
-    try:
-        return float(text)
-    except (TypeError, ValueError):
-        return None
-
-
 class ThreadRow(TypedDict, total=False):
     standard: str
     unit: str
@@ -128,8 +121,8 @@ def _row(r, detail):
             ("pitch", "Pitch"),
             ("angle", "Angle"),
         ):
-            out[key] = _float(r.get(name))
-        starts = _float(r.get("NumStarts"))
+            out[key] = common.float_or_none(r.get(name))
+        starts = common.float_or_none(r.get("NumStarts"))
         out["starts"] = int(starts) if starts is not None else None
     return {k: v for k, v in out.items() if v is not None}
 

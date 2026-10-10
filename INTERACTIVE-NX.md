@@ -187,16 +187,7 @@ check once in graphical NX:
 
 ## Development loop (never for production work)
 
-Start NX with the startup application in development mode:
-`python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1`. The
-panel starts in Auto as in production, `scripts/dev_python.py` works, and
-`python scripts/dev_reload.py --wait-ready` reloads all of `nx_mcp` from disk
-(about two seconds; open parts stay open, object IDs reset): the bootstrap stops
-the host, drops every `nx_mcp` module and starts a fresh host. It exits 1 and
-prints the traceback if the new code does not load; the next reload recovers.
-The panel mode you picked is kept across reloads. Changing
-`nx_app/startup/nx_mcp_startup.py` itself needs an NX restart. The panel title
-reads **NX MCP DEV**.
+See "Live NX development loop" in [CLAUDE.md](CLAUDE.md#live-nx-development-loop).
 
 ## What the agent is doing
 

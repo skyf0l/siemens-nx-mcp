@@ -11,7 +11,7 @@ MCP client -> sidecar (python -m nx_mcp.server: stdio, schemas, validation, path
 
 The sidecar imports without NX. Every public tool is one `@tool` function in
 `src/nx_mcp/domains/<domain>/`; the catalogue (`nx_mcp.core.catalogue`) currently holds
-148 tools in 10 domains, listed with their arguments in the generated
+159 tools in 10 domains, listed with their arguments in the generated
 [tool reference](docs/tools.md). The kernel runs every call through the same gates
 (validation, workspace paths, evidence, part ownership, undo mark and rollback, receipts).
 There is no arbitrary journal-execution tool. Design: [architecture](docs/design/architecture.md)
@@ -109,8 +109,7 @@ Pre-commit runs ruff, ruff-format, and checks that `docs/capability-matrix.md` a
 `docs/tools.md` match the catalogue (regenerate with
 `scripts/generate_capability_matrix.py` and `scripts/generate_tool_reference.py`).
 Fake-NX tests check the NXOpen seam only; the `real_nx` acceptance runs on the
-dedicated NX runner are the release gate. Older documents and evidence logs are in
-[docs/history/](docs/history/README.md).
+dedicated NX runner are the release gate.
 
 ## License
 

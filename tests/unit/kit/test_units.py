@@ -33,21 +33,6 @@ def test_unknown_sheet_units():
 
 def test_conversion():
     assert units.factor("in", "mm") == 25.4
-    assert units.convert(10, "length", "in") == 10.0  # a plain number is already in target units
-    assert units.convert("25.4 mm", "length", "in") == pytest.approx(1.0)
-    assert units.convert(" 1in ", "length", "mm") == pytest.approx(25.4)
-    assert units.convert("1e1 mm", "sheet_length", "mm") == 10.0
-    assert units.convert("180 deg", "angle", "rad") == pytest.approx(3.141592653589793)
-    assert units.convert("0.5 rad", "angle", "deg") == pytest.approx(28.64788975654116)
-    for bad, dim in (
-        ("30 deg", "length"),
-        ("10 mm", "angle"),
-        ("ten mm", "length"),
-        (True, "length"),
-    ):
-        with pytest.raises(NXError) as error:
-            units.convert(bad, dim, "mm" if dim != "angle" else "deg", field="/distance")
-        assert error.value.code == "NX_INVALID_ARGUMENT" and error.value.field == "/distance"
 
 
 def test_tolerances_respect_inch_parts():

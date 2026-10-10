@@ -63,7 +63,6 @@ IMPORT_USERS = [
     "src/nx_mcp/server.py",
     "src/nx_mcp/interactive.py",
     "src/nx_mcp/acceptance/runner.py",
-    "scripts/bench/common.py",
     "nx_app/journals/start_2606.py",
     "nx_app/journals/start_batch.py",
 ]

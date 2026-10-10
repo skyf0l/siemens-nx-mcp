@@ -59,8 +59,6 @@ from nx_mcp.workspace import default_workspace
 ROOT = Path(os.environ.get("NX_MCP_SOURCE_ROOT") or Path(__file__).resolve().parents[3])
 SCENARIOS = ROOT / "acceptance"
 EVIDENCE = SCENARIOS / "evidence"
-FIXTURES = SCENARIOS / "fixtures"
-SPECIAL = ("$part", "$fixture", "$run")
 STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail"}
 CLEANUP = ("close", "save", "keep")
 EVIDENCE_FORMAT = 2  # 2: deterministic proof only; run details go to the run log
@@ -488,7 +486,7 @@ def _echo(result: StepResult) -> None:
 
 
 async def run_scenario(
-    session, path: Path, *, workspace: Path, run_id: str, build, owner
+    session, path: Path, *, workspace: Path, run_id: str, build
 ) -> tuple[dict, dict]:
     """Run one scenario: ``(evidence, details)``, the committed proof and its run-log entry."""
     data = load_scenario(path)
@@ -782,7 +780,7 @@ async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDE
                 lock.refresh()
                 print(f"{relative(path)}")
                 record, details = await run_scenario(
-                    session, path, workspace=workspace, run_id=run_id, build=build, owner=owner
+                    session, path, workspace=workspace, run_id=run_id, build=build
                 )
                 written, changed = write_evidence(record, evidence_root)
                 details.update(evidence=relative(written), evidence_changed=changed)

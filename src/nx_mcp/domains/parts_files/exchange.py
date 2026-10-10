@@ -9,7 +9,7 @@ unmodified part; STL (``StlCreator``) tessellates the loaded bodies. JT
 (``PvtransManager.CreateJtCreator``, monolithic) is refused for a modified part: NX 2406
 writes edited bodies as last saved (a moved body stays where it was saved), new bodies
 as they are. The translator writes into
-``.nx-mcp/staging``; the file is read back (``kit.neutral``: schema, units, solids or
+``.nx-mcp/staging``; the file is read back (``neutral``: schema, units, solids or
 triangles, extent against the bodies) and published without overwriting anything.
 STEP AP242 needs its own NX license; without it NX 2406 raises "Interrupt" (code 2) for
 a modified part and writes "STEP AP242 License not found" to the syslog. Code 2 maps to
@@ -35,8 +35,8 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, BodyRef, ByVariant, Doc, Items, Json, Length, PathTo
-from nx_mcp.domains.parts_files import _saving
-from nx_mcp.kit import args, files, measure, neutral, parts, readback, result
+from nx_mcp.domains.parts_files import _saving, neutral
+from nx_mcp.kit import args, files, measure, parts, readback, result
 from nx_mcp.kit import units as kit_units
 
 LOG_TAIL = 4000

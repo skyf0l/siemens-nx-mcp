@@ -269,7 +269,6 @@ async def test_scenario_runs_through_the_gateways_and_writes_evidence(tmp_path, 
             workspace=workspace,
             run_id="r1",
             build=("v2406", "NX 2406.1700"),
-            owner="tester",
         )
     assert record["passed"], record["steps"]
     assert record["checks"] == 7 and record["nx_build"] == "NX 2406.1700"
@@ -328,7 +327,7 @@ async def test_a_failing_expectation_fails_the_scenario(tmp_path, scenario_dir):
     server = create_server(FakeNX(), Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
         record, details = await runner.run_scenario(
-            session, scenario_dir, workspace=tmp_path, run_id="r2", build=("v2406", ""), owner="t"
+            session, scenario_dir, workspace=tmp_path, run_id="r2", build=("v2406", "")
         )
     assert not record["passed"] and record["failed_checks"] == 1
     assert "close 30" in record["steps"][2]["failures"][0]
@@ -343,7 +342,7 @@ async def test_parts_are_closed_when_a_setup_step_fails(tmp_path, scenario_dir):
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
         record, details = await runner.run_scenario(
-            session, scenario_dir, workspace=tmp_path, run_id="r3", build=("v2406", ""), owner="t"
+            session, scenario_dir, workspace=tmp_path, run_id="r3", build=("v2406", "")
         )
     assert not record["passed"] and len(record["steps"]) == 2  # stopped at the failed setup
     assert len(details["cleanup"]["closed"]) == 1
@@ -356,7 +355,7 @@ async def test_cleanup_keep_leaves_parts_loaded(tmp_path, scenario_dir):
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
         record, details = await runner.run_scenario(
-            session, scenario_dir, workspace=tmp_path, run_id="r4", build=("v2406", ""), owner="t"
+            session, scenario_dir, workspace=tmp_path, run_id="r4", build=("v2406", "")
         )
     assert details["cleanup"] == {"mode": "keep", "closed": [], "failed": []}
     assert len(nx.parts) == 2
@@ -376,7 +375,7 @@ async def test_a_second_identical_run_leaves_the_evidence_file_byte_identical(
         async with create_connected_server_and_client_session(server) as session:
             record, _ = await runner.run_scenario(
                 session, scenario_dir, workspace=workspace, run_id=run_id,
-                build=("v2406", "2406.9160"), owner=run_id,
+                build=("v2406", "2406.9160"),
             )  # fmt: skip
         path, changed = runner.write_evidence(record, evidence_root)
         outputs.append((record, changed, path.read_bytes(), path.stat().st_mtime_ns))
@@ -396,7 +395,7 @@ async def test_failure_evidence_keeps_the_error_without_local_paths(tmp_path, sc
     server = create_server(FakeNX(), Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
         record, details = await runner.run_scenario(
-            session, scenario_dir, workspace=tmp_path, run_id="r7", build=("v2406", ""), owner="t"
+            session, scenario_dir, workspace=tmp_path, run_id="r7", build=("v2406", "")
         )
     step = record["steps"][1]
     assert not step["passed"] and step["error"]["code"] and step["error"]["message"]

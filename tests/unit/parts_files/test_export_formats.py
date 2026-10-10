@@ -2,8 +2,7 @@
 
 import pytest
 
-from nx_mcp.domains.parts_files import exchange
-from nx_mcp.kit import neutral
+from nx_mcp.domains.parts_files import exchange, neutral
 from tests.kit import NXException
 from tests.kit import parts as fake_parts
 from tests.kit.objects import Body

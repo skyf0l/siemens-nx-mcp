@@ -7,8 +7,6 @@ from nx_mcp.core import kernel
 from nx_mcp.core.errors import NXError
 from tests.kit.objects import Body, Part
 
-pytestmark = pytest.mark.fake_nx
-
 
 def mutation(rig):
     def add(fail=False):

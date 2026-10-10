@@ -600,11 +600,6 @@ def output_schema(spec) -> dict:
     }
 
 
-def definition_size(name: str, description: str, schema: dict) -> int:
-    """Characters of a tool definition (name + description + input schema)."""
-    return len(name) + len(description) + len(json.dumps(schema, separators=(",", ":")))
-
-
 # ---------------------------------------------------------------------------
 # Field pointers of Pydantic errors
 

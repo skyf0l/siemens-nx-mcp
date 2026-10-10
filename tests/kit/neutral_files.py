@@ -1,7 +1,7 @@
 """Small neutral CAD files shaped like NX 2406 writes them (STL, IGES, Parasolid, JT, STEP).
 
 Each builder takes axis-aligned boxes ``[x0, y0, z0, x1, y1, z1]`` (one per body) and
-returns the file's bytes, so readers (``nx_mcp.kit.neutral``) and the fake translators
+returns the file's bytes, so readers (``nx_mcp.domains.parts_files.neutral``) and the fake translators
 (``tests/kit/parts.py``) share one source of sample files.
 """
 

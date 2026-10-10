@@ -29,9 +29,9 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ComponentRef, Doc, Range, RefTo
-from nx_mcp.domains.assembly import common
+from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import ComponentRow
-from nx_mcp.kit import assembly, model, readback, result, select
+from nx_mcp.kit import display, model, readback, result, select
 from nx_mcp.kit import pose as kpose
 
 TYPES = {
@@ -173,7 +173,7 @@ def record(tx, constraint) -> ConstraintData:
 
 
 def poses(part) -> dict:
-    return {int(c.Tag): (c, assembly.pose(c)) for c in assembly.direct_children(part)}
+    return {int(c.Tag): (c, structure.pose(c)) for c in structure.direct_children(part)}
 
 
 def moved(tx, before) -> list[ComponentRow]:
@@ -181,7 +181,7 @@ def moved(tx, before) -> list[ComponentRow]:
     return [
         common.component_row(tx, c)
         for c, was in before.values()
-        if not kpose.close(assembly.pose(c), was, 1e-9)
+        if not kpose.close(structure.pose(c), was, 1e-9)
     ]
 
 
@@ -199,7 +199,7 @@ def _unsatisfied(tx, constraint, message):
 
 def _geometry(tx, ref, owner, field, type):
     obj = select.resolve(tx, ref, "face", "edge", field=field)
-    if not getattr(obj, "IsOccurrence", False) or not assembly.same(
+    if not getattr(obj, "IsOccurrence", False) or not display.same(
         getattr(obj, "OwningComponent", None), owner
     ):
         fail(
@@ -321,7 +321,7 @@ def nx_create_assembly_constraint(
         refs = [(moving, moving)]
         if type != "fix":
             target = common.component(tx, target_component, "/target_component", unsuppressed=True)
-            if assembly.same(target, moving):
+            if display.same(target, moving):
                 fail(
                     "NX_INVALID_ARGUMENT", "Use two different components", field="/target_component"
                 )

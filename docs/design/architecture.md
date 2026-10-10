@@ -2,8 +2,7 @@
 
 Status: current architecture (as built), companion to [tool-surface.md](tool-surface.md) (names,
 arguments, results, errors, profiles). This document says where code lives, how one call is
-processed and what agents must follow (section 5). The pre-catalogue 0.2 architecture and
-the migration history are in [docs/history/](../history/README.md).
+processed and what agents must follow (section 5).
 
 **Problem (before the migration).** One tool is spread over 9-12 places that must agree. About 17 name lists
 (`READ_ONLY` twice, `NON_MODEL`, `PATHS`, `SIDE`, `DESCRIPTIONS`, `VIEW_ONLY`, `DOMAINS`,
@@ -83,8 +82,7 @@ The aliases follow surface 1.4: `Ref`, `BodyRef`, `FaceRef`, `EdgeRef`, `CurveRe
 `FeatureRef`, `SketchRef`, `PartRef`, `ComponentRef`, `ExplosionRef`, `DimensionRef`,
 `DrawingSheetRef`, `DrawingViewRef`, `DrawingTableRef`, `Point2`, `SheetPoint`, `Point3`,
 `Vec3`, `Mat3`, `Pose`, `Length`, `SheetLength`, `Angle`, `Units = Literal["mm", "in"]`,
-`Plane`, `Axis`, `Direction`, `SketchPoint`, `Limit`, `Combine`, `Page`, `Name`, `PathIn`,
-`PathOut`.
+`Plane`, `Axis`, `Direction`, `SketchPoint`, `Limit`, `Combine`, `Page`, `Name`, `PathIn`.
 
 - Unions are written with `|`: `Plane = Annotated[str, RefTo("datum_plane", "face")] |
   PrincipalPlane | PlaneByNormal`.
@@ -210,7 +208,7 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 |---|---|
 | `geom` | pure math: `add`, `sub`, `dot`, `cross`, `norm`, `unit(v, field)`, `tol(*pts)`, `parallel`, `same_direction`, `on_plane`, `plane_through(pts, field)`, `orthonormal_frame`, `matvec`, `matmul`, `transpose`, `xyz(nx_point)`, `rows(nx_matrix)` |
 | `args` | cross-field rules the schema cannot express: `need(**fields)`, `exactly_one(**fields)`, `distinct(field, values)`. Each raises `invalid_argument` with a JSON-pointer `field` |
-| `units` | `part_units(tx)` → `"mm"`/`"in"`, `sheet_units(tx, sheet)`, `convert(value, dim, to)`, `say(value, units)` → `"10 mm"`. The spelling `"inch"` does not exist |
+| `units` | `part_units(tx)` → `"mm"`/`"in"`, `sheet_units(tx, sheet)`, `factor(source, target)`, `say(value, units)` → `"10 mm"`. The spelling `"inch"` does not exist |
 | `builders` | `with builders.build(tx, factory, *a) as b:` then `b.commit()` (`CommitFeature` or `Commit`). `Destroy()` always runs, and rejections pass through `native(default="NX_BUILD_FAILED")`. Also `point(tx, p)`, `direction(tx, v, origin)`, `collector(tx, refs, "Edge"/"Face"/"Body")` |
 | `select` | `planar(tx, ref)` → `(obj, origin, normal)` for a planar face or datum plane of the work part. `plane`, `axis`, `direction(tx, value)` resolve the union types. `bodies`, `faces`, `edges(tx, refs)`, `owned_by_work_part(tx, obj)` |
 | `sketch` | `with sketch.editing(tx, ref) as sk:` activates the sketch and restores the previous state, with `sk.frame`, `sk.to_part(p2)` and `sk.to_local(p3)`. `sketch.solve(tx, sk)` returns status and DOF, or raises `solver_failed`. `sketch.owns(tx, sk, curve)` is the one ownership check |
@@ -487,8 +485,7 @@ A single native call cannot be interrupted, and the host never pumps NX's main l
 
 The migration (F1-F4) is complete: the pre-catalogue executor and its mixins, `certified.py`,
 `integration_server.py`, the `*_server.py` stubs, the manifest, `request_summary.py` and the
-other name lists are deleted. The plan and the per-step as-built notes are in
-[docs/history/migration.md](../history/migration.md). What holds today:
+other name lists are deleted. What holds today:
 
 - **Call path.** NX side: host (`nx_app/startup/nx_mcp_startup.py` on NX 2406,
   `nx_app/journals/start_2606.py` on 2606, `nx_app/journals/start_batch.py` batch via

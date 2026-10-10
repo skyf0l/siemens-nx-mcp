@@ -101,9 +101,6 @@ class ByVariant:
     forms: Mapping[str, Any]
 
 
-MARKERS = (Doc, Range, Items, Text, RefKind, Quantity, PathArg, Json, ByVariant)
-
-
 def check_json(value, marker: Json) -> dict:
     """``value`` as a bounded JSON object, else ValueError (both gate-1 validators)."""
     import json as _json
@@ -257,7 +254,6 @@ class PathTo:
 SHORTHANDS = (RefTo, PathTo)
 
 PathIn = Annotated[str, PathTo("read")]
-PathOut = Annotated[str, PathTo("new")]
 # Another tool's arguments (batch and preview children), checked by that tool's schema.
 Arguments = Annotated[dict, Json(), Doc("The tool's own arguments")]
 

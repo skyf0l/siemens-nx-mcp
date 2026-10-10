@@ -25,8 +25,8 @@ from nx_mcp.core.types import (
     RefTo,
     forbid_extra,
 )
-from nx_mcp.domains.assembly import common, exploded
-from nx_mcp.kit import assembly, drawing, readback, result, select
+from nx_mcp.domains.assembly import common, exploded, structure
+from nx_mcp.kit import display, drawing, readback, result, select
 from nx_mcp.kit import pose as kpose
 
 
@@ -70,7 +70,9 @@ def nx_create_explosion(tx: Tx, *, name: Name) -> ExplosionData:
         created = collection.Create(name)
     entries = exploded.tree(created)
     for i, (child, component, _n, _h) in enumerate(entries.values()):
-        assembly.expect_pose(exploded.exploded_pose(child), assembly.pose(component), f"pose[{i}]")
+        structure.expect_pose(
+            exploded.exploded_pose(child), structure.pose(component), f"pose[{i}]"
+        )
     return {
         "explosion": tx.ref(created, "explosion"),
         "component_count": len(entries),
@@ -155,13 +157,13 @@ def nx_edit_explosion(
     after = {tag: exploded.entry_row(tx, e) for tag, e in after_entries.items()}
     for i, (tag, target) in enumerate(pending):
         got = (after[tag]["translation"], after[tag]["rotation"])
-        assembly.expect_pose(got, target, f"placements[{i}]")
+        structure.expect_pose(got, target, f"placements[{i}]")
     for i, tag in enumerate(reset_tags):
         row = after[tag]
         parent = after_entries[tag][1].Parent
         if parent is None or int(parent.Tag) not in after:
             got = (row["translation"], row["rotation"])
-            assembly.expect_pose(got, (row["assembled_translation"], row["assembled_rotation"]),
+            structure.expect_pose(got, (row["assembled_translation"], row["assembled_rotation"]),
                                  f"reset[{i}]")  # fmt: skip
     readback.expect(set(before) == set(after), "components", "The explosion changed membership")
     for tag, row in before.items():
@@ -279,7 +281,7 @@ def nx_set_explosion_display(
             kind = "modeling_view"
         else:
             view, kind = None, "modeling_view"
-        if view is not None and not assembly.same(getattr(view, "OwningPart", None), part):
+        if view is not None and not display.same(getattr(view, "OwningPart", None), part):
             field = "/drawing_view" if drawing_view is not None else "/model_view"
             fail("NX_WRONG_OWNER", "The view belongs to another part", field=field)
     if view is None:

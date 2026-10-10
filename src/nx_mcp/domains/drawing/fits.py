@@ -82,7 +82,7 @@ def parse(text, role):
     return letter, grade
 
 
-def _js(it, grade):
+def _js(it):
     """Half the grade. ISO 286-1 allows rounding odd IT7-IT11 values down to the even
     micrometre; NX 2406 does not (JS7 at 10 mm is +/-7.5 um), and neither does this."""
     return it / 2.0
@@ -93,7 +93,7 @@ def shaft(letter, grade, size_mm):
     r = size_range(size_mm)
     it = IT[grade][r]
     if letter == "js":
-        half = _js(it, grade)
+        half = _js(it)
         return half, -half
     if letter in SHAFT_UPPER:
         es = SHAFT_UPPER[letter][r]
@@ -109,7 +109,7 @@ def hole(letter, grade, size_mm):
     r = size_range(size_mm)
     it = IT[grade][r]
     if letter == "JS":
-        half = _js(it, grade)
+        half = _js(it)
         return half, -half
     if letter.lower() in SHAFT_UPPER:
         ei = -SHAFT_UPPER[letter.lower()][r]

@@ -339,5 +339,5 @@ def test_error_pointer_skips_union_tags(args, pointer):
 def test_every_catalogue_tool_converts():
     for spec in catalogue.load().values():
         assert schema.adapter(spec) is schema.adapter(spec)  # cached
-        assert schema.definition_size(spec.name, spec.description, schema.input_schema(spec))
+        assert schema.input_schema(spec)
     assert list(itertools.islice(samples(SAMPLE), 1)) == [{"kind": "a"}]

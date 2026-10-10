@@ -13,7 +13,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, RefTo, Text
-from nx_mcp.kit import args, assembly, model, readback, result, select
+from nx_mcp.kit import args, display, model, readback, result, select
 
 BUILT_IN = ("entire part", "empty")
 Member = Annotated[str, RefTo("body", "curve", "datum", "component", "sketch", "point")]
@@ -71,7 +71,7 @@ def nx_create_reference_set(
             obj = select.resolve(tx, ref, field=f"/objects/{i}")
             owner = getattr(obj, "OwningPart", None)
             is_component = tx.kind_of(obj) == "component"
-            if (getattr(obj, "IsOccurrence", False) and not is_component) or not assembly.same(
+            if (getattr(obj, "IsOccurrence", False) and not is_component) or not display.same(
                 owner, part
             ):
                 fail("NX_WRONG_OWNER", "Members must belong to the work part",

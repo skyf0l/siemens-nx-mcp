@@ -24,7 +24,8 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ComponentRef, Doc, FaceRef, Items, Point3, RefTo, Vec3
-from nx_mcp.kit import assembly, builders, geom, measure, readback, result, select
+from nx_mcp.domains.assembly import structure
+from nx_mcp.kit import builders, display, geom, measure, readback, result, select
 from nx_mcp.kit.bodies import is_body
 
 LinkKind = Literal["body", "face", "curve", "datum", "sketch"]
@@ -145,7 +146,7 @@ def _target(tx):
     part = tx.part
     parts = tx.session.Parts
     work_component = getattr(parts, "WorkComponent", None)
-    if assembly.same(parts.Display, part) or work_component is None:
+    if display.same(parts.Display, part) or work_component is None:
         fail(
             "NX_WRONG_PART_CONTEXT",
             "A WAVE link goes into a component part of the displayed assembly",
@@ -159,7 +160,7 @@ def _source(tx, ref, kind, component, field):
     obj = select.resolve(tx, ref, *SOURCE_KINDS[kind], field=field)
     if getattr(obj, "IsOccurrence", False):
         owner = getattr(obj, "OwningComponent", None)
-        if component is not None and not assembly.same(owner, component):
+        if component is not None and not display.same(owner, component):
             fail("NX_WRONG_OWNER", f"{ref} is not shown by the component", field=field)
         return obj, owner
     if component is None:
@@ -168,7 +169,7 @@ def _source(tx, ref, kind, component, field):
             f"{ref} is a part object; pass the component that shows it",
             field="/component",
         )
-    if not assembly.same(getattr(obj, "OwningPart", None), component.Prototype):
+    if not display.same(getattr(obj, "OwningPart", None), component.Prototype):
         fail("NX_WRONG_OWNER", f"{ref} is not in the component's part", field=field)
     with native():
         occurrence = component.FindOccurrence(obj)
@@ -339,7 +340,7 @@ def nx_create_wave_link(
             if int(occ.Tag) in seen:
                 fail("NX_INVALID_ARGUMENT", f"{ref} is listed twice", field=field)
             seen.add(int(occ.Tag))
-            if owner is None or assembly.same(getattr(owner, "Prototype", None), part):
+            if owner is None or display.same(getattr(owner, "Prototype", None), part):
                 fail(
                     "NX_INVALID_ARGUMENT",
                     f"{ref} is in the work part; link from another component "
@@ -348,7 +349,7 @@ def nx_create_wave_link(
                 )
             occurrences.append(occ)
             owners.append(owner)
-    pose = assembly.pose(work_component)
+    pose = structure.pose(work_component)
     # One datum or sketch per builder: NX 2406 links only the first of several.
     groups = [[o] for o in occurrences] if kind in ("datum", "sketch") else [occurrences]
     features, outputs, per_group = [], [], []
@@ -469,7 +470,7 @@ def nx_create_extract(
                         "The seed face is a boundary face",
                         field=f"/boundary/{i}",
                     )
-                if not assembly.same(f.GetBody(), body):
+                if not display.same(f.GetBody(), body):
                     fail(
                         "NX_INVALID_ARGUMENT",
                         "Boundary faces belong to the seed's body",

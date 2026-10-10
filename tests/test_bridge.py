@@ -13,8 +13,6 @@ from nx_mcp.bridge import (
 )
 from nx_mcp.core.errors import NXError
 
-pytestmark = pytest.mark.integration
-
 
 def test_default_descriptor_path_prefers_local_app_data(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LOCALAPPDATA", "C:/nx-state")

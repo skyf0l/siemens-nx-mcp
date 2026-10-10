@@ -14,8 +14,6 @@ from nx_mcp.host.services import NXServices
 from nx_mcp.workspace import Workspace
 from tests.host.test_services import FakeSession
 
-pytestmark = pytest.mark.fake_nx
-
 FAILURE = NS(NoOption="NoOption", Undo="Undo", Accept="Accept", AcceptAll="AcceptAll")
 DEVICE = NS(Window="Window", File="File", FileAndWindow="FileAndWindow", NotSet="NotSet")
 

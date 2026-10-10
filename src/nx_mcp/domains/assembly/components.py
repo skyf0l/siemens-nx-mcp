@@ -40,9 +40,9 @@ from nx_mcp.core.types import (
     Pose,
     Text,
 )
-from nx_mcp.domains.assembly import common
+from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import ComponentRow, Translation
-from nx_mcp.kit import args, assembly, builders, geom, model, parts, readback, result, select
+from nx_mcp.kit import args, builders, geom, model, parts, readback, result, select
 from nx_mcp.kit import pose as kpose
 from nx_mcp.kit import units as kit_units
 
@@ -125,7 +125,7 @@ def nx_list_components(
     items: list[ComponentListRow] = []
     for c, names in selected:
         row = cast(ComponentListRow, common.component_row(tx, c, names, with_pose=include_poses))
-        state = assembly.load_state(tx, c)
+        state = structure.load_state(tx, c)
         reference_set = ""
         try:
             reference_set = str(c.ReferenceSet or "")
@@ -232,7 +232,7 @@ def nx_create_component(
         "The component uses another file",
         actual=parts.file_of(c.Prototype),
     )
-    assembly.expect_pose(assembly.pose(c), target)
+    structure.expect_pose(structure.pose(c), target)
     return {
         "component": common.component_row(tx, c, [str(c.Name)]),
         "part_path": common.relative_path(tx, path),
@@ -246,7 +246,7 @@ def _new_in_context(tx, path, units, objects, name, target):
         parts.check_new_name(tx, path, field="/new_path")
         bodies = select.bodies(tx, objects, "/objects_to_move")
     units = units or kit_units.part_units(tx, part)
-    before = {int(c.Tag) for c in assembly.direct_children(part)}
+    before = {int(c.Tag) for c in structure.direct_children(part)}
     path.parent.mkdir(parents=True, exist_ok=True)
     nx = tx.nx
     with native(default="NX_BUILD_FAILED"):
@@ -272,7 +272,7 @@ def _new_in_context(tx, path, units, objects, name, target):
         with contextlib.suppress(Exception):
             new_file.Destroy()
     model.update(tx)
-    added = [c for c in assembly.direct_children(part) if int(c.Tag) not in before]
+    added = [c for c in structure.direct_children(part) if int(c.Tag) not in before]
     readback.expect(len(added) == 1, "component", "NX added no component", actual=len(added))
     c = added[0]
     prototype = c.Prototype
@@ -284,7 +284,7 @@ def _new_in_context(tx, path, units, objects, name, target):
     )
     actual_units = kit_units.part_units(tx, prototype)
     readback.expect(actual_units == units, "units", actual=actual_units)
-    assembly.expect_pose(assembly.pose(c), target)
+    structure.expect_pose(structure.pose(c), target)
     gone = [i for i, body in enumerate(bodies) if _alive(body, part)]
     readback.expect(not gone, "objects_to_move", "Bodies stayed in the work part", actual=gone)
     if bodies:
@@ -409,7 +409,7 @@ def nx_edit_component(
                         details={"component": f"/components/{i}", "available": names},
                     )
     part = tx.part
-    poses = [assembly.pose(c) for c in values]
+    poses = [structure.pose(c) for c in values]
     if replace_with is not None:
         with builders.build(tx, part.AssemblyManager.CreateReplaceComponentBuilder) as b:
             for c in values:
@@ -418,7 +418,7 @@ def nx_edit_component(
             b.ReplaceAllOccurrences = False
             b.MaintainRelationships = True
             b.commit()
-            assembly.check(b.GetErrorList(), "NX_BUILD_FAILED", "NX did not replace the part")
+            structure.check(b.GetErrorList(), "NX_BUILD_FAILED", "NX did not replace the part")
         model.update(tx)
     if make_unique is not None:
         _make_unique(tx, values[0], Path(make_unique))
@@ -440,12 +440,12 @@ def nx_edit_component(
         method = "SuppressComponents" if suppressed else "UnsuppressComponents"
         with native(default="NX_BUILD_FAILED"):
             errors = getattr(part.ComponentAssembly, method)(values)
-        assembly.check(errors, "NX_BUILD_FAILED", f"NX did not {method[:-10].lower()}")
+        structure.check(errors, "NX_BUILD_FAILED", f"NX did not {method[:-10].lower()}")
     model.update(tx)
-    names = assembly.paths(part)
+    names = structure.paths(part)
     out: list[EditedComponent] = []
     for i, (c, before) in enumerate(zip(values, poses, strict=True)):
-        assembly.expect_pose(assembly.pose(c), before, f"placement[{i}]")
+        structure.expect_pose(structure.pose(c), before, f"placement[{i}]")
         if suppressed is not None:
             readback.expect(bool(c.IsSuppressed) == suppressed, f"suppressed[{i}]")
         if reference_set is not None:
@@ -527,12 +527,12 @@ def nx_set_component_pose(
     t = [float(v) for v in translation]
     with tx.checks():
         c = common.component(tx, component, "/component")
-    current = assembly.pose(c)
+    current = structure.pose(c)
     if mode == "absolute":
         target = (t, r if r is not None else kpose.identity())
     else:
         target = kpose.relative(current, t, r)
-    assembly.move(tx, c, target)
+    structure.move(tx, c, target)
     return {
         "component": common.component_row(tx, c),
         "previous": {"translation": current[0], "rotation": current[1]},
