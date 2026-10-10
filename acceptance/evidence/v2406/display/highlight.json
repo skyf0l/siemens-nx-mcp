@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/highlight.json",
-  "scenario_sha256": "4cec733659229f39db5c5dd9807d46db09fe1636d2c5af1e3329842808ea09db",
+  "scenario_sha256": "3357803482e5442c32991fad8fba3d687446d4a790e2f1117915d8da332a3f90",
   "domain": "display",
   "covers": {
     "nx_set_highlight": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_highlight": "583520580b22bbd8f31beb3ec15cb37d376089d20fa3c37b10e51312d1bf5542"
+    "nx_set_highlight": "29de6736c694b618a5b59a2c03045c5324ea6ce9846f9776baeee1f30f7a9def"
   },
   "recorded": "2026-10-10T13:15:21Z",
   "passed": true,

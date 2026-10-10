@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/hole_callouts.json",
-  "scenario_sha256": "faac5db8addae13f033e102c1935917625120bd1184c5866748b37f6c63aaa0f",
+  "scenario_sha256": "69aac841371507af72c3007e13af422e051dff6a3ce916e62de4b5cf3af36584",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_dimension": [
@@ -11,7 +11,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_dimension": "2270c15b9257ca09625e0092be5a2a608df9be1e7e0a38b2132b577792b408b6"
+    "nx_create_drawing_dimension": "703f4417870ce75e390587dfa8d02e3f76b09774ddf48e59fb6c73ca974a582f"
   },
   "recorded": "2026-10-10T13:20:58Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/datum_plane.json",
-  "scenario_sha256": "034833a975d45ee7fb319dd8d43b21bea9bf327f4fe72c274b0456bf760c658f",
+  "scenario_sha256": "c096f7b9143dee4aa17368f1d1f7cddd6b5dbb88a887a26fea895a38b2e013be",
   "domain": "modeling",
   "covers": {
     "nx_create_datum_plane": [
@@ -13,7 +13,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_datum_plane": "d1351e89d6ba93f1ccab7537dfb3e60595f8f2213b901bf66d630e77902dfea3"
+    "nx_create_datum_plane": "c1688402dec75186787432a0ec326cb5ab8ec300c203749d7c6c5bb9e76d4474"
   },
   "recorded": "2026-10-10T13:12:43Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/expression_files.json",
-  "scenario_sha256": "7ff31b51a7cc0842f9a62ccc9d02e586f51dbd77ae9552bfba7fcda74cf0818e",
+  "scenario_sha256": "fd8f35125660bfd2cc2e4824198a3da19d73662c3a7c2ebf64f25fdc08e23fe4",
   "domain": "modeling",
   "covers": {
     "nx_export_expressions": [],
@@ -14,8 +14,8 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_expressions": "5cf3dc9456d21ae7c405d68804ec73a37ee7c8bd14c483f26297d9b2a2d5d3e6",
-    "nx_import_expressions": "5cf3dc9456d21ae7c405d68804ec73a37ee7c8bd14c483f26297d9b2a2d5d3e6"
+    "nx_export_expressions": "04a38e5e20f5bfac5ccef96c5b3edab053410b2a8b7b52f57912d8199eab32b5",
+    "nx_import_expressions": "04a38e5e20f5bfac5ccef96c5b3edab053410b2a8b7b52f57912d8199eab32b5"
   },
   "recorded": "2026-10-10T13:12:58Z",
   "passed": true,

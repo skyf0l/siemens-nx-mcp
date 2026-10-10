@@ -15,7 +15,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_assembly_constraint": "ee458c8a89f17797db55c80df96c2de7f6578119f09d9da2d522b2e6bcbf05fc"
+    "nx_create_assembly_constraint": "ba49b2bc662c43f419c6773a21eef827323abec87ee463aed9bc88b73d9fc4ce"
   },
   "recorded": "2026-10-10T13:18:56Z",
   "passed": true,

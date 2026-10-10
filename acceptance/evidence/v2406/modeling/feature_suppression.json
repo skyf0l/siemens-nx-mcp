@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/feature_suppression.json",
-  "scenario_sha256": "d7ecfed627430556844958435dda146bb627017292ae48e799a2f14cda74dd9d",
+  "scenario_sha256": "033e0be0059efe58cc745d3dd7ba09dfdd961a669dd6b0fa3f7911abc92783d0",
   "domain": "modeling",
   "covers": {
     "nx_set_feature_suppression": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_feature_suppression": "1e671317316d33d6098e61973311eaf344c19b5b3333a9a97960d689a723c829"
+    "nx_set_feature_suppression": "092e8e9e9c67cfb4c25ff16d9cde3ad3e08bba19c0bfc0deec2ccc2d42e7c7be"
   },
   "recorded": "2026-10-10T13:13:05Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/datum_axis.json",
-  "scenario_sha256": "d949694f8bca0486232f60a147ac103e28c03ab2706743a23ee1de40ccb04de9",
+  "scenario_sha256": "134dd668b9013a104d05df2d158454a76dbd04fafb956eb40be946dfa9815644",
   "domain": "modeling",
   "covers": {
     "nx_create_datum_axis": [
@@ -12,7 +12,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_datum_axis": "d1351e89d6ba93f1ccab7537dfb3e60595f8f2213b901bf66d630e77902dfea3"
+    "nx_create_datum_axis": "c1688402dec75186787432a0ec326cb5ab8ec300c203749d7c6c5bb9e76d4474"
   },
   "recorded": "2026-10-10T13:12:41Z",
   "passed": true,

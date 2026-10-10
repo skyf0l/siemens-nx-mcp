@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/sections.json",
-  "scenario_sha256": "94d1e9f05800535ad6a5f9483d49af92fecde2e664a92b94e18a5b5ade92132f",
+  "scenario_sha256": "c26e2547bf7ced3654ed6a5f691fe2a3970908149f009e7ded7b4ac88ee52d62",
   "domain": "display",
   "covers": {
     "nx_create_section_view": [],
@@ -10,8 +10,8 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_section_view": "25307a23c8d25d4b1d5845c5f2aa3df54e357b85729645542d8f07a9ce830071",
-    "nx_edit_section_view": "25307a23c8d25d4b1d5845c5f2aa3df54e357b85729645542d8f07a9ce830071"
+    "nx_create_section_view": "443d24eb0df935e1affe7a76d13b379880fa5e26f1b2e48ba42445303cfd56be",
+    "nx_edit_section_view": "443d24eb0df935e1affe7a76d13b379880fa5e26f1b2e48ba42445303cfd56be"
   },
   "recorded": "2026-10-10T13:15:26Z",
   "passed": true,

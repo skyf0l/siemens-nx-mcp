@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/run_batch.json",
-  "scenario_sha256": "ab335d6137a0c8d07f7240a43492f71588c22b080d4bf94ee3d0fca9f3d813f4",
+  "scenario_sha256": "4442a4a2be370779823a47f18b9ec0137504e8e8676fe62618ae44b8a3d358c8",
   "domain": "session",
   "covers": {
     "nx_run_batch": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_run_batch": "8bca8687bcca14b5ab63b78f225fc48addcfef794a4df45a667f9528ee5f9e7c"
+    "nx_run_batch": "0a5ec45da0bb19637e05154edda99b481ec62c49fa609774f53a5427cfc8b3d8"
   },
   "recorded": "2026-10-10T13:09:40Z",
   "passed": true,

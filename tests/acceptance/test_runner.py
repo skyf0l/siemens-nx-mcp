@@ -747,3 +747,11 @@ def test_inside_resolves_relative_and_absolute_paths(tmp_path):
 
 def test_close_failure_without_a_reason():
     assert runner.close_failure("a.prt", None) == "could not close a.prt: no reason given"
+
+
+def test_file_hashes_ignore_line_endings(tmp_path):
+    """A Windows (CRLF) checkout and an LF one record the same scenario and source hashes."""
+    lf, crlf = tmp_path / "lf.json", tmp_path / "crlf.json"
+    lf.write_bytes(b'{\n  "steps": []\n}\n')
+    crlf.write_bytes(b'{\r\n  "steps": []\r\n}\r\n')
+    assert runner.file_sha256(lf) == runner.file_sha256(crlf)

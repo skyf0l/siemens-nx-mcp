@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/gdt_views_inch.json",
-  "scenario_sha256": "6d70bd00d233413de64a18152546fab39e220d24a054d83a0211a3fa15d555fe",
+  "scenario_sha256": "73c16f7df5e8f1620338397f160de29bdf06182f97cf3b8d9fa9175c0bd0ed5e",
   "domain": "drawing",
   "covers": {
     "nx_create_gdt": [
@@ -13,7 +13,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_gdt": "c3f8897071916ef26468bbef098e092da7582d048860a6b6ddc62625bbb30f48"
+    "nx_create_gdt": "f59a888263be4aeb11ce561b918163a9c05edc001ac16aa55af33d205a4a8a3a"
   },
   "recorded": "2026-10-10T13:20:49Z",
   "passed": true,

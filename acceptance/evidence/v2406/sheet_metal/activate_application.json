@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/activate_application.json",
-  "scenario_sha256": "a3932a129d155a9db7dd214fdba899c07fd315f6ef746dea2581f49b04587b0b",
+  "scenario_sha256": "b513cbd7c999e5f18090dad36e7a91d49d28ce4fc581273df491fbbb8b1efea4",
   "domain": "sheet_metal",
   "covers": {
     "nx_activate_application": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_activate_application": "13054338e6c9f2fcd9e0db12efa102dc39341037a7150c0de4c53905a98de12c"
+    "nx_activate_application": "75692355e1da670aeed5794764d4a735ceda55a7b9f210f52158c4ca735c97a1"
   },
   "recorded": "2026-10-10T11:53:56Z",
   "passed": true,

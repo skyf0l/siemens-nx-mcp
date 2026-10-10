@@ -11,7 +11,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "8fc75db78e02d60a3dca5cd86fc8652f026c1904687cdd958e01e3362c6c1d85"
+    "nx_create_sheet_metal_feature": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf"
   },
   "recorded": "2026-10-10T13:21:55Z",
   "passed": true,

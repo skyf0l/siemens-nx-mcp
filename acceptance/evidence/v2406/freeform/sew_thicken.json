@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/sew_thicken.json",
-  "scenario_sha256": "84053f0068823d4d4885700e178a35555d78ba621e8acedb6a74253842f5368e",
+  "scenario_sha256": "bb7ee00d2d5cd3b28c4f692d2a6e7ea7b0e46a47a4d27d95eeed7c28cf0dd299",
   "domain": "freeform",
   "covers": {
     "nx_create_sew": [],
@@ -10,8 +10,8 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sew": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c",
-    "nx_create_thicken": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c"
+    "nx_create_sew": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
+    "nx_create_thicken": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0"
   },
   "recorded": "2026-10-10T13:14:43Z",
   "passed": true,

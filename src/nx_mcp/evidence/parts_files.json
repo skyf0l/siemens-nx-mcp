@@ -4,8 +4,8 @@
       "checks": 24,
       "recorded": "2026-10-10T13:15:32Z",
       "scenario": "acceptance/parts_files/activate_part.json",
-      "scenario_sha256": "971843eb69026d04ad5ccd3cc3fd5c2f91e21e14875b56e02c63859381ba3936",
-      "source_sha256": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3",
+      "scenario_sha256": "f3416d674749e35dfc81d52b8c0b68a2a965b64db3f3691286c5b78542208583",
+      "source_sha256": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b",
       "variants": []
     }
   },
@@ -14,8 +14,8 @@
       "checks": 21,
       "recorded": "2026-10-10T13:15:38Z",
       "scenario": "acceptance/parts_files/close_part.json",
-      "scenario_sha256": "c8965c9e876d765eec73c0b0c2cb89afe210b18a0d4ca7d2e70f3e2fc2536b90",
-      "source_sha256": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3",
+      "scenario_sha256": "ff1c7e18c1d844125e9dba18f23671c996fd62dd654eab43c39640c49494abb3",
+      "source_sha256": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b",
       "variants": []
     }
   },
@@ -25,7 +25,7 @@
       "recorded": "2026-10-10T13:15:38Z",
       "scenario": "acceptance/parts_files/create_directory.json",
       "scenario_sha256": "76dd8d78b4517b0aca423f2f36a401c820bca3c443471bc7c25da02faa11cf9c",
-      "source_sha256": "821b1573a2616aae3a6067f50bbc6d366b31800b2f234280db36bc68faa84969",
+      "source_sha256": "151265d9b225dfd20ce72ce8c5f04827576a94a4faa7fe553adda8705bc354c1",
       "variants": []
     }
   },
@@ -35,7 +35,7 @@
       "recorded": "2026-10-10T13:15:39Z",
       "scenario": "acceptance/parts_files/create_part.json",
       "scenario_sha256": "64e83bf5e2026ad4822a96dbf52a3020a4725b8ec437de549d37c5c34d3d6422",
-      "source_sha256": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3",
+      "source_sha256": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b",
       "variants": []
     }
   },
@@ -45,7 +45,7 @@
       "recorded": "2026-10-10T13:15:39Z",
       "scenario": "acceptance/parts_files/download_file.json",
       "scenario_sha256": "e81274ea0ed3973ada70a09436fd68885afae6e0e21ce4ac9a1284f0bae630d4",
-      "source_sha256": "821b1573a2616aae3a6067f50bbc6d366b31800b2f234280db36bc68faa84969",
+      "source_sha256": "151265d9b225dfd20ce72ce8c5f04827576a94a4faa7fe553adda8705bc354c1",
       "variants": [
         "chunk",
         "image",
@@ -58,8 +58,8 @@
       "checks": 42,
       "recorded": "2026-10-10T13:16:01Z",
       "scenario": "acceptance/parts_files/export_assembly.json",
-      "scenario_sha256": "8c8e029557121acd27979ef83f15c829350724259fded8646f9a410db65d69b4",
-      "source_sha256": "8b47a1669d1de3890f2cdda67aa96ef1fb41de1338f74c1aa3fa3be230252a69",
+      "scenario_sha256": "fd2d664fd7cbcdca0039fb23c7f59e99935bd6311aceeecefe65810c4720960a",
+      "source_sha256": "7e86f240d8fa9868d0c8924a1a26562d343f9c70f994e8fddbbe1b6f05d859f5",
       "variants": [
         "clone",
         "zip"
@@ -71,8 +71,8 @@
       "checks": 38,
       "recorded": "2026-10-10T13:17:01Z",
       "scenario": "acceptance/parts_files/export_model.json",
-      "scenario_sha256": "084028bb266effe1237cffee76a5195e0e6fb9f2583fac252dc85569884eb0b7",
-      "source_sha256": "13ee2e676c532fdf6033c6fc5fef1b25580b004547fc530f46d12db63b8eb34d",
+      "scenario_sha256": "9cc50fefadaa8db051b59bc4088fd7d65b677da477712f9ec647c614f607b2fc",
+      "source_sha256": "55643f7282a8145582b5820ddcb83914749ec9f3dc6d2b80928bd7b04a2501c3",
       "variants": [
         "iges",
         "jt",
@@ -87,8 +87,8 @@
       "checks": 38,
       "recorded": "2026-10-10T13:17:02Z",
       "scenario": "acceptance/parts_files/export_profile.json",
-      "scenario_sha256": "7fd6e2f4c2594578a63de3189fee5e4b049906d4599506ba3ba45e6088d57eab",
-      "source_sha256": "25cf4a9bb3d7d16f5498a145cf85810a008f2a8e60bf570efd9b435a4d739f56",
+      "scenario_sha256": "913fd287f8feaf607bb975df0eed6124c9aca6f064c9a474a86ccce8ecd5eee1",
+      "source_sha256": "59f21f3ebb1ce087e115014c0063a59e05c05dfd4bfdbab536e433b77547b64f",
       "variants": []
     }
   },
@@ -98,7 +98,7 @@
       "recorded": "2026-10-10T13:15:35Z",
       "scenario": "acceptance/parts_files/attributes.json",
       "scenario_sha256": "ea69cacf0451a865d0463e5f1b8f2a30027db9fa1f88a393b6229fbd3ef2e335",
-      "source_sha256": "e8ce4f18f9c674634c196b4fce697bfb4b00a3e50500b21211ee5a4149ff098e",
+      "source_sha256": "ae70f8cee3b06307a99b3918f14ffec9560eb43a2bf5786dd67a1c406406ca5f",
       "variants": []
     }
   },
@@ -107,8 +107,8 @@
       "checks": 37,
       "recorded": "2026-10-10T13:18:15Z",
       "scenario": "acceptance/parts_files/import_model.json",
-      "scenario_sha256": "0a87458abe7a26b8170126eb0719edf4693d22fc6fd48c3919b8c2883ca40f81",
-      "source_sha256": "8083d341011b1b9e770c26a19a8576d4a0eb02515583481bec9ebf9bc7b3f075",
+      "scenario_sha256": "78cd282694ec2376917304cfa4cf2a7a5e920236aa6d9b4c397ad787b1014428",
+      "source_sha256": "e52007acdc3f7deb73b333162b4cdf1856228e604c0443ac09475a91b8c24e1f",
       "variants": [
         "dxf_dwg",
         "iges",
@@ -124,7 +124,7 @@
       "recorded": "2026-10-10T13:18:16Z",
       "scenario": "acceptance/parts_files/list_files.json",
       "scenario_sha256": "62d1af3446155916b47f5330cb81654688542adc59fd2297693e7b5111bb9f31",
-      "source_sha256": "821b1573a2616aae3a6067f50bbc6d366b31800b2f234280db36bc68faa84969",
+      "source_sha256": "151265d9b225dfd20ce72ce8c5f04827576a94a4faa7fe553adda8705bc354c1",
       "variants": []
     }
   },
@@ -134,7 +134,7 @@
       "recorded": "2026-10-10T13:18:18Z",
       "scenario": "acceptance/parts_files/list_parts.json",
       "scenario_sha256": "d69f64a5e78c258640828fd9f9228359af1a425b1a83c6393d39dab63ae01b65",
-      "source_sha256": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3",
+      "source_sha256": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b",
       "variants": []
     }
   },
@@ -143,8 +143,8 @@
       "checks": 28,
       "recorded": "2026-10-10T13:18:20Z",
       "scenario": "acceptance/parts_files/open_part.json",
-      "scenario_sha256": "8c6bf4d25d434a51e4d24e2dc3c1c752c0e87fc49bd16d2dc7e6b7f3b04bbc96",
-      "source_sha256": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3",
+      "scenario_sha256": "87454ca78aed37f0727c2136317559103e2bd4cd1d4ee61ce238d83a8df4ca83",
+      "source_sha256": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b",
       "variants": []
     }
   },
@@ -154,7 +154,7 @@
       "recorded": "2026-10-10T13:18:22Z",
       "scenario": "acceptance/parts_files/save_part.json",
       "scenario_sha256": "48e200f580e40b494d75828763c78d74f577da523ff536c20067b3a7cea70bf8",
-      "source_sha256": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3",
+      "source_sha256": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b",
       "variants": []
     }
   },
@@ -164,7 +164,7 @@
       "recorded": "2026-10-10T13:15:35Z",
       "scenario": "acceptance/parts_files/attributes.json",
       "scenario_sha256": "ea69cacf0451a865d0463e5f1b8f2a30027db9fa1f88a393b6229fbd3ef2e335",
-      "source_sha256": "e8ce4f18f9c674634c196b4fce697bfb4b00a3e50500b21211ee5a4149ff098e",
+      "source_sha256": "ae70f8cee3b06307a99b3918f14ffec9560eb43a2bf5786dd67a1c406406ca5f",
       "variants": []
     }
   },
@@ -173,8 +173,8 @@
       "checks": 28,
       "recorded": "2026-10-10T13:18:22Z",
       "scenario": "acceptance/parts_files/upload_file.json",
-      "scenario_sha256": "bd99b7738db779b2673b22d3bf27bd00335b67a6833fc1be99169c330b1fb09f",
-      "source_sha256": "821b1573a2616aae3a6067f50bbc6d366b31800b2f234280db36bc68faa84969",
+      "scenario_sha256": "a55c198458086e1f63afd0bd1198fcd4076b6c0b648945d5ed4989fb17727ad8",
+      "source_sha256": "151265d9b225dfd20ce72ce8c5f04827576a94a4faa7fe553adda8705bc354c1",
       "variants": []
     }
   }

@@ -5,7 +5,7 @@
       "recorded": "2026-10-10T13:11:56Z",
       "scenario": "acceptance/sketch/check_sketch.json",
       "scenario_sha256": "dcfe1b8997f246f15e873335a33d4be9ad245420654018a9b099f5a7d9530209",
-      "source_sha256": "f51b7e3b9c65e7c03f5d8c13eb8c75ea648f2edddb0fccf597544492c4086ebf",
+      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
       "variants": []
     }
   },
@@ -15,7 +15,7 @@
       "recorded": "2026-10-10T13:11:59Z",
       "scenario": "acceptance/sketch/create_sketch.json",
       "scenario_sha256": "f399d8c7f229275cb8df6ca59e4969416982bf326313c77a39cfe18c3f1a8e3b",
-      "source_sha256": "f51b7e3b9c65e7c03f5d8c13eb8c75ea648f2edddb0fccf597544492c4086ebf",
+      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
       "variants": [
         "on",
         "path",
@@ -29,7 +29,7 @@
       "recorded": "2026-10-10T13:12:09Z",
       "scenario": "acceptance/sketch/sketch_constraints.json",
       "scenario_sha256": "9a335f576bda96910df33950487c64fc8ff1cf3a44eaa22ec90c149e5bf78d68",
-      "source_sha256": "285c4ad447657395db14341b939b0f3a19d42156a405f12d654a9871da9dcb81",
+      "source_sha256": "47d91d9afc2dc1b8335ec324949e148f7f78cc0b9655b32f2a2ecc92be9f265a",
       "variants": [
         "coincident",
         "concentric",
@@ -53,7 +53,7 @@
       "recorded": "2026-10-10T13:12:11Z",
       "scenario": "acceptance/sketch/sketch_copy.json",
       "scenario_sha256": "4b8f122eafa6533abbe11a7348ef4eab0c7c485fbc7ec307c0e1dd415d3642ef",
-      "source_sha256": "19aeacf5e315419680d92288d0ae75cd188bc087b31a06be8a74f65e197de909",
+      "source_sha256": "c4a5250db521e09d3e874639d9ec06dac296d1f17f1f819eefc97d84576e5abd",
       "variants": [
         "mirror",
         "offset"
@@ -66,7 +66,7 @@
       "recorded": "2026-10-10T13:12:13Z",
       "scenario": "acceptance/sketch/sketch_corner.json",
       "scenario_sha256": "3de2880a7bcaa0e82d78771a5d24362a57f9af7eb36d82eed2a4271e7bfa502d",
-      "source_sha256": "19aeacf5e315419680d92288d0ae75cd188bc087b31a06be8a74f65e197de909",
+      "source_sha256": "c4a5250db521e09d3e874639d9ec06dac296d1f17f1f819eefc97d84576e5abd",
       "variants": [
         "chamfer",
         "fillet"
@@ -79,7 +79,7 @@
       "recorded": "2026-10-10T13:12:16Z",
       "scenario": "acceptance/sketch/sketch_curves.json",
       "scenario_sha256": "2cd1519f1047878571354ecaa96f533f1d5fee64e76c18748c2baa218d7bec29",
-      "source_sha256": "077140d1d75a00869f51fedbe4de14f590ed1e27c6ae477ee92ac59280c69732",
+      "source_sha256": "c6360fdb649a7c7bcb72ace79759ffd37f199e9bb635c6030dcd1c4743a05676",
       "variants": [
         "arc",
         "circle",
@@ -98,7 +98,7 @@
       "recorded": "2026-10-10T13:12:22Z",
       "scenario": "acceptance/sketch/sketch_dimensions.json",
       "scenario_sha256": "24ab9c45437c2f52879a5f6ab1dcb85ffd769937cac7d91b7cc21c8ce3aaa2ab",
-      "source_sha256": "285c4ad447657395db14341b939b0f3a19d42156a405f12d654a9871da9dcb81",
+      "source_sha256": "47d91d9afc2dc1b8335ec324949e148f7f78cc0b9655b32f2a2ecc92be9f265a",
       "variants": [
         "angle",
         "diameter",
@@ -117,8 +117,8 @@
       "checks": 26,
       "recorded": "2026-10-10T13:12:25Z",
       "scenario": "acceptance/sketch/sketch_projection.json",
-      "scenario_sha256": "4c9f46e7a536f897f5eb4edbf4e1c91c7726fb61c2a063248a40d960417c7cc3",
-      "source_sha256": "19aeacf5e315419680d92288d0ae75cd188bc087b31a06be8a74f65e197de909",
+      "scenario_sha256": "2b681162f3f00c2617e2b42036eb42518a3d411d4f9b4b38470cef102fab85ef",
+      "source_sha256": "c4a5250db521e09d3e874639d9ec06dac296d1f17f1f819eefc97d84576e5abd",
       "variants": [
         "intersect",
         "project"
@@ -131,7 +131,7 @@
       "recorded": "2026-10-10T13:12:01Z",
       "scenario": "acceptance/sketch/edit_sketch_curves.json",
       "scenario_sha256": "bdf6b0f0c885c36eb7fd5f77bb371de5bbfd435992577676ccc840bbf89b56dd",
-      "source_sha256": "077140d1d75a00869f51fedbe4de14f590ed1e27c6ae477ee92ac59280c69732",
+      "source_sha256": "c6360fdb649a7c7bcb72ace79759ffd37f199e9bb635c6030dcd1c4743a05676",
       "variants": [
         "arc",
         "construction",
@@ -148,7 +148,7 @@
       "recorded": "2026-10-10T13:12:03Z",
       "scenario": "acceptance/sketch/finish_sketch.json",
       "scenario_sha256": "70b4b772b75f27b790a71d211e4e9a3230157c4ed5bf46c330ff53d1688b320a",
-      "source_sha256": "f51b7e3b9c65e7c03f5d8c13eb8c75ea648f2edddb0fccf597544492c4086ebf",
+      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
       "variants": []
     }
   },
@@ -158,7 +158,7 @@
       "recorded": "2026-10-10T13:12:05Z",
       "scenario": "acceptance/sketch/get_sketch.json",
       "scenario_sha256": "5f43fd9a4becde1d8e72734026bc9275df6ea0f15eeca59ce78c14996fad8565",
-      "source_sha256": "f51b7e3b9c65e7c03f5d8c13eb8c75ea648f2edddb0fccf597544492c4086ebf",
+      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
       "variants": []
     }
   }

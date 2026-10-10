@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/list_drawing_objects.json",
-  "scenario_sha256": "332f893113325b3038dfba3d1d87439ff06ffe736574fc155ef3fdf9e27f5422",
+  "scenario_sha256": "4700356db600d3bc9737fde0370915cad1df27d11728ea93a561293f94294249",
   "domain": "inspection",
   "covers": {
     "nx_list_objects": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_objects": "930d06024b7edc68ce8db61dae3d74fa805a47fa2804f62bed49d21339f24952"
+    "nx_list_objects": "60571256f50696bf9a0483d1a7032ee308bb19039c40ea4aa3f0ea5f5a176d53"
   },
   "recorded": "2026-10-10T13:15:04Z",
   "passed": true,

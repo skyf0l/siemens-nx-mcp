@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/update_model.json",
-  "scenario_sha256": "b3dfe6ecb7678719b4cffd5f9927e66a3e364af10b324a652fb05bd493d61e2d",
+  "scenario_sha256": "6ccf5180a00a282f77e97d301bca696c1ef2c5fb396646e53265f01ff2ed1be1",
   "domain": "modeling",
   "covers": {
     "nx_update_model": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_update_model": "1e671317316d33d6098e61973311eaf344c19b5b3333a9a97960d689a723c829"
+    "nx_update_model": "092e8e9e9c67cfb4c25ff16d9cde3ad3e08bba19c0bfc0deec2ccc2d42e7c7be"
   },
   "recorded": "2026-10-10T13:14:20Z",
   "passed": true,

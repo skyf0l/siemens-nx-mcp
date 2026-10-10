@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/inch_part.json",
-  "scenario_sha256": "4859b9b8104f12fd48e03fe8689e140b613a90c8e98234208598d9499846ed41",
+  "scenario_sha256": "4d5cc1a4e25a9c2be28a14b91a5a8293956105d2ff0bc224511ba2d8d7f823bc",
   "domain": "freeform",
   "covers": {
     "nx_create_thicken": [],
@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_thicken": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c",
-    "nx_create_sew": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c",
-    "nx_create_mesh_surface": "1ff4ca9911d51f7bf7b7c4eae87566b873cd16ffba5c68929ca6385542e75dc4"
+    "nx_create_thicken": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
+    "nx_create_sew": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
+    "nx_create_mesh_surface": "d9b088608e52de6469789122717c361d89154300712c7a03f60196125ae93f04"
   },
   "recorded": "2026-10-10T13:14:36Z",
   "passed": true,

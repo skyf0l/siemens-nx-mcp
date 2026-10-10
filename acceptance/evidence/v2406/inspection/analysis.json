@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/analysis.json",
-  "scenario_sha256": "158f0144bd89507874b405e46abb293b34ea36ca094d9d2763ec3dd77510b8ef",
+  "scenario_sha256": "4b54a4a0723b1330ce2a269c531db44f4c9837244494c7cead6db19aa0145ede",
   "domain": "inspection",
   "covers": {
     "nx_analyze_faces": [],
@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_analyze_faces": "7c08d456c12002e1b8eabcb635680c3831b77f74821ea7cb9f77dff9a70e2458",
-    "nx_analyze_curve": "7c08d456c12002e1b8eabcb635680c3831b77f74821ea7cb9f77dff9a70e2458",
-    "nx_check_continuity": "7c08d456c12002e1b8eabcb635680c3831b77f74821ea7cb9f77dff9a70e2458"
+    "nx_analyze_faces": "45b4fe5756b2dfd968a72fc984fa2d97f04b4ec29c9e3677ab2577c73c1eb666",
+    "nx_analyze_curve": "45b4fe5756b2dfd968a72fc984fa2d97f04b4ec29c9e3677ab2577c73c1eb666",
+    "nx_check_continuity": "45b4fe5756b2dfd968a72fc984fa2d97f04b4ec29c9e3677ab2577c73c1eb666"
   },
   "recorded": "2026-10-10T13:14:51Z",
   "passed": true,

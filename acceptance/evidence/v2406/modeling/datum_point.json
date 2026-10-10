@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/datum_point.json",
-  "scenario_sha256": "75a141ee6aa44ae0f5438e236e189b682724e921f183258b4e50b1f40dad2fce",
+  "scenario_sha256": "e28b146110588663f7e5a88258073a7db319ab6fb675980331019982b4711387",
   "domain": "modeling",
   "covers": {
     "nx_create_datum_point": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_datum_point": "d1351e89d6ba93f1ccab7537dfb3e60595f8f2213b901bf66d630e77902dfea3"
+    "nx_create_datum_point": "c1688402dec75186787432a0ec326cb5ab8ec300c203749d7c6c5bb9e76d4474"
   },
   "recorded": "2026-10-10T13:12:44Z",
   "passed": true,

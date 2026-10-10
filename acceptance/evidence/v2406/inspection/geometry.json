@@ -12,10 +12,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_find_geometry": "f73836ebaf82c8f9aa799af479e727ea47988cf6d87ef58e4e69352f3cab4352",
-    "nx_find_holes": "f73836ebaf82c8f9aa799af479e727ea47988cf6d87ef58e4e69352f3cab4352",
-    "nx_create_anchor": "f73836ebaf82c8f9aa799af479e727ea47988cf6d87ef58e4e69352f3cab4352",
-    "nx_resolve_reference": "f73836ebaf82c8f9aa799af479e727ea47988cf6d87ef58e4e69352f3cab4352"
+    "nx_find_geometry": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1",
+    "nx_find_holes": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1",
+    "nx_create_anchor": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1",
+    "nx_resolve_reference": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1"
   },
   "recorded": "2026-10-10T13:14:53Z",
   "passed": true,

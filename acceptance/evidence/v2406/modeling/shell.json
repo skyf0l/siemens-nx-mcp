@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/shell.json",
-  "scenario_sha256": "a60515e46950d969875cf63465795ced731e6bbdf8ff8cab6dcc78cee02de76a",
+  "scenario_sha256": "1baed349dc3795596820324291a5a34d5268a51511ef55c68dc981fefe53498d",
   "domain": "modeling",
   "covers": {
     "nx_create_shell": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_shell": "c0b36ad8d2f2c103e166b39936a11566c288e52f273d82f4ded0b683c58c50a6"
+    "nx_create_shell": "cff606b5d1e21fa144e27aa381c267c01816ec84b036ac18f9436a29fdb2a2d8"
   },
   "recorded": "2026-10-10T13:13:41Z",
   "passed": true,

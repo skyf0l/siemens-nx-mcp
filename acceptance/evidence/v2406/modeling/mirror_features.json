@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/mirror_features.json",
-  "scenario_sha256": "8683df2265d0429dad7db2dabf457d0e66c13b37bae807fca1dbfca9c70fb246",
+  "scenario_sha256": "b21a82da5cf5fdb898089b344cdb8f3dfe74eda8b7fa79ce8f6705b1b05d00ab",
   "domain": "modeling",
   "covers": {
     "nx_create_mirror": [
@@ -11,7 +11,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_mirror": "fb10e6ce77f4fa26f851824e179a5e332d219bfaa737ec8c238335aad27a2319"
+    "nx_create_mirror": "bb6ab1c5b80b5278790f29a1e15fbff810f9d088d2585fe5039bc97a5939303b"
   },
   "recorded": "2026-10-10T13:13:20Z",
   "passed": true,

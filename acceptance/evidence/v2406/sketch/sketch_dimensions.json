@@ -19,7 +19,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sketch_dimensions": "285c4ad447657395db14341b939b0f3a19d42156a405f12d654a9871da9dcb81"
+    "nx_create_sketch_dimensions": "47d91d9afc2dc1b8335ec324949e148f7f78cc0b9655b32f2a2ecc92be9f265a"
   },
   "recorded": "2026-10-10T13:12:22Z",
   "passed": true,

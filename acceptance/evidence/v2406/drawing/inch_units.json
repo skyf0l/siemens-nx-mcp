@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/inch_units.json",
-  "scenario_sha256": "33896cddc2054ffe389bb69c6b996b5bdc3fdcd702c07bd9de667a352738b656",
+  "scenario_sha256": "e9422c3dbd8fd18ccb2b04b7cc6fee16ac23a2e6087418c341e7fe078b7f6820",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_view": [
@@ -22,11 +22,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_view": "ee7ef53b5fd088c4e9138d86feeb81cd470f588088a58ac8636583bac9b885fd",
-    "nx_create_drawing_dimension": "2270c15b9257ca09625e0092be5a2a608df9be1e7e0a38b2132b577792b408b6",
-    "nx_create_note": "9c266e95f4e3a858c7ae31d60fdeed1481f8676c64b4152d62dc05c5dcb53ec6",
-    "nx_create_drawing_table": "c9df7c388b6e3f57180484f18680d14378c176e1bf2a873d20d739e307d4369e",
-    "nx_create_drawing_sheet": "f40d6b78868b98f683b86d18df2044e4c279f2213c8aa5e6a41c50318d15ea5c"
+    "nx_create_drawing_view": "fc49d0151a91b4fc99afd66318e032ac424288733b2577d3bc97b358e979006d",
+    "nx_create_drawing_dimension": "703f4417870ce75e390587dfa8d02e3f76b09774ddf48e59fb6c73ca974a582f",
+    "nx_create_note": "a9fccf8ffbfdf033c6d10f73f01aaa784b93fcd52b6df922c5ec40f23ad3f3ee",
+    "nx_create_drawing_table": "89a142146775136a5c9b26dcbf618084038fe73075138817e9153da71d65e040",
+    "nx_create_drawing_sheet": "d6f1c63c70aa7046ece71b0115e1a27a9b5d768064d2b5fb2161bb46dfe0c526"
   },
   "recorded": "2026-10-10T13:21:04Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/joggle_license_2406.json",
-  "scenario_sha256": "94a82260a8ba4ce915f105cfceaea2ea04c9b0d6b3147bf507a7547057779f4c",
+  "scenario_sha256": "cbb73a053b9bad6915a3d36165b18a92dccc115314dc3a5f2c941f2d7fecdf70",
   "domain": "sheet_metal",
   "covers": {},
   "nx_version": "v2406",

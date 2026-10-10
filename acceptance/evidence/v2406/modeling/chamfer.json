@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/chamfer.json",
-  "scenario_sha256": "977e01291f7da0bf2adc98fde6e3524de30f340e07aed80a37f7f29e0a5079fa",
+  "scenario_sha256": "64c9380ac6cbb5ecb41d7f9fe08b6ce39973144846f948f34bca784c1a6fbdba",
   "domain": "modeling",
   "covers": {
     "nx_create_chamfer": [
@@ -13,7 +13,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_chamfer": "c0b36ad8d2f2c103e166b39936a11566c288e52f273d82f4ded0b683c58c50a6"
+    "nx_create_chamfer": "cff606b5d1e21fa144e27aa381c267c01816ec84b036ac18f9436a29fdb2a2d8"
   },
   "recorded": "2026-10-10T13:12:38Z",
   "passed": true,

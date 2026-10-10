@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/export_profile.json",
-  "scenario_sha256": "7fd6e2f4c2594578a63de3189fee5e4b049906d4599506ba3ba45e6088d57eab",
+  "scenario_sha256": "913fd287f8feaf607bb975df0eed6124c9aca6f064c9a474a86ccce8ecd5eee1",
   "domain": "parts_files",
   "covers": {
     "nx_export_profile": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_profile": "25cf4a9bb3d7d16f5498a145cf85810a008f2a8e60bf570efd9b435a4d739f56"
+    "nx_export_profile": "59f21f3ebb1ce087e115014c0063a59e05c05dfd4bfdbab536e433b77547b64f"
   },
   "recorded": "2026-10-10T13:17:02Z",
   "passed": true,

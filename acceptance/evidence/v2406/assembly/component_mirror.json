@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component_mirror": "bcdb21bdf88cdaaeb05918fb8422599ba172066d70194ff01afebdea1a1a894f"
+    "nx_create_component_mirror": "1df98986fb5132e551e7ab40056979e6f95f7e1e83b63c47f766d10a42eb0f69"
   },
   "recorded": "2026-10-10T13:18:48Z",
   "passed": true,

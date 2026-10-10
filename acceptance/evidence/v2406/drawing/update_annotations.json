@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/update_annotations.json",
-  "scenario_sha256": "162af9c808a1c38e332103d684fb86ff568411ac64f3ec7f0c3c6f8291b7fbcf",
+  "scenario_sha256": "19f663c603a19848a187694ca9e3c27a051edadd099158a6bcbe0c5686d748ed",
   "domain": "drawing",
   "covers": {
     "nx_update_annotations": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_update_annotations": "9c266e95f4e3a858c7ae31d60fdeed1481f8676c64b4152d62dc05c5dcb53ec6"
+    "nx_update_annotations": "a9fccf8ffbfdf033c6d10f73f01aaa784b93fcd52b6df922c5ec40f23ad3f3ee"
   },
   "recorded": "2026-10-10T13:21:08Z",
   "passed": true,

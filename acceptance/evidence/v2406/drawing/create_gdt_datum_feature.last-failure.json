@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/create_gdt_datum_feature.json",
-  "scenario_sha256": "0b2c7315afb355900b24242c76cf0b8a0bdd6b15874d50fbc0ae8c4bd1538d07",
+  "scenario_sha256": "65dc05ccb62f4c5ee0929720e5e56434f564c7b0939530ff2135c5719d4f8a90",
   "domain": "drawing",
   "covers": {
     "nx_create_gdt": [
@@ -11,7 +11,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_gdt": "c3f8897071916ef26468bbef098e092da7582d048860a6b6ddc62625bbb30f48"
+    "nx_create_gdt": "f59a888263be4aeb11ce561b918163a9c05edc001ac16aa55af33d205a4a8a3a"
   },
   "recorded": "2026-10-10T13:19:48Z",
   "passed": false,

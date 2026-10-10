@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/current_feature.json",
-  "scenario_sha256": "8bf41894d9d46b143ddc46145b0b8669fd91f394a6c667e36dc5e5b53e919fd1",
+  "scenario_sha256": "54756341ad286254fb4fef70423bde06c94bb8855380515c8a38c19423360358",
   "domain": "modeling",
   "covers": {
     "nx_set_current_feature": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_current_feature": "1e671317316d33d6098e61973311eaf344c19b5b3333a9a97960d689a723c829"
+    "nx_set_current_feature": "092e8e9e9c67cfb4c25ff16d9cde3ad3e08bba19c0bfc0deec2ccc2d42e7c7be"
   },
   "recorded": "2026-10-10T13:12:40Z",
   "passed": true,

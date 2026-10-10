@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/callout_license_2406.json",
-  "scenario_sha256": "44fc05d4aeacfdfb7d305b1f2e379acdc7c8a54fd6dec1d7ca3546413f4c4f2a",
+  "scenario_sha256": "36f28ef7fdb357a214c5effd0a8c920eaa6490c34509607af6398ab5afa53b68",
   "domain": "sheet_metal",
   "covers": {},
   "nx_version": "v2406",

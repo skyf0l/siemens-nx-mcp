@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/activate_part.json",
-  "scenario_sha256": "971843eb69026d04ad5ccd3cc3fd5c2f91e21e14875b56e02c63859381ba3936",
+  "scenario_sha256": "f3416d674749e35dfc81d52b8c0b68a2a965b64db3f3691286c5b78542208583",
   "domain": "parts_files",
   "covers": {
     "nx_activate_part": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_activate_part": "0a1734cf0b88f32e40b0577c6a3b4e8a8eae33b5eaca4bb30deb0631cc3b4fe3"
+    "nx_activate_part": "86a92ddc9f347ebd1f03f9c8818ad00a17bc713ef550dae5db7959d606d2243b"
   },
   "recorded": "2026-10-10T13:15:32Z",
   "passed": true,

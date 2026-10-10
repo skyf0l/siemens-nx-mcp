@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/export_ap242_license_2406.json",
-  "scenario_sha256": "9a66e18bf1b9a6c824b7029d041b1f2a98d9c7680312241c2310b61289510a58",
+  "scenario_sha256": "7ab908047ee3abf1d051a89d270465132edf15fa03b3f1b5872d70b21d8d77ef",
   "domain": "parts_files",
   "covers": {},
   "nx_version": "v2406",

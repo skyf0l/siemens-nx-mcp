@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/camera.json",
-  "scenario_sha256": "4bcd493de83e126221539609d6157d25b8dfce327d07bec373902cce40f767d7",
+  "scenario_sha256": "7b3145832436aced34c35102ca5c6192d4f82afde47abb8f386f04b89fa4bf37",
   "domain": "display",
   "covers": {
     "nx_get_camera": [],
@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_camera": "5ed136e3eda6111516d071de550c84bd4da027e1f3877cc1552a52d21ff5bd13",
-    "nx_set_camera": "5ed136e3eda6111516d071de550c84bd4da027e1f3877cc1552a52d21ff5bd13",
-    "nx_restore_display": "f494659a278b732d750dde42f6314a9f632f60eda070dc18380966287f42eaac"
+    "nx_get_camera": "ab99493fc49f3a9e956b1ff2ff862e1c9fcf8b754ad08662c0316154ed70c6ac",
+    "nx_set_camera": "ab99493fc49f3a9e956b1ff2ff862e1c9fcf8b754ad08662c0316154ed70c6ac",
+    "nx_restore_display": "848532fd912b4c5dee679b403221a41a1dbc6f48ac96491d5754de142ce77874"
   },
   "recorded": "2026-10-10T13:15:14Z",
   "passed": true,

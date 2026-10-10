@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/flange_license_2406.json",
-  "scenario_sha256": "cb58294fcfa81d92f429ae3bddc000825081bddc41b838ae7dded84eb63cef68",
+  "scenario_sha256": "876ec9d1514743b3edbd01b7c2f0921e1a8fc02960545d5909b9e54952dac01d",
   "domain": "sheet_metal",
   "covers": {},
   "nx_version": "v2406",

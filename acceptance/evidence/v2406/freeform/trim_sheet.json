@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/trim_sheet.json",
-  "scenario_sha256": "7ba9bd3256ea596348f79eb12de60ce6af276fede0ec4ee4e1d540867a1533c4",
+  "scenario_sha256": "8cc938e54b59db8191d9351fe11dab06caa070f7a10254f5d8b8bf8076f5b6fd",
   "domain": "freeform",
   "covers": {
     "nx_create_trim_sheet": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_trim_sheet": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c"
+    "nx_create_trim_sheet": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0"
   },
   "recorded": "2026-10-10T13:14:46Z",
   "passed": true,

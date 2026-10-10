@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/material_library.json",
-  "scenario_sha256": "a4336987e6bdd13663bb65e664e73d3e4593f4e2568c94681231713753d0f553",
+  "scenario_sha256": "a74277a7c8189b99e49e06701ab0e742dff8ba9321fd94254ac30566c9455b93",
   "domain": "modeling",
   "covers": {
     "nx_list_materials": [],
@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_materials": "baf2b04289faddbf6367f936332478993e88e870bc2182b7b3c50217cf6cdf1f",
-    "nx_get_material": "baf2b04289faddbf6367f936332478993e88e870bc2182b7b3c50217cf6cdf1f",
-    "nx_set_material": "baf2b04289faddbf6367f936332478993e88e870bc2182b7b3c50217cf6cdf1f"
+    "nx_list_materials": "ff5fd4d07b168453753b5db1f5d7e6f63a8b473cee4e9eba11428a26a9bd2048",
+    "nx_get_material": "ff5fd4d07b168453753b5db1f5d7e6f63a8b473cee4e9eba11428a26a9bd2048",
+    "nx_set_material": "ff5fd4d07b168453753b5db1f5d7e6f63a8b473cee4e9eba11428a26a9bd2048"
   },
   "recorded": "2026-10-10T13:13:16Z",
   "passed": true,

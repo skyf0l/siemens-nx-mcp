@@ -10,8 +10,8 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component_pattern": "c32290c032c0da7a13080b52b3b07726250d0d32671188be853853d30e588d20",
-    "nx_edit_component_pattern": "c32290c032c0da7a13080b52b3b07726250d0d32671188be853853d30e588d20"
+    "nx_create_component_pattern": "711c1e7cb16886d1e8e55e93c3480778f1430df79374bf3021b65d09efdec03d",
+    "nx_edit_component_pattern": "711c1e7cb16886d1e8e55e93c3480778f1430df79374bf3021b65d09efdec03d"
   },
   "recorded": "2026-10-10T13:19:15Z",
   "passed": true,

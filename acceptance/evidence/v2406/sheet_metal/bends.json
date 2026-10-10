@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/bends.json",
-  "scenario_sha256": "457dcf2d6c10a1038fd2cc9eb804f3748857e2735e3312e7d6bca52a19293fa7",
+  "scenario_sha256": "42fd63f61d47115d1c8c81f9dbfc62a2e56f5ec30893c5350d0464bbba23c5d2",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_feature": [
@@ -16,7 +16,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "8fc75db78e02d60a3dca5cd86fc8652f026c1904687cdd958e01e3362c6c1d85"
+    "nx_create_sheet_metal_feature": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf"
   },
   "recorded": "2026-10-10T13:21:25Z",
   "passed": true,

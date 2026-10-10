@@ -13,11 +13,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_measure_mass": "f8bfde23b93055efc37337810ab16eb6b8e9c63c8fe809a0fbd814d76be4f082",
-    "nx_measure_distance": "f8bfde23b93055efc37337810ab16eb6b8e9c63c8fe809a0fbd814d76be4f082",
-    "nx_measure_bounds": "f8bfde23b93055efc37337810ab16eb6b8e9c63c8fe809a0fbd814d76be4f082",
-    "nx_check_interference": "4b479ec8b67311607287b44c7d7766e7a0c3e99a0f4a9103f583009a0ea500e9",
-    "nx_measure_wall_thickness": "f8bfde23b93055efc37337810ab16eb6b8e9c63c8fe809a0fbd814d76be4f082"
+    "nx_measure_mass": "aad870ab6970f36b5b88ca39d80e23df6fcf87877fb58258c3205a9628a46f02",
+    "nx_measure_distance": "aad870ab6970f36b5b88ca39d80e23df6fcf87877fb58258c3205a9628a46f02",
+    "nx_measure_bounds": "aad870ab6970f36b5b88ca39d80e23df6fcf87877fb58258c3205a9628a46f02",
+    "nx_check_interference": "a9c201ced15042e73bae8c7929908a59985e3ccb1963d5e936a12feb24f6c4f8",
+    "nx_measure_wall_thickness": "aad870ab6970f36b5b88ca39d80e23df6fcf87877fb58258c3205a9628a46f02"
   },
   "recorded": "2026-10-10T13:14:56Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/edit_faces.json",
-  "scenario_sha256": "939a11fa9c112598551a815109e90dabd7e308656579c51d934cd71cb3aedd96",
+  "scenario_sha256": "a627e7db4d9d3c8e524daffe412a906967d9eb14778f4ab3ad2e24622135e2a4",
   "domain": "modeling",
   "covers": {
     "nx_edit_faces": [
@@ -14,7 +14,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_faces": "2440f9184eb6d1a243af140bf694327cd13a1c5f55a2dcf5e01bb5e06f06229c"
+    "nx_edit_faces": "0337177f00adb4134a8c67c09687ee274c45d58cb41f005556c4a9eac04d7596"
   },
   "recorded": "2026-10-10T13:12:48Z",
   "passed": true,

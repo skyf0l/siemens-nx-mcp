@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/scale.json",
-  "scenario_sha256": "602ace09db95a28c0d154fecb579d05ae8681019bc86afc4c8fee427663ee98b",
+  "scenario_sha256": "181e286274b0c87a0c13e4c8a7a7c6cdfb880fa8a390ec0ffc82852ec481b82a",
   "domain": "modeling",
   "covers": {
     "nx_create_scale": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_scale": "2440f9184eb6d1a243af140bf694327cd13a1c5f55a2dcf5e01bb5e06f06229c"
+    "nx_create_scale": "0337177f00adb4134a8c67c09687ee274c45d58cb41f005556c4a9eac04d7596"
   },
   "recorded": "2026-10-10T13:13:39Z",
   "passed": true,

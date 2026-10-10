@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/lofted_flange.json",
-  "scenario_sha256": "f7c641598b117813a142c6a13f5055e736dfc1410f5a60a25c27f491b2204e09",
+  "scenario_sha256": "6adcf452ea219c940342ebefdcbe638c4bf2493833a4592c6035618c5ded2fcd",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_feature": [
@@ -11,7 +11,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "8fc75db78e02d60a3dca5cd86fc8652f026c1904687cdd958e01e3362c6c1d85"
+    "nx_create_sheet_metal_feature": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf"
   },
   "recorded": "2026-10-10T13:22:08Z",
   "passed": true,

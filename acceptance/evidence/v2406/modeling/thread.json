@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/thread.json",
-  "scenario_sha256": "99ac1235ca0297c5b8e5d3e679b02bc87940d70725a2d160f2b4b3505ee191de",
+  "scenario_sha256": "b7ff820891c7ca8d3558bd6a3e3e06fce3427dd0d148e31cacf3256e16d4b347",
   "domain": "modeling",
   "covers": {
     "nx_create_thread": [],
@@ -10,8 +10,8 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_thread": "acec7c92346952869830ed77fe6372ffcb3df5881ca14bad047b1676586f090d",
-    "nx_list_thread_sizes": "acec7c92346952869830ed77fe6372ffcb3df5881ca14bad047b1676586f090d"
+    "nx_create_thread": "1c5463868bf255c0949407b7b79e550a46cbcf49dc1d034078b163975a4e7aa2",
+    "nx_list_thread_sizes": "1c5463868bf255c0949407b7b79e550a46cbcf49dc1d034078b163975a4e7aa2"
   },
   "recorded": "2026-10-10T13:14:10Z",
   "passed": true,

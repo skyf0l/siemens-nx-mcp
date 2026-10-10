@@ -4,8 +4,8 @@
       "checks": 21,
       "recorded": "2026-10-10T13:14:34Z",
       "scenario": "acceptance/freeform/bridge_surface.json",
-      "scenario_sha256": "246bb137c799ef076904efc45487bce7f15001a94057cb845e3b3a40b02fb1da",
-      "source_sha256": "1ff4ca9911d51f7bf7b7c4eae87566b873cd16ffba5c68929ca6385542e75dc4",
+      "scenario_sha256": "851576712f761261095838179226a7b325943fb7fdd976e577ce30084a74a7a2",
+      "source_sha256": "d9b088608e52de6469789122717c361d89154300712c7a03f60196125ae93f04",
       "variants": [
         "g0",
         "g1",
@@ -18,8 +18,8 @@
       "checks": 18,
       "recorded": "2026-10-10T13:14:38Z",
       "scenario": "acceptance/freeform/mesh_surface.json",
-      "scenario_sha256": "31ab1dd3c60c6e7ea3039c3dfb607f7dc6827fe2b43e62ce80f65a0ad54435ac",
-      "source_sha256": "1ff4ca9911d51f7bf7b7c4eae87566b873cd16ffba5c68929ca6385542e75dc4",
+      "scenario_sha256": "685d7d3ddedf71a2fcd8bcf4160412657bd58b2c1edc5b411115efa0dbe7c5b7",
+      "source_sha256": "d9b088608e52de6469789122717c361d89154300712c7a03f60196125ae93f04",
       "variants": []
     }
   },
@@ -28,8 +28,8 @@
       "checks": 23,
       "recorded": "2026-10-10T13:14:43Z",
       "scenario": "acceptance/freeform/sew_thicken.json",
-      "scenario_sha256": "84053f0068823d4d4885700e178a35555d78ba621e8acedb6a74253842f5368e",
-      "source_sha256": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c",
+      "scenario_sha256": "bb7ee00d2d5cd3b28c4f692d2a6e7ea7b0e46a47a4d27d95eeed7c28cf0dd299",
+      "source_sha256": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
       "variants": []
     }
   },
@@ -38,7 +38,7 @@
       "checks": 25,
       "recorded": "2026-10-10T13:14:44Z",
       "scenario": "acceptance/freeform/spline.json",
-      "scenario_sha256": "e0d32949735b9c3f173f03b994b57e86fb1fa6360fc8fb10d34924c44a097540",
+      "scenario_sha256": "ab811a3c56310c9137df421ef0a5ea3026271f6f461f8fd66dd029bdd3b96053",
       "source_sha256": "fde75e339a586c4661e4daab383b319fe1cd0a1a4c5676659617f464c4418616",
       "variants": [
         "poles",
@@ -51,8 +51,8 @@
       "checks": 23,
       "recorded": "2026-10-10T13:14:43Z",
       "scenario": "acceptance/freeform/sew_thicken.json",
-      "scenario_sha256": "84053f0068823d4d4885700e178a35555d78ba621e8acedb6a74253842f5368e",
-      "source_sha256": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c",
+      "scenario_sha256": "bb7ee00d2d5cd3b28c4f692d2a6e7ea7b0e46a47a4d27d95eeed7c28cf0dd299",
+      "source_sha256": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
       "variants": []
     }
   },
@@ -61,8 +61,8 @@
       "checks": 11,
       "recorded": "2026-10-10T13:14:46Z",
       "scenario": "acceptance/freeform/trim_sheet.json",
-      "scenario_sha256": "7ba9bd3256ea596348f79eb12de60ce6af276fede0ec4ee4e1d540867a1533c4",
-      "source_sha256": "fabe0ef8dda23e1d783e8077bac407b61b6d58581ff96e577e440aa58a94f71c",
+      "scenario_sha256": "8cc938e54b59db8191d9351fe11dab06caa070f7a10254f5d8b8bf8076f5b6fd",
+      "source_sha256": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
       "variants": []
     }
   }

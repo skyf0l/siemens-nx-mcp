@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/gusset.json",
-  "scenario_sha256": "c1933078930727e267eb663e74d09999227971df6500d745d373a5dec636233e",
+  "scenario_sha256": "362aa5adb0b02d6dfff418f0faea98179f72eadc3a73d988e33cd4d84622d421",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_feature": [
@@ -11,7 +11,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "8fc75db78e02d60a3dca5cd86fc8652f026c1904687cdd958e01e3362c6c1d85"
+    "nx_create_sheet_metal_feature": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf"
   },
   "recorded": "2026-10-10T13:21:56Z",
   "passed": true,

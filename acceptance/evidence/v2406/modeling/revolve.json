@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/revolve.json",
-  "scenario_sha256": "50d9de7f6957b54153864e691fb42f5cc8efa9164a09744ca74cfbb91f979af9",
+  "scenario_sha256": "4268ce5bbd45e67e1743a3f5f6969402c8d7cc7044eb6b5ea6504cc9234f5923",
   "domain": "modeling",
   "covers": {
     "nx_create_revolve": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_revolve": "6c2191b51a1ee1e1a63ebec7a49c7beaf1b9b5c0be0c1e89f0c9d753dc6b890e"
+    "nx_create_revolve": "53baf14b3199e09f5f2e740a5fbc795218673d07282d7bd0f4696ea875c96bf6"
   },
   "recorded": "2026-10-10T13:13:34Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/explosions.json",
-  "scenario_sha256": "4e70107dacbb1d96a9561f58242517bd53ed647edf4c67e7b55e677bd713734b",
+  "scenario_sha256": "af0aa333804ca06200751da0ec52a67821c9e8294f62e9866915d1cb060a72c1",
   "domain": "assembly",
   "covers": {
     "nx_create_explosion": [],
@@ -15,13 +15,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_explosion": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
-    "nx_edit_explosion": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
-    "nx_get_explosion": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
-    "nx_set_explosion_display": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
-    "nx_create_explosion_trace": "05e7b86206e86b14e695a2ec6c78d74f154f384439c2f821329ce2a2044003ca",
-    "nx_edit_explosion_trace": "05e7b86206e86b14e695a2ec6c78d74f154f384439c2f821329ce2a2044003ca",
-    "nx_export_explosion_animation": "0cf42a3deb499e6e624baa8bdce54a79bde62e5e677df53d6dee4d7ac6d6b2df"
+    "nx_create_explosion": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
+    "nx_edit_explosion": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
+    "nx_get_explosion": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
+    "nx_set_explosion_display": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
+    "nx_create_explosion_trace": "663d27ffdcb4e552fe74c20c7c599491ca7e14298308fb3e8ff6d9dfdd3ce608",
+    "nx_edit_explosion_trace": "663d27ffdcb4e552fe74c20c7c599491ca7e14298308fb3e8ff6d9dfdd3ce608",
+    "nx_export_explosion_animation": "2f6129db600483c6a949ab3ffdff987614ecda4ddc454c7cd90a8467c8e56d66"
   },
   "recorded": "2026-10-10T13:19:06Z",
   "passed": true,

@@ -4,8 +4,8 @@
       "checks": 11,
       "recorded": "2026-10-10T13:22:13Z",
       "scenario": "acceptance/sheet_metal/three_bend_corner.json",
-      "scenario_sha256": "bf31ad5f795a262c56abdb9ac2f6b111ad782586712775dd2c3e98c0a2798fac",
-      "source_sha256": "8fc75db78e02d60a3dca5cd86fc8652f026c1904687cdd958e01e3362c6c1d85",
+      "scenario_sha256": "fe0be90a3540b4c56acda34e47216997b5224d8ac99422567aefc59f10cd21ff",
+      "source_sha256": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf",
       "variants": [
         "bead",
         "bend",
@@ -44,8 +44,8 @@
       "checks": 14,
       "recorded": "2026-10-10T13:22:00Z",
       "scenario": "acceptance/sheet_metal/inch.json",
-      "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "8c01cfb69e692c19af2b461d38543f88237f20a5b990e898f05725b318010c0d",
+      "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
+      "source_sha256": "abf19bc9d64e29124ae26f88e068635f3112284fb8f12f24035a6c57b921626b",
       "variants": []
     }
   },
@@ -54,8 +54,8 @@
       "checks": 14,
       "recorded": "2026-10-10T13:22:00Z",
       "scenario": "acceptance/sheet_metal/inch.json",
-      "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "56e66cd3c358e8215bc8aab662d31f923e963ebf41d980c71d8175589b4a7687",
+      "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
+      "source_sha256": "140671c41e06e782ac0b7e5df05b49a0c6f9c9599b047d3d5906581400889ca9",
       "variants": []
     }
   },
@@ -64,8 +64,8 @@
       "checks": 30,
       "recorded": "2026-10-10T13:21:46Z",
       "scenario": "acceptance/sheet_metal/defaults.json",
-      "scenario_sha256": "2fe16b227736cc75a2eeed764b56bd518faf4228f53b4dfa31fee18114591f56",
-      "source_sha256": "581ceb4687aa745d3eb91f6aca4b0e752154f983afb80bfa90d011034f97e802",
+      "scenario_sha256": "30b119a55e4b710d3d092067b915de9e53091a05d68fe77e6dded3f347a2065a",
+      "source_sha256": "729c1d070988cce47023fa7734388513bf326a8e854a31965ea61d2363735013",
       "variants": []
     }
   },
@@ -74,8 +74,8 @@
       "checks": 14,
       "recorded": "2026-10-10T13:22:00Z",
       "scenario": "acceptance/sheet_metal/inch.json",
-      "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "581ceb4687aa745d3eb91f6aca4b0e752154f983afb80bfa90d011034f97e802",
+      "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
+      "source_sha256": "729c1d070988cce47023fa7734388513bf326a8e854a31965ea61d2363735013",
       "variants": []
     }
   }

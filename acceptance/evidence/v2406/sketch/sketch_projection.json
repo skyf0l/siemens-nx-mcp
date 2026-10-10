@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sketch/sketch_projection.json",
-  "scenario_sha256": "4c9f46e7a536f897f5eb4edbf4e1c91c7726fb61c2a063248a40d960417c7cc3",
+  "scenario_sha256": "2b681162f3f00c2617e2b42036eb42518a3d411d4f9b4b38470cef102fab85ef",
   "domain": "sketch",
   "covers": {
     "nx_create_sketch_projection": [
@@ -12,7 +12,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sketch_projection": "19aeacf5e315419680d92288d0ae75cd188bc087b31a06be8a74f65e197de909"
+    "nx_create_sketch_projection": "c4a5250db521e09d3e874639d9ec06dac296d1f17f1f819eefc97d84576e5abd"
   },
   "recorded": "2026-10-10T13:12:25Z",
   "passed": true,

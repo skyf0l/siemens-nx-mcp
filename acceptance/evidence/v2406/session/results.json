@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/results.json",
-  "scenario_sha256": "d39cd65b428cb83f9f094b20f8b71722f080ea2d6e38e896db825b0fbc529973",
+  "scenario_sha256": "f0bbe823c281db7cfedc2e368064e9a5edc7ff49277dc9411fa7885787500a14",
   "domain": "session",
   "covers": {
     "nx_get_result": [],
@@ -10,8 +10,8 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_result": "ebf58f35f5184bb97653e2d0a25261e22c39f3d23a3070b2e60b634d73f19c60",
-    "nx_delete_results": "ebf58f35f5184bb97653e2d0a25261e22c39f3d23a3070b2e60b634d73f19c60"
+    "nx_get_result": "c354056d33ae60b4e0e6fda9e811a9a752a320db41721036210eb03e3fd2f357",
+    "nx_delete_results": "c354056d33ae60b4e0e6fda9e811a9a752a320db41721036210eb03e3fd2f357"
   },
   "recorded": "2026-10-10T13:09:38Z",
   "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/extrude.json",
-  "scenario_sha256": "21d745d96dbba12f7fd42526786fbcd87206809898a6011530550de5f1e9d516",
+  "scenario_sha256": "46174cd5b4dce480006fd9db0bf10a3a1940832d9b11b5c51f3967babac47953",
   "domain": "modeling",
   "covers": {
     "nx_create_extrude": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_extrude": "6c2191b51a1ee1e1a63ebec7a49c7beaf1b9b5c0be0c1e89f0c9d753dc6b890e"
+    "nx_create_extrude": "53baf14b3199e09f5f2e740a5fbc795218673d07282d7bd0f4696ea875c96bf6"
   },
   "recorded": "2026-10-10T13:13:01Z",
   "passed": true,

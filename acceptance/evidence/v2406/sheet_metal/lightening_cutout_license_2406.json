@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/lightening_cutout_license_2406.json",
-  "scenario_sha256": "08f96123410d0e90f6a06264ee2445d89a9afa77642dfe9cfbaf480cabc27924",
+  "scenario_sha256": "7f53b64e25510a86c54fabc4ee9719111519657a4f2a9b4e2fc8d4e871cf023e",
   "domain": "sheet_metal",
   "covers": {},
   "nx_version": "v2406",

@@ -78,6 +78,12 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def file_sha256(path: Path) -> str:
+    """SHA-256 of a text file with LF line endings, so a Windows (CRLF) checkout
+    and an LF one record the same evidence."""
+    return sha256(Path(path).read_bytes().replace(b"\r\n", b"\n"))
+
+
 def relative(path: Path) -> str:
     try:
         return path.resolve().relative_to(ROOT).as_posix()
@@ -378,7 +384,7 @@ def source_digest(tool: str) -> str | None:
         return None
     module = sys.modules.get(spec.handler.__module__)
     path = getattr(module, "__file__", None)
-    return sha256(Path(path).read_bytes()) if path else None
+    return file_sha256(Path(path)) if path else None
 
 
 class DevLock:
@@ -535,7 +541,7 @@ async def run_scenario(
     evidence = {
         "format": EVIDENCE_FORMAT,
         "scenario": relative(path),
-        "scenario_sha256": sha256(path.read_bytes()),
+        "scenario_sha256": file_sha256(path),
         "domain": domain,
         "covers": data["covers"],
         "nx_version": build[0],
@@ -964,7 +970,7 @@ def fold(
         if not record.get("passed"):
             continue
         scenario = ROOT / record["scenario"]
-        if not scenario.is_file() or sha256(scenario.read_bytes()) != record.get("scenario_sha256"):
+        if not scenario.is_file() or file_sha256(scenario) != record.get("scenario_sha256"):
             problems.append(f"{relative(path)}: scenario changed since the run; rerun it")
             continue
         records.append(record)

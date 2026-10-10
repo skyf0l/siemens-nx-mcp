@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/mesh_surface.json",
-  "scenario_sha256": "31ab1dd3c60c6e7ea3039c3dfb607f7dc6827fe2b43e62ce80f65a0ad54435ac",
+  "scenario_sha256": "685d7d3ddedf71a2fcd8bcf4160412657bd58b2c1edc5b411115efa0dbe7c5b7",
   "domain": "freeform",
   "covers": {
     "nx_create_mesh_surface": []
@@ -9,7 +9,7 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_mesh_surface": "1ff4ca9911d51f7bf7b7c4eae87566b873cd16ffba5c68929ca6385542e75dc4"
+    "nx_create_mesh_surface": "d9b088608e52de6469789122717c361d89154300712c7a03f60196125ae93f04"
   },
   "recorded": "2026-10-10T13:14:38Z",
   "passed": true,
