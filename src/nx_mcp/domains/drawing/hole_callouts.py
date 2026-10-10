@@ -17,6 +17,11 @@ NX 2406 findings encoded here:
 - A hole table takes bodies with their view (``SelectedObjects.AddWithViews``); a view
   alone is "Invalid selected objects". Labels are numbered across the part; rows are a
   title, a header (``Hole No.``, X, Y, Z), group rows (size text) and hole rows.
+- X and Y of a hole row run along the view's horizontal and vertical axes from the
+  ordinate origin. A live run found a table measured from another point of a straight
+  origin edge than the requested end (cause not pinned down): the table is matched
+  against every snap point of the edge; ``auto`` takes the one that matches (``origin``
+  in the result, with a warning), an explicit snap point is refused naming the match.
 """
 
 from __future__ import annotations
@@ -393,14 +398,18 @@ def refresh_callouts(tx, objects):
 
 
 def _origin_snap(tx, edge, snap, field):
+    """``(snap, native snap type, {snap point name: model point})``: the requested point
+    first, then the edge's other snap points."""
     from nx_mcp.domains.drawing.dimensions import ordinate_snap
 
     info = facts.edge(tx, edge)
     snap = ordinate_snap(info, snap, field)
     S = tx.nx.InferSnapType.SnapType
-    if snap == "center":
-        return info["center"], S.Center
-    return info[snap], S.Start if snap == "start" else S.End
+    native = S.Center if snap == "center" else S.Start if snap == "start" else S.End
+    names = [] if info.get("closed") else ["start", "end"]
+    names += ["center"] if info["kind"] == "arc" else []
+    points = {snap: info[snap], **{n: info[n] for n in names if n != snap}}
+    return snap, native, points
 
 
 def expected_positions(tx, view, origin, bodies):
@@ -434,7 +443,8 @@ def create_table(tx, view_ref, position, origin_ref, origin_point, table_info):
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
         edge = geometry(tx, origin_ref, ("edge",), "/origin")
-        at, snap = _origin_snap(tx, edge, origin_point, "/origin")
+        chosen, snap, points = _origin_snap(tx, edge, origin_point, "/origin")
+        at = points[chosen]
         bodies = solid_bodies(tx)
         if not bodies:
             fail("NX_WRONG_PART_CONTEXT", "The work part has no solid body", field="/view")
@@ -450,7 +460,8 @@ def create_table(tx, view_ref, position, origin_ref, origin_point, table_info):
             table = b.commit(validate=True)
         update(tx)
         out = table_info(tx, table, "hole")
-        verify_table(tx, view, at, bodies, out, sh.scale)
+        used = verify_table(tx, view, points, bodies, out, sh.scale, origin_point == "auto")
+        out["origin"] = {"origin_point": used, "point": [float(v) for v in points[used]]}
         return out
 
 
@@ -465,15 +476,54 @@ def places(rows):
     return min(found) if found else 2
 
 
-def verify_table(tx, view, origin, bodies, out, scale):
+def verify_table(tx, view, points, bodies, out, scale, auto=False):
     """Every Hole-feature centre is a row of the table at its X/Y from the origin (the
-    table shows sheet units; ``scale`` is part units per sheet unit)."""
+    table shows sheet units; ``scale`` is part units per sheet unit).
+
+    ``points`` maps the edge's snap points to model points, the requested one first.
+    Returns the name of the point the table measures from: the requested one, or with
+    ``auto`` another snap point of the edge that matches every hole (with a warning)."""
     holes = out.get("holes") or []
-    expected = [[x / scale, y / scale] for x, y in expected_positions(tx, view, origin, bodies)]
-    readback.expect(len(holes) >= len(expected), "rows", "The table lists fewer holes than "
-                    "the Hole features have", rows=len(holes), holes=len(expected))  # fmt: skip
+    shown = [h["position"] for h in holes]
     tol = 0.51 * 10 ** -places(out.get("rows") or [])
-    missing = match_positions(expected, [h["position"] for h in holes], tol)
-    readback.expect(not missing, "positions", "Hole positions differ from the table",
-                    missing=[expected[i] for i in missing],
-                    table=[h["position"] for h in holes][:20])  # fmt: skip
+
+    def expected(point):
+        return [[x / scale, y / scale] for x, y in expected_positions(tx, view, point, bodies)]
+
+    def unsigned(point):
+        """NX 2406 shows unsigned X/Y distances: from an origin at the right edge a hole
+        10 to its left is listed at X 10.00."""
+        return not match_positions([[abs(x), abs(y)] for x, y in expected(point)], shown, tol)
+
+    chosen, *others = points
+    wanted = expected(points[chosen])
+    readback.expect(len(holes) >= len(wanted), "rows", "The table lists fewer holes than "
+                    "the Hole features have", rows=len(holes), holes=len(wanted))  # fmt: skip
+    missing = match_positions(wanted, shown, tol)
+    if not missing:
+        return chosen
+    other = next((n for n in others if not match_positions(expected(points[n]), shown, tol)), None)
+    if other is None and unsigned(points[chosen]):
+        return chosen
+    other = other or next((n for n in others if unsigned(points[n])), None)
+    if other is not None and auto:
+        tx.warn("NX_UPDATE_WARNING", f"NX measures this hole table from the origin edge's "
+                f"{other} point, not its {chosen} point (see origin)")  # fmt: skip
+        return other
+    point = [round(float(v), 6) for v in points[chosen]]
+    fail(
+        "NX_VERIFICATION_FAILED",
+        f"Hole positions in the table differ from the Hole features measured from the origin "
+        f"edge's {chosen} point {point} (X along the view's horizontal axis, Y along its "
+        "vertical axis)",
+        hint=f"NX measured from the edge's {other} point: pass origin_point '{other}'"
+        if other is not None
+        else "Pick an origin edge that ends at the corner to measure from, with origin_point "
+        "'start' or 'end' for that end (nx_find_geometry gives an edge's ends)",
+        details={
+            "check": "positions",
+            "origin_point": chosen,
+            "missing": [wanted[i] for i in missing][:20],
+            "table": shown[:20],
+        },
+    )

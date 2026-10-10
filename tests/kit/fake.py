@@ -10,6 +10,7 @@ helpers directly.
 from __future__ import annotations
 
 import itertools
+import math
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -321,6 +322,8 @@ class FakeNX:
         p.Expressions = Collection()
         p.Expressions.CreateNumberExpression = self._create_expression
         p.Expressions.EditExpression = self._edit_expression
+        p.Expressions.CreateSystemExpressionWithUnits = self._system_expression
+        p.Expressions.Delete = p.Expressions.remove
         p.UnitCollection = NS(FindObject=lambda name: NS(Name=name, Abbreviation=name))
         p.DrawingSheets = Sheets()
         updated = []
@@ -462,6 +465,31 @@ class FakeNX:
         if formula == "invalid":
             raise NXException(1050017, "Syntax error in expression")
         e = self.expression(name, formula)
+        e.Units = unit
+        return e
+
+    def _system_expression(self, formula, unit):
+        """A temporary expression evaluating ``formula`` (gate 9 expressions as values):
+        names are the part's expressions (by ``Value``); an angle expression in a length
+        (or the reverse) is NX's dimension error, an unknown name its 1050007."""
+        import re as _re
+
+        angle = {"Degrees", "Radian"}
+        target = getattr(unit, "Name", None)
+        values = {}
+        for name in set(_re.findall(r"[A-Za-z_][A-Za-z0-9_]*", formula)) - {"sqrt", "abs"}:
+            exp = next((e for e in self.part.Expressions if e.Name == name), None)
+            if exp is None:
+                raise NXException(1050007, "The specified expression variable does not exist.")
+            own = getattr(getattr(exp, "Units", None), "Name", None)
+            if own and target and (own in angle) != (target in angle):
+                raise NXException(3270081, "Dimension error")
+            values[name] = float(exp.Value)
+        try:
+            value = float(eval(formula.replace("^", "**"), {"sqrt": math.sqrt, "abs": abs}, values))
+        except Exception:
+            raise NXException(3270008, "The specified string contains a syntax error") from None
+        e = self.expression(f"p{len(self.part.Expressions) + 100}", formula, value)
         e.Units = unit
         return e
 

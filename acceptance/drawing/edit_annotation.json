@@ -389,6 +389,60 @@
    }
   },
   {
+   "call": "nx_edit_annotation",
+   "args": {
+    "annotation": "$note.data.annotation.id",
+    "text": "NEW TEXT\nLINE 2"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.text": [
+     "NEW TEXT",
+     "LINE 2"
+    ],
+    "data.annotation.kind": "annotation"
+   }
+  },
+  {
+   "call": "nx_edit_annotation",
+   "args": {
+    "annotation": "$note.data.annotation.id",
+    "text": [
+     "ONE"
+    ],
+    "position": [
+     50,
+     60
+    ]
+   },
+   "expect": {
+    "data.text": [
+     "ONE"
+    ],
+    "data.position": {
+     "close": [
+      50,
+      60
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_annotation",
+   "args": {
+    "annotation": "$dim.data.dimension.id",
+    "text": [
+     "X"
+    ]
+   },
+   "expect": {
+    "error.category": "unsupported",
+    "mutation_outcome": "not_started",
+    "error.field": "/text"
+   }
+  },
+  {
    "call": "nx_close_part",
    "setup": true,
    "args": {

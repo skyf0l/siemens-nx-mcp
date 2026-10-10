@@ -1,0 +1,92 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/table_usability.json",
+  "scenario_sha256": "95aed5736898228876139ab9a7e95721b7241d6aa9fded1c7800edbdec32b0db",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_table": [
+      "revision",
+      "title_block"
+    ],
+    "nx_edit_drawing_table": [
+      "revision"
+    ],
+    "nx_get_drawing_table": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_drawing_table": "d0401e2c23ea16e6f9e49b657bc8ebb8a82069cfbae82d837f50dcc1a9cc8c99",
+    "nx_edit_drawing_table": "d0401e2c23ea16e6f9e49b657bc8ebb8a82069cfbae82d837f50dcc1a9cc8c99",
+    "nx_get_drawing_table": "d0401e2c23ea16e6f9e49b657bc8ebb8a82069cfbae82d837f50dcc1a9cc8c99"
+  },
+  "recorded": "2026-10-10T23:26:23Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_create_balloons",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

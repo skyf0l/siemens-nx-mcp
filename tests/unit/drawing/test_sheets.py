@@ -114,3 +114,37 @@ def test_activate_opens_a_sheet_and_returns_to_modeling():
     refused = run(nx, "nx_activate_drawing_sheet", sheet=sheet.ref)
     assert refused.error["code"] == "NX_WRONG_PART_CONTEXT"
     assert refused.mutation_outcome == "not_started"
+
+
+def test_natural_size_scale_and_projection_spellings_are_accepted():
+    nx = sheet_nx()
+    ok = run(nx, "nx_create_drawing_sheet", name="Sheet1", size="A3", scale="1:2",
+             projection="First Angle")  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["size"] == "a3" and ok.data["scale"] == 0.5
+    assert (nx.committed.ScaleNumerator, nx.committed.ScaleDenominator) == (1.0, 2.0)  # 1:2
+    assert ok.data["projection"] == "first_angle"
+    iso = run(nx, "nx_create_drawing_sheet", size="ISO A4 landscape", scale="2/1", projection="3rd")
+    assert iso.data["size"] == "a4" and iso.data["scale"] == 2.0
+    assert iso.data["projection"] == "third_angle"
+    for args, field in [
+        ({"size": "letter"}, "/size"),
+        ({"scale": "1:0"}, "/scale"),
+        ({"scale": "half"}, "/scale"),
+        ({"projection": "second"}, "/projection"),
+    ]:
+        bad = run(nx, "nx_create_drawing_sheet", **args)
+        assert bad.error["field"] == field and bad.mutation_outcome == "not_started", (args, bad)
+    hint = run(nx, "nx_create_drawing_sheet", projection="frist").error
+    assert "did you mean 'first_angle'" in hint["message"] and "third_angle" in hint["hint"]
+
+
+def test_activate_takes_a_sheet_name_and_lists_the_sheets_of_an_unknown_one():
+    nx = drawing_nx()
+    nx.make_sheet()
+    two = nx.make_sheet("Detail")
+    ok = run(nx, "nx_activate_drawing_sheet", sheet="detail")
+    assert ok.ok and ok.data["sheet"]["id"] == two.ref
+    bad = run(nx, "nx_activate_drawing_sheet", sheet="Sheet1")
+    assert bad.error["category"] == "not_found" and bad.error["field"] == "/sheet"
+    assert [s["name"] for s in bad.error["details"]["sheets"]] == ["SHT1", "Detail"]

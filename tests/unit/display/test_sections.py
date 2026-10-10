@@ -125,7 +125,7 @@ def test_create_says_which_side_is_hidden_and_how_to_remove_it():
     nx = display_nx()
     ok = run(nx, "nx_create_section_view", plane={"origin": [0, 0, 0], "normal": [0, -3, 4]})
     data = ok.data
-    assert data["hidden_side"] == "positive"
+    assert data["hidden_side"].startswith("where the normal points")
     assert data["cut_face_view_from"] == pytest.approx([0, -0.6, 0.8])
     assert data["remove_with"] == {
         "tool": "nx_delete_objects",
@@ -134,3 +134,83 @@ def test_create_says_which_side_is_hidden_and_how_to_remove_it():
     removed = run(nx, data["remove_with"]["tool"], **data["remove_with"]["arguments"])
     assert removed.ok and not nx.part.DynamicSections
     assert nx.work_view.DisplaySectioningToggle is False
+
+
+@pytest.mark.parametrize(
+    ("plane", "offset", "origin", "normal", "hidden"),
+    [
+        ("XZ", "30 mm", [0, 30, 0], [0, 1, 0], "y > 30"),
+        ("xz plane", 30, [0, 30, 0], [0, 1, 0], "y > 30"),
+        ("-yz", 50, [50, 0, 0], [-1, 0, 0], "x < 50"),
+        ("top", None, [0, 0, 0], [0, 0, 1], "z > 0"),
+        ({"normal": [0, 0, 2]}, 5, [0, 0, 5], [0, 0, 1], "z > 5"),
+        ({"origin": [1, 2, 3], "normal": [1, 0, 0]}, -1, [0, 2, 3], [1, 0, 0], "x > 0"),
+    ],
+)
+def test_create_takes_a_principal_plane_and_an_offset(plane, offset, origin, normal, hidden):
+    nx = display_nx()
+    args = {"plane": plane} if offset is None else {"plane": plane, "offset": offset}
+    ok = run(nx, "nx_create_section_view", **args)
+    assert ok.ok, ok.error
+    assert ok.data["origin"] == pytest.approx(origin) and ok.data["normal"] == normal
+    assert ok.data["hidden_side"] == hidden and ok.data["enabled"] is True
+
+
+def test_create_offset_is_in_part_units():
+    nx = display_nx("in")
+    ok = run(nx, "nx_create_section_view", plane="xy", offset="25.4 mm")
+    assert ok.ok and ok.data["origin"] == pytest.approx([0, 0, 1])
+
+
+def test_create_errors_say_what_to_send():
+    nx = display_nx()
+    bad = run(nx, "nx_create_section_view", plane="xq")
+    assert bad.error["field"] == "/plane" and "'xy'" in bad.error["hint"]
+    assert bad.mutation_outcome == "not_started"
+    near = run(nx, "nx_create_section_view", plane="xzz")
+    assert "did you mean 'xz'" in near.error["message"]
+    origin_only = run(nx, "nx_create_section_view", plane={"origin": [0, 1, 0]})
+    assert origin_only.error["field"] == "/plane/normal" and "offset" in origin_only.error["hint"]
+    second = run(nx, "nx_create_section_view", plane=PLANE)
+    again = run(nx, "nx_create_section_view", plane="yz")
+    assert again.error["code"] == "NX_ALREADY_EXISTS"
+    assert second.data["section"]["id"] in str(again.error["details"])
+
+
+def test_edit_finds_a_section_by_name_and_keeps_the_normal():
+    nx = display_nx()
+    run(nx, "nx_create_section_view", plane=PLANE, name="mid cut")
+    moved = run(nx, "nx_edit_section_view", section="MID CUT", plane={"origin": [0, 40, 0]})
+    assert moved.ok, moved.error
+    assert moved.data["origin"] == [0, 40, 0] and moved.data["normal"] == [1, 0, 0]
+    turned = run(nx, "nx_edit_section_view", section="mid cut", plane={"normal": [0, 0, -1]})
+    assert turned.data["origin"] == [0, 40, 0] and turned.data["normal"] == [0, 0, -1]
+    assert turned.data["hidden_side"] == "z < 0"
+    shifted = run(nx, "nx_edit_section_view", section="mid cut", offset=-5)
+    assert shifted.data["origin"] == [0, 40, 5]
+    principal = run(nx, "nx_edit_section_view", section="mid cut", plane="xz", offset=30)
+    assert principal.data["origin"] == [0, 30, 0] and principal.data["normal"] == [0, 1, 0]
+    spaced = run(nx, "nx_edit_section_view", section="Mid_Cut", offset=1)
+    assert spaced.ok, spaced.error  # spaces and underscores name the same section
+
+
+def test_edit_by_unknown_or_repeated_name_lists_the_sections():
+    nx = display_nx()
+    ref = run(nx, "nx_create_section_view", plane=PLANE, name="A").data["section"]["id"]
+    missing = run(nx, "nx_edit_section_view", section="B", cap=False)
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/section"
+    assert [r["id"] for r in missing.error["details"]["sections"]] == [ref]
+    nx.work_view.ActiveDynamicSection = None
+    run(nx, "nx_create_section_view", plane={"origin": [0, 0, 0], "normal": [0, 0, 1]}, name="a")
+    two = run(nx, "nx_edit_section_view", section="a", cap=False)
+    assert two.error["code"] == "NX_AMBIGUOUS_REFERENCE"
+    assert len(two.error["details"]["sections"]) == 2
+
+
+def test_disabled_section_reports_enabled_false():
+    nx = display_nx()
+    ref = run(nx, "nx_create_section_view", plane=PLANE).data["section"]["id"]
+    off = run(nx, "nx_edit_section_view", section=ref, enabled=False)
+    assert off.ok and off.data["enabled"] is False and off.data["sectioning"] is False
+    on = run(nx, "nx_edit_section_view", section=ref, enabled=True)
+    assert on.data["enabled"] is True

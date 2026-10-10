@@ -6,16 +6,126 @@ managed detail boundaries, table kinds and construction state.
 
 from __future__ import annotations
 
+import re
+from typing import Annotated
+
 from nx_mcp.core.errors import fail
+from nx_mcp.core.types import REF_PATTERN, Doc, Range, RefKind, Text
 from nx_mcp.kit import drawing, facts, geom, parts, select
+from nx_mcp.kit.args import choice as choice  # natural option spellings
 
 DETAIL = "NX_MCP_DETAIL_V1"  # managed detail-view boundary (parent handle, center, radius)
 TABLE_KIND = "NX_MCP_DRAWING_TABLE_V1"  # "title_block" / "revision"
 NATIVE_TABLE = "NX_MCP_NATIVE_TABLE_V1"  # title block -> handle of its tabular note
 CONSTRUCTION = "NX_MCP_DRAWING_CONSTRUCTION_V1"  # "show" / "hide" / "partial"
 CONSTRUCTION_LAYERS = "NX_MCP_DRAWING_CONSTRUCTION_LAYERS_V1"
+VIEW_PARENT = "NX_MCP_VIEW_PARENT_V1"  # derived view -> handle of the view it came from
 LEADER_STUB_MM = 5.0
+DEFAULT_ORIGIN_OFFSET_MM = 20.0  # an omitted symbol/GD&T origin, from the leader point
 ORIGIN_TOL_MM = 1e-3
+
+# ---- natural argument values ----------------------------------------------------------
+
+# A free spelling next to a Literal (``Literal[...] | Loose``): the schema still lists the
+# canonical values, and ``choice`` maps 'A3', 'Front' or 'first angle' onto them.
+Loose = Annotated[str, Text(32)]
+ScaleArg = Annotated[
+    Annotated[float, Range(gt=0)] | Annotated[str, Text(16)], Doc("2 or '2:1'; 0.5 or '1:2'")
+]
+MAX_SCALE = 1000.0
+SheetRef = Annotated[str, Text(128, REF_PATTERN), RefKind("drawing_sheet")]
+SheetArg = Annotated[SheetRef | Annotated[str, Text(64)], Doc("Sheet ref or name")]
+ViewRef = Annotated[str, Text(128, REF_PATTERN), RefKind("drawing_view")]
+ViewArg = Annotated[ViewRef | Annotated[str, Text(64)], Doc("View ref v:N, or name 'TOP@1'")]
+
+
+def scale_value(value, field="/scale"):
+    """A scale given as a number or a ratio string ('1:2', '2/1', '0.5') as a float (None
+    kept)."""
+    if value is None:
+        return None
+    try:
+        terms = [float(v) for v in re.split(r"[:/]", str(value))]
+        ratio = terms[0] / terms[1] if len(terms) == 2 else terms[0] if len(terms) == 1 else 0.0
+    except (ValueError, ZeroDivisionError):
+        ratio = 0.0
+    if not 0 < ratio <= MAX_SCALE:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"scale {value!r} must be a positive number or ratio up to {MAX_SCALE:g}, such "
+            "as 0.5 or '1:2' (half size) and 2 or '2:1' (twice size)",
+            field=field,
+        )
+    return ratio
+
+
+def scale_terms(ratio):
+    """``(numerator, denominator)`` NX shows for a scale: 0.5 as 1:2, 2 as 2:1, 0.3 as 0.3:1."""
+    inverse = 1.0 / ratio
+    if ratio < 1 and abs(inverse - round(inverse)) <= 1e-9 * inverse:
+        return 1.0, float(round(inverse))
+    return float(ratio), 1.0
+
+
+def sheet_of(tx, value, field):
+    """A drawing sheet of the work part from its ref or its name (any case)."""
+    text = str(value).strip()
+    if re.match(REF_PATTERN, text):
+        return select.resolve(tx, text, "drawing_sheet", field=field, work_part=True)
+    sheets = list(tx.part.DrawingSheets)
+    found = [s for s in sheets if str(s.Name).casefold() == text.casefold()]
+    if not found:
+        fail(
+            "NX_NOT_FOUND",
+            f"The work part has no drawing sheet named {text!r}",
+            field=field,
+            hint="Pass a sheet ref (sh:N) or name listed in details.sheets",
+            details={"sheets": [tx.ref(s, "drawing_sheet") for s in sheets]},
+        )
+    return found[0]
+
+
+def view_of(tx, value, field="/view"):
+    """``(view, sheet)`` for a drawing view of the work part from its ref or its name (any
+    case; 'top' finds 'TOP@1' when one view has that name before the '@')."""
+    text = str(value).strip()
+    if re.match(REF_PATTERN, text):
+        return drawing.view(tx, text, field)
+    views = [v for s in tx.part.DrawingSheets for v in s.GetDraftingViews()]
+    key = text.casefold()
+    found = [v for v in views if str(v.Name).casefold() == key] or [
+        v for v in views if str(v.Name).split("@")[0].casefold() == key
+    ]
+    if len(found) != 1:
+        fail(
+            "NX_NOT_FOUND" if not found else "NX_INVALID_ARGUMENT",
+            f"{'More than one' if found else 'No'} drawing view is named {text!r}",
+            field=field,
+            hint="Pass a view ref (v:N) from nx_create_drawing_view or details.views",
+            details={"views": [tx.ref(v, "drawing_view") for v in found or views]},
+        )
+    return drawing.view(tx, found[0], field)
+
+
+def open_or_only_sheet(tx, field="/sheet"):
+    """The work part's open drawing sheet, else its only sheet (an omitted sheet)."""
+    part = tx.part
+    current = drawing.current(part)
+    if current is not None:
+        return current
+    sheets = list(part.DrawingSheets)
+    if len(sheets) == 1:
+        return sheets[0]
+    fail(
+        "NX_INVALID_ARGUMENT",
+        "sheet is required: no drawing sheet is open"
+        + (f" and the part has {len(sheets)}" if sheets else " and the part has none"),
+        field=field,
+        hint="Pass sheet, open one with nx_activate_drawing_sheet"
+        if sheets
+        else "Create one with nx_create_drawing_sheet",
+        details={"sheets": [tx.ref(s, "drawing_sheet") for s in sheets]},
+    )
 
 
 def uf_types(tx):
@@ -105,6 +215,12 @@ def set_origin(tx, origin_builder, sh, point):
     origin_builder.SetInferRelativeToGeometry(False)
     origin_builder.Plane.PlaneMethod = tx.nx.Annotations.PlaneBuilder.PlaneMethodType.XyPlane
     origin_builder.Origin.SetValue(None, None, sh.point(point))
+
+
+def default_origin(sh, anchor):
+    """An omitted annotation origin: up and right of the leader's attachment point."""
+    step = DEFAULT_ORIGIN_OFFSET_MM / (25.4 if sh.units == "in" else 1.0)
+    return [float(anchor[0]) + step, float(anchor[1]) + step]
 
 
 def add_leader(tx, leader_builder, obj, view):

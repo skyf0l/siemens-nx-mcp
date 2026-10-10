@@ -35,8 +35,14 @@ def explosion(nx, name="E1"):
 def test_create_explosion_starts_at_assembled_poses(nx):
     ok = run(nx, "nx_create_explosion", name="E1")
     assert ok.ok and ok.data["component_count"] == 4 and ok.data["views"] == []
+    rows = {r["id"]: r for r in ok.data["components"]}
+    assert set(rows) == {nx.a.ref, nx.b.ref, nx.sub.ref, nx.n.ref}
+    assert rows[nx.n.ref]["path"] == "SUB/N"
+    assert "nx_edit_explosion" in ok.warnings[0]["message"]  # nothing is exploded yet
     dup = run(nx, "nx_create_explosion", name="e1")
     assert dup.error["code"] == "NX_NAME_CONFLICT" and dup.mutation_outcome == "not_started"
+    assert dup.error["details"]["existing"]["id"] == ok.data["explosion"]["id"]
+    assert "nx_edit_explosion" in dup.error["hint"]
     spaced = run(nx, "nx_create_explosion", name="E2 ")
     assert spaced.error["field"] == "/name"
     nx.session.Parts.Display = nx.blk
@@ -69,10 +75,38 @@ def test_edit_explosion_sets_absolute_nested_poses_and_keeps_assembled_ones(nx):
     assert again.ok and again.data["moved_count"] == 0
 
 
+def test_edit_explosion_offsets_move_from_the_unexploded_pose(nx):
+    ex = explosion(nx)
+    ok = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.n.ref, "offset": [5, 0, 0]},
+        {"component": nx.sub.ref, "offset": [0, 0, 50]},
+        {"component": nx.b.ref, "offset": [0, 0, 10]},
+    ])  # fmt: skip
+    assert ok.ok, ok
+    rows = {r["component"]["id"]: r for r in ok.data["components"]}
+    assert rows[nx.sub.ref]["translation"] == pytest.approx([0, 0, 50])
+    # A nested component moves from where its exploded parent carries it.
+    assert rows[nx.n.ref]["translation"] == pytest.approx([5, 10, 50])
+    assert rows[nx.b.ref]["translation"] == pytest.approx([30, 0, 10])
+    assert rows[nx.b.ref]["assembled_translation"] == [30, 0, 0] and ok.data["moved_count"] == 3
+    # An offset is from the unexploded pose, not added to the current exploded one.
+    again = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 10]}])  # fmt: skip
+    assert again.ok and again.data["moved_count"] == 0
+    back = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 0]}])  # fmt: skip
+    assert back.data["components"][0]["translation"] == pytest.approx([30, 0, 0])
+
+
 def test_edit_explosion_rejections_change_nothing(nx):
     ex = explosion(nx)
     nothing = run(nx, "nx_edit_explosion", explosion=ex)
-    assert nothing.error["code"] == "NX_INVALID_ARGUMENT"
+    assert nothing.error["code"] == "NX_INVALID_ARGUMENT" and "offset" in nothing.error["hint"]
+    both = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.a.ref, "offset": [0, 0, 1], "pose": {"translation": [0, 0, 1]}}])  # fmt: skip
+    assert both.error["field"] == "/placements/0" and both.mutation_outcome == "not_started"
+    neither = run(nx, "nx_edit_explosion", explosion=ex, placements=[{"component": nx.a.ref}])
+    assert neither.error["field"] == "/placements/0"
     twice = run(nx, "nx_edit_explosion", explosion=ex, reset_components=[nx.a.ref],
                 placements=[{"component": nx.a.ref, "pose": {"translation": [1, 0, 0]}}])  # fmt: skip
     assert twice.error["field"] == "/placements/0/component"
@@ -150,9 +184,24 @@ def test_trace_anchors_follow_explosion_edits(nx):
     edited = run(nx, "nx_edit_explosion_trace", trace=ok.data["trace"]["id"], start_percent=50,
                  end_offset=3)  # fmt: skip
     assert edited.ok and edited.data["start"] == pytest.approx([20, 0, 50])
-    assert edited.data["end_offset"] == 3
+    assert edited.data["end_offset"] == 3 and edited.data["start_percent"] == 50
+    assert edited.data["trace"]["name"] == "TRACE1"  # NX would rename it
+    assert edited.data["start_edge"] == ok.data["start_edge"]
     got = run(nx, "nx_get_explosion", explosion=ex)
     assert got.data["traces"] == [ok.data["trace"]]
+
+
+def test_trace_result_names_its_anchors(nx):
+    ex = explosion(nx)
+    first, second = trace(nx, ex, 25, 100), trace(nx, ex)
+    assert first.ok and second.ok, second
+    data = first.data
+    assert [data["trace"]["name"], second.data["trace"]["name"]] == ["TRACE1", "TRACE2"]
+    assert data["start_edge"]["kind"] == "edge" and data["end_edge"]["kind"] == "edge"
+    assert data["start_edge"]["id"] != data["end_edge"]["id"]
+    assert (data["start_percent"], data["end_percent"]) == (25, 100)
+    assert data["start_direction"] == [0, 0, 1] and data["end_direction"] == [0, 0, 1]
+    assert data["start_offset"] == 0 and data["end_offset"] == 0
 
 
 def test_trace_rules(nx):
@@ -189,6 +238,7 @@ def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
     assert ok.ok, ok
     assert seen == pytest.approx([0, 30, 60])
     assert ok.data["frame_count"] == 3 and ok.data["path"] == "out/e.html"
+    assert ok.data["trace_count"] == 1
     assert (nx.root / "out" / "e.html").read_text().count("data:image/png;base64,") == 3
     assert nx.assembly.explosions[0].pose(nx.b)[0] == pytest.approx([30, 0, 60])
     view = nx.asm.ModelingViews.WorkView

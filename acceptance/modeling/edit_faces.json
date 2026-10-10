@@ -147,6 +147,10 @@
     "data.volume": {
      "close": 9600,
      "tol": 1e-06
+    },
+    "data.volume_change": {
+     "close": 1600,
+     "tol": 1e-06
     }
    }
   },
@@ -180,13 +184,15 @@
     ],
     "action": "move",
     "distance": 5,
-    "direction": {
-     "principal": "x"
-    }
+    "direction": "x"
    },
    "expect": {
     "data.volume": {
      "close": 10800,
+     "tol": 1e-06
+    },
+    "data.volume_change": {
+     "close": 1200,
      "tol": 1e-06
     }
    }
@@ -374,6 +380,42 @@
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
     "error.field": "/distance"
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "action": "resize"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/diameter",
+    "error.message": {
+     "contains": "radius"
+    }
+   }
+  },
+  {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "action": "offset",
+    "distance": 1,
+    "direction": "z"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/direction",
+    "error.hint": {
+     "contains": "offset takes distance"
+    }
    }
   },
   {

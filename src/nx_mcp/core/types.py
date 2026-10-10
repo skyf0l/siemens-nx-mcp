@@ -67,9 +67,22 @@ class RefKind:
 
 @dataclass(frozen=True)
 class Quantity:
-    """A length, sheet length or angle that also accepts a unit string."""
+    """A length, sheet length or angle that also accepts a unit string, and any of them (or
+    a ``count``) given as an NX expression name or formula (see :class:`Formula`)."""
 
-    dim: Literal["length", "sheet_length", "angle"]
+    dim: Literal["length", "sheet_length", "angle", "count"]
+
+
+@dataclass(frozen=True, init=False)
+class Aliases:
+    """On a ``Literal``: other spellings of its options, ``Aliases(mate="touch")``. Gate 1
+    matches them like the options themselves (case, spaces, ``-`` and ``_`` ignored) and
+    passes the canonical option on; listings never show them."""
+
+    pairs: tuple[tuple[str, str], ...]
+
+    def __init__(self, mapping: Mapping[str, str] | None = None, /, **pairs: str) -> None:
+        object.__setattr__(self, "pairs", tuple({**(mapping or {}), **pairs}.items()))
 
 
 @dataclass(frozen=True)
@@ -220,8 +233,20 @@ Mat3 = Annotated[
 
 Length = Annotated[float | str, Quantity("length"), Doc("Part units, or '10 mm'/'0.5 in'")]
 SheetLength = Annotated[float | str, Quantity("sheet_length"), Doc("Sheet units, or '10 mm'")]
-Angle = Annotated[float | str, Quantity("angle"), Doc("Degrees, or '0.5 rad'")]
-Units = Literal["mm", "in"]
+Angle = Annotated[float | str, Quantity("angle"), Doc("Degrees, or '90 deg'")]
+# An integer count that may also be an NX expression name or formula (``"n_holes"``).
+CountValue = Annotated[int | str, Quantity("count")]
+Units = Annotated[
+    Literal["mm", "in"],
+    Aliases(
+        inch="in",
+        inches="in",
+        millimeter="mm",
+        millimeters="mm",
+        millimetre="mm",
+        millimetres="mm",
+    ),
+]
 # Hints in the target drawing sheet's units: a tool using one of them gets the
 # sheet resolved from its arguments and ``tx.units["sheet_length"]`` (gate 9).
 SHEET_HINTS = (SheetPoint, SheetLength)
@@ -251,7 +276,11 @@ class PathTo:
         object.__setattr__(self, "suffixes", tuple(s.lower() for s in suffixes))
 
     def expand(self) -> tuple[Text, PathArg, Doc]:
-        return Text(260), PathArg(self.mode, self.suffixes), Doc("Workspace path")
+        # Up to three suffixes are named ("Workspace path (.zip)"); longer lists are in the
+        # tool's description or its error hint.
+        kinds = "/".join(self.suffixes) if len(self.suffixes) <= 3 else ""
+        doc = f"Workspace path ({kinds})" if kinds else "Workspace path"
+        return Text(260), PathArg(self.mode, self.suffixes), Doc(doc)
 
 
 # Markers that stand for several others (``core.validate.unwrap`` expands them).
@@ -263,7 +292,8 @@ Arguments = Annotated[dict, Json(), Doc("The tool's own arguments")]
 
 
 class PrincipalPlane(TypedDict):
-    principal: Literal["xy", "yz", "xz"]
+    # NX view names: the front view looks at XZ, the top view at XY, the right view at YZ.
+    principal: Annotated[Literal["xy", "yz", "xz"], Aliases(front="xz", top="xy", right="yz")]
 
 
 class PlaneByNormal(TypedDict):
@@ -307,8 +337,23 @@ class LimitUntilFace(TypedDict):
 Limit = LimitDistance | LimitThroughAll | LimitUntilFace
 
 
+# Boolean synonyms agents use for NX's unite/subtract/intersect.
+BOOLEAN_ALIASES = Aliases(
+    union="unite",
+    merge="unite",
+    add="unite",
+    join="unite",
+    cut="subtract",
+    difference="subtract",
+    minus="subtract",
+    remove="subtract",
+    intersection="intersect",
+    common="intersect",
+)
+
+
 class Combine(TypedDict):
-    operation: Literal["unite", "subtract", "intersect"]
+    operation: Annotated[Literal["unite", "subtract", "intersect"], BOOLEAN_ALIASES]
     targets: Annotated[
         list[BodyRef],
         Items(1, 20),
@@ -356,16 +401,163 @@ QUANTITY_PATTERNS = {
     "sheet_length": LENGTH_PATTERN,
     "angle": ANGLE_PATTERN,
 }
-# Longest accepted unit string ("  -1.25e+3 mm "): gate 1 and the listings bound it.
-QUANTITY_MAX = 40
+# Longest accepted quantity string (a unit string such as "  -1.25e+3 mm ", or an NX
+# expression formula): gate 1 and the listings bound it.
+QUANTITY_MAX = 80
 MM_PER_IN = 25.4
 _SPLIT = re.compile(r"^\s*(" + _NUMBER + r")\s*([a-z]+)\s*$")
+_PLAIN = re.compile(r"^\s*" + _NUMBER + r"\s*$")
+# A number followed by a word: a unit string, of a unit this dimension does not take.
+_UNIT_LIKE = re.compile(r"^\s*" + _NUMBER + r"\s*[A-Za-z]+\s*$")
+_TOKEN = re.compile(
+    r"\s*(?:(\d+\.?\d*(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?)|([A-Za-z_]\w*)|(.))"
+)
+_OPERATORS = "+-*/^"
+UNIT_WORDS = frozenset({"mm", "in", "deg", "rad", "cm", "m", "inch", "inches", "degrees"})
+_EXAMPLES = {
+    "length": "'10 mm' (mm or in)",
+    "sheet_length": "'10 mm' (mm or in)",
+    "angle": "'90 deg' (deg or rad)",
+}
+
+
+class Formula(float):
+    """A quantity given as an NX expression name or formula (``"thickness"``,
+    ``"thickness/2"``): gate 9 evaluates it in NX, in the units it converts quantities to,
+    and passes this float on. ``formula`` is the text for a builder expression's
+    ``RightHandSide`` (``kit.expr.rhs``), which keeps the feature driven by the expression.
+    """
+
+    formula: str
+
+    def __new__(cls, value: float, formula: str) -> Formula:
+        out = super().__new__(cls, value)
+        out.formula = formula
+        return out
+
+    def __getnewargs__(self):  # copy/deepcopy keep the formula
+        return float(self), self.formula
+
+    def __neg__(self) -> Formula:
+        return Formula(-float(self), f"-({self.formula})")
+
+
+class CountFormula(int):
+    """An integer count given as an NX expression name or formula (see :class:`Formula`)."""
+
+    formula: str
+
+    def __new__(cls, value: int, formula: str) -> CountFormula:
+        out = super().__new__(cls, value)
+        out.formula = formula
+        return out
+
+    def __getnewargs__(self):  # copy/deepcopy keep the formula
+        return int(self), self.formula
+
+
+def formula_problem(text: str) -> str | None:
+    """Why ``text`` is not an NX expression name or arithmetic formula, else None: names,
+    numbers, ``+ - * / ^``, parentheses and function calls (``sqrt(a)``, ``max(a, b)``)."""
+    text = text.strip()
+    if not text:
+        return "is empty"
+    calls: list[bool] = []  # open parentheses: a function call's?
+    previous = None  # None (start), "operand", "operator", "function", "(" or ","
+    position = 0
+    while position < len(text):
+        match = _TOKEN.match(text, position)
+        if match is None or match.end() == position:
+            return "is not a formula"
+        number, name, other = match.groups()
+        position = match.end()
+        if number or name:
+            if previous in ("operand", "function"):
+                return "has two values without an operator between them"
+            follows = text[position:].lstrip()
+            previous = "function" if name and follows.startswith("(") else "operand"
+        elif other == "(":
+            if previous == "operand":
+                return "has a value directly before '('"
+            calls.append(previous == "function")
+            previous = "("
+        elif other == ")":
+            if not calls or previous in ("operator", ",") or (previous == "(" and not calls[-1]):
+                return "has unbalanced or empty parentheses"
+            calls.pop()
+            previous = "operand"
+        elif other == ",":
+            if not calls or not calls[-1] or previous != "operand":
+                return "has a misplaced ','"
+            previous = ","
+        elif other in _OPERATORS:
+            if previous in ("operator", "function") or (
+                previous in (None, "(", ",") and other not in "+-"
+            ):
+                return f"has a misplaced {other!r}"
+            previous = "operator"
+        else:
+            return f"contains {other!r}, which a formula does not take"
+    if calls:
+        return "has unbalanced or empty parentheses"
+    if previous in ("operator", "function", "(", ","):
+        return "ends without a value"
+    return None
+
+
+def _expected(dim: str) -> str:
+    if dim == "count":
+        return "expected a whole number, or an NX expression name or formula"
+    return (
+        f"expected a number, a string like {_EXAMPLES[dim]}, or an NX expression name or "
+        "formula ('thickness', 'thickness/2')"
+    )
+
+
+def quantity_formula(value, dim: str) -> str | None:
+    """Gate 1 for a quantity: None for a number, a numeric string or (not for counts) a
+    unit string of the dimension; the formula text for an NX expression name or formula.
+
+    Raises ValueError for anything else: the wrong unit ("30 deg" for a length), a bare
+    unit word, or text that is not a formula.
+    """
+    if isinstance(value, bool):
+        raise ValueError(_expected(dim))
+    if isinstance(value, (int, float)):
+        if not math.isfinite(value):
+            raise ValueError("must be finite")
+        if dim == "count" and not float(value).is_integer():
+            raise ValueError("expected a whole number")
+        return None
+    if not isinstance(value, str) or len(value) > QUANTITY_MAX:
+        raise ValueError(_expected(dim))
+    if _PLAIN.match(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("must be finite")
+        if dim == "count" and not number.is_integer():
+            raise ValueError("expected a whole number")
+        return None
+    split = _SPLIT.match(value)
+    if dim in QUANTITY_PATTERNS and split and re.match(QUANTITY_PATTERNS[dim], value):
+        if not math.isfinite(float(split.group(1))):
+            raise ValueError("must be finite")
+        return None
+    text = value.strip()
+    if _UNIT_LIKE.match(value) or text.casefold() in UNIT_WORDS:
+        raise ValueError(_expected(dim))
+    problem = formula_problem(text)
+    if problem is not None:
+        raise ValueError(f"{_expected(dim)}; {text!r} {problem}")
+    return text
 
 
 def parse_quantity(value, dim: str) -> tuple[float, str | None]:
-    """``(number, unit)`` of a quantity argument; unit is None for a plain number.
+    """``(number, unit)`` of a number or unit-string quantity; unit is None for a plain
+    number (or a numeric string). An evaluated :class:`Formula` is its number.
 
-    Raises ValueError for a string that does not match the dimension's pattern.
+    Raises ValueError for anything else, an expression formula included (NX evaluates
+    those, see :func:`convert_quantity`).
     """
     if isinstance(value, bool):
         raise ValueError("expected a number or a unit string")
@@ -374,9 +566,15 @@ def parse_quantity(value, dim: str) -> tuple[float, str | None]:
         if not math.isfinite(number):
             raise ValueError("must be finite")
         return number, None
+    if isinstance(value, str) and len(value) <= QUANTITY_MAX and _PLAIN.match(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("must be finite")
+        return number, None
     if (
         not isinstance(value, str)
         or len(value) > QUANTITY_MAX
+        or dim not in QUANTITY_PATTERNS
         or not re.match(QUANTITY_PATTERNS[dim], value)
     ):
         units = "deg or rad" if dim == "angle" else "mm or in"
@@ -389,11 +587,32 @@ def parse_quantity(value, dim: str) -> tuple[float, str | None]:
     return number, match.group(2)
 
 
-def convert_quantity(value, dim: str, to: str) -> float:
-    """Float value of a quantity in ``to`` (``mm``/``in`` for lengths, ``deg`` for angles).
+def convert_quantity(value, dim: str, to: str, evaluate=None, field: str | None = None):
+    """Value of a quantity in ``to`` (``mm``/``in`` for lengths, ``deg`` for angles,
+    ``unitless`` for counts): a float, an int for a count.
 
-    A plain number is already in the target units (part/sheet units, degrees).
+    A plain number is already in the target units (part/sheet units, degrees). An NX
+    expression name or formula needs ``evaluate(formula, dim, to, field=field) -> float``
+    (``Services.evaluate_formula``, gate 9) and comes back as a :class:`Formula` (a
+    :class:`CountFormula` for a count) that carries its text.
     """
+    if isinstance(value, (Formula, CountFormula)):
+        return value
+    formula = quantity_formula(value, dim) if isinstance(value, str) else None
+    if formula is not None:
+        if evaluate is None:
+            raise ValueError("an NX expression formula needs NX to evaluate it")
+        number = float(evaluate(formula, dim, to, field=field))
+        if dim == "count":
+            if not number.is_integer():
+                raise ValueError(f"{formula!r} is {number:g}, not a whole number")
+            return CountFormula(int(number), formula)
+        return Formula(number, formula)
+    if dim == "count":
+        number, _ = parse_quantity(value, "count")
+        if not number.is_integer():
+            raise ValueError("expected a whole number")
+        return int(number)
     number, unit = parse_quantity(value, dim)
     if unit is None or unit == to:
         return number

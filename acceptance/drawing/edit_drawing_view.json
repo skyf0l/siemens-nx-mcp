@@ -45,7 +45,10 @@
     "type": "projected",
     "parent": "$top.data.view.id",
     "direction": "right",
-    "spacing": 110
+    "position": [
+     230,
+     200
+    ]
    }
   },
   {

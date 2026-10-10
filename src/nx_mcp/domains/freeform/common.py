@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.types import Point3
-from nx_mcp.kit import measure, readback, result, select, units
+from nx_mcp.kit import curve, measure, readback, result, select, units
+
+# At most this many bodies are measured for a failure diagnostic.
+MAX_DIAGNOSED = 20
 
 
 class Bounds(TypedDict):
@@ -18,6 +21,9 @@ class SheetData(TypedDict):
     feature: result.Row
     bodies: list[result.Row]
     bounds: Bounds
+    sheet: bool  # every result body is a sheet (false: a solid)
+    faces: int
+    area: float  # total face area, part units^2
 
 
 def is_sheet(body) -> bool:
@@ -29,7 +35,7 @@ def sheet(tx, ref, field="/body"):
     """A sheet body of the work part (a solid is ``NX_WRONG_GEOMETRY``)."""
     body = select.one(tx, ref, "body", field=field)
     if not is_sheet(body):
-        fail("NX_WRONG_GEOMETRY", "Select a sheet body", field=field)
+        fail("NX_WRONG_GEOMETRY", "Select a sheet body, not a solid", field=field)
     return body
 
 
@@ -37,7 +43,7 @@ def sheets(tx, refs, field):
     out = select.bodies(tx, refs, field)
     for i, body in enumerate(out):
         if not is_sheet(body):
-            fail("NX_WRONG_GEOMETRY", "Select sheet bodies", field=f"{field}/{i}")
+            fail("NX_WRONG_GEOMETRY", "Select sheet bodies, not solids", field=f"{field}/{i}")
     return out
 
 
@@ -51,13 +57,18 @@ def bounds(tx, bodies) -> Bounds:
 
 
 def result_of(tx, feature, bodies=None) -> SheetData:
-    """``{feature, bodies, bounds}`` of a committed feature (NX must have built a body)."""
+    """``{feature, bodies, bounds, sheet, faces, area}`` of a committed feature (NX must
+    have built a body)."""
     bodies = feature_bodies(feature) if bodies is None else list(bodies)
     readback.expect(bool(bodies), "bodies", "NX built no body")
+    faces = [f for b in bodies for f in b.GetFaces()]
     return {
         "feature": tx.ref(feature, kind="feature"),
         "bodies": [tx.ref(b, kind="body") for b in bodies],
         "bounds": bounds(tx, bodies),
+        "sheet": all(is_sheet(b) for b in bodies),
+        "faces": len(faces),
+        "area": measure.area(tx, faces) if faces else 0.0,
     }
 
 
@@ -68,3 +79,27 @@ def given_tolerance(tx, value, field="/tolerance"):
     if not value > 0:
         fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field=field)
     return float(value)
+
+
+def gap(tx, a, b) -> float | None:
+    """Minimum distance between two NX objects, None when NX cannot measure it (a
+    diagnostic only: it never fails the call)."""
+    try:
+        return curve.min_distance(tx, a, b)[0]
+    except NXError:
+        return None
+
+
+def point_gap(tx, obj, point) -> float | None:
+    """Distance from a point to an NX object, None when NX cannot measure it."""
+    try:
+        return curve.point_distance(tx, obj, point)[0]
+    except NXError:
+        return None
+
+
+def explain(error: NXError, hint: str, **details) -> NXError:
+    """Add a hint and diagnostic details to a native refusal (keeps nx_code)."""
+    error.hint = hint
+    error.details = {**(error.details or {}), **details}
+    return error

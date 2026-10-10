@@ -3,7 +3,14 @@
 import pytest
 
 from tests.kit import run
-from tests.unit.drawing.fakes import arc_edge, drawing_nx, install_eval, line_edge, make_view
+from tests.unit.drawing.fakes import (
+    DEFAULT_STYLE,
+    arc_edge,
+    drawing_nx,
+    install_eval,
+    line_edge,
+    make_view,
+)
 
 
 def placed_at(nx, b):
@@ -21,7 +28,8 @@ def views_nx(units="mm", sheet_units="mm"):
 
     def base(b):
         x, y = placed_at(nx, b)
-        return make_view(nx, sheet, "Top@1", pos=(x / k + 15, y / k), native="BaseView")
+        return make_view(nx, sheet, "Top@1", pos=(x / k + 15, y / k), native="BaseView",
+                         scale=b.Scale.Numerator / b.Scale.Denominator)  # fmt: skip
 
     def projected(b):
         x, y = placed_at(nx, b)
@@ -79,14 +87,88 @@ def test_projected_view_moves_only_along_its_free_axis_and_keeps_the_parent():
     ok = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, direction="bottom")
     assert ok.ok, ok
     child = nx.views[max(nx.views)]
-    assert moves[-1] == (child.Tag, [150.0, 140.0])  # the x NX chose, the requested y
-    assert ok.data["position"] == [150.0, 140.0] and ok.data["scale"] == 2.0
-    assert parent.pos == [120, 200]
+    # The x NX chose; y leaves the default 20 mm between the borders (parent y0 190).
+    assert moves[-1] == (child.Tag, [150.0, 160.0])
+    assert ok.data["position"] == [150.0, 160.0] and ok.data["scale"] == 2.0
+    assert ok.data["gap"] == pytest.approx(20) and ok.data["bounds"][3] == 170.0
+    assert ok.data["parent"]["id"] == parent.ref and parent.pos == [120, 200]
     b = nx.last("ProjectedViewBuilder")
     assert b.Style.ViewStyleProjected.Scale is True  # inherits the parent's scale
+    assert child.GetStringAttribute("NX_MCP_DRAWING_CONSTRUCTION_V1") == "hide"
     right = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
-                direction="right", spacing=100)  # fmt: skip
-    assert right.data["position"] == [220.0, 200.0]
+                direction="Right", spacing=100)  # fmt: skip
+    assert right.data["position"] == [260.0, 200.0] and right.data["gap"] == pytest.approx(100)
+
+
+def test_projected_spacing_is_the_gap_between_the_borders_and_position_is_honoured():
+    nx = views_nx()
+    parent = make_view(nx, nx.sheet_obj, pos=(120, 200))  # border x 110..130
+    borders = nx.uf.Draw.AskViewBorders
+
+    def narrow(tag):  # a side view narrower than its parent, off its reference point
+        b = borders(tag)
+        return b if int(tag) == int(parent.Tag) else [b[0] + 7, b[1], b[0] + 13, b[3]]
+
+    nx.uf.Draw.AskViewBorders = narrow
+    ok = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
+             direction="right", spacing=15)  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["bounds"][0] == pytest.approx(145) and ok.data["gap"] == pytest.approx(15)
+    assert ok.data["position"] == [148.0, 200.0] and ok.data["center"] == [148.0, 200.0]
+    at = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
+             direction="right", position=[300, 50])  # fmt: skip
+    assert at.data["position"] == [300.0, 200.0] and not at.data["overlaps"]
+    assert "stays aligned" in at.warnings[0]["message"]
+    for args, field in [
+        ({"direction": "right", "position": [300, 200], "spacing": 5}, "/position"),
+        ({"direction": "left", "position": [300, 200]}, "/position"),
+        ({"direction": "sideways"}, "/direction"),
+    ]:
+        bad = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, **args)
+        assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
+    assert "right" in run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
+                          direction="rigth").error["message"]  # fmt: skip
+
+
+def test_overlapping_views_are_reported_and_warned():
+    nx = views_nx()
+    first = run(nx, "nx_create_drawing_view", type="base", orientation="Top", position=[120, 200])
+    assert first.ok and first.data["sheet"]["id"] == nx.sheet_obj.ref  # the open sheet
+    assert first.data["orientation"] == "top" and first.data["overlaps"] == []
+    again = run(nx, "nx_create_drawing_view", type="base", orientation="plan", position=[125, 200])
+    assert [r["id"] for r in again.data["overlaps"]] == [first.data["view"]["id"]]
+    assert "overlaps 1 other view" in again.warnings[0]["message"]
+    info = run(nx, "nx_get_drawing_view", view=first.data["view"]["id"])
+    assert [r["id"] for r in info.data["overlaps"]] == [again.data["view"]["id"]]
+
+
+def test_an_omitted_sheet_is_the_open_or_only_sheet():
+    nx = views_nx()
+    nx.part.DrawingSheets.CurrentDrawingSheet = None
+    ok = run(nx, "nx_create_drawing_view", type="base", orientation="front", scale="1:2")
+    assert ok.ok and ok.data["scale"] == 0.5 and ok.data["sheet"]["id"] == nx.sheet_obj.ref
+    nx.make_sheet("SHT2")
+    nx.part.DrawingSheets.CurrentDrawingSheet = None
+    bad = run(nx, "nx_create_drawing_view", type="base", orientation="front")
+    assert bad.error["field"] == "/sheet" and len(bad.error["details"]["sheets"]) == 2
+    assert bad.mutation_outcome == "not_started"
+    for scale in ("1:0", "x:2", "2000"):
+        bad = run(nx, "nx_create_drawing_view", type="base", sheet=nx.sheet_obj.ref,
+                  orientation="front", scale=scale)  # fmt: skip
+        assert bad.error["field"] == "/scale" and bad.mutation_outcome == "not_started", scale
+
+
+def test_a_view_type_names_everything_it_still_needs_at_once():
+    nx = views_nx()
+    parent = make_view(nx, nx.sheet_obj, pos=(120, 200))
+    bad = run(nx, "nx_create_drawing_view", type="section", parent=parent.ref)
+    assert bad.error["message"] == "A section view needs arrow_direction, position, cut"
+    assert bad.error["field"] == "/arrow_direction" and "cut_point" in bad.error["hint"]
+    stepped = run(nx, "nx_create_drawing_view", type="stepped_section", parent=parent.ref,
+                  arrow_direction=[0, 1], position=[300, 100])  # fmt: skip
+    assert stepped.error["message"] == "A stepped section view needs cuts"
+    detail = run(nx, "nx_create_drawing_view", type="detail")
+    assert detail.error["message"] == "A detail view needs parent, center, radius, position"
 
 
 def test_projected_view_off_the_sheet_is_refused_before_nx():
@@ -95,14 +177,15 @@ def test_projected_view_off_the_sheet_is_refused_before_nx():
     bad = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
               direction="left", spacing=150)  # fmt: skip
     assert bad.error["field"] == "/spacing" and bad.mutation_outcome == "not_started"
-    assert bad.error["details"]["center"] == [-40.0, 200.0]
+    assert bad.error["details"]["parent_bounds"][0] == 100.0
 
 
-def test_default_projection_spacing_is_60_mm_on_an_inch_sheet():
+def test_default_projection_gap_is_20_mm_on_an_inch_sheet():
     nx = views_nx(sheet_units="in")
-    parent = make_view(nx, nx.sheet_obj, pos=(4, 5))
+    parent = make_view(nx, nx.sheet_obj, pos=(4, 5), scale=0.1)  # border x 3..5
     ok = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, direction="right")
-    assert ok.data["position"][0] == pytest.approx(4 + 60 / 25.4)
+    assert ok.data["gap"] == pytest.approx(20 / 25.4)
+    assert ok.data["position"][0] == pytest.approx(5 + 20 / 25.4 + 1)
 
 
 def test_section_cut_rules_are_checked_before_nx():
@@ -114,13 +197,19 @@ def test_section_cut_rules_are_checked_before_nx():
     common = {"type": "section", "parent": parent.ref, "position": [300, 100],
               "step_direction": [1, 0], "arrow_direction": [0, 1]}  # fmt: skip
     for args, field, code in [
-        ({"cut": hole.ref, "cut_point": "start"}, "/cut_point", "NX_WRONG_GEOMETRY"),
+        (
+            {"cut": hole.ref, "cut_point": "start", "step_direction": None},
+            "/cut_point",
+            "NX_WRONG_GEOMETRY",
+        ),  # step_direction defaults to the arrow turned clockwise
+        ({"cut": line.ref, "step_direction": [1, 1]}, "/arrow_direction", "NX_INVALID_ARGUMENT"),
         ({"cut": line.ref, "cut_point": "center"}, "/cut", "NX_WRONG_GEOMETRY"),
         ({"cut": line.ref, "arrow_direction": [1, 1]}, "/arrow_direction", "NX_INVALID_ARGUMENT"),
         ({"cut": line.ref, "arrow_direction": [0, 0]}, "/arrow_direction", "NX_INVALID_ARGUMENT"),
         ({"cut": parent.ref}, "/cut", "NX_WRONG_KIND"),
     ]:
-        bad = run(nx, "nx_create_drawing_view", **{**common, **args})
+        call = {k: v for k, v in {**common, **args}.items() if v is not None}
+        bad = run(nx, "nx_create_drawing_view", **call)
         assert bad.error["field"] == field and bad.error["code"] == code, (args, bad)
         assert bad.mutation_outcome == "not_started"
 
@@ -144,7 +233,49 @@ def test_get_view_reports_type_bounds_and_hidden_line_warning():
     ok = run(nx, "nx_get_drawing_view", view=view.ref)
     assert ok.ok, ok
     assert ok.data["type"] == "detail" and ok.data["bounds"] == [100.0, 190.0, 140.0, 210.0]
+    assert ok.data["center"] == [120.0, 200.0] and ok.data["parent"] is None
     assert ok.data["construction_geometry"] is None and ok.mutation_outcome == "not_applicable"
     sheet_ref = nx.sheet_obj.ref
     wrong = run(nx, "nx_get_drawing_view", view=sheet_ref)
     assert wrong.error["category"] == "wrong_kind" and wrong.error["field"] == "/view"
+
+
+def test_edit_takes_a_ratio_scale_and_warns_about_derived_views_and_style_spill():
+    nx = views_nx()
+    parent = make_view(nx, nx.sheet_obj, pos=(120, 200))
+    made = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, direction="top")
+    child = nx.views[max(nx.views)]
+    ok = run(nx, "nx_edit_drawing_view", view=parent.ref, scale="1:2")
+    assert ok.ok and ok.data["scale"] == 0.5 and child.scale == 1.0
+    assert any(made.data["view"]["id"] in w["message"] and "keep their scale" in w["message"]
+               for w in ok.warnings)  # fmt: skip
+    make = nx.part.SettingsManager.CreateDrawingEditViewSettingsBuilder
+
+    def spilling(views):
+        b = make(views)
+        commit = b.Commit
+
+        def both():
+            commit()
+            if views[0] is parent:  # NX changing a derived view along with its parent
+                child.style = {g: dict(v) for g, v in DEFAULT_STYLE.items()}
+                child.style["ViewStyleVisibleLines"]["VisibleFont"] = 0
+
+        b.Commit = both
+        return b
+
+    nx.part.SettingsManager.CreateDrawingEditViewSettingsBuilder = spilling
+    styled = run(nx, "nx_edit_drawing_view", view=parent.ref, style={"hidden_font": 0})
+    assert styled.ok, styled
+    spill = [w["message"] for w in styled.warnings if "also changed" in w["message"]]
+    assert spill and "visible_font" in spill[0] and made.data["view"]["id"] in spill[0]
+
+
+def test_listed_views_carry_their_sheet_and_border():
+    nx = views_nx()
+    make_view(nx, nx.sheet_obj, pos=(120, 200))
+    ok = run(nx, "nx_list_objects", kind="drawing_view")
+    assert ok.ok, ok
+    row = ok.data["items"][0]
+    assert row["details"]["bounds"] == [110.0, 195.0, 130.0, 205.0]
+    assert row["details"]["sheet"] == "SHT1"

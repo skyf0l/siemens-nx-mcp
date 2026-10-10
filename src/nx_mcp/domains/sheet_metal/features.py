@@ -57,6 +57,10 @@ NX 2406 findings encoded here:
   fails with 948801 (``NX_LICENSE_UNAVAILABLE``), so the operation has no 2406 evidence.
 - Solid Punch takes the tool body where it is (no CSYS needed) and NX's default punch
   type; the tool body stays visible.
+- A tab's sheet lies against its sketch's normal (below an XY sketch: z -t..0);
+  ``reverse`` puts it on the normal's side.
+- Tab, contour flange, lofted flange and from-solid without ``thickness`` take the part's
+  default (``nx_set_sheet_metal_defaults``), set explicitly and verified like a given one.
 """
 
 from __future__ import annotations
@@ -75,6 +79,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ByVariant, Doc, Items, Json, Quantity, Range, RefTo, forbid_extra
 from nx_mcp.core.validate import unwrap
 from nx_mcp.domains.sheet_metal import common
+from nx_mcp.domains.sheet_metal import defaults as part_defaults
 from nx_mcp.kit import (
     builders,
     curve,
@@ -142,7 +147,7 @@ CORNERS = {"fillet": "Fillet", "chamfer": "ChamferEqualSetback"}
 class Fields(TypedDict, total=False):
     """Every ``parameters`` field; each operation's form takes the ones it uses."""
 
-    section: Annotated[str, RefTo("sketch", doc="Ref: finished sketch")]
+    section: Annotated[str, RefTo("sketch", doc="Ref s:N: finished sketch")]
     end_section: Annotated[str, RefTo("sketch", doc="Ref: finished open end profile")]
     face: Annotated[str, RefTo("face", doc="Ref: face that stays put")]
     faces: Annotated[list[Annotated[str, RefTo("face", doc="Ref: bend face")]], Items(1, 50)]
@@ -186,12 +191,17 @@ class Op:
 
 
 FLANGE_DOCS = {"length": "Inside length", "angle": "Bend angle (default 90)"}
+THICKNESS_DOC = "Sheet thickness, e.g. '2 mm' (default: the part's)"
 OPERATIONS: dict[str, Op] = {
     "tab": Op(
         "CreateTabFeatureBuilder",
         ("section",),
         ("thickness", "body", "reverse"),
-        {"body": "Ref: sheet-metal body of a secondary tab", "thickness": "Needed without body"},
+        {
+            "body": "Ref: sheet-metal body of a secondary tab",
+            "thickness": THICKNESS_DOC,
+            "reverse": "Sheet on the sketch normal's side (default: against it)",
+        },
     ),
     "flange": Op(
         "CreateMultiFlangeBuilder",
@@ -201,9 +211,13 @@ OPERATIONS: dict[str, Op] = {
     ),
     "contour_flange": Op(
         "CreateContourFlangeFeatureBuilder",
-        ("section", "thickness", "length"),
-        ("radius", "neutral_factor", "reverse"),
-        {"section": "Ref: finished open-profile sketch", "length": "Width"},
+        ("section", "length"),
+        ("thickness", "radius", "neutral_factor", "reverse"),
+        {
+            "section": "Ref: finished open-profile sketch",
+            "length": "Width",
+            "thickness": THICKNESS_DOC,
+        },
     ),
     "bend": Op(
         "CreateBendFeatureBuilder",
@@ -243,9 +257,9 @@ OPERATIONS: dict[str, Op] = {
     ),
     "lofted_flange": Op(
         "CreateLoftedFlangeFeatureBuilder",
-        ("section", "end_section", "thickness"),
-        ("radius", "neutral_factor", "reverse"),
-        {"section": "Ref: finished open start profile"},
+        ("section", "end_section"),
+        ("thickness", "radius", "neutral_factor", "reverse"),
+        {"section": "Ref: finished open start profile", "thickness": THICKNESS_DOC},
     ),
     "advanced_flange": Op(
         "CreateAdvancedFlangeBuilder",
@@ -318,10 +332,11 @@ OPERATIONS: dict[str, Op] = {
     ),
     "from_solid": Op(
         "CreateSheetMetalFromSolidBuilder",
-        ("faces", "thickness"),
-        ("edges", "radius", "neutral_factor", "reverse"),
+        ("faces",),
+        ("thickness", "edges", "radius", "neutral_factor", "reverse"),
         {
             "faces": "Ref: web face of a solid",
+            "thickness": THICKNESS_DOC,
             "edges": "Ref: bend edge between webs (default: NX's)",
             "reverse": "Thicken to the other side of the webs",
         },
@@ -422,8 +437,11 @@ def _q(a, key, say, dim="length"):
 def _summary(a, say) -> str:
     op, p = a["operation"], a["parameters"]
     count = len(p.get("edges") or p.get("faces") or [])
+    thick = _q(a, "thickness", say)
     if op == "tab":
-        return "Secondary tab" if p.get("body") else f"Tab {_q(a, 'thickness', say)} thick"
+        if p.get("body"):
+            return "Secondary tab"
+        return f"Tab {thick} thick" if thick else "Tab, default thickness"
     if op == "flange":
         return f"Flange {count} edge(s) {_q(a, 'length', say)} at {_q(a, 'angle', say, 'angle') or '90 deg'}"
     if op in ("bend", "resize_bend_angle"):
@@ -431,7 +449,7 @@ def _summary(a, say) -> str:
     if op == "jog":
         return f"Jog {_q(a, 'height', say)}"
     if op == "contour_flange":
-        return f"Contour flange {_q(a, 'thickness', say)} thick"
+        return f"Contour flange {thick} thick" if thick else "Contour flange"
     if op == "flat_pattern":
         return "Flat pattern"
     if count:
@@ -443,9 +461,6 @@ def check(operation, p) -> dict:
     """Check ``parameters`` of ``operation`` (signs, styles, counts) beyond its form; pure.
 
     Gate 1 already checked the fields against the operation's form (``FORMS``)."""
-    if operation == "tab" and p.get("body") is None and p.get("thickness") is None:
-        fail("NX_INVALID_ARGUMENT", "tab needs thickness (or body for a secondary tab)",
-             field="/parameters/thickness")  # fmt: skip
     for key in POSITIVE:
         if p.get(key) is not None and p[key] <= 0:
             fail("NX_INVALID_ARGUMENT", f"{key} must be positive", field="/parameters/" + key)
@@ -473,6 +488,22 @@ def check(operation, p) -> dict:
     return p
 
 
+def default_thickness(tx, operation, p) -> None:
+    """Fill a missing sheet thickness from the part's default (secondary tabs keep their
+    target's); the builder then gets it like a given one and the read-back checks it."""
+    if operation not in DEFAULT_THICKNESS or p.get("thickness") is not None:
+        return
+    if operation == "tab" and p.get("body"):
+        return
+    value = part_defaults.part_length(tx, "thickness")
+    if value is None or value <= 0:
+        fail("NX_INVALID_ARGUMENT", f"{operation} needs thickness: the part has no default "
+             "sheet thickness", field="/parameters/thickness",
+             hint="Pass thickness (e.g. '2 mm') or set one with nx_set_sheet_metal_defaults")  # fmt: skip
+    p["thickness"] = value
+
+
+DEFAULT_THICKNESS = ("tab", "contour_flange", "lofted_flange", "from_solid")
 FACE_COUNT = {"resize_bend_angle": 1, "gusset": 1, "closed_corner": 2, "three_bend_corner": 2,
               "bend_taper": 1}  # fmt: skip
 
@@ -1107,14 +1138,21 @@ def _flat_extents(tx, curves, i, what="flat_pattern") -> list[float]:
     """``[along the X-axis edge, across it, along the upward face's normal]`` extents of
     the Flat Pattern's curves or the Flat Solid's edges.
 
+    NX 2406 lays the Flat Pattern's curves out in absolute coordinates with the X-axis
+    edge along absolute X and the upward face towards +Z (an edge along model Y: the
+    flat's X extent is along absolute X), so they are measured along the absolute axes;
+    the Flat Solid stays where the sheet was and is measured along the edge and face.
     Lines and straight edges are measured at their ends, other curves at 64 points
     (``NX_APPROXIMATED`` within 0.12 % of their radius).
     """
-    _kind, _point, normal = select.face_data(tx, i.face)
-    start, end = (geom.xyz(v) for v in i.edge.GetVertices())
-    x = geom.unit(geom.sub(end, start))
-    z = geom.unit(normal)
-    y = geom.unit(geom.cross(z, x))
+    if what == "flat_pattern":
+        x, y, z = [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]
+    else:
+        _kind, _point, normal = select.face_data(tx, i.face)
+        start, end = (geom.xyz(v) for v in i.edge.GetVertices())
+        x = geom.unit(geom.sub(end, start))
+        z = geom.unit(normal)
+        y = geom.unit(geom.cross(z, x))
     points, sampled = [], False
     for c in curves:
         if hasattr(c, "StartPoint") and type(c).__name__ == "Line":
@@ -1170,13 +1208,15 @@ def nx_create_sheet_metal_feature(
     operation: Operation,
     parameters: Parameters,
 ) -> FeatureData:
-    """Create one sheet-metal feature. Each operation's parameters are listed by
-    nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>"); needs the Sheet Metal
-    application (nx_activate_application)."""
+    """Create one sheet-metal feature. Parameters per operation:
+    nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>"). Needs the Sheet Metal
+    application (nx_activate_application). Face/edge refs (nx_find_geometry) go stale after
+    each feature. flat_extents: [along edge, across]."""
     p = check(operation, dict(parameters))
     spec = OPERATIONS[operation]
     with tx.checks():
         manager = common.manager(tx)
+        default_thickness(tx, operation, p)
         i = Inputs(tx, p).resolve(operation)
         snapshots = _candidates(tx, i, operation)
         factory = getattr(manager, spec.factory, None)

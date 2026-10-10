@@ -21,10 +21,12 @@ AGENT_LISTING = 15_000
 # move each time a tool is added. 157 tools averaged 798.5 characters on 2026-10-10 (name +
 # description + input schema, with the 87-character call keys operation_id and intent on
 # changing tools; the union schemas of patterns, holes and sheet metal lift the mean above
-# the 700 median); 880 leaves about 10% headroom. The per-tool caps below still bound every
+# the 700 median). On 2026-10-11 165 tools averaged 942.1: the natural-argument forms
+# (quantity strings such as '10 mm', unit and name aliases, principal-plane names) widened
+# many unions; 1040 leaves about 10% headroom. The per-tool caps below still bound every
 # single definition. The full profile is opt-in, for clients that index tools and load
 # schemas on demand; the default agent profile keeps its 15,000 total.
-FULL_MEAN_PER_TOOL = 880
+FULL_MEAN_PER_TOOL = 1040
 FIND_PAGE = 1_400
 SCHEMA_PER_TOOL = 900
 MEDIAN_DEFINITION = 700

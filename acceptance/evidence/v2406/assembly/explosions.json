@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/explosions.json",
-  "scenario_sha256": "af0aa333804ca06200751da0ec52a67821c9e8294f62e9866915d1cb060a72c1",
+  "scenario_sha256": "868615dbcc1c3cdcd3680300ea9c8a841721162be7eb6ba9240175207efc0eb3",
   "domain": "assembly",
   "covers": {
     "nx_create_explosion": [],
@@ -15,17 +15,17 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_explosion": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
-    "nx_edit_explosion": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
-    "nx_get_explosion": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
-    "nx_set_explosion_display": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
-    "nx_create_explosion_trace": "663d27ffdcb4e552fe74c20c7c599491ca7e14298308fb3e8ff6d9dfdd3ce608",
-    "nx_edit_explosion_trace": "663d27ffdcb4e552fe74c20c7c599491ca7e14298308fb3e8ff6d9dfdd3ce608",
-    "nx_export_explosion_animation": "ddb18fc0863a857deb562c8f1527aa42d50aeba2b0159fd547afb20da9f288f5"
+    "nx_create_explosion": "e2c18ba882088b7cb672d37d3ee9c8547444721a7a6324ca306ccaec78aa1d93",
+    "nx_edit_explosion": "e2c18ba882088b7cb672d37d3ee9c8547444721a7a6324ca306ccaec78aa1d93",
+    "nx_get_explosion": "e2c18ba882088b7cb672d37d3ee9c8547444721a7a6324ca306ccaec78aa1d93",
+    "nx_set_explosion_display": "e2c18ba882088b7cb672d37d3ee9c8547444721a7a6324ca306ccaec78aa1d93",
+    "nx_create_explosion_trace": "13f36c5cdbff08be67618bb91c1701b8a116fc3b1b59cf7fececf63f0da917bd",
+    "nx_edit_explosion_trace": "13f36c5cdbff08be67618bb91c1701b8a116fc3b1b59cf7fececf63f0da917bd",
+    "nx_export_explosion_animation": "102a46a10cb1e8a28cd9040658d5c60d410c480b40a885db3fe56e3a6a16f74e"
   },
-  "recorded": "2026-10-10T15:58:40Z",
+  "recorded": "2026-10-10T22:51:27Z",
   "passed": true,
-  "checks": 93,
+  "checks": 117,
   "failed_checks": 0,
   "steps": [
     {
@@ -138,14 +138,14 @@
       "call": "nx_create_explosion",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 7
     },
     {
       "index": 17,
       "call": "nx_create_explosion",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 18,
@@ -257,7 +257,7 @@
       "call": "nx_create_explosion_trace",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 11
     },
     {
       "index": 34,
@@ -278,7 +278,7 @@
       "call": "nx_edit_explosion_trace",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 6
     },
     {
       "index": 37,
@@ -327,7 +327,7 @@
       "call": "nx_export_explosion_animation",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 8
     },
     {
       "index": 44,
@@ -366,13 +366,34 @@
     },
     {
       "index": 49,
+      "call": "nx_edit_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 50,
+      "call": "nx_edit_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 51,
+      "call": "nx_edit_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 52,
       "call": "nx_set_explosion_display",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 50,
+      "index": 53,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,

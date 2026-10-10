@@ -1,8 +1,9 @@
-"""Error taxonomy (tool-surface.md 1.8): 22 categories, 66 codes, ``native()``.
+"""Error taxonomy (tool-surface.md 1.8): 22 categories, 67 codes, ``native()``.
 
 Handlers raise only through :func:`fail` or :func:`native`. The kernel turns any
 :class:`NXError` into ``{category, code, message, hint, field, retry, nx_code,
-details}``; ``retry`` comes from the category table.
+details}``; ``retry`` comes from the category table unless ``fail(retry=...)``
+overrides it for one error (a refusal no fix can turn into a success).
 """
 
 from __future__ import annotations
@@ -21,7 +22,12 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "unsupported": (
         "never",
-        ("NX_UNSUPPORTED_OPTION", "NX_UNSUPPORTED_GEOMETRY", "NX_UNSUPPORTED_FILE_TYPE"),
+        (
+            "NX_UNSUPPORTED_OPTION",
+            "NX_UNSUPPORTED_GEOMETRY",
+            "NX_UNSUPPORTED_FILE_TYPE",
+            "NX_NOT_RUNNING",  # the operation already finished: nothing to cancel or wait for
+        ),
         "Choose another tool or approach",
     ),
     "not_found": (
@@ -75,7 +81,8 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     "geometry_failed": (
         "after_fix",
         ("NX_BUILD_FAILED", "NX_UPDATE_FAILED", "NX_INCOMPLETE_RESULT"),
-        "The model was rolled back; change dimensions or inputs, do not repeat unchanged",
+        "The model was rolled back; read the message for NX's reason and change the input "
+        "it names; do not repeat unchanged",
     ),
     "solver_failed": (
         "after_fix",
@@ -152,8 +159,27 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
 }
 
 CODES: dict[str, str] = {code: cat for cat, (_r, codes, _h) in CATEGORIES.items() for code in codes}
+# Warning codes (``tx.warn`` maps any other code to NX_UPDATE_WARNING):
+# NX_UPDATE_WARNING  NX reported a model update problem the call survived
+# NX_APPROXIMATED    the result approximates the request (tolerance, fit)
+# NX_PARTIAL_PAGE    a listing was cut short; page on
+# NX_MODAL_DIALOG    NX showed a modal dialog during the call
+# NX_VIEW_OVERLAP    drawing views overlap on the sheet
+# NX_NO_EFFECT       the call succeeded but changed nothing visible yet (a next step is needed)
+# NX_NOTE            an informational note, not a model problem (NX default density, ...)
 WARNING_CODES = frozenset(
-    {"NX_UPDATE_WARNING", "NX_APPROXIMATED", "NX_PARTIAL_PAGE", "NX_MODAL_DIALOG"}
+    {
+        "NX_UPDATE_WARNING",
+        "NX_APPROXIMATED",
+        "NX_PARTIAL_PAGE",
+        "NX_MODAL_DIALOG",
+        "NX_VIEW_OVERLAP",
+        "NX_NO_EFFECT",
+        "NX_NOTE",
+    }
+)
+RETRY_VALUES = frozenset(
+    {"never", "after_fix", "after_wait", "after_reacquire", "after_status_check", "ask_engineer"}
 )
 
 # Native license checkout failures (NX 2406: 948801 missing token feature,
@@ -188,6 +214,7 @@ class NXError(Exception):
         nx_code: int | None = None,
         details: dict | None = None,
         retryable: bool | None = None,
+        retry: str | None = None,
     ) -> None:
         if code not in CODES:
             # A handler raised an unlisted code; the contract test reports it.
@@ -201,13 +228,18 @@ class NXError(Exception):
         self.hint = hint
         self.nx_code = nx_code
         self.details: dict[str, Any] = dict(details or {})
+        # Development traceback (NX_MCP_DEV=1): never in the envelope; the kernel writes
+        # it to the operation receipt and the workspace traceback log.
+        self.trace: str | None = None
+        self._retry = retry if retry in RETRY_VALUES else None
         self.retryable = (
             self.retry in ("after_wait", "after_reacquire") if retryable is None else retryable
         )
 
     @property
     def retry(self) -> str:
-        return CATEGORIES[self.category][0]
+        """The category's retry, or the override ``fail(retry=...)`` gave this error."""
+        return self._retry or CATEGORIES[self.category][0]
 
     def as_dict(self) -> dict:
         """The bridge wire payload (``BridgeClient`` rebuilds the error from it)."""
@@ -226,6 +258,8 @@ class NXError(Exception):
         out["category"] = self.category
         if self.field:
             out["field"] = self.field
+        if self._retry:
+            out["retry"] = self._retry
         return out
 
     def error_dict(self) -> dict:
@@ -250,9 +284,17 @@ def fail(
     hint: str | None = None,
     details: dict | None = None,
     nx_code: int | None = None,
+    retry: str | None = None,
 ) -> NoReturn:
-    """Raise :class:`NXError` with a stable code from the table (``nx_code`` kept)."""
-    raise NXError(code, message, field=field, hint=hint, nx_code=nx_code, details=details)
+    """Raise :class:`NXError` with a stable code from the table (``nx_code`` kept).
+
+    ``retry`` overrides the category's retry for this error only, e.g. ``"never"`` for
+    a refusal that no fix of the same call can turn into a success."""
+    if retry is not None and retry not in RETRY_VALUES:
+        raise ValueError(f"retry must be one of {sorted(RETRY_VALUES)}")
+    raise NXError(
+        code, message, field=field, hint=hint, nx_code=nx_code, details=details, retry=retry
+    )
 
 
 def _native_code(error: BaseException) -> int | None:
@@ -269,9 +311,19 @@ def classify(error: BaseException, codes: dict | None = None, default: str = "NX
         return error
     nx_code = _native_code(error)
     details: dict = {"exception_type": type(error).__name__}
+    trace = None
     if dev_mode():
         frames = traceback.format_exception(type(error), error, error.__traceback__)
-        details["traceback"] = "".join(frames[-6:])[-4000:]
+        trace = "".join(frames[-6:])[-4000:]
+    classified = _classify(error, nx_code, details, codes, default)
+    # The stack (local paths) never reaches the agent, not even with NX_MCP_DEV=1: NX's
+    # message, nx_code and the exception type say what happened; the kernel writes the
+    # traceback to the operation receipt and the workspace traceback log.
+    classified.trace = trace
+    return classified
+
+
+def _classify(error, nx_code, details, codes, default) -> NXError:
     if nx_code in LICENSE_ERROR_CODES:
         return NXError(
             "NX_LICENSE_UNAVAILABLE",
@@ -302,8 +354,9 @@ def native(codes: dict | None = None, default: str = "NX_ERROR"):
     failure NX undid) -> ``NX_UPDATE_FAILED``; a code listed in
     ``codes`` (``{nx_code: "NX_..."}``) -> that code; any other native error ->
     ``default``; a plain Python exception -> ``NX_ERROR`` with its type name.
-    ``nx_code`` and the native message are always kept; a traceback only with
-    ``NX_MCP_DEV=1``.
+    ``nx_code`` and the native message are always kept; with ``NX_MCP_DEV=1`` the
+    traceback is kept out of the envelope (``NXError.trace``: the operation receipt and
+    ``.nx-mcp/logs/tracebacks.log``).
     """
     try:
         yield

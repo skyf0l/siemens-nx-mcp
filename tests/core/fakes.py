@@ -263,11 +263,18 @@ class FakeServices(Services):
         pass
 
     def invalidate(self, before, after, topology):
+        """Like the host: deleted objects, and for a topology change the faces and
+        edges no longer in their part (``part.objects``); returns the retired handles."""
         removed = {v["id"] for k, v in before.items() if k not in after}
+        live = {id(o) for p in self.parts() for o in p.objects}
+        retired = set()
         for key, entry in list(self.registry._objects.items()):
-            if key in removed or (topology and entry.reference.kind in ("face", "edge")):
+            dead = entry.reference.kind in ("face", "edge") and id(entry.value) not in live
+            if key in removed or (topology and dead):
                 self.registry._objects.pop(key)
                 self.registry._stale_ids.add(key)
+                retired.add(key)
+        return retired
 
     def invalidate_parts(self, parts):
         for part in parts:
@@ -295,5 +302,6 @@ class FakeServices(Services):
     def after_commit(self, spec):
         self.epoch += 1
 
-    def after_failure(self, spec):
-        self.epoch += 1
+    def after_failure(self, spec, outcome=None):
+        if outcome != "not_started":
+            self.epoch += 1

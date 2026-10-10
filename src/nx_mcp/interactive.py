@@ -1030,7 +1030,22 @@ class InteractiveHost:
 
     def _invalidate_references(self):
         """Manual edits have no bridge receipt: a later agent rollback must not undo
-        them, and references must not resolve across them. Never raises."""
+        them. References are re-validated: refs of objects the edit deleted go stale,
+        the others (and every loaded part's ref) stay, because a ref follows NX's
+        persistent object identity (``NXServices.revalidate``); the fingerprint can
+        also change without an edit (NX's own marks after a long export). Never raises."""
+        try:
+            self.services.revalidate()
+        except Exception as exc:
+            self._record_release_error("Cannot re-validate references", exc)
+            self._drop_references()
+        try:
+            self.services.engineer_changed()  # undo history, checkpoints, review epoch
+        except Exception as exc:
+            self._record_release_error("Cannot clear rollback history", exc)
+
+    def _drop_references(self):
+        """Drop every reference of the open parts (when re-validation failed)."""
         try:
             for part in self.session.Parts:
                 try:
@@ -1046,10 +1061,6 @@ class InteractiveHost:
                     objects.invalidate_part(part_id)
             except Exception as exc2:
                 self._record_release_error("Cannot clear references", exc2)
-        try:
-            self.services.engineer_changed()  # undo history, checkpoints, review epoch
-        except Exception as exc:
-            self._record_release_error("Cannot clear rollback history", exc)
 
     # -- execution -------------------------------------------------------------
 

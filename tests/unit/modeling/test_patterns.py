@@ -412,3 +412,50 @@ def test_mirror_features_unite_merges_the_mirror_into_the_seed_body():
     assert ok.ok, ok
     assert ok.data["new_bodies"] == 0 and ok.data["united"] == 1 and ok.data["volume"] == 2000
     assert [b["id"] for b in ok.data["bodies"]] == [block.ref] and made[0] not in nx.part.Bodies
+
+
+# ---------------------------------------------------------------------------
+# Short forms and guidance (live tester batch b25)
+
+
+def test_pattern_takes_bare_principal_directions_and_axes():
+    nx, block, seed = pattern_nx()
+    ok = pattern(nx, seed, "linear", direction="x", count=3, spacing=60)
+    assert ok.ok, ok
+    d = nx.last("PatternFeatureBuilder").PatternService.RectangularDefinition
+    assert [d.XDirection.Vector.X, d.XDirection.Vector.Y] == [1.0, 0.0]
+    nx.count = 6
+    two = pattern(nx, seed, "linear", direction="-y", count=3, spacing=10,
+                  direction2="z", count2=2, spacing2=10)  # fmt: skip
+    assert two.ok, two
+    d = nx.last("PatternFeatureBuilder").PatternService.RectangularDefinition
+    assert d.XDirection.Vector.Y == -1.0 and d.YDirection.Vector.Z == 1.0
+    circ = pattern(nx, seed, "circular", axis="z", count=6, angle=60)
+    assert circ.ok, circ
+    same = pattern(nx, seed, "linear", direction="x", count=2, spacing=5, direction2="-x",
+                   count2=2, spacing2=5)  # fmt: skip
+    assert same.error["field"] == "/parameters/direction2", same
+
+
+def test_pattern_of_a_body_points_at_the_feature_that_made_it():
+    nx, block, seed = pattern_nx()
+    block.GetFeatures = lambda: [seed]
+    bad = run(nx, "nx_create_pattern", features=[block.ref], layout="linear",
+              parameters={"direction": "x", "count": 3, "spacing": 60})  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/features/0", bad
+    assert nx.ref_of(seed, "feature") in bad.error["hint"], bad
+    assert "nx_create_transform" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+
+
+def test_mirror_takes_a_bare_principal_plane():
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    nx.on_commit("MirrorBodyBuilder", lambda b: feature(nx, "MIRROR_BODY", [
+        new_body(nx, [-40, 0, 0, 0, 20, 10])]))  # fmt: skip
+    ok = run(nx, "nx_create_mirror", bodies=[block.ref], plane="yz")
+    assert ok.ok and ok.data["volume"] == 8000 and ok.data["new_bodies"] == 1, ok
+    assert len(ok.data["bodies"]) == 1  # target bodies: only the new mirrors are listed
+    plane = nx.last("MirrorBodyBuilder").Plane.Value
+    assert [plane.Normal.X, plane.Normal.Y, plane.Normal.Z] == [1.0, 0.0, 0.0]
+    bad = run(nx, "nx_create_mirror", bodies=[nx.ref_of(block, "body")], plane="zy")
+    assert bad.error["field"].startswith("/plane") and bad.mutation_outcome == "not_started"

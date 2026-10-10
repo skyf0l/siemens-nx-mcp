@@ -14,7 +14,10 @@ NX 2406 findings encoded here:
 - Baseline and chain sets use ``DimensionSets.Create<Horizontal|Vertical><Baseline|
   Chain>Dimension`` with one associativity per object (UF ``CreateHorizontalChain
   Dimension`` takes a single object in the Python binding); the set is an annotation
-  whose members are ordinary linear dimensions.
+  whose members are ordinary linear dimensions. With two points NX returns a set whose
+  one member is never made alive (UF status condemned, not in ``part.Dimensions``) and
+  never drawn: sets need 3+ points, refused before NX. A new set is drawn only at the
+  next display update, so each member is redisplayed.
 - ``ChamferDimensionBuilder`` refuses chamfers other than 45 degrees ("The second
   object associativity type is invalid"): they are refused before NX.
 """
@@ -257,24 +260,30 @@ def _set_assoc(tx, view, edge, xyz, assoc):
     return a
 
 
-def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin):
-    """Several horizontal or vertical dimensions from the first object (baseline) or
-    each from the previous one (chain), placed as one NX dimension set."""
+def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin, datum=(None, None)):
+    """Several horizontal or vertical dimensions from the first point (baseline) or each
+    from the previous one (chain), placed as one NX dimension set. ``datum`` ``(ref,
+    snap)``, when given, is the first point."""
     horizontal = direction == "horizontal"
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
         targets = [
             dims._target(tx, ref, object_point, f"/objects/{i}") for i, ref in enumerate(objects)
         ]
+        fields = [f"/objects/{i}" for i in range(len(objects))]
+        if datum[0] is not None:
+            targets.insert(0, dims._target(tx, datum[0], datum[1], "/datum"))
+            fields.insert(0, "/datum")
         axis = drawing.axes(view)[0 if horizontal else 1]
         expected = set_values([t[1] for t in targets], axis, kind)
         for i, value in enumerate(expected, start=1):
             if value <= 1e-9:
+                other = fields[0 if kind == "baseline" else i - 1].lstrip("/")
                 fail(
                     "NX_INVALID_ARGUMENT",
-                    f"objects/{i} is at the same {direction} position as "
-                    + ("the first object" if kind == "baseline" else "the previous object"),
-                    field=f"/objects/{i}",
+                    f"{fields[i].lstrip('/')} is at the same {direction} position as {other}: "
+                    "it would give a zero dimension; drop it or use the other direction",
+                    field=fields[i],
                 )
     with drawing.on_sheet(tx, sheet) as sh:
         if origin is None:  # above the view (horizontal) or right of it (vertical)
@@ -301,10 +310,17 @@ def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin):
             f"NX made {len(found)} dimensions, not {len(expected)}",
             count=len(found),
         )
+        alive = {d.Tag for d in tx.part.Dimensions}
         rows = []
         for i, (member, value) in enumerate(zip(found, expected, strict=True)):
+            readback.expect(
+                member.Tag in alive,
+                f"shown[{i}]",
+                "NX made a set member that is not a dimension of the part (not drawn)",
+            )
             actual = result.measured(member.ComputedSize)
             dims._check_value(actual, value, f"value[{i}]")
+            member.RedisplayObject()  # NX draws a new set only at the next display update
             rows.append(dims._row(tx, member, actual, value))
         return {
             "dimension_set": tx.ref(native, "annotation"),

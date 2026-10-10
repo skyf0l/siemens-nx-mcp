@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/measure.json",
-  "scenario_sha256": "30696d344532af10cfb06b21440b3e595ff54e062a25ca37529ec5217334a5d6",
+  "scenario_sha256": "ef3d06401f61bfa9c670c0d464ff52690eda4a64d65fdd4b222fbde97dddf3bb",
   "domain": "inspection",
   "covers": {
     "nx_measure_distance": [],
@@ -13,15 +13,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_measure_distance": "0580e68e4d58a4cc1f5cb413413524998f761597dd9821f2781bdac4ba08b7f5",
-    "nx_measure_angle": "0580e68e4d58a4cc1f5cb413413524998f761597dd9821f2781bdac4ba08b7f5",
-    "nx_measure_mass": "0580e68e4d58a4cc1f5cb413413524998f761597dd9821f2781bdac4ba08b7f5",
-    "nx_measure_bounds": "0580e68e4d58a4cc1f5cb413413524998f761597dd9821f2781bdac4ba08b7f5",
-    "nx_measure_wall_thickness": "0580e68e4d58a4cc1f5cb413413524998f761597dd9821f2781bdac4ba08b7f5"
+    "nx_measure_distance": "b96b9d3aa0ae192efba41f6dabbf3a0a297e2e66b9e776bdbc4cd7d2cc466ad4",
+    "nx_measure_angle": "b96b9d3aa0ae192efba41f6dabbf3a0a297e2e66b9e776bdbc4cd7d2cc466ad4",
+    "nx_measure_mass": "b96b9d3aa0ae192efba41f6dabbf3a0a297e2e66b9e776bdbc4cd7d2cc466ad4",
+    "nx_measure_bounds": "b96b9d3aa0ae192efba41f6dabbf3a0a297e2e66b9e776bdbc4cd7d2cc466ad4",
+    "nx_measure_wall_thickness": "b96b9d3aa0ae192efba41f6dabbf3a0a297e2e66b9e776bdbc4cd7d2cc466ad4"
   },
-  "recorded": "2026-10-10T17:32:42Z",
+  "recorded": "2026-10-10T23:18:12Z",
   "passed": true,
-  "checks": 51,
+  "checks": 68,
   "failed_checks": 0,
   "steps": [
     {
@@ -148,7 +148,7 @@
       "call": "nx_measure_distance",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 7
     },
     {
       "index": 19,
@@ -166,14 +166,14 @@
     },
     {
       "index": 21,
-      "call": "nx_measure_angle",
+      "call": "nx_measure_distance",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 22,
-      "call": "nx_measure_angle",
+      "call": "nx_measure_distance",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -183,14 +183,14 @@
       "call": "nx_measure_angle",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 24,
       "call": "nx_measure_angle",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 25,
@@ -201,55 +201,83 @@
     },
     {
       "index": 26,
-      "call": "nx_measure_mass",
+      "call": "nx_measure_angle",
       "setup": false,
       "passed": true,
-      "checks": 9
+      "checks": 1
     },
     {
       "index": 27,
+      "call": "nx_measure_angle",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 28,
+      "call": "nx_measure_angle",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 30,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 28,
+      "index": 31,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 29,
+      "index": 32,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 30,
+      "index": 33,
       "call": "nx_measure_wall_thickness",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 31,
+      "index": 34,
+      "call": "nx_measure_wall_thickness",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 35,
       "call": "nx_measure_wall_thickness",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 32,
+      "index": 36,
       "call": "nx_measure_wall_thickness",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 33,
+      "index": 37,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,

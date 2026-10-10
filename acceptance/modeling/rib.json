@@ -378,6 +378,10 @@
     },
     "data.bodies": {
      "count": 1
+    },
+    "data.added": {
+     "close": 900,
+     "tol": 0.001
     }
    }
   },
@@ -569,7 +573,11 @@
    },
    "expect": {
     "error.code": "NX_BUILD_FAILED",
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.hint": {
+     "contains": "flip"
+    },
+    "error.nx_code": 4095004
    }
   }
  ]

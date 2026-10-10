@@ -239,7 +239,10 @@
     "type": "projected",
     "parent": "$front.data.view.id",
     "direction": "bottom",
-    "spacing": 80
+    "position": [
+     150,
+     280
+    ]
    }
   },
   {

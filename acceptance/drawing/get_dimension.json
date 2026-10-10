@@ -214,7 +214,14 @@
      ],
      "tol": 1e-06
     },
-    "data.sheet.name": "SHT1"
+    "data.sheet.name": "SHT1",
+    "data.objects": {
+     "count": 2
+    },
+    "data.objects.0.kind": "edge",
+    "data.tolerance": {
+     "count": 2
+    }
    }
   },
   {

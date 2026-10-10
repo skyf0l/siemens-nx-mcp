@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/components.json",
-  "scenario_sha256": "aaec13089fd31b413f9b1c4c6173886dd2438835d220458a568c23873833cbc4",
+  "scenario_sha256": "e603e95a720ca22546df0b2c17eeda39f44d707d43f6a50fca1a1528467acd9c",
   "domain": "assembly",
   "covers": {
     "nx_create_component": [],
@@ -16,15 +16,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component": "7c47c37a7c503036e68f9ef8a90eab3d73f52fafe82ec95479ab18e1ab57df9f",
-    "nx_list_components": "7c47c37a7c503036e68f9ef8a90eab3d73f52fafe82ec95479ab18e1ab57df9f",
-    "nx_set_component_pose": "7c47c37a7c503036e68f9ef8a90eab3d73f52fafe82ec95479ab18e1ab57df9f",
-    "nx_edit_component": "7c47c37a7c503036e68f9ef8a90eab3d73f52fafe82ec95479ab18e1ab57df9f",
-    "nx_create_reference_set": "b1ed888a1c7d25bd5e16fbdaf77ecd1ee36f9e0db0401f3ba97033ecd4f8b20a"
+    "nx_create_component": "fbfafc76d0200ccf91b92b4a05b54235ea350c76908509727f2f538605845c05",
+    "nx_list_components": "fbfafc76d0200ccf91b92b4a05b54235ea350c76908509727f2f538605845c05",
+    "nx_set_component_pose": "fbfafc76d0200ccf91b92b4a05b54235ea350c76908509727f2f538605845c05",
+    "nx_edit_component": "fbfafc76d0200ccf91b92b4a05b54235ea350c76908509727f2f538605845c05",
+    "nx_create_reference_set": "36584527ddab59cc3ca89620df5192a8f52a14791fd7f122a6ae1777f2d04268"
   },
-  "recorded": "2026-10-10T15:58:24Z",
+  "recorded": "2026-10-10T22:56:00Z",
   "passed": true,
-  "checks": 108,
+  "checks": 145,
   "failed_checks": 0,
   "steps": [
     {
@@ -116,7 +116,7 @@
       "call": "nx_create_component",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 9
     },
     {
       "index": 14,
@@ -327,6 +327,69 @@
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 44,
+      "call": "nx_create_component",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 45,
+      "call": "nx_create_component",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 46,
+      "call": "nx_set_component_pose",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 47,
+      "call": "nx_edit_component",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 48,
+      "call": "nx_edit_component",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 49,
+      "call": "nx_edit_component",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 50,
+      "call": "nx_edit_component",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 51,
+      "call": "nx_create_reference_set",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 52,
+      "call": "nx_list_components",
+      "setup": false,
+      "passed": true,
+      "checks": 7
     }
   ]
 }

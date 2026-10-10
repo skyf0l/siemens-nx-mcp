@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/sew_thicken.json",
-  "scenario_sha256": "bb7ee00d2d5cd3b28c4f692d2a6e7ea7b0e46a47a4d27d95eeed7c28cf0dd299",
+  "scenario_sha256": "cd207b5ece96bf0f4a51863aa275dee23eb33e9bdaaa6d76c594426014886bed",
   "domain": "freeform",
   "covers": {
     "nx_create_sew": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sew": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0",
-    "nx_create_thicken": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0"
+    "nx_create_sew": "872e1935c28da800b1041051949ae4bf7d56dbc352f855a829769d6d0060b117",
+    "nx_create_thicken": "872e1935c28da800b1041051949ae4bf7d56dbc352f855a829769d6d0060b117"
   },
-  "recorded": "2026-10-10T13:14:43Z",
+  "recorded": "2026-10-10T22:57:09Z",
   "passed": true,
-  "checks": 23,
+  "checks": 37,
   "failed_checks": 0,
   "steps": [
     {
@@ -93,7 +93,7 @@
       "call": "nx_create_sew",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 8
     },
     {
       "index": 12,
@@ -107,7 +107,7 @@
       "call": "nx_create_thicken",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 14,
@@ -125,24 +125,24 @@
     },
     {
       "index": 16,
-      "call": "nx_create_spline",
+      "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 17,
-      "call": "nx_create_spline",
-      "setup": true,
+      "call": "nx_create_thicken",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 4
     },
     {
       "index": 18,
-      "call": "nx_create_spline",
-      "setup": true,
+      "call": "nx_create_thicken",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 19,
@@ -209,21 +209,21 @@
     },
     {
       "index": 28,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 29,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 30,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -251,31 +251,31 @@
     },
     {
       "index": 34,
-      "call": "nx_create_sew",
-      "setup": false,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
       "passed": true,
-      "checks": 4
+      "checks": 0
     },
     {
       "index": 35,
-      "call": "nx_create_spline",
+      "call": "nx_create_mesh_surface",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 36,
-      "call": "nx_create_spline",
+      "call": "nx_create_mesh_surface",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 37,
-      "call": "nx_create_spline",
-      "setup": true,
+      "call": "nx_create_sew",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 4
     },
     {
       "index": 38,
@@ -286,7 +286,7 @@
     },
     {
       "index": 39,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -307,14 +307,14 @@
     },
     {
       "index": 42,
-      "call": "nx_create_spline",
+      "call": "nx_create_mesh_surface",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 43,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -335,7 +335,7 @@
     },
     {
       "index": 46,
-      "call": "nx_create_spline",
+      "call": "nx_create_mesh_surface",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -349,52 +349,52 @@
     },
     {
       "index": 48,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 49,
-      "call": "nx_create_sew",
-      "setup": false,
+      "call": "nx_create_spline",
+      "setup": true,
       "passed": true,
-      "checks": 2
+      "checks": 0
     },
     {
       "index": 50,
-      "call": "nx_create_sew",
-      "setup": false,
+      "call": "nx_create_spline",
+      "setup": true,
       "passed": true,
-      "checks": 2
+      "checks": 0
     },
     {
       "index": 51,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 52,
       "call": "nx_create_sew",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 52,
-      "call": "nx_create_spline",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
       "index": 53,
-      "call": "nx_create_spline",
-      "setup": true,
+      "call": "nx_create_sew",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 54,
-      "call": "nx_create_spline",
-      "setup": true,
+      "call": "nx_create_sew",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 5
     },
     {
       "index": 55,
@@ -405,7 +405,7 @@
     },
     {
       "index": 56,
-      "call": "nx_create_mesh_surface",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -426,27 +426,48 @@
     },
     {
       "index": 59,
-      "call": "nx_create_spline",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 60,
       "call": "nx_create_mesh_surface",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
+      "index": 60,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
       "index": 61,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 62,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 63,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 64,
       "call": "nx_create_sew",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 62,
+      "index": 65,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

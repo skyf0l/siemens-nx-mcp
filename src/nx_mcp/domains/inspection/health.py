@@ -20,6 +20,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit
 from nx_mcp.domains.inspection import voids
 from nx_mcp.kit import bodies, expr, measure, parts, result
+from nx_mcp.kit import features as kfeatures
 
 
 class Issue(TypedDict, total=False):
@@ -86,6 +87,9 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
     features = solids = 0
     for owner in checked.values():
         where = tx.services.part_path(owner)
+        # Feature.Suppressed is also True for features rolled back after the current
+        # feature; only the user's suppressions are issues.
+        held = {t for t, (_f, user, _a) in kfeatures.states(tx, owner).items() if user}
         for feature in owner.Features:
             features += 1
             if features % 200 == 0:
@@ -106,7 +110,7 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
                             "message": str(message),
                         }
                     )
-            if feature.Suppressed:
+            if int(feature.Tag) in held:
                 issues.append(
                     {
                         "severity": "info",
@@ -184,6 +188,9 @@ def nx_check_model(
     }
 
 
+visible_features = kfeatures.timeline  # the Part Navigator's features, timeline order
+
+
 class SummaryData(TypedDict, total=False):
     section: str
     part: result.Row
@@ -208,7 +215,7 @@ def overview(tx):
         "modified": bool(part.IsModified),
         "counts": {
             "bodies": len(found),
-            "features": len(list(part.Features)),
+            "features": len(visible_features(part)),
             "sketches": len(list(part.Sketches)),
             "expressions": len(list(part.Expressions)),
             "components": len(parts.components(part)),
@@ -234,15 +241,27 @@ def _section_rows(tx, section, selected):
             for c, path in selected
         ]
     if section == "features":
-        return [
-            {
-                **tx.ref(f, kind="feature"),
-                "type": str(f.FeatureType).lower(),
-                "suppressed": bool(f.Suppressed),
-                "parents": [tx.ref(p, kind="feature")["id"] for p in f.GetParents()],
-            }
-            for f in selected
-        ]
+        state = {}
+        for f in selected:  # by owning part: user suppression vs rolled back (inactive)
+            part = getattr(f, "OwningPart", None) or tx.part
+            if int(part.Tag) not in state:
+                state[int(part.Tag)] = kfeatures.states(tx, part)
+        rows = []
+        for f in selected:
+            part = getattr(f, "OwningPart", None) or tx.part
+            _f, user, active = state[int(part.Tag)].get(
+                int(f.Tag), (f, bool(getattr(f, "Suppressed", False)), True)
+            )
+            rows.append(
+                {
+                    **tx.ref(f, kind="feature"),
+                    "type": str(f.FeatureType).lower(),
+                    "suppressed": user,
+                    "active": active,
+                    "parents": [tx.ref(p, kind="feature")["id"] for p in f.GetParents()],
+                }
+            )
+        return rows
     if section == "expressions":
         return [
             {
@@ -279,7 +298,7 @@ def nx_get_model_summary(
     part = tx.part
     pool = {
         "components": lambda: parts.components(part),
-        "features": lambda: list(part.Features),
+        "features": lambda: visible_features(part),
         "expressions": lambda: sorted(part.Expressions, key=lambda e: str(e.Name)),
         "sketches": lambda: list(part.Sketches),
     }[section]()

@@ -542,6 +542,14 @@ def _top3(query):
         ("measure distance", ["nx_measure_distance"]),
         ("screenshot", ["nx_capture_view"]),
         ("mate parts", ["nx_create_assembly_constraint"]),
+        # pump-cover benchmark misses (2026-10-11)
+        ("isometric view", ["nx_create_drawing_view"]),
+        ("rectangle sketch", ["nx_create_sketch"]),
+        ("list edges", ["nx_list_objects", "nx_find_geometry"]),
+        ("new assembly part", ["nx_create_part"]),
+        ("assembly constraints status", ["nx_list_objects"]),
+        ("edges in drawing view", ["nx_find_geometry"]),
+        ("redo", ["nx_undo_operation"]),
     ],
 )
 def test_find_puts_the_expected_tools_in_the_top_three(query, expected):
@@ -592,7 +600,7 @@ async def test_find_queries_returns_the_top_tools_per_task(tmp_path, every_tool)
     assert "matched" not in data["results"][0]["tools"][0]  # one word: nothing to say
     both = body(await agent.call_tool("nx_find_tools", {"query": "x", "queries": ["revolve"]}))
     assert both["error"]["code"] == "NX_INVALID_ARGUMENT" and "not both" in both["error"]["message"]
-    for bad in ([], ["a"] * 11, [""]):
+    for bad in ([], ["a"] * 21, [""]):
         refused = body(await agent.call_tool("nx_find_tools", {"queries": bad}))
         assert refused["error"]["code"] == "NX_INVALID_ARGUMENT", bad
 
@@ -835,3 +843,18 @@ def test_read_results_keep_their_body_lists():
     full = {"ok": True, "tool": "nx_list_bodies", "mutation_outcome": "not_applicable",
             "data": {"bodies": bodies}}  # fmt: skip
     assert _project(full, _Store())["data"]["bodies"] == bodies
+
+
+async def test_find_hints_only_at_several_tasks_and_notes_what_is_missing(tmp_path, every_tool):
+    agent = server(tmp_path)
+
+    async def find(arguments):
+        return body(await agent.call_tool("nx_find_tools", arguments))["data"]
+
+    for single in ("assembly constraints status", "edges in drawing view", "new assembly part"):
+        assert "hint" not in await find({"query": single}), single
+    assert "queries" in (await find({"query": "extrude sketch, then pattern holes"}))["hint"]
+    redo = await find({"query": "redo"})
+    assert redo["tools"][0]["name"] == "nx_undo_operation" and "no redo" in redo["note"]
+    many = await find({"queries": [f"task {i}" for i in range(20)]})
+    assert len(many["results"]) == 20

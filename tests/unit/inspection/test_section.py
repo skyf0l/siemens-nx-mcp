@@ -118,7 +118,7 @@ def test_an_empty_cut_warns():
     ("args", "field"),
     [
         ({}, "/plane"),
-        ({"plane": "xy", "radial_axis": "z"}, "/plane"),
+        ({"plane": "xy", "radial_axis": "z"}, "/radial_axis"),
         ({"normal": [0, 0, 1], "offset": 2}, "/offset"),
         ({"plane": "xy", "at": [1]}, "/at"),
         ({"normal": [0, 0, 0]}, "/normal"),
@@ -130,3 +130,44 @@ def test_bad_arguments_are_refused_before_nx(args, field):
     bad = run(nx, "nx_measure_section", **args)
     assert bad.error["field"] == field and bad.mutation_outcome == "not_applicable"
     assert nx.planes == []
+
+
+def test_cut_choice_errors_say_what_to_send():
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    both = run(nx, "nx_measure_section", plane="xz", radial_axis="z", stations=3)
+    assert (
+        "mutually exclusive" in both.error["message"]
+        and "plane and radial_axis" in (both.error["message"])
+    )
+    assert "radial_axis:'z'" in both.error["hint"]
+    none = run(nx, "nx_measure_section")
+    assert none.error["field"] == "/plane" and "offset:5" in none.error["hint"]
+    stations = run(nx, "nx_measure_section", plane="yz", at=[10, 50])
+    assert "radial_axis" in stations.error["message"] and "offset" in stations.error["hint"]
+
+
+def test_offset_takes_a_unit_string():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    nx.section_cuts[int(body.Tag)] = [
+        ("line", [0.0, 0.0, 5.0], [10.0, 0.0, 5.0]),
+        ("line", [10.0, 0.0, 5.0], [10.0, 10.0, 5.0]),
+        ("line", [10.0, 10.0, 5.0], [0.0, 10.0, 5.0]),
+        ("line", [0.0, 10.0, 5.0], [0.0, 0.0, 5.0]),
+    ]
+    ok = run(nx, "nx_measure_section", plane="xy", offset="5 mm")
+    assert ok.ok and nx.planes[-1][0] == [0.0, 0.0, 5.0], ok
+    assert ok.data["area"] == pytest.approx(100)
+    inch = run(nx, "nx_measure_section", plane="xy", offset="0.1 in")
+    assert nx.planes[-1][0] == pytest.approx([0.0, 0.0, 2.54]) and inch.ok
+
+
+def test_an_empty_cut_says_where_the_bodies_are():
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    ok = run(nx, "nx_measure_section", plane="xy", offset=99)
+    message = ok.warnings[0]["message"]
+    assert "the plane is at z = 99" in message and "z 0 to 10" in message, message
+    general = run(nx, "nx_measure_section", origin=[0, 0, 50], normal=[0, 0, 1])
+    assert "-50 to -40 from the plane" in general.warnings[0]["message"]

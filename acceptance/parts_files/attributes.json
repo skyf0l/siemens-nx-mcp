@@ -537,6 +537,158 @@
    }
   },
   {
+   "call": "nx_set_attributes",
+   "args": {
+    "attributes": {
+     "MAP_TEXT": "steel plate",
+     "MAP_QTY": 4,
+     "MAP_MASS": 1.25,
+     "MAP_OK": true,
+     "MASS_TARGET": 2,
+     "RELEASED": "true",
+     "RELEASE_DATE": "2031-03-01"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.attributes": {
+     "count": 7
+    },
+    "data.items.0.attributes.0.type": "string",
+    "data.items.0.attributes.0.value": "steel plate",
+    "data.items.0.attributes.1.type": "integer",
+    "data.items.0.attributes.1.value": 4,
+    "data.items.0.attributes.2.type": "number",
+    "data.items.0.attributes.2.value": {
+     "close": 1.25,
+     "tol": 1e-12
+    },
+    "data.items.0.attributes.3.type": "boolean",
+    "data.items.0.attributes.3.value": true,
+    "data.items.0.attributes.4.type": "number",
+    "data.items.0.attributes.4.value": {
+     "close": 2.0,
+     "tol": 1e-12
+    },
+    "data.items.0.attributes.5.type": "boolean",
+    "data.items.0.attributes.5.value": true,
+    "data.items.0.attributes.6.type": "date",
+    "data.items.0.attributes.6.value": "2031-03-01T00:00:00",
+    "data.items.0.created": [
+     "MAP_TEXT",
+     "MAP_QTY",
+     "MAP_MASS",
+     "MAP_OK"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "values": [
+     {
+      "name": " MAP_QTY ",
+      "value": "5"
+     },
+     {
+      "name": "MAP_COUNT",
+      "type": "integer",
+      "value": "12"
+     },
+     {
+      "name": "MAP_FLAG",
+      "type": "boolean",
+      "value": "no"
+     },
+     {
+      "name": "MAP_NUM_TEXT",
+      "type": "string",
+      "value": 7
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.attributes.0.name": "MAP_QTY",
+    "data.items.0.attributes.0.type": "integer",
+    "data.items.0.attributes.0.value": 5,
+    "data.items.0.attributes.1.value": 12,
+    "data.items.0.attributes.2.value": false,
+    "data.items.0.attributes.3.value": "7",
+    "data.items.0.created": [
+     "MAP_COUNT",
+     "MAP_FLAG",
+     "MAP_NUM_TEXT"
+    ]
+   }
+  },
+  {
+   "call": "nx_get_attributes",
+   "args": {
+    "names": [
+     " map_qty",
+     "MAP_NOPE"
+    ]
+   },
+   "expect": {
+    "data.items.0.attributes": {
+     "count": 1
+    },
+    "data.items.0.attributes.0.value": 5,
+    "data.items.0.missing": [
+     "MAP_NOPE"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "attributes": {
+     "MAP_QTY": "five"
+    }
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.field": "/attributes/MAP_QTY",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "attributes": {
+     "MAP_X": [
+      1
+     ]
+    }
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/attributes/MAP_X",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_attributes",
+   "args": {
+    "delete": [
+     "MAP_TEXT",
+     "MAP_QTY",
+     "MAP_MASS",
+     "MAP_OK",
+     "MAP_COUNT",
+     "MAP_FLAG",
+     "MAP_NUM_TEXT"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.items.0.deleted": {
+     "count": 7
+    }
+   }
+  },
+  {
    "call": "nx_list_objects",
    "setup": true,
    "save": "faces",

@@ -13,7 +13,7 @@ import pytest
 from nx_mcp.kit import geom
 from tests.kit import fake_nx, run
 from tests.kit.fake import Factories
-from tests.kit.objects import Body, Face, Feature, Object, Part, matrix, point
+from tests.kit.objects import Body, Edge, Face, Feature, Object, Part, matrix, point
 from tests.unit.assembly.fakes import nx_matrix
 
 TYPES = NS(BodyLink="body", FaceLink="face", CurveLink="curve", DatumLink="datum",
@@ -38,6 +38,24 @@ class Comp(Object):
     def FindOccurrence(self, obj):
         return self.occurrences.get(int(obj.Tag))
 
+    def GetChildren(self):
+        return []
+
+
+def wire(faces):
+    """Shared edges: a box (0 top, 1-4 sides, 5 bottom) for six faces, else a chain."""
+    pairs = [(i, i + 1) for i in range(len(faces) - 1)]
+    if len(faces) == 6:
+        pairs = [(0, k) for k in range(1, 5)] + [(5, k) for k in range(1, 5)]
+        pairs += [(k, k % 4 + 1) for k in range(1, 5)]
+    edges = {i: [] for i in range(len(faces))}
+    for i, j in pairs:
+        edge = Edge("EDGE")
+        edges[i].append(edge)
+        edges[j].append(edge)
+    for i, face in enumerate(faces):
+        face.GetEdges = lambda i=i: edges[i]
+
 
 class World:
     """Assembly ``asm`` (display) with components A (source) and B (work part)."""
@@ -61,6 +79,8 @@ class World:
         self.B = Comp(self, self.b, "B", *b_pose)
         self.A.ref = nx.ref_of(self.A, "component")
         self.B.ref = nx.ref_of(self.B, "component")
+        self.children = [self.A, self.B]
+        self.asm.ComponentAssembly = NS(RootComponent=NS(GetChildren=lambda: self.children))
         parts = nx.session.Parts
         parts.Display, parts.Work, parts.WorkComponent = self.asm, self.b, self.B
         nx.on_commit("WaveLinkBuilder", self._link)
@@ -94,12 +114,14 @@ class World:
         body = self.own(Body("BODY"), part, "body")
         body.volume = volume
         body.faces = [self.face(part, area, body) for area in faces]
+        wire(body.faces)
         part.Bodies.append(body)
         return body
 
     def face(self, part, area, body=None):
         f = self.own(Face("FACE"), part, "face")
         f.area, f.GetBody = area, lambda: body
+        f.GetEdges = list
         return f
 
     def curve(self, part, length, edge=False):
@@ -308,7 +330,6 @@ def test_refusals_change_nothing(w):
     parts = w.nx.session.Parts
     cases = [
         ({"kind": "face", "sources": [body.ref], "component": w.A.ref}, "/sources/0"),
-        ({"kind": "body", "sources": [body.ref]}, "/component"),
         ({"kind": "body", "sources": [body.ref], "component": w.B.ref}, "/sources/0"),
         ({"kind": "body", "sources": [mine.ref], "component": w.B.ref}, "/sources/0"),
         ({"kind": "body", "sources": [body.ref, body.ref], "component": w.A.ref}, "/sources/1"),
@@ -372,3 +393,75 @@ def test_extract_refusals(w, args, field):
     out = run(w.nx, "nx_create_extract", **args)
     assert out.error["field"] == field and out.mutation_outcome == "not_started", out
     assert not any(b.kind == "ExtractFaceBuilder" for b in w.nx.builders)
+
+
+def test_a_part_object_finds_the_one_component_that_shows_it(w):
+    body = w.body(w.a)
+    w.occurrence(body)
+    ok = link(w, kind="body", sources=[body.ref])
+    assert ok.ok and ok.data["volume"] == 6000, ok
+    assert ok.data["sources"][0]["name"] == "A/BODY"  # not the occurrence's NX handle
+    collector = w.nx.last("WaveLinkBuilder").ExtractFaceBuilder.ExtractBodyCollector
+    assert collector.ReplaceRules.calls[-1][0][0][0][1][0].OwningComponent is w.A
+
+
+def test_a_part_object_shown_twice_or_never_names_what_to_pass(w):
+    body = w.body(w.a)
+    hidden = link(w, kind="body", sources=[body.ref])
+    assert hidden.error["code"] == "NX_NOT_FOUND" and hidden.error["field"] == "/sources/0"
+    w.occurrence(body)
+    again = Comp(w, w.a, "A2", (0, 50, 0))
+    again.ref = w.nx.ref_of(again, "component")
+    w.children.append(again)
+    w.occurrence(body, again)
+    out = link(w, kind="body", sources=[body.ref])
+    assert out.error["field"] == "/component" and out.mutation_outcome == "not_started", out
+    assert out.error["details"]["components"] == [w.A.ref, again.ref]
+    assert link(w, kind="body", sources=[body.ref], component=again.ref).ok
+
+
+def test_a_component_source_links_every_solid_body_it_shows(w):
+    one, two = w.body(w.a, volume=6000.0), w.body(w.a, volume=500.0)
+    sheet = w.body(w.a, volume=0.0)
+    sheet.IsSolidBody = False
+    for body in (one, two, sheet):
+        w.occurrence(body)
+    ok = link(w, kind="body", sources=[w.A.ref])
+    assert ok.ok and ok.data["volume"] == 6500, ok
+    assert [r["name"] for r in ok.data["sources"]] == ["A/BODY", "A/BODY"]
+    other = link(w, kind="body", sources=[w.A.ref], component=w.B.ref)
+    assert other.error["code"] == "NX_WRONG_OWNER" and other.error["field"] == "/sources/0"
+    face = link(w, kind="face", sources=[w.A.ref])
+    assert face.error["code"] == "NX_WRONG_KIND" and "nx_find_geometry" in face.error["hint"]
+    empty = World()
+    out = link(empty, kind="body", sources=[empty.A.ref])
+    assert out.error["code"] == "NX_NOT_FOUND" and out.mutation_outcome == "not_started"
+
+
+def test_a_wrong_context_names_the_part_to_make_work(w):
+    body = w.body(w.a)
+    w.occurrence(body)
+    w.nx.session.Parts.Work = w.asm
+    out = link(w, kind="body", sources=[body.ref])
+    assert out.error["code"] == "NX_WRONG_PART_CONTEXT", out
+    targets = out.error["details"]["targets"]
+    assert [t["component"] for t in targets] == [w.A.ref, w.B.ref]
+    assert f"nx_activate_part(part='{targets[0]['part']}', display=false)" in out.error["hint"]
+    w.nx.session.Parts.Work = w.b
+    mine = w.body(w.b)
+    out = link(w, kind="body", sources=[mine.ref])
+    assert out.error["field"] == "/sources/0" and "display=false" in out.error["hint"]
+
+
+def test_extract_faces_must_form_one_connected_set(w):
+    body = w.body(w.b, faces=(200, 600, 600, 300, 300, 200))
+    top, bottom = body.faces[0], body.faces[5]
+    other = w.body(w.b)
+    for faces, field in (([top, bottom], "/objects/1"), ([top, other.faces[0]], "/objects/1")):
+        out = run(w.nx, "nx_create_extract", kind="face", objects=[f.ref for f in faces])
+        assert out.error["field"] == field and out.mutation_outcome == "not_started", out
+        assert "connected" in out.error["message"]
+    assert not any(b.kind == "ExtractFaceBuilder" for b in w.nx.builders)
+    side = body.faces[1]
+    ok = run(w.nx, "nx_create_extract", kind="face", objects=[top.ref, side.ref, bottom.ref])
+    assert ok.ok and ok.data["area"] == 1000, ok

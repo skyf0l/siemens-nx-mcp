@@ -13,11 +13,16 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, EdgeRef, ExplosionRef, Length, Point3, Range, RefTo, Vec3
+from nx_mcp.core.types import Doc, Length, Point3, Range, RefTo, Vec3
 from nx_mcp.domains.assembly import common, exploded
 from nx_mcp.kit import builders, geom, model, readback, result, select
 
-Percent = Annotated[float, Range(ge=0, le=100), Doc("Percent of the edge's arc length")]
+Percent = Annotated[float, Range(ge=0, le=100), Doc("0-100 % of the edge's arc length")]
+Direction = Annotated[
+    tuple[float, float, float], Doc("Direction the line leaves this anchor; default +Z")
+]
+TraceEdge = Annotated[str, RefTo("edge", doc="Edge id 'e:N' of a component in the explosion")]
+TraceId = Annotated[str, RefTo("traceline", doc="Trace id 'tl:N'")]
 
 
 class TraceData(TypedDict, total=False):
@@ -25,8 +30,43 @@ class TraceData(TypedDict, total=False):
     explosion: result.Row
     start: Point3
     end: Point3
+    start_edge: result.Row
+    end_edge: result.Row
+    start_percent: float
+    end_percent: float
+    start_direction: Vec3
+    end_direction: Vec3
     start_offset: float
     end_offset: float
+
+
+def _name(part) -> str:
+    """A free ``TRACE<n>`` name (NX would show a journal identifier)."""
+    taken = {
+        str(getattr(x, "Name", "")).casefold() for x in getattr(part, "Tracelines", None) or []
+    }
+    n = 1
+    while f"trace{n}" in taken:
+        n += 1
+    return f"TRACE{n}"
+
+
+def _row(tx, line, ex, records) -> TraceData:
+    """The trace, its endpoints, anchor edges, percents and leg offsets."""
+    start, end = exploded.endpoints(line)
+    edges = exploded.anchor_edges(tx, ex, records)
+    return {
+        "trace": tx.ref(line, "traceline"),
+        "explosion": tx.ref(ex, "explosion"),
+        "start": start,
+        "end": end,
+        "start_edge": tx.ref(edges[0], "edge"),
+        "end_edge": tx.ref(edges[1], "edge"),
+        "start_percent": float(records[0]["percent"]),
+        "end_percent": float(records[1]["percent"]),
+        "start_offset": float(line.StartOffset),
+        "end_offset": float(line.EndOffset),
+    }
 
 
 def _edge(tx, ref, entries, field):
@@ -57,17 +97,16 @@ def _edge(tx, ref, entries, field):
 def nx_create_explosion_trace(
     tx: Tx,
     *,
-    explosion: ExplosionRef,
-    start_edge: EdgeRef,
-    end_edge: EdgeRef,
+    explosion: common.ExplosionId,
+    start_edge: TraceEdge,
+    end_edge: TraceEdge,
     start_percent: Percent = 0,
     end_percent: Percent = 0,
-    start_direction: Annotated[Vec3, Doc("Leaving direction at the start, default +Z")]
-    | None = None,
-    end_direction: Annotated[Vec3, Doc("Leaving direction at the end, default +Z")] | None = None,
+    start_direction: Direction | None = None,
+    end_direction: Direction | None = None,
 ) -> TraceData:
     """Draw a trace line between edges of two components in an explosion. Each end sits at a
-    percentage of its edge's length and follows later explosion edits."""
+    percent of its edge's arc length and follows later explosion edits."""
     directions = [
         geom.unit(v if v is not None else [0.0, 0.0, 1.0], field)
         for v, field in ((start_direction, "/start_direction"), (end_direction, "/end_direction"))
@@ -107,6 +146,7 @@ def nx_create_explosion_trace(
         )
         encoded = json.dumps(records)
         line.SetAttribute(exploded.TRACE_ATTRIBUTE, encoded)
+        line.SetName(_name(part))
     readback.expect(
         line.GetStringAttribute(exploded.TRACE_ATTRIBUTE) == encoded, "anchors",
         "NX did not keep the trace anchors",
@@ -115,12 +155,9 @@ def nx_create_explosion_trace(
     start, end = exploded.endpoints(line)
     readback.expect_close(start, positions[0], "start")
     readback.expect_close(end, positions[1], "end")
-    return {
-        "trace": tx.ref(line, "traceline"),
-        "explosion": tx.ref(ex, "explosion"),
-        "start": start,
-        "end": end,
-    }
+    out = _row(tx, line, ex, records)
+    out["start_direction"], out["end_direction"] = directions
+    return out
 
 
 @tool(
@@ -137,17 +174,18 @@ def nx_create_explosion_trace(
 def nx_edit_explosion_trace(
     tx: Tx,
     *,
-    trace: Annotated[str, RefTo("traceline")],
+    trace: TraceId,
     start_percent: Percent | None = None,
     end_percent: Percent | None = None,
-    start_offset: Annotated[Length, Doc("Straight leg length at the start")] | None = None,
-    end_offset: Annotated[Length, Doc("Straight leg length at the end")] | None = None,
+    start_offset: Length | None = None,
+    end_offset: Length | None = None,
 ) -> TraceData:
-    """Move a trace line's anchors along their edges or change its end offsets; the
-    anchors stay on the same component edges."""
+    """Slide a trace's anchors along their edges (percent) or set its end legs. An offset is
+    a straight leg leaving the anchor; anchors stay put."""
     given = (start_percent, end_percent, start_offset, end_offset)
     if all(v is None for v in given):
-        fail("NX_INVALID_ARGUMENT", "Give a percent or an offset")
+        fail("NX_INVALID_ARGUMENT", "Give start/end_percent or start/end_offset",
+             hint='e.g. {"trace": "tl:6", "start_percent": 50}')  # fmt: skip
     with tx.checks():
         line = select.resolve(tx, trace, "traceline", field="/trace")
         if not exploded.is_managed(tx, line):
@@ -170,12 +208,4 @@ def nx_edit_explosion_trace(
     for name, offset in (("StartOffset", start_offset), ("EndOffset", end_offset)):
         if offset is not None:
             readback.expect_close(float(getattr(line, name)), offset, name)
-    start, end = exploded.endpoints(line)
-    return {
-        "trace": tx.ref(line, "traceline"),
-        "explosion": tx.ref(ex, "explosion"),
-        "start": start,
-        "end": end,
-        "start_offset": float(line.StartOffset),
-        "end_offset": float(line.EndOffset),
-    }
+    return _row(tx, line, ex, records)

@@ -4,14 +4,24 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, DrawingSheetRef, Name, PathTo, Range, Text, Units
-from nx_mcp.kit import drawing, readback, result, select
+from nx_mcp.core.types import Doc, Name, PathTo, Text, Units
+from nx_mcp.domains.drawing.common import (
+    Loose,
+    ScaleArg,
+    SheetArg,
+    choice,
+    scale_terms,
+    scale_value,
+    sheet_of,
+)
+from nx_mcp.kit import drawing, readback, result
 from nx_mcp.kit import units as kit_units
 
 SIZES = {
@@ -22,6 +32,12 @@ SIZES = {
     "a4": (297.0, 210.0),
 }
 PROJECTIONS = {"first_angle": "First", "third_angle": "Third"}
+PROJECTION_ALIASES = {
+    k: v
+    for v, names in (("first_angle", ("first", "1st", "1st_angle", "iso", "european")),
+                     ("third_angle", ("third", "3rd", "3rd_angle", "ansi", "american")))
+    for k in names
+}  # fmt: skip
 SIZE_TOL_MM = 0.5
 
 
@@ -73,8 +89,25 @@ def _projection(tx, sheet):
     return "third_angle" if sheet.ProjectionAngle == third else "first_angle"
 
 
+def _size(value):
+    """``a0``..``a4`` from 'A3', 'iso a3' or 'A3 landscape'; [width, height] as a list."""
+    if value is None or isinstance(value, (list, tuple)):
+        return None if value is None else list(value)
+    key = re.sub(r"[^a-z0-9]", "", str(value).casefold())
+    key = key.removeprefix("iso").removesuffix("landscape")
+    if key in SIZES:
+        return key
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"Unknown sheet size {value!r}",
+        field="/size",
+        hint="Use 'a0'-'a4' (any case) or [width, height] in the sheet units, e.g. [11, 8.5] "
+        "with units 'in' for letter",
+    )
+
+
 def _summary(args, say):
-    what = say("size") if isinstance(args.get("size"), str) else "custom size"
+    what = f"{args['size']}".upper() if isinstance(args.get("size"), str) else "custom size"
     if args.get("template") or args.get("template_path"):
         what = "from template"
     return f"Drawing sheet {args['name']} {what}" if args.get("name") else f"Drawing sheet {what}"
@@ -95,17 +128,23 @@ def nx_create_drawing_sheet(
     *,
     name: Name | None = None,
     size: Literal["a0", "a1", "a2", "a3", "a4"]
+    | Loose
     | Annotated[tuple[float, float], Doc("[width, height]")]
     | None = None,
-    scale: Annotated[float, Range(gt=0, le=1000), Doc("Sheet scale, e.g. 2 = 2:1")] = 1.0,
+    scale: ScaleArg = 1.0,
     units: Units = "mm",
-    projection: Literal["first_angle", "third_angle"] = "third_angle",
+    projection: Literal["first_angle", "third_angle"] | Loose = "third_angle",
     template: TemplateName | None = None,
     template_path: Annotated[str, PathTo("read", ".prt")] | None = None,
 ) -> SheetData:
     """Create a drawing sheet from a standard or custom size or a sheet template, and open
-    it. Default A3; the installed A0-A4 templates are metric."""
-    custom = list(size) if isinstance(size, (list, tuple)) else None
+    it. Default A3; the installed A0-A4 templates are metric. Views take the sheet scale
+    by default."""
+    standard = _size(size)
+    custom = standard if isinstance(standard, list) else None
+    standard = standard if isinstance(standard, str) else None
+    ratio = float(scale_value(scale) or 1.0)
+    projection = choice(projection, PROJECTIONS, "/projection", PROJECTION_ALIASES)
     if custom is not None and not (custom[0] > 0 and custom[1] > 0):
         fail("NX_INVALID_ARGUMENT", "width and height must be positive", field="/size")
     if template is not None and template_path is not None:
@@ -139,10 +178,7 @@ def nx_create_drawing_sheet(
             width, height = (
                 custom
                 if custom
-                else [
-                    v / (25.4 if units == "in" else 1.0)
-                    for v in SIZES[size if isinstance(size, str) else "a3"]
-                ]
+                else [v / (25.4 if units == "in" else 1.0) for v in SIZES[standard or "a3"]]
             )
             b.Length, b.Height = float(width), float(height)
         else:
@@ -152,8 +188,7 @@ def nx_create_drawing_sheet(
             else:
                 b.EnglishSheetTemplateLocation = str(path)
             b.AutoStartViewCreation = False
-        b.ScaleNumerator = float(scale)
-        b.ScaleDenominator = 1.0
+        b.ScaleNumerator, b.ScaleDenominator = scale_terms(ratio)
         b.ProjectionAngle = getattr(b.SheetProjectionAngle, PROJECTIONS[projection])
         try:
             b.Commit()
@@ -181,7 +216,7 @@ def nx_create_drawing_sheet(
     angle = getattr(
         tx.nx.Drawings.DrawingSheet.ProjectionAngleType, PROJECTIONS[projection] + "Angle"
     )
-    sheet.SetParameters(sheet.Height, sheet.Length, float(scale), 1.0, sheet.Units, angle)
+    sheet.SetParameters(sheet.Height, sheet.Length, *scale_terms(ratio), sheet.Units, angle)
     drawing.open_sheet(tx, sheet, part)
     actual_units = kit_units.sheet_units(tx, sheet)
     dims = drawing.size(sheet)
@@ -194,10 +229,10 @@ def nx_create_drawing_sheet(
         "name": sheet.Name,
         "size": _standard(dims_mm),
     }
-    wanted_size = size if isinstance(size, str) else ("a3" if path is None and not custom else None)
+    wanted_size = standard or ("a3" if path is None and not custom else None)
     readback.expect(
         actual["units"] == units
-        and math.isclose(actual["scale"], scale, rel_tol=1e-10)
+        and math.isclose(actual["scale"], ratio, rel_tol=1e-10)
         and actual["projection"] == projection
         and actual["name"] == name
         and (wanted_size is None or actual["size"] == wanted_size),
@@ -214,7 +249,7 @@ def nx_create_drawing_sheet(
             "its printed projection symbol is border graphics and was not changed",
         )
     if path is not None and not math.isclose(
-        template_scale[0] / template_scale[1], scale, rel_tol=1e-10
+        template_scale[0] / template_scale[1], ratio, rel_tol=1e-10
     ):
         tx.warn(
             "NX_UPDATE_WARNING",
@@ -278,16 +313,12 @@ def sheet_rows(tx, part):
 def nx_activate_drawing_sheet(
     tx: Tx,
     *,
-    sheet: DrawingSheetRef | None = None,
+    sheet: SheetArg | None = None,
 ) -> ActivateData:
-    """Open a drawing sheet of the work part, or return to the modeling view when sheet is
-    omitted. Lists the part's sheets with their views."""
+    """Open a drawing sheet of the work part by ref or name, or return to modeling when
+    sheet is omitted. Lists the part's sheets with their views."""
     with tx.checks():
-        target = (
-            select.resolve(tx, sheet, "drawing_sheet", field="/sheet", work_part=True)
-            if sheet
-            else None
-        )
+        target = sheet_of(tx, sheet, "/sheet") if sheet else None
         part = tx.part
         if tx.session.Parts.Display != part:
             fail(

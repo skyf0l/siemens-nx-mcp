@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/sync_edits.json",
-  "scenario_sha256": "02972f3689539eb4cfba5e2d3262e7e4229bc533dda44d488c25821303f90caf",
+  "scenario_sha256": "2da6302fc570b900076b18696eaa05b0b7d8e7700ca14eb1b2638791599a397f",
   "domain": "modeling",
   "covers": {
     "nx_edit_faces": [
@@ -16,11 +16,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_faces": "d4f41cb052ed1e2e7a4646123a925aef8648abed0acd047f7bbd64717077b1cf"
+    "nx_edit_faces": "807b87f9fd2d025fd8dded8e00cc1318006637d9c455d0b21be366691659fc8b"
   },
-  "recorded": "2026-10-10T17:38:42Z",
+  "recorded": "2026-10-10T23:30:18Z",
   "passed": true,
-  "checks": 32,
+  "checks": 33,
   "failed_checks": 0,
   "steps": [
     {
@@ -154,7 +154,7 @@
       "call": "nx_edit_faces",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 20,

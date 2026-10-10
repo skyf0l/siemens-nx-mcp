@@ -177,7 +177,10 @@
     "type": "projected",
     "parent": "$top.data.view.id",
     "direction": "bottom",
-    "spacing": 60
+    "position": [
+     120,
+     140
+    ]
    }
   },
   {

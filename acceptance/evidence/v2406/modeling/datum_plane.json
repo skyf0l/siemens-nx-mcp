@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/datum_plane.json",
-  "scenario_sha256": "c096f7b9143dee4aa17368f1d1f7cddd6b5dbb88a887a26fea895a38b2e013be",
+  "scenario_sha256": "c0801192c1f87501a2d3eb1707df8db871100572fdf5c49493d0501cd78909ca",
   "domain": "modeling",
   "covers": {
     "nx_create_datum_plane": [
@@ -13,11 +13,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_datum_plane": "c1688402dec75186787432a0ec326cb5ab8ec300c203749d7c6c5bb9e76d4474"
+    "nx_create_datum_plane": "904b74b2a0b8dc78aad584caf8b004e218af6b9cab36da344d9d30fcc1d5a637"
   },
-  "recorded": "2026-10-10T13:12:43Z",
+  "recorded": "2026-10-10T22:57:34Z",
   "passed": true,
-  "checks": 22,
+  "checks": 38,
   "failed_checks": 0,
   "steps": [
     {
@@ -88,7 +88,7 @@
       "call": "nx_create_datum_plane",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 11,
@@ -120,6 +120,41 @@
     },
     {
       "index": 15,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 20,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

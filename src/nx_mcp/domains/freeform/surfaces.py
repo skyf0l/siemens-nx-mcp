@@ -13,6 +13,8 @@ NX 2406 lessons kept here:
 - Native refusals of a mesh network (curves not intersecting within tolerance,
   670946) are ``NX_BUILD_FAILED`` with ``nx_code``.
 - Section and builder tolerances are 0.001 mm in part units (inch parts scale).
+- A mesh section is one curve ref or a list of curve refs (a chain); a flat list of
+  refs is one curve per section.
 """
 
 from __future__ import annotations
@@ -26,7 +28,8 @@ from nx_mcp.core.types import CurveRef, Doc, EdgeRef, Items, Length
 from nx_mcp.domains.freeform import common
 from nx_mcp.kit import builders, curve, geom, readback, select, surface, units
 
-Section = Annotated[list[CurveRef], Items(1, 100), Doc("Curves of one section, in order")]
+MAX_SECTION = 100
+Section = Annotated[list[CurveRef], Items(1, MAX_SECTION)] | CurveRef
 MAX_CURVES = 1000
 
 # Read-back tolerances: angle in degrees; curvature 0.01 1/mm (scaled to part units).
@@ -42,20 +45,29 @@ BRIDGE_HINT = (
 # Through Curve Mesh
 
 
-def _distinct(groups, field, seen):
-    for i, refs in enumerate(groups):
-        for j, ref in enumerate(refs):
+def _groups(raw, field):
+    """``[(refs, field of each ref)]`` of the sections (a single ref is a one-curve one)."""
+    out = []
+    for i, section in enumerate(raw):
+        if isinstance(section, str):
+            out.append(([section], [f"{field}/{i}"]))
+        else:
+            out.append((list(section), [f"{field}/{i}/{j}" for j in range(len(section))]))
+    return out
+
+
+def _distinct(groups, seen):
+    for refs, fields in groups:
+        for ref, where in zip(refs, fields, strict=True):
             if ref in seen:
-                fail(
-                    "NX_INVALID_ARGUMENT", f"Curve {ref} is listed twice", field=f"{field}/{i}/{j}"
-                )
+                fail("NX_INVALID_ARGUMENT", f"Curve {ref} is listed twice", field=where)
             seen.add(ref)
 
 
-def _sections(tx, groups, field):
+def _sections(tx, groups):
     return [
-        [select.one(tx, ref, "curve", field=f"{field}/{i}/{j}") for j, ref in enumerate(refs)]
-        for i, refs in enumerate(groups)
+        [select.one(tx, ref, "curve", field=where) for ref, where in zip(refs, fields, strict=True)]
+        for refs, fields in groups
     ]
 
 
@@ -67,7 +79,7 @@ def _sections(tx, groups, field):
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
-    example={"primary": [["c:1"], ["c:2"]], "cross": [["c:3"], ["c:4"]]},
+    example={"primary": ["c:1", "c:2"], "cross": [["c:3"], ["c:4", "c:5"]]},
 )
 def nx_create_mesh_surface(
     tx: Tx,
@@ -76,17 +88,18 @@ def nx_create_mesh_surface(
     cross: Annotated[list[Section], Items(2, 100)],
     tolerance: Annotated[Length, Doc("Position and intersection tolerance")] | None = None,
 ) -> common.SheetData:
-    """Create a Through Curve Mesh sheet from primary and cross curve sections that form an
-    intersecting network. Use nx_create_loft for sketch sections."""
-    total = sum(len(s) for s in [*primary, *cross])
+    """Create a Through Curve Mesh sheet from intersecting primary and cross sections.
+    Each section: a curve ref or a list of chained refs."""
+    groups = [_groups(primary, "/primary"), _groups(cross, "/cross")]
+    total = sum(len(refs) for network in groups for refs, _ in network)
     if total > MAX_CURVES:
         fail("NX_TOO_MANY_OBJECTS", f"At most {MAX_CURVES} curves", field="/primary")
     seen: set[str] = set()
-    _distinct(primary, "/primary", seen)
-    _distinct(cross, "/cross", seen)
+    for network in groups:
+        _distinct(network, seen)
     with tx.checks():
         tol = common.given_tolerance(tx, tolerance)
-        networks = [_sections(tx, primary, "/primary"), _sections(tx, cross, "/cross")]
+        networks = [_sections(tx, network) for network in groups]
     F = tx.nx.Features
     with builders.build(tx, tx.part.Features.CreateThroughCurveMeshBuilder, None) as b:
         b.BodyPreference = F.ThroughCurveMeshBuilder.BodyPreferenceTypes.Sheet
@@ -255,9 +268,9 @@ def nx_create_bridge_surface(
     ],
     reverse_second: Annotated[bool, Doc("Start the second edge at its other end")] = False,
 ) -> BridgeData:
-    """Bridge two sheet edges with a new sheet that meets their faces with G0, G1 or G2
-    continuity. The measured gap, angle and curvature per end are returned; G1/G2 need sheet
-    boundary edges."""
+    """Bridge two sheet edges with a new sheet meeting their faces at G0, G1 or G2 (G1/G2:
+    boundary edges). Returns per-end gap, angle (deg) and curvature difference (1/unit;
+    proves G2)."""
     if first == second:
         fail("NX_INVALID_ARGUMENT", "Select two different edges", field="/second")
     with tx.checks():

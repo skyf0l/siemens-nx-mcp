@@ -1,0 +1,589 @@
+{
+ "covers": {
+  "nx_create_transform": [],
+  "nx_create_boolean": [
+   "subtract"
+  ],
+  "nx_create_scale": [],
+  "nx_create_mirror": [
+   "bodies"
+  ],
+  "nx_create_pattern": [
+   "linear",
+   "circular"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "a_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "a",
+   "setup": true,
+   "args": {
+    "sketch": "$a_sk.data.sketch.id",
+    "end": 10
+   }
+  },
+  {
+   "call": "nx_create_transform",
+   "intent": "Axis-angle rotation about a line through [10, 0, 0]: the axis point stays put",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "transform": {
+     "rotation": {
+      "axis": [
+       0,
+       0,
+       1
+      ],
+      "angle": 90,
+      "origin": [
+       10,
+       0,
+       0
+      ]
+     }
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1000,
+     "tol": 1e-06
+    },
+    "data.feature.name": {
+     "matches": "MOVE"
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      -10,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      10,
+      0,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_transform",
+   "intent": "Bare principal axis and a unit angle string; the translation follows the rotation",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "transform": {
+     "rotation": {
+      "axis": "z",
+      "angle": "90 deg"
+     },
+     "translation": [
+      0,
+      0,
+      5
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      10,
+      10,
+      15
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_transform",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "transform": {
+     "translation": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/transform"
+   }
+  },
+  {
+   "call": "nx_create_transform",
+   "save": "cp",
+   "intent": "A copy is fixed at its timestamp, so it can be subtracted from its source",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "copy": true,
+    "transform": {
+     "translation": [
+      5,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1000,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_boolean",
+   "args": {
+    "operation": "subtract",
+    "target": "$a.data.bodies.0.id",
+    "tools": [
+     "$cp.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 500,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      5,
+      10,
+      15
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "b_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$b_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       100,
+       0
+      ],
+      "corner2": [
+       110,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$b_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "b",
+   "setup": true,
+   "args": {
+    "sketch": "$b_sk.data.sketch.id",
+    "end": 10
+   }
+  },
+  {
+   "call": "nx_create_boolean",
+   "intent": "A tool apart from the target is refused before NX (NX would keep two bodies)",
+   "args": {
+    "operation": "unite",
+    "target": "$a.data.bodies.0.id",
+    "tools": [
+     "$b.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/tools/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "intent": "origin center scales in place about the centroid [105, 5, 5]",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "factor": 2,
+    "origin": "center"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      95,
+      -5,
+      -5
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      115,
+      15,
+      15
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_mirror",
+   "save": "m",
+   "intent": "A bare principal plane name",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "plane": "yz"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    },
+    "data.new_bodies": {
+     "equals": 1
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$m.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      -115,
+      -5,
+      -5
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      -95,
+      15,
+      15
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$c_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       50
+      ],
+      "corner2": [
+       10,
+       60
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$c_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "c",
+   "setup": true,
+   "args": {
+    "sketch": "$c_sk.data.sketch.id",
+    "end": 10
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "intent": "A body ref where a feature is expected: the hint names the feature",
+   "args": {
+    "features": [
+     "$c.data.bodies.0.id"
+    ],
+    "layout": "linear",
+    "parameters": {
+     "direction": "x",
+     "count": 3,
+     "spacing": 20
+    }
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "error.field": "/features/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "intent": "A bare principal direction",
+   "args": {
+    "features": [
+     "$c.data.feature.id"
+    ],
+    "layout": "linear",
+    "parameters": {
+     "direction": "x",
+     "count": 3,
+     "spacing": "20 mm"
+    }
+   },
+   "expect": {
+    "data.count": {
+     "equals": 3
+    },
+    "data.new_bodies": {
+     "equals": 2
+    },
+    "data.volume": {
+     "close": 3000,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 3
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$c.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      50,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      10,
+      60,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_pattern",
+   "intent": "A bare principal axis for a circular layout",
+   "args": {
+    "features": [
+     "$c.data.feature.id"
+    ],
+    "layout": "circular",
+    "parameters": {
+     "axis": "z",
+     "count": 2,
+     "angle": 180
+    }
+   },
+   "expect": {
+    "data.count": {
+     "equals": 2
+    },
+    "data.new_bodies": {
+     "equals": 1
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

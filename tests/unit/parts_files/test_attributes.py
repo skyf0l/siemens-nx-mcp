@@ -211,12 +211,16 @@ def test_component_attributes_are_separate_from_the_prototype(anx):
     [
         ({"name": "Q", "type": "integer", "value": 1.5}, "/values/0/value"),
         ({"name": "Q", "type": "integer", "value": True}, "/values/0/value"),
-        ({"name": "Q", "type": "number", "value": "1"}, "/values/0/value"),
+        ({"name": "Q", "type": "number", "value": "one"}, "/values/0/value"),
+        ({"name": "Q", "type": "integer", "value": "4.5"}, "/values/0/value"),
+        ({"name": "Q", "type": "boolean", "value": "maybe"}, "/values/0/value"),
         ({"name": "Q", "type": "boolean", "value": 1}, "/values/0/value"),
         ({"name": "Q", "type": "date", "value": "09.10.2026"}, "/values/0/value"),
         ({"name": "Q", "type": "date", "value": "2026-02-30"}, "/values/0/value"),
         ({"name": "Q", "type": "date", "value": "1960-01-01"}, "/values/0/value"),
-        ({"name": "Q", "type": "string", "value": 3}, "/values/0/value"),
+        ({"name": "Q", "type": "string", "value": True}, "/values/0/value"),
+        ({"name": "  ", "type": "string", "value": "x"}, "/values/0/name"),
+        ({"name": "Q", "type": "string", "value": "x", "category": " "}, "/values/0/category"),
     ],
 )
 def test_values_are_checked_before_nx(anx, spec, field):
@@ -249,3 +253,91 @@ def test_reserved_alias_is_refused_and_rolled_back(anx):
                values=[{"name": "MATERIAL", "type": "string", "value": "steel"}])  # fmt: skip
     assert bad.error["code"] == "NX_READ_ONLY" and bad.error["field"] == "/values/0/name", bad
     assert bad.mutation_outcome == "rolled_back" and not anx.part._attrs
+
+
+def test_a_title_value_map_takes_its_types_from_the_values(anx):
+    ok = call(anx, tools.nx_set_attributes,
+              attributes={"DB_PART_NO": "100-200", "QTY": 4, "WEIGHT": 1.5, "RELEASED": True})  # fmt: skip
+    assert ok.ok and ok.mutation_outcome == "committed", ok
+    got = _attrs(ok)
+    assert {n: (a["type"], a["value"]) for n, a in got.items()} == {
+        "DB_PART_NO": ("string", "100-200"),
+        "QTY": ("integer", 4),
+        "WEIGHT": ("number", 1.5),
+        "RELEASED": ("boolean", True),
+    }
+    assert sorted(ok.data["items"][0]["created"]) == ["DB_PART_NO", "QTY", "RELEASED", "WEIGHT"]
+    again = call(anx, tools.nx_set_attributes, attributes={"QTY": 5})
+    assert again.data["items"][0]["created"] == [] and _attrs(again)["QTY"]["value"] == 5
+
+
+def test_an_omitted_type_keeps_the_existing_type(anx):
+    call(anx, tools.nx_set_attributes,
+         values=[{"name": "QTY", "type": "integer", "value": 1},
+                 {"name": "WEIGHT", "type": "number", "value": 1.5},
+                 {"name": "DUE", "type": "date", "value": "2027-01-31"},
+                 {"name": "REV", "type": "string", "value": "A"}])  # fmt: skip
+    ok = call(anx, tools.nx_set_attributes, values=[{"name": "QTY", "value": "4"}],
+              attributes={"WEIGHT": 2, "DUE": "2027-02-01", "REV": 2})  # fmt: skip
+    assert ok.ok, ok
+    got = _attrs(ok)
+    assert (got["QTY"]["type"], got["QTY"]["value"]) == ("integer", 4)
+    assert (got["WEIGHT"]["type"], got["WEIGHT"]["value"]) == ("number", 2.0)
+    assert got["DUE"]["value"] == "2027-02-01T00:00:00" and got["REV"]["value"] == "2"
+    clash = call(anx, tools.nx_set_attributes, attributes={"QTY": "four"})
+    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.error["field"] == "/attributes/QTY"
+    assert "delete" in clash.error["hint"] and clash.mutation_outcome == "not_started"
+    assert anx.part._attrs["qty"].IntegerValue == 4
+
+
+@pytest.mark.parametrize(
+    ("spec", "kind", "value"),
+    [
+        ({"type": "integer", "value": "4"}, "integer", 4),
+        ({"type": "integer", "value": 4.0}, "integer", 4),
+        ({"type": "number", "value": " 2.5 "}, "number", 2.5),
+        ({"type": "boolean", "value": "Yes"}, "boolean", True),
+        ({"type": "boolean", "value": "false"}, "boolean", False),
+        ({"type": "string", "value": 3}, "string", "3"),
+        ({"type": "date", "value": "2027/1/31"}, "date", "2027-01-31T00:00:00"),
+        ({"type": "date", "value": "2026-10-11T08:05:09.250Z"}, "date", "2026-10-11T08:05:09"),
+        ({"value": "4"}, "string", "4"),
+        ({"value": 2.5}, "number", 2.5),
+    ],
+)
+def test_natural_values_convert_to_the_type(anx, spec, kind, value):
+    ok = call(anx, tools.nx_set_attributes, values=[{"name": "Q", **spec}])
+    assert ok.ok, ok
+    row = _attrs(ok)["Q"]
+    assert (row["type"], row["value"]) == (kind, value)
+
+
+def test_titles_are_trimmed_and_missing_names_are_reported(anx):
+    ok = call(
+        anx, tools.nx_set_attributes, values=[{"name": " Qty ", "type": "integer", "value": 2}]
+    )
+    assert ok.ok and list(_attrs(ok)) == ["Qty"], ok
+    read = call(anx, tools.nx_get_attributes, names=[" qty", "Nope"])
+    item = read.data["items"][0]
+    assert [a["name"] for a in item["attributes"]] == ["Qty"] and item["missing"] == ["Nope"]
+    assert "missing" not in call(anx, tools.nx_get_attributes).data["items"][0]
+    gone = call(anx, tools.nx_set_attributes, delete=["QTY "])
+    assert gone.data["items"][0]["deleted"] == ["Qty"]
+
+
+@pytest.mark.parametrize(
+    ("args", "field"),
+    [
+        ({"attributes": {"A": [1]}}, "/attributes/A"),
+        ({"attributes": {"A": None}}, "/attributes/A"),
+        ({"attributes": {"A": "x" * 1025}}, "/attributes/A"),
+        ({"attributes": {"A" * 51: "x"}}, "/attributes/" + "A" * 51),
+        ({"attributes": {" ": "x"}}, "/attributes/ "),
+        ({"attributes": {"a": "x"}, "values": [{"name": "A", "value": "y"}]}, "/attributes/a"),
+        ({"attributes": {}}, "/attributes"),
+    ],
+)
+def test_bad_maps_are_refused_before_nx(anx, args, field):
+    bad = call(anx, tools.nx_set_attributes, **args)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field, bad
+    assert bad.mutation_outcome == "not_started" and not _store(anx.part)

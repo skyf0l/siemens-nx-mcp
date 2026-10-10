@@ -193,12 +193,20 @@ def test_paths_are_recorded_with_mode():
 def test_ref_and_path_shorthands_expand_in_place():
     from nx_mcp.core.validate import unwrap
 
-    _, markers = unwrap(Annotated[T.BodyRef, T.Doc("ignored: the first Doc wins")])
+    _, markers = unwrap(T.BodyRef)
     assert markers == {
         T.Text: T.Text(128, T.REF_PATTERN),
         T.RefKind: T.RefKind("body"),
         T.Doc: T.Doc("Ref: body"),
     }
+    # An explicit Doc beats the one a shorthand or an alias implies, wherever it stands.
+    assert unwrap(Annotated[T.BodyRef, T.Doc("Target body")])[1][T.Doc] == T.Doc("Target body")
+    assert unwrap(Annotated[T.Length, T.Doc("Gap")])[1][T.Doc] == T.Doc("Gap")
+    first = Annotated[str, T.Doc("Out file"), T.PathTo("new")]
+    assert unwrap(first)[1][T.Doc] == T.Doc("Out file")
+    assert unwrap(Annotated[str, T.PathTo("new", ".zip")])[1][T.Doc] == T.Doc(
+        "Workspace path (.zip)"
+    )
     _, markers = unwrap(Annotated[str, T.RefTo("face", doc="Ref: bend face")])
     assert markers[T.Doc] == T.Doc("Ref: bend face")
     assert unwrap(T.Ref)[1][T.Doc] == T.Doc("Ref: any")
@@ -206,7 +214,7 @@ def test_ref_and_path_shorthands_expand_in_place():
     assert markers == {
         T.Text: T.Text(260),
         T.PathArg: T.PathArg("new", (".step",)),
-        T.Doc: T.Doc("Workspace path"),
+        T.Doc: T.Doc("Workspace path (.step)"),
     }
 
 

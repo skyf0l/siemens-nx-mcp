@@ -197,16 +197,16 @@
     "length": 8,
     "spec": {
      "standard": "Metric Coarse",
-     "size": "M6 x 1.0"
+     "size": "M6 x 1.0",
+     "engagement": 0.6
     }
    },
    "expect": {
-    "error.code": "NX_AMBIGUOUS_REFERENCE",
-    "error.details.candidates": {
-     "contains": {
-      "engagement": "0.75",
-      "size": "M6 x 1.0"
-     }
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/spec/engagement",
+    "mutation_outcome": "not_started",
+    "error.details.offered": {
+     "contains": "0.75"
     }
    }
   },

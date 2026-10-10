@@ -249,3 +249,134 @@ def test_unreachable_value_rolls_back():
     sk.over = True  # NX cannot reach any value: OverConstrained, geometry kept
     bad = _dimension(nx, sk, {"kind": "length", "first": nx.cref(line), "value": 25})
     assert bad.error["category"] == "solver_failed" and bad.mutation_outcome == "rolled_back"
+
+
+# ---- natural arguments and clearer errors ------------------------------------------
+
+
+def test_constraint_types_take_natural_spellings_and_aliases():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 30, 0), (10, 32, 0))
+    r1, r2 = nx.arc(sk, (40, 0, 0), 3, 0, 360), nx.arc(sk, (50, 0, 0), 2, 0, 360)
+    other = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    ok = _constrain(
+        nx,
+        sk,
+        {"type": "Horizontal", "curves": [nx.cref(line)]},
+        {"type": "Equal Radius", "curves": [nx.cref(r1), nx.cref(r2)]},
+        {"type": "fix", "curves": [nx.cref(other)]},
+    )
+    assert ok.ok, ok
+    assert [r["type"] for r in ok.data["constraints"]] == ["horizontal", "equal_radius", "fixed"]
+
+
+def test_unknown_type_and_wrong_fields_say_what_to_send():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    a, b = nx.line(sk, (0, 0, 0), (0, 10, 0)), nx.line(sk, (5, 0, 0), (5, 10, 0))
+    axis = nx.line(sk, (2, 0, 0), (2, 10, 0))
+    typo = _constrain(nx, sk, {"type": "paralel", "curves": [nx.cref(a), nx.cref(b)]})
+    assert typo.error["field"] == "/constraints/0/type", typo
+    assert "'parallel'" in typo.error["message"] and "point_on_curve" in typo.error["hint"]
+    points = [{"curve": nx.cref(a), "point": "start"}, {"curve": nx.cref(b), "point": "start"}]
+    wrong = _constrain(nx, sk, {"type": "symmetric", "points": points, "centerline": nx.cref(axis)})
+    assert wrong.error["field"] == "/constraints/0/points", wrong
+    assert wrong.error["hint"].startswith("symmetric takes curves, centerline (required)")
+    one = _constrain(nx, sk, {"type": "equal_radius", "curves": [nx.cref(a)]})
+    assert "equal_radius takes curves (required)" in one.error["hint"], one
+    mid = _constrain(
+        nx, sk, {"type": "midpoint", "points": [{"curve": nx.cref(a), "point": "mid"}],
+                 "curves": [nx.cref(b)]},
+    )  # fmt: skip
+    assert mid.error["field"] == "/constraints/0/points/0/point", mid
+    assert "'center'" in mid.error["message"] and "'mid'" not in mid.error["message"]
+
+
+def test_a_constraint_nx_does_not_create_names_the_one_in_the_way():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (0, 10, 0))
+    held = Constraint(CT.Vertical, [(line, "NotSet")], sk)
+    sk.constraints.append(held)
+    sk.CreateHorizontalConstraint = lambda g: None  # NX makes nothing
+    bad = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
+    assert bad.error["category"] == "solver_failed" and bad.mutation_outcome == "rolled_back"
+    held_ref = nx.ref_of(held, "sketch_constraint")
+    assert "constrained vertical" in bad.error["message"], bad
+    assert held_ref in bad.error["message"] and "delete" in bad.error["hint"]
+    assert bad.error["details"]["existing"][0]["type"] == "vertical"
+    sk.constraints[:] = [Constraint(CT.Horizontal, [(line, "NotSet")], sk)]
+    again = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
+    assert "already has a horizontal constraint" in again.error["message"], again
+
+
+def test_a_fixed_point_holds_only_that_point():
+    """The tester's case: a point fix made the whole line immovable for a later dimension."""
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    ok = _constrain(
+        nx, sk, {"type": "fixed", "points": [{"curve": nx.cref(line), "point": "start"}]}
+    )
+    assert ok.ok, ok
+    sized = _dimension(nx, sk, {"kind": "length", "first": nx.cref(line), "value": 25})
+    assert sized.ok, sized
+    assert line.StartPoint.X == 0 and pytest.approx(25) == line.EndPoint.X
+
+
+def test_a_moved_fixed_point_names_the_item_and_the_fixed_constraint():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    ok = _constrain(nx, sk, {"type": "fixed", "points": [{"curve": nx.cref(line), "point": "end"}]})
+    assert ok.ok, ok
+    bad = _dimension(
+        nx, sk, {"kind": "radius", "first": nx.cref(nx.arc(sk, (30, 0, 0), 2, 0, 360))},
+        {"kind": "length", "first": nx.cref(line), "value": 25},
+    )  # fmt: skip
+    assert (
+        bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED" and bad.error["field"] == "/dimensions/1"
+    )
+    moved = bad.error["details"]["fixed_curves_moved"][0]
+    assert moved["fixed"] == ["end"] and moved["fixed_by"] == [
+        ok.data["constraints"][0]["constraints"][0]["id"]
+    ]
+    assert "(end)" in bad.error["message"] and "delete" in bad.error["hint"]
+
+
+def test_dimension_kinds_and_values_take_natural_spellings_and_units():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    arc = nx.arc(sk, (30, 0, 0), 5, 0, 360)
+    ok = _dimension(
+        nx,
+        sk,
+        {"kind": "Length", "first": nx.cref(line), "value": "1 in"},
+        {"kind": "diametral", "first": nx.cref(arc), "value": "16 mm"},
+        {"kind": "radial", "first": nx.cref(arc), "reference": True},
+    )
+    assert ok.ok, ok
+    assert [r["kind"] for r in ok.data["dimensions"]] == ["length", "diameter", "radius"]
+    assert ok.data["dimensions"][0]["measured"] == pytest.approx(25.4)
+    assert arc.Radius == pytest.approx(8)
+    bad = _dimension(nx, sk, {"kind": "length", "first": nx.cref(line), "value": "40 furlongs"})
+    assert bad.error["field"] == "/dimensions/0/value" and "'40 mm'" in bad.error["message"], bad
+
+
+def test_distance_from_a_point_to_a_line_is_a_perpendicular_distance():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    a = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    b = nx.line(sk, (25, 5, 0), (30, 5, 0))
+    ok = _dimension(
+        nx, sk, {"kind": "distance", "first": {"curve": nx.cref(b), "point": "start"},
+                 "second": nx.cref(a), "value": 12},
+    )  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["dimensions"][0]["kind"] == "perpendicular_distance"
+    assert ok.data["dimensions"][0]["measured"] == pytest.approx(12)
+    two = _dimension(nx, sk, {"kind": "distance", "first": nx.cref(a), "second": nx.cref(b)})
+    assert two.error["field"] == "/dimensions/0/first", two
+    assert "{curve, point}" in two.error["message"] and "parallel_distance" in two.error["hint"]

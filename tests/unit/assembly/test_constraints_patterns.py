@@ -300,3 +300,172 @@ def test_edit_pattern_rules(nx):
     assert spacing.error["field"] == "/spacing"
     ok = run(nx, "nx_edit_component_pattern", pattern=circ.data["pattern"]["id"], count=5, angle=45)
     assert ok.ok and ok.data["count"] == 5 and ok.data["angle"] == 45
+
+
+# ---- natural values (live tester b13) -------------------------------------------------------
+
+
+def planar(nx, c, origin, normal):
+    """``(ref, face)``: a planar occurrence face of ``c`` at ``origin`` along ``normal``."""
+    face = c.face()
+    nx.face_data[face.Tag] = ("plane", list(origin), list(normal))
+    return nx.ref_of(face, "face"), face
+
+
+def distance(nx, value, **kw):
+    return run(nx, "nx_create_assembly_constraint", type="distance", component=nx.b.ref,
+               geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+               target_geometry=geometry(nx, nx.a), value=value, **kw)  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("value", "wanted"), [("10 mm", 10.0), (" 1in ", 25.4), ("-5mm", -5.0), ("7", 7.0), (-3, -3.0)]
+)
+def test_distance_value_takes_unit_strings_and_a_negative_side(nx, value, wanted):
+    ok = distance(nx, value)
+    assert ok.ok, ok
+    c = nx.assembly.positioner.Constraints[-1]
+    assert c.Expression.Value == pytest.approx(wanted) and ok.data["value"] == pytest.approx(wanted)
+
+
+@pytest.mark.parametrize(
+    ("value", "wanted"), [("45deg", 45.0), ("45 DEG", 45.0), ("45\u00b0", 45.0),
+                          ("0.5 rad", 28.64788975654116)],
+)  # fmt: skip
+def test_angle_value_takes_degree_and_radian_strings(nx, value, wanted):
+    ok = run(nx, "nx_create_assembly_constraint", type="angle", component=nx.b.ref,
+             geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+             target_geometry=geometry(nx, nx.a), value=value)  # fmt: skip
+    assert ok.ok, ok
+    assert nx.assembly.positioner.Constraints[-1].Expression.Value == pytest.approx(wanted)
+
+
+def test_inch_strings_convert_to_inch_part_units(nx):
+    nx.asm.PartUnits = "in"
+    ok = distance(nx, "25.4 mm")
+    assert ok.ok, ok
+    assert nx.assembly.positioner.Constraints[-1].Expression.Value == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    ("type", "value", "says"),
+    [("distance", "45 deg", "a length"), ("angle", "10 mm", "an angle"),
+     ("distance", "ten", "not a number"), ("angle", -5, "0 to 180"), ("angle", "4 rad", "0 to 180"),
+     ("distance", 2e6, "within")],
+)  # fmt: skip
+def test_value_errors_name_what_to_send(nx, type, value, says):
+    bad = run(nx, "nx_create_assembly_constraint", type=type, component=nx.b.ref,
+              geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+              target_geometry=geometry(nx, nx.a), value=value)  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/value"
+    assert says in bad.error["message"] and bad.mutation_outcome == "not_started"
+    assert not nx.assembly.positioner.Constraints
+
+
+def test_edit_value_takes_unit_strings_checked_against_the_type(nx):
+    ok = distance(nx, 7)
+    ref = ok.data["constraint"]["id"]
+    edited = run(nx, "nx_edit_assembly_constraint", constraint=ref, value="12.5 mm")
+    assert edited.ok and edited.data["value"] == 12.5, edited
+    flipped = run(nx, "nx_edit_assembly_constraint", constraint=ref, value=-12.5)
+    assert flipped.ok and flipped.data["value"] == -12.5
+    wrong = run(nx, "nx_edit_assembly_constraint", constraint=ref, value="30 deg")
+    assert wrong.error["field"] == "/value" and wrong.mutation_outcome == "not_started"
+
+
+def test_distance_reports_the_face_offset_and_warns_about_an_overlap(nx):
+    # A's +x face at x=20; NX put B's -x face at x=10, 10 inside A.
+    b_face, b_obj = planar(nx, nx.b, [10, 0, 0], [-1, 0, 0])
+    a_face, _ = planar(nx, nx.a, [20, 0, 0], [1, 0, 0])
+    overlap = run(nx, "nx_create_assembly_constraint", type="distance", component=nx.b.ref,
+                  geometry=b_face, target_component=nx.a.ref, target_geometry=a_face,
+                  value=10)  # fmt: skip
+    assert overlap.ok, overlap
+    assert overlap.data["offset"] == pytest.approx(-10)
+    assert overlap.warnings and "overlap by 10" in overlap.warnings[0]["message"]
+    # The other side: a 10 gap, no warning.
+    nx.face_data[b_obj.Tag] = ("plane", [30, 0, 0], [-1, 0, 0])
+    gap = run(nx, "nx_edit_assembly_constraint", constraint=overlap.data["constraint"]["id"],
+              value=-10)  # fmt: skip
+    assert gap.ok and gap.data["offset"] == pytest.approx(10) and not gap.warnings, gap
+
+
+def test_touch_reports_offset_but_other_geometry_does_not(nx):
+    b_face, _ = planar(nx, nx.b, [20, 0, 0], [-1, 0, 0])
+    a_face, _ = planar(nx, nx.a, [20, 0, 0], [1, 0, 0])
+    touch = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+                geometry=b_face, target_component=nx.a.ref, target_geometry=a_face)  # fmt: skip
+    assert touch.ok and touch.data["offset"] == 0 and not touch.warnings, touch
+    edges = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+                geometry=geometry(nx, nx.b, "edge"), target_component=nx.a.ref,
+                target_geometry=geometry(nx, nx.a, "edge"))  # fmt: skip
+    assert edges.ok and "offset" not in edges.data
+
+
+def test_unsolved_constraint_names_the_alignment_and_the_other_constraints(nx):
+    touch = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+                geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+                target_geometry=geometry(nx, nx.a))  # fmt: skip
+    nx.assembly.solver_status = STATUS.OverConstrained
+    bad = distance(nx, 10, alignment="same")
+    assert bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED", bad
+    assert "'same' points the face normals" in bad.error["hint"]
+    assert "suppress" in bad.error["hint"]
+    others = bad.error["details"]["others"]
+    assert [o["constraint"]["id"] for o in others] == [touch.data["constraint"]["id"]]
+    assert others[0]["type"] == "touch" and bad.mutation_outcome == "rolled_back"
+
+
+def test_component_doc_names_the_reference_form():
+    from nx_mcp.core import catalogue
+    from nx_mcp.sidecar import schema
+
+    spec = catalogue.load()["nx_create_assembly_constraint"]
+    assert "Component id 'o:N'" in str(schema.input_schema(spec, call_keys=False))
+
+
+# ---- bare principal names ---------------------------------------------------------------------
+
+
+def test_pattern_direction_and_axis_take_bare_principal_names(nx):
+    ok = run(nx, "nx_create_component_pattern", component=nx.a.ref,
+             layout={"linear": {"direction": "y", "count": 3, "spacing": "20 mm",
+                                "direction2": "-x", "count2": 2, "spacing2": 10}})  # fmt: skip
+    assert ok.ok, ok
+    got = sorted((c["translation"][0], c["translation"][1]) for c in ok.data["components"])
+    assert got == [(-10, 0), (-10, 20), (-10, 40), (0, 0), (0, 20), (0, 40)]
+    circ = run(nx, "nx_create_component_pattern", component=nx.b.ref,
+               layout={"circular": {"axis": "z", "count": 4, "angle": "90deg"}})  # fmt: skip
+    assert circ.ok, circ
+    got = sorted(tuple(round(v, 6) for v in c["translation"]) for c in circ.data["components"])
+    assert got == [(-60, 0, 0), (0, -60, 0), (0, 60, 0), (60, 0, 0)]
+
+
+def test_pattern_rejects_an_unknown_bare_name(nx):
+    bad = run(nx, "nx_create_component_pattern", component=nx.a.ref,
+              layout={"linear": {"direction": "w", "count": 3, "spacing": 20}})  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.mutation_outcome == "not_started"
+
+
+def test_adding_a_second_direction_by_edit_says_how_to_recreate(nx):
+    made = run(nx, "nx_create_component_pattern", component=nx.a.ref, layout=linear())
+    bad = run(nx, "nx_edit_component_pattern", pattern=made.data["pattern"]["id"], count2=2,
+              spacing2=25)  # fmt: skip
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/count2"
+    assert "nx_create_component_pattern" in bad.error["hint"] and "direction2" in bad.error["hint"]
+
+
+def test_update_assembly_lists_suppressed_constraints(nx):
+    fix = run(nx, "nx_create_assembly_constraint", type="fix", component=nx.a.ref)
+    touch = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+                geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+                target_geometry=geometry(nx, nx.a))  # fmt: skip
+    off = run(nx, "nx_edit_assembly_constraint", constraint=touch.data["constraint"]["id"],
+              suppressed=True)  # fmt: skip
+    assert fix.ok and off.ok
+    done = run(nx, "nx_update_assembly")
+    assert done.ok, done
+    rows = {c["constraint"]["id"]: c for c in done.data["constraints"]}
+    assert rows[fix.data["constraint"]["id"]]["status"] == "Solved"
+    suppressed = rows[touch.data["constraint"]["id"]]
+    assert suppressed["suppressed"] and suppressed["status"] == "Suppressed"

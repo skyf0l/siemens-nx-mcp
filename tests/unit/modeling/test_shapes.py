@@ -104,6 +104,36 @@ def test_native_rib_refusal_keeps_nx_code_and_rolls_back():
     assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0
 
 
+def test_rib_reports_the_added_volume():
+    nx = rib_nx()
+    body = nx.block(40, 20, 40)
+    sk = nx.sketch()
+
+    def grow(b):
+        body.volume += 900
+        return feature(nx, "RIB", [body])
+
+    nx.on_commit("RibBuilder", grow)
+    ok = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=2,
+             orientation="parallel")  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["added"] == pytest.approx(900)
+
+
+def test_rib_that_cannot_close_against_the_body_says_how_to_fix_it():
+    nx = rib_nx()
+    body = nx.block(10, 10, 10)
+    sk = nx.sketch()
+    nx.refuse(
+        "RibBuilder",
+        code=4095004,
+        message="The target cannot properly cap the open profile smart volume.",
+    )
+    bad = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=1)
+    assert bad.error["nx_code"] == 4095004 and bad.mutation_outcome == "rolled_back"
+    assert "flip" in bad.error["hint"] and "mid-plane" in bad.error["hint"]
+
+
 def line(nx, length):
     c = nx.curve()
     c.GetLength = lambda: length
@@ -274,6 +304,27 @@ def test_helix_argument_errors(extra, field):
     assert bad.error["category"] == "invalid_argument" and bad.mutation_outcome == "not_started"
     if field:
         assert bad.error["field"] == field
+
+
+@pytest.mark.parametrize("axis", ["z", {"principal": "z"}, None])
+def test_helix_takes_a_bare_axis_name_and_defaults_to_z(axis):
+    nx = helix_nx(lambda nx: helix_curve(nx, 10, 5, 4))
+    extra = {} if axis is None else {"axis": axis}
+    ok = run(nx, "nx_create_helix", radius="10mm", pitch="5mm", turns=4, **extra)
+    assert ok.ok, ok
+    # The result says which axis and hand NX built.
+    assert ok.data["axis"] == {"origin": [0, 0, 0], "direction": [0, 0, 1]}
+    assert ok.data["hand"] == "right" and ok.data["start"] == pytest.approx([10, 0, 0])
+
+
+def test_helix_turns_and_height_are_mutually_exclusive():
+    nx = helix_nx(lambda nx: helix_curve(nx, 1, 1, 1))
+    bad = run(nx, "nx_create_helix", radius=1, pitch=1, turns=2, height=3)
+    assert bad.error["field"] == "/height" and "mutually exclusive" in bad.error["message"]
+    assert "Drop height" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+    none = run(nx, "nx_create_helix", radius=1, pitch=1)
+    assert none.error["field"] == "/turns" and "turns or height" in none.error["message"]
+    assert nx.builders == []
 
 
 # ---- emboss body ----------------------------------------------------------------------

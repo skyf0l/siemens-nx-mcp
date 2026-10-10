@@ -87,8 +87,8 @@
     "direction": "right"
    },
    "expect": {
-    "data.position.0": {
-     "close": 6.299213,
+    "data.gap": {
+     "close": 0.787402,
      "tol": 1e-05
     }
    }

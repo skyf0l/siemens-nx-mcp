@@ -1,111 +1,111 @@
 {
   "nx_capture_view": {
     "v2406": {
-      "checks": 74,
-      "recorded": "2026-10-10T17:33:22Z",
-      "scenario": "acceptance/display/capture_view.json",
-      "scenario_sha256": "fa5001952cf47702948134350acf9359abeeb65e5596bc62ab574a1c58219092",
-      "source_sha256": "fd577db8a9154f7d26e742afcbad16a34b6f6061fcf65a051efdc559dddae3f9",
+      "checks": 63,
+      "recorded": "2026-10-10T23:41:01Z",
+      "scenario": "acceptance/display/natural_args.json",
+      "scenario_sha256": "6bfa825f650a57dd8c2dfada2efdc2092bdbaec98e0b30c9b9e8beb8d0e2a69f",
+      "source_sha256": "7eca87ee83f95168e780b30c3c78872f741a007bf1ef44b1c41c09d113ba7c2a",
       "variants": []
     }
   },
   "nx_create_section_view": {
     "v2406": {
-      "checks": 47,
-      "recorded": "2026-10-10T15:42:06Z",
+      "checks": 48,
+      "recorded": "2026-10-10T23:32:00Z",
       "scenario": "acceptance/display/sections.json",
-      "scenario_sha256": "c05279a564ae6fd1331a73c1860d148a6217596b2d0cb81fbdc704f6a1b5cbae",
-      "source_sha256": "906ea0620aaba5d07624fbbf30f9a69fb4f3c93e5eea202e210c1cf995802927",
+      "scenario_sha256": "dc528db6e6e8b8b479d239730e9c8df4a0ff5b55731c944840d4b4057c2375ed",
+      "source_sha256": "76b6678bb3015d6409c8930c6a04130f0ea9b65b2dcbc9b4faa1c2eceed6d2b3",
       "variants": []
     }
   },
   "nx_edit_section_view": {
     "v2406": {
-      "checks": 47,
-      "recorded": "2026-10-10T15:42:06Z",
+      "checks": 48,
+      "recorded": "2026-10-10T23:32:00Z",
       "scenario": "acceptance/display/sections.json",
-      "scenario_sha256": "c05279a564ae6fd1331a73c1860d148a6217596b2d0cb81fbdc704f6a1b5cbae",
-      "source_sha256": "906ea0620aaba5d07624fbbf30f9a69fb4f3c93e5eea202e210c1cf995802927",
+      "scenario_sha256": "dc528db6e6e8b8b479d239730e9c8df4a0ff5b55731c944840d4b4057c2375ed",
+      "source_sha256": "76b6678bb3015d6409c8930c6a04130f0ea9b65b2dcbc9b4faa1c2eceed6d2b3",
       "variants": []
     }
   },
   "nx_get_appearance": {
     "v2406": {
-      "checks": 53,
-      "recorded": "2026-10-10T15:38:03Z",
-      "scenario": "acceptance/display/appearance.json",
-      "scenario_sha256": "3c4979c9020ee8f7fff2802bb3789173bc7d2ca7a141cb677c4725c34fa8c978",
-      "source_sha256": "bf343c5601a2e21ad7706b9c414e529d0c6d6c779de1690d6952bc2201b09eab",
+      "checks": 69,
+      "recorded": "2026-10-10T23:18:18Z",
+      "scenario": "acceptance/display/natural_values.json",
+      "scenario_sha256": "1fa859d52cdd9b019838de645ae344ec9c7a71d040f502be9b15210acb5495a1",
+      "source_sha256": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
       "variants": []
     }
   },
   "nx_get_camera": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T17:32:17Z",
+      "recorded": "2026-10-10T22:21:24Z",
       "scenario": "acceptance/display/view_directions.json",
       "scenario_sha256": "a85342e01558b73a89422a81ca5bf948edf9be816d13d587811d75d19da8c556",
-      "source_sha256": "076c5ed29a16dda5dc772b5ccfa497b73a70040c395a1d014f377db389361810",
+      "source_sha256": "c70de314aba7b217dfa3149c27a880488b1eadc0436b0c7840058fae403af685",
       "variants": []
     }
   },
   "nx_restore_display": {
     "v2406": {
       "checks": 39,
-      "recorded": "2026-10-10T15:38:23Z",
+      "recorded": "2026-10-10T23:41:02Z",
       "scenario": "acceptance/display/visibility.json",
-      "scenario_sha256": "4af7a71bb8cb78b9e643511eb2dc7e6cb782d3698cbebb3e58ef7fdf5b5868ff",
-      "source_sha256": "848532fd912b4c5dee679b403221a41a1dbc6f48ac96491d5754de142ce77874",
+      "scenario_sha256": "d110b952f93e49fd258abd933b592e22c37795f180a8e64ee4b0eb9d8f3064b1",
+      "source_sha256": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f",
       "variants": []
     }
   },
   "nx_save_presentation": {
     "v2406": {
       "checks": 28,
-      "recorded": "2026-10-10T13:15:24Z",
+      "recorded": "2026-10-10T22:52:21Z",
       "scenario": "acceptance/display/presentation.json",
       "scenario_sha256": "26b0bed803798a74f0f41b9ae67c30e2266238fc622e5a3aacfc4104ad93d639",
-      "source_sha256": "848532fd912b4c5dee679b403221a41a1dbc6f48ac96491d5754de142ce77874",
+      "source_sha256": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f",
       "variants": []
     }
   },
   "nx_set_appearance": {
     "v2406": {
-      "checks": 53,
-      "recorded": "2026-10-10T15:38:03Z",
-      "scenario": "acceptance/display/appearance.json",
-      "scenario_sha256": "3c4979c9020ee8f7fff2802bb3789173bc7d2ca7a141cb677c4725c34fa8c978",
-      "source_sha256": "bf343c5601a2e21ad7706b9c414e529d0c6d6c779de1690d6952bc2201b09eab",
+      "checks": 69,
+      "recorded": "2026-10-10T23:18:18Z",
+      "scenario": "acceptance/display/natural_values.json",
+      "scenario_sha256": "1fa859d52cdd9b019838de645ae344ec9c7a71d040f502be9b15210acb5495a1",
+      "source_sha256": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
       "variants": []
     }
   },
   "nx_set_camera": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T17:32:17Z",
+      "recorded": "2026-10-10T22:21:24Z",
       "scenario": "acceptance/display/view_directions.json",
       "scenario_sha256": "a85342e01558b73a89422a81ca5bf948edf9be816d13d587811d75d19da8c556",
-      "source_sha256": "076c5ed29a16dda5dc772b5ccfa497b73a70040c395a1d014f377db389361810",
+      "source_sha256": "c70de314aba7b217dfa3149c27a880488b1eadc0436b0c7840058fae403af685",
       "variants": []
     }
   },
   "nx_set_highlight": {
     "v2406": {
       "checks": 10,
-      "recorded": "2026-10-10T15:38:11Z",
+      "recorded": "2026-10-10T22:21:06Z",
       "scenario": "acceptance/display/highlight.json",
       "scenario_sha256": "3357803482e5442c32991fad8fba3d687446d4a790e2f1117915d8da332a3f90",
-      "source_sha256": "bf343c5601a2e21ad7706b9c414e529d0c6d6c779de1690d6952bc2201b09eab",
+      "source_sha256": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
       "variants": []
     }
   },
   "nx_set_visibility": {
     "v2406": {
       "checks": 39,
-      "recorded": "2026-10-10T15:38:23Z",
+      "recorded": "2026-10-10T23:41:02Z",
       "scenario": "acceptance/display/visibility.json",
-      "scenario_sha256": "4af7a71bb8cb78b9e643511eb2dc7e6cb782d3698cbebb3e58ef7fdf5b5868ff",
-      "source_sha256": "bf343c5601a2e21ad7706b9c414e529d0c6d6c779de1690d6952bc2201b09eab",
+      "scenario_sha256": "d110b952f93e49fd258abd933b592e22c37795f180a8e64ee4b0eb9d8f3064b1",
+      "source_sha256": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
       "variants": []
     }
   }

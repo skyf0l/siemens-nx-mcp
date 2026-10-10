@@ -7,22 +7,31 @@ reload fails as ``stale_reference`` and never aliases another object.
 
 Every short ref is backed by a handle in the host's object registry (through the
 services adapter, see ``core.tx.Services``). Registry invalidation (part close,
-deleted objects, rolled-back parts, topology changes) therefore makes the short
-ref stale as well. A registry handle (``obj_...``) resolves too: change rows fall
-back to it for objects that have no short ref.
+deleted objects, rolled-back parts) therefore makes the short ref stale as well. A
+registry handle (``obj_...``) resolves too.
+
+Refs follow NX's persistent object identity (the tag), not geometry. After a
+committed call only the refs of objects NX no longer has go stale: deleted
+features and bodies, consumed faces and edges. A face or edge a feature did not
+consume keeps its ref, also when the feature reshaped it (NX 2406, measured: the
+top face through a pocket, hole faces through threads, untouched edges through a
+blend), so the ref names the same NX face, which may now have other bounds.
 
 Features, bodies and sketches carry an automatic anchor built from the
 persistent journal identifier (``@smoke/a/blk.prt:EXTRUDE(4)``, plus ``#<i>`` for
-bodies); faces and edges only on request. A stale ref reports the anchor's
+bodies); faces and edges only on request. An anchor resolves wherever a ref
+does (the unique current object it names). A stale ref reports the anchor's
 unique current match in ``details.current``; nothing is re-resolved silently,
-except after a rollback: NX 2406 undo restores the same tags (measured for parts,
-bodies, features, sketches, faces and edges), so refs of restored objects stay
-live, and a ref whose object came back under a new tag is re-bound to its anchor's
-unique match (:meth:`References.rebind`); only the rest go stale.
+except after an undo, a rollback or an edit the agent did not make: NX 2406 undo
+restores the same tags (measured for parts, bodies, features, sketches, faces and
+edges), so refs of restored objects stay live, and a ref whose object came back
+under a new tag is re-bound to its anchor's unique match
+(:meth:`References.rebind`); only the rest go stale.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -69,7 +78,19 @@ REGISTRY_KINDS = {"datum": KIND_GROUPS["datum"], "section": frozenset({"section_
 TO_REGISTRY = {**dict.fromkeys(KIND_GROUPS["datum"], "datum"), "section_view": "section"}
 _SHORT = re.compile(r"^([a-z]{1,3}):([1-9][0-9]{0,11})$")
 _ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
+# NX's generic name of an unnamed object ("ENTITY 26 3 1"): not stable between reads.
+GENERIC_NAME = re.compile(r"^ENTITY \d+ \d+ \d+$")
 BLOCK = 1000
+# Where a stale ref of a kind is found again (the hint of NX_STALE_REFERENCE).
+REACQUIRE = {
+    "part": "List the loaded parts with nx_list_parts for current part refs",
+    "component": "List the components with nx_list_components for current refs",
+    "face": "The face is gone (a feature consumed it, or an undo): find it again with "
+    "nx_find_geometry",
+    "edge": "The edge is gone (a feature consumed it, or an undo): find it again with "
+    "nx_find_geometry",
+}
+REACQUIRE_DEFAULT = "List the objects again (nx_list_objects, nx_find_geometry) for current refs"
 
 
 class Row(TypedDict, total=False):
@@ -149,16 +170,50 @@ def _gone(ref: str, kind: str | None, name: str | None):
     fail(
         "NX_STALE_REFERENCE",
         f"{ref} ({name or kind or 'object'}) no longer exists in NX",
-        hint="List the objects again (nx_list_parts, nx_find_geometry) for current refs",
+        hint=REACQUIRE.get(kind or "", REACQUIRE_DEFAULT),
         details={"ref": ref, "kind": kind, "reason": "deleted_in_nx"},
     )
 
 
-def _name(obj) -> str:
+def article(word: str) -> str:
+    """``a`` or ``an`` before ``word`` (by its first letter)."""
+    return "an" if word[:1].lower() in ("a", "e", "i", "o", "u") else "a"
+
+
+def _raw_name(obj) -> str:
     name = getattr(obj, "Name", "")
     if callable(name):
         name = name()
     return str(name or getattr(obj, "JournalIdentifier", "") or "")
+
+
+def _name(obj) -> str:
+    """NX's name, else the journal identifier. An occurrence known only by its handle
+    (``HANDLE R-722``) is ``<component>/<prototype name>``."""
+    name = _raw_name(obj)
+    if name.startswith("HANDLE ") and getattr(obj, "IsOccurrence", False):
+        try:
+            owner = str(getattr(obj.OwningComponent, "Name", "") or "")
+            proto = _raw_name(obj.Prototype)
+            if owner and proto and not proto.startswith("HANDLE "):
+                return f"{owner}/{proto}"
+        except Exception:
+            pass
+    return name
+
+
+def _label(obj, kind: str, ref: str, name: str) -> str:
+    """``name``; for NX's generic ``ENTITY n a b`` (it changes between reads and many
+    objects share it) ``<kind> <ref>``, a sketch constraint with its constraint type."""
+    if not GENERIC_NAME.match(name):
+        return name
+    label = kind.replace("_", " ")
+    if kind == "sketch_constraint":
+        with contextlib.suppress(Exception):
+            ctype = str(obj.ConstraintType).rsplit(".", 1)[-1]
+            if ctype and not ctype.isdigit():
+                label = ctype.lower() + " constraint"
+    return f"{label} {ref}"
 
 
 class References:
@@ -186,14 +241,16 @@ class References:
             ref = f"{PREFIX[kind]}:{number}"
             handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
             part_id = ref if kind == "part" else self.row(part, "part", part=part)["id"]
-            entry = Entry(ref, kind, handle, part_key, part_id, _name(obj), None)
+            entry = Entry(ref, kind, handle, part_key, part_id, "", None)
             self._entries[ref] = entry
             self._identity[key] = ref
         else:
-            entry.name = _name(obj)
             # Same NX object (part, kind, tag): keep the registry on this live wrapper, so
             # a ref whose earlier wrapper NX invalidated works again after a fresh listing.
             entry.handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
+        entry.name = _label(obj, kind, entry.id, _name(obj))
+        if entry.anchor is not None and self._moved(entry.anchor, obj):
+            entry.anchor = None  # NX renumbered the object (a feature reorder)
         if entry.anchor is None and (kind in ANCHORED or anchor):
             entry.anchor = self._anchor(obj, kind, part)
         out: Row = {"id": entry.id, "kind": kind, "name": entry.name, "part": entry.part_id}
@@ -211,6 +268,25 @@ class References:
             index = next((i for i, b in enumerate(same) if _tag(b) == _tag(obj)), 0)
             anchor += f"#{index}"
         return anchor
+
+    @staticmethod
+    def _moved(anchor: str, obj) -> bool:
+        """Whether ``obj``'s journal identifier differs from the one in ``anchor``."""
+        match = _ANCHOR.match(anchor)
+        jid = str(getattr(obj, "JournalIdentifier", "") or "")
+        return bool(match and jid and match["jid"] != jid)
+
+    def reanchor(self, ref: str) -> None:
+        """Recompute ``ref``'s name and anchor from its object (after a rename)."""
+        entry = self._entries.get(ref)
+        if entry is None:
+            return
+        with contextlib.suppress(Exception):
+            obj = self.backend.resolve_handle(entry.handle)
+            part = self.backend.owning_part(obj)
+            entry.name = _label(obj, entry.kind, entry.id, _name(obj))
+            if entry.anchor is not None:
+                entry.anchor = self._anchor(obj, entry.kind, part)
 
     @staticmethod
     def _jid(obj) -> str:
@@ -237,6 +313,8 @@ class References:
     def resolve(self, ref: str, kinds=()) -> object:
         """The live object for ``ref``; stale_reference / wrong_kind / not_found."""
         wanted = expand_kinds(kinds) if kinds else None
+        if ref.startswith("@"):
+            return self._resolve_anchor(ref, wanted)
         if ref.startswith("obj_"):
             # Check the kind before resolving: obtaining a live object counts as touching NX.
             kind = self.backend.handle_kind(ref)
@@ -263,14 +341,21 @@ class References:
             self._wrong_kind(ref, entry.kind, wanted)
         if not self.backend.handle_live(entry.handle):
             details: dict = {"ref": ref, "kind": entry.kind}
+            hint = REACQUIRE.get(entry.kind, REACQUIRE_DEFAULT)
             if entry.anchor:
                 details["anchor"] = entry.anchor
                 current = self.find_anchor(entry.anchor, entry.kind)
                 if current is not None:
                     details["current"] = current
+                    hint = f"Use details.current ({current['id']}), the same {entry.kind} now"
+            if entry.kind == "part":
+                with contextlib.suppress(Exception):
+                    loaded = [self.row(p, "part", part=p) for p in self.backend.parts()]
+                    details["loaded_parts"] = loaded[:20]
             fail(
                 "NX_STALE_REFERENCE",
                 f"{ref} ({entry.name or entry.kind}) is no longer valid",
+                hint=hint,
                 details=details,
             )
         obj = self.backend.resolve_handle(entry.handle)
@@ -278,11 +363,32 @@ class References:
             _gone(ref, entry.kind, entry.name)
         return obj
 
+    def _resolve_anchor(self, anchor: str, wanted) -> object:
+        """The unique current feature, body or sketch an anchor names
+        (``@<part>:<journal id>[#i]``, as result rows show)."""
+        if not _ANCHOR.match(anchor):
+            fail("NX_INVALID_ARGUMENT", f"Not a reference or anchor: {anchor!r}")
+        kinds = sorted(ANCHORED if wanted is None else wanted & ANCHORED)
+        if not kinds:
+            self._wrong_kind(anchor, "anchor of a feature, body or sketch", wanted)
+        found = [(k, m) for k in kinds if (m := self._anchor_match(anchor, k)) is not None]
+        if len(found) != 1:
+            fail(
+                "NX_NOT_FOUND",
+                f"{anchor} names no unique current {'/'.join(kinds)}",
+                hint="Anchors name features, bodies and sketches; list them with "
+                "nx_list_objects for their refs",
+                details={"ref": anchor, "matches": len(found)},
+            )
+        kind, (obj, part) = found[0]
+        self.row(obj, kind, part=part)  # a short ref and a live handle from now on
+        return obj
+
     @staticmethod
     def _wrong_kind(ref, kind, wanted):
         raise NXError(
             "NX_WRONG_KIND",
-            f"{ref} is a {kind}; expected {'/'.join(sorted(wanted))}",
+            f"{ref} is {article(kind)} {kind}; expected {'/'.join(sorted(wanted))}",
             details={"ref": ref, "kind": kind, "expected": sorted(wanted)},
         )
 
@@ -350,6 +456,16 @@ class References:
             if floor is None or number < floor:
                 stale.append(entry.id)
         return {"rebound": rebound, "stale": stale}
+
+    def stale(self, retired, floor: int | None = None) -> list[str]:
+        """Short refs whose registry handle is in ``retired``; refs numbered at or
+        above ``floor`` were issued inside the call and are left out."""
+        retired = set(retired)
+        return [
+            e.id
+            for e in self._entries.values()
+            if e.handle in retired and (floor is None or int(e.id.split(":", 1)[1]) < floor)
+        ]
 
     def issued(self) -> int:
         """The next ref number: refs at or above it are issued after this point."""

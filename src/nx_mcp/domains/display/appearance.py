@@ -9,17 +9,21 @@ are cleared when the engineer takes control back.
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, Range, RefTo
+from nx_mcp.core.types import Doc, Items, Range, RefTo, Text
 from nx_mcp.domains.display.common import (
     TARGET_KINDS,
     DisplayRow,
+    Loose,
     Targets,
+    choice,
     display_rows,
+    faces_of,
     kind_of,
     targets,
 )
@@ -30,12 +34,17 @@ ColorName = Literal[
     "red", "green", "blue", "yellow", "cyan", "magenta", "orange", "white", "black", "gray"
 ]
 ColorIndex = Annotated[int, Range(ge=1, le=216)]
+COLOR_ALIASES = {"grey": "gray", "silver": "gray", "purple": "magenta", "aqua": "cyan"}
+Percent = Annotated[int, Range(ge=0, le=100)] | Annotated[str, Text(8), Doc("'40%'")]
+# Kinds that can be blanked: faces and edges follow their body.
+VISIBLE_KINDS = ("body", "curve", "point", "sketch", "component", "feature", "datum")
 
 
 class VisibilityData(TypedDict):
     mode: str
     objects: list[DisplayRow]
     count: int
+    blanked: int
 
 
 class AppearanceData(TypedDict):
@@ -55,7 +64,7 @@ class HighlightData(TypedDict):
 
 
 def _visibility_summary(a, say):
-    what = "all datums" if a.get("datums") else say("objects")
+    what = "all datums" if a.get("datums") else say("objects") if a.get("objects") else "all"
     return f"{str(a.get('mode', 'show')).capitalize()} {what}"
 
 
@@ -73,14 +82,22 @@ def nx_set_visibility(
     tx: Tx,
     *,
     mode: Literal["show", "hide", "isolate"],
-    objects: Targets | None = None,
+    objects: Annotated[list[Annotated[str, RefTo(*VISIBLE_KINDS)]], Items(1, 1000)] | None = None,
     datums: bool = False,
 ) -> VisibilityData:
-    """Show, hide or isolate bodies, components, curves and datums, or show/hide all datums
-    of the part with datums=true. Isolate hides every other body and component; returns
-    restore_id."""
-    if datums == (objects is not None):
-        fail("NX_INVALID_ARGUMENT", "Give objects or datums=true", field="/objects")
+    """Show, hide or isolate bodies, components, curves and datums (not faces). datums=true:
+    all datums; mode=show alone shows every hidden body and component. Isolate hides all
+    other bodies and components. Undo: nx_restore_display(restore_id)."""
+    if datums and objects is not None:
+        fail("NX_INVALID_ARGUMENT", "Give objects or datums=true, not both", field="/objects")
+    show_all = not datums and objects is None
+    if show_all and mode != "show":
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"mode={mode} needs objects (or datums=true)",
+            field="/objects",
+            hint="List the bodies/components to change; only mode=show works without objects",
+        )
     if datums and mode == "isolate":
         fail("NX_INVALID_ARGUMENT", "Datums can be shown or hidden, not isolated", field="/mode")
     with tx.checks():
@@ -89,6 +106,9 @@ def nx_set_visibility(
             values = display.datums(part)
             if not values:
                 fail("NX_NOT_FOUND", "The part has no datums", field="/datums")
+        elif show_all:
+            everything = bodies.scope(tx, "assembly") + [c for c, _ in parts.components(part)]
+            values = [o for o in {int(o.Tag): o for o in everything}.values() if o.IsBlanked]
         else:
             values = targets(tx, objects, expand=mode == "isolate")
             kinds = {kind_of(tx, v) for v in values}
@@ -98,6 +118,7 @@ def nx_set_visibility(
                     "Visibility applies to bodies, components, curves and datums, not faces or "
                     "edges",
                     field="/objects",
+                    hint="Hide the owning body, or use nx_set_appearance transparency=100",
                 )
             if mode == "isolate" and kinds - {"body"}:
                 fail("NX_WRONG_KIND", "Isolate bodies, features or components", field="/objects")
@@ -125,7 +146,9 @@ def nx_set_visibility(
         for obj in values:
             readback.expect(bool(obj.IsBlanked) == (mode == "hide"), "blanked", tag=int(obj.Tag))
     pairs = tx.services.display_records(values, False)
-    return {"mode": mode, "objects": display_rows(tx, pairs), "count": len(pairs)}
+    rows = display_rows(tx, pairs)
+    hidden = sum(1 for r in rows if r["blanked"])
+    return {"mode": mode, "objects": rows, "count": len(pairs), "blanked": hidden}
 
 
 def _appearance_summary(a, say):
@@ -151,14 +174,16 @@ def nx_set_appearance(
     tx: Tx,
     *,
     objects: Targets,
-    color: ColorIndex | ColorName | None = None,
-    transparency: Annotated[int, Range(ge=0, le=100)] | None = None,
+    color: ColorIndex | ColorName | Loose | None = None,
+    transparency: Percent | None = None,
 ) -> AppearanceData:
     """Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) of
     objects. Components and features colour their bodies. Persists when the part is saved;
-    returns restore_id."""
+    undo with nx_restore_display(restore_id)."""
     if color is None and transparency is None:
         fail("NX_INVALID_ARGUMENT", "Give color or transparency", field="/color")
+    color = _color(color)
+    transparency = _percent(transparency)
     with tx.checks():
         display.shown_part(tx, work=True)
         values = targets(tx, objects, expand=True)
@@ -201,14 +226,39 @@ def nx_get_appearance(
     count_only returns just how many objects and faces a display change would touch."""
     values = targets(tx, objects, expand=True)
     if count_only:
-        count = len({int(f.Tag) for v in values for f in [v, *_faces(v)]})
+        count = len({int(f.Tag) for v in values for f in [v, *faces_of(v)]})
         return {"count": count}
     pairs = tx.services.display_records(values, True)
     return {"objects": display_rows(tx, pairs), "count": len(pairs)}
 
 
-def _faces(obj):
-    return list(obj.GetFaces()) if hasattr(obj, "IsSolidBody") else []
+def _color(value):
+    """A colour index or canonical name from an index, a digit string or a name in any
+    case or spelling ('Red', 'grey')."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if text.isdigit():
+        if not 1 <= int(text) <= 216:
+            fail("NX_INVALID_ARGUMENT", "A colour index is 1 to 216", field="/color")
+        return int(text)
+    return choice(text, tuple(display.COLOR_NAMES), "/color", COLOR_ALIASES)
+
+
+def _percent(value):
+    """Transparency 0..100 from an integer or a percent string ('40%', '40 %', '40')."""
+    if not isinstance(value, str):
+        return value
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*%?\s*", value)
+    number = float(match.group(1)) if match else -1.0
+    if not 0 <= number <= 100:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"Transparency {value!r} is not a percentage 0-100",
+            field="/transparency",
+            hint="Send an integer 0 (opaque) to 100 (clear), e.g. 40 or '40%'",
+        )
+    return round(number)
 
 
 @tool(

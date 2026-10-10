@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/edit_dimension.json",
-  "scenario_sha256": "9fd8f26d609e78c60fa37bf4ff525998557b4b0f786c8011ace3c92eb92ce0e9",
+  "scenario_sha256": "06488b2773a8de091a4a055e7919767ca04a1921ec78f40d56c7ad932f880474",
   "domain": "drawing",
   "covers": {
     "nx_edit_dimension": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_dimension": "5cb9d856532c3e03ec4e9e0bdffec86ee50d399d44b9ff25306b6729b241afa1"
+    "nx_edit_dimension": "f8ff3e3c3a3920ca242da98db231fe41b1cdf48cac978daf3d2cb39f8615645c"
   },
-  "recorded": "2026-10-10T15:59:45Z",
+  "recorded": "2026-10-10T22:56:39Z",
   "passed": true,
-  "checks": 30,
+  "checks": 49,
   "failed_checks": 0,
   "steps": [
     {
@@ -119,7 +119,7 @@
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 6
     },
     {
       "index": 16,
@@ -154,24 +154,52 @@
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 21,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 22,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 23,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 25,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 26,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

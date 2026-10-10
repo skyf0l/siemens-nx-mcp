@@ -159,7 +159,7 @@ def test_gdt_refuses_before_nx_and_needs_its_variant_fields():
     letter = run(nx, "nx_create_gdt", kind="datum_feature", faces=[face.ref], position=[0, 0, 0])
     assert letter.error["field"] == "/letter"
     lower = run(nx, "nx_create_gdt", kind="datum_feature", faces=[face.ref], position=[0, 0, 0],
-                letter="a")  # fmt: skip
+                letter="a1")  # fmt: skip
     assert lower.error["field"] == "/letter"
     frame = run(nx, "nx_create_gdt", kind="fcf", faces=[face.ref], position=[0, 0, 0])
     assert frame.error["field"] == "/frame"
@@ -169,3 +169,59 @@ def test_gdt_refuses_before_nx_and_needs_its_variant_fields():
     assert wrong.error["category"] == "wrong_kind" and wrong.error["field"] == "/faces/0"
     for result in (letter, lower, frame, wrong):
         assert result.mutation_outcome == "not_started"
+
+
+def test_note_text_may_be_one_string_with_line_breaks():
+    nx = notes_nx()
+    nx.sheet_obj.Open()
+    ok = run(nx, "nx_create_note", text="BREAK ALL SHARP EDGES\nMATERIAL: STEEL", origin=[40, 40])
+    assert ok.ok, ok
+    assert ok.data["text"] == ["BREAK ALL SHARP EDGES", "MATERIAL: STEEL"]
+    blank = run(nx, "nx_create_note", text=" \n ", origin=[40, 40])
+    assert blank.error["field"] == "/text" and blank.mutation_outcome == "not_started"
+    long = run(nx, "nx_create_note", text="\n".join(["X"] * 51), origin=[40, 40])
+    assert long.error["field"] == "/text" and "1-50 lines" in long.error["message"]
+
+
+def test_edit_replaces_a_notes_text_and_refuses_other_annotations():
+    nx = notes_nx()
+    nx.sheet_obj.Open()
+    note = run(nx, "nx_create_note", text=["OLD"], origin=[40, 40])
+    obj = nx.part.Notes[-1]
+
+    def retext(b):
+        lines = b.Text.TextBlock.SetText.calls[-1][0][0]
+        obj.GetText = lambda: list(lines)
+        return obj
+
+    nx.on_commit("DraftingNoteBuilder", retext)
+    ok = run(nx, "nx_edit_annotation", annotation=note.data["annotation"]["id"],
+             text="NEW TEXT\nLINE 2")  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["text"] == ["NEW TEXT", "LINE 2"]
+    assert nx.last("DraftingNoteBuilder").args == (obj,) and nx.live_builders == 0
+    nx.on_commit("DraftingNoteBuilder", lambda b: obj)  # NX keeps the old text
+    kept = run(nx, "nx_edit_annotation", annotation=note.data["annotation"]["id"], text=["X"])
+    assert (
+        kept.error["category"] == "verification_failed" and kept.mutation_outcome == "rolled_back"
+    )
+    mark = Object("CENTER")
+    mark.OwningPart, mark.IsOccurrence, mark.AnnotationOrigin = nx.part, False, point(1, 1, 0)
+    nx.dependent[mark.Tag] = (1, "SHT1@0")
+    other = run(nx, "nx_edit_annotation", annotation=nx.ref_of(mark, "annotation"), text=["X"])
+    assert other.error["code"] == "NX_UNSUPPORTED_OPTION" and other.error["field"] == "/text"
+    assert other.mutation_outcome == "not_started"
+
+
+def test_update_reports_objects_it_did_not_refresh():
+    nx = notes_nx()
+    nx.sheet_obj.Open()
+    note = run(nx, "nx_create_note", text=["N"], origin=[40, 40])
+    ref = note.data["annotation"]["id"]
+    given = run(nx, "nx_update_annotations", objects=[ref])
+    assert given.ok, given
+    assert given.data["refreshed"] == [] and given.data["skipped"] == [{"id": ref}]
+    assert "Not managed" in given.data["note"]
+    every = run(nx, "nx_update_annotations")
+    assert every.data["refreshed"] == [] and "skipped" not in every.data
+    assert every.data["note"].startswith("Nothing needed a refresh")

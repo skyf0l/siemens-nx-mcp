@@ -10,8 +10,8 @@ from nx_mcp.core.references import Counter, References
 from tests.core.fakes import FakeServices
 
 
-def test_taxonomy_has_22_categories_and_66_codes():
-    assert len(errors.CATEGORIES) == 22 and len(errors.CODES) == 66
+def test_taxonomy_has_22_categories_and_67_codes():
+    assert len(errors.CATEGORIES) == 22 and len(errors.CODES) == 67
     assert all(c.startswith("NX_") for c in errors.CODES)
 
 
@@ -45,11 +45,29 @@ def test_an_update_failure_nx_undid_is_update_failed():
     assert error.category == "geometry_failed" and "undid" in error.message
 
 
-def test_traceback_only_in_dev(monkeypatch):
+def test_traceback_only_in_dev_and_never_in_the_envelope(monkeypatch):
     monkeypatch.delenv("NX_MCP_DEV", raising=False)
-    assert "traceback" not in classify(ValueError("x")).details
+    plain = classify(ValueError("x"))
+    assert "traceback" not in plain.details and plain.trace is None
     monkeypatch.setenv("NX_MCP_DEV", "1")
-    assert "traceback" in classify(ValueError("x")).details
+    dev = classify(ValueError("x"))
+    assert "traceback" not in dev.details and "ValueError" in (dev.trace or "")
+    assert "traceback" not in json.dumps(dev.error_dict())
+
+
+def test_fail_can_override_retry_for_one_error():
+    with pytest.raises(NXError) as e:
+        errors.fail("NX_NOT_FOUND", "nothing to undo", retry="never")
+    assert e.value.category == "not_found" and e.value.retry == "never"
+    assert e.value.error_dict()["retry"] == "never" and not e.value.retryable
+    assert NXError("NX_NOT_FOUND", "x").retry == "after_fix"
+    with pytest.raises(ValueError):
+        errors.fail("NX_NOT_FOUND", "x", retry="sometimes")
+
+
+def test_advisory_warning_codes_and_not_running():
+    assert {"NX_VIEW_OVERLAP", "NX_NO_EFFECT", "NX_NOTE"} <= errors.WARNING_CODES
+    assert NXError("NX_NOT_RUNNING", "done").retry == "never"
 
 
 def test_unlisted_codes_become_nx_error():

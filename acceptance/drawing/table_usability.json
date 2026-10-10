@@ -1,0 +1,182 @@
+{
+ "covers": {
+  "nx_create_drawing_table": [
+   "revision",
+   "title_block"
+  ],
+  "nx_edit_drawing_table": [
+   "revision"
+  ],
+  "nx_get_drawing_table": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "rev",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     250,
+     290
+    ],
+    "rows": [
+     [
+      "A",
+      "2026-10-11"
+     ]
+    ],
+    "widths": [
+     15,
+     15
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.kind": "revision",
+    "warnings.0.message": {
+     "contains": "wraps 1 cell"
+    },
+    "data.rows.0.1": {
+     "contains": "\n"
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "widths": [
+     15,
+     40
+    ],
+    "row_height": 9
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.rows": [
+     [
+      "A",
+      "2026-10-11"
+     ]
+    ],
+    "data.row_height": {
+     "close": 9,
+     "tol": 1e-06
+    },
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "tb",
+   "args": {
+    "kind": "title_block",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     415,
+     30
+    ],
+    "rows": [
+     [
+      "PART",
+      "BLOCK"
+     ]
+    ],
+    "widths": [
+     40,
+     60
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.row_height": {
+     "close": 7,
+     "tol": 0.1
+    },
+    "warnings.0.message": {
+     "contains": "reaches x=515"
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "data.kind": "title_block",
+    "data.tables": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "bend",
+    "view": "$top.data.view.id",
+    "position": [
+     300,
+     100
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "mutation_outcome": "not_started",
+    "error.field": "/view"
+   }
+  },
+  {
+   "call": "nx_create_balloons",
+   "args": {
+    "parts_list": "$rev.data.table.id",
+    "view": "$top.data.view.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "mutation_outcome": "not_started",
+    "error.message": {
+     "contains": "not a revision"
+    }
+   }
+  }
+ ]
+}

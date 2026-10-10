@@ -142,8 +142,11 @@ def test_save_as_writes_a_new_file_and_never_overwrites(nx, root):
     ok = call(nx, tools.nx_save_part, part=ref, path="v2/s_v2.prt")
     assert ok.ok and ok.data["saved_as"] and ok.data["path"] == "v2/s_v2.prt"
     assert Path(part.FullPath) == root / "v2" / "s_v2.prt" and (root / "v2" / "s_v2.prt").is_file()
-    again = call(nx, tools.nx_save_part, part=ref, path="v2/s_v2.prt")
-    assert again.error["code"] == "NX_ALREADY_EXISTS" and again.mutation_outcome == "not_started"
+    (root / "taken.prt").write_bytes(b"someone else's file")
+    taken = call(nx, tools.nx_save_part, part=ref, path="taken.prt")
+    assert taken.error["code"] == "NX_ALREADY_EXISTS" and taken.mutation_outcome == "not_started"
+    assert "omit path" in taken.error["hint"] and taken.error["field"] == "/path"
+    assert (root / "taken.prt").read_bytes() == b"someone else's file"
     nx.new_part("other.prt")
     clash = call(nx, tools.nx_save_part, part=ref, path="z/OTHER.prt")
     assert clash.error["code"] == "NX_NAME_CONFLICT" and clash.mutation_outcome == "not_started"
@@ -422,3 +425,101 @@ def test_open_reuses_a_loaded_part_spelled_differently(nx, root):
     part.FullPath = str(root / "project" / "sub" / ".." / "base.prt")
     ok = call(nx, tools.nx_open_part, path="project/base.prt")
     assert ok.data["already_loaded"] and nx.opened_files == []
+
+
+# ---- usability: units block, part refs, save to the part's own file ----
+def test_the_units_block_follows_the_part_the_call_activates(nx):
+    inch = call(nx, tools.nx_create_part, path="u/inch1.prt", units="in")
+    assert inch.units["length"] == "in" and inch.data["units"] == "in"
+    mm = call(nx, tools.nx_create_part, path="u/mm1.prt")
+    assert mm.units["length"] == "mm" and mm.data["units"] == "mm"
+    back = call(nx, tools.nx_activate_part, part=inch.data["part"]["id"])
+    assert back.units["length"] == "in"
+    listed = call(nx, tools.nx_list_parts, active_only=True)
+    assert listed.units["length"] == listed.data["items"][0]["units"] == "in"
+    closed = call(nx, tools.nx_close_part, part=inch.data["part"]["id"], save=False)
+    work = nx.session.Parts.Work
+    expected = "mm" if work is not None and work.PartUnits == "mm" else None
+    assert (closed.units or {}).get("length") == expected
+
+
+def test_a_stale_part_ref_points_to_nx_list_parts_and_the_current_refs(nx, root):
+    part = nx.new_part("re/open1.prt")
+    part.Save()
+    old = nx.ref_of(part, "part")
+    assert call(nx, tools.nx_close_part, part=old, save=False).ok
+    reopened = call(nx, tools.nx_open_part, path="re/open1.prt")
+    assert reopened.ok and reopened.data["part"]["id"] != old
+    for fn, args in [(tools.nx_activate_part, {}), (tools.nx_save_part, {}),
+                     (tools.nx_close_part, {"save": False})]:  # fmt: skip
+        stale = call(nx, fn, part=old, **args)
+        assert stale.error["category"] == "stale_reference", stale
+        assert stale.mutation_outcome == "not_started" and stale.error["field"] == "/part"
+        assert "nx_list_parts" in stale.error["hint"]
+        rows = {r["id"]: r for r in stale.error["details"]["loaded_parts"]}
+        assert rows[reopened.data["part"]["id"]]["path"] == "re/open1.prt"
+    unknown = call(nx, tools.nx_activate_part, part="p:999999")
+    assert "nx_list_parts" in unknown.error["hint"] and unknown.error["details"]["loaded_parts"]
+
+
+def test_part_fields_say_where_refs_and_paths_come_from():
+    from nx_mcp.sidecar import schema
+
+    for fn in (tools.nx_activate_part, tools.nx_save_part, tools.nx_close_part):
+        prop = schema.input_schema(fn.spec)["properties"]["part"]
+        assert "nx_list_parts" in prop["description"], fn
+    for fn in (tools.nx_create_part, tools.nx_open_part, tools.nx_save_part):
+        assert ".prt" in schema.input_schema(fn.spec)["properties"]["path"]["description"]
+
+
+def test_save_to_the_parts_own_file_saves_in_place(nx, root):
+    part = nx.new_part("own/plate1.prt")  # created, never written
+    part.IsModified = True
+    ref = nx.ref_of(part, "part")
+    first = call(nx, tools.nx_save_part, part=ref, path="own/plate1.prt")
+    assert first.ok and first.mutation_outcome == "committed", first
+    assert "saved_as" not in first.data and first.data["saved_files"] == ["own/plate1.prt"]
+    assert (root / "own" / "plate1.prt").is_file() and not part.IsModified
+    part.IsModified = True
+    again = call(nx, tools.nx_save_part, path="OWN/Plate1.prt")  # the work part's file exists
+    assert again.ok and again.data["saved_files"] == ["own/plate1.prt"], again
+    assert again.data["part"]["id"] == ref
+
+
+def test_a_refused_save_as_that_changed_nothing_is_not_partial(nx, root):
+    part = nx.new_part("keep.prt")
+    ref = nx.ref_of(part, "part")
+    before = part.FullPath
+
+    def refuse(path):
+        raise NXException(1020004, "File already exists")
+
+    part.SaveAs = refuse
+    bad = call(nx, tools.nx_save_part, part=ref, path="deep/new/keep_v2.prt")
+    assert bad.error["code"] == "NX_SAVE_FAILED" and bad.error["nx_code"] == 1020004
+    assert bad.mutation_outcome == "rolled_back", bad
+    assert "omit path" in bad.error["hint"] and part.FullPath == before
+    assert not (root / "deep").exists()  # the folders the call made are gone again
+
+
+def test_a_save_as_failure_after_writing_is_partial(nx, root):
+    part = nx.new_part("half.prt")
+
+    def half(path):
+        Path(path).write_bytes(b"half")
+        raise NXException(7, "Disk full")
+
+    part.SaveAs = half
+    bad = call(nx, tools.nx_save_part, path="half_v2.prt")
+    assert bad.error["code"] == "NX_SAVE_FAILED" and bad.mutation_outcome == "partial"
+
+
+def test_unsaved_part_refusal_names_the_part(nx):
+    dirty = nx.new_part("d/dirty2.prt")
+    dirty.IsModified = True
+    ref = nx.ref_of(dirty, "part")
+    refused = call(nx, tools.nx_close_part, part=ref)
+    assert refused.error["code"] == "NX_UNSAVED_PART"
+    details = refused.error["details"]
+    assert details["part"]["id"] == ref and details["path"] == "d/dirty2.prt"
+    assert details["modified"] is True

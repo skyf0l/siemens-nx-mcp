@@ -22,6 +22,7 @@ NX 2406 findings kept here:
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -73,10 +74,56 @@ class CornerData(TypedDict, total=False):
     distances: list[float]
 
 
+def _line_corner(tx, sk, a, b):
+    """``(corner, room_a, room_b, angle)`` of two sketch lines: their intersection, the length
+    of each from it to its far end, and the angle between them (radians); None if parallel."""
+    ta, tb = _corner(tx, a, b)
+    f = sk.frame
+    far_a = ksketch.to_local(f, kcurve.point_at(tx, a, 1.0 - ta))
+    far_b = ksketch.to_local(f, kcurve.point_at(tx, b, 1.0 - tb))
+    near_a = ksketch.to_local(f, kcurve.point_at(tx, a, ta))
+    near_b = ksketch.to_local(f, kcurve.point_at(tx, b, tb))
+    u, v = geom.sub(far_a, near_a), geom.sub(far_b, near_b)
+    cross = geom.cross2(u, v)
+    if abs(cross) <= 1e-9 * geom.norm(u) * geom.norm(v):
+        return None
+    t = geom.cross2(geom.sub(near_b, near_a), v) / cross
+    corner = geom.add(near_a, geom.scale(u, t))
+    da, db = geom.sub(far_a, corner), geom.sub(far_b, corner)
+    room_a, room_b = geom.norm(da), geom.norm(db)
+    if min(room_a, room_b) <= 1e-12:
+        return None
+    angle = math.acos(max(-1.0, min(1.0, geom.dot(da, db) / (room_a * room_b))))
+    return corner, room_a, room_b, angle
+
+
+def _too_large(message, field, **details):
+    fail(
+        "NX_INVALID_ARGUMENT",
+        message,
+        field=field,
+        hint="Use a smaller value, or lengthen the curves",
+        details=details,
+    )
+
+
 def _fillet(tx, sk, a, b, radius):
     nx = tx.nx
     if any(ksketch.curve_kind(tx, c) not in ("line", "arc") for c in (a, b)):
         fail("NX_WRONG_GEOMETRY", "A fillet joins sketch lines and arcs", field="/first")
+    lines = all(ksketch.curve_kind(tx, c) == "line" for c in (a, b))
+    corner = _line_corner(tx, sk, a, b) if lines else None
+    if lines and corner is None:
+        fail("NX_WRONG_GEOMETRY", "The lines are parallel: they make no corner", field="/second")
+    if corner is not None:
+        # The arc touches each line r / tan(angle / 2) from the corner.
+        biggest = min(corner[1], corner[2]) * math.tan(corner[3] / 2)
+        if radius > biggest * (1 + 1e-9):
+            _too_large(
+                f"radius {radius:g} is too large for this corner: at most {biggest:.6g}",
+                "/radius",
+                max_radius=biggest,
+            )
     ta, tb = _corner(tx, a, b)
     originals = [ksketch.read(tx, sk.frame, c) for c in (a, b)]
     with native(default="NX_BUILD_FAILED"):
@@ -106,12 +153,13 @@ def _fillet(tx, sk, a, b, radius):
         any(common.contains(o, p, 1e-6 * max(1.0, radius, *map(abs, p))) for p in ends)
         for o in originals
     ]
-    readback.expect(
-        all(within),
-        "fillet_within_curves",
-        message="The radius is too large for this corner (NX would extend the curves)",
-        within_original_curves=within,
-    )
+    if not all(within):
+        _too_large(
+            f"radius {radius:g} is too large for this corner (NX would extend the curves)",
+            "/radius",
+            check="fillet_within_curves",
+            within_original_curves=within,
+        )
     return {"corner": row}
 
 
@@ -119,6 +167,16 @@ def _chamfer(tx, sk, a, b, d1, d2):
     nx, part, session = tx.nx, tx.part, tx.session
     if any(ksketch.curve_kind(tx, c) != "line" for c in (a, b)):
         fail("NX_WRONG_GEOMETRY", "A sketch chamfer joins two lines", field="/first")
+    meet = _line_corner(tx, sk, a, b)
+    if meet is None:
+        fail("NX_WRONG_GEOMETRY", "The lines are parallel: they make no corner", field="/second")
+    for d, room, field in ((d1, meet[1], "/distance"), (d2, meet[2], "/distance2")):
+        if d > room * (1 + 1e-9):
+            _too_large(
+                f"{field[1:]} {d:g} is longer than the line from the corner ({room:.6g})",
+                field,
+                max_distance=room,
+            )
     f = sk.frame
     ta, tb = _corner(tx, a, b)
     pa, pb = kcurve.point_at(tx, a, ta), kcurve.point_at(tx, b, tb)
@@ -202,12 +260,12 @@ def nx_create_sketch_corner(
     first: CurveRef,
     second: CurveRef,
     kind: Literal["fillet", "chamfer"],
-    radius: Length | None = None,
-    distance: Annotated[Length | None, Doc("Chamfer cut along first")] = None,
+    radius: Annotated[Length | None, Doc("Required for fillet")] = None,
+    distance: Annotated[Length | None, Doc("Required for chamfer: cut along first")] = None,
     distance2: Annotated[Length | None, Doc("Chamfer cut along second (default distance)")] = None,
 ) -> CornerData:
-    """Fillet or chamfer the corner where two sketch curves meet; both curves are trimmed. The
-    corner is at their nearest ends; a radius or distance too large for it is refused."""
+    """Fillet (radius) or chamfer (distance) the corner where two sketch curves meet; both are
+    trimmed. The corner is at their nearest ends; a size too large for it is refused."""
     if first == second:
         fail("NX_INVALID_ARGUMENT", "first and second must be different curves", field="/second")
     if kind == "fillet":
@@ -256,8 +314,56 @@ def _side_of(tx, f, source, outputs):
     )
 
 
+LOOP_SAMPLES = 32
+
+
+def _closed_polygon(tx, sk, inputs):
+    """Sketch-local segments sampled along ``inputs``, which must form one closed loop
+    (inside/outside need one); the segments' order does not matter to a ray test."""
+    f = sk.frame
+    rows = [ksketch.read(tx, f, c) for c in inputs]
+    chains = ksketch.loops(rows)
+    if len(chains) != 1 or not chains[0]["closed"]:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "side inside/outside needs curves that form one closed loop",
+            field="/side",
+            hint="Pass every curve of the loop, or use side left/right (of the first curve's "
+            "direction) or auto",
+        )
+    segments = []
+    for c in inputs:
+        points = [
+            ksketch.to_local(f, kcurve.point_at(tx, c, k / LOOP_SAMPLES))
+            for k in range(LOOP_SAMPLES + 1)
+        ]
+        segments += list(zip(points, points[1:], strict=False))
+    return segments
+
+
+def _inside(segments, p):
+    """True when sketch-local ``p`` lies inside the closed polygon of ``segments``."""
+    inside = False
+    for a, b in segments:
+        if (a[1] > p[1]) != (b[1] > p[1]):
+            x = a[0] + (p[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+            if x > p[0]:
+                inside = not inside
+    return inside
+
+
+def _placed(tx, sk, inputs, outputs, side, polygon):
+    """Where the offset ``outputs`` lie, in the words of ``side``: left/right of the first
+    curve's direction, or inside/outside of the closed loop."""
+    if side not in ("inside", "outside"):
+        return _side_of(tx, sk.frame, inputs[0], outputs)
+    _, _, p_out = min((kcurve.min_distance(tx, inputs[0], o) for o in outputs), key=lambda r: r[0])
+    return "inside" if _inside(polygon, ksketch.to_local(sk.frame, p_out)) else "outside"
+
+
 def _offset(tx, sk, inputs, d, side):
     part, nx = tx.part, tx.nx
+    polygon = _closed_polygon(tx, sk, inputs) if side in ("inside", "outside") else None
     before = ksketch.tags(sk)
     approx = units.part_tolerance(tx, OFFSET_TOLERANCE_MM)
     with builders.build(tx, part.Sketches.CreateSketchOffsetBuilder, nx.SketchOffset.Null) as b:
@@ -276,7 +382,7 @@ def _offset(tx, sk, inputs, d, side):
                 for o in b.GetOutputCurvesOfOffset()
                 if isinstance(o, nx.Curve) and int(o.Tag) not in before
             ]
-            if outputs and _side_of(tx, sk.frame, inputs[0], outputs) != side:
+            if outputs and _placed(tx, sk, inputs, outputs, side, polygon) != side:
                 b.ReverseOffsetDirectionOfChain(inputs[0])
                 b.EvaluateOffset()
         b.Commit()
@@ -285,7 +391,7 @@ def _offset(tx, sk, inputs, d, side):
     created = [c for c in ksketch.new_geometry(sk, before) if isinstance(c, nx.Curve)]
     readback.expect(bool(created), "offset_created")
     measured = [min(kcurve.min_distance(tx, i, c)[0] for i in inputs) for c in created]
-    actual_side = _side_of(tx, sk.frame, inputs[0], created)
+    actual_side = _placed(tx, sk, inputs, created, side, polygon)
     exact = all(ksketch.curve_kind(tx, c) in ("line", "arc", "circle") for c in created)
     limit = 1e-5 * max(1.0, d) if exact else approx
     readback.expect(
@@ -384,15 +490,18 @@ def nx_create_sketch_copy(
     sketch: SketchRef,
     curves: Annotated[list[CurveRef], Items(1, 100)],
     mode: Literal["offset", "mirror"],
-    distance: Length | None = None,
+    distance: Annotated[Length | None, Doc("Required for offset")] = None,
     side: Annotated[
-        Literal["auto", "left", "right"], Doc("Offset side of the first curve's direction")
+        Literal["auto", "left", "right", "inside", "outside"],
+        Doc("left/right of the first curve, or inside/outside a closed loop"),
     ] = "auto",
-    mirror_line: Annotated[str, RefTo("curve", "datum_axis")] | None = None,
+    mirror_line: Annotated[
+        str, RefTo("curve", "datum_axis", doc="Required for mirror: sketch line or datum axis")
+    ]
+    | None = None,
 ) -> CopyData:
     """Copy sketch curves as an associative offset or mirror. Offsets of ellipses and splines
-    are approximated to 0.001 mm; a mirror line is a line of this sketch or a datum axis in its
-    plane."""
+    are approximated to 0.001 mm."""
     args.distinct("/curves", curves, "curves")
     if mode == "offset":
         args.need(distance=distance)
@@ -426,24 +535,61 @@ class ProjectionData(TypedDict, total=False):
     curves: list[CurveRow]
 
 
-def _model_objects(tx, sk, refs, kinds):
+def _is_face(tx, obj):
+    return not isinstance(obj, (tx.nx.Edge, tx.nx.Curve))
+
+
+def _model_objects(tx, refs, mode):
+    """The objects and the mode: omitted, faces mean intersect and edges/curves project;
+    a face to project or an edge to intersect is refused with the mode it needs."""
+    objs = [
+        select.one(tx, ref, "edge", "curve", "face", field=f"/objects/{i}")
+        for i, ref in enumerate(refs)
+    ]
+    faces = [_is_face(tx, o) for o in objs]
+    if mode is None:
+        if all(faces):
+            return objs, "intersect"
+        if not any(faces):
+            return objs, "project"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "objects mix faces with edges or curves",
+            field=f"/objects/{faces.index(True)}",
+            hint="Faces need mode 'intersect', edges and curves mode 'project': make two calls",
+        )
+    for i, face in enumerate(faces):
+        if face and mode == "project":
+            fail(
+                "NX_WRONG_KIND",
+                "A face cannot be projected: project takes edges or curves",
+                field=f"/objects/{i}",
+                hint="Use mode 'intersect' to cut faces with the sketch plane, or project "
+                "the face's edges",
+            )
+        if not face and mode == "intersect":
+            fail(
+                "NX_WRONG_KIND",
+                "intersect takes faces",
+                field=f"/objects/{i}",
+                hint="Use mode 'project' for edges and curves",
+            )
+    return objs, mode
+
+
+def _not_in_sketch(sk, objs):
     owned = ksketch.tags(sk)
-    out = []
-    for i, ref in enumerate(refs):
-        obj = select.one(tx, ref, *kinds, field=f"/objects/{i}")
+    for i, obj in enumerate(objs):
         if int(obj.Tag) in owned:
             fail(
                 "NX_INVALID_ARGUMENT",
                 "The curve already belongs to this sketch",
                 field=f"/objects/{i}",
             )
-        out.append(obj)
-    return out
 
 
-def _project(tx, sk, refs):
+def _project(tx, sk, items):
     part, nx = tx.part, tx.nx
-    items = _model_objects(tx, sk, refs, ("edge", "curve"))
     edges = [o for o in items if isinstance(o, nx.Edge)]
     curves = [o for o in items if not isinstance(o, nx.Edge)]
     with builders.build(tx, part.Sketches.CreateProjectBuilder, nx.Features.Feature.Null) as b:
@@ -471,9 +617,8 @@ def _project(tx, sk, refs):
         return b.GetOperation()
 
 
-def _intersect(tx, sk, refs):
+def _intersect(tx, sk, faces):
     part, nx = tx.part, tx.nx
-    faces = _model_objects(tx, sk, refs, ("face",))
     factory = part.Sketches.CreateIntersectionCurveBuilder
     with builders.build(tx, factory, nx.SketchIntersectionCurve.Null) as b:
         b.Associative = True
@@ -485,13 +630,16 @@ def _intersect(tx, sk, refs):
         return b.CommitFeature()
 
 
+def _projection_summary(a, say):
+    if a.get("mode") == "intersect":
+        return f"Intersect {say('objects')} with sketch {say('sketch')}"
+    return f"Project {say('objects')} into sketch {say('sketch')}"
+
+
 @tool(
     effect="model",
     label="Project model geometry into sketch",
-    summary={
-        "project": "Project {objects} into sketch {sketch}",
-        "intersect": "Intersect {objects} with sketch {sketch}",
-    },
+    summary=_projection_summary,
     keywords=("project curve", "project edge", "intersection curve", "include geometry", "sketch"),
     requires=("work_part",),
     variants="mode",
@@ -510,15 +658,21 @@ def nx_create_sketch_projection(
         Items(1, 200),
         Doc("project: edges or curves; intersect: faces"),
     ],
-    mode: Literal["project", "intersect"],
+    mode: Annotated[
+        Literal["project", "intersect"] | None,
+        Doc("Default: intersect for faces, else project"),
+    ] = None,
 ) -> ProjectionData:
     """Bring model geometry into a sketch as associative curves that follow model changes.
     project: edges or curves onto the sketch plane; intersect: faces with the sketch plane."""
     args.distinct("/objects", objects, "objects")
+    with tx.checks():
+        objs, mode = _model_objects(tx, objects, mode)
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
+        _not_in_sketch(sk, objs)
         before = ksketch.tags(sk)
-        feature = (_project if mode == "project" else _intersect)(tx, sk, objects)
+        feature = (_project if mode == "project" else _intersect)(tx, sk, objs)
         with native(default="NX_UPDATE_FAILED"):
             sk.sketch.Update()
         created = [c for c in ksketch.new_geometry(sk, before) if isinstance(c, tx.nx.Curve)]

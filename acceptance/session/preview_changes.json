@@ -80,7 +80,7 @@
   {
    "call": "nx_finish_preview",
    "args": {"preview_id": "$p2.data.preview_id", "action": "discard"},
-   "expect": {"mutation_outcome": "committed", "data.action": "discard", "data.count": 0}
+   "expect": {"mutation_outcome": "not_applicable", "data.action": "discard", "data.state": "discarded", "data.count": 0}
   },
   {
    "call": "nx_measure_mass",
@@ -112,7 +112,14 @@
   {
    "call": "nx_finish_preview",
    "args": {"preview_id": "$p3.data.preview_id", "action": "accept"},
-   "expect": {"ok": false, "error.code": "NX_STALE_PREVIEW", "error.category": "stale_reference", "mutation_outcome": "not_started"}
+   "expect": {"ok": false, "error.code": "NX_STALE_PREVIEW", "error.category": "stale_reference", "mutation_outcome": "not_started",
+              "error.details.changed": {"contains": "expressions"}}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: discarding the expired preview is a no-op",
+   "args": {"preview_id": "$p3.data.preview_id", "action": "discard"},
+   "expect": {"mutation_outcome": "not_applicable", "data.state": "already_finished", "data.count": 0}
   },
   {
    "call": "nx_measure_mass",
@@ -136,6 +143,7 @@
     "ok": false,
     "error.code": "NX_UNSUPPORTED_OPTION",
     "error.field": "/operations/0/tool",
+    "error.details.previewable": {"contains": "nx_create_extrude"},
     "mutation_outcome": "not_started"
    }
   },
@@ -143,6 +151,46 @@
    "call": "nx_measure_mass",
    "args": {"scope": "part"},
    "expect": {"data.volume": {"close": 8000, "tol": 1e-3}}
+  },
+
+  {
+   "call": "nx_preview_changes",
+   "save": "p4",
+   "args": {"operations": [
+    {"tool": "nx_edit_feature", "arguments": {"feature": "$feat2.data.items.0.id", "parameters": [{"name": "distance", "value": 15}]}},
+    {"tool": "nx_set_name", "arguments": {"object": "$feat2.data.items.0.id", "name": "PREVIEW_EXT"}}
+   ]},
+   "expect": {"mutation_outcome": "previewed", "data.count": 2, "data.after.volume": {"close": 12000, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: a refused call (bad preview_id) does not expire the preview",
+   "args": {"preview_id": "preview_zz", "action": "accept"},
+   "expect": {"ok": false, "error.code": "NX_INVALID_ARGUMENT", "mutation_outcome": "not_started"}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: the model is as previewed, so accept applies both steps",
+   "args": {"preview_id": "$p4.data.preview_id", "action": "accept"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.state": "applied",
+    "data.count": 2,
+    "data.results.1.data.name": {"matches": "(?i)^preview_ext$"},
+    "warnings": {"count": 0}
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 12000, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: an accepted preview cannot be discarded; the error says so",
+   "args": {"preview_id": "$p4.data.preview_id", "action": "discard"},
+   "expect": {"ok": false, "error.code": "NX_STALE_PREVIEW", "error.details.finished": "accepted",
+              "error.message": {"matches": "already accepted"}, "mutation_outcome": "not_started"}
   }
  ]
 }

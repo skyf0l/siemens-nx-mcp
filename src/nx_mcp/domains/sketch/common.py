@@ -15,10 +15,11 @@ from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import Param
 from nx_mcp.core.errors import NXError, classify, fail
-from nx_mcp.core.types import Doc, Point2, Point3, Range, Vec3
+from nx_mcp.core.types import Doc, Point2, Point3, Range, Text, Vec3
 from nx_mcp.core.validate import typeddict_fields, validate
 from nx_mcp.kit import expr, geom, result
 from nx_mcp.kit import sketch as ksketch
+from nx_mcp.kit.args import choice as choice  # natural option spellings
 
 # Item fields of batched tools: plain numbers in part units / degrees (the listing
 # budget has no room for unit strings in every nested field).
@@ -26,6 +27,9 @@ XY = tuple[float, float]
 Size = Annotated[float, Range(gt=0)]
 Degrees = Annotated[float, Range(ge=-3600, le=3600)]
 BAD_STATES = ("OverConstrained", "InconsistentlyConstrained")
+# A free spelling next to a Literal (``Literal[...] | Loose``): the schema still lists the
+# canonical values and :func:`choice` maps 'Horizontal' or 'equal radius' onto them.
+Loose = Annotated[str, Text(32)]
 
 
 class Frame(TypedDict):
@@ -155,8 +159,32 @@ def owned_curve(tx, sk, ref, field):
     return ksketch.owns(tx, sk, ref, field=field)
 
 
+def natural_items(items, key, options, field, aliases=None):
+    """Batch items with their ``key`` (type/kind) mapped to the canonical spelling."""
+    out = []
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            fail("NX_INVALID_ARGUMENT", "expected an object", field=f"{field}/{i}")
+        value = choice(item.get(key), options, f"{field}/{i}/{key}", aliases, key)
+        out.append({**item, key: value})
+    return out
+
+
+def fields_hint(name, sub, key="type"):
+    """``"symmetric takes curves, centerline (required); ..."`` for a variant TypedDict."""
+    fields = [k for k in typeddict_fields(sub) if k != key]
+    required = [k for k in fields if k in sub.__required_keys__]
+    optional = [k for k in fields if k not in sub.__required_keys__]
+    text = f"{name} takes " + ", ".join(required or ["no other field"]) + " (required)"
+    if optional:
+        text += "; optional: " + ", ".join(optional)
+    return text + f". Full schema: nx_get_tool_schemas(tool#{name})"
+
+
 def check_items(items, variants, key, field):
-    """Validate every flat item against its variant TypedDict; returns plain dicts."""
+    """Validate every flat item against its variant TypedDict; returns plain dicts.
+
+    A failure names the item's variant and lists the fields that variant takes."""
     out = []
     for i, item in enumerate(items):
         where = f"{field}/{i}"
@@ -174,6 +202,7 @@ def check_items(items, variants, key, field):
                 "NX_INVALID_ARGUMENT",
                 f"{message} ({item[key]})",
                 field=where + inner,
+                hint=fields_hint(item[key], sub, key),
             )
     return out
 
@@ -268,15 +297,33 @@ def require_solved(tx, sk, before=None) -> Status:
 # ---- fixed geometry guard ----------------------------------------------------------
 
 
-def _fixed_curves(tx, sk) -> list:
-    out = []
-    for curve in ksketch.geometry(sk):
-        if any(ksketch.constraint_type(tx, c) == "fixed" for c in ksketch.attached(tx, sk, curve)):
-            out.append(curve)
-    return out
+# A Fixed constraint on one vertex holds only that point (``CreateFixedConstraint`` with
+# a vertex); on the curve itself (or NX's fully fixed set) it holds the whole curve.
+FIXED_POINTS = {"StartVertex": "start", "EndVertex": "end", "ArcCenter": "center"}
 
 
-def _signature(tx, curve) -> list[float]:
+def _fixed_point(tx, constraint, curve):
+    """The vertex (start/end/center) of ``curve`` a Fixed constraint holds, or None when it
+    holds the whole curve (also when NX does not say)."""
+    get = getattr(constraint, "GetGeometry", None)
+    if get is None:
+        return None
+    try:
+        geometry = list(get() or [])
+    except Exception:
+        return None
+    for g in geometry:
+        held = getattr(g, "Geometry", None)
+        if held is not None and int(held.Tag) == int(curve.Tag):
+            name = result.enum_name(g.PointType, tx.nx.Sketch.ConstraintPointType)
+            return FIXED_POINTS.get(name)
+    return None
+
+
+def _signature(tx, curve, points=None) -> list[float]:
+    """Coordinates that must not move: the fixed ``points`` of ``curve``, else its shape."""
+    if points:
+        return [v for which in sorted(points) for v in ksketch.point(tx, curve, which)]
     kind = ksketch.curve_kind(tx, curve)
     if kind == "line":
         return geom.xyz(curve.StartPoint) + geom.xyz(curve.EndPoint)
@@ -289,23 +336,48 @@ def _signature(tx, curve) -> list[float]:
 
 
 def fixed_positions(tx, sk) -> dict:
-    """Positions of every curve that carries a Fixed constraint, by tag."""
-    return {int(c.Tag): (c, _signature(tx, c)) for c in _fixed_curves(tx, sk)}
+    """What every Fixed constraint holds, by curve tag: ``(curve, points, signature,
+    constraints)`` with ``points`` None for the whole curve, else the fixed vertices."""
+    out = {}
+    for curve in ksketch.geometry(sk):
+        holders = [
+            c for c in ksketch.attached(tx, sk, curve) if ksketch.constraint_type(tx, c) == "fixed"
+        ]
+        if not holders:
+            continue
+        held = [_fixed_point(tx, c, curve) for c in holders]
+        points = None if None in held else set(held)
+        out[int(curve.Tag)] = (curve, points, _signature(tx, curve, points), holders)
+    return out
 
 
-def require_fixed_unmoved(tx, positions) -> None:
-    """Fixed curves must not move: NX's line fix holds only the infinite line."""
+def require_fixed_unmoved(tx, positions, field=None) -> None:
+    """Fixed geometry must not move: NX's line fix holds only the infinite line, and a
+    fixed vertex must stay put while the rest of its curve may move."""
     moved = []
-    for curve, before in positions.values():
-        after = _signature(tx, curve)
+    for curve, points, before, holders in positions.values():
+        after = _signature(tx, curve, points)
         if before and len(after) == len(before):
             error = max(abs(a - b) for a, b in zip(after, before, strict=True))
             if error > geom.tol(before, after) * 10:
-                moved.append({"curve": tx.ref(curve, "curve")["id"], "moved": error})
+                moved.append(
+                    {
+                        "curve": tx.ref(curve, "curve")["id"],
+                        "moved": error,
+                        "fixed": sorted(points) if points else "curve",
+                        "fixed_by": [tx.ref(c, "sketch_constraint")["id"] for c in holders],
+                    }
+                )
     if moved:
+        what = ", ".join(
+            m["curve"] + ("" if m["fixed"] == "curve" else " (" + "/".join(m["fixed"]) + ")")
+            for m in moved
+        )
         fail(
             "NX_CONSTRAINT_UNSATISFIED",
-            "The change would move fixed geometry; it was rolled back",
-            hint="Constrain or dimension the free geometry instead, or remove the fix",
+            f"The change would move fixed geometry {what}; it was rolled back",
+            hint="Constrain or dimension the free geometry instead, or delete the Fixed "
+            "constraint first (nx_edit_sketch_curves {type: delete, object: <fixed_by id>})",
+            field=field,
             details={"fixed_curves_moved": moved},
         )

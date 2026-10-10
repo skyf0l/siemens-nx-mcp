@@ -205,7 +205,7 @@ class DimensionSets:
     """``part.Annotations.DimensionSets``: members measure along x or y between picks."""
 
     def __init__(self, nx, values=None):
-        self.nx, self.values, self.made = nx, values, []
+        self.nx, self.values, self.made, self.condemned, self.redrawn = nx, values, [], False, []
 
     def __getattr__(self, name):
         horizontal = "Horizontal" in name
@@ -218,9 +218,12 @@ class DimensionSets:
             first = 9100 + 10 * len(self.made)
             members = [NS(Tag=first + i, Name="DIM", ComputedSize=v, OwningPart=self.nx.part,
                           IsOccurrence=False) for i, v in enumerate(values)]  # fmt: skip
+            for m in members:
+                m.RedisplayObject = lambda m=m: self.redrawn.append(m.Tag)
             native = NS(Tag=9000 + len(self.made), Name="SET", OwningPart=self.nx.part, IsOccurrence=False,
                         GetAllSubDimensions=lambda: members, name=name, origin=origin)  # fmt: skip
-            self.nx.part.Dimensions.extend(members)
+            # NX 2406: a member it never makes alive is not in part.Dimensions (not drawn)
+            self.nx.part.Dimensions.extend(members[: -1 if self.condemned else None])
             self.made.append(native)
             return native
 
@@ -261,20 +264,74 @@ def test_baseline_and_chain_sets_are_checked_per_member():
     assert bad.mutation_outcome == "rolled_back"
 
 
+def test_set_members_are_checked_drawn_and_redisplayed():
+    nx = kinds_nx()
+    sets = with_sets(nx)
+    objects = [nx.left.ref, nx.hole.ref, nx.right.ref]
+    ok = create(nx, kind="chain", objects=objects)
+    assert ok.ok, ok
+    # NX draws a new set only at the next display update: every member is redisplayed
+    assert sets.redrawn == [m.Tag for m in sets.made[-1].GetAllSubDimensions()]
+    sets.condemned = True
+    hidden = create(nx, kind="chain", objects=objects)
+    assert hidden.error["category"] == "verification_failed"
+    assert hidden.error["details"]["check"] == "shown[1]"
+    assert hidden.mutation_outcome == "rolled_back"
+
+
+def test_two_point_sets_are_refused_before_nx():
+    nx = kinds_nx()
+    sets = with_sets(nx)
+    for kind in ("chain", "baseline"):
+        two = create(nx, kind=kind, objects=[nx.left.ref, nx.right.ref], direction="horizontal")
+        with_datum = create(nx, kind=kind, datum=nx.left.ref, objects=[nx.right.ref])
+        for result in (two, with_datum):
+            assert result.error["code"] == "NX_INVALID_ARGUMENT"
+            assert result.error["field"] == "/objects"
+            assert "kind linear" in result.error["hint"] and "got 2" in result.error["message"]
+            assert result.mutation_outcome == "not_started"
+    assert not sets.made
+
+
 def test_set_refusals_happen_before_nx():
     nx = kinds_nx()
     sets = with_sets(nx)
     one = create(nx, kind="chain", objects=[nx.left.ref])
     assert one.error["field"] == "/objects"
-    dup = create(nx, kind="chain", objects=[nx.left.ref, nx.left.ref])
+    # Two points make one (invisible on NX 2406) set member: a linear dimension instead.
+    two = create(nx, kind="chain", objects=[nx.left.ref, nx.hole.ref])
+    assert two.error["field"] == "/objects" and "kind linear" in two.error["hint"]
+    assert "got 2" in two.error["message"]
+    dup = create(nx, kind="chain", objects=[nx.left.ref, nx.left.ref, nx.right.ref])
     assert dup.error["field"] == "/objects/1"
-    level = create(nx, kind="chain", objects=[nx.hole.ref, nx.ring.ref], direction="vertical")
-    assert level.error["field"] == "/objects/1" and level.error["category"] == "invalid_argument"
-    snap = create(nx, kind="baseline", objects=[nx.hole.ref, nx.left.ref], object_point="end")
+    level = create(nx, kind="chain", objects=[nx.front.ref, nx.hole.ref, nx.ring.ref],
+                   direction="vertical")  # fmt: skip
+    assert level.error["field"] == "/objects/2" and level.error["category"] == "invalid_argument"
+    assert "objects/2 is at the same vertical position as objects/1" in level.error["message"]
+    snap = create(nx, kind="baseline", objects=[nx.hole.ref, nx.left.ref, nx.right.ref],
+                  object_point="end")  # fmt: skip
     assert snap.error["code"] == "NX_WRONG_GEOMETRY" and snap.error["field"] == "/objects/0"
-    for result in (one, dup, level, snap):
+    on_datum = create(nx, kind="baseline", datum=nx.left.ref, objects=[nx.right.ref, nx.left.ref])
+    assert on_datum.error["field"] == "/objects"
+    for result in (one, two, dup, level, snap, on_datum):
         assert result.mutation_outcome == "not_started"
     assert not sets.made
+
+
+def test_a_set_datum_is_its_first_point():
+    nx = kinds_nx()
+    sets = with_sets(nx)
+    base = create(nx, kind="baseline", datum=nx.left.ref, objects=[nx.hole.ref, nx.right.ref])
+    assert base.ok, base
+    assert [r["value"] for r in base.data["dimensions"]] == [25, 80]
+    assert sets.made[-1].name == "CreateHorizontalBaselineDimension"
+    # the datum point snaps like an object: a circle at its center
+    centre = create(nx, kind="chain", datum=nx.hole.ref, objects=[nx.left.ref, nx.right.ref])
+    assert [r["value"] for r in centre.data["dimensions"]] == [25, 80]
+    # an object level with the datum is named against the datum
+    level = create(nx, kind="baseline", datum=nx.left.ref, objects=[nx.right.ref, nx.ach.ref],
+                   direction="horizontal")  # fmt: skip
+    assert level.error["field"] == "/objects/1" and "as datum" in level.error["message"]
 
 
 # ---- fits ---------------------------------------------------------------------------------
@@ -386,7 +443,7 @@ def test_fit_request_refusals_happen_before_nx():
         ({"type": "fit", "hole": "H7", "upper": 0.1}, "invalid_argument", "/tolerance/upper"),
         ({"type": "bilateral", "shaft": "g6"}, "invalid_argument", "/tolerance/shaft"),
         ({"type": "fit", "hole": "Z7"}, "unsupported", "/tolerance/hole"),
-        ({"type": "fit", "hole": "h7"}, "invalid_argument", "/tolerance/hole"),
+        ({"type": "fit", "hole": "7h"}, "invalid_argument", "/tolerance/hole"),
         ({"type": "fit", "shaft": "r6"}, "unsupported", "/tolerance/shaft"),
     ]
     for tolerance, category, field in cases:
@@ -408,3 +465,78 @@ def test_fits_are_refused_on_angles_and_oversized_dimensions():
         )
         assert result.error["code"] == "NX_UNSUPPORTED_OPTION" and result.error["field"] == field
         assert result.mutation_outcome == "not_started" and not nx.commits
+
+
+def test_fit_classes_are_taken_in_any_case():
+    nx, d, ref = fit_nx()
+    ok = run(nx, "nx_edit_dimension", dimension=ref,
+             tolerance={"type": "fit", "hole": "h7", "shaft": "G6"})  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["tolerance"]["hole"] == "H7" and ok.data["tolerance"]["shaft"] == "g6"
+    js = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "fit", "hole": "js7"})
+    assert js.ok and js.data["tolerance"]["hole"] == "JS7"
+
+
+def test_deviations_follow_the_tolerance_type():
+    nx, d, ref = fit_nx()
+    fresh = run(nx, "nx_get_dimension", dimension=ref)
+    assert fresh.data["tolerance"]["type"] == "none"
+    assert "upper" not in fresh.data["tolerance"] and "lower" not in fresh.data["tolerance"]
+    hidden = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"upper": 0.2})
+    assert hidden.error["field"] == "/tolerance/upper" and hidden.mutation_outcome == "not_started"
+    assert "bilateral, symmetric or limits" in hidden.error["message"]
+    sym = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "symmetric", "upper": 0.2})
+    assert sym.ok, sym
+    assert sym.data["tolerance"]["upper"] == pytest.approx(0.2)
+    assert sym.data["tolerance"]["lower"] == pytest.approx(-0.2)
+    from_lower = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"lower": -0.05})
+    assert from_lower.ok and from_lower.data["tolerance"]["upper"] == pytest.approx(0.05)
+    clash = run(nx, "nx_edit_dimension", dimension=ref,
+                tolerance={"type": "symmetric", "upper": 0.1, "lower": -0.2})  # fmt: skip
+    assert clash.error["field"] == "/tolerance/lower" and clash.mutation_outcome == "not_started"
+    d.UpperMetricToleranceValue = 0.3
+    keep = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "symmetric"})
+    assert keep.data["tolerance"]["lower"] == pytest.approx(-0.3)
+    none = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "none"})
+    assert none.ok and set(none.data["tolerance"]) == {"type", "decimals"}
+
+
+def rebind_nx(kind="HorizontalDimension"):
+    """A linear dimension on ``front`` whose builder rebinds it to the edges it is given."""
+    nx, d, ref = fit_nx(kind, 72.0)
+    bound = [nx.front, nx.front]
+    d.NumberOfAssociativities, d.AnnotationOrigin = 2, nx.nx.Point3d(140.0, 120.0, 0.0)
+    d.GetAssociativity = lambda i: NS(ObjectView=nx.top, FirstObject=bound[i - 1])
+
+    def commit(b):
+        if nx.rebinds:
+            bound[:] = [b.FirstAssociativity.SetValue.calls[-1][0][1],
+                        b.SecondAssociativity.SetValue.calls[-1][0][1]]  # fmt: skip
+        d.ComputedSize = nx.size
+        return d
+
+    nx.rebinds, nx.size = True, 64.0
+    nx.on_commit("LinearDimensionBuilder", commit)
+    return nx, d, ref
+
+
+def test_rebinding_reads_back_the_bound_edges():
+    nx, d, ref = rebind_nx()
+    ok = run(nx, "nx_edit_dimension", dimension=ref, edges=[nx.back.ref])
+    assert ok.ok, ok
+    assert ok.data["value"] == 64 and [o["id"] for o in ok.data["objects"]] == [nx.back.ref] * 2
+    nx2, _, ref2 = rebind_nx()
+    nx2.rebinds = False  # NX kept the old edges (and showed the expected value)
+    kept = run(nx2, "nx_edit_dimension", dimension=ref2, edges=[nx2.back.ref])
+    assert kept.error["category"] == "verification_failed", kept
+    assert kept.mutation_outcome == "rolled_back"
+
+
+def test_rebind_errors_name_the_edges_field():
+    nx, d, ref = rebind_nx()
+    end_on = run(nx, "nx_edit_dimension", dimension=ref, edges=[nx.left.ref])
+    assert end_on.error["field"] == "/edges/0" and end_on.mutation_outcome == "not_started"
+    assert "horizontal distance" in end_on.error["message"]
+    assert "own length" in end_on.error["hint"]
+    level = run(nx, "nx_edit_dimension", dimension=ref, edges=[nx.left.ref, nx.ach.ref])
+    assert level.error["field"] == "/edges/1"

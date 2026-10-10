@@ -6,7 +6,7 @@
   rarity in the catalogue; scaled by the share of words matched; plus bonuses for
   the share of the tool's name words named, a keyword or label phrase in the
   query and a word naming the tool's domain. An exact name wins. ``queries`` runs
-  1-10 one-task searches at once. Nothing matched: close spellings and the domain
+  1-20 one-task searches at once. Nothing matched: close spellings and the domain
   overview; an empty query returns that overview.
 - ``nx_get_tool_schemas``: input schema, example, prerequisites and evidence for
   1-10 tools or variants (``nx_create_datum_plane#offset``).
@@ -30,6 +30,12 @@ from nx_mcp.core.errors import NXError
 from nx_mcp.sidecar import schema
 
 NAMES = ("nx_find_tools", "nx_get_tool_schemas", "nx_invoke", "nx_invoke_read")
+MAX_QUERIES = 20  # one-task searches per nx_find_tools call
+# Words naming something NX MCP does not do, with what to do instead (a find note).
+MISSING = {
+    "redo": "There is no redo: nx_undo_operation's result lists the undone calls under "
+    "redo (tool and arguments); repeat them in order",
+}
 TOOL_NAME = r"^nx_[a-z0-9_]{1,80}$"
 SUMMARY_CHARS = 48
 
@@ -170,8 +176,13 @@ class Entry:
             "label": set(words(label)),
             "description": set(words(description)),
         }
-        # Multi-word keywords and the label, matched as phrases in the query.
-        self.phrases = {" ".join(p) for p in (words(k) for k in (*keywords, label)) if len(p) > 1}
+        # Multi-word keywords and the label, matched as phrases in the query (both without
+        # stop words: "edges in drawing view" matches the query "edges in drawing view").
+        self.phrases = {
+            " ".join(p)
+            for p in ([w for w in words(k) if w not in STOP_WORDS] for k in (*keywords, label))
+            if len(p) > 1
+        }
         # Words of the name, label and keywords as written: close spellings come from these.
         self.terms = {
             w for text in (name.removeprefix("nx_"), label, *keywords) for w in _raw(text)
@@ -375,7 +386,7 @@ class FindTools(_Strict):
     ] = ""
     queries: Annotated[
         list[Annotated[str, Field(min_length=1, max_length=120)]] | None,
-        Field(min_length=1, max_length=10, description="One task each; top 5 per query"),
+        Field(min_length=1, max_length=MAX_QUERIES, description="One task each; top 5 per query"),
     ] = None
     domain: Domain | None = None
     effect: Effect | None = None

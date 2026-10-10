@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/dimension_kinds.json",
-  "scenario_sha256": "9d188abe30194845958f1b709ae3f8409393aff53bf974b541b27d81833f0d2f",
+  "scenario_sha256": "090c20f6f8aface0a250de0c6b969d2aa07d0ca9da9d05be145cadc929e43fa6",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_dimension": [
@@ -15,11 +15,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_dimension": "5cb9d856532c3e03ec4e9e0bdffec86ee50d399d44b9ff25306b6729b241afa1"
+    "nx_create_drawing_dimension": "f8ff3e3c3a3920ca242da98db231fe41b1cdf48cac978daf3d2cb39f8615645c"
   },
-  "recorded": "2026-10-10T15:59:41Z",
+  "recorded": "2026-10-10T23:51:09Z",
   "passed": true,
-  "checks": 82,
+  "checks": 113,
   "failed_checks": 0,
   "steps": [
     {
@@ -297,6 +297,62 @@
     },
     {
       "index": 40,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 41,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 42,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 43,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 44,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 45,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 46,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 47,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 48,
       "call": "nx_create_drawing_dimension",
       "setup": false,
       "passed": true,

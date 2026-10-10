@@ -32,6 +32,11 @@ def test_cross_field_rules():
     assert args.exactly_one(a=None, b=2) == "b"
     assert _error(args.exactly_one, a=1, b=2).field == "/b"
     assert _error(args.exactly_one, a=None, b=None).field == "/a"
+    assert (
+        _error(args.exactly_one, a=1, b=2).message
+        == "a and b are mutually exclusive: give only one"
+    )
+    assert _error(args.exactly_one, a=None, b=None).message == "Give one of a, b"
     assert args.distinct("/edges", ["a", "b"]) == ["a", "b"]
     err = _error(args.distinct, "/edges", ["a", "b", "a"])
     assert err.field == "/edges/2" and "duplicates" in err.message
@@ -54,3 +59,18 @@ def test_points_and_vectors():
     assert args.vec3((1, 2, 3), "origin") == [1.0, 2.0, 3.0]
     assert _error(args.vec3, [1, 2], "origin").message == "origin must contain three numbers"
     assert _error(args.vec3, [1, True, 2], "origin").message == "origin must be finite"
+
+
+def test_choice_takes_natural_spellings_aliases_and_says_what_to_send():
+    choice = args.choice
+    options = ("first_angle", "third_angle")
+    assert choice("Third Angle", options, "/projection") == "third_angle"
+    assert choice("1st", options, "/projection", {"1st": "first_angle"}) == "first_angle"
+    assert choice(None, options, "/projection") is None
+    with pytest.raises(NXError) as error:
+        choice(None, options, "/curves/0/type", what="type")
+    assert error.value.message == "type is required"
+    with pytest.raises(NXError) as error:
+        choice("thrid angle", options, "/projection")
+    assert "did you mean 'third_angle'?" in error.value.message
+    assert error.value.field == "/projection" and "'first_angle'" in error.value.hint

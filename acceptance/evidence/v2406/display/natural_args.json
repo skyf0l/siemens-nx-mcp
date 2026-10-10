@@ -1,0 +1,168 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/natural_args.json",
+  "scenario_sha256": "6bfa825f650a57dd8c2dfada2efdc2092bdbaec98e0b30c9b9e8beb8d0e2a69f",
+  "domain": "display",
+  "covers": {
+    "nx_set_camera": [],
+    "nx_get_camera": [],
+    "nx_capture_view": [],
+    "nx_restore_display": [],
+    "nx_save_presentation": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_camera": "c70de314aba7b217dfa3149c27a880488b1eadc0436b0c7840058fae403af685",
+    "nx_get_camera": "c70de314aba7b217dfa3149c27a880488b1eadc0436b0c7840058fae403af685",
+    "nx_capture_view": "7eca87ee83f95168e780b30c3c78872f741a007bf1ef44b1c41c09d113ba7c2a",
+    "nx_restore_display": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f",
+    "nx_save_presentation": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f"
+  },
+  "recorded": "2026-10-10T23:41:01Z",
+  "passed": true,
+  "checks": 63,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 3,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 4,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 8,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 10,
+      "call": "nx_get_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_save_presentation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 20,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

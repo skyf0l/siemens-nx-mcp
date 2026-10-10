@@ -1,0 +1,128 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sketch/sketch_projection_default.json",
+  "scenario_sha256": "e8a34918e3f85a9dcb0c6da0bc91054f4c84b70cb0e6fa3cba87b61cf1003725",
+  "domain": "sketch",
+  "covers": {
+    "nx_create_sketch_projection": [
+      "project",
+      "intersect"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_sketch_projection": "c9a96a673cdc9b88c21fd99cb3d056bd9c9982d4f53c1892180ddb480f79db9d"
+  },
+  "recorded": "2026-10-10T22:20:48Z",
+  "passed": true,
+  "checks": 18,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 12,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 15,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

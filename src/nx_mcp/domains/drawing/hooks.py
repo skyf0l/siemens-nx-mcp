@@ -14,8 +14,8 @@ import contextlib
 from nx_mcp.core.catalogue import deleter, lister, refresher, sheet_locator
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing import title_blocks, views
-from nx_mcp.domains.drawing.common import DETAIL, attribute, table_kind, update
-from nx_mcp.domains.drawing.tables import cells
+from nx_mcp.domains.drawing.common import DETAIL, attribute, update
+from nx_mcp.domains.drawing.tables import all_tables, cells
 from nx_mcp.kit import builders, drawing
 
 # ---- gate 9: the sheet an annotation, dimension or table lies on ----------------------------
@@ -141,7 +141,14 @@ def list_views(tx, owner, owner_kind):
         (
             v,
             "drawing_view",
-            {"type": views.view_type(v), "details": {"position": drawing.position(v)}},
+            {
+                "type": views.view_type(v),
+                "details": {
+                    "sheet": s.Name,
+                    "position": drawing.position(v),
+                    "bounds": drawing.borders(tx, v),
+                },
+            },
         )
         for s in tx.part.DrawingSheets
         for v in s.GetDraftingViews()
@@ -207,20 +214,7 @@ def list_annotations(tx, owner, owner_kind):
 @lister("drawing_table")
 def list_tables(tx, owner, owner_kind):
     _whole_part(owner)
-    part = tx.part
-    found = [
-        *part.Annotations.PartsLists,
-        *part.Annotations.BendTables,
-        *(getattr(part.Annotations, "HoleTables", None) or []),
-        *part.Annotations.TableSections,
-        *part.DraftingManager.TitleBlocks,
-    ]
-    out = []
-    for obj in {int(o.Tag): o for o in found}.values():
-        kind = table_kind(tx, obj)
-        if kind:
-            out.append((obj, "drawing_table", {"type": kind}))
-    return out
+    return [(obj, "drawing_table", {"type": kind}) for obj, kind in all_tables(tx)]
 
 
 # ---- deleters ----------------------------------------------------------------------------------

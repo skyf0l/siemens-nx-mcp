@@ -89,7 +89,9 @@ async def test_tools_publish_strict_input_and_output_schemas(monkeypatch):
 
     assert tools["nx_create_part"].inputSchema["properties"]["units"]["enum"] == ["mm", "in"]
     placement = tools["nx_create_sketch"].inputSchema["properties"]["placement"]
-    assert {"principal", "on", "path"} <= {k for b in placement["anyOf"] for k in b["properties"]}
+    assert {"principal", "on", "path"} <= {
+        k for b in placement["anyOf"] for k in b.get("properties", {})
+    }
     assert tools["nx_create_extrude"].inputSchema["required"] == ["sketch", "end"]
     assert all(tool.inputSchema.get("additionalProperties") is False for tool in tools.values())
 

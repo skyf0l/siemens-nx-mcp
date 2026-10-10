@@ -85,7 +85,8 @@
     "data.section.name": {
      "matches": "(?i)^cut_x$"
     },
-    "data.hidden_side": "positive",
+    "data.hidden_side": "x > 10",
+    "data.enabled": true,
     "data.cut_face_view_from": {
      "close": [
       1,

@@ -1,0 +1,80 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/preview_sketch_extrude.json",
+  "scenario_sha256": "753bcf14d11f71150c2bcffa5f7181a1f082b8f71da796cd01c7ddbab1981393",
+  "domain": "session",
+  "covers": {
+    "nx_preview_changes": [],
+    "nx_finish_preview": [
+      "accept"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_preview_changes": "f9ef2c1dbff2b35ccc84c36571d9c5ca1de4deced157c401a2409abce1ba3d85",
+    "nx_finish_preview": "f9ef2c1dbff2b35ccc84c36571d9c5ca1de4deced157c401a2409abce1ba3d85"
+  },
+  "recorded": "2026-10-10T23:06:48Z",
+  "passed": true,
+  "checks": 23,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_run_batch",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 3,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 4,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 5,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 6,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 7,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

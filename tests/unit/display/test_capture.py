@@ -38,7 +38,7 @@ def test_viewport_capture_reports_the_window_size_and_an_inline_image():
     assert builder.kind == "viewport" and builder.destroyed
     assert builder.background_color == [1.0, 1.0, 1.0] and builder.EnhanceEdges is True
     assert data["camera"]["view"] == "trimetric" and "restore_id" not in ok.envelope
-    assert data["hidden"] == 0
+    assert data["hidden_sketches"] == 0 and data["marks_part_modified"] is False
 
 
 def test_studio_capture_renders_the_exact_size_with_style_light_and_colour():
@@ -80,7 +80,10 @@ def test_a_shown_sheet_is_captured_as_displayed():
     "args,field",
     [
         ({"background": "color"}, "/color"),
-        ({"color": [1, 0, 0]}, "/color"),
+        ({"background": "white", "color": [1, 0, 0]}, "/color"),
+        ({"background": "black", "color": [1, 0, 0]}, "/color"),
+        ({"color": [0, 300, 0]}, "/color"),
+        ({"color": [-1, 0, 0]}, "/color"),
         ({"lighting": 2}, "/lighting"),
         ({"quality": "studio", "style": "wireframe"}, "/style"),
         ({"width": 64}, "/width"),
@@ -91,6 +94,41 @@ def test_bad_arguments_are_refused_before_nx(args, field):
     bad = run(nx, "nx_capture_view", **args)
     assert bad.mutation_outcome == "not_started" and bad.error["field"] == field
     assert not nx.captures
+
+
+@pytest.mark.parametrize(
+    ("args", "colour"),
+    [
+        ({"color": [0.2, 0.3, 0.4]}, [0.2, 0.3, 0.4]),  # a colour alone sets the background
+        ({"background": "black"}, [0.0, 0.0, 0.0]),
+        ({"color": [255, 0, 51]}, [1.0, 0.0, 0.2]),  # 0..255 components
+        ({"background": "color", "color": [1, 1, 1]}, [1.0, 1.0, 1.0]),  # 0..1 when all <= 1
+        ({}, [1.0, 1.0, 1.0]),  # white by default
+    ],
+)
+def test_background_takes_natural_forms(args, colour):
+    nx = display_nx()
+    ok = run(nx, "nx_capture_view", **args)
+    assert ok.ok, ok.error
+    assert nx.captures[0].background_color == pytest.approx(colour)
+
+
+def test_a_part_modified_before_the_capture_is_not_blamed_on_it():
+    nx = display_nx()
+    nx.part.IsModified = True
+    ok = run(nx, "nx_capture_view")
+    assert (
+        ok.ok
+        and ok.data["marks_part_modified"] is False
+        and not [w for w in ok.warnings if w["code"] == "NX_UPDATE_WARNING"]
+    )
+
+
+def test_studio_wireframe_says_what_to_use_instead():
+    bad = run(display_nx(), "nx_capture_view", quality="studio", style="wireframe")
+    assert (
+        bad.error["code"] == "NX_UNSUPPORTED_OPTION" and "quality=viewport" in bad.error["message"]
+    )
 
 
 def test_a_failed_capture_leaves_no_file_and_restores_the_view():
@@ -133,7 +171,7 @@ def test_overwrite_replaces_an_existing_png_and_path_never_does():
         ({"overwrite": True}, "NX_INVALID_ARGUMENT", "/overwrite"),
         ({"path": "shots/text.png", "overwrite": True}, "NX_UNSUPPORTED_FILE_TYPE", "/path"),
         ({"path": "shots/text.png"}, "NX_ALREADY_EXISTS", "/path"),
-        ({"path": "shots", "overwrite": True}, "NX_UNSUPPORTED_FILE_TYPE", "/path"),
+        ({"path": "shots.txt", "overwrite": True}, "NX_UNSUPPORTED_FILE_TYPE", "/path"),
         ({"path": "dir.png", "overwrite": True}, "NX_WRONG_KIND", "/path"),
         ({"path": "../outside.png", "overwrite": True}, "NX_PATH_OUTSIDE_WORKSPACE", "/path"),
         ({"path": ".nx-mcp/x.png", "overwrite": True}, "NX_PATH_RESERVED", "/path"),
@@ -153,7 +191,7 @@ def test_overwrite_keeps_the_workspace_checks(args, code, field):
 def test_a_capture_that_marks_the_part_modified_says_so():
     nx = display_nx()
     plain = run(nx, "nx_capture_view", quality="studio", width=320, height=240)
-    assert plain.data["part_modified"] is False and not plain.warnings
+    assert plain.data["marks_part_modified"] is False and not plain.warnings
     original = nx.part.Views.CreateLighting
 
     def lighting(arg):  # NX 2406 stores the lighting in the part: it is then modified
@@ -164,7 +202,8 @@ def test_a_capture_that_marks_the_part_modified_says_so():
 
     nx.part.Views.CreateLighting = lighting
     lit = run(nx, "nx_capture_view", quality="studio", width=320, height=240, lighting=2)
-    assert lit.ok and lit.mutation_outcome == "not_applicable" and lit.data["part_modified"]
+    assert lit.ok and lit.mutation_outcome == "not_applicable"
+    assert lit.data["marks_part_modified"] is True
     assert [w["code"] for w in lit.warnings] == ["NX_UPDATE_WARNING"]
     assert "modified" in lit.warnings[0]["message"]
 
@@ -225,14 +264,14 @@ def test_sketches_and_datums_are_hidden_for_the_capture_and_come_back():
     nx = display_nx()
     sketch, datum, hidden = _clutter(nx)
     ok = run(nx, "nx_capture_view")
-    assert ok.ok and ok.data["hidden"] == 2 and ok.mutation_outcome == "not_applicable"
+    assert ok.ok and ok.data["hidden_sketches"] == 2 and ok.mutation_outcome == "not_applicable"
     assert nx.captures[0].blanked == [True, True, True]  # hidden while NX exported
     assert [sketch.IsBlanked, datum.IsBlanked, hidden.IsBlanked] == [False, False, True]
-    assert ok.data["part_modified"] is False and not [
+    assert ok.data["marks_part_modified"] is False and not [
         w for w in ok.warnings if w["code"] == "NX_UPDATE_WARNING"
     ]
     shown = run(nx, "nx_capture_view", hide_sketches=False)
-    assert shown.data["hidden"] == 0 and nx.captures[1].blanked == [False, False, True]
+    assert shown.data["hidden_sketches"] == 0 and nx.captures[1].blanked == [False, False, True]
 
 
 def test_nothing_is_hidden_while_a_sketch_is_active():
@@ -240,4 +279,6 @@ def test_nothing_is_hidden_while_a_sketch_is_active():
     sketch, _datum, _hidden = _clutter(nx)
     nx.session.ActiveSketch = sketch
     ok = run(nx, "nx_capture_view")
-    assert ok.ok and ok.data["hidden"] == 0 and nx.captures[0].blanked == [False, False, True]
+    assert (
+        ok.ok and ok.data["hidden_sketches"] == 0 and nx.captures[0].blanked == [False, False, True]
+    )

@@ -9,6 +9,10 @@ NX 2406 findings encoded here:
   refused for GEO. The default revision is R2018 (``AC1032``).
 - Nothing is written where a file exists; the file appears only after its contents
   were read back (entity counts, extents).
+- ``extents`` are the file's own ``[dx, dy]``; a tester saw them in the other order than
+  the feature's ``flat_extents`` (``[along edge, across]``) for one flat pattern, so the
+  docstring promises only the file's axes (``flat_pattern_axes`` checks it live).
+- Without ``format`` the path's suffix picks it (``.dxf`` or ``.geo``).
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, FeatureRef, Items, Length, PathTo, forbid_extra
+from nx_mcp.core.types import Doc, Items, Length, PathTo, RefTo, forbid_extra
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.domains.sheet_metal import dxf as outline
 from nx_mcp.kit import args, builders, files, result, select, units
@@ -108,9 +112,10 @@ def _valid_dxf(data: bytes) -> bool:
 def nx_export_flat_pattern(
     tx: Tx,
     *,
-    flat_pattern: FeatureRef,
+    flat_pattern: Annotated[str, RefTo("feature", doc="Ref f:N: Flat Pattern")],
     path: Annotated[str, PathTo("new", ".dxf", ".geo")],
-    format: Literal["dxf", "geo"] = "dxf",  # noqa: A002 - surface name
+    format: Annotated[Literal["dxf", "geo"], Doc("Default: path suffix")]  # noqa: A002
+    | None = None,
     dxf: DxfOptions | None = None,
     include: Annotated[
         list[Include], Items(0, 7), Doc("Default: bend_up, bend_down, interior_cutout")
@@ -118,8 +123,10 @@ def nx_export_flat_pattern(
     | None = None,
     tolerance: Length | None = None,
 ) -> ExportData:
-    """Export a Flat Pattern feature to a new DXF or Trumpf GEO file. Returns the checksum,
-    entity counts and outline extents (developed lengths); GEO adds area and thickness."""
+    """Export a Flat Pattern feature to a new DXF or Trumpf GEO file. Returns checksum,
+    entity counts and developed extents [dx, dy] in file axes; GEO adds area and thickness."""
+    if format is None:
+        format = "geo" if str(path).lower().endswith(".geo") else "dxf"  # noqa: A001
     if not str(path).lower().endswith("." + format):
         fail("NX_INVALID_ARGUMENT", f"Use a .{format} path for format {format}", field="/path")
     if format == "geo" and dxf:

@@ -280,7 +280,10 @@
     "type": "projected",
     "parent": "$v.data.view.id",
     "direction": "bottom",
-    "spacing": 40
+    "position": [
+     150,
+     140
+    ]
    }
   },
   {

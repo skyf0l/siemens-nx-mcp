@@ -170,3 +170,32 @@ def test_unknown_format_and_foreign_options_are_refused(nx):
         nx, exchange.nx_export_model, path="a.step", format="step", options={"binary": True}
     )
     assert opts.error["code"] == "NX_INVALID_ARGUMENT" and opts.error["field"] == "/options/binary"
+
+
+@pytest.mark.parametrize(
+    ("path", "fmt", "made"),
+    [("o/a.stp", "step", "step_creators"), ("o/a.x_b", "parasolid", "exporters")],
+)
+def test_export_format_defaults_to_the_path_suffix(nx, root, ugii, path, fmt, made):
+    modified_part(nx)
+    ok = call(nx, exchange.nx_export_model, path=path)
+    assert ok.ok and ok.data["format"] == fmt and (root / path).is_file(), ok
+    assert getattr(nx, made)
+
+
+def test_export_options_are_listed_and_checked_per_format(nx, ugii):
+    from nx_mcp.sidecar import schema
+
+    spec = exchange.nx_export_model.spec
+    listed = schema.input_schema(spec, call_keys=False)["properties"]["options"]
+    text = str(listed)
+    assert all(key in text for key in ("binary", "chordal_tolerance", "angular_tolerance"))
+    schema.adapter(spec).validate_python({"path": "a.step"})  # format may be omitted
+    modified_part(nx)
+    bad = call(nx, exchange.nx_export_model, path="a.igs", options={"chordal_tolerance": 0.1})
+    assert bad.error["field"] == "/options/chordal_tolerance" and "stl only" in bad.error["message"]
+    assert bad.mutation_outcome == "not_started" and not nx.exporters
+    wrong = call(nx, exchange.nx_export_model, path="a.step", format="stl")
+    assert (
+        wrong.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and "omit format" in wrong.error["hint"]
+    )

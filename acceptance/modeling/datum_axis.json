@@ -44,6 +44,17 @@
     "data.datum_axis.kind": "datum_axis",
     "data.feature.name": {
      "matches": "(?i)^ax1$"
+    },
+    "data.datum_axis.name": {
+     "matches": "(?i)^ax1$"
+    },
+    "data.origin": {
+     "close": [
+      5,
+      5,
+      0
+     ],
+     "tol": 1e-06
     }
    }
   },
@@ -75,6 +86,88 @@
      "count_kind": {
       "feature": 1
      }
+    },
+    "data.origin": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "save": "ax2",
+   "args": {
+    "method": "two_points",
+    "start": [
+     0,
+     0,
+     0
+    ],
+    "end": [
+     0,
+     0,
+     10
+    ],
+    "name": "AX2"
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.direction": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    },
+    "data.datum_axis.name": {
+     "matches": "(?i)^ax2$"
+    }
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": "$ax2.data.datum_axis.id",
+    "radius": 5,
+    "pitch": 2,
+    "turns": 3
+   },
+   "expect": {
+    "data.start": {
+     "close": [
+      5,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.end": {
+     "close": [
+      5,
+      0,
+      6
+     ],
+     "tol": 0.001
+    },
+    "data.axis.origin": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-06
     }
    }
   },

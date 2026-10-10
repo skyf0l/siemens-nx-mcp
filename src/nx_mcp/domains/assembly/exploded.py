@@ -102,16 +102,28 @@ def regenerate(tx):
             tx.uf.Disp.RegenerateDisplay()
 
 
-def apply(tx, explosion, placements):
-    """Set absolute exploded poses: ``placements`` is ``[(tag, (t, r))]``."""
+def shifted(shift):
+    """A target for :func:`apply`: the inherited pose moved by ``shift`` (assembly axes)."""
+    return lambda base: kpose.relative(base, [float(v) for v in shift])
+
+
+def apply(tx, explosion, placements) -> dict:
+    """Set exploded poses: ``placements`` is ``[(tag, target)]``, ``target`` an absolute
+    ``(t, r)`` or a function of the inherited pose (the pose the component takes from its
+    exploded parent, its assembled pose for a root child; see :func:`shifted`). Returns
+    ``{tag: absolute target}``."""
     entries = tree(explosion)
     api = uf(tx)
+    placed = {}
     for tag, target in sorted(placements, key=lambda p: len(entries[p[0]][2])):
         component = entries[tag][1]
         with native(default="NX_BUILD_FAILED"):
             api.UnexplodeComponent(explosion.Tag, component.Tag)
             base = exploded_pose(tree(explosion)[tag][0])
-            api.ExplodeComponent(explosion.Tag, component.Tag, kpose.local_delta(base, target))
+            pose = target(base) if callable(target) else target
+            api.ExplodeComponent(explosion.Tag, component.Tag, kpose.local_delta(base, pose))
+        placed[tag] = pose
+    return placed
 
 
 def reset(tx, explosion, tags):
@@ -150,6 +162,12 @@ def _occurrence_edge(tx, entries, record):
     if edge is None:
         _stale("The trace edge has no occurrence")
     return entry, edge
+
+
+def anchor_edges(tx, explosion, records) -> list:
+    """Occurrence edges the trace anchors sit on."""
+    entries = tree(explosion)
+    return [_occurrence_edge(tx, entries, r)[1] for r in records]
 
 
 def anchor_positions(tx, explosion, records) -> list:

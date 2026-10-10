@@ -130,11 +130,11 @@ def test_unknown_type_names_are_refused_with_the_valid_names():
     nx = fake_nx()
     body = nx.block(1, 1, 1)
     nx.sketch()
-    for kind, wrong in (("face", "cylindrical"), ("face", "conical"), ("edge", "arc")):
+    for kind, wrong in (("face", "hexagon"), ("face", "freeform"), ("edge", "spline")):
         bad = run(nx, "nx_list_objects", kind=kind, owner=body.ref, type=wrong)
         assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
         assert bad.error["field"] == "/type" and bad.mutation_outcome == "not_applicable"
-    message = run(nx, "nx_list_objects", kind="face", type="cylindrical").error["message"]
+    message = run(nx, "nx_list_objects", kind="face", type="hexagon").error["message"]
     assert "cylinder" in message and "cone" in message and "plane" in message
     untyped = run(nx, "nx_list_objects", kind="sketch", type="planar")
     assert untyped.error["field"] == "/type"
@@ -151,3 +151,52 @@ def test_known_type_names_follow_the_listers():
     assert set(TYPES) <= set(typing.get_args(ListKind))
     assert set(TYPES["face"]) == {*hooks.FACE_TYPES.values(), "other"}
     assert set(TYPES["edge"]) == {*hooks.EDGE_TYPES.values(), "other"}
+
+
+def test_type_names_are_matched_without_case_kind_word_plural_or_adjective():
+    nx = fake_nx()
+    body = nx.block(40, 20, 10)
+    for kind, spelled in (
+        ("face", "Plane"), ("face", "face plane"), ("face", "planar"), ("face", "planes"),
+        ("face", "Face Planes"), ("edge", "straight"), ("edge", "edge line"),
+    ):  # fmt: skip
+        ok = run(nx, "nx_list_objects", kind=kind, owner=body.ref, type=spelled)
+        assert ok.ok and ok.page["total"] in (6, 12), (spelled, ok)
+    arcs = run(nx, "nx_list_objects", kind="edge", owner=body.ref, type="arc")
+    assert arcs.ok and arcs.page["total"] == 0
+    datums = run(nx, "nx_list_objects", kind="datum", type="datum plane")
+    assert datums.ok, datums
+
+
+def test_feature_types_with_spaces_can_be_filtered():
+    from tests.kit.objects import Feature
+
+    nx = fake_nx()
+    hole = Feature("SIMPLE HOLE(3)")
+    hole.FeatureType, hole.Suppressed = "SIMPLE HOLE", False
+    hole.GetFeatureErrorMessages = lambda: []
+    nx.part.Features.append(nx._own(hole, "feature"))
+    for spelled in ("simple hole", "SIMPLE_HOLE", "Simple-Hole"):
+        ok = run(nx, "nx_list_objects", kind="feature", type=spelled)
+        assert ok.ok and ok.page["total"] == 1, (spelled, ok)
+
+
+def test_owner_takes_an_anchor_and_explains_names():
+    from tests.kit.kernel import services
+    from tests.unit.inspection.fakes import inspection_nx
+
+    nx = inspection_nx()
+    body = nx.block(40, 20, 10)
+    face = body.faces[0]
+    anchor = run(nx, "nx_create_anchor", object=face.ref).data["anchor"]
+    edges = run(nx, "nx_list_objects", kind="edge", owner=anchor)
+    assert edges.ok and edges.page["total"] == 4, edges
+    body_anchor = run(nx, "nx_create_anchor", object=body.ref).data["anchor"]
+    faces = run(nx, "nx_list_objects", kind="face", owner=body_anchor)
+    assert faces.ok and faces.page["total"] == 6, faces
+    named = run(nx, "nx_list_objects", kind="face", owner="SIMPLE HOLE(3)")
+    assert named.error["code"] == "NX_INVALID_ARGUMENT" and named.error["field"] == "/owner"
+    assert "not a reference" in named.error["message"]
+    services(nx).references.find_anchor = lambda text, kind: None
+    stale = run(nx, "nx_list_objects", kind="face", owner="@work.prt:NOTHING(9)")
+    assert stale.error["code"] == "NX_STALE_REFERENCE" and stale.error["field"] == "/owner"

@@ -15,11 +15,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf",
-    "nx_get_sheet_metal": "140671c41e06e782ac0b7e5df05b49a0c6f9c9599b047d3d5906581400889ca9",
-    "nx_export_flat_pattern": "349983481d54337e82a757e14a19f8346ca98cd7d11a95b0f81c1035a006a51e"
+    "nx_create_sheet_metal_feature": "3e1a302c54377c138084d314fb950c018169f9c402047ddfbbe187f7917b03b4",
+    "nx_get_sheet_metal": "bef2201d624ee81b6909ceac97a42d6033630a6403f7ec257f07ab0d28637153",
+    "nx_export_flat_pattern": "91b353a4116fe7ff6d0a0f3fe3e058ab6edfa971a7cb103dd0dd437339d6346e"
   },
-  "recorded": "2026-10-10T16:01:26Z",
+  "recorded": "2026-10-10T23:39:22Z",
   "passed": true,
   "checks": 62,
   "failed_checks": 0,

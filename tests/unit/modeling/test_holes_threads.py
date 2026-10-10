@@ -18,7 +18,25 @@ TABLE = """<?xml version="1.0"?>
   <ThreadedHole Standard="Metric Coarse" Unit="Metric" Size="M8 x 1.25" Method="Cut"
     RadialEngage="0.6" TapDrillDia="7.2" MajorDiameter="8" MinorDiameter="6.9"
     Pitch="1.25" Angle="60" NumStarts="1" Callout="M8x1.25"/>
-  <ThreadedHole Standard="Unified Coarse" Unit="English" Size="1/4-20" Method="Cut"
+  <ThreadedHole Standard="Metric Coarse" Unit="Metric" Size="M6 x 1.0" Method="CUT"
+    RadialEngage="Custom" TapDrillDia="5" MajorDiameter="6" MinorDiameter="4.891"
+    Pitch="1" Angle="60" NumStarts="1" Callout="M6_x_1.0"/>
+  <ThreadedHole Standard="Metric Coarse" Unit="Metric" Size="M6 x 1.0" Method="CUT"
+    RadialEngage="0.5" TapDrillDia="5.2" MajorDiameter="6" MinorDiameter="4.891"
+    Pitch="1" Angle="60" NumStarts="1" Callout="M6_x_1.0"/>
+  <ThreadedHole Standard="Metric Coarse" Unit="Metric" Size="M6 x 1.0" Method="CUT"
+    RadialEngage="0.75" TapDrillDia="5" MajorDiameter="6" MinorDiameter="4.891"
+    Pitch="1" Angle="60" NumStarts="1" Callout="M6_x_1.0"/>
+  <ThreadedHole Standard="Metric Fine" Unit="Metric" Size="M6 x 0.75" Method="CUT"
+    RadialEngage="0.75" TapDrillDia="5.25" MajorDiameter="6" MinorDiameter="5.188"
+    Pitch="0.75" Angle="60" NumStarts="1" Callout="M6_x_0.75"/>
+  <ThreadedHole Standard="Metric Fine" Unit="Metric" Size="M12 x 1.5" Method="CUT"
+    RadialEngage="0.75" TapDrillDia="10.5" MajorDiameter="12" MinorDiameter="10.376"
+    Pitch="1.5" Angle="60" NumStarts="1" Callout="M12_x_1.5"/>
+  <ThreadedHole Standard="Metric Fine" Unit="Metric" Size="M12 x 1.25" Method="CUT"
+    RadialEngage="0.75" TapDrillDia="10.8" MajorDiameter="12" MinorDiameter="10.647"
+    Pitch="1.25" Angle="60" NumStarts="1" Callout="M12_x_1.25"/>
+  <ThreadedHole Standard="Inch UNC" Unit="Inch" Size="1/4-20" Method="CUT"
     RadialEngage="0.75" TapDrillDia="0.201" MajorDiameter="0.25" MinorDiameter="0.19"
     Pitch="0.05" Angle="60" NumStarts="1" Callout="1/4-20 UNC"/>
 </Threads>
@@ -149,8 +167,10 @@ def test_threaded_hole_needs_a_catalog_tap_drill(table):
     assert bad.error["details"]["tap_drill_diameters"] == [6.8, 7.2]
     unknown = run(nx, "nx_create_hole", diameter=6.8, thread={"standard": "Metric Fine",
                   "size": "M8 x 1"}, **args)  # fmt: skip
-    assert unknown.error["code"] == "NX_NOT_FOUND"
-    inch = run(nx, "nx_create_hole", diameter=0.201, thread={"standard": "Unified Coarse",
+    # The thread table is read before NX is touched: nothing to roll back.
+    assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.mutation_outcome == "not_started"
+    assert unknown.error["field"] == "/thread/size"
+    inch = run(nx, "nx_create_hole", diameter=0.201, thread={"standard": "unc",
                "size": "1/4-20"}, **args)  # fmt: skip
     assert inch.error["code"] == "NX_UNSUPPORTED_OPTION"
     ok = run(nx, "nx_create_hole", diameter=6.8, thread={"standard": "Metric Coarse",
@@ -180,13 +200,23 @@ def test_nominal_volume_of_counterbore_and_countersink():
 def test_list_thread_sizes_levels(table):
     nx = modeling_nx()
     standards = run(nx, "nx_list_thread_sizes")
-    assert [r["standard"] for r in standards.data["items"]] == ["Metric Coarse", "Unified Coarse"]
-    sizes = run(nx, "nx_list_thread_sizes", standard="Metric Coarse")
-    assert sizes.page["total"] == 2 and "pitch" not in sizes.data["items"][0]
+    assert [r["standard"] for r in standards.data["items"]] == [
+        "Inch UNC",
+        "Metric Coarse",
+        "Metric Fine",
+    ]
+    # One row per size, its engagements listed (the table repeats a size per engagement).
+    sizes = run(nx, "nx_list_thread_sizes", standard="metric coarse")
+    assert sizes.page["total"] == 2 and "tap_drill" not in sizes.data["items"][0]
+    m6 = next(r for r in sizes.data["items"] if r["size"] == "M6 x 1.0")
+    assert m6["engagements"] == ["Custom", "0.5", "0.75"] and m6["major_diameter"] == 6
     rows = run(nx, "nx_list_thread_sizes", standard="Metric Coarse", size="M8 x 1.25", limit=1)
     assert rows.data["items"][0]["tap_drill"] == 6.8 and rows.page["next_offset"] == 1
-    bad = run(nx, "nx_list_thread_sizes", size="M8 x 1.25")
-    assert bad.error["field"] == "/standard"
+    # A size alone: metric sizes are looked up in Metric Coarse, then Metric Fine.
+    alone = run(nx, "nx_list_thread_sizes", size="M6")
+    assert {r["size"] for r in alone.data["items"]} == {"M6 x 1.0"}
+    fine = run(nx, "nx_list_thread_sizes", size="m6x0.75")
+    assert fine.data["items"][0]["standard"] == "Metric Fine"
 
 
 def thread_nx(detailed_cut=0.0):
@@ -231,6 +261,7 @@ def test_manual_symbolic_thread_keeps_volume_and_reads_back():
 
 def test_detailed_table_thread_must_cut(table):
     nx, body, cyl, start = thread_nx(detailed_cut=0.0)
+    cyl.radius = 4.0
     ok_args = {
         "face": cyl.ref,
         "start_face": start.ref,
@@ -239,7 +270,168 @@ def test_detailed_table_thread_must_cut(table):
     }
     bad = run(nx, "nx_create_thread", detailed=True, **ok_args)
     assert bad.error["details"]["check"] == "volume" and bad.mutation_outcome == "rolled_back"
-    ambiguous = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=10,
-                    spec={"standard": "Metric Coarse", "size": "M8 x 1.25"})  # fmt: skip
-    assert ambiguous.error["code"] == "NX_AMBIGUOUS_REFERENCE"
-    assert len(ambiguous.error["details"]["candidates"]) == 2
+    # No engagement: the 0.75 row is taken (the table offers 0.75 and 0.6 here).
+    plain = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=10,
+                spec={"standard": "Metric Coarse", "size": "M8 x 1.25"})  # fmt: skip
+    assert plain.ok, plain
+    assert plain.data["engagement"] == "0.75" and nx.last("ThreadBuilder").RadialEngage == "0.75"
+
+
+# ---- natural argument forms ----------------------------------------------------------
+def test_hole_short_forms_depth_number_default_form_and_2d_positions():
+    nx, block, top, B = hole_nx()
+    ok = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10], [30, 10]], diameter=6,
+             depth="10 mm")  # fmt: skip
+    assert ok.ok, ok
+    b = committed(nx, "HolePackageBuilder")
+    assert b.GeneralHoleForm is B.HoleForms.Simple
+    assert b.GeneralSimpleHoleDepth.RightHandSide == "10.0"
+    assert ok.data["positions"] == [[10, 10, 20], [30, 10, 20]]
+    # A committed feature re-keys references (as NX does): reacquire the face.
+    face = nx.ref_of(top, "face")
+    through = run(nx, "nx_create_hole", face=face, positions=[[10, 30]], diameter=6,
+                  depth="through_all")  # fmt: skip
+    assert through.ok, through
+    limit = committed(nx, "HolePackageBuilder").HoleDepthLimitOption
+    assert limit is B.HoleDepthLimitOptions.ThroughBody
+    assert through.data["nominal"] is None
+
+
+def test_hole_errors_say_what_to_send():
+    nx, block, top, _ = hole_nx()
+    base = {"face": top.ref, "positions": [[10, 10, 20]], "depth": 10}
+    cb = run(nx, "nx_create_hole", diameter=6, counterbore={"diameter": 11, "depth": 4}, **base)
+    assert cb.error["field"] == "/counterbore" and "form 'counterbore'" in cb.error["hint"]
+    assert cb.mutation_outcome == "not_started"
+    no_d = run(nx, "nx_create_hole", **base)
+    assert no_d.error["field"] == "/diameter" and no_d.mutation_outcome == "not_started"
+    threaded = run(nx, "nx_create_hole", form="threaded", **base)
+    assert threaded.error["field"] == "/thread" and "'M6'" in threaded.error["hint"]
+    negative = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10]], diameter=6, depth=-3)
+    assert negative.error["field"] == "/depth" and negative.mutation_outcome == "not_started"
+    off = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 0]], diameter=6, depth=5)
+    assert "z = 20" in off.error["message"] and off.error["field"] == "/positions/0"
+
+
+def test_threaded_hole_from_a_bare_size_drills_the_tap_drill(table):
+    nx, block, top, B = hole_nx()
+    args = {"face": top.ref, "positions": [[10, 10]], "form": "threaded", "depth": 12}
+    ok = run(nx, "nx_create_hole", thread={"size": "M6"}, **args)
+    assert ok.ok, ok
+    b = committed(nx, "HolePackageBuilder")
+    assert b.Type is B.Types.ThreadedHole and b.ThreadStandard == "Metric Coarse"
+    assert b.ThreadSize == "M6 x 1.0" and b.RadialEngageOption == "0.75"
+    assert b.TapDrillDiameter.RightHandSide == "5.0"
+    # A loose standard and size, and the 0.5-engagement tap drill as the diameter.
+    args["face"] = nx.ref_of(top, "face")
+    loose = run(nx, "nx_create_hole", diameter=5.2, thread={"standard": "ISO metric coarse",
+                "size": "m6x1"}, **args)  # fmt: skip
+    assert loose.ok, loose
+    assert committed(nx, "HolePackageBuilder").RadialEngageOption == "0.5"
+    # A clearance diameter is refused with the tap drills and what to do instead.
+    args["face"] = nx.ref_of(top, "face")
+    clear = run(nx, "nx_create_hole", diameter=6.6, thread={"size": "M6"}, **args)
+    assert clear.error["field"] == "/diameter" and clear.mutation_outcome == "not_started"
+    assert clear.error["details"]["tap_drill_diameters"] == [5.0, 5.2]
+    assert "form 'simple'" in clear.error["hint"]
+
+
+def test_thread_names_are_matched_loosely(table):
+    from nx_mcp.domains.modeling import threads
+
+    rows = threads.thread_rows()
+    assert threads.resolve_standard(rows, "metric") == "Metric Coarse"
+    assert threads.resolve_standard(rows, "METRIC FINE") == "Metric Fine"
+    assert threads.resolve_standard(rows, "UNC") == "Inch UNC"
+    assert threads.resolve_size(rows, None, "M6") == ("Metric Coarse", "M6 x 1.0")
+    assert threads.resolve_size(rows, None, "M6 x 0.75") == ("Metric Fine", "M6 x 0.75")
+    assert threads.resolve_size(rows, "Metric Coarse", "M6X1.0") == ("Metric Coarse", "M6 x 1.0")
+    assert threads.resolve_size(rows, None, "1/4") == ("Inch UNC", "1/4-20")
+    m6 = threads.size_rows(rows, None, "M6")
+    assert threads.pick_row(m6)["RadialEngage"] == "0.75"
+    assert threads.pick_row(m6, method="cut", engagement=0.5)["TapDrillDia"] == "5.2"
+
+
+def test_thread_name_errors_offer_the_close_names(table):
+    nx = modeling_nx()
+    std = run(nx, "nx_list_thread_sizes", standard="Metric Corse")
+    assert std.error["code"] == "NX_NOT_FOUND" and "Metric Coarse" in std.error["message"]
+    many = run(nx, "nx_list_thread_sizes", standard="Metric Fine", size="M12")
+    assert many.error["field"] == "/size"
+    assert many.error["details"]["candidates"] == ["M12 x 1.5", "M12 x 1.25"]
+    near = run(nx, "nx_list_thread_sizes", standard="Metric Coarse", size="M6 x 1.5")
+    assert near.error["code"] == "NX_NOT_FOUND"
+    assert near.error["details"]["close_matches"][0] == "M6 x 1.0"
+
+
+def committed(nx, kind):
+    """The last builder of ``kind`` that committed (not a read-back edit builder)."""
+    return [x for x in nx.builders if x.kind == kind and x.commits][-1]
+
+
+def end_faces(nx, cyl, *ends, far=10.0):
+    """Give ``cyl`` circular edges bounded by the planar ``ends`` (and a far rim at z=far)."""
+    edges = []
+    for end in ends:
+        e = nx.edge((3, 0, end.origin[2]), (3, 0, end.origin[2]))
+        e.GetFaces = lambda end=end: [cyl, end]
+        edges.append(e)
+    rim = nx.edge((3, 0, far), (3, 0, far))
+    rim.GetFaces = lambda: [cyl]
+    cyl.GetEdges = lambda: [*edges, rim]
+
+
+def test_thread_from_a_bare_size_finds_its_start_face_and_length(table):
+    nx, body, cyl, start = thread_nx()
+    end_faces(nx, cyl, start)
+    ok = run(nx, "nx_create_thread", face=cyl.ref, spec={"size": "M6", "engagement": 0.75})
+    assert ok.ok, ok
+    b = nx.last("ThreadBuilder")
+    assert b.StartObject.Value is start and b.ThreadLength.RightHandSide == "20.0"
+    assert b.ThreadStandard == "Metric Coarse" and b.ThreadSize == "M6 x 1.0"
+    assert ok.data["length"] == 20 and ok.data["engagement"] == "0.75"
+    # Two planar ends: the call names both so the next call can pick one.
+    bottom = body.face((0, 0, -1))
+    end_faces(nx, cyl, start, bottom)
+    two = run(nx, "nx_create_thread", face=nx.ref_of(cyl, "face"), spec={"size": "M6"}, length=5)
+    assert two.error["field"] == "/start_face" and len(two.error["details"]["candidates"]) == 2
+
+
+def test_thread_refuses_a_bore_without_material_to_thread(table):
+    nx, body, cyl, start = thread_nx()
+    ask = nx.uf.Modeling.AskFaceData
+
+    def bore(tag):  # NX 2406 reports a hole's cylinder with a reversed normal (-1)
+        data = list(ask(tag))
+        return (*data[:6], -1) if tag == cyl.Tag else ask(tag)
+
+    nx.uf.Modeling.AskFaceData = bore
+    # An M6 thread in a 6 mm bore (or a 6.6 clearance hole): nothing to thread.
+    bad = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+              spec={"size": "M6"})  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and "tap drill 5" in bad.error["hint"]
+    assert not [b for b in nx.builders if b.kind == "ThreadBuilder"]
+    # An external M8 on a 6 mm shaft (below its minor diameter): refused too.
+    nx.uf.Modeling.AskFaceData = ask
+    shaft = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+                spec={"size": "M8"})  # fmt: skip
+    assert shaft.error["code"] == "NX_WRONG_GEOMETRY" and "minor" in shaft.error["message"]
+
+
+def test_thread_build_failure_explains_the_nx_refusal(table):
+    nx, body, cyl, start = thread_nx()
+    nx.refuse("ThreadBuilder", code=671154, message="Invalid thread axis direction.")
+    bad = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+              spec={"size": "M6"}, reverse=True)  # fmt: skip
+    assert bad.error["nx_code"] == 671154 and "reverse false" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_thread_spec_without_size_says_what_to_send(table):
+    nx, body, cyl, start = thread_nx()
+    bad = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+              spec={"engagement": "0.75"})  # fmt: skip
+    assert bad.error["field"] == "/spec/size" and bad.mutation_outcome == "not_started"
+    eng = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+              spec={"size": "M6", "engagement": 0.6})  # fmt: skip
+    assert eng.error["field"] == "/spec/engagement" and "'0.75'" in eng.error["hint"]

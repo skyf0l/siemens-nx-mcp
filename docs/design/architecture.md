@@ -69,7 +69,7 @@ validators accept and reject the same generated samples.
 | `Items(min, max)` | list length; required on every list | `minItems`, `maxItems` |
 | `Text(max, pattern)` | string bounds | `maxLength`, `pattern` |
 | `RefKind(*kinds)` | accepted reference kinds | description (gate 1 checks the pattern; section 4) |
-| `Quantity(dim)` | `length`, `sheet_length` or `angle`; allows unit strings | `[number, string]`, `maxLength` 40 |
+| `Quantity(dim)` | `length`, `sheet_length`, `angle` or `count`; allows unit strings and NX expression names or formulas | `[number, string]`, `maxLength` 80 |
 | `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir`, `save` or `replace` (new, or an existing file the tool replaces only when asked) | `string` |
 | `RefTo(*kinds, doc=None)` | shorthand for `Text(128, ref pattern)`, `RefKind(*kinds)`, `Doc` | as its parts |
 | `PathTo(mode, *suffixes)` | shorthand for `Text(260)`, `PathArg`, `Doc("Workspace path")` | as its parts |
@@ -98,9 +98,23 @@ The aliases follow surface 1.4: `Ref`, `BodyRef`, `FaceRef`, `EdgeRef`, `CurveRe
   `^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*(mm|in)\s*$`; angles use the same with
   `deg|rad`. A wrong dimension (`"30 deg"` for a `Length`) therefore fails schema
   validation.
+- A string that is not a number or unit string may be an NX expression name or formula
+  (`"thickness"`, `"thickness/2"`, also for a `count`). Gate 9 evaluates it in the work part
+  (`services.evaluate_formula`: a bare name is read; another formula is evaluated in a
+  temporary expression, so only for `model` tools) and passes a `Formula` float that keeps
+  the text, so a builder expression stays driven by it (`kit.expr.rhs`).
 - Points, vectors and matrices take plain numbers only.
 - The kernel converts at gate 9 (section 3), so handlers see only floats in part units and
   degrees. Results always state `units`.
+
+**Natural spellings.** Gate 1 (`validate.py`, mirrored by the sidecar adapters) accepts what
+agents commonly send and passes the canonical value on: an enum option in any case and with
+spaces, `-` or `_` (`"Through All"` → `"through_all"`), a declared `Aliases` spelling or the
+plural of a singular option, `"true"`/`"false"` for a boolean, a numeric string for a number,
+and one string where a list of strings is expected. A union prefers an exact fit, then a
+natural spelling, then a formula. Errors say what to send: the valid options with a
+did-you-mean, and for an unknown field the closest accepted field (`FIELD_SYNONYMS` such as
+`type` → `kind`, then singular/plural and close spellings) with `details.accepted`.
 
 ### 1.2 `core/catalogue.py`: `@tool`, `ToolSpec`, registry
 
@@ -122,7 +136,7 @@ imports every package in `domains/`. A *derived* field is never written by hand.
 | `paths` | derived from `PathArg` | JSON pointers with mode, nested paths included |
 | `variants` | decorator | discriminator field (`"method"`) or a map to sub-schemas (`#flange`) |
 | `refresh_annotations` | decorator; default true for `model` tools in geometry domains | run the managed-annotation refresh after a commit |
-| `invalidates` | decorator; default `"topology"` | `"topology"`: face and edge refs of touched parts go stale. `"deleted"`: only deleted objects (datums, annotations, display) |
+| `invalidates` | decorator; default `"topology"` | `"topology"`: deleted objects and the faces and edges NX no longer has (consumed) go stale. `"deleted"`: only deleted objects (datums, annotations, display) |
 | `cost` | decorator | `light` (default), `heavy` or `long` (3.3) |
 | `runs` | decorator; default `"nx"` | `"sidecar"` for workspace and result tools that never reach NX |
 | `example` | decorator | one minimal argument set, returned by `nx_get_tool_schemas` |
@@ -162,11 +176,11 @@ start, and `dev_reload.py` prints the error. The checks:
 
 | Module | Responsibility |
 |---|---|
-| `errors.py` | Table of 22 categories and 66 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
+| `errors.py` | Table of 22 categories and 67 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
-| `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint, idempotent replay, states, outcome, progress, `.cancel` flag. Running receipts from an earlier session become `unknown`. Also holds the undo history for `nx_undo_operation` and checkpoints |
+| `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint, idempotent replay, states, outcome, progress, `.cancel` flag. A receipt keeps the request's `arguments`, redacted (`redact`: file contents and long strings become size notes, lists keep 100 items, at most 8,000 characters), which `nx_get_operation` echoes, and a development failure's `traceback`. Running receipts from an earlier session become `unknown`. Also holds the undo history for `nx_undo_operation` and checkpoints |
 | `evidence.py` | Loads `evidence/*.json`. `available(spec, build, variant)`, `known_build(build)`, discovery filter, writer API for the runner |
 
 **`native()` mapping.**
@@ -175,8 +189,9 @@ start, and `dev_reload.py` prints the error. The checks:
 - A code listed in `codes` → its stable code.
 - Anything else → `nx_error/NX_ERROR`.
 - `nx_code` and the native message are always kept.
-- A Python exception → `NX_ERROR` with its type name. A traceback is included only with
-  `NX_MCP_DEV=1`.
+- A Python exception → `NX_ERROR` with its type name. Its traceback never enters
+  `error.details`: with `NX_MCP_DEV=1` the kernel writes it to the operation receipt
+  (`traceback`) and `.nx-mcp/logs/tracebacks.log`.
 
 **References.** A ref is `<prefix>:<n>` (`p:1` part, `b:41` body, `f:12` feature, `s:3`
 sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
@@ -189,18 +204,33 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
   built from the persistent journal identifier, plus a body index for bodies. Faces and
   edges get an anchor only on request (decision 5).
 - A `stale_reference` error carries the anchor's unique current match in `details.current`.
-  The kernel never re-resolves silently.
+  The kernel never re-resolves silently, except the re-binding after an undo, a rollback or
+  an engineer's edit (below).
 - `references.py` wraps the host's `ObjectRegistry`, so the `obj_...` and short spellings of a
   ref both resolve.
+- Refs follow NX's persistent object identity (the tag), not geometry: a face or edge a
+  feature reshaped but did not consume keeps its ref.
 
 **Invalidation.**
 
-- After every commit, refs to deleted objects go stale. With `invalidates="topology"` the
-  face and edge refs of touched parts also go stale.
-- After a rollback, every loaded part's refs go stale, because NX undo is session-wide. The
-  exception is a before/after snapshot that proves nothing structural changed
-  (`references: preserved`).
-- Part close, engineer take-back and host reload invalidate the refs in their scope.
+- After every commit, only refs of objects NX no longer has go stale: deleted objects and
+  consumed faces and edges. `changes` lists them (`deleted`, `stale_refs`) with
+  `references: listed`; with nothing stale it is `preserved`. Only services that cannot say
+  which faces and edges died (`retired is None`) retire every face and edge ref of a
+  `topology` call and report `stale_kinds: ["face", "edge"]`. A deleted object that never
+  had a ref is a row without `id` and with `gone: true`; unnamed internal NX objects (sketch
+  helper curves, a pattern's own constraints) are only counted in `changes.internal`.
+- After an undo or a rollback, `kernel.rebind_after_undo` keeps the refs of every object NX
+  restored (NX 2406 undo restores the same tags), re-binds an anchored ref whose object came
+  back under a new tag, and retires the rest; part refs of parts still open always stay. A
+  rollback that left refs stale reports `part_invalidated` with the error's
+  `details.stale_refs`; `nx_undo_operation` and `nx_restore_checkpoint` call
+  `tx.after_undo()` and report `preserved` or `listed`.
+- An edit the agent did not make (the engineer's) re-validates refs the same way
+  (`NXServices.revalidate`) instead of dropping them, and expires the undo history and
+  checkpoints (`expired_reason: engineer_change`).
+- Part close and host reload invalidate the refs in their scope; a closed part's
+  checkpoints stay listed as expired (`part_closed`).
 
 ### 1.4 `kit/`: shared NX know-how, never copied
 
@@ -410,8 +440,8 @@ always reports `not_started`.
 
 | # | Gate | Where | Rule |
 |---|---|---|---|
-| 1 | Schema validation | S (Pydantic), N (`validate.py`) · C | Rejects an unknown tool, extra fields, out-of-bounds values and unit strings of the wrong dimension. The sidecar checks batch children against the child spec, which must be `batchable` or `previewable`. `"$2.data.feature"` placeholders are allowed only in Ref fields |
-| 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. `.nx-mcp` is reserved; `new` must not exist, `read` must exist, `save` may write only the part's own file, and `replace` may be an existing file (never a directory) that the tool replaces atomically only when asked (`Files.stage(path, replace=True)`) |
+| 1 | Schema validation | S (Pydantic), N (`validate.py`) · C | Rejects an unknown tool, extra fields (with a did-you-mean), out-of-bounds values and unit strings of the wrong dimension; natural spellings pass as their canonical value (1.1). The sidecar checks batch children against the child spec, which must be `batchable` or `previewable`. `"$2.data.feature"` placeholders are allowed only in Ref fields |
+| 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. A path without a suffix gets the marker's first one (`parts/plate` → `parts/plate.prt`). `.nx-mcp` is reserved; `new` must not exist, `read` must exist, `save` may write only the part's own file, and `replace` may be an existing file (never a directory) that the tool replaces atomically only when asked (`Files.stage(path, replace=True)`). An existing `new` or `save` path fails `NX_ALREADY_EXISTS` with `details.suggested_path` (the first free `<stem>-<n>`) |
 | 3 | Evidence/version | S (build from the descriptor), N · C | The tool and the value of its variant field must be tested on the connected build. On an unknown build only `read` and `view` tools run. A refusal is `unavailable/NX_VERSION_UNSUPPORTED`. Listings show only what runs: untested variants leave the schema enum, `tool#variant` schemas and `nx_find_tools`, and a tool with no variant left is hidden; before NX connects listings assume the default build (v2406) and say so, and a change sends `tools/list_changed`. `NX_MCP_DEV=1` still offers untested variants, marked. A tested tool/variant that failed with `NX_LICENSE_UNAVAILABLE` is remembered for the NX session: refused before NX ("remembered from <time>") and hidden via `nx_get_status` `bridge.license_unavailable` until NX restarts |
 | 4 | `requires` | N · C | Read-only state checks (`NX_NO_WORK_PART`, `NX_SKETCH_ACTIVE`, `NX_WRONG_APPLICATION`, ...) whose hint names the tool to run. They run before the hold, so the engineer is never asked to approve a request that cannot succeed, and again after it |
 | 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`); **Run once** or **Run & switch to Auto** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. Only the engineer changes the mode; no tool does |
@@ -421,7 +451,7 @@ always reports `not_started`.
 | 9 | Unit conversion | N · C | `Quantity` fields become floats in the target part's or sheet's units. Gate 1 already rejected wrong dimensions, so this gate cannot fail on arguments |
 | 10 | Handler | N · C | `handler(tx, **args)` |
 | 11 | Read-back | N · C | The handler verifies with `kit.readback`. For `model` tools the kernel also turns a snapshot diff into `changes`, drops inherited NX 2406 feature errors, and treats a new feature in error as `geometry_failed/NX_UPDATE_FAILED` with rollback |
-| 12 | Reference invalidation | N · C | After a commit: touched parts, as `spec.invalidates` says. After a rollback: all loaded parts (1.3) |
+| 12 | Reference invalidation | N · C | After a commit: refs of objects NX no longer has. After a rollback: refs of objects the undo did not restore (1.3) |
 | 13 | Annotation refresh | N | If `refresh_annotations` is set, the `@refresher` hooks run inside the same undo mark, and what they refresh is added to `changes.modified` |
 | 14 | Result projection | N (envelope), S (compaction) | The surface 1.6 envelope with `units`, `frame`, `changes` and `warnings`. With `detail=compact`, arrays over 20 items go to the result store |
 | 15 | Error mapping | N, S | `NXError` becomes `{category, code, message, hint, field, retry, nx_code, details}`; `retry` comes from the category table |
@@ -434,7 +464,10 @@ Members of `Tx`:
   transaction *touched* when accessed. `tx.units`: `{"length": "mm", "angle": "deg"}`.
 - `tx.resolve(ref, *kinds)`: the live object, or `stale_reference`, `wrong_kind` or
   `wrong_owner`. `tx.ref(obj, kind=None)`: a result row with its anchor.
-- `tx.warn(code, msg)` and `tx.checkpoint(done=None, total=None)` (3.3).
+- `tx.warn(code, msg)` (codes from `errors.WARNING_CODES`, else `NX_UPDATE_WARNING`) and
+  `tx.checkpoint(done=None, total=None)` (3.3).
+- `tx.after_undo()`: for handlers that undo NX marks (undo, restore); keeps the refs of
+  restored objects and sets `tx.references` to `preserved` or `listed` (`tx.stale_refs`).
 - `with tx.scratch():` temporary geometry for `check`/`analyze` tools, under a hidden mark
   that is always undone; object counts are verified afterwards.
 - `tx.files.stage(path)` / `tx.files.publish()`: atomic workspace writes.

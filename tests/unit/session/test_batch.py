@@ -130,3 +130,22 @@ def test_summary_counts_steps_and_names_the_first():
         == "Batch of 2 steps: Create sketch (+1 more)"
     )
     assert render(spec, {"operations": [SKETCH]}) == "Batch of 1 step: Create sketch"
+
+
+def test_refusals_say_what_runs_in_a_batch_and_what_to_do_instead():
+    nx = sketch_nx()
+    extrude = {"tool": "nx_create_extrude", "arguments": {"sketch": "$0.data.sketch"}}
+    refused = run(nx, "nx_run_batch", operations=[SKETCH, extrude])
+    error = refused.error
+    assert "light steps only" in error["message"]
+    assert "nx_preview_changes" in error["hint"] and "nx_finish_preview" in error["hint"]
+    assert "nx_create_sketch_curves" in error["hint"]  # the batchable tools are listed
+    batchable = error["details"]["batchable"]
+    assert {"nx_create_sketch", "nx_set_name", "nx_finish_sketch"} <= set(batchable)
+    assert "nx_create_extrude" not in batchable
+    typo = run(nx, "nx_run_batch", operations=[{"tool": "nx_create_sketch_curve", "arguments": {}}])
+    assert typo.error["code"] == "NX_UNKNOWN_TOOL"
+    assert "nx_create_sketch_curves" in typo.error["hint"]
+    preview = run(nx, "nx_preview_changes", operations=[{"tool": "nx_save_part", "arguments": {}}])
+    assert preview.error["code"] == "NX_UNSUPPORTED_OPTION"
+    assert "nx_create_extrude" in preview.error["details"]["previewable"]

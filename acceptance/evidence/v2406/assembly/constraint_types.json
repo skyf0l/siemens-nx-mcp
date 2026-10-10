@@ -15,9 +15,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_assembly_constraint": "27224deaeed9f6bc6c2aec619fa2b35040301fcd34ac06b9f6d697bfac4970da"
+    "nx_create_assembly_constraint": "39abc807895b1923d8806e2fd629929f8d3257d8df7432d71409af433ed0845f"
   },
-  "recorded": "2026-10-10T15:58:29Z",
+  "recorded": "2026-10-10T23:35:36Z",
   "passed": true,
   "checks": 44,
   "failed_checks": 0,

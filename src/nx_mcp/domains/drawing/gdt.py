@@ -14,7 +14,8 @@ NX 2406 findings encoded here:
   frame's failure depends on its arguments (frames without PMI datums need no
   license), so it is marked ``argument_license`` and not remembered for the session.
 - NX moves a frame onto its annotation plane silently: the read-back position is
-  returned with the requested one and a warning.
+  returned with the requested one and a warning. A PMI frame is read back from a
+  reopened builder like a drafting one (``frame``); ``text`` is NX's raw control codes.
 - The drafting builders (``CreateDraftingFeatureControlFrameBuilder``,
   ``Datums.CreateDraftingDatumFeatureSymbolBuilder``, ``CreateDraftingDatumTargetBuilder``)
   need no PMI license; a drafting frame reads the letters of drafting datum symbols.
@@ -23,6 +24,7 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -44,6 +46,7 @@ from nx_mcp.domains.drawing.common import (
     add_leader,
     check_leader,
     commit,
+    default_origin,
     geometry,
     leader_row,
     set_origin,
@@ -103,9 +106,12 @@ DATUM_FIELDS = ("PrimaryDatumReference", "SecondaryDatumReference", "TertiaryDat
 Modifier = Literal["mmc", "lmc", "rfs"]
 
 
+MAX_TOLERANCE = 10000.0
+
+
 class _Frame(TypedDict):
     characteristic: Characteristic
-    tolerance: Annotated[float, Range(gt=0, le=10000)]
+    tolerance: Length
 
 
 class FrameSpec(_Frame, total=False):
@@ -113,7 +119,7 @@ class FrameSpec(_Frame, total=False):
     material: Modifier
     zone: Literal["diameter", "spherical_diameter", "square"]
     datum_material: Annotated[list[Literal["none", "mmc", "lmc", "rfs"]], Items(1, 3)]
-    projected_height: Annotated[float, Range(gt=0, le=10000)]
+    projected_height: Length
     tangent_plane: bool
     free_state: bool
 
@@ -181,6 +187,11 @@ def _is(tx, obj, name):
 
 def check_frame(frame, field="/frame"):
     """Cross-field rules of a feature control frame (before NX)."""
+    for name in ("tolerance", "projected_height"):
+        value = frame.get(name)
+        if value is not None and not 0 < float(value) <= MAX_TOLERANCE:
+            fail("NX_INVALID_ARGUMENT", f"{name} must be > 0 and <= {MAX_TOLERANCE:g}",
+                 field=f"{field}/{name}", hint="A number in part units, or '0.05 mm'")  # fmt: skip
     form = frame["characteristic"] in FORM
     datums = frame.get("datums") or []
     if form and datums:
@@ -273,9 +284,11 @@ def _text(obj):
 def _placed(tx, obj, position):
     actual = geom.xyz(obj.AnnotationOrigin)
     if geom.dist(actual, list(position)) > 1e-6 * max(1.0, *map(abs, position)):
+        shown = [round(v, 6) for v in actual]
         tx.warn(
             "NX_UPDATE_WARNING",
-            "NX placed the annotation on its annotation plane; position is the read-back origin",
+            f"NX placed the annotation on its annotation plane at {shown}, not at "
+            f"{[float(v) for v in position]}: position is the read-back origin",
         )
     return actual
 
@@ -320,13 +333,14 @@ def nx_create_gdt(
     view: DrawingViewRef | None = None,
     object: Annotated[str, RefTo("edge", "face")] | None = None,  # noqa: A002
     origin: SheetPoint | None = None,
-    letter: Annotated[str, Text(3, r"^[A-Z]{1,3}$")] | None = None,
+    letter: Annotated[str, Text(3, r"^[A-Za-z]{1,3}$")] | None = None,
     frame: FrameSpec | None = None,
     target: TargetSpec | None = None,
 ) -> GdtData:
     """Create GD&T as PMI on faces, or as a drafting annotation with a leader to view geometry.
-    PMI kinds take faces and position (NX may move it onto its annotation plane); view_* kinds
-    take view, object (edge or face) and origin on the sheet; letter labels a datum or target."""
+    PMI kinds take faces and position (read back: NX may move it); view_* kinds take view, object
+    (edge or face) and origin (default: by the leader); letter labels a datum or target."""
+    letter = letter.upper() if letter else letter
     _check_shape(kind, faces, position, view, object, origin, letter, frame, target)
     if kind not in PMI_KINDS:
         return _in_view(tx, kind, view, object, origin, letter, frame, target)
@@ -334,24 +348,53 @@ def nx_create_gdt(
         targets = select.faces(tx, faces)
     annotations = tx.part.Annotations
     with drawing.in_modeling(tx):  # PMI on a displayed sheet would become a sheet note
-        obj = _create(tx, annotations, kind, letter, frame, targets, position)
+        obj, letters = _create(tx, annotations, kind, letter, frame, targets, position)
     update(tx)
-    return {
+    out: GdtData = {
         "annotation": tx.ref(obj, "annotation"),
         "position": _placed(tx, obj, position),
         "requested_position": [float(v) for v in position or ()],
         "text": _text(obj),
     }
+    if kind == "fcf":  # the frame in words: text is NX's control codes
+        factory = annotations.CreatePmiFeatureControlFrameBuilder
+        with drawing.in_modeling(tx), builders.build(tx, factory, obj) as reader:
+            actual = _read_frame(tx, reader)
+        wanted = _wanted_frame(frame, letters)
+        readback.expect(_same(actual, wanted), "definition", "NX stored another frame",
+                        actual=actual, wanted=wanted)  # fmt: skip
+        out["frame"] = actual
+    return out
+
+
+EXAMPLES = {
+    "frame": {"characteristic": "flatness", "tolerance": 0.05},
+    "letter": "A",
+    "target": {"type": "point"},
+    "faces": ["fc:3"],
+    "position": [10, 20, 30],
+    "view": "v:7",
+    "object": "e:21",
+}
+
+
+def _need(kind, **fields):
+    """The fields this kind requires; a missing one is named with an example."""
+    for name, value in fields.items():
+        if value is None:
+            example = json.dumps(EXAMPLES[name])
+            fail("NX_INVALID_ARGUMENT", f"{name} is required for kind {kind}", field=f"/{name}",
+                 hint=f"For example {name}: {example}")  # fmt: skip
 
 
 def _check_shape(kind, faces, position, view, obj, origin, letter, frame, target):
     """Each kind takes exactly its own fields (checked before NX)."""
     pmi = kind in PMI_KINDS
     if pmi:
-        args.need(faces=faces, position=position)
+        _need(kind, faces=faces, position=position)
         others = {"view": view, "object": obj, "origin": origin}
     else:
-        args.need(view=view, object=obj, origin=origin)
+        _need(kind, view=view, object=obj)
         others = {"faces": faces, "position": position}
     wants = {
         "letter": kind in ("datum_feature", "view_datum_feature", "view_datum_target"),
@@ -361,7 +404,7 @@ def _check_shape(kind, faces, position, view, obj, origin, letter, frame, target
     given = {"letter": letter, "frame": frame, "target": target}
     for name, wanted in wants.items():
         if wanted:
-            args.need(**{name: given[name]})
+            _need(kind, **{name: given[name]})
         else:
             others[name] = given[name]
     for name, value in others.items():
@@ -394,6 +437,8 @@ def check_target(target, field="/target"):
 
 
 def _create(tx, annotations, kind, letter, frame, targets, position):
+    """``(annotation, datum letters of the frame)``."""
+    letters: list[str] = []
     if kind == "datum_feature":
         with builders.build(tx, annotations.Datums.CreatePmiDatumFeatureSymbolBuilder, None) as b:
             b.Letter = letter
@@ -404,7 +449,7 @@ def _create(tx, annotations, kind, letter, frame, targets, position):
         with builders.build(tx, factory, None) as b:
             _configure_frame(tx, b, frame, letters)
             obj = _commit(tx, b, targets, position)
-    return obj
+    return obj, letters
 
 
 # ---- drafting GD&T on view geometry ---------------------------------------------------------
@@ -532,6 +577,7 @@ def _in_view(tx, kind, view_ref, obj_ref, origin, letter, frame, target):
             else:
                 _configure_target(tx, b, letter, target)
             anchor = add_leader(tx, b.Leader, obj, view)
+            origin = origin if origin is not None else default_origin(sh, anchor)
             set_origin(tx, b.Origin, sh, origin)
             made = commit(b, what)
         update(tx)

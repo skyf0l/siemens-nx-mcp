@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/health.json",
-  "scenario_sha256": "f804ddeb800854b25ed6b6a2ce0270e047b41c4ba6e3cbdf77795302e2653d86",
+  "scenario_sha256": "c27c92e712e8dc976a735b2b5979f5e51bd26cd5b3e33fdd4fc8dc3e1d6edabb",
   "domain": "inspection",
   "covers": {
     "nx_check_model": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_model": "7aa9945404dd1c2aa96f5eb6fb11a77e18586485c9aa0d8a8b394796a2e2be3d",
-    "nx_get_model_summary": "7aa9945404dd1c2aa96f5eb6fb11a77e18586485c9aa0d8a8b394796a2e2be3d"
+    "nx_check_model": "4bb39934761b6e6a3cc12e82a023aa906efc06f3cfbbbf392b067d838c93ea29",
+    "nx_get_model_summary": "4bb39934761b6e6a3cc12e82a023aa906efc06f3cfbbbf392b067d838c93ea29"
   },
-  "recorded": "2026-10-10T17:32:27Z",
+  "recorded": "2026-10-10T22:50:38Z",
   "passed": true,
-  "checks": 37,
+  "checks": 50,
   "failed_checks": 0,
   "steps": [
     {
@@ -72,7 +72,7 @@
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
-      "checks": 10
+      "checks": 11
     },
     {
       "index": 9,
@@ -86,21 +86,21 @@
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 5
     },
     {
       "index": 11,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 12,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 13,
@@ -111,34 +111,76 @@
     },
     {
       "index": 14,
-      "call": "nx_set_feature_suppression",
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_create_primitive",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 15,
-      "call": "nx_check_model",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
       "index": 16,
-      "call": "nx_check_model",
-      "setup": false,
+      "call": "nx_set_current_feature",
+      "setup": true,
       "passed": true,
-      "checks": 2
+      "checks": 0
     },
     {
       "index": 17,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 18,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 19,
+      "call": "nx_set_current_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_set_feature_suppression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 22,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,

@@ -187,3 +187,96 @@ def test_trim_rejections_and_native_refusal():
               region_point=[5, 5, 0])  # fmt: skip
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671228
     assert nx.live_builders == 0
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics, thickness and projection
+
+
+def test_sew_refusal_reports_each_tool_gap():
+    nx = freeform_nx()
+    a = sheet(nx, (0, 0, 0, 20, 10, 0))
+    near = sheet(nx, (20, 0, 0, 40, 10, 0))
+    far = sheet(nx, (43, 0, 0, 60, 10, 0))
+    nx.refuse("SewBuilder", 4635012, "Tool body does not share a common boundary")
+    bad = run(nx, "nx_create_sew", target=a.ref, tools=[near.ref, far.ref])
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 4635012
+    gaps = bad.error["details"]["gaps"]
+    assert gaps == [{"tool": near.ref, "gap": 0.0}, {"tool": far.ref, "gap": 3.0}]
+    assert far.ref in bad.error["hint"] and "tolerance" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0
+
+
+def test_unsewn_tools_report_gaps_and_success_reports_the_sheet():
+    nx = freeform_nx()
+    a, b = two_sheets(nx)
+    sew_commit(nx, a, unsewn=[b])
+    partial = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref])
+    assert partial.error["code"] == "NX_INCOMPLETE_RESULT"
+    assert partial.error["details"]["unsewn"] == 1
+    assert partial.error["details"]["gaps"] == [{"tool": b.ref, "gap": 0.0}]
+    nx = freeform_nx()
+    a, b = two_sheets(nx)
+    sew_commit(nx, a)
+    ok = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref], tolerance="0.01mm")
+    assert ok.ok and ok.data["sheet"] is True and ok.data["faces"] == 0, ok
+    assert nx.last("SewBuilder").Tolerance == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize(
+    ("args", "offsets", "side"),
+    [
+        ({"thickness": 2}, ("2.0", "0.0"), "along_normal"),
+        ({"thickness": "-2 mm"}, ("-2.0", "0.0"), "against_normal"),
+        ({"offset1": 1, "offset2": -1}, ("1.0", "-1.0"), "both_sides"),
+        ({"offset1": 2}, ("2.0", "0.0"), "along_normal"),
+    ],
+)
+def test_thicken_thickness_shortcut_and_side(args, offsets, side):
+    nx, top = thick_nx()
+    ok = run(nx, "nx_create_thicken", faces=[top.ref], **args)
+    assert ok.ok and ok.data["side"] == side and ok.data["volume"] == 400.0, ok
+    b = nx.last("ThickenBuilder")
+    assert (b.FirstOffset.RightHandSide, b.SecondOffset.RightHandSide) == offsets
+    assert ok.data["sheet"] is False and ok.data["faces"] == 1
+
+
+def test_thicken_needs_one_way_of_giving_the_thickness():
+    nx, top = thick_nx()
+    none = run(nx, "nx_create_thicken", faces=[top.ref])
+    assert none.error["field"] == "/thickness" and none.mutation_outcome == "not_started"
+    assert "thickness" in none.error["hint"]
+    both = run(nx, "nx_create_thicken", faces=[top.ref], thickness=2, offset1=2)
+    assert both.error["field"] == "/thickness"
+    zero = run(nx, "nx_create_thicken", faces=[top.ref], thickness=0)
+    assert zero.error["field"] == "/thickness" and not nx.builders
+
+
+def test_trim_projects_along_a_direction_and_snaps_the_region_point():
+    nx, target, cut = trim_nx((0, 0, 0, 10, 10, 0))
+    ok = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[cut.ref],
+             region_point=[5, 5, 3], direction=[0, 0, 2])  # fmt: skip
+    assert ok.ok and ok.data["sheet"] is True, ok
+    b = nx.last("TrimsheetBuilder")
+    methods = nx.nx.GeometricUtilities.ProjectionOptions.DirectionType
+    assert b.ProjectionDirection.ProjectDirectionMethod is methods.Vector
+    assert b.ProjectionDirection.ProjectVector is not None
+    region = b.Regions.Append.calls[0][0][0]
+    assert [region.point.Coordinates.X, region.point.Coordinates.Z] == [5, 0]  # on the sheet
+    zero = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[cut.ref],
+               region_point=[5, 5, 0], direction=[0, 0, 0])  # fmt: skip
+    assert zero.error["field"] == "/direction" and zero.mutation_outcome == "not_started"
+
+
+def test_trim_default_projection_is_face_normal_and_refusal_explains():
+    nx, target, _cut = trim_nx((0, 0, 0, 10, 10, 0))
+    below = curve(nx, [10, -1, -4], [10, 11, -4])
+    nx.refuse("TrimsheetBuilder", 671232, "Invalid retained/discarded regions")
+    bad = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[below.ref],
+              region_point=[5, 5, 2])  # fmt: skip
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671232
+    details = bad.error["details"]
+    assert details["region_gap"] == 2.0 and details["projection"] == "face_normal"
+    assert details["boundary_gaps"] == [{"boundary": below.ref, "gap": 4.0}]
+    assert "direction" in bad.error["hint"] and below.ref in bad.error["hint"]
+    assert not nx.last("TrimsheetBuilder").ProjectionDirection.ProjectDirectionMethod.calls

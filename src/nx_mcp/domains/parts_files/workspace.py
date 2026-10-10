@@ -25,6 +25,7 @@ from nx_mcp.kit import files, result
 CHUNK_BYTES = 262_144
 MAX_UPLOAD = 256 * 1024 * 1024
 INLINE_IMAGE_BYTES = 8 * 1024 * 1024
+TEXT_BYTES = 65_536  # delivery text: a whole small file read as UTF-8
 # Parts, images, documents, expression files (.exp) and every file nx_import_model reads
 # (importing.SUFFIXES).
 UPLOAD_SUFFIXES = (".prt", ".step", ".stp", ".png", ".json", ".zip", ".txt", ".pdf",
@@ -79,10 +80,41 @@ class DownloadData(TypedDict, total=False):
     next_offset: int | None
     eof: bool
     data_base64: str
+    text: str
 
 
 def _root(tx) -> Path:
     return Path(tx.workspace.root)
+
+
+def _upload_bytes(content: str | None, data_base64: str | None, offset: int) -> bytes:
+    """The bytes of this upload call: ``content`` (a whole file) or one base64 chunk."""
+    if (content is None) == (data_base64 is None):
+        both = content is not None
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Pass content (text of the whole file) or data_base64 (a chunk of bytes)"
+            + (", not both" if both else ""),
+            field="/content" if both else "/data_base64",
+        )
+    if content is not None:
+        if offset:
+            fail("NX_INVALID_ARGUMENT", "content is the whole file: offset is 0", field="/offset")
+        data = content.encode("utf-8")
+        if len(data) > CHUNK_BYTES:
+            fail(
+                "NX_REQUEST_TOO_LARGE",
+                "content holds at most 256 KiB of UTF-8; send larger files as data_base64 chunks",
+                field="/content",
+            )
+        return data
+    try:
+        data = base64.b64decode(data_base64 or "", validate=True)
+    except (binascii.Error, ValueError):
+        fail("NX_INVALID_ARGUMENT", "data_base64 is not valid base64", field="/data_base64")
+    if len(data) > CHUNK_BYTES:
+        fail("NX_REQUEST_TOO_LARGE", "A chunk holds at most 256 KiB", field="/data_base64")
+    return data
 
 
 def _reserved(path: Path, root: Path) -> bool:
@@ -115,9 +147,19 @@ def nx_list_files(
     root = _root(tx)
     folder = Path(tx.workspace.resolve(path or "."))
     if not folder.exists():
-        fail("NX_FILE_NOT_FOUND", "The folder does not exist", field="/path")
+        fail(
+            "NX_FILE_NOT_FOUND",
+            f"No folder {files.relative(folder, root)} in the workspace",
+            field="/path",
+            hint="List its parent folder with nx_list_files, or create it with nx_create_directory",
+        )
     if not folder.is_dir():
-        fail("NX_WRONG_KIND", "path names a file; use nx_download_file for one file", field="/path")
+        fail(
+            "NX_WRONG_KIND",
+            "path names a file, not a folder",
+            field="/path",
+            hint="Read one file with nx_download_file; list its folder with nx_list_files",
+        )
     needle = (prefix or "").casefold()
     entries = [
         e
@@ -158,7 +200,12 @@ def nx_create_directory(tx: Tx, *, path: Annotated[str, PathTo("dir")]) -> Direc
     try:
         folder.mkdir(parents=True, exist_ok=True)
     except FileExistsError:
-        fail("NX_WRONG_KIND", "A file already exists at this path", field="/path")
+        fail(
+            "NX_WRONG_KIND",
+            "A file already exists at this path",
+            field="/path",
+            hint="Choose another folder path; nx_list_files shows what exists",
+        )
     except OSError as error:
         fail("NX_TRANSFER_FAILED", f"Cannot create the folder: {error}", field="/path")
     return {"path": files.relative(folder, _root(tx)), "created": not existed}
@@ -174,41 +221,42 @@ Sha256 = Annotated[str, Text(64, r"^[0-9a-f]{64}$"), Doc("Lowercase SHA-256 of t
 
 @tool(
     effect="file",
-    label="Upload file chunk",
+    label="Upload workspace file",
     summary="Upload {path}",
     keywords=("upload", "send file", "transfer file", "put file", "copy to workspace"),
     cost="light",
     runs="sidecar",
-    example={
-        "path": "inbox/bracket.step",
-        "data_base64": "SVNP",
-        "offset": 0,
-        "total_size": 3,
-        "sha256": "b5ad9d05b72c9eea2e4dd8be8adc7d2a3b1b97ce0e8a9e2c1bc3e7d3e4e1f6a0",
-    },
+    example={"path": "inbox/notes.txt", "content": "Bracket rev B"},
 )
 def nx_upload_file(
     tx: Tx,
     *,
     path: Annotated[str, PathTo("new", *UPLOAD_SUFFIXES)],
-    data_base64: Base64,
-    offset: Annotated[int, Range(ge=0, le=MAX_UPLOAD), Doc("Byte offset of this chunk")],
-    total_size: Annotated[int, Range(ge=0, le=MAX_UPLOAD), Doc("Size of the whole file")],
-    sha256: Sha256,
+    content: Annotated[str, Text(CHUNK_BYTES), Doc("Whole file as UTF-8 text")] | None = None,
+    data_base64: Base64 | None = None,
+    offset: Annotated[int, Range(ge=0, le=MAX_UPLOAD), Doc("Byte offset of this chunk")] = 0,
+    total_size: Annotated[int, Range(ge=0, le=MAX_UPLOAD), Doc("Default: one chunk")] | None = None,
+    sha256: Sha256 | None = None,
 ) -> UploadData:
-    """Upload one chunk of a new workspace file; send chunks in order. The file appears only
-    when the last chunk arrives and its SHA-256 matches. Repeating a chunk is safe; an
-    existing file is never overwritten."""
+    """Upload a new workspace file: text as content, or bytes as base64 chunks in order. A file
+    of several chunks needs total_size and sha256. It appears when complete; never overwrites."""
+    data = _upload_bytes(content, data_base64, offset)
+    if total_size is None:
+        if offset:
+            fail("NX_INVALID_ARGUMENT", "Chunked uploads need total_size", field="/total_size")
+        total_size = len(data)
     if offset > total_size:
         fail("NX_INVALID_ARGUMENT", "offset is beyond total_size", field="/offset")
-    try:
-        data = base64.b64decode(data_base64, validate=True)
-    except (binascii.Error, ValueError):
-        fail("NX_INVALID_ARGUMENT", "data_base64 is not valid base64", field="/data_base64")
-    if len(data) > CHUNK_BYTES:
-        fail("NX_REQUEST_TOO_LARGE", "A chunk holds at most 256 KiB", field="/data_base64")
     if offset + len(data) > total_size:
         fail("NX_INVALID_ARGUMENT", "The chunk ends beyond total_size", field="/data_base64")
+    if sha256 is None:
+        if offset or len(data) != total_size:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "A file of several chunks needs the SHA-256 of the whole file",
+                field="/sha256",
+            )
+        sha256 = hashlib.sha256(data).hexdigest()
     target = Path(path)
     staging = _root(tx) / RESERVED / "uploads"
     key = hashlib.sha256(f"{target}|{sha256}|{total_size}".encode()).hexdigest()
@@ -247,6 +295,8 @@ def nx_upload_file(
                 "NX_TRANSFER_FAILED",
                 "The uploaded bytes do not match sha256; the upload was discarded",
                 field="/sha256",
+                hint="Send the SHA-256 of the whole file, or omit it for a one-chunk file; "
+                "a file of several chunks also needs total_size",
             )
         files.publish_new(temp, target)
     return {
@@ -262,7 +312,9 @@ def nx_upload_file(
     effect="read",
     label="Download workspace file",
     summary=lambda a, say: (
-        {"image": "Show image", "chunk": "Download"}.get(a.get("delivery"), "File info")
+        {"image": "Show image", "chunk": "Download", "text": "Read"}.get(
+            a.get("delivery"), "File info"
+        )
         + f" {say('path')}"
     ),
     keywords=("download", "read file", "file checksum", "show png", "get file"),
@@ -275,13 +327,13 @@ def nx_download_file(
     tx: Tx,
     *,
     path: PathIn,
-    delivery: Literal["metadata", "image", "chunk"] = "metadata",
+    delivery: Literal["metadata", "image", "text", "chunk"] = "metadata",
     offset: Annotated[int, Range(ge=0), Doc("chunk: first byte")] | None = None,
     length: Annotated[int, Range(ge=1, le=CHUNK_BYTES), Doc("chunk: bytes, at most 256 KiB")]
     | None = None,
 ) -> DownloadData:
-    """Read a workspace file: size and SHA-256 (metadata), a PNG shown inline to the client
-    (image), or a base64 chunk. Never paste chunk data into the conversation."""
+    """Read a workspace file: metadata (size, SHA-256), image (inline PNG), text (UTF-8, up to
+    64 KiB) or chunk (base64)."""
     if delivery != "chunk" and (offset is not None or length is not None):
         fail(
             "NX_INVALID_ARGUMENT",
@@ -305,8 +357,9 @@ def nx_download_file(
         if size is None:
             fail(
                 "NX_UNSUPPORTED_FILE_TYPE",
-                "Inline delivery shows PNG files only; use delivery chunk",
+                "delivery image shows PNG files only",
                 field="/path",
+                hint="Use delivery text for a text file, chunk for other bytes",
             )
         out["image"] = {
             "path": meta["path"],
@@ -316,6 +369,8 @@ def nx_download_file(
             "width": size[0],
             "height": size[1],
         }
+    elif delivery == "text":
+        out["text"] = _text(file, meta["size"])
     elif delivery == "chunk":
         start = offset or 0
         with file.open("rb") as stream:
@@ -332,3 +387,23 @@ def nx_download_file(
             }
         )
     return out
+
+
+def _text(file: Path, size: int) -> str:
+    """The whole file as UTF-8 text (a BOM is dropped), else a refusal naming chunk."""
+    if size > TEXT_BYTES:
+        fail(
+            "NX_RESPONSE_TOO_LARGE",
+            f"delivery text reads files up to 64 KiB; this one has {size} bytes",
+            field="/path",
+            hint="Read it with delivery chunk",
+        )
+    try:
+        return file.read_bytes().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        fail(
+            "NX_UNSUPPORTED_FILE_TYPE",
+            "The file is not UTF-8 text",
+            field="/path",
+            hint="Read its bytes with delivery chunk",
+        )

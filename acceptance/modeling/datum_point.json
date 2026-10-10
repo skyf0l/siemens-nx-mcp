@@ -34,6 +34,10 @@
     },
     "data.feature.name": {
      "matches": "(?i)^tip$"
+    },
+    "data.point.kind": "point",
+    "data.point.name": {
+     "matches": "(?i)^tip$"
     }
    }
   },

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/attributes.json",
-  "scenario_sha256": "ea69cacf0451a865d0463e5f1b8f2a30027db9fa1f88a393b6229fbd3ef2e335",
+  "scenario_sha256": "6f0b4c9c6f9db873f998d94323ae6308ad36a6a195248a4ef9ae7c6466e7c1b9",
   "domain": "parts_files",
   "covers": {
     "nx_get_attributes": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_attributes": "ae70f8cee3b06307a99b3918f14ffec9560eb43a2bf5786dd67a1c406406ca5f",
-    "nx_set_attributes": "ae70f8cee3b06307a99b3918f14ffec9560eb43a2bf5786dd67a1c406406ca5f"
+    "nx_get_attributes": "822deb97a3a4e31eac388675480b731920087c6c396c4551b5893b1660d81452",
+    "nx_set_attributes": "822deb97a3a4e31eac388675480b731920087c6c396c4551b5893b1660d81452"
   },
-  "recorded": "2026-10-10T13:15:35Z",
+  "recorded": "2026-10-10T22:58:36Z",
   "passed": true,
-  "checks": 145,
+  "checks": 181,
   "failed_checks": 0,
   "steps": [
     {
@@ -209,38 +209,38 @@
     },
     {
       "index": 28,
-      "call": "nx_list_objects",
-      "setup": true,
+      "call": "nx_set_attributes",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 17
     },
     {
       "index": 29,
       "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 8
     },
     {
       "index": 30,
       "call": "nx_get_attributes",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 31,
       "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 32,
-      "call": "nx_get_attributes",
+      "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 33,
@@ -251,55 +251,97 @@
     },
     {
       "index": 34,
-      "call": "nx_set_attributes",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
-      "index": 35,
-      "call": "nx_create_component",
+      "call": "nx_list_objects",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 36,
+      "index": 35,
       "call": "nx_set_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 36,
+      "call": "nx_get_attributes",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
       "index": 37,
-      "call": "nx_get_attributes",
+      "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 2
     },
     {
       "index": 38,
       "call": "nx_get_attributes",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 39,
       "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 40,
+      "call": "nx_set_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 41,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 42,
+      "call": "nx_set_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 43,
+      "call": "nx_get_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 44,
+      "call": "nx_get_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 45,
+      "call": "nx_set_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 46,
       "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 41,
+      "index": 47,
       "call": "nx_get_attributes",
       "setup": false,
       "passed": true,

@@ -15,14 +15,31 @@ create or edit puts the previous sections and sectioning state back itself.
 from __future__ import annotations
 
 import contextlib
+import re
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import deleter, lister, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Name, PlaneByNormal, RefTo
+from nx_mcp.core.types import REF_PATTERN, Doc, Length, Name, Point3, RefTo, Text, Vec3
+from nx_mcp.domains.display.common import choice
 from nx_mcp.kit import display, geom, readback, select
 from nx_mcp.kit.result import Row
+
+# Principal planes and the normal each one's section gets (its positive side is hidden).
+PRINCIPALS = {"xy": (0.0, 0.0, 1.0), "yz": (1.0, 0.0, 0.0), "xz": (0.0, 1.0, 0.0)}
+PLANE_ALIASES = {"yx": "xy", "zy": "yz", "zx": "xz", "top": "xy", "front": "xz", "right": "yz"}
+Principal = Annotated[str, Text(16), Doc("xy|yz|xz: normal +z|+x|+y; -xz flips")]
+# A ref keeps its RefKind so batch placeholders ($1.data.section.id) still resolve.
+SectionArg = Annotated[
+    Annotated[str, RefTo("section_view", doc="sv:N")] | Annotated[str, Text(64)],
+    Doc("Section ref or name"),
+]
+
+
+class SectionPlane(TypedDict, total=False):
+    origin: Point3
+    normal: Vec3
 
 
 class SectionData(TypedDict):
@@ -30,6 +47,7 @@ class SectionData(TypedDict):
     origin: list[float]
     normal: list[float]
     cap: bool
+    enabled: bool
     active: bool
     sectioning: bool
     hidden_side: str
@@ -40,6 +58,70 @@ class SectionData(TypedDict):
 def _context(tx):
     part = display.shown_part(tx, work=True)
     return part, display.model_view(tx, part)
+
+
+def _plane(plane, offset, current=None):
+    """``(origin, normal)`` of a section plane given as ``{origin?, normal?}``, a principal
+    plane name or nothing (``current`` plane, on edit), moved ``offset``.
+
+    A principal plane lies at ``offset`` along its axis ('xz', offset 30: y = 30); a
+    leading '-' only flips the normal (the hidden side). Otherwise ``offset`` moves the
+    origin along the unit normal, and a missing origin or normal is the current one
+    (edit) or the absolute origin (create; a normal is required)."""
+    if isinstance(plane, str):
+        text = plane.strip()
+        sign = -1.0 if text.startswith("-") else 1.0
+        name = re.sub(r"(?i)\s*plane$", "", text.lstrip("+-"))
+        name = choice(name, tuple(PRINCIPALS), "/plane", PLANE_ALIASES)
+        axis = PRINCIPALS[name]
+        return [float(offset or 0.0) * v for v in axis], [sign * v for v in axis]
+    spec = dict(plane or {})
+    if "normal" in spec:
+        normal = geom.unit(spec["normal"], field="/plane/normal")
+    elif current is not None:
+        normal = geom.unit(current["normal"])
+    else:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "The section plane needs a normal",
+            field="/plane/normal",
+            hint="Send plane {origin:[0,30,0], normal:[0,1,0]}, or plane 'xz' with offset 30",
+        )
+    origin = spec.get("origin") or (current["origin"] if current else [0.0, 0.0, 0.0])
+    origin = [float(v) + float(offset or 0.0) * n for v, n in zip(origin, normal, strict=True)]
+    return origin, normal
+
+
+def _section_of(tx, part, value):
+    """A section of the part from its ref or its name (any case; spaces, hyphens and
+    underscores alike: 'natural cut' finds NATURAL_CUT)."""
+    text = str(value).strip()
+    if re.match(REF_PATTERN, text):
+        return select.resolve(tx, text, "section_view", field="/section")
+    found = display.sections(part)
+
+    def key(name) -> str:
+        return re.sub(r"[\s_-]+", "_", str(name).strip()).casefold()
+
+    named = [s for s in found if key(getattr(s, "Name", "")) == key(text)]
+    if len(named) == 1:
+        return named[0]
+    fail(
+        "NX_AMBIGUOUS_REFERENCE" if named else "NX_NOT_FOUND",
+        f"{len(named)} sections are named {text!r}" if named else f"No section named {text!r}",
+        field="/section",
+        hint="Pass a section ref (sv:N) from details.sections",
+        details={"sections": [tx.ref(s, "section_view") for s in (named or found)]},
+    )
+
+
+def _hidden_side(origin, normal) -> str:
+    """The half space a section hides, spelled out: 'y > 30' for an axis normal."""
+    n = geom.unit(normal)
+    for i, axis in enumerate("xyz"):
+        if abs(abs(n[i]) - 1.0) < 1e-9:
+            return f"{axis} {'>' if n[i] > 0 else '<'} {origin[i]:.6g}"
+    return "where the normal points: (p - origin) . normal > 0"
 
 
 @contextlib.contextmanager
@@ -78,14 +160,16 @@ def guarded(tx, part, view):
 def _data(tx, part, view, section) -> SectionData:
     state = display.section_state(tx, part, view, section)
     ref = tx.ref(section, "section_view")
+    sectioning = bool(view.DisplaySectioningToggle)
     return {
         "section": ref,
         "origin": state["origin"],
         "normal": state["normal"],
         "cap": state["cap"],
-        "active": state["active"],
-        "sectioning": bool(view.DisplaySectioningToggle),
-        "hidden_side": "positive",  # the half space the normal points into
+        "enabled": state["active"] and sectioning,  # it cuts the view now
+        "active": state["active"],  # the view's current section, cutting or not
+        "sectioning": sectioning,
+        "hidden_side": _hidden_side(state["origin"], state["normal"]),
         "cut_face_view_from": geom.unit(state["normal"]),
         "remove_with": {"tool": "nx_delete_objects", "arguments": {"objects": [ref["id"]]}},
     }
@@ -96,25 +180,39 @@ def _expect_plane(state, origin, normal):
     readback.expect_same_direction(geom.unit(state["normal"]), normal, "normal")
 
 
+def _summary(a, say):
+    plane = a.get("plane")
+    if isinstance(plane, dict) and plane.get("origin") is not None:
+        where = "(" + ", ".join(f"{float(v):.6g}" for v in plane["origin"]) + ")"
+    elif isinstance(plane, dict):
+        where = str(plane.get("principal") or "the origin")
+    else:
+        where = str(plane)
+    offset = f" offset {a['offset']}" if a.get("offset") is not None else ""
+    return f"Section the view at {where}{offset}"
+
+
 @tool(
     effect="view",
     label="Create section view",
-    summary=lambda a, say: (
-        "Section the view at (" + ", ".join(f"{float(v):.6g}" for v in a["plane"]["origin"]) + ")"
-    ),
+    summary=_summary,
     keywords=("section view", "clipping plane", "cut view", "dynamic section", "cross section"),
     requires=("work_part",),
     cost="light",
     example={"plane": {"origin": [10, 0, 0], "normal": [1, 0, 0]}},
 )
 def nx_create_section_view(
-    tx: Tx, *, plane: PlaneByNormal, name: Name | None = None, cap: bool = True
+    tx: Tx,
+    *,
+    plane: SectionPlane | Principal,
+    offset: Length | None = None,
+    name: Name | None = None,
+    cap: bool = True,
 ) -> SectionData:
-    """Cut the model view with a section plane; the model is unchanged. The side the normal
-    points to is hidden; the cut face shows from cut_face_view_from. It stays (also saved
-    with the part) until nx_delete_objects (remove_with) deletes it. One active at a time."""
-    normal = geom.unit(plane["normal"], field="/plane/normal")
-    origin = [float(v) for v in plane["origin"]]
+    """Cut the model view with a section plane, {origin, normal} or 'xz' + offset; the model
+    is unchanged. The normal's side is hidden (hidden_side). Saved with the part until
+    nx_delete_objects (remove_with). One active at a time."""
+    origin, normal = _plane(plane, offset)
     with tx.checks():
         part, view = _context(tx)
         current = view.ActiveDynamicSection
@@ -122,7 +220,8 @@ def nx_create_section_view(
             fail(
                 "NX_ALREADY_EXISTS",
                 "A section is already active in the view",
-                hint="Edit it with nx_edit_section_view or delete it with nx_delete_objects",
+                hint="Move it with nx_edit_section_view(section=details.section.id, plane=...) "
+                "or delete it with nx_delete_objects",
                 details={"section": tx.ref(current, "section_view")},
             )
     with guarded(tx, part, view):
@@ -150,28 +249,32 @@ def nx_create_section_view(
 def nx_edit_section_view(
     tx: Tx,
     *,
-    section: Annotated[str, RefTo("section_view")],
-    plane: PlaneByNormal | None = None,
+    section: SectionArg,
+    plane: SectionPlane | Principal | None = None,
+    offset: Length | None = None,
     enabled: bool | None = None,
     cap: bool | None = None,
 ) -> SectionData:
-    """Move a section plane, switch its cap, or enable/disable it (enabling makes it the
-    active section). The normal's side is hidden. Delete sections with nx_delete_objects."""
-    if plane is None and enabled is None and cap is None:
-        fail("NX_INVALID_ARGUMENT", "Give plane, enabled or cap", field="/plane")
-    normal = geom.unit(plane["normal"], field="/plane/normal") if plane else None
-    origin = [float(v) for v in plane["origin"]] if plane else None
+    """Move a section plane, switch its cap, or enable/disable it. A plane with only origin
+    or normal keeps the other; offset shifts along the normal."""
+    if plane is None and offset is None and enabled is None and cap is None:
+        fail("NX_INVALID_ARGUMENT", "Give plane, offset, enabled or cap", field="/plane")
     with tx.checks():
         part, view = _context(tx)
-        target = select.resolve(tx, section, "section_view", field="/section")
+        target = _section_of(tx, part, section)
+        moved = plane is not None or offset is not None
+        origin = normal = None
+        if moved:
+            current = display.section_state(tx, part, view, target)
+            origin, normal = _plane(plane, offset, current)
     with guarded(tx, part, view):
-        if plane is not None or cap is not None:
+        if moved or cap is not None:
             display.write_section(tx, part, view, section=target, origin=origin, normal=normal,
                                   cap=cap)  # fmt: skip
         if enabled is not None:
             display.set_sectioning(view, target, enabled)
         out = _data(tx, part, view, target)
-        if plane is not None:
+        if moved:
             _expect_plane(out, origin, normal)
         if cap is not None:
             readback.expect(out["cap"] == cap, "cap", cap=out["cap"])

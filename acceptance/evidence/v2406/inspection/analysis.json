@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/analysis.json",
-  "scenario_sha256": "4b54a4a0723b1330ce2a269c531db44f4c9837244494c7cead6db19aa0145ede",
+  "scenario_sha256": "cf35aa7fd414eb5cd4414b65430e16c324da48467df94b859209eaf7c1c4aebd",
   "domain": "inspection",
   "covers": {
     "nx_analyze_faces": [],
@@ -11,13 +11,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_analyze_faces": "45b4fe5756b2dfd968a72fc984fa2d97f04b4ec29c9e3677ab2577c73c1eb666",
-    "nx_analyze_curve": "45b4fe5756b2dfd968a72fc984fa2d97f04b4ec29c9e3677ab2577c73c1eb666",
-    "nx_check_continuity": "45b4fe5756b2dfd968a72fc984fa2d97f04b4ec29c9e3677ab2577c73c1eb666"
+    "nx_analyze_faces": "a80f8d9cef6bb07e583dd8f210b04c890c69eb3e690fa33362ee63250df31258",
+    "nx_analyze_curve": "a80f8d9cef6bb07e583dd8f210b04c890c69eb3e690fa33362ee63250df31258",
+    "nx_check_continuity": "a80f8d9cef6bb07e583dd8f210b04c890c69eb3e690fa33362ee63250df31258"
   },
-  "recorded": "2026-10-10T13:14:51Z",
+  "recorded": "2026-10-10T23:25:58Z",
   "passed": true,
-  "checks": 44,
+  "checks": 73,
   "failed_checks": 0,
   "steps": [
     {
@@ -281,28 +281,28 @@
     },
     {
       "index": 38,
-      "call": "nx_check_continuity",
-      "setup": false,
+      "call": "nx_find_geometry",
+      "setup": true,
       "passed": true,
-      "checks": 2
+      "checks": 0
     },
     {
       "index": 39,
-      "call": "nx_analyze_faces",
+      "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
-      "checks": 9
+      "checks": 5
     },
     {
       "index": 40,
-      "call": "nx_analyze_faces",
+      "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 41,
-      "call": "nx_analyze_faces",
+      "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -312,28 +312,77 @@
       "call": "nx_analyze_faces",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 9
     },
     {
       "index": 43,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 44,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 45,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 46,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 47,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 48,
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 44,
+      "index": 49,
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 45,
+      "index": 50,
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 5
+    },
+    {
+      "index": 51,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 52,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
     }
   ]
 }

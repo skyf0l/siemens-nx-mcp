@@ -1,23 +1,24 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/download_file.json",
-  "scenario_sha256": "e81274ea0ed3973ada70a09436fd68885afae6e0e21ce4ac9a1284f0bae630d4",
+  "scenario_sha256": "8591dd2a2be0758a2f965a61fba68b4f2aa6f50104e0dd0d743ebc5539109972",
   "domain": "parts_files",
   "covers": {
     "nx_download_file": [
       "metadata",
       "image",
+      "text",
       "chunk"
     ]
   },
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_download_file": "a44dc07389cb56359aa4c4bc218a35ad83b7f00a1a796c36a5f27b2076bed26e"
+    "nx_download_file": "65122e1656c394559758b8fa731867aca7f196511b0128fded91bba1e783a725"
   },
-  "recorded": "2026-10-10T15:55:33Z",
+  "recorded": "2026-10-10T22:58:39Z",
   "passed": true,
-  "checks": 27,
+  "checks": 36,
   "failed_checks": 0,
   "steps": [
     {
@@ -67,14 +68,14 @@
       "call": "nx_download_file",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 8,
       "call": "nx_download_file",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 9,
@@ -88,17 +89,38 @@
       "call": "nx_download_file",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_download_file",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 12,
+      "call": "nx_download_file",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_download_file",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_download_file",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
       "call": "nx_download_file",
       "setup": false,
       "passed": true,

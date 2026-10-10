@@ -1,5 +1,5 @@
 {
-  "covers": {"nx_download_file": ["metadata", "image", "chunk"]},
+  "covers": {"nx_download_file": ["metadata", "image", "text", "chunk"]},
   "part": null,
   "steps": [
     {"call": "nx_upload_file", "setup": true,
@@ -22,7 +22,15 @@
                 "data.image.inline": true,
                 "data.image.sha256": "6c54d5b23a761aa92da26a45323650a806dee032e1670974e7d48bb0d3c2832a"}},
     {"call": "nx_download_file", "args": {"path": "$run/dl/hello.txt", "delivery": "image"},
-     "expect": {"error.code": "NX_UNSUPPORTED_FILE_TYPE", "error.field": "/path", "mutation_outcome": "not_applicable"}},
+     "expect": {"error.code": "NX_UNSUPPORTED_FILE_TYPE", "error.field": "/path", "mutation_outcome": "not_applicable",
+                "error.hint": {"matches": "delivery text"}}},
+    {"call": "nx_download_file", "args": {"path": "$run/dl/hello.txt", "delivery": "text"},
+     "expect": {"mutation_outcome": "not_applicable", "data.delivery": "text", "data.text": "hello world",
+                "data.size": 11}},
+    {"call": "nx_download_file", "args": {"path": "$run/dl/tiny.png", "delivery": "text"},
+     "expect": {"error.code": "NX_UNSUPPORTED_FILE_TYPE", "error.field": "/path"}},
+    {"call": "nx_download_file", "args": {"path": "$run/dl/hello.txt", "delivery": "text", "offset": 1},
+     "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/offset"}},
     {"call": "nx_download_file", "args": {"path": "$run/dl/hello.txt", "offset": 2},
      "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/offset"}},
     {"call": "nx_download_file", "args": {"path": "$run/dl/hello.txt", "delivery": "chunk", "length": 262145},

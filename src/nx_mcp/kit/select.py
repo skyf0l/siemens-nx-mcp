@@ -112,9 +112,16 @@ def _is_edge(obj):
     return hasattr(obj, "SolidEdgeType")
 
 
-def planar(tx, ref, field="/reference"):
-    """``(obj, origin, unit normal)`` of a planar face or datum plane of the work part."""
-    obj = one(tx, ref, "datum_plane", "face", field=field)
+def planar(tx, ref, field="/reference", occurrences=False):
+    """``(obj, origin, unit normal)`` of a planar face or datum plane of the work part;
+    ``occurrences`` also takes one of a component in the work part's assembly (its
+    origin and normal are then in the assembly's coordinates)."""
+    if occurrences:
+        obj = resolve(tx, ref, "datum_plane", "face", field=field)
+        if not getattr(obj, "IsOccurrence", False):
+            owned(tx, obj, field, "datum plane")
+    else:
+        obj = one(tx, ref, "datum_plane", "face", field=field)
     return (obj, *_plane_of(tx, obj, field))
 
 
@@ -131,14 +138,14 @@ def _plane_of(tx, obj, field):
     return point, geom.unit(normal, field)
 
 
-def plane(tx, value, field="/plane"):
+def plane(tx, value, field="/plane", occurrences=False):
     """``(obj or None, origin, unit normal)`` of the Plane union.
 
     ``value`` is a ref (datum plane or planar face), ``{"principal": "xy"}``
-    or ``{"origin": Point3, "normal": Vec3}``.
+    or ``{"origin": Point3, "normal": Vec3}``; ``occurrences`` as in ``planar``.
     """
     if isinstance(value, str):
-        return planar(tx, value, field)
+        return planar(tx, value, field, occurrences)
     if isinstance(value, dict) and "principal" in value:
         key = value["principal"]
         if key not in PRINCIPAL_PLANES:

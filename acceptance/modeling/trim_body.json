@@ -443,6 +443,113 @@
    }
   },
   {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "f_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$f_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       250
+      ],
+      "corner2": [
+       40,
+       270
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$f_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "f",
+   "args": {
+    "sketch": "$f_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "low",
+   "args": {
+    "method": "point_normal",
+    "origin": [
+     0,
+     0,
+     4
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_trim_body",
+   "args": {
+    "body": "$f.data.bodies.0.id",
+    "tool": "$low.data.datum_plane.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 3200,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$f.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      250,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      40,
+      270,
+      4
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
    "call": "nx_create_datum_plane",
    "setup": true,
    "save": "far",

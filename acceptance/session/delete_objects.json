@@ -34,8 +34,9 @@
    "args": {"plane": {"origin": [20, 10, 0], "normal": [1, 0, 0]}, "name": "DEL_CUT"}},
 
   {"call": "nx_delete_objects", "args": {"objects": ["$blk.data.bodies.0.id"]},
-   "intent": "Acceptance: a body is not a deletable kind",
-   "expect": {"error.code": "NX_WRONG_KIND", "mutation_outcome": "not_started", "error.field": "/objects/0"}},
+   "intent": "Acceptance: a body is not a deletable kind; the error names its features",
+   "expect": {"error.code": "NX_WRONG_KIND", "mutation_outcome": "not_started", "error.field": "/objects/0",
+              "error.details.features": {"count": 2}, "error.hint": {"contains": "details.features[0]"}}},
   {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
    "expect": {"data.volume": {"close": 7965.663706143591, "tol": 1e-06}}},
 
@@ -51,6 +52,7 @@
    "intent": "Acceptance: delete the extrude; NX deletes its blend and body with it",
    "expect": {"mutation_outcome": "committed", "data.deleted.0.kind": "feature",
               "data.dependents": {"count_kind": {"feature": 1, "body": 1}},
+              "data.dependents.0.part": {"matches": "^p:[0-9]+$"},
               "data.dependent_count": 2, "changes.references": "listed"}},
   {"call": "nx_list_objects", "args": {"kind": "body"}, "expect": {"data.items": {"count": 0}}},
   {"call": "nx_get_feature", "args": {"feature": "$bl.data.feature.id"},

@@ -210,13 +210,17 @@
    "save": "bottom",
    "expect": {
     "data.type": "projected",
-    "data.position.1": {
-     "close": 140,
-     "tol": 1e-06
-    },
     "data.scale": {
      "close": 1,
      "tol": 1e-09
+    },
+    "data.gap": {
+     "close": 20,
+     "tol": 0.0001
+    },
+    "data.bounds.3": {
+     "close": 148.65,
+     "tol": 0.0001
     }
    }
   },
@@ -241,7 +245,10 @@
     "type": "projected",
     "parent": "$top.data.view.id",
     "direction": "right",
-    "spacing": 110
+    "position": [
+     230,
+     200
+    ]
    },
    "expect": {
     "data.position": {
@@ -304,7 +311,10 @@
     "type": "projected",
     "parent": "$front2.data.view.id",
     "direction": "bottom",
-    "spacing": 60
+    "position": [
+     330,
+     170
+    ]
    },
    "expect": {
     "data.scale": {

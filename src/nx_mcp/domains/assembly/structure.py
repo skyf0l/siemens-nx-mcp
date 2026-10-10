@@ -76,18 +76,51 @@ def load_state(tx, component) -> dict:
     return {"part_path": path or None, "load_state": "unloaded"}
 
 
-def check(errors, code="NX_UPDATE_FAILED", message="NX reported errors"):
+def check(errors, code="NX_UPDATE_FAILED", message="NX reported errors", hint=None):
     """Raise ``code`` when an NX ``ErrorList`` holds entries; always disposes it."""
     if errors is None:
         return
     try:
         count = int(getattr(errors, "Length", 0) or 0)
         if count:
-            texts = []
+            texts, codes = [], []
             for i in range(count):
                 with contextlib.suppress(Exception):
-                    texts.append(str(errors.GetErrorInfo(i)))
-            fail(code, f"{message}: " + "; ".join(texts), details={"errors": texts})
+                    text, nx_code = error_text(errors.GetErrorInfo(i))
+                    texts.append(text)
+                    codes.append(nx_code)
+            first = next((c for c in codes if c is not None), None)
+            fail(
+                code,
+                f"{message}: " + ("; ".join(texts) or "NX gave no reason"),
+                hint=hint,
+                details={"errors": texts},
+                nx_code=first,
+            )
     finally:
         with contextlib.suppress(Exception):
             errors.Dispose()
+
+
+def error_text(info) -> tuple[str, int | None]:
+    """``(message, NX error code)`` of an ``NXOpen.ErrorInfo`` (its ``str`` is only
+    ``<NXOpen.ErrorInfo object at 0x..>``); a plain string passes through."""
+    if isinstance(info, str):
+        return info, None
+    nx_code = None
+    with contextlib.suppress(Exception):
+        raw = getattr(info, "ErrorCode", None)
+        nx_code = int(raw) if raw is not None else None
+    text = ""
+    for attr in ("Description", "ErrorObjectDescription"):
+        with contextlib.suppress(Exception):
+            value = getattr(info, attr, None)
+            if value and not callable(value):
+                text = str(value).strip()
+                break
+    if not text:
+        plain = str(info)
+        text = "" if " object at 0x" in plain else plain
+    if nx_code is not None:
+        text = f"{text} (NX error {nx_code})" if text else f"NX error {nx_code}"
+    return text or "NX gave no reason", nx_code

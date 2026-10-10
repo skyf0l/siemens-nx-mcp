@@ -179,9 +179,9 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     host._engineer_had_nx = True  # NX was released after the call
     model["marks"] = 6  # the engineer added a feature (an undo mark)
     host.execute("nx_list_objects", BODIES)
-    with pytest.raises(NXError):
-        rig.e.objects.resolve(ref)
-    assert not rig.e.checkpoints and not rig.e.history
+    # References are re-validated, not dropped: the body still exists, so its ref works.
+    assert rig.e.objects.resolve(ref) is body
+    assert rig.e.checkpoints[checkpoint]["expired"] == "engineer_change" and not rig.e.history
     line = host.history_lines(8)[1]
     assert line.startswith("✎  ") and "You changed the model — agent will re-read" in line
     log = (host.state_dir / "activity.log").read_text(encoding="utf-8")

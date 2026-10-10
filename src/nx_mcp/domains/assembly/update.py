@@ -53,12 +53,14 @@ def _retained(tx, part) -> list:
 )
 def nx_update_assembly(tx: Tx) -> UpdateData:
     """Propagate prototype edits through the assembly and its documentation. Solves the
-    constraints, refreshes traces, parts lists and views, lists retained dimensions."""
+    unsuppressed constraints (all are listed), refreshes traces, parts lists and views, lists
+    retained dimensions."""
     part = tx.part
     explosions = list(getattr(part.ComponentAssembly, "Explosions", None) or [])
     if explosions or list(getattr(part, "DrawingSheets", None) or []):
         common.explosion_context(tx)  # traces and sheets are refreshed on the display part
-    active = [c for c in constraints.all_constraints(part) if not c.Suppressed]
+    every = constraints.all_constraints(part)
+    active = [c for c in every if not c.Suppressed]
     if active:
         with constraints.network(tx) as (_positioner, net):
             constraints.solve(tx, net)
@@ -93,7 +95,7 @@ def nx_update_assembly(tx: Tx) -> UpdateData:
         views.extend(tx.ref(v, "drawing_view") for v in owned)
     retained = _retained(tx, part)
     return {
-        "constraints": [constraints.record(tx, c) for c in active],
+        "constraints": [constraints.record(tx, c) for c in every],  # suppressed ones too
         "traces": [tx.ref(line, "traceline") for line in traces],
         "refreshed": refreshed,
         "views": views,

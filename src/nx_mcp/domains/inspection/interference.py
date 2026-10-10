@@ -50,6 +50,7 @@ class Pair(TypedDict, total=False):
     distance: float
     points: list[list[float]]
     overlap_volume: float
+    overlap_box: dict[str, list[float]]
 
 
 class InterferenceData(TypedDict):
@@ -60,6 +61,7 @@ class InterferenceData(TypedDict):
     checked_pairs: int
     skipped_pairs: int
     clearance: float
+    skipped_sheet_bodies: list[result.Row]
 
 
 def _envelope_gap(a, b):
@@ -89,7 +91,8 @@ def temporary(tx):
 
 
 def _overlap(tx, a, b):
-    """``(classification, overlap volume)`` of a touching pair (solid interference)."""
+    """``(classification, overlap volume, overlap box)`` of a touching pair (solid
+    interference); the box bounds the interference bodies of a penetration."""
     part = tx.part
     outcome = tx.nx.GeometricAnalysis.SimpleInterference.Result
     with temporary(tx):
@@ -108,12 +111,14 @@ def _overlap(tx, a, b):
                 # unless an interference exists.
                 with native():
                     solids = [r for r in check.GetInterferenceResults() if r.IsSolidBody]
-                volume = measure.volume(tx, solids) if solids else 0.0
-                return "penetration", volume
+                if not solids:
+                    return "penetration", 0.0, None
+                low, high = measure.bounds(tx, solids)
+                return "penetration", measure.volume(tx, solids), {"min": low, "max": high}
             if found == outcome.OnlyEdgesOrFacesInterfere:
-                return "contact", 0.0
+                return "contact", 0.0, None
             if found == outcome.NoInterference:
-                return "clear", 0.0
+                return "clear", 0.0, None
             fail("NX_INCOMPLETE_RESULT", "NX could not classify this pair")
         finally:
             with contextlib.suppress(Exception):
@@ -122,7 +127,7 @@ def _overlap(tx, a, b):
                 check.Destroy()
 
 
-def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_contact):
+def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_contact, sheets=()):
     """Classify body pairs: penetration, contact, below_clearance or clear."""
     with native():
         boxes = {
@@ -151,7 +156,7 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
         with native():
             distance, p1, p2, _accuracy = tx.session.Measurement.GetMinimumDistance(a, b)
         distance = result.measured(distance)
-        kind, volume = _overlap(tx, a, b) if distance <= CONTACT else ("clear", 0.0)
+        kind, volume, box = _overlap(tx, a, b) if distance <= CONTACT else ("clear", 0.0, None)
         if kind == "clear" and distance < clearance:
             kind = "below_clearance"
         counts[kind] += 1
@@ -165,6 +170,8 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
         }
         if kind == "penetration":
             pair["overlap_volume"] = volume
+            if box is not None:
+                pair["overlap_box"] = box
         reports.append(pair)
     return {
         "pairs": reports,
@@ -174,21 +181,48 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
         "checked_pairs": len(checked),
         "skipped_pairs": skipped,
         "clearance": clearance,
+        "skipped_sheet_bodies": list(sheets),
     }
 
 
+def _is_sheet(body) -> bool:
+    return not getattr(body, "IsSolidBody", False)
+
+
 def _groups(tx, objects):
-    """Body groups per reference (or every body of the assembly) and their pairs."""
+    """``(bodies, pairs, sheets)``: body groups per reference, or every solid body of the
+    work part and its loaded components (sheet bodies skipped and returned as rows)."""
+    sheets = []  # rows of the sheet bodies a whole-model check skips
     if objects is None:
-        found = kbodies.require(kbodies.scope(tx, "assembly"))
+        everything = kbodies.require(kbodies.scope(tx, "assembly"))
+        sheets = [tx.ref(b, kind="body") for b in everything if _is_sheet(b)]
+        found = [b for b in everything if not _is_sheet(b)]
+        if not found:
+            fail(
+                "NX_WRONG_GEOMETRY",
+                f"Interference needs solid bodies; the model has only {len(sheets)} sheet "
+                "body(ies)",
+                field="/objects",
+                details={"sheet_bodies": sheets[:20]},
+            )
         groups = [[b] for b in found]
     else:
         groups = []
         for i, ref in enumerate(objects):
             obj = tx.resolve(ref, *common.TARGET_KINDS)
-            groups.append(kbodies.require(kbodies.of(tx, obj), field=f"/objects/{i}"))
+            group = kbodies.require(kbodies.of(tx, obj), field=f"/objects/{i}")
+            bad = [tx.ref(b, kind="body") for b in group if _is_sheet(b)]
+            if bad:
+                fail(
+                    "NX_WRONG_GEOMETRY",
+                    f"{ref} gives sheet body {bad[0]['id']}; interference needs solid bodies",
+                    field=f"/objects/{i}",
+                    hint="Pass solid bodies only, or omit objects: the whole-model check "
+                    "skips sheet bodies",
+                    details={"sheet_bodies": bad[:20]},
+                )
+            groups.append(group)
         found = list({int(b.Tag): b for g in groups for b in g}.values())
-    kbodies.solids(found, field="/objects")
     pairs, seen = [], set()
     for first, second in itertools.combinations(groups, 2):
         for a in first:
@@ -198,8 +232,12 @@ def _groups(tx, objects):
                     seen.add(key)
                     pairs.append((a, b))
     if not pairs:
-        fail("NX_INVALID_ARGUMENT", "The objects resolve to one body only", field="/objects")
-    return found, pairs
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "The objects resolve to one solid body only; interference needs two",
+            field="/objects",
+        )
+    return found, pairs, sheets
 
 
 @tool(
@@ -224,12 +262,13 @@ def nx_check_interference(
     include_clear: bool = False,
     include_contact: bool = True,
 ) -> InterferenceData:
-    """Check interference and clearance between bodies of the given objects, or of the whole
-    assembly. Overlap volumes are per pair; highlight hits with nx_set_highlight."""
+    """Check interference and clearance between the solid bodies of objects. No objects: every
+    solid of the work part and loaded components (sheets skipped). Pair points are closest
+    points, equal when bodies touch or overlap (see overlap_box)."""
     clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
-    found, pairs = _groups(tx, objects)
+    found, pairs, sheets = _groups(tx, objects)
     return analyze(
         tx,
         found,
@@ -238,6 +277,7 @@ def nx_check_interference(
         max_pairs=max_pairs,
         include_clear=include_clear,
         include_contact=include_contact,
+        sheets=sheets,
     )
 
 
@@ -364,7 +404,7 @@ def _write_zip(tx, path, folder, report, images):
 
 @tool(
     effect="file",
-    label="Export inspection report",
+    label="Export inspection report (ZIP)",
     summary="Inspection report {path}",
     keywords=("inspection report", "clearance report", "clash report", "zip report", "review"),
     requires=("work_part",),
@@ -381,8 +421,8 @@ def nx_export_inspection_report(
     section_planes: Annotated[list[PlaneByNormal], Items(1, 6)] | None = None,
     capture: bool = True,
 ) -> ReportData:
-    """Write a ZIP report of interference results with a model summary and SHA-256 manifest.
-    Captures show the overview, flagged pairs and sections; the view is restored."""
+    """Write a .zip of interference and clearance results (index.html, report.json, PNG
+    captures, SHA-256 manifest). No objects: every solid, sheets skipped."""
     planes = list(section_planes or [])
     if planes and not capture:
         fail("NX_INVALID_ARGUMENT", "section_planes need capture=true", field="/section_planes")
@@ -391,7 +431,7 @@ def nx_export_inspection_report(
     clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
-    found, pairs = _groups(tx, objects)
+    found, pairs, sheets = _groups(tx, objects)
     checks = analyze(
         tx,
         found,
@@ -400,6 +440,7 @@ def nx_export_inspection_report(
         max_pairs=max_pairs,
         include_clear=False,
         include_contact=True,
+        sheets=sheets,
     )
     units = tx.units.get("length") or "mm"
     report: dict[str, Any] = {

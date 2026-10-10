@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/export_drawing.json",
-  "scenario_sha256": "14a4509434be320485a47dc3e297fb31c9e61b299de198bad03fd406c70cee0b",
+  "scenario_sha256": "26a48105b272836ff1f6940893b936a630c0023222880b6324cb2b7bb404a23a",
   "domain": "drawing",
   "covers": {
     "nx_export_drawing": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_drawing": "2509e483704aab6ce4551b573bf096042c63036402397220e0528443a6152bbb"
+    "nx_export_drawing": "5aa7cd01ed63b1b984e5914aabc96ce342c2301192a3d7fcb5f8537e9c205f2b"
   },
-  "recorded": "2026-10-10T13:20:45Z",
+  "recorded": "2026-10-10T22:22:30Z",
   "passed": true,
-  "checks": 29,
+  "checks": 37,
   "failed_checks": 0,
   "steps": [
     {
@@ -81,10 +81,10 @@
     },
     {
       "index": 10,
-      "call": "nx_download_file",
+      "call": "nx_export_drawing",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 11,
@@ -95,10 +95,10 @@
     },
     {
       "index": 12,
-      "call": "nx_export_drawing",
+      "call": "nx_download_file",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 13,
@@ -119,10 +119,24 @@
       "call": "nx_export_drawing",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 16,
+      "call": "nx_export_drawing",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_export_drawing",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

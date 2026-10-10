@@ -56,8 +56,8 @@ def test_model_commit_converts_units_marks_and_reports_changes(tmp_path):
     assert ok["data"]["size"] == pytest.approx(1.0)
     assert svc.mark_names == ["NX MCP: Create block"]
     assert {r["kind"] for r in ok["changes"]["created"]} == {"feature", "body"}
-    assert ok["changes"]["references"] == "listed"  # invalidates="topology"
-    assert ok["changes"]["stale_kinds"] == ["face", "edge"]
+    # invalidates="topology": only faces and edges NX no longer has go stale (none here)
+    assert ok["changes"]["references"] == "preserved" and "stale_kinds" not in ok["changes"]
     assert ok["data"]["feature"]["id"].startswith("f:")
     assert ok["data"]["feature"]["anchor"].startswith("@a.prt:FEATURE(")
     assert svc.history[-1]["operation_id"] == ok["operation_id"]
@@ -309,7 +309,9 @@ def test_a_missing_mark_with_a_changed_model_is_rollback_failed(svc):
     assert bad["error"]["details"]["operation_error"]["code"] == "NX_LICENSE_UNAVAILABLE"
 
 
-def test_python_exception_is_nx_error_with_type(svc):
+def test_python_exception_is_nx_error_with_type(svc, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+
     def broken(tx, *, size):
         tx.part.add("feature")
         raise ZeroDivisionError("boom")
@@ -322,6 +324,11 @@ def test_python_exception_is_nx_error_with_type(svc):
         object.__setattr__(spec, "handler", tools.nx_create_block)
     assert bad["error"]["code"] == "NX_ERROR" and "ZeroDivisionError" in bad["error"]["message"]
     assert bad["mutation_outcome"] == "rolled_back"
+    # Even in development the stack stays out of the envelope: receipt and trace log only.
+    assert "traceback" not in bad["error"]["details"]
+    log = svc.root / ".nx-mcp" / "logs" / "tracebacks.log"
+    assert "ZeroDivisionError" in log.read_text(encoding="utf-8")
+    assert "ZeroDivisionError" in svc.store.get(bad["operation_id"])["traceback"]
 
 
 # -- receipts -------------------------------------------------------------------------

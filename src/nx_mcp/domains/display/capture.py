@@ -19,7 +19,12 @@ camera are put back afterwards, so the engineer's view is unchanged and the resu
 ``mutation_outcome`` is ``not_applicable``, as for a read. NX 2406 measured: viewport
 and Studio captures in the current style, and a viewport capture in another style, leave
 the part unmodified; ``style=studio`` and ``lighting`` mark it modified although both are
-put back (NX stores them in the part), which ``part_modified`` and a warning report.
+put back (NX stores them in the part), which ``marks_part_modified`` (true only when this
+capture set the flag; a part modified before stays so) and a warning report.
+``hidden_sketches`` counts the sketches and datums blanked for the capture only.
+
+Natural forms: ``background`` defaults to ``color`` when ``color`` is given (else white)
+and takes ``black``; ``color`` takes 0..1 or 0..255 components (any above 1: 0..255).
 
 ``path`` never overwrites unless ``overwrite=true``: then an existing PNG there is
 replaced. ``path`` passes the kernel's ``replace`` path gate on both process boundaries
@@ -44,7 +49,8 @@ from nx_mcp.kit import capture, display, drawing, files
 from nx_mcp.kit.result import Row
 
 Pixels = Annotated[int, Range(ge=128, le=4096)]
-Rgb = Annotated[tuple[float, float, float], Doc("RGB 0..1")]
+Rgb = Annotated[tuple[float, float, float], Doc("RGB 0..1 or 0..255")]
+Background = Literal["white", "black", "original", "transparent", "color"]
 
 
 class ImageInfo(TypedDict):
@@ -59,7 +65,7 @@ class ImageInfo(TypedDict):
 class CaptureData(TypedDict, total=False):
     path: str
     overwritten: bool
-    part_modified: bool
+    marks_part_modified: bool
     size: int
     sha256: str
     image: ImageInfo
@@ -68,8 +74,35 @@ class CaptureData(TypedDict, total=False):
     resolution: list[int]
     style: str
     camera: Camera
-    hidden: int
+    hidden_sketches: int
     sheet: Row
+
+
+def _background(background, color) -> tuple[str, tuple[float, float, float] | None]:
+    """``(background, color)`` from the natural forms: ``black``, a colour without a
+    background, 0..255 components."""
+    if background == "black":
+        if color is not None:
+            fail("NX_INVALID_ARGUMENT", "color goes with background=color", field="/color")
+        return "color", (0.0, 0.0, 0.0)
+    if background is None:
+        background = "white" if color is None else "color"
+    if background == "color" and color is None:
+        fail("NX_INVALID_ARGUMENT", "background=color needs color [r, g, b]", field="/color")
+    if background != "color" and color is not None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"color goes with background=color, not {background}; or leave background out",
+            field="/color",
+        )
+    if color is None:
+        return background, None
+    values = [float(c) for c in color]
+    if any(v > 1.0 for v in values) and all(0.0 <= v <= 255.0 for v in values):
+        values = [v / 255.0 for v in values]
+    if not all(0.0 <= v <= 1.0 for v in values):
+        fail("NX_INVALID_ARGUMENT", "color components are 0..1 or 0..255", field="/color")
+    return background, (values[0], values[1], values[2])
 
 
 def _summary(a, say):
@@ -101,13 +134,13 @@ def nx_capture_view(
     hide_sketches: bool = True,
     width: Pixels = 1024,
     height: Pixels = 768,
-    background: Literal["white", "original", "transparent", "color"] = "white",
+    background: Background | None = None,
     color: Rgb | None = None,
     style: Literal["current", "shaded", "shaded_with_edges", "wireframe", "studio"] = "current",
     lighting: Annotated[int, Range(ge=1, le=5)] | None = None,
 ) -> CaptureData:
     """PNG of the shown view or sheet, saved to path or captures/. Inline image only with
-    inline=true or no path. view_from/up aim it (as nx_set_camera)."""
+    inline=true or no path. view_from/up aim it. Exact width/height need quality=studio."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
     if up is not None and view_from is None:
@@ -122,14 +155,15 @@ def nx_capture_view(
             field="/path",
             details={"path": path},
         )
-    if (background == "color") != (color is not None):
-        fail("NX_INVALID_ARGUMENT", "color goes with background=color", field="/color")
-    if color is not None and not all(0.0 <= float(c) <= 1.0 for c in color):
-        fail("NX_INVALID_ARGUMENT", "color components are 0..1", field="/color")
+    backdrop, rgb = _background(background, color)
     if lighting is not None and quality != "studio":
         fail("NX_INVALID_ARGUMENT", "lighting needs quality=studio", field="/lighting")
     if quality == "studio" and style == "wireframe":
-        fail("NX_UNSUPPORTED_OPTION", "Studio quality renders shaded styles", field="/style")
+        fail(
+            "NX_UNSUPPORTED_OPTION",
+            "quality=studio renders shaded styles only; use quality=viewport for wireframe",
+            field="/style",
+        )
     with tx.checks():
         part = display.shown_part(tx)
         sheet = display.sheet_shown(part)
@@ -183,12 +217,12 @@ def nx_capture_view(
                 view.UpdateDisplay()
             if quality == "studio":
                 size = capture.studio_png(
-                    tx, temp, width, height, style=chosen, background=background,
-                    color=color, lighting=lighting,
+                    tx, temp, width, height, style=chosen, background=backdrop,
+                    color=rgb, lighting=lighting,
                 )  # fmt: skip
             else:
                 size = capture.viewport_png(
-                    tx, temp, width, height, style=chosen, background=background, color=color
+                    tx, temp, width, height, style=chosen, background=backdrop, color=rgb
                 )
         finally:
             for obj in hide:  # the scratch undo restores them too (and the modified flag)
@@ -217,10 +251,10 @@ def nx_capture_view(
         {
             **meta,
             "overwritten": published in tx.files.replaced,
-            "part_modified": bool(part.IsModified),
+            "marks_part_modified": not was_modified and bool(part.IsModified),
             "resolution": list(size),
             "style": style,
-            "hidden": len(hide),
+            "hidden_sketches": len(hide),
             "image": {
                 "path": meta["path"],
                 "sha256": meta["sha256"],

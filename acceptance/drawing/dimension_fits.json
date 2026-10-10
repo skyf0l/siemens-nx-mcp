@@ -186,7 +186,7 @@
     "dimension": "$d16.data.dimension.id",
     "tolerance": {
      "type": "fit",
-     "hole": "H7"
+     "hole": "h7"
     }
    },
    "expect": {
@@ -221,7 +221,7 @@
     "dimension": "$d16.data.dimension.id",
     "tolerance": {
      "type": "fit",
-     "shaft": "g6",
+     "shaft": "G6",
      "display": "deviations"
     }
    },
@@ -695,7 +695,7 @@
     "dimension": "$d16.data.dimension.id",
     "tolerance": {
      "type": "fit",
-     "hole": "h7"
+     "hole": "7h"
     }
    },
    "expect": {

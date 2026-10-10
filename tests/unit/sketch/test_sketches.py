@@ -2,6 +2,7 @@
 
 import pytest
 
+from nx_mcp.core import catalogue, summary
 from tests.kit import run
 from tests.unit.sketch.fakes import CT, Constraint, sketch_nx
 
@@ -223,3 +224,105 @@ def test_one_call_sketch_checks_each_item_against_its_curve_type(curves, field):
     assert bad.error["category"] == "invalid_argument", bad
     assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
     assert list(nx.part.Sketches) == []
+
+
+# ---------------------------------------------------------------------------
+# Natural argument spellings (b02 usability)
+
+
+@pytest.mark.parametrize(
+    ("placement", "normal"),
+    [
+        ("XY", [0, 0, 1]),
+        ("xz", [0, -1, 0]),
+        ("YZ plane", [1, 0, 0]),
+        ("Front", [0, -1, 0]),
+        ({"principal": "XY", "origin": [0, 0, 10]}, [0, 0, 1]),
+        ({"principal": "x-z"}, [0, -1, 0]),
+    ],
+)
+def test_principal_planes_accept_natural_spellings(placement, normal):
+    nx = sketch_nx()
+    if isinstance(placement, dict) and "origin" in placement:
+        nx.next_sketch = ((0, 0, 10), (1, 0, 0), (0, 1, 0))
+    ok = run(nx, "nx_create_sketch", placement=placement)
+    assert ok.ok, ok
+    assert ok.data["frame"]["normal"] == pytest.approx(normal)
+    spec = catalogue.load()["nx_create_sketch"]
+    assert summary.render(spec, {"placement": placement}, strict=True).endswith(" plane")
+
+
+@pytest.mark.parametrize(
+    ("placement", "field", "text"),
+    [
+        ("ab", "/placement", "'xy', 'xz' or 'yz'"),
+        ({"principal": "XQ", "origin": [0, 0, 0]}, "/placement/principal", "did you mean"),
+        ({"principal": "zx"}, "/placement/principal", "use 'xz'"),
+    ],
+)
+def test_unknown_principal_planes_name_the_accepted_values(placement, field, text):
+    nx = sketch_nx()
+    bad = run(nx, "nx_create_sketch", placement=placement)
+    assert bad.error["category"] == "invalid_argument" and bad.error["field"] == field, bad
+    assert text in bad.error["message"] + bad.error["hint"], bad
+    assert bad.mutation_outcome == "not_started" and nx.builders == []
+
+
+def test_a_face_ref_string_is_a_sketch_on_that_face():
+    nx = sketch_nx()
+    top = nx.block(10, 10, 5).face(normal=(0, 0, 1))
+    nx.next_sketch = ((0, 0, 5), (1, 0, 0), (0, 1, 0))
+    ok = run(nx, "nx_create_sketch", placement=top.ref)
+    assert ok.ok, ok
+    assert nx.last("SketchInPlaceBuilder2").PlaneOption == "Inferred"
+
+
+def test_finish_without_a_sketch_finishes_the_active_one():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    ok = run(nx, "nx_finish_sketch")
+    assert ok.ok and ok.data["was_active"] is True, ok
+    assert ok.data["sketch"]["id"] == sk.ref and nx.session.ActiveSketch is None
+    spec = catalogue.load()["nx_finish_sketch"]
+    assert summary.render(spec, {}, strict=True) == "Finish the active sketch"
+    idle = run(nx, "nx_finish_sketch")
+    assert idle.ok and idle.data == {"was_active": False}, idle
+
+
+def test_get_sketch_counts_the_constraints_on_each_curve():
+    nx = sketch_nx()
+    sk = nx.sketch()
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    nx.line(sk, (0, 5, 0), (10, 5, 0))
+    sk.constraints.append(Constraint(CT.Horizontal, [(line, "NotSet")], sk))
+    ok = run(nx, "nx_get_sketch", sketch=sk.ref, include=["geometry"])
+    assert ok.ok, ok
+    assert [r["constraints"] for r in ok.data["curves"]] == [1, 0]
+
+
+def test_check_sketch_says_when_there_is_nothing_to_relieve():
+    nx = sketch_nx()
+    sk = nx.sketch()
+    nx.line(sk, (0, 0, 0), (10, 0, 0))
+    ok = run(nx, "nx_check_sketch", sketch=sk.ref)
+    assert ok.ok and ok.data["trials"] == [], ok
+    assert "nothing to relieve" in ok.data["note"]
+
+
+def test_one_call_sketch_accepts_any_case_curve_types_and_diameters():
+    nx = sketch_nx()
+    curves = [
+        {"type": "Rounded Rectangle", "center": [0, 0], "width": 40, "height": 20, "radius": 4},
+        {"type": "CIRCLE", "center": [0, 0], "diameter": 8},
+    ]
+    ok = run(nx, "nx_create_sketch", placement="XY", curves=curves, finish=True)
+    assert ok.ok, ok
+    assert ok.data["loops"] == [{"closed": True, "curves": 8}, {"closed": True, "curves": 1}]
+
+
+def test_one_call_sketch_suggests_the_closest_curve_type():
+    nx = sketch_nx()
+    bad = run(nx, "nx_create_sketch", placement="xy",
+              curves=[{"type": "circel", "center": [0, 0], "radius": 2}])  # fmt: skip
+    assert bad.error["field"] == "/curves/0/type" and "'circle'" in bad.error["message"], bad
+    assert "rounded_rectangle" in bad.error["hint"]

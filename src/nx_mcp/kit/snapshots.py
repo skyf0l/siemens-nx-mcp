@@ -1,9 +1,12 @@
 """Stored result snapshots: retention of disposable response snapshots, never receipts.
 
 Used by the sidecar result store, the bridge overflow store (``result_transport``)
-and ``nx_get_result``/``nx_delete_results``.
+and ``nx_get_result``/``nx_delete_results``. Every deleted or pruned snapshot leaves a
+tombstone (``deleted.json`` in its folder: id -> when and why), so ``nx_get_result`` can
+tell an expired result from one that never existed.
 """
 
+import json
 import os
 import re
 import time
@@ -12,6 +15,8 @@ from threading import RLock
 
 LOCK = RLock()
 PATTERN = re.compile(r"result_[a-f0-9]{32}\.json")
+TOMBSTONES = "deleted.json"
+MAX_TOMBSTONES = 5000  # the oldest are forgotten first
 
 
 def settings():
@@ -52,6 +57,7 @@ def maintain(root, *, apply=False, max_age_seconds=None, max_bytes=None, protect
         if apply:
             for path in selected:
                 path.unlink(missing_ok=True)
+            bury(root, [path.stem for path in selected], "pruned")
         return {
             "policy": config,
             "snapshot_count": len(records),
@@ -61,3 +67,43 @@ def maintain(root, *, apply=False, max_age_seconds=None, max_bytes=None, protect
             "applied": apply,
             "recovery_receipts_affected": False,
         }
+
+
+def _tombstones(folder: Path) -> dict:
+    try:
+        data = json.loads((folder / TOMBSTONES).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def bury(root, result_ids, reason: str) -> None:
+    """Record that ``result_ids`` were removed from the store folder ``root``
+    (``reason``: ``deleted`` by nx_delete_results or ``pruned`` by retention).
+    Never raises: a lost tombstone only makes the error message less specific."""
+    ids = [str(i) for i in result_ids]
+    if not ids:
+        return
+    folder = Path(root)
+    with LOCK:
+        try:
+            index = _tombstones(folder)
+            stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            for result_id in ids:
+                index.pop(result_id, None)  # re-inserted last: newest at the end
+                index[result_id] = {"deleted_at": stamp, "reason": reason}
+            while len(index) > MAX_TOMBSTONES:
+                index.pop(next(iter(index)))
+            folder.mkdir(parents=True, exist_ok=True)
+            temp = folder / (TOMBSTONES + ".tmp")
+            temp.write_text(json.dumps(index), encoding="utf-8")
+            os.replace(temp, folder / TOMBSTONES)
+        except OSError:
+            pass
+
+
+def tombstone(root, result_id: str) -> dict | None:
+    """``{"deleted_at", "reason"}`` of a removed snapshot of the folder ``root``, else None."""
+    with LOCK:
+        entry = _tombstones(Path(root)).get(str(result_id))
+    return entry if isinstance(entry, dict) else None

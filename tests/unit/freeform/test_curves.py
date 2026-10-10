@@ -171,3 +171,28 @@ def test_edit_native_refusal_destroys_the_builder():
 def test_fake_spline_is_the_polyline():
     s = Spline([[0, 0, 0], [10, 0, 0]], 1, False)
     assert s.shape.closest([5, 3, 0])[0] == 3
+
+
+def test_spline_defaults_fit_few_points_and_report_length():
+    nx = freeform_nx(units="in")
+    three = run(nx, "nx_create_spline", points=[[0, 0, 0], [10, 5, 0], [20, 0, 5]])
+    assert three.ok and three.data["degree"] == 2, three  # default 3 capped at points - 1
+    b = nx.last("StudioSplineBuilderEx")
+    assert b.Degree == 2 and b.Type is nx.nx.Features.StudioSplineBuilderEx.Types.ThroughPoints
+    two = run(nx, "nx_create_spline", points=[[0, 0, 0], [3, 4, 0]], method="poles")
+    assert two.ok and two.data["degree"] == 1 and two.data["length"] == pytest.approx(5.0)
+    four = run(nx, "nx_create_spline", points=POINTS)
+    assert four.ok and four.data["degree"] == 3
+
+
+def test_spline_explicit_degree_error_says_what_to_send():
+    nx = freeform_nx()
+    bad = run(nx, "nx_create_spline", points=POINTS[:3], degree=3)
+    assert bad.error["field"] == "/degree" and "got 3" in bad.error["message"]
+    assert "degree 2" in bad.error["hint"] and not nx.builders
+
+
+def test_spline_ends_drop_round_off():
+    nx = freeform_nx()
+    ok = run(nx, "nx_create_spline", points=[[-6e-16, 1e-12, 0], [10, 5, 0], [20, 0, 3]])
+    assert ok.ok and ok.data["start"] == [0.0, 0.0, 0.0], ok

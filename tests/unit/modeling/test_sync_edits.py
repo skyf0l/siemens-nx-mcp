@@ -183,3 +183,36 @@ def test_delete_blend_chain_heals():
     extra = run(nx, "nx_edit_faces", faces=[nx.ref_of(blend, "face")], action="delete_blend",
                 radius=2)  # fmt: skip
     assert extra.error["field"] == "/radius"
+
+
+def test_resize_takes_a_radius_and_errors_name_what_each_action_takes():
+    nx, block, hole = setup()
+    edits(nx, "ResizeFaceBuilder", block, 7900.0, lambda b: setattr(hole, "radius", 6.0))
+    ok = run(nx, "nx_edit_faces", faces=[hole.ref], action="resize", radius="6 mm")
+    assert ok.ok and nx.last("ResizeFaceBuilder").Diameter.RightHandSide == "12.0", ok
+    assert ok.data["volume_change"] == ok.data["volume"] - 8000.0
+    top = nx.ref_of(block.face((0, 0, 1)), "face")
+    none = run(nx, "nx_edit_faces", faces=[top], action="resize")
+    assert none.error["field"] == "/diameter" and "radius" in none.error["message"]
+    assert "diameter: '12 mm'" in none.error["hint"]
+    two = run(nx, "nx_edit_faces", faces=[top], action="resize", diameter=8, radius=4)
+    assert two.error["field"] == "/diameter" and two.mutation_outcome == "not_started"
+    extra = run(nx, "nx_edit_faces", faces=[top], action="offset", distance=1, direction="z")
+    assert extra.error["field"] == "/direction" and "offset takes distance" in extra.error["hint"]
+
+
+def test_move_and_mirror_take_axis_and_plane_words():
+    nx, block, hole = setup()
+    edits(nx, "AdmMoveFaceBuilder", block, 7950.0)
+    ok = run(nx, "nx_edit_faces", faces=[hole.ref], action="move", distance=3, direction="-z")
+    assert ok.ok and ok.data["volume_change"] == -50.0, ok
+    motion = nx.last("AdmMoveFaceBuilder").Motion
+    assert motion.DistanceValue.RightHandSide == "3.0" and motion.DistanceVector.Vector.Z == -1.0
+    edits(nx, "MirrorFaceBuilder", block, 7700.0,
+          lambda b: block.faces.append(nx.face(kind="cylinder", body=block)))  # fmt: skip
+    mirror = run(nx, "nx_edit_faces", faces=[nx.ref_of(hole, "face")], action="mirror",
+                 plane="yz")  # fmt: skip
+    assert mirror.ok, mirror
+    wrong = run(nx, "nx_edit_faces", faces=[nx.ref_of(hole, "face")], action="mirror",
+                plane="zz")  # fmt: skip
+    assert wrong.error["field"] == "/plane" and wrong.mutation_outcome == "not_started"

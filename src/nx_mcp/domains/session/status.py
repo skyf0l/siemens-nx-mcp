@@ -31,11 +31,16 @@ from nx_mcp.kit import files, parts, result
 
 SECTIONS = ("bridge", "parts", "control", "workspace", "operation")
 Section = Literal["bridge", "parts", "control", "workspace", "operation"]
-OperationRef = Annotated[
-    str,
-    Text(128, r"^[A-Za-z0-9_-]{8,128}$"),
-    Doc("The operation_id of the call to look up"),
-]
+# No schema pattern: the receipt store checks the id and says exactly what is wrong
+# ("too short: 5 of at least 8 characters") instead of "has an invalid format".
+OperationRef = Annotated[str, Text(160), Doc("operation_id of an earlier changing call")]
+CancelRef = Annotated[str, Text(160), Doc("operation_id of the running call to cancel")]
+# Why a receipt is missing: only calls that change something are receipted.
+NO_RECEIPT = (
+    "No receipt for this id: it was never used, or it belongs to a read-only call "
+    "(reads such as nx_get_status are not receipted; only changing calls are). "
+    "Do not infer failure."
+)
 RULES = {
     "path_host": "NX machine: paths refer to the NX host, not the client's filesystem",
     "relative_to": "workspace root",
@@ -89,10 +94,13 @@ class PartInfo(TypedDict):
     modified: bool
 
 
-class PartsInfo(TypedDict):
+class PartsInfo(TypedDict, total=False):
     work: PartInfo | None
     display: PartInfo | None
     loaded: int | None
+    # the component the work part is edited through in the displayed assembly (WAVE:
+    # display = assembly, work = that component's part), else None
+    work_component: dict | None
 
 
 class WorkspaceInfo(TypedDict):
@@ -132,6 +140,7 @@ class OperationData(TypedDict, total=False):
     reason: str | None  # why the state is unknown
     error: dict | None
     result: dict | None  # the committed call's envelope
+    arguments: dict | None  # the request (file contents omitted)
 
 
 class CancelData(TypedDict):
@@ -255,6 +264,19 @@ def offline_envelope(root, error: dict, params: dict, *, build=None) -> dict:
     return _envelope(data, params, [{"code": "NX_UPDATE_WARNING", "message": message}])
 
 
+def _work_component(tx: Tx, session_parts) -> dict | None:
+    """The work component (``Parts.WorkComponent``) when the work part is a component
+    part of the displayed assembly, else None."""
+    try:
+        component = getattr(session_parts, "WorkComponent", None)
+        work, shown = session_parts.Work, session_parts.Display
+        if component is None or work is None or shown is None or work.Tag == shown.Tag:
+            return None
+        return dict(tx.ref(component, "component"))
+    except Exception:  # a status read never fails on this detail
+        return None
+
+
 @tool(
     effect="read",
     label="Get NX status",
@@ -304,6 +326,7 @@ def nx_get_status(
             "work": row(session_parts.Work),
             "display": row(session_parts.Display),
             "loaded": len(services.parts()),
+            "work_component": _work_component(tx, session_parts),
         },
         "control": control_data(status) if status is not None else None,
         "workspace": workspace_info(root),
@@ -316,6 +339,13 @@ def nx_get_status(
 # operations
 
 
+FINISHED_HINTS = {
+    "committed": "Nothing to cancel; to revert it use nx_undo_operation",
+    "failed": "Nothing to cancel; nx_get_operation shows its error and mutation_outcome",
+    "unknown": "Nothing is running; check its outcome with nx_get_operation",
+}
+
+
 def _cancel_flag(store, operation_id: str) -> bool:
     try:
         return store.path(operation_id).with_suffix(".cancel").exists()
@@ -325,13 +355,17 @@ def _cancel_flag(store, operation_id: str) -> bool:
 
 def _record(tx: Tx, operation: str) -> dict:
     try:
-        return tx.services.store.get(operation)
+        record = tx.services.store.get(operation)
     except Exception as error:
-        code = getattr(error, "code", None)
-        if code == "NX_INVALID_ARGUMENT":
-            fail("NX_INVALID_ARGUMENT", "operation: 8-128 letters, digits, _ or -",
-                 field="/operation")  # fmt: skip
+        if getattr(error, "code", None) == "NX_INVALID_ARGUMENT":
+            message = str(getattr(error, "message", error)).replace("operation_id", "operation", 1)
+            fail("NX_INVALID_ARGUMENT", message, field="/operation",
+                 hint="Pass the operation_id an earlier call returned, e.g. "
+                 "'op_0123456789abcdef'")  # fmt: skip
         fail("NX_ERROR", f"The receipt cannot be read: {error}", field="/operation")
+    if record.get("state", "unknown") == "unknown" and "fingerprint" not in record:
+        record = {**record, "reason": NO_RECEIPT}
+    return record
 
 
 @tool(
@@ -351,9 +385,10 @@ def _record(tx: Tx, operation: str) -> dict:
     example={"operation": "op_0123456789abcdef"},
 )
 def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
-    """Durable state of an earlier call by its operation_id: running (with progress),
-    committed, failed or unknown. Answers while NX is busy or down; unknown never
-    authorizes a blind retry."""
+    """Durable state of an earlier changing call by its operation_id: running (with
+    progress), committed, failed or unknown. Answers while NX is busy or down; unknown
+    never authorizes a blind retry."""
+    operation = operation.strip()
     record = _record(tx, operation)
     state = str(record.get("state") or "unknown")
     stored = record.get("envelope") if isinstance(record.get("envelope"), dict) else None
@@ -373,6 +408,7 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
         "reason": record.get("reason"),
         "error": error if state != "committed" else None,
         "result": stored if state == "committed" else None,
+        "arguments": record.get("arguments"),
     }
 
 
@@ -385,21 +421,27 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
     runs="sidecar",
     example={"operation": "op_0123456789abcdef"},
 )
-def nx_cancel_operation(tx: Tx, *, operation: OperationRef) -> CancelData:
+def nx_cancel_operation(tx: Tx, *, operation: CancelRef) -> CancelData:
     """Ask a running call (nx_run_batch or another multi-step tool) to stop at its next
     step; it then rolls back. One native NX call is never interrupted; check the
     outcome with nx_get_operation."""
     store = tx.services.store
+    operation = operation.strip()
     with tx.checks():
         record = _record(tx, operation)
         state = str(record.get("state") or "unknown")
         name = record.get("tool")
         if state == "unknown" and "fingerprint" not in record:
             fail("NX_NOT_FOUND", f"No receipt for operation {operation}", field="/operation",
-                 hint="Check the id; nx_get_operation shows its state")  # fmt: skip
+                 hint="Pass the operation_id of a changing call that is still running "
+                 "(nx_get_status shows it under operation); reads are not receipted")  # fmt: skip
         if state != "running":
-            fail("NX_IN_USE", f"Operation {operation} is {state}; only a running call can be "
-                 "cancelled", field="/operation", details={"state": state, "tool": name})  # fmt: skip
+            # Not a blocker that clears (NX_IN_USE): cancelling a finished call never works.
+            fail("NX_NOT_RUNNING",
+                 f"Operation {operation} ({name}) already finished as {state}; only a "
+                 "running call can be cancelled", field="/operation",
+                 hint=FINISHED_HINTS.get(state, FINISHED_HINTS["unknown"]),
+                 details={"state": state, "tool": name})  # fmt: skip
         if not isinstance(name, str) or catalogue.get(name) is None:
             fail("NX_UNSUPPORTED_OPTION", f"{name} does not support cancellation",
                  field="/operation", details={"tool": name})  # fmt: skip

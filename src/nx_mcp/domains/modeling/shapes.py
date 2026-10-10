@@ -29,7 +29,7 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
-    Axis,
+    AxisByPoint,
     BodyRef,
     Combine,
     Doc,
@@ -47,6 +47,14 @@ from nx_mcp.kit import sketch as ksketch
 PathRef = Annotated[str, RefTo("sketch", "curve", "edge")]
 # Relative tolerance of the closed-form read-backs (tube volume, helix length).
 FORMULA_REL = 1e-3
+# NX 2406: "The target cannot properly cap the open profile smart volume."
+RIB_CANNOT_CAP = 4095004
+RIB_HINT = (
+    "The rib must close against the body. perpendicular: it grows from the sketch plane along "
+    "the sketch normal, so that side must face material (flip grows the other way, e.g. a "
+    "sketch on a cup's rim). parallel: the sketch plane must cut through the body (e.g. an "
+    "L-bracket's mid-plane, not a side face) and the curves must run from wall to wall"
+)
 
 
 def _new_bodies(feature, *known):
@@ -56,6 +64,10 @@ def _new_bodies(feature, *known):
 
 # ---------------------------------------------------------------------------
 # Rib
+
+
+class RibData(common.FeatureData):
+    added: float
 
 
 @tool(
@@ -77,7 +89,7 @@ def nx_create_rib(
     thickness: Length,
     orientation: Annotated[
         Literal["perpendicular", "parallel"],
-        Doc("Rib wall perpendicular to the sketch plane (grows to the body) or in it"),
+        Doc("perpendicular: wall grown along the sketch normal; parallel: plate in its plane"),
     ] = "perpendicular",
     side: Annotated[
         Literal["symmetric", "one_side", "other_side"],
@@ -88,10 +100,10 @@ def nx_create_rib(
     flip: Annotated[
         bool, Doc("Perpendicular rib: grow against the sketch normal (NX grows along it)")
     ] = False,
-) -> common.FeatureData:
-    """Add a rib wall of a thickness from open sketch curves into a solid body.
-    The curves extend to the body. Volume is the body's after the rib, or the new rib
-    body's when combine is false."""
+) -> RibData:
+    """Add a rib (wall, web or gusset) of a thickness from open sketch curves to a solid body.
+    The curves extend to the body and must close a region with it (a parallel rib fills it).
+    volume is the body's (the rib body's if not combined); added is the rib's."""
     t = args.finite(thickness, "/thickness", positive=True)
     if draft is not None:
         if orientation != "perpendicular":
@@ -103,38 +115,44 @@ def nx_create_rib(
     before = measure.volume(tx, target)
     rib = tx.nx.Features.RibBuilder
     collection = tx.part.Features.DesignFeatureCollection
-    with builders.build(tx, collection.CreateRibBuilder, None) as b:
-        builders.section(tx, sk, into=b.Section)
-        builders.fill(tx, b.TargetBody, [target], "Body")
-        b.RibType = (
-            rib.RibTypes.PerpendiculartoSectionPlane
-            if orientation == "perpendicular"
-            else rib.RibTypes.ParalleltoSectionPlane
-        )
-        b.RibThickness.RightHandSide = repr(t)
-        offsets = rib.RibThicknessOffsetOptions
-        b.RibThicknessOffsetOption = (
-            offsets.Symmetric if side == "symmetric" else offsets.Asymmetric
-        )
-        b.ReverseThicknessDirection = side == "other_side"
-        if draft is None:
-            b.RibDraftOption = rib.RibDraftOptions.NotSet
-        else:
-            b.RibDraftOption = rib.RibDraftOptions.FromCap
-            b.DraftAngle.RightHandSide = repr(float(draft))
-        b.CombineRibWithTarget = bool(combine)
-        b.ReverseRibDirection = bool(flip)
-        feature = b.commit()
+    try:
+        with builders.build(tx, collection.CreateRibBuilder, None) as b:
+            builders.section(tx, sk, into=b.Section)
+            builders.fill(tx, b.TargetBody, [target], "Body")
+            b.RibType = (
+                rib.RibTypes.PerpendiculartoSectionPlane
+                if orientation == "perpendicular"
+                else rib.RibTypes.ParalleltoSectionPlane
+            )
+            b.RibThickness.RightHandSide = repr(t)
+            offsets = rib.RibThicknessOffsetOptions
+            b.RibThicknessOffsetOption = (
+                offsets.Symmetric if side == "symmetric" else offsets.Asymmetric
+            )
+            b.ReverseThicknessDirection = side == "other_side"
+            if draft is None:
+                b.RibDraftOption = rib.RibDraftOptions.NotSet
+            else:
+                b.RibDraftOption = rib.RibDraftOptions.FromCap
+                b.DraftAngle.RightHandSide = repr(float(draft))
+            b.CombineRibWithTarget = bool(combine)
+            b.ReverseRibDirection = bool(flip)
+            feature = b.commit()
+    except NXError as error:
+        if error.code == "NX_BUILD_FAILED" and not error.hint:
+            capped = error.nx_code == RIB_CANNOT_CAP or "cap" in str(error.message).lower()
+            error.hint = RIB_HINT if capped else RIB_HINT.split(". ", 1)[1]
+        raise
     if combine:
         out = common.result_of(tx, feature, [target])
         common.changed(before, out["volume"], "more")
-        return out
+        return {**out, "added": out["volume"] - before}
     made = _new_bodies(feature, target)
     readback.expect(bool(made), "bodies", "The rib built no body")
     out = common.result_of(tx, feature, made)
     common.changed(0.0, out["volume"], "positive")
     common.changed(before, measure.volume(tx, target), "same", check="target_volume")
-    return out
+    return {**out, "added": out["volume"]}
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +161,7 @@ def nx_create_rib(
 
 def _path(tx, refs):
     """``(section filler, single curve or None)`` for a tube path: one sketch, or curves
-    and edges."""
+    and edges. A path with sharp corners is refused (NX cannot tube it)."""
     args.distinct("/path", refs, "path references")
     sketches, curves = [], []
     for i, ref in enumerate(refs):
@@ -160,7 +178,10 @@ def _path(tx, refs):
     curves = [select.owned(tx, c, field, "curves") for c, field in curves]
     if sketches:
         sk = sketches[0]
+        common.refuse_corners(tx, common.sketch_curves(sk), "/path", "path")
         return (lambda into: builders.section(tx, sk, into=into)), None
+    if len(curves) > 1:
+        common.refuse_corners(tx, curves, "/path", "path")
     single = curves[0] if len(curves) == 1 else None
     return (lambda into: builders.curve_section(tx, curves, into=into)), single
 
@@ -173,22 +194,21 @@ def _path(tx, refs):
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
-    example={"path": ["s:4"], "outer_diameter": 10, "inner_diameter": 8},
+    example={"path": "s:4", "outer_diameter": 10, "inner_diameter": 8},
 )
 def nx_create_tube(
     tx: Tx,
     *,
     path: Annotated[
-        list[PathRef],
-        Items(1, 100),
+        Annotated[list[PathRef], Items(1, 100)] | PathRef,
         Doc("One sketch, or connected curves and edges"),
     ],
     outer_diameter: Length,
     inner_diameter: Annotated[Length, Doc("0 for a solid rod")] = 0.0,
     combine: Combine | None = None,
 ) -> common.FeatureData:
-    """Sweep a circular tube (or rod) along a path, as a new body or combined with bodies.
-    A tube along one smooth curve has volume pi/4 (D^2 - d^2) L."""
+    """Sweep a circular tube (or rod) along a smooth (G1) path, as a new body or combined with
+    bodies. A tube along one curve has volume pi/4 (D^2 - d^2) L."""
     outer = args.finite(outer_diameter, "/outer_diameter", positive=True)
     inner = float(inner_diameter)
     if not 0 <= inner < outer:
@@ -198,18 +218,23 @@ def nx_create_tube(
             field="/inner_diameter",
         )
     common.check_combine(combine)
-    fill, single = _path(tx, path)
+    with tx.checks():
+        fill, single = _path(tx, [path] if isinstance(path, str) else path)
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
     tags = common.body_tags(tx)
-    with builders.build(tx, tx.part.Features.CreateTubeBuilder, None) as b:
-        b.Tolerance = units.part_tolerance(tx)
-        fill(b.PathSection)
-        b.OuterDiameter.RightHandSide = repr(outer)
-        b.InnerDiameter.RightHandSide = repr(inner)
-        b.OutputOption = tx.nx.Features.TubeBuilder.Output.MultipleSegments
-        builders.boolean(tx, b.BooleanOption, combine)
-        feature = b.commit()
+    try:
+        with builders.build(tx, tx.part.Features.CreateTubeBuilder, None) as b:
+            b.Tolerance = units.part_tolerance(tx)
+            fill(b.PathSection)
+            b.OuterDiameter.RightHandSide = repr(outer)
+            b.InnerDiameter.RightHandSide = repr(inner)
+            b.OutputOption = tx.nx.Features.TubeBuilder.Output.MultipleSegments
+            builders.boolean(tx, b.BooleanOption, combine)
+            feature = b.commit()
+    except NXError as error:
+        common.smooth_hint(error)
+        raise
     if combine is not None:
         return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)
@@ -238,6 +263,8 @@ class HelixData(TypedDict):
     turns: float
     start: Point3
     end: Point3
+    axis: AxisByPoint
+    hand: Literal["right", "left"]
 
 
 def _helix_csys(tx, origin, z, start_angle):
@@ -279,12 +306,12 @@ def _constant_law(tx, law, value):
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
-    example={"axis": {"principal": "z"}, "radius": 10, "pitch": 5, "turns": 4},
+    example={"axis": "z", "radius": 10, "pitch": 5, "turns": 4},
 )
 def nx_create_helix(
     tx: Tx,
     *,
-    axis: Axis,
+    axis: common.AxisArg = "z",
     radius: Length,
     pitch: Length,
     turns: Annotated[float, Range(gt=0, le=1000), Doc("Number of turns")] | None = None,
@@ -294,16 +321,28 @@ def nx_create_helix(
         Angle, Doc("About the axis from world X (world Y for an axis near X)")
     ] = 0.0,
 ) -> HelixData:
-    """Create a helix curve of constant radius and pitch climbing along an axis.
-    It starts on the axis origin's plane; give turns or height (turns = height/pitch).
-    Length is turns * sqrt((2 pi r)^2 + pitch^2)."""
-    args.exactly_one(turns=turns, height=height)
+    """Create a helix curve of constant radius and pitch climbing along an axis (default z).
+    It starts on the axis origin's plane; give turns or height, not both (turns =
+    height/pitch). Length is turns * sqrt((2 pi r)^2 + pitch^2)."""
+    if turns is not None and height is not None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "turns and height are mutually exclusive: give one (turns = height / pitch)",
+            field="/height",
+            hint="Drop height to keep turns, or drop turns to climb by height",
+        )
+    if turns is None and height is None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give turns or height (turns = height / pitch)",
+            field="/turns",
+        )
     r = args.finite(radius, "/radius", positive=True)
     p = args.finite(pitch, "/pitch", positive=True)
     n = float(turns) if turns is not None else args.finite(height, "/height", positive=True) / p
     if not 0 < n <= 1000:
         fail("NX_INVALID_ARGUMENT", "The helix needs 0 to 1000 turns", field="/height")
-    _obj, origin, z = select.axis(tx, axis, "/axis")
+    _obj, origin, z = select.axis(tx, common.principal(axis), "/axis")
     helix = tx.nx.Features.HelixBuilder
     with builders.build(tx, tx.part.Features.CreateHelixBuilder, None) as b:
         csys, x, y = _helix_csys(tx, origin, z, float(start_angle))
@@ -351,6 +390,8 @@ def nx_create_helix(
         "turns": n,
         "start": start,
         "end": end,
+        "axis": {"origin": origin, "direction": z},
+        "hand": hand,
     }
 
 
@@ -362,7 +403,7 @@ def nx_create_helix(
     effect="model",
     label="Emboss body",
     summary="Emboss {target} around {tool_body}",
-    keywords=("emboss", "emboss body", "form around", "wrap tool", "imprint body", "clearance"),
+    keywords=("emboss body", "form around", "wrap tool", "imprint body", "clearance pocket"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -373,13 +414,14 @@ def nx_create_emboss_body(
     *,
     target: BodyRef,
     tool_body: BodyRef,
-    clearance: Annotated[Length, Doc("Gap between the tool and the embossed wall")] = 0.0,
-    thickness: Annotated[Length, Doc("Wall thickness of a sheet target's emboss")] | None = None,
+    clearance: Annotated[Length, Doc("Gap kept around the tool on every side")] = 0.0,
+    thickness: Annotated[Length, Doc("Sheet targets only: the embossed wall's thickness")]
+    | None = None,
     keep_tool: Annotated[bool, Doc("Keep the tool body after the emboss")] = True,
     reverse: Annotated[bool, Doc("Emboss toward the other side of the target")] = False,
 ) -> common.FeatureData:
-    """Emboss a solid or sheet target so it follows a tool body with a clearance.
-    Volume is the target's after the emboss (0 for a sheet target)."""
+    """Emboss a target around an overlapping tool body (not text). A solid target loses the
+    overlap grown by clearance; a sheet is pushed out around the tool. volume: the target's."""
     gap = float(clearance)
     if gap < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must be 0 or more", field="/clearance")

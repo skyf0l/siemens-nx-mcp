@@ -67,7 +67,8 @@ def nx_activate_application(
     tx: Tx, *, application: Literal["modeling", "sheet_metal"]
 ) -> ApplicationData:
     """Switch NX to the Modeling or Sheet Metal application for the displayed work part.
-    Sheet-metal features need sheet_metal; a part with them cannot go back to modeling."""
+    Sheet-metal features need sheet_metal; a part with them cannot go back to modeling.
+    For drawings use nx_activate_drawing_sheet, not this tool."""
     wanted = APPLICATIONS[application]
     with tx.checks():
         part = tx.part

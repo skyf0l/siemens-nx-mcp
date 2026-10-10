@@ -12,6 +12,7 @@ import math
 from typing import NoReturn, TypeVar
 
 from nx_mcp.core.errors import fail
+from nx_mcp.core.validate import close_options, match_option
 
 T = TypeVar("T")
 
@@ -54,9 +55,11 @@ def required(value: T | None, field: str) -> T:
 def exactly_one(**fields):
     """Exactly one of the named fields is present; returns its name."""
     given = [name for name, value in fields.items() if value is not None]
-    if len(given) != 1:
-        names = ", ".join(fields)
-        _bad(f"Give exactly one of {names}", given[1] if len(given) > 1 else next(iter(fields)))
+    if len(given) > 1:
+        both = " and ".join(_name(n) for n in given)
+        _bad(f"{both} are mutually exclusive: give only one", given[1])
+    if not given:
+        _bad("Give one of " + ", ".join(_name(n) for n in fields), next(iter(fields)))
     return given[0]
 
 
@@ -104,3 +107,33 @@ def vec3(value, field="vector"):
     if not all(_is_number(v) for v in value):
         _bad(name + " must be finite", field)
     return [float(v) for v in value]
+
+
+def choice(value, options, field, aliases=None, what=None):
+    """The canonical option for a natural spelling of it, by the rules gate 1 applies to
+    ``Literal`` arguments (``core.validate.match_option``): case, spaces, ``-`` and ``_``
+    ignored, ``aliases`` (``{"acad": "dwg"}``) for synonyms, a plural for its singular.
+    For values a domain normalises itself (a ``str`` field, an item's ``type``).
+
+    ``None`` stays None, unless ``what`` names the value (then it is required). Otherwise
+    ``invalid_argument`` with a did-you-mean and the options in the hint."""
+    name = what or _name(field).replace("/", " ")
+    if value is None:
+        if what is None:
+            return None
+        _bad(f"{name} is required", field)
+    options = tuple(options)
+    pairs = tuple((aliases or {}).items())
+    if any(value == o and type(value) is type(o) for o in options):
+        return value
+    hit = match_option(value, options, pairs)
+    if hit is not None:
+        return hit
+    near = close_options(value, options, pairs)
+    guess = f"; did you mean {near[0]!r}?" if near else ""
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"Unknown {name} {value!r}{guess}",
+        field=pointer(field),
+        hint=f"{name} is one of " + ", ".join(repr(o) for o in options),
+    )

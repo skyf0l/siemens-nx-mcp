@@ -252,3 +252,50 @@ def test_clone_refuses_an_assembly_nx_cannot_load(nx, root):
     assert (
         not (root / "c").exists() and nx.session.Parts.LoadOptions.ComponentLoadMethod == "search"
     )
+
+
+def test_assembly_format_follows_the_path_and_prefix(nx, root):
+    asm, blk, plate = saved_assembly(nx)
+    nx.structure[str((root / "proj/asm.prt").resolve()).casefold()] = [
+        str(root / "proj/parts/blk.prt"), str(root / "proj/parts/plate.prt")
+    ]  # fmt: skip
+    zipped = call(nx, assembly.nx_export_assembly, path="pkg/asm.zip")
+    assert zipped.ok and zipped.data["format"] == "zip", zipped
+    cloned = call(nx, assembly.nx_export_assembly, path="copy", prefix="C_")
+    assert cloned.ok and cloned.data["format"] == "clone", cloned
+    vague = call(nx, assembly.nx_export_assembly, path="copy3")
+    assert vague.error["field"] == "/format" and vague.mutation_outcome == "not_started"
+    assert ".zip" in vague.error["message"] and "prefix" in vague.error["message"]
+    blk.IsModified = plate.IsModified = True
+    unsaved = call(nx, assembly.nx_export_assembly, path="p.zip")
+    assert unsaved.error["code"] == "NX_UNSAVED_PART"
+    assert unsaved.error["details"]["part"] == "proj/parts/blk.prt"
+    assert [r["kind"] for r in unsaved.error["details"]["parts"]] == ["part", "part"]
+    assert "plate.prt" in unsaved.error["message"] and "nx_save_part" in unsaved.error["hint"]
+
+
+def test_profile_dxf_is_r12_that_the_import_check_accepts(nx, root):
+    from nx_mcp.domains.parts_files import importing
+
+    sk = sketch_with(nx, [
+        nx.line((0, 0, 5), (50, 0, 5)), nx.line((50, 0, 5), (50, 30, 5)),
+        nx.arc((25, 15, 5), 4.0),
+    ])  # fmt: skip
+    ok = call(nx, profile.nx_export_profile, source=sk.ref, path="cut/p.dxf", layer="CUT")
+    assert ok.ok, ok
+    data = (root / "cut" / "p.dxf").read_bytes()
+    assert b"\r\n" in data and b"AcDb" not in data
+    facts = importing.dxf_facts(data)  # NX refuses R13+ DXF without handles/OBJECTS
+    assert facts["version"] == "AC1009" and facts["units"] == "mm" and facts["curves"] == 3
+    assert facts["min"] == pytest.approx([0, 0, 0]) and facts["max"] == pytest.approx([50, 30, 0])
+
+
+def test_profile_layer_errors_list_the_refs_of_the_source(nx, root):
+    sk = sketch_with(nx, [nx.line((0, 0, 5), (5, 0, 5)), nx.line((5, 0, 5), (5, 5, 5))])
+    foreign = nx.line((0, 0, 0), (1, 0, 0))
+    bad = call(nx, profile.nx_export_profile, source=sk.ref, path="s.dxf",
+               layers=[[nx.ref_of(foreign, "curve"), "X"]])  # fmt: skip
+    assert bad.error["field"] == "/layers/0/0" and "curves (c:N)" in bad.error["message"]
+    valid = bad.error["details"]["valid"]
+    assert valid == [nx.ref_of(c, "curve") for c in sk.geometry]
+    assert bad.error["details"]["valid_count"] == 2 and not (root / "s.dxf").exists()

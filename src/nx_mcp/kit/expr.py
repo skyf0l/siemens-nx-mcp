@@ -4,19 +4,42 @@ NX refuses a bad formula with a native error; that becomes
 ``NX_INVALID_FORMULA`` (license failures stay ``NX_LICENSE_UNAVAILABLE``).
 NX 2406 lacks ``Expression.GetExpressionParents``; dependents are still
 available through ``GetReferencingExpressions``.
+
+Expressions as values: a Length, Angle or count argument may name an expression or
+give a formula (``"thickness"``, ``"thickness/2"``). Gate 9 evaluates it with
+:func:`evaluate` (``Services.evaluate_formula``) into a ``core.types.Formula``; a
+handler passes :func:`rhs` of the value to a builder expression's ``RightHandSide``
+(or calls :func:`drive`), so the feature follows later edits of the expression.
 """
 
 from __future__ import annotations
 
+import contextlib
 import re
 
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.types import MM_PER_IN
 
 UNIT_NAMES = {"mm": "MilliMeter", "in": "Inch", "deg": "Degrees", "rad": "Radian", "unitless": None}
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,99}")
 MAX_FORMULA = 4096
 # NX 2406 "Dimension error": an expression of the wrong dimension (angle on a length).
 DIMENSION_ERROR = 3270081
+# NX 2406: a formula naming an expression the part does not have / a syntax error.
+NO_SUCH_EXPRESSION, SYNTAX_ERROR = 1050007, 3270008
+# NX unit names (Unit.Name) -> (dimension, factor to mm or degrees).
+UNIT_SCALE = {
+    "MilliMeter": ("length", 1.0),
+    "Inch": ("length", MM_PER_IN),
+    "CentiMeter": ("length", 10.0),
+    "Meter": ("length", 1000.0),
+    "Foot": ("length", 12 * MM_PER_IN),
+    "MicroMeter": ("length", 0.001),
+    "Degrees": ("angle", 1.0),
+    "Radian": ("angle", 57.29577951308232),
+}
+_TARGET_UNIT = {"mm": "MilliMeter", "in": "Inch", "deg": "Degrees", "rad": "Radian"}
+_NOUN = {"length": "a length", "sheet_length": "a length", "angle": "an angle", "count": "a count"}
 
 # Semantic parameter names -> words of the NX expression description, in order
 # of preference. Descriptions look like "Extrude(3) End Limit" or "Blend(5) Radius 1".
@@ -149,3 +172,119 @@ def bind(tx, target, source):
     with native({DIMENSION_ERROR: "NX_INVALID_ARGUMENT"}, default="NX_INVALID_FORMULA"):
         tx.part.Expressions.EditExpression(target, formula)
     return target
+
+
+# ---- expressions as values (gate 9) ------------------------------------------------
+def rhs(value, integer: bool = False) -> str:
+    """The ``RightHandSide`` text for a builder expression: an evaluated
+    ``core.types.Formula`` keeps its formula (the feature follows the expression), a
+    number becomes its exact text (``integer``: a whole number)."""
+    formula = getattr(value, "formula", None)
+    if formula:
+        return str(formula)
+    if integer:
+        return str(int(value))
+    return repr(float(value))
+
+
+def number(value):
+    """``float(value)``, except that an evaluated formula stays itself (a float that
+    remembers its formula for :func:`rhs`)."""
+    return value if getattr(value, "formula", None) and isinstance(value, float) else float(value)
+
+
+def drive(expression, value, integer: bool = False):
+    """Set a builder expression (``builder.X.Expression``-like) from a number or an
+    evaluated formula; returns the expression."""
+    expression.RightHandSide = rhs(value, integer)
+    return expression
+
+
+def _unit_of(exp):
+    unit = getattr(exp, "Units", None)
+    return getattr(unit, "Name", None) if unit else None
+
+
+def evaluate(services, formula, dim, unit, *, field=None, scratch=False) -> float:
+    """``formula`` (an expression name or formula) of the work part, in ``unit``.
+
+    A bare name is read without changing the part: its expression must be a Number of
+    dimension ``dim`` or unitless (taken as a plain number). Another formula needs
+    ``scratch``: NX evaluates it in a temporary expression of ``unit``, deleted at once,
+    so NX itself checks the names, the syntax and the dimension.
+    """
+    part = services.work_part()
+    if part is None:
+        fail("NX_NO_WORK_PART", "No work part is open", hint="Open a part with nx_open_part")
+    noun = _NOUN.get(dim, "a value")
+    listing = "List them with nx_list_objects kind 'expression'; create one with nx_set_expression"
+    if NAME.fullmatch(formula):
+        exp = next((e for e in part.Expressions if e.Name == formula), None)
+        if exp is None:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{field or 'value'}: the work part has no expression {formula!r}",
+                field=field,
+                hint=listing,
+            )
+        if getattr(exp, "Type", "Number") not in ("Number", "Integer"):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{field or 'value'}: expression {formula!r} is not a number",
+                field=field,
+            )
+        own = _unit_of(exp)
+        if getattr(exp, "Type", "Number") == "Integer":
+            number = float(exp.IntegerValue)
+        else:
+            number = float(exp.GetValueUsingUnits(services.nx.Expression.UnitsOption.Expression))
+        if own is None or dim == "count":
+            return number  # unitless: a plain number in the target units, as NX takes it
+        kind, scale = UNIT_SCALE.get(own, (None, None))
+        want = "angle" if dim == "angle" else "length"
+        if kind != want or scale is None:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{field or 'value'}: expression {formula!r} is in {own}, not {noun}",
+                field=field,
+            )
+        target = UNIT_SCALE[_TARGET_UNIT[unit]][1]
+        return number * scale / target
+    if not scratch:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{field or 'value'}: this tool takes an expression name, not a formula ({formula!r})",
+            field=field,
+            hint="Create the formula as an expression with nx_set_expression, then pass its name",
+        )
+    if len(formula) > MAX_FORMULA:
+        fail("NX_INVALID_ARGUMENT", f"{field or 'value'}: formula too long", field=field)
+    unit_name = _TARGET_UNIT.get(unit)
+    nx_unit = part.UnitCollection.FindObject(unit_name) if unit_name else None
+    codes = {
+        DIMENSION_ERROR: "NX_INVALID_ARGUMENT",
+        NO_SUCH_EXPRESSION: "NX_INVALID_ARGUMENT",
+        SYNTAX_ERROR: "NX_INVALID_FORMULA",
+    }
+    try:
+        with native(codes, default="NX_INVALID_FORMULA"):
+            temporary = part.Expressions.CreateSystemExpressionWithUnits(formula, nx_unit)
+    except NXError as error:
+        if error.code not in ("NX_INVALID_ARGUMENT", "NX_INVALID_FORMULA"):
+            raise  # a license or session failure stays what it is
+        reason = {
+            DIMENSION_ERROR: f"is not {noun}",
+            NO_SUCH_EXPRESSION: "names an expression the work part does not have",
+        }.get(error.nx_code or 0, "is not a valid NX formula")
+        fail(
+            error.code,
+            f"{field or 'value'}: formula {formula!r} {reason}",
+            field=field,
+            hint=listing,
+            nx_code=error.nx_code,
+        )
+    try:
+        return float(temporary.GetValueUsingUnits(services.nx.Expression.UnitsOption.Expression))
+    finally:
+        with contextlib.suppress(Exception):
+            part.Expressions.Delete(temporary)

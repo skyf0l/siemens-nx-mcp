@@ -484,6 +484,24 @@
    "call": "nx_get_result",
    "args": {
     "result_id": "$inv.result_id",
+    "field": "data/curves/28/end"
+   },
+   "expect": {
+    "data.field": "/data/curves/28/end",
+    "data.kind": "list",
+    "data.items": {
+     "close": [
+      86,
+      5
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_result",
+   "args": {
+    "result_id": "$inv.result_id",
     "field": "/data/sketch"
    },
    "expect": {
@@ -537,10 +555,17 @@
     "result_id": "result_00000000000000000000000000000000"
    },
    "expect": {
-    "error.code": "NX_RESULT_EXPIRED",
+    "error.code": "NX_NOT_FOUND",
+    "error.details.state": "unknown",
     "error.category": "not_found",
     "error.field": "/result_id",
-    "mutation_outcome": "not_applicable"
+    "mutation_outcome": "not_applicable",
+    "error.message": {
+     "contains": "never existed"
+    },
+    "error.hint": {
+     "contains": "omitted"
+    }
    }
   },
   {
@@ -567,7 +592,9 @@
     "data.selected_count": 1,
     "data.missing": [
      "result_00000000000000000000000000000000"
-    ]
+    ],
+    "mutation_outcome": "not_applicable",
+    "data.deleted_count": 0
    }
   },
   {
@@ -593,7 +620,27 @@
     "mutation_outcome": "committed",
     "data.applied": true,
     "data.selected_count": 1,
-    "data.missing": []
+    "data.missing": [],
+    "data.deleted_count": 1
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "result_ids": [
+     "$inv.result_id"
+    ],
+    "dry_run": false
+   },
+   "intent": "Acceptance: delete this scenario's stored result again",
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.applied": true,
+    "data.selected_count": 0,
+    "data.deleted_count": 0,
+    "data.missing": {
+     "count": 1
+    }
    }
   },
   {
@@ -603,6 +650,10 @@
    },
    "expect": {
     "error.code": "NX_RESULT_EXPIRED",
+    "error.details.state": "deleted",
+    "error.message": {
+     "contains": "expired"
+    },
     "error.field": "/result_id"
    }
   },
@@ -615,7 +666,32 @@
    "expect": {
     "data.applied": false,
     "data.policy.max_age_seconds": 31536000,
-    "data.missing": []
+    "data.missing": [],
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "max_age_seconds": "365d"
+   },
+   "intent": "Acceptance: preview pruning snapshots older than a year, as a duration",
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.applied": false,
+    "data.deleted_count": 0,
+    "data.policy.max_age_seconds": 31536000
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "max_age_seconds": "soon"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/max_age_seconds",
+    "mutation_outcome": "not_started"
    }
   },
   {

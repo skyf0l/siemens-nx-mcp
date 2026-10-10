@@ -37,22 +37,25 @@ Count = Annotated[int, Range(ge=2, le=MAX_INSTANCES), Doc("Instances including t
 Count2 = Annotated[int, Range(ge=1, le=MAX_INSTANCES), Doc("Rows in the second direction")]
 Spacing = Annotated[Length, Doc("Distance between instances")]
 Pitch = Annotated[Angle, Doc("Angle between instances")]
+# 'x' stands for {"principal": "x"}.
+PatternDirection = Direction | common.AxisName
+PatternAxis = Axis | common.AxisName
 
 
 class _LinearRequired(TypedDict):
-    direction: Direction
+    direction: PatternDirection
     count: Count
     spacing: Spacing
 
 
 class LinearLayout(_LinearRequired, total=False):
-    direction2: Direction
+    direction2: PatternDirection
     count2: Count2
     spacing2: Spacing
 
 
 class CircularLayout(TypedDict):
-    axis: Axis
+    axis: PatternAxis
     count: Count
     angle: Pitch
 
@@ -216,10 +219,14 @@ def _layout(tx, layout):
             "kind": "linear",
             "count": int(lin["count"]),
             "spacing": float(lin["spacing"]),
-            "direction": select.direction(tx, lin["direction"], "/layout/linear/direction"),
+            "direction": select.direction(
+                tx, common.principal(lin["direction"]), "/layout/linear/direction"
+            ),
         }
         if all(second):
-            other = select.direction(tx, lin["direction2"], "/layout/linear/direction2")
+            other = select.direction(
+                tx, common.principal(lin["direction2"]), "/layout/linear/direction2"
+            )
             if geom.parallel(out["direction"], other, 1e-6):
                 fail("NX_INVALID_ARGUMENT", "The pattern directions must not be parallel",
                      field="/layout/linear/direction2")  # fmt: skip
@@ -229,7 +236,7 @@ def _layout(tx, layout):
         return out
     circ = layout["circular"]
     _check_pitch(circ["count"], circ["angle"], "/layout/circular/angle")
-    _obj, origin, axis = select.axis(tx, circ["axis"], "/layout/circular/axis")
+    _obj, origin, axis = select.axis(tx, common.principal(circ["axis"]), "/layout/circular/axis")
     return {
         "kind": "circular",
         "count": int(circ["count"]),
@@ -314,8 +321,9 @@ def nx_create_component_pattern(
     layout: Linear | Circular,
     associative: Annotated[bool, Doc("NX pattern (true) or independent copies")] = True,
 ) -> PatternData:
-    """Pattern a direct component linearly (one or two directions) or about an axis. Counts
-    include the seed; at most 100 instances. associative=false adds independent copies."""
+    """Pattern a direct component linearly (one or two directions) or about an axis. layout is
+    {linear: {...}} or {circular: {...}}; counts include the seed (at most 100); circular angle
+    is the step between instances. associative=false adds independent copies."""
     lay = _layout(tx, layout)
     with tx.checks():
         seed = common.component(tx, component, "/component", unsuppressed=True)
@@ -384,8 +392,9 @@ def nx_edit_component_pattern(
             n2 = count2 if count2 is not None else before.get("count2") or 1
             if n2 > 1 and "count2" not in before:
                 fail("NX_UNSUPPORTED_OPTION",
-                     "Create a two-direction pattern before adding a second direction",
-                     field="/count2")  # fmt: skip
+                     "This pattern has one direction; NX cannot add a second one by editing",
+                     field="/count2", hint="Delete it and recreate it with nx_create_component_"
+                     "pattern, layout.linear direction2, count2 and spacing2")  # fmt: skip
             if spacing2 is not None and n2 == 1:
                 fail("NX_INVALID_ARGUMENT", "spacing2 needs a second direction", field="/spacing2")
             total = (count if count is not None else before["count"]) * n2

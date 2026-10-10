@@ -194,3 +194,138 @@ def test_custom_material_reports_no_library_properties():
     row = ok.data["items"][0]
     assert row["library"] is None and row["youngs_modulus"] is None and row["density"] == 2700
     assert block.ref
+
+
+# ---------------------------------------------------------------------------
+# Live tester batch b30: natural material values and clearer refusals
+
+
+def test_bare_and_loose_library_names_resolve():
+    nx = library_nx()
+    one, two = nx.block(10, 10, 10), nx.block(5, 5, 5, origin=(50, 0, 0))
+    bare = run(nx, "nx_set_material", bodies=[one.ref], material="steel")
+    assert bare.ok and bare.data["items"][0]["material"] == "Steel", bare
+    assert bare.data["items"][0]["density"] == pytest.approx(7829.0)
+    loose = run(nx, "nx_set_material", bodies=[two.ref], material={"library": "aluminium 6061"})
+    assert loose.ok and loose.data["items"][0]["material"] == "Aluminum_6061", loose
+    vague = run(nx, "nx_set_material", bodies=[two.ref], material="Aluminium")
+    assert vague.error["code"] == "NX_NOT_FOUND" and vague.error["field"] == "/material", vague
+    assert vague.error["details"]["candidates"][0] == "Aluminum_6061"
+    assert "did you mean Aluminum_6061" in vague.error["message"]
+    assert run(nx, "nx_get_material", bodies=[two.ref]).data["items"][0]["material"] == (
+        "Aluminum_6061"
+    )
+
+
+def test_material_forms_are_named_when_ambiguous_or_empty():
+    nx = library_nx()
+    block = nx.block(10, 10, 10)
+    for material, text in (
+        ({"library": "Steel", "custom": {"name": "PLA", "density": 1240}}, "not both"),
+        ({}, "library or custom is required"),
+    ):
+        bad = run(nx, "nx_set_material", bodies=[block.ref], material=material)
+        assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+        assert bad.error["field"] == "/material" and text in bad.error["message"]
+        assert "{custom: {name: 'PLA', density: 1240}}" in bad.error["hint"]
+        assert bad.mutation_outcome == "not_started" and nx.loads == []
+    wrong = run(nx, "nx_set_material", bodies=[block.ref], material={"custom": {"name": "X"}})
+    assert wrong.error["field"] == "/material/custom/density", wrong
+
+
+@pytest.mark.parametrize(
+    ("density", "kg_m3"),
+    [("1.24 g/cm3", 1240.0), ("1240 kg/m^3", 1240.0), ("1.24g/cm\xb3", 1240.0),
+     ("1240", 1240.0), ("0.0448 lb/in3", 0.0448 * 27679.9047), (1240, 1240.0)],
+)  # fmt: skip
+def test_custom_density_accepts_unit_strings(density, kg_m3):
+    nx = library_nx()
+    nx.block(10, 10, 10)
+    nx.on_commit(
+        "PhysicalMaterialBuilder",
+        lambda b: nx.Material(
+            b.Name, b.PropertyTable.SetBaseScalarWithDataPropertyValue.calls[0][0][1]
+        ),
+    )
+    ok = run(nx, "nx_set_material", material={"custom": {"name": "PLA", "density": density}})
+    assert ok.ok and ok.data["items"][0]["density"] == pytest.approx(kg_m3), ok
+    stored = nx.last("PhysicalMaterialBuilder").PropertyTable.SetBaseScalarWithDataPropertyValue
+    assert stored.calls[0][0][1] == pytest.approx(kg_m3)
+
+
+@pytest.mark.parametrize("density", ["1.2 furlongs", "heavy", "0 g/cm3", "2000 g/cm3"])
+def test_unreadable_custom_density_is_refused_before_nx(density):
+    nx = library_nx()
+    nx.block(10, 10, 10)
+    bad = run(nx, "nx_set_material", material={"custom": {"name": "PLA", "density": density}})
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == "/material/custom/density"
+    assert bad.mutation_outcome == "not_started"
+    assert not any(b.kind == "PhysicalMaterialBuilder" for b in nx.builders)
+    if "furlongs" in density:
+        assert "g/cm3" in bad.error["hint"] and "lb/in3" in bad.error["hint"]
+
+
+def test_custom_clash_suggests_a_free_name_and_bare_name_reuses_it():
+    nx = library_nx()
+    one, two = nx.block(10, 10, 10), nx.block(5, 5, 5, origin=(50, 0, 0))
+    kg = NS(Tag=1)
+    nx.part.UnitCollection = NS(FindObject=lambda name: kg)
+
+    def committed(b):
+        made = nx.Material(
+            b.Name, b.PropertyTable.SetBaseScalarWithDataPropertyValue.calls[0][0][1]
+        )
+        table = NS(GetBaseScalarWithDataPropertyValue=lambda name: (made.density, kg))
+        made.GetPropTable = lambda: table
+        nx.materials.append(made)
+        return made
+
+    nx.on_commit("PhysicalMaterialBuilder", committed)
+    made = run(nx, "nx_set_material", bodies=[one.ref],
+               material={"custom": {"name": "PLA", "density": 1240}})  # fmt: skip
+    assert made.ok, made
+    clash = run(nx, "nx_set_material", bodies=[two.ref],
+                material={"custom": {"name": "pla", "density": 1300}})  # fmt: skip
+    assert clash.error["code"] == "NX_ALREADY_EXISTS", clash
+    assert clash.mutation_outcome == "not_started" and "density 1240" in clash.error["message"]
+    assert clash.error["details"]["free_name"] == "PLA_1300"
+    assert "'PLA_1300'" in clash.error["hint"] and "bare name 'PLA'" in clash.error["hint"]
+    reuse = run(nx, "nx_set_material", bodies=[two.ref], material="PLA")
+    assert reuse.ok and reuse.data["items"][0]["material"] == "PLA", reuse
+    assert reuse.data["items"][0]["density"] == pytest.approx(1240.0)
+    assert reuse.data["items"][0]["library"] is None
+
+
+def test_list_query_ranks_names_and_ignores_spelling():
+    names = {
+        "Stainless_Steel": {"Category": "METAL"},
+        "Steel_Rolled": {"Category": "METAL"},
+        "Steel": LIBRARY["Steel"],
+        "Aluminum_6061": LIBRARY["Aluminum_6061"],
+        "ABS": LIBRARY["ABS"],
+    }
+    nx = library_nx(names)
+    steel = run(nx, "nx_list_materials", query="steel")
+    assert [r["name"] for r in steel.data["items"]] == ["Steel", "Steel_Rolled", "Stainless_Steel"]
+    assert not steel.warnings
+    british = run(nx, "nx_list_materials", query="Aluminium 6061")
+    assert [r["name"] for r in british.data["items"]] == ["Aluminum_6061"], british
+    plastic = run(nx, "nx_list_materials", query="abs plastic")
+    assert [r["name"] for r in plastic.data["items"]] == ["ABS"], plastic
+    none = run(nx, "nx_list_materials", query="steal")
+    assert none.ok and none.data["items"] == [] and none.warnings, none
+    assert "close names: Steel" in none.warnings[0]["message"]
+
+
+def test_get_material_notes_default_density_and_empty_assembly():
+    nx = library_nx()
+    nx.block(10, 10, 10)
+    bare = run(nx, "nx_get_material")
+    assert bare.ok and bare.data["items"][0]["material"] is None, bare
+    assert "1 of 1 bodies have no material" in bare.warnings[0]["message"]
+    empty = run(nx, "nx_get_material", scope="assembly")
+    assert empty.ok and empty.data["items"] == [], empty
+    assert "no components" in empty.warnings[0]["message"]
+    run(nx, "nx_set_material", material="Steel")
+    assert not run(nx, "nx_get_material").warnings

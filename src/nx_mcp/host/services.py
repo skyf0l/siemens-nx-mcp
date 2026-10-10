@@ -23,7 +23,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import PREFIX, Counter, References, Row
 from nx_mcp.core.tx import Services
-from nx_mcp.kit import builders, display, drawing, units
+from nx_mcp.kit import builders, display, drawing, expr, units
 
 APPLICATIONS = {
     "UG_APP_MODELING": "modeling",
@@ -156,6 +156,9 @@ class NXServices(Services):
         self.owned_parts: dict = {}  # created or opened by the agent
         self.granted_parts: dict = {}  # allowed by the engineer on the panel
         self._generations: dict = {}  # part tag -> generation of this session
+        # Registry entries a commit retired (consumed faces, deleted features): an undo
+        # that brings the same NX object back (same tag) revives the handle and its refs.
+        self._retired: dict = {}
         state = Path(workspace.root) / ".nx-mcp" / "refs.json"
         self.references = References(self, Counter(state))
 
@@ -247,6 +250,9 @@ class NXServices(Services):
 
     def sheet_units(self, sheet) -> str:
         return units.sheet_units(self, sheet)  # needs only ``.nx``
+
+    def evaluate_formula(self, formula, dim, unit, *, field=None, scratch=False) -> float:
+        return expr.evaluate(self, formula, dim, unit, field=field, scratch=scratch)
 
     def infer_kind(self, obj, default: str | None = "error"):
         for path, kind in _KIND_BY_CLASS:
@@ -450,16 +456,22 @@ class NXServices(Services):
                 )
             if kind in PREFIX:
                 return self.references.row(obj, kind)
+        part_ref = None
         for ref, known in self.references._entries.items():
             if known.handle == handle:
                 return {"id": ref, "kind": known.kind, "name": known.name, "part": known.part_id}
+            if known.kind == "part" and known.part_key == entry.get("part_id"):
+                part_ref = ref
+        # A deleted object that never had a short ref: no id (a registry handle looks
+        # like a ref but resolves to nothing), its part as the part's short ref.
+        kind = entry.get("kind")
         row = {
-            "id": handle,
-            "kind": entry.get("kind"),
+            "kind": "section_view" if kind == "section" else kind,
             "name": entry.get("name") or entry.get("display_name") or "",
-            "part": entry.get("part_id"),
+            "part": part_ref or entry.get("part_id"),
+            "gone": True,
         }
-        return cast(Row, row)  # an unknown object: its snapshot may lack id, kind or part
+        return cast(Row, row)  # an unknown object: its snapshot may lack kind or part
 
     def feature_errors(self, part, before: dict, mark) -> list:
         """New features of the call that report update errors (gate 11).
@@ -537,22 +549,46 @@ class NXServices(Services):
             with contextlib.suppress(Exception):
                 clear()
 
-    def invalidate(self, before: dict, after: dict, topology: bool) -> None:
-        """Retire the IDs of deleted objects (and of every face and edge for a
-        topology change)."""
-        objects = self.objects
+    def invalidate(self, before: dict, after: dict, topology: bool) -> set:
+        """After a committed call: retire the handles of deleted objects and, for a
+        topology change, of the faces and edges that NX no longer has.
+
+        Refs follow NX's persistent object identity (the tag). NX 2406 keeps the tag of
+        a face or edge a feature did not consume, also when the feature changed its
+        geometry (measured live: the top face through a pocket, hole faces through four
+        symbolic threads, every untouched edge through a blend): such refs stay live
+        and name the same, possibly reshaped, face. A consumed face or edge leaves its
+        body's face/edge list (its wrapper may keep a non-zero tag) and is retired.
+        Returns the retired handles."""
         removed = {v["id"] for k, v in before.items() if k not in after}
-        for key, entry in list(objects._objects.items()):
-            if key in removed or (topology and entry.reference.kind in {"face", "edge"}):
-                objects._objects.pop(key, None)
-                objects._stale_ids.add(key)
-        objects._identities = {
-            k: v for k, v in objects._identities.items() if v in objects._objects
-        }
+        dead = self._dead_handles(None, kinds={"face", "edge"}) if topology else set()
+        return self._retire(removed | dead)
+
+    _RETIRED_KEPT = 5000  # retired entries an undo may revive (oldest dropped first)
+
+    def _retire(self, handles) -> set:
+        objects = self.objects
+        retired = {h for h in handles if h in objects._objects}
+        for handle in retired:
+            self._retired[handle] = objects._objects.pop(handle)
+            objects._stale_ids.add(handle)
+        for handle in list(self._retired)[: max(0, len(self._retired) - self._RETIRED_KEPT)]:
+            del self._retired[handle]
+        if retired:
+            objects._identities = {
+                k: v for k, v in objects._identities.items() if v in objects._objects
+            }
+        return retired
 
     def invalidate_parts(self, parts) -> None:
-        for part in parts:
-            self.objects.invalidate_part(self.part_key(part))
+        keys = {self.part_key(part) for part in parts}
+        for key in keys:
+            self.objects.invalidate_part(key)
+        self._forget_retired(keys)
+
+    def _forget_retired(self, keys) -> None:
+        """No undo revives a handle of these parts any more."""
+        self._retired = {h: e for h, e in self._retired.items() if e.reference.part_id not in keys}
 
     _UNDO_COLLECTIONS = {
         "body": "Bodies",
@@ -563,48 +599,96 @@ class NXServices(Services):
         "datum": "Datums",
     }
 
-    def retire_undone(self, parts) -> set:
-        """After an undo: retire the handles of ``parts`` whose object did not come back.
+    def retire_undone(self, parts, revive: bool = True) -> set:
+        """After an undo (or an engineer's edit): retire the handles of ``parts`` whose
+        object did not come back.
 
         NX 2406 undo restores the same objects under the same tags (measured live for
         the part, bodies, features, sketches, faces and edges after UndoToMark of a
         committed unite, a feature delete and a feature edit). A handle stays live when
         its wrapper still has a non-zero tag that is again in its part's collection
-        (faces and edges: of the part's bodies); kinds without a collection, and
-        occurrences, only need the non-zero tag."""
-        objects = self.objects
-        retired: set[str] = set()
+        (faces and edges: of the part's bodies; occurrences: their prototype in its
+        part); kinds without a collection only need the non-zero tag. ``revive``: also
+        revive handles an earlier commit retired whose object came back (:meth:`_revive`)."""
+        keys = set()
         for part in parts:
-            try:
-                key = self.part_key(part)
-            except Exception:
-                continue
-            live: dict[str, set | None] = {}
-            for handle, entry in list(objects._objects.items()):
-                if entry.reference.part_id != key:
-                    continue
-                kind = entry.reference.kind
-                try:
-                    tag = int(entry.value.Tag)
-                    if getattr(entry.value, "IsOccurrence", False):
-                        known = None
-                    else:
-                        if kind not in live:
-                            live[kind] = self._undo_tags(part, kind)
-                        known = live[kind]
-                    alive = tag != 0 and (known is None or tag in known)
-                except Exception:
-                    alive = False
-                if not alive:
-                    retired.add(handle)
-        for handle in retired:
-            objects._objects.pop(handle, None)
-            objects._stale_ids.add(handle)
-        if retired:
-            objects._identities = {
-                k: v for k, v in objects._identities.items() if v in objects._objects
-            }
+            with contextlib.suppress(Exception):
+                keys.add(self.part_key(part))
+        retired = self._retire(self._dead_handles(keys))
+        if revive:
+            self._revive(keys)
         return retired
+
+    def _revive(self, part_keys: set) -> set:
+        """Handles an earlier commit retired whose NX object an undo brought back: the
+        same wrapper again has its non-zero tag in its part (NX 2406 undo restores the
+        tag, which NX keeps reserved while the undo mark exists). Their refs work again;
+        a handle whose object meanwhile got a new handle stays retired."""
+        objects = self.objects
+        dead = self._dead_handles(part_keys, entries=self._retired)
+        revived = set()
+        for handle, entry in list(self._retired.items()):
+            ref = entry.reference
+            if handle in dead or ref.part_id not in part_keys:
+                continue
+            key = (ref.part_id, ref.kind, str(int(entry.value.Tag)))
+            if objects._identities.get(key) in objects._objects:
+                continue
+            objects._objects[handle] = self._retired.pop(handle)
+            objects._stale_ids.discard(handle)
+            objects._identities[key] = handle
+            revived.add(handle)
+        return revived
+
+    def _dead_handles(
+        self, part_keys: set | None, kinds: set | None = None, entries: dict | None = None
+    ) -> set:
+        """Handles (of ``part_keys``, of registry ``kinds``; None = all; of ``entries``,
+        default the registry) whose object NX no longer has: tag 0, or a tag missing
+        from its part's live collection."""
+        by_key: dict = {}
+        with contextlib.suppress(Exception):
+            by_key = {self.part_key(p): p for p in self.parts()}
+        live: dict = {}
+
+        def known(part, kind):
+            key = (int(part.Tag), kind)
+            if key not in live:
+                live[key] = self._undo_tags(part, kind)
+            return live[key]
+
+        dead: set[str] = set()
+        for handle, entry in list((self.objects._objects if entries is None else entries).items()):
+            ref = entry.reference
+            if part_keys is not None and ref.part_id not in part_keys:
+                continue
+            if kinds is not None and ref.kind not in kinds:
+                continue
+            try:
+                value = entry.value
+                tag = int(value.Tag)
+                if tag == 0:
+                    alive = False
+                elif getattr(value, "IsOccurrence", False):
+                    alive = self._occurrence_alive(value, ref.kind, known)
+                else:
+                    part = by_key.get(ref.part_id)
+                    tags = known(part, ref.kind) if part is not None else None
+                    alive = part is not None and (tags is None or tag in tags)
+            except Exception:
+                alive = False
+            if not alive:
+                dead.add(handle)
+        return dead
+
+    def _occurrence_alive(self, value, kind: str, known) -> bool:
+        """An occurrence face or edge lives while its prototype does; other occurrences
+        (components, bodies) only need the non-zero tag."""
+        if kind not in ("face", "edge"):
+            return True
+        prototype = value.Prototype
+        tags = known(prototype.OwningPart, kind)
+        return int(prototype.Tag) != 0 and (tags is None or int(prototype.Tag) in tags)
 
     def _undo_tags(self, part, kind: str) -> set | None:
         """Tags of ``part``'s objects of registry ``kind``; None when NX cannot list them
@@ -628,6 +712,7 @@ class NXServices(Services):
         keys = set(keys)
         if not keys:
             return
+        self._forget_retired(keys)
         for key in keys:
             self.objects.invalidate_part(key)
             self.owned_parts.pop(key, None)
@@ -636,15 +721,25 @@ class NXServices(Services):
             if any(key.endswith("_" + generation) for key in keys):
                 self._generations.pop(tag, None)
         self.history[:] = [h for h in self.history if h.get("part_id") not in keys]
-        for name in [k for k, v in self.checkpoints.items() if v.get("part_id") in keys]:
-            del self.checkpoints[name]
+        for cp in self.checkpoints.values():  # listed as expired, never dropped silently
+            if cp.get("part_id") in keys:
+                cp.setdefault("expired", "part_closed")
 
     def engineer_changed(self) -> None:
-        """The engineer edited the model between agent calls: no reference resolves
-        across the edit and no undo or checkpoint reaches back over it."""
+        """The engineer edited the model between agent calls: no undo or checkpoint
+        reaches back over the edit (checkpoints stay listed, expired). References are
+        re-validated by the host (:meth:`revalidate`), not dropped."""
         self.history.clear()
-        self.checkpoints.clear()
+        for cp in self.checkpoints.values():
+            cp.setdefault("expired", "engineer_change")
         self.epoch += 1
+
+    def revalidate(self) -> dict:
+        """After an edit the agent did not make (the engineer's, or NX's own): keep the
+        refs of every object that is still in its part, re-bind anchored refs by
+        anchor, retire the rest. Part refs of loaded parts always stay."""
+        retired = self.retire_undone(self.parts(), revive=False)  # no undo: revive nothing
+        return self.references.rebind(retired)
 
     def refreshers(self) -> dict:
         return dict(catalogue.hooks("refresher"))
@@ -808,5 +903,8 @@ class NXServices(Services):
         if spec.effect != "read":
             self.epoch += 1
 
-    def after_failure(self, spec) -> None:
-        self.after_commit(spec)
+    def after_failure(self, spec, outcome: str | None = None) -> None:
+        """A failed call moves the review epoch only when it may have changed something:
+        a refusal (``not_started``) or a failed read changed nothing."""
+        if outcome not in ("not_started", "not_applicable"):
+            self.after_commit(spec)

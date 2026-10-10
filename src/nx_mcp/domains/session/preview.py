@@ -12,15 +12,22 @@ Refs in the step results are stale; the input refs the steps named are re-issued
 (``references``: old -> new) because the rollback invalidates the part's refs.
 
 ``nx_finish_preview`` with ``accept`` re-applies exactly the previewed calls under one
-undo mark, only while nothing else changed the session since the preview (the
-services' ``revision`` counter, bumped once by the preview call's own commit) and the
-work part is the same; otherwise ``NX_STALE_PREVIEW``. ``discard`` drops the preview.
-Previews live in the NX host process (the 20 newest); a host reload forgets them.
+undo mark, only on the same work part and while nothing changed the model since the
+preview: either nothing changed the session (the services' ``revision`` counter, bumped
+once by the preview call's own commit), or the work part still has the same objects,
+expressions, volume, bounds and counts as before the preview (a refused call, a rename
+or another discarded preview in between bump the counter but change no geometry; the
+result then warns). Otherwise ``NX_STALE_PREVIEW`` names what changed. ``discard``
+drops the preview and changes nothing (``mutation_outcome`` ``not_applicable``);
+discarding an expired preview is a no-op. ``preview_id`` takes the bare 32 hex digits
+too. Previews live in the NX host process (the 20 newest); a host reload forgets them;
+the last 200 finished ids are remembered so a repeated finish says what happened.
 """
 
 from __future__ import annotations
 
 import copy
+import math
 import re
 import uuid
 import weakref
@@ -39,11 +46,25 @@ from nx_mcp.kit import display, files, measure
 
 MAX_STEPS = 25
 KEEP = 20
+REMEMBER = 200  # finished preview ids kept to explain a repeated finish
 SHORT_REF = re.compile(r"^[a-z]{1,3}:[1-9][0-9]{0,11}$")
-PreviewId = Annotated[str, Text(64, r"^preview_[0-9a-f]{32}$"), Doc("From nx_preview_changes")]
+PreviewId = Annotated[
+    str,
+    Text(64, r"^(preview_)?[0-9a-fA-F]{32}$"),
+    Doc("'preview_' + 32 hex, from nx_preview_changes"),
+]
 
 # services -> {preview_id: stored preview}, oldest first
 _STORES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+# services -> {preview_id: how it finished}, oldest first
+_FINISHED: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_FATE = {
+    "accepted": "was already accepted: its changes are in the model",
+    "discarded": "was already discarded",
+    "stale": "expired: the model changed after it, so accept was refused",
+    "evicted": f"expired: only the {KEEP} newest previews are kept",
+    "failed": "was consumed by an accept that failed and was rolled back",
+}
 
 
 class ModelState(TypedDict):
@@ -74,12 +95,25 @@ class PreviewData(TypedDict, total=False):
 class FinishData(TypedDict, total=False):
     preview_id: str
     action: str
+    state: str  # applied, discarded, or already_finished (a discard of a finished preview)
     results: list[StepResult]
     count: int
 
 
 def _store(services) -> OrderedDict:
     return _STORES.setdefault(services, OrderedDict())
+
+
+def _finish(services, preview_id: str, fate: str) -> None:
+    done = _FINISHED.setdefault(services, OrderedDict())
+    done[preview_id] = fate
+    done.move_to_end(preview_id)
+    while len(done) > REMEMBER:
+        done.popitem(last=False)
+
+
+def _canonical(preview_id: str) -> str:
+    return "preview_" + preview_id.lower().removeprefix("preview_")
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +156,36 @@ def _expressions(tx) -> dict[str, str | None]:
     with native(default="NX_ERROR"):
         for e in getattr(tx.part, "Expressions", []) or []:
             out[str(e.Name)] = getattr(e, "RightHandSide", None)
+    return out
+
+
+def _fingerprint(tx, state: ModelState, formulas: dict) -> dict:
+    """What accept compares when the session counter moved: the work part's object set
+    (kind, tag), expressions and model state."""
+    keys = sorted((str(k), str(t)) for k, t in tx.services.snapshot(tx.part))
+    return {"objects": keys, "expressions": dict(formulas), "state": state}
+
+
+def _same_state(a, b) -> bool:
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-9)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same_state(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same_state(a[k], b[k]) for k in a)
+    return a == b
+
+
+def _changed(then: dict, now: dict) -> list[str]:
+    """Which parts of the fingerprint differ (empty: the model is as previewed)."""
+    out = []
+    if then["objects"] != now["objects"]:
+        out.append("objects")
+    if then["expressions"] != now["expressions"]:
+        out.append("expressions")
+    for key in ("volume", "bounds", "counts", "health"):
+        if not _same_state(then["state"].get(key), now["state"].get(key)):
+            out.append(key)
     return out
 
 
@@ -278,6 +342,7 @@ def nx_preview_changes(
         part_key = services.part_key(part)
         before = _state(tx)
         formulas = _expressions(tx)
+        fingerprint = _fingerprint(tx, before, formulas)
     total = len(operations)
     tx.checkpoint(done=0, total=total)
     image = None
@@ -299,9 +364,10 @@ def nx_preview_changes(
         "part": part_key,
         # This call's own commit (Services.after_commit) bumps the counter once.
         "revision": services.revision() + 1,
+        "fingerprint": fingerprint,
     }
     while len(store) > KEEP:
-        store.popitem(last=False)
+        _finish(services, store.popitem(last=False)[0], "evicted")
     names = sorted(set(formulas) | set(changed))
     return {
         "preview_id": preview_id,
@@ -338,32 +404,80 @@ def nx_finish_preview(
     action: Literal["accept", "discard"],
 ) -> FinishData:
     """Accept re-applies exactly the previewed calls under one undo mark; discard drops them.
-    Accept works only while nothing changed the session since the preview (else
-    NX_STALE_PREVIEW)."""
+    Accept fails with NX_STALE_PREVIEW if the model changed; use the refs it returns."""
     services = tx.services
     store = _store(services)
+    preview_id = _canonical(preview_id)
     with tx.checks():
         preview = store.get(preview_id)
         if preview is None:
-            fail("NX_STALE_PREVIEW", "Unknown or already finished preview", field="/preview_id",
-                 hint="Create a fresh preview with nx_preview_changes")  # fmt: skip
+            return _gone(tx, preview_id, action)
+        del store[preview_id]  # finishing consumes the preview, applied or refused
         if action == "discard":
-            del store[preview_id]
-            return {"preview_id": preview_id, "action": "discard", "results": [], "count": 0}
-        del store[preview_id]  # accept consumes the preview, applied or refused
-        if (
-            services.revision() != preview["revision"]
-            or services.part_key(tx.part) != preview["part"]
-        ):
-            fail("NX_STALE_PREVIEW", "The session changed since the preview",
-                 field="/preview_id", hint="Create a fresh preview with nx_preview_changes",
-                 details={"preview_id": preview_id})  # fmt: skip
+            _finish(services, preview_id, "discarded")
+            tx.outcome = "not_applicable"  # nothing in NX changed
+            return {"preview_id": preview_id, "action": "discard", "state": "discarded",
+                    "results": [], "count": 0}  # fmt: skip
+        _fresh(tx, preview_id, preview)
         mapping = _reissue(tx, preview["objects"])
+    _finish(services, preview_id, "failed")  # until every step ran
     total = len(preview["operations"])
     tx.checkpoint(done=0, total=total)
-    results = []
+    results: list[StepResult] = []
     for index, step in enumerate(preview["operations"]):
         child = tx.run(step["tool"], _translate(step["arguments"], mapping), mode="preview")
         results.append({"index": index, **child})
     tx.checkpoint(done=total)
-    return {"preview_id": preview_id, "action": "accept", "results": results, "count": total}  # type: ignore[typeddict-item]  # child result dicts
+    _finish(services, preview_id, "accepted")
+    return {
+        "preview_id": preview_id,
+        "action": "accept",
+        "state": "applied",
+        "results": results,
+        "count": total,
+    }
+
+
+def _gone(tx, preview_id: str, action: str) -> FinishData:
+    """A preview no longer in the store: discarding an expired or discarded one is a
+    no-op; anything else says what happened to it."""
+    fate = _FINISHED.get(tx.services, {}).get(preview_id)
+    if action == "discard" and fate in ("discarded", "stale", "evicted", "failed"):
+        tx.outcome = "not_applicable"
+        return {"preview_id": preview_id, "action": "discard", "state": "already_finished",
+                "results": [], "count": 0}  # fmt: skip
+    if fate == "accepted":
+        fail("NX_STALE_PREVIEW", f"{preview_id} {_FATE[fate]}", field="/preview_id",
+             hint="Undo it with nx_undo_operation; use the refs from the accept result",
+             details={"preview_id": preview_id, "finished": fate})  # fmt: skip
+    if fate is not None:
+        fail("NX_STALE_PREVIEW", f"{preview_id} {_FATE[fate]}", field="/preview_id",
+             hint="Create a fresh preview with nx_preview_changes",
+             details={"preview_id": preview_id, "finished": fate})  # fmt: skip
+    fail("NX_STALE_PREVIEW",
+         f"Unknown preview {preview_id}: not made in this NX session (a host reload "
+         "forgets previews)", field="/preview_id",
+         hint="Create a fresh preview with nx_preview_changes and use its preview_id")  # fmt: skip
+
+
+def _fresh(tx, preview_id: str, preview: dict) -> None:
+    """Refuse the accept unless the model is as previewed (see the module docstring)."""
+    services = tx.services
+    if services.part_key(tx.part) != preview["part"]:
+        _finish(services, preview_id, "stale")
+        fail("NX_STALE_PREVIEW", "The work part changed since the preview",
+             field="/preview_id", details={"preview_id": preview_id, "changed": ["work_part"]},
+             hint="Make the previewed part the work part and preview again")  # fmt: skip
+    if services.revision() == preview["revision"]:
+        return
+    changed = _changed(preview["fingerprint"], _fingerprint(tx, _state(tx), _expressions(tx)))
+    if changed:
+        _finish(services, preview_id, "stale")
+        fail("NX_STALE_PREVIEW", "The model changed since the preview: " + ", ".join(changed),
+             field="/preview_id", hint="Create a fresh preview with nx_preview_changes",
+             details={"preview_id": preview_id, "changed": changed})  # fmt: skip
+    tx.warn(
+        "NX_UPDATE_WARNING",
+        "Other calls ran since the preview, but the work part's objects, expressions, "
+        "volume and bounds are as previewed: the previewed steps were applied",
+    )

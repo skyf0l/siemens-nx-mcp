@@ -197,6 +197,112 @@
    }
   },
   {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk2_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk2_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       50
+      ],
+      "corner2": [
+       40,
+       70
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk2_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk2",
+   "args": {
+    "sketch": "$blk2_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side2",
+   "args": {
+    "owner": "$blk2.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     1,
+     0,
+     0
+    ],
+    "limit": 1,
+    "order": "nearest",
+    "near": [
+     40,
+     60,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bot2",
+   "args": {
+    "owner": "$blk2.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "limit": 1,
+    "order": "lowest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_draft",
+   "args": {
+    "faces": [
+     "$side2.data.items.0.id"
+    ],
+    "stationary_face": "$bot2.data.items.0.id",
+    "direction": "z",
+    "angle": "5deg"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7912.511336474076,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
    "call": "nx_find_geometry",
    "setup": true,
    "save": "bot",

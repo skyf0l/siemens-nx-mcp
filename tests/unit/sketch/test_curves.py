@@ -283,3 +283,105 @@ def test_loops_flag_branches_and_open_ends():
         {"closed": True, "curves": 1}
     ]
     assert loops([]) == []
+
+
+def test_circles_and_arcs_take_a_diameter_instead_of_a_radius():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    ok = _curves(
+        nx,
+        sk,
+        {"type": "circle", "center": [0, 0], "diameter": 8},
+        {"type": "arc", "center": [20, 0], "diameter": 10, "start_angle": 0, "end_angle": 90},
+    )
+    assert ok.ok, ok
+    assert [r["radius"] for r in ok.data["curves"]] == pytest.approx([4, 5])
+
+
+@pytest.mark.parametrize(
+    ("curve", "field", "text"),
+    [
+        ({"type": "circle", "center": [0, 0], "radius": 4, "diameter": 8}, "/curves/0/diameter",
+         "not both"),
+        ({"type": "circle", "center": [0, 0]}, "/curves/0/radius", "radius (or diameter)"),
+        ({"type": "arc", "center": [0, 0], "start_angle": 0, "end_angle": 90},
+         "/curves/0/radius", "radius (or diameter)"),
+    ],
+)  # fmt: skip
+def test_circle_size_needs_exactly_one_of_radius_and_diameter(curve, field, text):
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    bad = _curves(nx, sk, curve)
+    assert bad.error["field"] == field and text in bad.error["message"], bad
+    assert bad.mutation_outcome == "not_started" and sk.geometry == []
+
+
+# ---- natural edits -----------------------------------------------------------------
+
+
+def test_shape_edits_keep_omitted_fields_and_take_natural_types():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    circle = nx.arc(sk, (20, 0, 0), 5, 0, 360)
+    arc = nx.arc(sk, (40, 0, 0), 5, 0, 90)
+    ok = _edit(
+        nx,
+        sk,
+        {"type": "Line", "curve": nx.cref(line), "end": [0, 12]},
+        {"type": "circle", "curve": nx.cref(circle), "radius": 7},
+        {"type": "ARC", "curve": nx.cref(arc), "center": [45, 0]},
+    )
+    assert ok.ok, ok
+    rows = [e["curves"][0] for e in ok.data["edits"]]
+    assert rows[0]["start"] == pytest.approx([0, 0]) and rows[0]["end"] == pytest.approx([0, 12])
+    assert rows[1]["center"] == pytest.approx([20, 0]) and rows[1]["radius"] == 7
+    assert rows[2]["center"] == pytest.approx([45, 0]) and rows[2]["end_angle"] == pytest.approx(90)
+    half = _edit(nx, sk, {"type": "arc", "curve": nx.cref(arc), "start_angle": 0})
+    assert half.error["field"] == "/edits/0/end_angle", half
+    empty = _edit(nx, sk, {"type": "line", "curve": nx.cref(line)})
+    assert empty.error["field"] == "/edits/0" and "Nothing to change" in empty.error["message"]
+    wrong = _edit(nx, sk, {"type": "arc", "curve": nx.cref(line), "radius": 3})
+    assert wrong.error["code"] == "NX_WRONG_GEOMETRY" and "type line" in wrong.error["hint"]
+
+
+def test_extend_picks_the_end_facing_the_boundary_and_says_when_nothing_grew():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    boundary = nx.line(sk, (0, -5, 0), (0, 5, 0))
+    short = nx.line(sk, (-5, 3, 0), (-2, 3, 0))
+    nx.on_commit("QuickExtendBuilder", lambda b: setattr(short, "EndPoint", P([0, 3, 0])))
+    ok = _edit(
+        nx, sk, {"type": "extend", "curve": nx.cref(short), "boundaries": [nx.cref(boundary)]}
+    )
+    assert ok.ok, ok
+    pick = nx.last("QuickExtendBuilder").ExtendedCurves.Add.calls[-1][0][2]
+    assert pytest.approx([-2.15, 3]) == [pick.X, pick.Y]
+    nx.on_commit("QuickExtendBuilder", lambda b: None)  # no boundary on the extension
+    bad = _edit(
+        nx, sk, {"type": "extend", "curve": nx.cref(short), "boundaries": [nx.cref(boundary)],
+                 "pick": [-4, 3]},
+    )  # fmt: skip
+    assert bad.error["category"] == "invalid_argument", bad
+    assert bad.error["field"] == "/edits/0/boundaries" and "did not extend" in bad.error["message"]
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_trim_that_would_delete_the_whole_curve_is_refused():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    boundary = nx.line(sk, (40, 0, 0), (40, 10, 0))
+    cut = nx.line(sk, (-5, -5, 0), (41, -5, 0))
+    nx.on_commit("QuickTrimBuilder", lambda b: sk.geometry.remove(cut))  # NX deletes it
+    bad = _edit(
+        nx, sk, {"type": "trim", "curve": nx.cref(cut), "boundaries": [nx.cref(boundary)],
+                 "pick": [41, -5]},
+    )  # fmt: skip
+    assert bad.error["category"] == "invalid_argument", bad
+    assert "No boundary crosses" in bad.error["message"] and "delete" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back" and cut in sk.geometry
+    no_pick = _edit(
+        nx, sk, {"type": "trim", "curve": nx.cref(cut), "boundaries": [nx.cref(boundary)]}
+    )
+    assert no_pick.error["field"] == "/edits/0/pick", no_pick
+    assert no_pick.error["hint"].startswith("trim takes curve, boundaries, pick (required)")

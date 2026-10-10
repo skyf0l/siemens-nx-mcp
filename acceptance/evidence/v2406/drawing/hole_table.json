@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/hole_table.json",
-  "scenario_sha256": "560598c5e9bc47f5357d5ca8670e447803254c67095002d64ab5af96bba9089a",
+  "scenario_sha256": "1e6111fdb493c116a227e0a9dd620cbffeb5e8b6854e8b693ce7aec6d7ec9a6e",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_table": [
@@ -14,12 +14,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_table": "89a142146775136a5c9b26dcbf618084038fe73075138817e9153da71d65e040",
-    "nx_edit_drawing_table": "89a142146775136a5c9b26dcbf618084038fe73075138817e9153da71d65e040"
+    "nx_create_drawing_table": "d0401e2c23ea16e6f9e49b657bc8ebb8a82069cfbae82d837f50dcc1a9cc8c99",
+    "nx_edit_drawing_table": "d0401e2c23ea16e6f9e49b657bc8ebb8a82069cfbae82d837f50dcc1a9cc8c99"
   },
-  "recorded": "2026-10-10T13:21:01Z",
+  "recorded": "2026-10-10T23:26:09Z",
   "passed": true,
-  "checks": 33,
+  "checks": 40,
   "failed_checks": 0,
   "steps": [
     {
@@ -150,62 +150,90 @@
     },
     {
       "index": 19,
-      "call": "nx_get_feature",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 20,
-      "call": "nx_edit_feature",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 21,
-      "call": "nx_update_annotations",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 22,
-      "call": "nx_get_drawing_table",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
-      "index": 23,
-      "call": "nx_create_drawing_sheet",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 24,
-      "call": "nx_create_drawing_view",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 25,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
+      "index": 20,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 21,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_get_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
       "index": 26,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 27,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 30,
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,
       "checks": 8
     },
     {
-      "index": 27,
+      "index": 31,
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,

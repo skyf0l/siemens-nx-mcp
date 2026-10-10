@@ -28,6 +28,8 @@ from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import files, parts, readback, result
 
 MANIFEST = "nx-assembly-manifest.json"
+FORMAT_DOC = "Default: zip for a .zip path, clone when prefix is given"
+PREFIX_DOC = "Required for clone: copies are named <prefix><name>"
 CLONE_MANIFEST = "nx-project-manifest.json"
 CLONE_API = ("Initialise", "SetDefAction", "AddAssembly", "SetNaming", "PerformClone", "Terminate")
 
@@ -64,51 +66,87 @@ def _sources(tx, part) -> tuple[list[Path], int]:
             details={"components": unloaded[:50]},
         )
     found: dict[str, Path] = {}
+    unsaved: list = []
     for p in [part, *(c.Prototype for c, _ in occurrences)]:
         file = parts.in_workspace(tx, p, field=None)
-        found.setdefault(str(file).casefold(), file)
+        key = str(file).casefold()
+        if key in found:
+            continue
+        found[key] = file
         if p.IsModified:
-            fail(
-                "NX_UNSAVED_PART",
-                f"Save {files.relative(file, root)} before exporting the assembly",
-                hint="Save it with nx_save_part",
-                details={"part": files.relative(file, root)},
-            )
-        if not file.is_file():
+            unsaved.append((p, file))
+        elif not file.is_file():
             fail("NX_FILE_NOT_FOUND", f"{files.relative(file, root)} is not on disk")
+    if unsaved:
+        names = [files.relative(f, root) for _, f in unsaved]
+        fail(
+            "NX_UNSAVED_PART",
+            f"Save {', '.join(names[:5])}{' ...' if len(names) > 5 else ''} before exporting "
+            "the assembly (the assembly and every component file are copied as saved)",
+            hint="Save each with nx_save_part(part=<ref from details.parts>), then retry",
+            details={"part": names[0], "parts": [tx.ref(p, "part") for p, _ in unsaved[:50]]},
+        )
     return sorted(found.values()), len(occurrences)
+
+
+def _format_of(a: dict) -> str:
+    """The requested format, else zip for a .zip path and clone with a prefix."""
+    if a.get("format"):
+        return str(a["format"])
+    if str(a.get("path", "")).lower().endswith(".zip"):
+        return "zip"
+    return "clone" if a.get("prefix") else ""
+
+
+def _summary(a: dict, say) -> str:
+    verb = {"zip": "Package assembly as", "clone": "Clone assembly to"}
+    return f"{verb.get(_format_of(a), 'Export assembly to')} {say('path')}"
 
 
 @tool(
     effect="file",
     label="Export assembly",
-    summary={"zip": "Package assembly as {path}", "clone": "Clone assembly to {path}"},
+    summary=_summary,
     keywords=("pack and go", "package assembly", "zip project", "clone assembly", "copy project"),
     variants="format",
     requires=("work_part", "no_active_sketch"),
     cost="long",
-    example={"path": "exports/asm1.zip", "format": "zip"},
+    example={"path": "exports/asm1.zip"},
 )
 def nx_export_assembly(
     tx: Tx,
     *,
-    path: Annotated[str, PathTo("new")],
-    format: Literal["zip", "clone"],
-    prefix: Annotated[str, Text(32, r"^[A-Za-z0-9_-]{1,32}$"), Doc("clone: file name prefix")]
-    | None = None,
+    path: Annotated[str, PathTo("new"), Doc("New .zip (zip) or new folder (clone)")],
+    format: Annotated[Literal["zip", "clone"], Doc(FORMAT_DOC)] | None = None,
+    prefix: Annotated[str, Text(32, r"^[A-Za-z0-9_-]{1,32}$"), Doc(PREFIX_DOC)] | None = None,
     activate: Annotated[bool, Doc("clone: leave the copy open as work part")] = False,
 ) -> AssemblyExportData:
     """Copy the saved work part with all its component files into a new .zip or a clone
     folder. zip adds a SHA-256 manifest; clone renames every file <prefix><name>. Unsaved
     or unloaded parts are refused."""
     target = Path(path)
+    if format is None:
+        if target.suffix.lower() == ".zip":
+            format = "zip"
+        elif prefix is not None:
+            format = "clone"
+        else:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "Give a path ending in .zip (zip package), or a new folder path with prefix "
+                "(clone)",
+                field="/format",
+                hint="e.g. {path: 'exports/asm.zip'} or {path: 'exports/asm_v2', prefix: 'v2_'}",
+            )
     if format == "zip":
         if prefix is not None or activate:
-            fail("NX_INVALID_ARGUMENT", "prefix and activate apply to clone only", field="/prefix")
+            fail("NX_INVALID_ARGUMENT", "prefix and activate apply to clone only", field="/prefix",
+                 hint="Omit prefix and activate for a zip package")  # fmt: skip
         if target.suffix.lower() != ".zip":
             fail("NX_UNSUPPORTED_FILE_TYPE", "A package path ends in .zip", field="/path")
     elif prefix is None:
-        fail("NX_INVALID_ARGUMENT", "clone needs prefix", field="/prefix")
+        fail("NX_INVALID_ARGUMENT", "clone needs prefix: every copied file is named "
+             "<prefix><name>", field="/prefix", hint="e.g. prefix 'v2_'")  # fmt: skip
     with tx.checks():
         part = tx.part
         sources, occurrences = _sources(tx, part)

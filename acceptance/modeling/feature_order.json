@@ -173,7 +173,13 @@
     "data.feature.name": {
      "matches": "DATUM_PLANE"
     },
-    "data.feature.index": 4
+    "data.feature.index": 4,
+    "data.renamed": {
+     "count": 3
+    },
+    "data.anchor.name": {
+     "matches": "^EXTRUDE"
+    }
    }
   },
   {
@@ -189,11 +195,52 @@
    "call": "nx_set_feature_order",
    "args": {
     "feature": "$dp.data.feature.id",
-    "anchor": "$boss.data.feature.id",
-    "position": "before"
+    "before": "$boss.data.feature.id"
    },
    "expect": {
-    "data.moved": false
+    "data.moved": false,
+    "data.renamed": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_feature_order",
+   "args": {
+    "feature": "$dp.data.feature.id",
+    "after": "$fil.data.feature.id"
+   },
+   "expect": {
+    "data.moved": true,
+    "data.feature.index": 6,
+    "data.renamed": {
+     "count": 3
+    }
+   }
+  },
+  {
+   "call": "nx_set_feature_order",
+   "args": {
+    "feature": "$fil.data.feature.id",
+    "after": "$bs.data.feature.id",
+    "position": "after"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/after"
+   }
+  },
+  {
+   "call": "nx_set_feature_order",
+   "args": {
+    "feature": "$fil.data.feature.id",
+    "anchor": "$bs.data.feature.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/position"
    }
   },
   {
@@ -209,6 +256,9 @@
      "contains": {
       "relation": "parent"
      }
+    },
+    "error.message": {
+     "matches": "^Moving BLEND\\(\\d+\\) before \\S+ would put it before its parent EXTRUDE\\(\\d+\\)"
     }
    }
   },

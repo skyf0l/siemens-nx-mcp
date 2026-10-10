@@ -14,15 +14,23 @@ from pathlib import Path
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Offset, PageLimit, PartRef, PathTo, Text, Units
+from nx_mcp.core.types import Doc, Offset, PageLimit, PathTo, RefTo, Text, Units
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import files, parts, readback, result
 from nx_mcp.kit import units as kit_units
 
 TEMPLATES = {"mm": "model-plain-1-mm-template.prt", "in": "model-plain-1-inch-template.prt"}
-PartPath = Annotated[str, PathTo("new", ".prt")]
+# A Doc placed before PathTo/RefTo wins over their generic "Workspace path"/"Ref: part".
+PartPath = Annotated[str, Doc("New workspace .prt path"), PathTo("new", ".prt")]
+PartArg = Annotated[str, RefTo("part", doc="Ref 'p:N' from nx_list_parts")]
+# Save-as target. "replace" lets the part's own file through gate 2 (an in-place save);
+# any other existing file is refused in the handler: save-as never overwrites.
+SaveAsPath = Annotated[
+    str, Doc("New .prt to save as; omit to save in place"), PathTo("replace", ".prt")
+]
+REF_HINT = "Use the part's current ref from nx_list_parts; a reopened part gets a new ref"
 
 
 class PartData(TypedDict):
@@ -89,6 +97,35 @@ def _state(tx, part) -> PartData:
     }
 
 
+def _report_units(tx) -> None:
+    """Make the envelope's units block describe the work part this call left (gate 9
+    read the units of the work part before the call)."""
+    work = tx.session.Parts.Work
+    tx.units["length"] = kit_units.part_units(tx, work) if work is not None else None
+
+
+def _loaded_rows(tx, limit: int = 10) -> list[dict]:
+    rows = []
+    for p in list(tx.session.Parts)[:limit]:
+        with contextlib.suppress(Exception):
+            rows.append({**tx.ref(p, "part"), "path": _rel(tx, parts.file_of(p))})
+    return rows
+
+
+def resolve_part(tx, ref: str, field: str = "/part"):
+    """The loaded part ``ref`` names. A stale or unknown part ref fails with a hint to
+    nx_list_parts and ``details.loaded_parts`` (the current refs, at most 10)."""
+    try:
+        return tx.resolve(ref, "part")
+    except NXError as error:
+        if error.category in ("stale_reference", "not_found"):
+            error.hint = REF_HINT
+            error.field = error.field or field
+            with contextlib.suppress(Exception):
+                error.details.setdefault("loaded_parts", _loaded_rows(tx))
+        raise
+
+
 def _discard(tx, part) -> None:
     """Close a part this call created after a later step failed (cleanup)."""
     try:
@@ -152,7 +189,15 @@ def new_part(tx, target: Path, units: str):
     effect="file",
     label="Create part",
     summary=lambda a, say: f"Create part {say('path')} in {a.get('units') or 'mm'}",
-    keywords=("new part", "file new", "blank part", "create prt", "start model"),
+    keywords=(
+        "new part",
+        "file new",
+        "blank part",
+        "create prt",
+        "start model",
+        "new assembly",
+        "assembly part",
+    ),
     cost="heavy",
     example={"path": "projects/demo/base.prt", "units": "mm"},
 )
@@ -167,7 +212,9 @@ def nx_create_part(
     target = Path(path)
     with tx.checks():
         parts.check_new_name(tx, target)
-    return _state(tx, new_part(tx, target, units))
+    part = new_part(tx, target, units)
+    _report_units(tx)
+    return _state(tx, part)
 
 
 @tool(
@@ -181,13 +228,13 @@ def nx_create_part(
 def nx_open_part(
     tx: Tx,
     *,
-    path: Annotated[str, PathTo("read", ".prt")],
+    path: Annotated[str, Doc("Workspace .prt path"), PathTo("read", ".prt")],
     work: bool = True,
     display: bool = True,
     load_components: Annotated[bool, Doc("Fully load every component prototype")] = False,
 ) -> OpenData:
-    """Open a workspace part, or reuse it when it is already loaded, and make it the work and
-    display part as asked. load_components fully loads every unsuppressed component."""
+    """Open a workspace .prt, or reuse it if already loaded, and make it the work and display
+    part as asked. A reopened part gets a new ref."""
     source = Path(path)
     with tx.checks():
         part = parts.loaded(tx, source)
@@ -205,6 +252,7 @@ def nx_open_part(
     parts.activate(tx, part, work=work, display=display)
     loaded_count = parts.load_components(tx, part) if load_components else None
     _check_active(tx, part, work=work, display=display)
+    _report_units(tx)
     out: OpenData = {**_state(tx, part), "already_loaded": already}
     if loaded_count is not None:
         out["components_loaded"] = loaded_count
@@ -222,7 +270,7 @@ def nx_open_part(
 def nx_activate_part(
     tx: Tx,
     *,
-    part: PartRef,
+    part: PartArg,
     work: bool = True,
     display: bool = True,
 ) -> PartData:
@@ -231,11 +279,12 @@ def nx_activate_part(
     if not (work or display):
         fail("NX_INVALID_ARGUMENT", "Set work or display (or both)", field="/work")
     with tx.checks():
-        target = tx.resolve(part, "part")
+        target = resolve_part(tx, part)
         if work and not display:
             parts.check_work_only(tx, target)
     parts.activate(tx, target, work=work, display=display)
     _check_active(tx, target, work=work, display=display)
+    _report_units(tx)
     return _state(tx, target)
 
 
@@ -303,6 +352,50 @@ def _save_summary(args, say) -> str:
     return f"Save {what} as {say('path')}" if args.get("path") else f"Save {what}"
 
 
+def _missing_parents(path: Path) -> list[Path]:
+    """The folders above ``path`` that do not exist yet, deepest first."""
+    out = []
+    folder = path.parent
+    while not folder.exists() and folder != folder.parent:
+        out.append(folder)
+        folder = folder.parent
+    return out
+
+
+def _save_as(tx, target, destination: Path) -> None:
+    """Native Save As of ``target`` to ``destination``. A refusal that left the part and
+    the disk as they were is not partial (folders this call made are removed again)."""
+    made = _missing_parents(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    before = parts.file_of(target)
+    with parts.saving(tx, target):
+        try:
+            with native(default="NX_SAVE_FAILED"):
+                status = target.SaveAs(str(destination))
+        except NXError as error:
+            try:
+                unchanged = parts.same_file(parts.file_of(target), before) and not (
+                    destination.exists()
+                )
+            except Exception:
+                unchanged = False
+            if not unchanged:
+                tx.non_undoable("native NX save as")
+                raise
+            for folder in made:
+                with contextlib.suppress(OSError):
+                    folder.rmdir()
+            error.hint = (
+                "Nothing was saved. Choose a new .prt name no loaded part uses, or omit path "
+                "to save the part in place"
+            )
+            raise
+        tx.non_undoable("native NX save as")
+        if status is not None and hasattr(status, "Dispose"):
+            with contextlib.suppress(Exception):
+                status.Dispose()
+
+
 @tool(
     effect="file",
     label="Save part",
@@ -314,32 +407,35 @@ def _save_summary(args, say) -> str:
 def nx_save_part(
     tx: Tx,
     *,
-    part: PartRef | None = None,
-    path: Annotated[str, PathTo("new", ".prt")] | None = None,
+    part: PartArg | None = None,
+    path: SaveAsPath | None = None,
 ) -> SaveData:
-    """Save a loaded part (default the work part) in place, or as a new workspace .prt
-    (path). The save is verified against every loaded file; nothing is overwritten. Saving
-    expires NX undo marks."""
+    """Save a loaded part (default the work part) in place, or as a new .prt (path).
+    Save-as moves the loaded part and its ref to the new file; the old file stays. Never
+    overwrites; expires NX undo marks."""
     with tx.checks():
-        target = tx.resolve(part, "part") if part else tx.part
+        target = resolve_part(tx, part) if part else tx.part
         field = "/part" if part else None
+        if path is not None and parts.same_file(parts.file_of(target), path):
+            path = None  # the part's own file: save it in place
         parts.in_workspace(tx, target, field=field, allow_unsaved=path is not None)
         tx.require_owned(target, field=field)
         if path is not None:
+            if Path(path).exists():
+                fail(
+                    "NX_ALREADY_EXISTS",
+                    "/path: a file already exists there; save-as never overwrites",
+                    field="/path",
+                    hint="Choose a new .prt path, or omit path to save the part in place",
+                    details={"path": str(path)},
+                )
             parts.check_new_name(tx, path, ignore=target)
-    tx.warn("NX_UPDATE_WARNING", "Saving expires NX undo marks and checkpoints")
+    tx.warn("NX_NOTE", "Saving expires NX undo marks and checkpoints")
     if path is None:
         audit = _saving.verified_save(tx, target)
         return {"part": _row(tx, target), "path": _rel(tx, parts.file_of(target)), **audit}
     destination = Path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    tx.non_undoable("native NX save as")
-    with parts.saving(tx, target):
-        with native(default="NX_SAVE_FAILED"):
-            status = target.SaveAs(str(destination))
-        if status is not None and hasattr(status, "Dispose"):
-            with contextlib.suppress(Exception):
-                status.Dispose()
+    _save_as(tx, target, destination)
     readback.expect(
         parts.same_file(parts.file_of(target), destination),
         "save_as",
@@ -368,16 +464,15 @@ def nx_save_part(
 def nx_close_part(
     tx: Tx,
     *,
-    part: Annotated[PartRef, Doc("The part to close: its Ref from nx_list_parts or nx_open_part")],
+    part: PartArg,
     save: Annotated[bool, Doc("true saves first, false discards changes; required if modified")]
     | None = None,
 ) -> CloseData:
-    """Close one loaded part, named by its Ref (never implicitly the work part). Nothing is
-    saved by default: a part with unsaved changes is refused (NX_UNSAVED_PART) until save
-    is given explicitly, true or false. Refused while a loaded assembly uses it; NX may
-    also unload prototypes nobody uses."""
+    """Close one loaded part by its ref (never implicitly the work part). With unsaved
+    changes, save (true or false) is required. Refused while a loaded assembly uses it; NX
+    may also unload unused prototypes."""
     with tx.checks():
-        target = tx.resolve(part, "part")
+        target = resolve_part(tx, part)
         field = "/part"
         parts.in_workspace(tx, target, field=field)
         tx.require_owned(target, field=field)
@@ -397,9 +492,15 @@ def nx_close_part(
                 "to discard them",
                 field="/save",
                 hint="Call nx_close_part again with save=true or save=false",
+                details={
+                    "part": _row(tx, target),
+                    "path": _rel(tx, parts.file_of(target)),
+                    "modified": True,
+                },
             )
     save = bool(save)
     closed = _saving.close_part(tx, target, save=save)
+    _report_units(tx)
     return {
         "closed": closed["closed"],
         "closed_count": len(closed["closed"]),

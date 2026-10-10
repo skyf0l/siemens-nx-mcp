@@ -6,6 +6,12 @@ restored before the hide it followed cannot hide the object again (NX 2406 lesso
 After a restore every recorded object is read back and must equal the saved blank
 state, colour and transparency. Presentation objects are located by kind, journal
 identifier and component path, so they survive a save and reopen of the part.
+
+``restore_id`` ``last`` (or ``latest``, or no argument at all) restores the newest display
+change of the shown part. Applying a presentation is itself restorable: its result has a
+``restore_id`` that puts the camera and the recorded appearance back (not the section).
+Restoring a ``restore_id`` returns none (no redo), so ``last`` walks back one change at a
+time.
 """
 
 from __future__ import annotations
@@ -24,7 +30,8 @@ from nx_mcp.kit import args, bodies, display, files, geom, parts, readback, sele
 
 FORMAT, VERSION = "nx-mcp-presentation", 2
 MAX_FILE = 8 * 1024 * 1024
-RestoreId = Annotated[str, Text(64, r"^display_[0-9a-f]{32}$")]
+LATEST = ("last", "latest")
+RestoreId = Annotated[str, Text(64, r"^(display_[0-9a-f]{32}|last|latest)$")]
 
 
 class RestoreData(TypedDict, total=False):
@@ -101,7 +108,7 @@ def _apply(tx, pairs) -> None:
 
 @tool(
     effect="view",
-    label="Restore display",
+    label="Undo display change or load presentation",
     summary=lambda a, say: (
         f"Restore presentation {say('presentation')}"
         if a.get("presentation")
@@ -110,7 +117,8 @@ def _apply(tx, pairs) -> None:
     keywords=("undo display", "restore view", "presentation", "reset appearance", "unhide"),
     requires=("work_part",),
     cost="light",
-    example={"restore_id": "display_" + "0" * 32},
+    restorable=True,
+    example={"restore_id": "last"},
 )
 def nx_restore_display(
     tx: Tx,
@@ -118,15 +126,27 @@ def nx_restore_display(
     restore_id: RestoreId | None = None,
     presentation: Annotated[str, PathTo("read", ".json")] | None = None,
 ) -> RestoreData:
-    """Undo a display change by its restore_id (newest first), or apply a presentation file
-    saved by nx_save_presentation. Restored objects are read back."""
-    args.exactly_one(restore_id=restore_id, presentation=presentation)
+    """Undo a display change by restore_id ('last' or none: the newest; newest first), or
+    apply an nx_save_presentation file. A presentation returns a restore_id."""
+    if restore_id is not None and presentation is not None:
+        fail("NX_INVALID_ARGUMENT", "Give restore_id or presentation, not both",
+             field="/presentation")  # fmt: skip
     if presentation is not None:
         return _restore_presentation(tx, Path(presentation))
-    assert restore_id is not None  # exactly_one: no presentation, so a restore_id
     with tx.checks():
         part = display.shown_part(tx, work=True)
-        snapshot = display.snapshots.get(restore_id, tx.services.part_key(part))
+        key = tx.services.part_key(part)
+        if restore_id is None or restore_id in LATEST:
+            restore_id = display.snapshots.latest(key)
+            if restore_id is None:
+                fail(
+                    "NX_NOT_FOUND",
+                    "No display change left to restore in the work part",
+                    field="/restore_id",
+                    hint="Camera, visibility and appearance changes return a restore_id; "
+                    "to apply a saved view give presentation=<file.json>",
+                )
+        snapshot = display.snapshots.get(restore_id, key)
         pairs = [
             (select.resolve(tx, display.record_id(r), field="/restore_id"), r)
             for r in snapshot["records"]
@@ -150,6 +170,9 @@ def nx_restore_display(
         tx, tx.services.display_records([o for o, _ in pairs], appearance)
     )
     display.snapshots.drop(restore_id)
+    # No new restore_id for a restore_id restore: ``last`` then walks back one change at
+    # a time instead of toggling between two states.
+    tx.display.forget()
     return out
 
 
@@ -245,8 +268,8 @@ def _restore_presentation(tx, path: Path) -> RestoreData:
 
 @tool(
     effect="file",
-    label="Save presentation",
-    summary=lambda a, say: f"Save presentation {say('path')}",
+    label="Save view and appearance to JSON",
+    summary=lambda a, say: f"Save the view and appearance to {say('path')}",
     keywords=("save view", "save display", "presentation file", "view state", "bookmark view"),
     requires=("work_part",),
     cost="light",
@@ -257,8 +280,8 @@ def nx_save_presentation(
     *,
     path: Annotated[str, PathTo("new", ".json")],
 ) -> PresentationData:
-    """Save the camera, the active section and the appearance of every body and component
-    to a new JSON file. nx_restore_display(presentation=...) applies it again."""
+    """Save the camera, active section and every body and component's appearance to a new
+    .json file. Never overwrites; nx_restore_display(presentation=...) applies it again."""
     part = display.shown_part(tx, work=True)
     view = display.model_view(tx, part)
     index = _index(part)

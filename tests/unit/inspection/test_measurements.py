@@ -1,7 +1,10 @@
 """nx_measure_distance/angle/mass/bounds/wall_thickness on the fake kit."""
 
+import math
+
 import pytest
 
+from nx_mcp.domains.inspection import measurements
 from tests.kit import run
 from tests.kit.objects import matrix, point
 from tests.unit.inspection.fakes import assembly, curve, inspection_nx
@@ -122,3 +125,68 @@ def test_wall_thickness_samples_inward_rays():
     assert foreign.error["code"] == "NX_WRONG_OWNER" and foreign.error["field"] == "/faces/0"
     many = run(nx, "nx_measure_wall_thickness", body=body.ref, samples_per_axis=50)
     assert many.error["category"] == "invalid_argument"
+
+
+def test_distance_reports_touching():
+    nx = inspection_nx()
+    a = nx.block(10, 10, 10)
+    b = nx.block(10, 10, 10, origin=(10, 0, 0))
+    far = nx.block(1, 1, 1, origin=(30, 0, 0))
+    touching = run(nx, "nx_measure_distance", first=a.ref, second=b.ref)
+    assert touching.data["distance"] == 0 and touching.data["touching"] is True, touching
+    apart = run(nx, "nx_measure_distance", first=a.ref, second=far.ref)
+    assert apart.data["touching"] is False
+    named = run(nx, "nx_measure_distance", first="FACE 120", second=b.ref)
+    assert named.error["field"] == "/first"
+
+
+def test_angle_in_radians_on_request():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top = next(f for f in body.faces if list(f.normal) == [0, 0, 1])
+    bottom = next(f for f in body.faces if list(f.normal) == [0, 0, -1])
+    side = next(f for f in body.faces if list(f.normal) == [1, 0, 0])
+    deg = run(nx, "nx_measure_angle", first=top.ref, second=bottom.ref, units="deg")
+    assert deg.data["angle"] == pytest.approx(180) and deg.data["units"] == "deg"
+    rad = run(nx, "nx_measure_angle", first=top.ref, second=side.ref, units="rad")
+    assert rad.data["angle"] == pytest.approx(math.pi / 2) and rad.data["units"] == "rad"
+    assert rad.units["angle"] == "rad"
+
+
+@pytest.mark.parametrize("units", ["mm", "in"])
+def test_mass_reports_the_density_it_used(units):
+    nx = inspection_nx(units)
+    body = nx.block(10, 20, 30)
+    ok = run(nx, "nx_measure_mass", bodies=[body.ref])
+    assert ok.data["density"] == pytest.approx(7850), ok.data
+    inertia = ok.data["inertia"]
+    assert inertia[0][1] == 0.0 and inertia[1][2] == 0.0
+
+
+def test_inertia_noise_is_zeroed():
+    rows = measurements._denoise([[2.0, 3e-15], [-1e-14, 5.0]])
+    assert rows == [[2.0, 0.0], [0.0, 5.0]]
+    assert measurements._denoise([[0.0, 0.0]]) == [[0.0, 0.0]]
+
+
+def test_wall_thickness_defaults_to_the_only_solid_and_summarises_faces():
+    nx = inspection_nx()
+    plate = nx.block(100, 60, 10)
+    ok = run(nx, "nx_measure_wall_thickness", samples_per_axis=1)
+    assert ok.ok and ok.data["body"]["id"] == plate.ref, ok
+    by_face = ok.data["by_face"]
+    assert len(by_face) == 6 and by_face[0]["minimum"] == pytest.approx(10)
+    assert by_face[-1]["minimum"] == pytest.approx(100)
+    assert [f["minimum"] for f in by_face] == sorted(f["minimum"] for f in by_face)
+    assert sum(f["measured"] for f in by_face) == ok.data["measured"]
+    nx.block(5, 5, 5, origin=(200, 0, 0))
+    two = run(nx, "nx_measure_wall_thickness")
+    assert two.error["field"] == "/body" and plate.ref in two.error["hint"]
+
+
+def test_wall_thickness_without_a_solid_is_not_found():
+    nx = inspection_nx()
+    sheet = nx.block(1, 1, 1)
+    sheet.IsSolidBody = False
+    bad = run(nx, "nx_measure_wall_thickness")
+    assert bad.error["code"] == "NX_NOT_FOUND" and bad.error["field"] == "/body"

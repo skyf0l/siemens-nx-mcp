@@ -332,7 +332,7 @@
      25,
      20
     ],
-    "letter": "a"
+    "letter": "a1"
    },
    "expect": {
     "error.category": "invalid_argument",

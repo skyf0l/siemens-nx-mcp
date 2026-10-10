@@ -16,12 +16,15 @@ NX 2406 findings kept here:
 
 from __future__ import annotations
 
+import difflib
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    REF_PATTERN,
     Doc,
     EdgeRef,
     FaceRef,
@@ -32,6 +35,7 @@ from nx_mcp.core.types import (
     Range,
     RefTo,
     SketchRef,
+    Text,
     Vec3,
     forbid_extra,
 )
@@ -48,10 +52,15 @@ PRINCIPAL = {
 }
 
 
+# NX's standard views name the same planes: top = XY, front = XZ, right = YZ.
+PLANE_ALIASES = {"top": "xy", "front": "xz", "right": "yz"}
+
+
 class _Principal(TypedDict):
     principal: Annotated[
-        Literal["xy", "xz", "yz"],
-        Doc("Local x,y = world xy: X,Y; xz: X,Z (normal -Y); yz: Y,Z (normal X)"),
+        str,
+        Text(32),
+        Doc("xy, xz or yz (any case); local x,y = X,Y | X,Z (normal -Y) | Y,Z (normal X)"),
     ]
 
 
@@ -82,10 +91,47 @@ class PathPlacement(_Path, total=False):
 
 forbid_extra(PrincipalPlacement, OnPlacement, PathPlacement)
 
+# A plane name ('xy', any case) at the origin, or a face/datum plane ref.
+PlaneOrRef = Annotated[str, Text(128)]
+
 Placement = Annotated[
-    PrincipalPlacement | OnPlacement | PathPlacement,
-    Doc("{principal, origin?, x_axis?} | {on, x_direction?} | {path, help_point, ...}"),
+    PrincipalPlacement | OnPlacement | PathPlacement | PlaneOrRef,
+    Doc("'xy' | {principal, origin?, x_axis?} | {on, x_direction?} | {path, help_point..}"),
 ]
+
+
+def principal_name(value, field="/placement/principal"):
+    """``xy``/``xz``/``yz`` from a natural spelling ('XY', 'xy plane', 'X-Y', 'Top')."""
+    text = str(value).strip().lower()
+    key = re.sub(r"[\s_\-]+", "", text)
+    key = key.removesuffix("plane") or key
+    key = PLANE_ALIASES.get(key, key)
+    if key in PRINCIPAL:
+        return key
+    near = difflib.get_close_matches(key, [*PRINCIPAL, *PLANE_ALIASES], n=1, cutoff=0.5)
+    guess = f"; did you mean {near[0]!r}?" if near else ""
+    if key in ("yx", "zx", "zy"):
+        guess = f"; use {key[::-1]!r} (local x is its first axis)"
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"Unknown principal plane {value!r}{guess}",
+        field=field,
+        hint="Use 'xy', 'xz' or 'yz' (top, front, right), e.g. placement {principal: 'xy'}",
+    )
+
+
+def normal_placement(placement) -> dict:
+    """The placement as one of the three object forms (pure; raises invalid_argument).
+
+    A string is a principal plane name or a face/datum plane ref; a principal name is
+    matched case-insensitively."""
+    if isinstance(placement, str):
+        if re.match(REF_PATTERN, placement.strip()):
+            return {"on": placement.strip()}
+        return {"principal": principal_name(placement, "/placement")}
+    if "principal" in placement:
+        return {**placement, "principal": principal_name(placement["principal"])}
+    return placement
 
 
 class SketchData(TypedDict, total=False):
@@ -99,8 +145,13 @@ class SketchData(TypedDict, total=False):
 
 def _create_summary(a, say):
     p = a.get("placement") or {}
+    if isinstance(p, str):
+        p = {"on": p} if re.match(REF_PATTERN, p.strip()) else {"principal": p}
     if "principal" in p:
-        where = str(p["principal"]).upper() + " plane"
+        try:
+            where = principal_name(p["principal"]).upper() + " plane"
+        except NXError:
+            where = str(p["principal"]) + " plane"
     elif "on" in p:
         where = "a face or datum plane"
     else:
@@ -248,7 +299,15 @@ def _verify_path(tx, got, edges):
     effect="model",
     label="Create sketch",
     summary=_create_summary,
-    keywords=("sketch", "new sketch", "sketch on face", "sketch plane", "profile", "path sketch"),
+    keywords=(
+        "sketch",
+        "new sketch",
+        "sketch on face",
+        "sketch plane",
+        "profile",
+        "path sketch",
+        "rectangle sketch",
+    ),
     requires=("work_part", "no_active_sketch"),
     variants={"principal": PrincipalPlacement, "on": OnPlacement, "path": PathPlacement},
     cost="light",
@@ -274,20 +333,21 @@ def nx_create_sketch(
     path, and make it active. curves and finish make a profile in one call (loops reports
     closure): each closed loop is a region, a loop inside another makes a hollow profile.
     Finish before modeling."""
+    where = normal_placement(placement)
     plans = sketch_curves.check_curves(curves) if curves else []
-    want = _principal_frame(placement) if "principal" in placement else None
+    want = _principal_frame(where) if "principal" in where else None
     if want is not None:
         sketch = _on_principal(tx, want)
-    elif "on" in placement:
-        sketch, origin, normal, x = _on_target(tx, placement)
+    elif "on" in where:
+        sketch, origin, normal, x = _on_target(tx, where)
     else:
-        sketch, edges = _on_path(tx, placement)
+        sketch, edges = _on_path(tx, where)
     got = common.frame_row(ksketch.frame(sketch))
     if want is not None:
         readback.expect_close(got["origin"], want["origin"], "origin")
         for axis in ("x_axis", "y_axis", "normal"):
             readback.expect_same_direction(got[axis], want[axis], axis)
-    elif "on" in placement:
+    elif "on" in where:
         readback.expect_parallel(got["normal"], normal, "normal")
         readback.expect_on_plane(got["origin"], origin, normal, "origin_on_plane")
         if x is not None:
@@ -338,10 +398,14 @@ class FinishData(TypedDict, total=False):
     curve_count: int
 
 
+def _finish_summary(a, say):
+    return f"Finish sketch {say('sketch')}" if a.get("sketch") else "Finish the active sketch"
+
+
 @tool(
     effect="model",
     label="Finish sketch",
-    summary="Finish sketch {sketch}",
+    summary=_finish_summary,
     keywords=("finish sketch", "exit sketch", "deactivate sketch", "close sketch", "end sketch"),
     requires=("work_part",),
     cost="light",
@@ -350,18 +414,28 @@ class FinishData(TypedDict, total=False):
     invalidates="deleted",
     example={"sketch": "s:3"},
 )
-def nx_finish_sketch(tx: Tx, *, sketch: SketchRef) -> FinishData:
-    """Finish the active sketch and update the model so features can use it. A sketch that is
-    not active is left as it is."""
-    sk = ksketch.resolve(tx, sketch)
-    active = tx.session.ActiveSketch
-    if active is not None and int(active.Tag) != int(sk.Tag):
-        fail(
-            "NX_SKETCH_ACTIVE",
-            "Another sketch is active",
-            hint="Finish the active sketch first (nx_list_objects kind=sketch shows it)",
-            field="/sketch",
-        )
+def nx_finish_sketch(
+    tx: Tx,
+    *,
+    sketch: SketchRef | None = None,
+) -> FinishData:
+    """Finish a sketch (default: the active one) and update the model so features can use it.
+    An inactive sketch is left as it is."""
+    with tx.checks():
+        active = tx.session.ActiveSketch
+        if sketch is None:
+            if active is None:
+                return {"was_active": False}
+            sk = active
+        else:
+            sk = ksketch.resolve(tx, sketch)
+        if active is not None and int(active.Tag) != int(sk.Tag):
+            fail(
+                "NX_SKETCH_ACTIVE",
+                "Another sketch is active",
+                hint="Finish the active sketch first (nx_list_objects kind=sketch shows it)",
+                field="/sketch",
+            )
     if active is not None:
         _deactivate(tx, sk)
     return {
@@ -377,6 +451,7 @@ def nx_finish_sketch(tx: Tx, *, sketch: SketchRef) -> FinishData:
 
 class GeometryRow(CurveRow, total=False):
     part: Annotated[dict, Doc("start/end/center in work-part coordinates")]
+    constraints: Annotated[int, Doc("Constraints and dimensions on this curve (0: free)")]
 
 
 class SketchInfo(TypedDict, total=False):
@@ -396,13 +471,15 @@ INCLUDE = ("geometry", "constraints", "status")
 def _geometry(tx, sk, f):
     rows = []
     for c in ksketch.geometry(sk):
+        count = len(ksketch.attached(tx, sk, c))
         if ksketch.curve_kind(tx, c) == "other":
-            rows.append({"curve": tx.ref(c, "curve"), "type": "other"})
+            rows.append({"curve": tx.ref(c, "curve"), "type": "other", "constraints": count})
             continue
         row = common.curve_row(tx, f, c)
         row["part"] = {
             k: ksketch.to_part(f, row[k]) for k in ("start", "end", "center") if k in row
         }
+        row["constraints"] = count
         rows.append(row)
     return rows
 
@@ -452,8 +529,8 @@ def nx_get_sketch(
     | None = None,
 ) -> SketchInfo:
     """Read a sketch: frame, curves, constraints with dimension expressions, and solver status.
-    Curves are in sketch-local and part coordinates; dof is NX's own indicator (NX 2406: curves
-    not fully constrained)."""
+    Curves are in sketch-local and part coordinates, with constraint counts (0: free); dof is
+    NX's own indicator (NX 2406: curves not fully constrained)."""
     wanted = set(include or INCLUDE)
     sk = ksketch.resolve(tx, sketch)
     f = ksketch.frame(sk)
@@ -489,6 +566,7 @@ class Trial(TypedDict, total=False):
 class ConflictData(TypedDict, total=False):
     sketch: result.Row
     state: str
+    note: str
     explicit_conflicts: list[dict]
     trials: list[Trial]
     checked: int
@@ -501,7 +579,15 @@ class ConflictData(TypedDict, total=False):
     effect="read",
     label="Check sketch conflicts",
     summary="Find conflicts in sketch {sketch}",
-    keywords=("over constrained", "conflicting constraints", "sketch conflict", "diagnose sketch"),
+    keywords=(
+        "over constrained",
+        "conflicting constraints",
+        "sketch conflict",
+        "diagnose sketch",
+        "check sketch",
+        "sketch solver",
+        "constraint conflict",
+    ),
     requires=("work_part",),
     cost="heavy",
     example={"sketch": "s:3"},
@@ -550,7 +636,7 @@ def nx_check_sketch(
                 session.UndoToMark(mark, None)
                 session.DeleteUndoMark(mark, None)
             trials.append(trial)
-    return {
+    out: ConflictData = {
         "sketch": tx.ref(sk, "sketch"),
         "state": baseline["state"],
         "explicit_conflicts": explicit,
@@ -560,3 +646,9 @@ def nx_check_sketch(
         "complete": len(trials) == len(candidates) and not any("error" in t for t in trials),
         "relieving": [t["constraint"]["id"] for t in trials if t["relieves_conflict"]],
     }
+    if not candidates:
+        out["note"] = (
+            f"The sketch is {baseline['state']}, not over-constrained and without conflicts: "
+            "nothing to relieve"
+        )
+    return out

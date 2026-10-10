@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/capture_aim.json",
-  "scenario_sha256": "ec4f5cb4611f91218908e89c243013fd358a78155d700c8c3c4be5468faf2518",
+  "scenario_sha256": "62d96b8cbe91b5f769522b1d785a66d58d2c2837237167b25bc34a62c57b5038",
   "domain": "display",
   "covers": {
     "nx_capture_view": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_capture_view": "fd577db8a9154f7d26e742afcbad16a34b6f6061fcf65a051efdc559dddae3f9",
-    "nx_get_camera": "076c5ed29a16dda5dc772b5ccfa497b73a70040c395a1d014f377db389361810"
+    "nx_capture_view": "7eca87ee83f95168e780b30c3c78872f741a007bf1ef44b1c41c09d113ba7c2a",
+    "nx_get_camera": "c70de314aba7b217dfa3149c27a880488b1eadc0436b0c7840058fae403af685"
   },
-  "recorded": "2026-10-10T17:33:17Z",
+  "recorded": "2026-10-10T22:20:59Z",
   "passed": true,
-  "checks": 28,
+  "checks": 29,
   "failed_checks": 0,
   "steps": [
     {
@@ -72,7 +72,7 @@
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 10
+      "checks": 11
     },
     {
       "index": 9,

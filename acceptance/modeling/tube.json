@@ -259,6 +259,185 @@
     "error.category": "invalid_argument",
     "error.field": "/path"
    }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "pc",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$pc.data.sketch.id",
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        0,
+        60
+       ],
+       [
+        30,
+        60
+       ],
+       [
+        30,
+        90
+       ]
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$pc.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "pf",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "pf_c",
+   "args": {
+    "sketch": "$pf.data.sketch.id",
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        0,
+        100
+       ],
+       [
+        30,
+        100
+       ],
+       [
+        30,
+        130
+       ]
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch_corner",
+   "setup": true,
+   "args": {
+    "sketch": "$pf.data.sketch.id",
+    "first": "$pf_c.data.curves.0.curve.id",
+    "second": "$pf_c.data.curves.1.curve.id",
+    "kind": "fillet",
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$pf.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$arc.data.sketch.id",
+    "outer_diameter": 4
+   },
+   "expect": {
+    "data.volume": {
+     "close": 394.7841760435743,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$pc.data.sketch.id",
+    "outer_diameter": 4
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/path",
+    "mutation_outcome": "not_started",
+    "error.details.corners.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "error.details.corners.0.point": {
+     "close": [
+      30,
+      60,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "save": "tf",
+   "args": {
+    "path": "$pf.data.sketch.id",
+    "outer_diameter": 4
+   },
+   "expect": {
+    "data.volume": {
+     "close": 727.0145747288523,
+     "tol": 0.01
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$tf.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      98,
+      -2
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      32,
+      130,
+      2
+     ],
+     "tol": 0.0001
+    }
+   }
   }
  ]
 }

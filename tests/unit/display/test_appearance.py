@@ -4,6 +4,7 @@ import pytest
 
 from nx_mcp.kit import display
 from tests.kit import run
+from tests.kit.kernel import services
 from tests.kit.objects import Component, Feature
 from tests.unit.display.fakes import display_nx
 
@@ -158,10 +159,29 @@ def test_a_stale_member_fails_the_restore_before_anything_changes():
     assert not a.IsBlanked and hide.restore_id in display.snapshots.items
 
 
-def test_restore_needs_exactly_one_source():
+def test_restore_with_nothing_to_restore_says_so():
     nx = display_nx()
     bad = run(nx, "nx_restore_display")
-    assert bad.error["category"] == "invalid_argument" and bad.mutation_outcome == "not_started"
+    assert bad.error["code"] == "NX_NOT_FOUND" and bad.mutation_outcome == "not_started"
+    assert bad.error["field"] == "/restore_id" and "presentation" in bad.error["hint"]
+    (services(nx).root / "a.json").write_text("{}", encoding="utf-8")
+    both = run(nx, "nx_restore_display", restore_id="last", presentation="a.json")
+    assert both.error["category"] == "invalid_argument" and both.mutation_outcome == "not_started"
+
+
+@pytest.mark.parametrize("how", [{}, {"restore_id": "last"}, {"restore_id": "latest"}])
+def test_last_or_no_argument_walks_back_one_change_at_a_time(how):
+    nx = display_nx()
+    a, b = nx.block(1, 1, 1), nx.block(2, 2, 2)
+    run(nx, "nx_set_visibility", mode="hide", objects=[a.ref, b.ref])
+    show = run(nx, "nx_set_visibility", mode="show", objects=[a.ref])
+    first = run(nx, "nx_restore_display", **how)
+    assert first.ok and first.data["restored"] == show.restore_id and a.IsBlanked
+    assert "restore_id" not in first.envelope  # no redo: the next 'last' goes further back
+    second = run(nx, "nx_restore_display", **how)
+    assert second.ok and not a.IsBlanked and not b.IsBlanked
+    done = run(nx, "nx_restore_display", **how)
+    assert done.error["code"] == "NX_NOT_FOUND"
 
 
 def test_nothing_shown_is_refused():
@@ -169,3 +189,97 @@ def test_nothing_shown_is_refused():
     sketch = nx.sketch()
     bad = run(nx, "nx_set_visibility", mode="hide", objects=[sketch.ref])
     assert bad.error["code"] == "NX_WRONG_GEOMETRY"
+
+
+@pytest.mark.parametrize(
+    ("color", "index", "name"),
+    [("Red", 186, "red"), (" RED ", 186, "red"), ("grey", 130, "gray"), ("211", 211, "blue")],
+)
+def test_colour_names_in_any_case_and_spelling(color, index, name):
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    ok = run(nx, "nx_set_appearance", objects=[body.ref], color=color)
+    assert ok.ok, ok.error
+    assert body.Color == index and ok.data["objects"][0]["color"] == index
+    assert ok.data["objects"][0]["color_name"] == name
+
+
+def test_unknown_colour_lists_the_names_with_a_guess():
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    bad = run(nx, "nx_set_appearance", objects=[body.ref], color="bleu")
+    assert bad.error["field"] == "/color" and "did you mean 'blue'" in bad.error["message"]
+    assert "'magenta'" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+    big = run(nx, "nx_set_appearance", objects=[body.ref], color="300")
+    assert big.error["field"] == "/color" and body.Color == 7
+
+
+@pytest.mark.parametrize("value", ["40%", "40 %", " 40", "40.0%"])
+def test_transparency_takes_percent_strings(value):
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    ok = run(nx, "nx_set_appearance", objects=[body.ref], transparency=value)
+    assert ok.ok and body.transparency == 40
+
+
+@pytest.mark.parametrize("value", ["150%", "half", 150])
+def test_transparency_out_of_range_is_refused(value):
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    bad = run(nx, "nx_set_appearance", objects=[body.ref], transparency=value)
+    assert bad.error["field"] == "/transparency" and bad.mutation_outcome == "not_started"
+
+
+def test_a_body_reports_its_faces_transparency_and_colour_name():
+    """The NX host asks translucency of faces only (a body's record has none)."""
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    kit = services(nx)
+    records = kit.display_records
+
+    def like_the_host(objects, appearance):
+        pairs = records(objects, appearance)
+        for obj, record in pairs:
+            if obj is body:
+                record.pop("transparency", None)
+        return pairs
+
+    kit.display_records = like_the_host
+    run(nx, "nx_set_appearance", objects=[body.ref], color="red", transparency=40)
+    rows = run(nx, "nx_get_appearance", objects=[body.ref]).data["objects"]
+    assert rows[0]["object"]["kind"] == "body"
+    assert rows[0]["transparency"] == 40 and rows[0]["color_name"] == "red"
+    run(nx, "nx_set_appearance", objects=[body.faces[0].ref], transparency=10)
+    mixed = run(nx, "nx_get_appearance", objects=[body.ref]).data["objects"]
+    assert mixed[0]["transparency"] is None and mixed[1]["transparency"] == 10
+
+
+def test_hide_counts_what_ends_up_blanked():
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    ok = run(nx, "nx_set_visibility", mode="hide", objects=[body.ref])
+    assert ok.ok and body.IsBlanked and ok.data["mode"] == "hide" and ok.data["blanked"] == 1
+
+
+def test_show_alone_shows_every_hidden_body_and_component():
+    nx = display_nx()
+    a, b, c = nx.block(1, 1, 1), nx.block(2, 2, 2), nx.block(3, 3, 3)
+    plane = nx.datum_plane()
+    run(nx, "nx_set_visibility", mode="hide", objects=[a.ref, b.ref])
+    run(nx, "nx_set_visibility", mode="hide", datums=True)
+    ok = run(nx, "nx_set_visibility", mode="show")
+    assert ok.ok and not a.IsBlanked and not b.IsBlanked and not c.IsBlanked
+    assert ok.data["count"] == 2 and ok.data["blanked"] == 0
+    assert plane.IsBlanked  # datums keep their own switch
+    run(nx, "nx_restore_display", restore_id=ok.restore_id)
+    assert a.IsBlanked and b.IsBlanked and not c.IsBlanked
+    nothing = run(nx, "nx_set_visibility", mode="hide")
+    assert nothing.error["field"] == "/objects" and "mode=show" in nothing.error["hint"]
+
+
+def test_face_refs_are_refused_with_a_hint():
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    bad = run(nx, "nx_set_visibility", mode="hide", objects=[body.faces[0].ref])
+    assert bad.error["category"] == "wrong_kind" and bad.mutation_outcome == "not_started"
+    assert not body.faces[0].IsBlanked

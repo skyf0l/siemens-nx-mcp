@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/delete_objects.json",
-  "scenario_sha256": "901ff410dc265ed5690d2ce05243a55d0e86ee92f138b636b1882c164f4f1059",
+  "scenario_sha256": "d9d88e37ae396594f7fd5aa31f2331a08a904a557f3ad58535010acb939231d2",
   "domain": "session",
   "covers": {
     "nx_delete_objects": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_delete_objects": "594327f9c1f8e709f3325c355313ca8999d69d9ca9251011b440336f7b7f8418"
+    "nx_delete_objects": "627f9bfd9972db14415d35f3e931490eb56aaec47b2878844cf4944fb74a780b"
   },
-  "recorded": "2026-10-10T13:09:32Z",
+  "recorded": "2026-10-10T22:15:55Z",
   "passed": true,
-  "checks": 30,
+  "checks": 33,
   "failed_checks": 0,
   "steps": [
     {
@@ -140,7 +140,7 @@
       "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 19,
@@ -175,7 +175,7 @@
       "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 6
     },
     {
       "index": 24,

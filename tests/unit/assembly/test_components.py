@@ -239,3 +239,109 @@ def test_make_unique_points_one_component_at_a_new_part(nx):
     both = run(nx, "nx_edit_component", components=[a.ref], make_unique="parts/y.prt",
                replace_with="parts/pin.prt")  # fmt: skip
     assert both.error["field"] == "/make_unique"
+
+
+# ---- natural values and clearer results (b05) ----------------------------------------
+
+
+def test_create_component_reports_the_part_ref_name_and_reference_set(nx):
+    ok = run(nx, "nx_create_component", path="parts/blk.prt", name="plate_a")
+    assert ok.ok, ok
+    row = ok.data["component"]
+    assert row["name"] == "PLATE_A" and row["reference_set"] == "Entire Part"
+    assert ok.data["part"]["kind"] == "part" and ok.data["part"]["name"]
+
+
+def test_create_component_takes_a_reference_set_in_any_case(nx):
+    ok = run(nx, "nx_create_component", path="parts/blk.prt", reference_set="solid")
+    assert ok.ok, ok
+    assert ok.data["component"]["reference_set"] == "SOLID"
+    assert nx.assembly.components()[0].ReferenceSet == "SOLID"
+    missing = run(nx, "nx_create_component", path="parts/pin.prt", reference_set="LIGHT")
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/reference_set"
+    assert missing.error["details"]["available"] == ["Entire Part", "Empty"]
+    assert "nx_activate_part" in missing.error["hint"]
+    assert missing.mutation_outcome == "rolled_back" and len(nx.assembly.components()) == 1
+
+
+def test_create_component_pose_takes_unit_strings_and_axis_angle(nx):
+    ok = run(nx, "nx_create_component", path="parts/blk.prt",
+             pose={"translation": ["1 in", 0, "5 mm"], "rotation": {"axis": "z", "angle": 90}})  # fmt: skip
+    assert ok.ok, ok
+    t, r = pose_of(ok.data["component"])
+    assert t == pytest.approx([25.4, 0, 5]) and flat(r) == pytest.approx(flat(RZ90))
+
+
+def test_set_component_pose_takes_axis_angle_and_unit_strings(nx):
+    b = place(nx, nx.blk, "B", (30, 10, 0))
+    ok = run(nx, "nx_set_component_pose", component=b.ref, mode="relative",
+             translation=["10 mm", 0, 0], rotation={"axis": "z", "angle": "90 deg"})  # fmt: skip
+    assert ok.ok, ok
+    assert b.t == pytest.approx([40, 10, 0]) and flat(b.r) == pytest.approx(flat(RZ90))
+    rad = run(nx, "nx_set_component_pose", component=b.ref, mode="absolute",
+              translation=[0, 0, 0], rotation={"axis": "x", "angle": f"{math.pi / 2} rad"})  # fmt: skip
+    assert rad.ok, rad
+    assert flat(b.r) == pytest.approx([1, 0, 0, 0, 0, -1, 0, 1, 0], abs=1e-12)
+    bad_axis = run(nx, "nx_set_component_pose", component=b.ref, mode="absolute",
+               translation=[0, 0, 0], rotation={"axis": "w", "angle": 90})  # fmt: skip
+    assert (
+        bad_axis.error["category"] == "invalid_argument"
+        and bad_axis.mutation_outcome == "not_started"
+    )
+    extra = run(nx, "nx_set_component_pose", component=b.ref, mode="absolute",
+                translation=[0, 0, 0], rotation={"z": 90})  # fmt: skip
+    assert extra.error["category"] == "invalid_argument" and extra.mutation_outcome == "not_started"
+
+
+def test_edit_component_matches_reference_sets_loosely(nx):
+    b = place(nx, nx.blk, "B")
+    ok = run(nx, "nx_edit_component", components=[b.ref], reference_set="solid")
+    assert ok.ok and b.ReferenceSet == "SOLID", ok
+    whole = run(nx, "nx_edit_component", components=[b.ref], reference_set="entire_part")
+    assert whole.ok and whole.data["components"][0]["reference_set"] == "Entire Part"
+    nope = run(nx, "nx_edit_component", components=[b.ref], reference_set="LIGHT")
+    assert nope.error["code"] == "NX_NOT_FOUND" and nope.mutation_outcome == "not_started"
+    assert nope.error["details"]["available"] == ["SOLID", "Entire Part", "Empty"]
+    assert "own part" in nope.error["hint"]
+
+
+def test_edit_component_unsuppresses_before_the_reference_set(nx):
+    b = place(nx, nx.blk, "B", (5, 0, 0))
+    b.IsSuppressed = True
+    replace = nx.asm.ComponentAssembly.ReplaceReferenceSet
+
+    def strict(c, name):  # NX 2406: 720173 on a suppressed component
+        if c.IsSuppressed:
+            raise RuntimeError("Cannot change reference set on suppressed component.")
+        replace(c, name)
+
+    nx.asm.ComponentAssembly.ReplaceReferenceSet = strict
+    refused = run(nx, "nx_edit_component", components=[b.ref], reference_set="SOLID")
+    assert refused.error["code"] == "NX_INVALID_ARGUMENT"
+    assert (
+        refused.error["field"] == "/components/0" and "suppressed: false" in refused.error["hint"]
+    )
+    assert refused.mutation_outcome == "not_started"
+    ok = run(nx, "nx_edit_component", components=[b.ref], suppressed=False, reference_set="SOLID")
+    assert ok.ok, ok
+    assert not b.IsSuppressed and b.ReferenceSet == "SOLID"
+    off = run(nx, "nx_edit_component", components=[b.ref], suppressed=True, reference_set="Empty")
+    assert off.ok and b.IsSuppressed and b.ReferenceSet == "Empty", off
+
+
+def test_list_components_orders_siblings_by_name(nx):
+    z = place(nx, nx.blk, "Z")
+    a = place(nx, nx.blk, "A")
+    nested = nx.assembly.add(nx.pin, "B", ([0, 0, 0], RZ90), parent=z)
+    nested.ref = nx.ref_of(nested, "component")
+    m = place(nx, nx.pin, "M")
+    ok = run(nx, "nx_list_components")
+    assert [r["id"] for r in ok.data["items"]] == [a.ref, m.ref, z.ref, nested.ref]
+    assert ok.data["items"][3]["path"] == "Z/B"
+
+
+def test_reference_set_names_get_a_suggestion(nx):
+    a = place(nx, nx.blk, "A")
+    bad = run(nx, "nx_create_reference_set", name="Light Set", objects=[a.ref])
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/name"
+    assert "'Light_Set'" in bad.error["message"] and bad.mutation_outcome == "not_started"

@@ -116,3 +116,85 @@ def test_summaries():
     assert render(spec, {"operations": [extrude("s:1")]}) == "Preview: Extrude sketch"
     finish = catalogue.load()["nx_finish_preview"]
     assert render(finish, {"preview_id": "x", "action": "discard"}) == "Discard the preview"
+
+
+def test_bare_or_upper_case_preview_ids_work():
+    nx, sk = extrude_nx()
+    pid = run(nx, "nx_preview_changes", operations=[extrude(sk.ref)]).data["preview_id"]
+    bare = pid.removeprefix("preview_").upper()
+    ok = run(nx, "nx_finish_preview", preview_id=bare, action="accept")
+    assert ok.ok and ok.data["preview_id"] == pid and ok.data["state"] == "applied", ok
+    assert len(nx.part.Bodies) == 1
+
+
+def test_discard_changes_nothing_and_a_repeated_finish_says_what_happened():
+    nx, sk = extrude_nx()
+    pid = run(nx, "nx_preview_changes", operations=[extrude(sk.ref)]).data["preview_id"]
+    ok = run(nx, "nx_finish_preview", preview_id=pid, action="discard")
+    assert ok.ok and ok.mutation_outcome == "not_applicable" and ok.data["state"] == "discarded"
+    twice = run(nx, "nx_finish_preview", preview_id=pid, action="discard")
+    assert twice.ok and twice.data["state"] == "already_finished"
+    assert twice.mutation_outcome == "not_applicable"
+    accept = run(nx, "nx_finish_preview", preview_id=pid, action="accept")
+    assert accept.error["code"] == "NX_STALE_PREVIEW"
+    assert "already discarded" in accept.error["message"]
+    assert accept.error["details"]["finished"] == "discarded"
+    # An accepted preview cannot be discarded: the hint names the undo.
+    p2 = run(nx, "nx_preview_changes", operations=[extrude(sk.ref)]).data["preview_id"]
+    assert run(nx, "nx_finish_preview", preview_id=p2, action="accept").ok
+    late = run(nx, "nx_finish_preview", preview_id=p2, action="discard")
+    assert late.error["code"] == "NX_STALE_PREVIEW" and "already accepted" in late.error["message"]
+    assert "nx_undo_operation" in late.error["hint"] and len(nx.part.Bodies) == 1
+    unknown = run(nx, "nx_finish_preview", preview_id="preview_" + "a" * 32, action="discard")
+    assert (
+        unknown.error["code"] == "NX_STALE_PREVIEW"
+        and "Unknown preview" in unknown.error["message"]
+    )
+
+
+def test_a_stale_preview_can_be_discarded_and_names_what_changed():
+    nx, sk = extrude_nx()
+    pid = run(nx, "nx_preview_changes", operations=[extrude(sk.ref)]).data["preview_id"]
+    assert run(nx, "nx_set_expression", name="wall", formula="2", units="mm").ok
+    stale = run(nx, "nx_finish_preview", preview_id=pid, action="accept")
+    assert stale.error["code"] == "NX_STALE_PREVIEW"
+    assert "expressions" in stale.error["details"]["changed"]
+    gone = run(nx, "nx_finish_preview", preview_id=pid, action="discard")
+    assert gone.ok and gone.data["state"] == "already_finished"
+    again = run(nx, "nx_finish_preview", preview_id=pid, action="accept")
+    assert "expired" in again.error["message"] and list(nx.part.Bodies) == []
+
+
+def test_refused_calls_and_renames_in_between_do_not_expire_the_preview():
+    nx, sk = extrude_nx()
+    pid = run(nx, "nx_preview_changes", operations=[extrude(sk.ref)]).data["preview_id"]
+    refused = run(nx, "nx_finish_preview", preview_id="preview_x", action="accept")
+    assert refused.mutation_outcome == "not_started"  # a schema refusal
+    renamed = run(nx, "nx_set_name", object=sk.ref, name="Profile")
+    assert renamed.ok
+    ok = run(nx, "nx_finish_preview", preview_id=pid, action="accept")
+    assert ok.ok and ok.data["state"] == "applied", ok
+    assert any("as previewed" in w["message"] for w in ok.warnings)
+    assert len(nx.part.Bodies) == 1
+
+
+def test_only_the_newest_previews_are_kept():
+    from nx_mcp.domains.session import preview as module
+
+    nx, sk = extrude_nx()
+    ids = [
+        run(nx, "nx_preview_changes", operations=[extrude(sk.ref)]).data["preview_id"]
+        for _ in range(module.KEEP + 1)
+    ]
+    old = run(nx, "nx_finish_preview", preview_id=ids[0], action="accept")
+    assert old.error["code"] == "NX_STALE_PREVIEW" and "newest" in old.error["message"]
+    assert run(nx, "nx_finish_preview", preview_id=ids[0], action="discard").ok
+
+
+def test_a_rename_step_previews_and_accepts():
+    nx, sk = extrude_nx()
+    rename = {"tool": "nx_set_name", "arguments": {"object": sk.ref, "name": "Profile"}}
+    preview = run(nx, "nx_preview_changes", operations=[extrude(sk.ref), rename])
+    assert preview.ok, preview
+    ok = run(nx, "nx_finish_preview", preview_id=preview.data["preview_id"], action="accept")
+    assert ok.ok and sk.Name == "Profile" and len(nx.part.Bodies) == 1

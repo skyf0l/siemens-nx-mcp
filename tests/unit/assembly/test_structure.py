@@ -83,3 +83,25 @@ def test_check_reports_and_disposes_error_lists():
     structure.check(empty)
     empty.Dispose.assert_called_once()
     structure.check(None)
+
+
+class _Info:
+    """An NXOpen.ErrorInfo: its str() is only the object repr."""
+
+    def __init__(self, description, code):
+        self.Description, self.ErrorCode = description, code
+
+    def __str__(self):
+        return "<NXOpen.ErrorInfo object at 0x0000021>"
+
+
+def test_check_reads_the_error_info_text_and_code():
+    infos = [_Info("Part is not compatible", 641029), _Info("", None)]
+    errors = NS(Length=2, GetErrorInfo=lambda i: infos[i], Dispose=Mock())
+    with pytest.raises(NXError) as error:
+        structure.check(errors, "NX_BUILD_FAILED", "NX did not replace the part")
+    message = error.value.message
+    assert "Part is not compatible (NX error 641029)" in message and "0x" not in message
+    assert error.value.nx_code == 641029
+    assert error.value.details["errors"][1] == "NX gave no reason"
+    assert structure.error_text("plain text") == ("plain text", None)

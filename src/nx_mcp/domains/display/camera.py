@@ -9,10 +9,15 @@ The result echoes the same matrix and its columns as ``right``, ``up`` and
 unless ``fit``; ``view_from`` gives any other direction (e.g. the other isometric
 octants). A camera change does not mark the part modified (NX 2406, measured).
 
-``view`` is the canned orientation nearest in look-from direction and ``view_angle`` the
-angle in degrees between the two directions (NX keeps ``Trimetric`` as the view name). NX's
-isometric looks from (1,-1,1): the rear of a part whose front faces -X (an engine with
+``view`` is the canned orientation nearest in look-from direction when it is within 10
+degrees (``common.NAMED_WITHIN``), else ``custom`` with ``nearest_view``; ``view_angle`` is
+the angle in degrees between the two directions (NX keeps ``Trimetric`` as the view name).
+NX's isometric looks from (1,-1,1): the rear of a part whose front faces -X (an engine with
 its nose at x=0); ``view_from [-1,-1,1]`` shows that front from the same height.
+
+Natural forms: ``orientation`` takes ``iso`` for ``isometric``; ``zoom`` multiplies the
+current (or, with ``fit``, the fitted) scale about the view centre, so ``zoom=2`` shows
+the model twice as large without knowing NX's absolute ``scale``.
 """
 
 from __future__ import annotations
@@ -27,11 +32,12 @@ from nx_mcp.domains.display.common import camera_row
 from nx_mcp.kit import display, drawing, geom, readback
 from nx_mcp.kit.result import Row
 
-ViewOrigin = Annotated[tuple[float, float, float], Doc("NX view origin, as nx_get_camera gives")]
+ViewOrigin = Annotated[tuple[float, float, float], Doc("NX view origin, as nx_get_camera")]
 Orientation = Annotated[
-    Literal["top", "front", "right", "back", "left", "bottom", "isometric", "trimetric"],
+    Literal["top", "front", "right", "back", "left", "bottom", "isometric", "iso", "trimetric"],
     Doc("Looks from +Z top, -Z bottom, -Y front, +Y back, +X right, -X left, iso (1,-1,1)"),
 ]
+Zoom = Annotated[float, Range(gt=0, le=1000), Doc("x current/fitted scale; 2=closer")]
 _Row = tuple[float, float, float]
 ViewRotation = Annotated[
     tuple[_Row, _Row, _Row],
@@ -44,6 +50,7 @@ ViewUp = Annotated[tuple[float, float, float], Doc("Screen up for view_from (def
 class CameraData(TypedDict, total=False):
     part: Row
     view: str
+    nearest_view: str
     view_angle: float
     rotation: list[list[float]]
     view_from: list[float]
@@ -67,8 +74,8 @@ class CameraData(TypedDict, total=False):
 )
 def nx_get_camera(tx: Tx) -> CameraData:
     """Read the displayed view: camera rotation, origin, scale and rendering style, or the
-    shown drawing sheet. origin is the value nx_set_camera takes back; view is the nearest
-    named view, view_angle the degrees off it."""
+    shown drawing sheet. origin is what nx_set_camera takes back; view is a named view or
+    custom, view_angle the degrees off the nearest."""
     part = display.shown_part(tx)
     tx.frame = "display_part_absolute"
     out: CameraData = {"part": tx.ref(part, "part"), "interactive": not tx.session.IsBatch}
@@ -89,7 +96,7 @@ def _summary(a, say):
         text = "View from (" + ", ".join(f"{float(v):.3g}" for v in a["view_from"]) + ")"
     elif a.get("rotation") is not None:
         text = "Rotate the view"
-    elif a.get("origin") is not None or a.get("scale") is not None:
+    elif any(a.get(k) is not None for k in ("origin", "scale", "zoom")):
         text = "Pan or zoom the view"
     else:
         text = "Fit the view"
@@ -98,7 +105,7 @@ def _summary(a, say):
 
 @tool(
     effect="view",
-    label="Set camera",
+    label="Set camera: orient, zoom, fit view",
     summary=_summary,
     keywords=("fit view", "isometric", "orient view", "rotate view", "zoom", "pan", "set view"),
     requires=("work_part",),
@@ -114,26 +121,47 @@ def nx_set_camera(
     up: ViewUp | None = None,
     rotation: ViewRotation | None = None,
     origin: ViewOrigin | None = None,
-    scale: Annotated[float, Range(gt=0, le=1e6), Doc("Absolute NX view scale")] | None = None,
+    scale: Annotated[float, Range(gt=0, le=1e6), Doc("Absolute, as nx_get_camera")] | None = None,
+    zoom: Zoom | None = None,
     fit: bool = False,
 ) -> CameraData:
-    """Orient the model view (orientation, view_from or rotation), set origin or scale, and/or
-    fit; returns restore_id. isometric is NX's (1,-1,1), the rear of a part whose front is at
-    min X: view_from [-1,-1,1] shows that front. view = nearest named view, view_angle
-    degrees off it."""
+    """Orient (orientation, view_from or rotation), pan, zoom or fit the model view; returns
+    restore_id. NX iso looks from (1,-1,1); view_from [-1,-1,1] shows a min-X front."""
     given = [n for n, v in (("orientation", orientation), ("view_from", view_from),
                             ("rotation", rotation)) if v is not None]  # fmt: skip
-    if not given and origin is None and scale is None and not fit:
+    if not given and origin is None and scale is None and zoom is None and not fit:
         fail(
             "NX_INVALID_ARGUMENT",
-            "Give orientation, view_from, rotation, origin, scale or fit=true",
+            "Nothing to change: give orientation, view_from, rotation, origin, scale, zoom "
+            "or fit=true",
+            hint='e.g. {"orientation": "isometric", "fit": true} or {"zoom": 2}',
         )
     if len(given) > 1:
-        fail("NX_INVALID_ARGUMENT", f"Give one of {' and '.join(given)}", field="/" + given[-1])
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{given[0]} and {given[1]} both set the view direction; give only one",
+            field="/" + given[-1],
+        )
     if up is not None and view_from is None:
-        fail("NX_INVALID_ARGUMENT", "up goes with view_from", field="/up")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "up goes with view_from (orientation and rotation fix the screen up)",
+            field="/up",
+        )
     if fit and (origin is not None or scale is not None):
-        fail("NX_INVALID_ARGUMENT", "fit sets origin and scale itself", field="/fit")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "fit sets origin and scale itself; add zoom to scale the fitted view",
+            field="/fit",
+        )
+    if zoom is not None and scale is not None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give scale (absolute) or zoom (a factor on the current scale), not both",
+            field="/zoom",
+        )
+    if orientation == "iso":
+        orientation = "isometric"
     wanted = geom.rotation(rotation, "/rotation") if rotation is not None else None
     if view_from is not None:
         wanted = display.rotation_from(view_from, up)
@@ -157,6 +185,10 @@ def nx_set_camera(
     if fit and orientation is None:
         view.Fit()
         view.UpdateDisplay()
+    if zoom is not None:  # about the view centre: rotation and origin stay
+        now = display.camera(tx, view)
+        scale = now["scale"] * zoom
+        display.set_camera(tx, view, now["rotation"], now["origin"], scale)
     got = display.camera(tx, view)
     display.expect_camera(got, wanted, origin, scale)
     readback.expect(got["scale"] > 0, "camera.scale", scale=got["scale"])

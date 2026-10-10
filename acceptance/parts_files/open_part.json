@@ -30,8 +30,18 @@
     {"call": "nx_open_part", "args": {"path": "$run/dup/../../../../outside.prt"},
      "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}},
     {"call": "nx_open_part", "args": {"path": "$run/dup"},
-     "expect": {"error.code": "NX_UNSUPPORTED_FILE_TYPE", "mutation_outcome": "not_started"}},
+     "expect": {"error.code": "NX_FILE_NOT_FOUND", "mutation_outcome": "not_started"}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
-     "expect": {"page.total": 2}}
+     "expect": {"page.total": 2}},
+    {"call": "nx_close_part", "setup": true, "args": {"part": "$fx.data.part.id", "save": false}},
+    {"call": "nx_open_part", "save": "again", "args": {"path": "$fixture"},
+     "expect": {"mutation_outcome": "committed", "data.already_loaded": false, "data.units": "mm",
+                "units.length": "mm", "data.part.id": {"matches": "^p:"}}},
+    {"call": "nx_activate_part", "args": {"part": "$fx.data.part.id"},
+     "expect": {"error.category": "stale_reference", "mutation_outcome": "not_started",
+                "error.hint": {"matches": "nx_list_parts"},
+                "error.details.loaded_parts.0.kind": "part"}},
+    {"call": "nx_activate_part", "args": {"part": "$again.data.part.id"},
+     "expect": {"mutation_outcome": "committed", "data.work": true, "data.display": true}}
   ]
 }

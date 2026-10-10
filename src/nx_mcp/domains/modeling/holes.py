@@ -7,6 +7,11 @@ drill, so it is set from the table row; start/end chamfers and relief are off;
 the depth is measured to the cylinder bottom (the drill tip comes on top); the
 committed parameters are read back through an edit builder that is destroyed
 without committing.
+
+Short forms: depth 10, '10 mm' or 'through_all'; a position [x, y] on a face normal to
+z (y and z on a face normal to x); a threaded hole's thread {'size': 'M6'} (standard
+Metric Coarse, see ``threads``) drills the 0.75-engagement tap drill when diameter is
+omitted.
 """
 
 from __future__ import annotations
@@ -27,13 +32,18 @@ from nx_mcp.core.types import (
     LimitDistance,
     LimitThroughAll,
     Point3,
-    Text,
     forbid_extra,
 )
 from nx_mcp.domains.modeling import common, threads
-from nx_mcp.kit import builders, geom, measure, readback, result, select, units
+from nx_mcp.kit import builders, expr, geom, measure, readback, result, select, units
 
 FORMS = ("simple", "counterbore", "countersink", "threaded")
+# [x, y, z], or [a, b]: the two coordinates in the face plane, in x, y, z order.
+FacePoint = Annotated[list[float], Items(2, 3), Doc("[x, y, z], or [x, y] on a face normal to z")]
+DepthArg = Annotated[
+    LimitDistance | LimitThroughAll | Length | Literal["through_all", "through"],
+    Doc("To the cylinder bottom: 10, '10 mm' or 'through_all'"),
+]
 
 
 class Counterbore(TypedDict):
@@ -50,12 +60,12 @@ class Countersink(_CountersinkRequired, total=False):
 
 
 class _ThreadRequired(TypedDict):
-    standard: Annotated[str, Text(64)]
-    size: Annotated[str, Text(64)]
+    size: threads.SizeText
 
 
 class HoleThread(_ThreadRequired, total=False):
-    depth: Length
+    standard: threads.StandardText
+    depth: Annotated[Length, Doc("Thread depth; default the hole depth")]
 
 
 forbid_extra(Counterbore, Countersink, HoleThread)
@@ -86,19 +96,38 @@ def nominal_volume(spec):
     return volume + math.pi * r * r * depth
 
 
+def depth_limit(value) -> dict:
+    """The Limit object of a depth given as a distance, 'through_all' or an object."""
+    if isinstance(value, dict):
+        return value
+    if value in ("through_all", "through"):
+        return {"type": "through_all"}
+    if float(value) <= 0:
+        fail("NX_INVALID_ARGUMENT", "depth must be positive", field="/depth")
+    return {"type": "distance", "value": value}
+
+
 def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, thread):
-    """A normalised hole spec, or ``invalid_argument`` (no NX needed)."""
-    if diameter <= 0:
+    """A normalised hole spec, or ``invalid_argument`` (no NX needed). A threaded hole's
+    diameter may be None (the tap drill of its thread, set by ``tap_row``)."""
+    if diameter is None and form != "threaded":
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A {form} hole needs diameter",
+            field="/diameter",
+            hint="e.g. diameter 6 or '6 mm'",
+        )
+    if diameter is not None and diameter <= 0:
         fail("NX_INVALID_ARGUMENT", "diameter must be positive", field="/diameter")
     if not 0 < tip_angle < 180:
         fail("NX_INVALID_ARGUMENT", "tip_angle must be between 0 and 180", field="/tip_angle")
     through = depth["type"] == "through_all"
     spec = {
         "form": form,
-        "diameter": float(diameter),
-        "tip_angle": float(tip_angle),
+        "diameter": None if diameter is None else expr.number(diameter),
+        "tip_angle": expr.number(tip_angle),
         "through_all": through,
-        "depth": None if through else float(depth["value"]),
+        "depth": None if through else expr.number(depth["value"]),
     }
     if spec["depth"] is not None and spec["depth"] <= 0:
         fail("NX_INVALID_ARGUMENT", "depth must be positive", field="/depth/value")
@@ -106,11 +135,30 @@ def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, threa
     wanted = {"counterbore": "counterbore", "countersink": "countersink", "threaded": "thread"}
     for key, value in given.items():
         if value is not None and wanted.get(form) != key:
-            fail("NX_INVALID_ARGUMENT", f"{key} does not apply to a {form} hole", field="/" + key)
+            right = next(f for f, k in wanted.items() if k == key)
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{key} does not apply to a {form} hole",
+                field="/" + key,
+                hint=f"Pass form {right!r} with {key}, or drop {key}",
+            )
     if form in wanted and given[wanted[form]] is None:
-        fail("NX_INVALID_ARGUMENT", f"A {form} hole needs {wanted[form]}", field="/" + wanted[form])
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A {form} hole needs {wanted[form]}",
+            field="/" + wanted[form],
+            hint={
+                "counterbore": "e.g. counterbore {'diameter': 11, 'depth': 4}",
+                "countersink": "e.g. countersink {'diameter': 12, 'angle': 90}",
+                "threaded": "e.g. thread {'size': 'M6'} (Metric Coarse; diameter defaults to "
+                "the tap drill)",
+            }[form],
+        )
     if form == "counterbore":
-        cb = {"diameter": float(counterbore["diameter"]), "depth": float(counterbore["depth"])}
+        cb = {
+            "diameter": expr.number(counterbore["diameter"]),
+            "depth": expr.number(counterbore["depth"]),
+        }
         if cb["diameter"] <= spec["diameter"]:
             fail("NX_INVALID_ARGUMENT", "The counterbore must be wider", field="/counterbore")
         if cb["depth"] <= 0 or (spec["depth"] is not None and cb["depth"] >= spec["depth"]):
@@ -118,8 +166,8 @@ def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, threa
         spec["counterbore"] = cb
     elif form == "countersink":
         cs = {
-            "diameter": float(countersink["diameter"]),
-            "angle": float(countersink.get("angle", 90.0)),
+            "diameter": expr.number(countersink["diameter"]),
+            "angle": expr.number(countersink.get("angle", 90.0)),
         }
         if cs["diameter"] <= spec["diameter"]:
             fail("NX_INVALID_ARGUMENT", "The countersink must be wider", field="/countersink")
@@ -139,15 +187,16 @@ def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, threa
             td <= 0 or (spec["depth"] is not None and td > spec["depth"] * (1 + 1e-9))
         ):
             fail("NX_INVALID_ARGUMENT", "thread depth must be 0..depth", field="/thread/depth")
-        spec["thread"] = {**thread, "depth": None if td is None else float(td)}
+        spec["thread"] = {**thread, "depth": None if td is None else expr.number(td)}
     return spec
 
 
 def check_positions(positions):
+    """The positions as lists; two equal positions (of the same form) are refused."""
     scale = max([1.0] + [abs(c) for p in positions for c in p])
     for i, a in enumerate(positions):
         for j in range(i):
-            if geom.dist(a, positions[j]) <= 1e-6 * scale:
+            if len(a) == len(positions[j]) and geom.dist(a, positions[j]) <= 1e-6 * scale:
                 fail(
                     "NX_INVALID_ARGUMENT",
                     f"positions {i} and {j} coincide",
@@ -156,29 +205,31 @@ def check_positions(positions):
     return [list(p) for p in positions]
 
 
-def tap_row(rows, spec, part_units):
-    """The table row of the thread whose tap drill equals the hole diameter."""
+def tap_row(rows, spec):
+    """The table row of the hole's thread whose tap drill equals the hole diameter; with no
+    diameter, the default engagement's row (its tap drill becomes the diameter). The
+    thread's standard and size become the table's names. Needs no NX."""
     t = spec["thread"]
-    candidates = threads.select_rows(rows, t["standard"], t["size"], "/thread/standard")
-    if (candidates[0].get("Unit") == "Metric") != (part_units == "mm"):
-        fail(
-            "NX_UNSUPPORTED_OPTION",
-            f"{t['standard']} is {candidates[0].get('Unit')}; the work part is in {part_units}",
-            field="/thread/standard",
-        )
-    drills = sorted({float(r["TapDrillDia"]) for r in candidates if r.get("TapDrillDia")})
+    candidates = threads.size_rows(rows, t.get("standard"), t["size"], "/thread/size")
+    t["standard"], t["size"] = candidates[0]["Standard"], candidates[0]["Size"]
+    usable = [r for r in candidates if r.get("TapDrillDia") and r.get("RadialEngage") != "Custom"]
+    if spec["diameter"] is None:
+        row = threads.pick_row(usable or candidates, field="/thread")
+        spec["diameter"] = float(row["TapDrillDia"])
+        return row
     tol = 1e-6 * max(1.0, spec["diameter"])
-    for r in candidates:
-        if (
-            r.get("TapDrillDia")
-            and abs(float(r["TapDrillDia"]) - spec["diameter"]) <= tol
-            and r.get("RadialEngage") != "Custom"
-        ):
+    for r in usable:
+        if abs(float(r["TapDrillDia"]) - spec["diameter"]) <= tol:
             return r
+    drills = sorted({float(r["TapDrillDia"]) for r in usable})
+    major = common.float_or_none(candidates[0].get("MajorDiameter"))
+    clearance = major is not None and spec["diameter"] >= major
     fail(
         "NX_INVALID_ARGUMENT",
-        f"diameter must be a tap-drill diameter of {t['size']}: {drills}",
+        f"A threaded {t['size']} hole drills a tap drill {drills}, not {spec['diameter']:g}",
         field="/diameter",
+        hint="Omit diameter to drill the 0.75-engagement tap drill"
+        + ("; a clearance hole for the screw is form 'simple'" if clearance else ""),
         details={"tap_drill_diameters": drills},
     )
 
@@ -203,17 +254,48 @@ def _placement(tx, face, target):
     return placement, body, point, outward
 
 
+def _principal(normal):
+    """Index of the axis a unit normal lies along, or None."""
+    return next((i for i in range(3) if abs(abs(normal[i]) - 1.0) <= 1e-9), None)
+
+
+def _complete(points, origin, normal):
+    """3D points: an [a, b] position takes the face plane's coordinate along its normal."""
+    axis = _principal(normal)
+    out = []
+    for i, p in enumerate(points):
+        if len(p) == 3:
+            out.append(list(p))
+            continue
+        if axis is None:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"position {i} has 2 coordinates but the face is not normal to x, y or z",
+                field=f"/positions/{i}",
+                hint="Give [x, y, z] on the face",
+            )
+        q = list(p)
+        q.insert(axis, origin[axis])
+        out.append(q)
+    return out
+
+
 def _on_face(tx, placement, points, origin, normal):
     """Project points within tolerance onto the plane; each must lie inside the face."""
+    points = check_positions(_complete(points, origin, normal))
     tol = 1e-4 * max([1.0, *(abs(c) for p in [*points, origin] for c in p)])
+    axis = _principal(normal)
     out = []
     for i, p in enumerate(points):
         distance = geom.dot(geom.sub(p, origin), normal)
         if abs(distance) > tol:
+            at = f"{'xyz'[axis]} = {origin[axis]:.6g}" if axis is not None else "its plane"
             fail(
                 "NX_INVALID_ARGUMENT",
-                f"position {i} is {distance:.6g} off the face plane",
+                f"position {i} is {distance:.6g} off the face plane ({at})",
                 field=f"/positions/{i}",
+                hint="Give a point on the face"
+                + (f" ({at}) or its 2 in-plane coordinates" if axis is not None else ""),
                 details={"tolerance": tol},
             )
         q = geom.sub(p, geom.scale(normal, distance))
@@ -276,7 +358,7 @@ def _configure(tx, b, spec, row):
     )
     b.DepthOption = B.HoleDepthOptions.ToCylinderBottom
     for expression, value in values:
-        expression.RightHandSide = repr(float(value))
+        expr.drive(expression, value)  # an expression value keeps the hole driven
 
 
 def _read_back(tx, feature, form):
@@ -365,28 +447,25 @@ class HoleData(TypedDict):
 @tool(
     effect="model",
     label="Create hole",
-    summary=lambda a, say: f"{a['form'].capitalize()} hole x{len(a['positions'])} on {say('face')}",
+    summary=lambda a, say: (
+        f"{a.get('form', 'simple').capitalize()} hole x{len(a['positions'])} on {say('face')}"
+    ),
     keywords=("hole", "drill", "counterbore", "countersink", "tapped hole", "threaded hole"),
     requires=("work_part", "no_active_sketch"),
     variants="form",
     cost="heavy",
     previewable=True,
-    example={
-        "face": "fc:7",
-        "positions": [[10, 10, 20]],
-        "form": "simple",
-        "diameter": 6,
-        "depth": {"type": "distance", "value": 10},
-    },
+    example={"face": "fc:7", "positions": [[10, 10, 20]], "diameter": 6, "depth": 10},
 )
 def nx_create_hole(
     tx: Tx,
     *,
     face: FaceRef,
-    positions: Annotated[list[Point3], Items(1, 100), Doc("Hole centres on the face")],
-    form: Literal["simple", "counterbore", "countersink", "threaded"],
-    diameter: Annotated[Length, Doc("Drill diameter; for threaded, a tap drill of the size")],
-    depth: Annotated[LimitDistance | LimitThroughAll, Doc("To the cylinder bottom")],
+    positions: Annotated[list[FacePoint], Items(1, 100), Doc("Centres on the face")],
+    depth: DepthArg,
+    form: Literal["simple", "counterbore", "countersink", "threaded"] = "simple",
+    diameter: Annotated[Length, Doc("Drill diameter; threaded: default the tap drill")]
+    | None = None,
     tip_angle: Angle = 118.0,
     counterbore: Counterbore | None = None,
     countersink: Countersink | None = None,
@@ -394,14 +473,16 @@ def nx_create_hole(
     target: BodyRef | None = None,
 ) -> HoleData:
     """Create one NX Hole feature with 1-100 holes on a planar face, drilled into the material.
-    nominal is the analytic removed volume of blind holes fully inside the body."""
-    spec = check_spec(form, diameter, depth, tip_angle, counterbore, countersink, thread)
+    Threaded: thread {size: 'M6'}, diameter default its tap drill. nominal is the analytic
+    removed volume of blind holes fully inside the body."""
+    limit = depth_limit(depth)
+    spec = check_spec(form, diameter, limit, tip_angle, counterbore, countersink, thread)
     points = check_positions(positions)
+    row = tap_row(threads.thread_rows(), spec) if form == "threaded" else None
     placement, body, origin, outward = _placement(tx, face, target)
     centres = _on_face(tx, placement, points, origin, outward)
-    row = None
-    if form == "threaded":
-        row = tap_row(threads.thread_rows(), spec, units.part_units(tx))
+    if row is not None:
+        threads.check_units(tx, row, "/thread/standard")
     drill = geom.scale(outward, -1.0)
     part = tx.part
     nx = tx.nx

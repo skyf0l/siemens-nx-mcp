@@ -30,9 +30,9 @@ from typing import Annotated, Any, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Point3, Range, RefTo, Vec3
+from nx_mcp.core.types import Doc, Items, Point3, Quantity, Range, RefTo, Vec3
 from nx_mcp.domains.inspection import common
-from nx_mcp.kit import curve, geom
+from nx_mcp.kit import curve, geom, measure
 
 TAU = 2 * math.pi
 SAMPLES = 64  # polygon points of a curve that is neither a line nor an arc
@@ -44,6 +44,7 @@ PRINCIPAL = {  # plane -> (u axis, v axis, index of the offset axis)
     "xz": ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1),
 }
 RADIAL = {"z": ("xz", 1, 0), "x": ("xy", 0, 1), "y": ("xy", 1, 0)}  # plane, axial, radial
+FORMS = "{plane:'xy', offset:5}, {origin:[0,0,5], normal:[0,0,1]} or {radial_axis:'z', at:[10]}"
 
 Targets = Annotated[list[Annotated[str, RefTo("body", "feature", "component")]], Items(1, 100)]
 
@@ -345,11 +346,30 @@ def _cut(tx, frame, body) -> list[dict]:
     return [_segment(tx, frame, manager.GetTaggedObject(t)) for t in list(tags or [])]
 
 
+def _span(tx, frame, cut_plane, found) -> str:
+    """Where the bodies lie against the plane, for the empty-cut warning."""
+    try:
+        low, high = measure.bounds(tx, found)
+    except Exception:  # only a hint: the warning stands without it
+        return ""
+    if cut_plane is not None:  # a principal plane: world coordinates on its offset axis
+        i = PRINCIPAL[cut_plane][2]
+        axis = "xyz"[i]
+        return (
+            f"; the plane is at {axis} = {frame['origin'][i]:g}, the bodies span"
+            f" {axis} {low[i]:g} to {high[i]:g}"
+        )
+    n, o = frame["normal"], geom.dot(frame["origin"], frame["normal"])
+    corners = [[(low, high)[(k >> i) & 1][i] for i in range(3)] for k in range(8)]
+    along = [geom.dot(c, n) - o for c in corners]
+    return f"; the bodies lie {min(along):g} to {max(along):g} from the plane along normal"
+
+
 def _summary(a, say):
     if a.get("radial_axis"):
         return f"Radial profile about {a['radial_axis']}"
     if a.get("plane"):
-        return f"Section on {a['plane']}" + (f" at {a['offset']:g}" if a.get("offset") else "")
+        return f"Section on {a['plane']}" + (f" at {a['offset']}" if a.get("offset") else "")
     return "Section on a plane"
 
 
@@ -360,13 +380,15 @@ def _summary(a, say):
     keywords=("section profile", "cross section", "cut plane", "radial profile", "loop area"),
     requires=("work_part",),
     cost="heavy",
-    example={"plane": "xz"},
+    example={"plane": "xy", "offset": 5},
 )
 def nx_measure_section(
     tx: Tx,
     *,
     plane: Literal["xy", "yz", "xz"] | None = None,
-    offset: Annotated[float, Doc("Along z, x or y for xy, yz, xz")] = 0.0,
+    offset: Annotated[
+        float | str, Quantity("length"), Doc("Along z, x, y for xy, yz, xz; or '5 mm'")
+    ] = 0.0,
     origin: Point3 | None = None,
     normal: Vec3 | None = None,
     radial_axis: Literal["x", "y", "z"] | None = None,
@@ -374,16 +396,41 @@ def nx_measure_section(
     at: Annotated[list[float], Items(1, 200)] | None = None,
     bodies: Targets | None = None,
 ) -> SectionData:
-    """Cut bodies with a plane (plane + offset, or origin + normal); the model is unchanged.
-    Loops: role, area, box, lines/arcs in 2D (frame). radial_axis: radius spans per station."""
+    """Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the model is
+    unchanged. Loops: role, area, box, 2D lines/arcs. radial_axis z cuts xz, x or y cut xy:
+    radius spans per axial station (at)."""
     given = [n for n, v in (("plane", plane), ("normal", normal), ("radial_axis", radial_axis))
              if v is not None]  # fmt: skip
-    if len(given) != 1:
-        fail("NX_INVALID_ARGUMENT", "Give one of plane, normal or radial_axis", field="/plane")
+    if not given:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give the cut: one of plane, normal or radial_axis",
+            field="/plane",
+            hint="e.g. " + FORMS,
+        )
+    if len(given) > 1:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"plane, normal and radial_axis are mutually exclusive; got {' and '.join(given)}",
+            field="/" + given[1],
+            hint="Keep one: " + FORMS,
+        )
+    offset = float(offset)
     if offset and plane is None:
-        fail("NX_INVALID_ARGUMENT", "offset goes with plane", field="/offset")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "offset goes with plane; with normal, move origin instead",
+            field="/offset",
+            hint="e.g. " + FORMS,
+        )
     if at is not None and radial_axis is None:
-        fail("NX_INVALID_ARGUMENT", "at goes with radial_axis", field="/at")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "at lists the axial stations of a radial_axis profile",
+            field="/at",
+            hint="For a plane at a position use {plane, offset}; for stations use "
+            "{radial_axis, at}",
+        )
     axial = 0
     cut_plane: str | None = plane
     if radial_axis is not None:
@@ -424,7 +471,10 @@ def nx_measure_section(
     if len(loops) > MAX_LOOPS:
         fail("NX_TOO_MANY_OBJECTS", f"More than {MAX_LOOPS} loops", field="/bodies")
     if not loops:
-        tx.warn("NX_UPDATE_WARNING", "The plane does not cut the bodies: no loops")
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            "The plane does not cut the bodies: no loops" + _span(tx, frame, cut_plane, found),
+        )
     out: SectionData = {"frame": frame, "area": total, "loops": loops}
     if radial_axis is not None:
         out["profile"] = [

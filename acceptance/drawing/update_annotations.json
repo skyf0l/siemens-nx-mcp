@@ -119,6 +119,12 @@
    "expect": {
     "data.refreshed": {
      "count": 0
+    },
+    "data.skipped": {
+     "count": 1
+    },
+    "data.note": {
+     "contains": "Not managed"
     }
    }
   },

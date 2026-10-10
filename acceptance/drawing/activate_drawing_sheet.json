@@ -75,6 +75,30 @@
    }
   },
   {
+   "call": "nx_activate_drawing_sheet",
+   "args": {
+    "sheet": "sht1"
+   },
+   "expect": {
+    "data.sheet.name": "SHT1",
+    "data.sheets.0.active": true
+   }
+  },
+  {
+   "call": "nx_activate_drawing_sheet",
+   "args": {
+    "sheet": "Sheet9"
+   },
+   "expect": {
+    "error.category": "not_found",
+    "error.field": "/sheet",
+    "mutation_outcome": "not_started",
+    "error.details.sheets": {
+     "count": 2
+    }
+   }
+  },
+  {
    "call": "nx_create_drawing_view",
    "setup": true,
    "save": "top",

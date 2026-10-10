@@ -237,6 +237,12 @@
       0
      ],
      "tol": 0.0001
+    },
+    "data.sheet": true,
+    "data.faces": 2,
+    "data.area": {
+     "close": 400,
+     "tol": 0.001
     }
    }
   },
@@ -270,7 +276,9 @@
     "data.bounds.max.0": {
      "close": 40,
      "tol": 0.0001
-    }
+    },
+    "data.sheet": false,
+    "data.side": "along_normal"
    }
   },
   {
@@ -296,6 +304,51 @@
    },
    "expect": {
     "error.field": "/offset2",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "f",
+   "args": {
+    "limit": 2,
+    "owner": "$sewn.data.bodies.0.id",
+    "kind": "face",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_thicken",
+   "args": {
+    "faces": [
+     "$f.data.items.0.id",
+     "$f.data.items.1.id"
+    ],
+    "thickness": "-1 mm"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 400,
+     "tol": 0.0001
+    },
+    "data.side": "against_normal",
+    "data.sheet": false
+   }
+  },
+  {
+   "call": "nx_create_thicken",
+   "args": {
+    "faces": [
+     "$f.data.items.0.id"
+    ],
+    "thickness": 1,
+    "offset1": 1
+   },
+   "expect": {
+    "error.field": "/thickness",
     "mutation_outcome": "not_started"
    }
   },
@@ -1063,7 +1116,17 @@
    },
    "expect": {
     "error.category": "geometry_failed",
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.details.gaps": {
+     "count": 1
+    },
+    "error.details.gaps.0.gap": {
+     "close": 21.18962,
+     "tol": 0.001
+    },
+    "error.hint": {
+     "contains": "tolerance"
+    }
    }
   },
   {

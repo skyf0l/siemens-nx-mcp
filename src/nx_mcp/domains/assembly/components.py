@@ -15,6 +15,10 @@ NX 2406 findings encoded here:
 - Make unique: ``Part.SetMakeUniqueName`` names the copy, then
   ``MakeUniquePartBuilder`` points the selected occurrence at it and renames it
   after the new part; other occurrences keep the original part.
+- NX cannot change the reference set of a suppressed component ("Cannot change
+  reference set on suppressed component", 720173): an edit unsuppresses first and
+  suppresses last, and a reference set for a component that stays suppressed is
+  refused before NX acts.
 """
 
 from __future__ import annotations
@@ -28,26 +32,34 @@ from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     BodyRef,
-    ComponentRef,
     Doc,
     Items,
     Mat3,
-    Name,
     Offset,
     PageLimit,
     PathTo,
     Point3,
-    Pose,
     Text,
 )
 from nx_mcp.domains.assembly import common, structure
-from nx_mcp.domains.assembly.common import ComponentRow, Translation
-from nx_mcp.kit import args, builders, geom, model, parts, readback, result, select
+from nx_mcp.domains.assembly.common import (
+    ComponentId,
+    ComponentName,
+    ComponentPose,
+    ComponentRow,
+    Rotation,
+    Translation,
+)
+from nx_mcp.kit import args, builders, model, parts, readback, result, select
 from nx_mcp.kit import pose as kpose
 from nx_mcp.kit import units as kit_units
 
 BUILT_IN_SETS = ("Entire Part", "Empty")
-RefSetName = Annotated[str, Text(132, r"^\S(.*\S)?$"), Doc("Reference set name, e.g. MODEL")]
+RefSetName = Annotated[str, Doc("e.g. MODEL or Entire Part (any case)"), Text(132, r"^\S(.*\S)?$")]
+SET_HINT = (
+    "Use a name from details.available. Sets come from the component's own part: create one "
+    "there (nx_activate_part on it, nx_create_reference_set), then reactivate the assembly"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +82,64 @@ def _check_file(tx, path, field):
                 hint="Close that part or rename the file",
                 details={"path": str(path), "loaded_part_path": other},
             )
+
+
+def _set_key(name) -> str:
+    return "".join(ch for ch in str(name).casefold() if ch.isalnum())
+
+
+def _reference_sets(component):
+    """Names of the reference sets the component's part offers (None: not loaded)."""
+    prototype = component.Prototype
+    if prototype is None:
+        return None
+    names = [str(r.Name) for r in prototype.GetAllReferenceSets()] + list(BUILT_IN_SETS)
+    return list(dict.fromkeys(names))
+
+
+def _resolve_set(component, requested, where, owner=None):
+    """The reference set of the component's part that ``requested`` names: exactly, else
+    the one equal ignoring case, spaces, '_' and '-' ("model" -> MODEL)."""
+    names = _reference_sets(component)
+    if names is not None and requested in names:
+        return requested
+    loose = [n for n in names or () if _set_key(n) == _set_key(requested)]
+    if len(loose) == 1:
+        return loose[0]
+    fail(
+        "NX_NOT_FOUND",
+        f"{owner or component.Name} has no reference set {requested!r}",
+        field="/reference_set",
+        hint=SET_HINT,
+        details={"component": where, "available": names},
+    )
+
+
+def _use_set(tx, component, name):
+    """Point ``component`` at its part's reference set ``name`` (a resolved name)."""
+    if _set_of(component) != name:
+        with native(default="NX_BUILD_FAILED"):
+            tx.part.ComponentAssembly.ReplaceReferenceSet(component, name)
+
+
+def _set_of(component) -> str:
+    try:
+        return str(component.ReferenceSet or "")
+    except Exception:  # an unloaded occurrence
+        return ""
+
+
+def _order(component, names):
+    """Sort key: depth first, siblings by name (then id), whatever order NX lists them in."""
+    chain = []
+    node = component
+    while node is not None and getattr(node, "Parent", None) is not None:
+        chain.append(node)
+        node = node.Parent
+    chain.reverse()
+    if len(chain) != len(names):  # unexpected parentage: keep the names alone
+        return [(str(n).casefold(), 0) for n in names]
+    return [(str(n).casefold(), int(c.Tag)) for n, c in zip(names, chain, strict=True)]
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +182,9 @@ def nx_list_components(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> ComponentListData:
-    """List the work part's component occurrences depth first, one page at a time. Rows carry
-    path, load state, reference set, suppression and, on request, absolute poses."""
+    """List the work part's component occurrences depth first (siblings by name), one page at
+    a time. Rows carry id, path, load state, reference set, suppression and, on request,
+    absolute poses."""
     found = []
     for c, names in parts.components(tx.part):
         if name_contains and name_contains.casefold() not in str(c.Name).casefold():
@@ -121,16 +192,13 @@ def nx_list_components(
         if suppressed is not None and bool(c.IsSuppressed) != suppressed:
             continue
         found.append((c, names))
+    found.sort(key=lambda item: _order(*item))
     selected, page = result.page(found, offset, limit)
     items: list[ComponentListRow] = []
     for c, names in selected:
         row = cast(ComponentListRow, common.component_row(tx, c, names, with_pose=include_poses))
         state = structure.load_state(tx, c)
-        reference_set = ""
-        try:
-            reference_set = str(c.ReferenceSet or "")
-        except Exception:  # an unloaded occurrence
-            reference_set = ""
+        reference_set = _set_of(c)
         row.update(
             {
                 "depth": len(names) - 1,
@@ -148,8 +216,12 @@ def nx_list_components(
 # nx_create_component
 
 
+class CreatedComponent(ComponentRow, total=False):
+    reference_set: str
+
+
 class CreateComponentData(TypedDict, total=False):
-    component: ComponentRow
+    component: CreatedComponent
     part_path: str
     part: result.Row
     units: str
@@ -180,25 +252,27 @@ def _create_summary(a, say):
     batchable=True,
     previewable=True,
     invalidates="deleted",
-    example={"path": "parts/bracket.prt", "pose": {"translation": [50, 0, 0]}},
+    example={"path": "parts/bracket.prt", "name": "bracket_1", "pose": {"translation": [50, 0, 0]}},
 )
 def nx_create_component(
     tx: Tx,
     *,
     mode: Literal["from_file", "new_in_context"] = "from_file",
-    path: Annotated[str, PathTo("read", ".prt"), Doc("from_file: the saved .prt")] | None = None,
-    new_path: Annotated[str, PathTo("new", ".prt"), Doc("new_in_context: the new part's file")]
+    path: Annotated[str, Doc("from_file: the saved .prt"), PathTo("read", ".prt")] | None = None,
+    new_path: Annotated[str, Doc("new_in_context: the new part's file"), PathTo("new", ".prt")]
     | None = None,
     units: Annotated[Literal["mm", "in"], Doc("new_in_context: default the work part's")]
     | None = None,
     objects_to_move: BodyList | None = None,
-    name: Name | None = None,
-    pose: Pose | None = None,
+    name: ComponentName | None = None,
+    pose: Annotated[ComponentPose, Doc("Omitted: origin, unrotated")] | None = None,
+    reference_set: RefSetName | None = None,
 ) -> CreateComponentData:
-    """Add a saved part, or a new empty part (new_in_context), as a component of the work part.
-    It sits at an absolute pose (identity when omitted); new_in_context may move work-part
-    bodies into the new part, which nx_save_part saves. The work part becomes an assembly."""
-    target = kpose.as_pose(pose) if pose is not None else ([0.0, 0.0, 0.0], kpose.identity())
+    """Add a saved part (from_file) or a new empty part (new_in_context) as a component of the
+    work part. reference_set defaults to Entire Part (from_file) or the template's.
+    new_in_context may move bodies into the new part; save it with nx_save_part. Use the
+    returned component and part ids."""
+    target = common.pose(pose)
     wrong = ("new_path", "units", "objects_to_move") if mode == "from_file" else ("path",)
     given = {"path": path, "new_path": new_path, "units": units, "objects_to_move": objects_to_move}
     for field in wrong:
@@ -209,7 +283,8 @@ def nx_create_component(
         fail("NX_INVALID_ARGUMENT", f"{mode} needs {needed}", field="/" + needed)
     if mode == "new_in_context":
         assert new_path is not None  # checked above
-        return _new_in_context(tx, Path(new_path), units, objects_to_move or [], name, target)
+        created, c = _new_in_context(tx, Path(new_path), units, objects_to_move or [], name, target)
+        return _finish_create(tx, created, c, reference_set)
     assert path is not None  # checked above
     with tx.checks():
         _check_file(tx, path, "/path")
@@ -233,10 +308,22 @@ def nx_create_component(
         actual=parts.file_of(c.Prototype),
     )
     structure.expect_pose(structure.pose(c), target)
-    return {
-        "component": common.component_row(tx, c, [str(c.Name)]),
+    data: CreateComponentData = {
+        "component": cast(CreatedComponent, common.component_row(tx, c, [str(c.Name)])),
         "part_path": common.relative_path(tx, path),
+        "part": tx.ref(c.Prototype, "part"),
     }
+    return _finish_create(tx, data, c, reference_set)
+
+
+def _finish_create(tx, data, component, reference_set) -> CreateComponentData:
+    """Apply the requested reference set and report the one the component uses."""
+    if reference_set is not None:
+        chosen = _resolve_set(component, reference_set, "/reference_set")
+        _use_set(tx, component, chosen)
+        readback.expect(_set_of(component) == chosen, "reference_set", actual=_set_of(component))
+    data["component"]["reference_set"] = _set_of(component)
+    return data
 
 
 def _new_in_context(tx, path, units, objects, name, target):
@@ -290,13 +377,14 @@ def _new_in_context(tx, path, units, objects, name, target):
     if bodies:
         count = len(list(prototype.Bodies))
         readback.expect(count >= len(bodies), "moved_bodies", actual=count)
-    return {
-        "component": common.component_row(tx, c, [str(c.Name)]),
+    data: CreateComponentData = {
+        "component": cast(CreatedComponent, common.component_row(tx, c, [str(c.Name)])),
         "part_path": common.relative_path(tx, path),
         "part": tx.ref(prototype, "part"),
         "units": units,
         "moved_bodies": len(bodies),
     }
+    return data, c
 
 
 def _alive(body, part) -> bool:
@@ -330,11 +418,12 @@ def _edit_summary(a, say):
     return f"Edit {say('components')}: " + ", ".join(words)
 
 
-def _reference_sets(component):
-    prototype = component.Prototype
-    if prototype is None:
-        return None
-    return [str(r.Name) for r in prototype.GetAllReferenceSets()] + list(BUILT_IN_SETS)
+def _suppress(tx, values, on):
+    method = "SuppressComponents" if on else "UnsuppressComponents"
+    with native(default="NX_BUILD_FAILED"):
+        errors = getattr(tx.part.ComponentAssembly, method)(values)
+    structure.check(errors, "NX_BUILD_FAILED", f"NX did not {'' if on else 'un'}suppress")
+    model.update(tx)
 
 
 @tool(
@@ -350,28 +439,29 @@ def _reference_sets(component):
     ),  # fmt: skip
     requires=("work_part", "no_active_sketch", "assembly"),
     cost="heavy",
-    example={"components": ["o:4"], "suppressed": True},
+    example={"components": ["o:4"], "suppressed": False, "reference_set": "MODEL"},
 )
 def nx_edit_component(
     tx: Tx,
     *,
-    components: Annotated[list[ComponentRef], Items(1, 100)],
-    name: Annotated[Name, Doc("New name; one component only")] | None = None,
+    components: Annotated[list[ComponentId], Items(1, 100)],
+    name: ComponentName | None = None,
     replace_with: Annotated[
-        str, PathTo("read", ".prt"), Doc("Saved .prt that replaces the prototype")
+        str, Doc("Saved .prt that replaces the component's part"), PathTo("read", ".prt")
     ]
     | None = None,
     make_unique: Annotated[
-        str, PathTo("new", ".prt"), Doc("New .prt: a copy of the part for this one")
+        str, Doc("New .prt: a copy of the part for this component only"), PathTo("new", ".prt")
     ]
     | None = None,
-    suppressed: bool | None = None,
+    suppressed: Annotated[bool, Doc("false: unsuppress (done first); true: suppress (last)")]
+    | None = None,
     reference_set: RefSetName | None = None,
 ) -> EditComponentData:
-    """Rename, replace or make unique the part of, suppress, or set the reference set of direct
-    components. make_unique gives one component a copy of its part that only it uses (NX
-    names the component after the copy).
-    Placement never changes. Remove one with nx_delete_objects."""
+    """Edit direct components: rename (one), replace or make unique the part, (un)suppress, or
+    set the reference set. Options combine in one call. reference_set must exist in the
+    component's part. make_unique renames it after the copy. Placement never changes; delete
+    with nx_delete_objects."""
     edits = (name, replace_with, make_unique, suppressed, reference_set)
     if all(v is None for v in edits):
         fail(
@@ -398,18 +488,21 @@ def nx_edit_component(
                     field="/components/0",
                     hint="Open the assembly with load_components=true",
                 )
-        if reference_set is not None and replace_with is None:
+        if reference_set is not None:
             for i, c in enumerate(values):
-                names = _reference_sets(c)
-                if names is None or reference_set not in names:
+                if c.IsSuppressed and suppressed is not False:
                     fail(
-                        "NX_NOT_FOUND",
-                        f"{c.Name} has no reference set {reference_set!r}",
-                        field="/reference_set",
-                        details={"component": f"/components/{i}", "available": names},
+                        "NX_INVALID_ARGUMENT",
+                        f"{c.Name} is suppressed: NX cannot change its reference set",
+                        field=f"/components/{i}",
+                        hint="Add suppressed: false to unsuppress it in the same call",
                     )
+                if replace_with is None:
+                    _resolve_set(c, reference_set, f"/components/{i}")
     part = tx.part
     poses = [structure.pose(c) for c in values]
+    if suppressed is False:
+        _suppress(tx, values, False)
     if replace_with is not None:
         with builders.build(tx, part.AssemblyManager.CreateReplaceComponentBuilder) as b:
             for c in values:
@@ -418,29 +511,25 @@ def nx_edit_component(
             b.ReplaceAllOccurrences = False
             b.MaintainRelationships = True
             b.commit()
-            structure.check(b.GetErrorList(), "NX_BUILD_FAILED", "NX did not replace the part")
+            structure.check(
+                b.GetErrorList(),
+                "NX_BUILD_FAILED",
+                "NX did not replace the part",
+                hint="Nothing changed; NX's reasons are in the message and details.errors",
+            )
         model.update(tx)
     if make_unique is not None:
         _make_unique(tx, values[0], Path(make_unique))
+    sets: list[str | None] = [None] * len(values)
     if reference_set is not None:
+        owner = "The new part" if replace_with is not None else None
         for i, c in enumerate(values):
-            names = _reference_sets(c)
-            if names is None or reference_set not in names:
-                fail(
-                    "NX_NOT_FOUND",
-                    f"The new part has no reference set {reference_set!r}",
-                    field="/reference_set",
-                    details={"component": f"/components/{i}", "available": names},
-                )
-            with native(default="NX_BUILD_FAILED"):
-                part.ComponentAssembly.ReplaceReferenceSet(c, reference_set)
+            sets[i] = _resolve_set(c, reference_set, f"/components/{i}", owner)
+            _use_set(tx, c, sets[i])
     if name is not None:
         result.rename(tx, values[0], name)
-    if suppressed is not None:
-        method = "SuppressComponents" if suppressed else "UnsuppressComponents"
-        with native(default="NX_BUILD_FAILED"):
-            errors = getattr(part.ComponentAssembly, method)(values)
-        structure.check(errors, "NX_BUILD_FAILED", f"NX did not {method[:-10].lower()}")
+    if suppressed:
+        _suppress(tx, values, True)
     model.update(tx)
     names = structure.paths(part)
     out: list[EditedComponent] = []
@@ -448,11 +537,8 @@ def nx_edit_component(
         structure.expect_pose(structure.pose(c), before, f"placement[{i}]")
         if suppressed is not None:
             readback.expect(bool(c.IsSuppressed) == suppressed, f"suppressed[{i}]")
-        if reference_set is not None:
-            readback.expect(
-                str(c.ReferenceSet) == reference_set, f"reference_set[{i}]",
-                actual=str(c.ReferenceSet),
-            )  # fmt: skip
+        if sets[i] is not None:
+            readback.expect(_set_of(c) == sets[i], f"reference_set[{i}]", actual=_set_of(c))
         new_file = replace_with if replace_with is not None else make_unique
         if new_file is not None:
             readback.expect(
@@ -464,7 +550,7 @@ def nx_edit_component(
         row.update(
             {
                 "suppressed": bool(c.IsSuppressed),
-                "reference_set": str(c.ReferenceSet or ""),
+                "reference_set": _set_of(c),
                 "part_path": common.relative_path(tx, parts.file_of(c.Prototype)),
             }
         )
@@ -510,20 +596,25 @@ class PoseData(TypedDict):
     batchable=True,
     previewable=True,
     invalidates="deleted",
-    example={"component": "o:4", "mode": "absolute", "translation": [0, 40, 0]},
+    example={
+        "component": "o:4",
+        "mode": "relative",
+        "translation": [0, 40, 0],
+        "rotation": {"axis": "z", "angle": 90},
+    },  # fmt: skip
 )
 def nx_set_component_pose(
     tx: Tx,
     *,
-    component: ComponentRef,
+    component: ComponentId,
     mode: Literal["absolute", "relative"],
-    translation: Annotated[Translation, Doc("absolute: position; relative: offset (part units)")],
-    rotation: Annotated[Mat3, Doc("absolute: orientation (default identity); relative: turn")]
-    | None = None,
+    translation: Translation,
+    rotation: Rotation | None = None,
 ) -> PoseData:
-    """Place a direct component at an absolute pose, or move it relative to its pose. A
-    relative rotation turns it about its own origin, then the offset applies."""
-    r = geom.rotation(rotation, "/rotation") if rotation is not None else None
+    """Place a direct component at an absolute pose, or move it relative to its pose. absolute
+    without rotation means no rotation. relative turns it about its own origin by rotation,
+    then shifts it by translation. Returns the previous pose."""
+    r = common.rotation(rotation, "/rotation") if rotation is not None else None
     t = [float(v) for v in translation]
     with tx.checks():
         c = common.component(tx, component, "/component")

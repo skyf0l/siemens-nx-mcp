@@ -23,9 +23,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sketch_constraints": "47d91d9afc2dc1b8335ec324949e148f7f78cc0b9655b32f2a2ecc92be9f265a"
+    "nx_create_sketch_constraints": "3abf6048ce58b9ee233f48d4fa7257db61d6cb23707172b30891dc4e5056413c"
   },
-  "recorded": "2026-10-10T13:12:09Z",
+  "recorded": "2026-10-10T22:20:16Z",
   "passed": true,
   "checks": 44,
   "failed_checks": 0,

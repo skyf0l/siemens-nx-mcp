@@ -34,7 +34,18 @@
   {
    "call": "nx_get_status",
    "args": {"include": ["workspace"]},
+   "save": "read",
    "expect": {"data": {"count": 1}, "data.workspace.reserved": {"contains": ".nx-mcp"}}
+  },
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "$read.operation_id"},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.state": "unknown",
+    "data.reason": {"contains": "read-only call"},
+    "data.result": null
+   }
   },
   {
    "call": "nx_get_operation",
@@ -65,9 +76,12 @@
    "args": {"operation": "$made.operation_id"},
    "intent": "Acceptance: cancel a call that already committed",
    "expect": {
-    "error.code": "NX_IN_USE",
-    "error.category": "blocked",
+    "error.code": "NX_NOT_RUNNING",
+    "error.category": "unsupported",
+    "error.retry": "never",
     "error.details.state": "committed",
+    "error.details.tool": "nx_create_part",
+    "error.hint": {"contains": "nx_undo_operation"},
     "mutation_outcome": "not_started"
    }
   },
@@ -75,6 +89,15 @@
    "call": "nx_get_operation",
    "args": {"operation": "x"},
    "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/operation"}
+  },
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "short"},
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/operation",
+    "error.message": {"contains": "too short: 5 of at least 8"}
+   }
   }
  ]
 }

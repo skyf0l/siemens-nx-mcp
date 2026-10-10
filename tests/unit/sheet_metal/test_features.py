@@ -1,10 +1,12 @@
 """nx_create_sheet_metal_feature on the shared fake, through the real kernel."""
 
+from types import SimpleNamespace as NS
+
 import pytest
 
 from nx_mcp.core import catalogue, summary
 from tests.kit import run
-from tests.kit.objects import Object, point
+from tests.kit.objects import Expression, Object, point
 from tests.unit.sheet_metal.fakes import FLAT, sm_nx
 
 TOOL = "nx_create_sheet_metal_feature"
@@ -43,6 +45,49 @@ def test_inch_part_converts_thickness_to_inches():
     assert ok.units["length"] == "in"
 
 
+def test_tab_without_thickness_takes_the_part_default_and_verifies_it():
+    nx = sm_nx()  # the fake part's default thickness is 3 mm
+    sk = nx.sketch()
+    nx.on_commit("TabFeatureBuilder", lambda b: nx.made("SB_TAB", nx.tab(100, 80, 3)))
+    ok = create(nx, "tab", section=sk.ref)
+    assert ok.ok, ok
+    assert nx.last("TabFeatureBuilder").Thickness.RightHandSide == "3.0"
+    assert ok.data["thickness"] == 3
+    spec = catalogue.load()[TOOL]
+    line = summary.render(spec, {"operation": "tab", "parameters": {"section": "s:1"}},
+                          units={"length": "mm"}, strict=True)  # fmt: skip
+    assert line == "Tab, default thickness"
+
+
+def test_default_thickness_is_converted_to_part_units():
+    nx = sm_nx(units="in")
+    exp = Expression("MaterialThickness", "2.54", unit=NS(Abbreviation="mm"))
+    exp.Value = 2.54
+    nx.prefs.GetMaterialThickness = lambda: exp
+    sk = nx.sketch()
+    nx.on_commit("TabFeatureBuilder", lambda b: nx.made("SB_TAB", nx.tab(4, 3, 0.1)))
+    ok = create(nx, "tab", section=sk.ref)
+    assert ok.ok, ok
+    assert float(nx.last("TabFeatureBuilder").Thickness.RightHandSide) == pytest.approx(0.1)
+    # A contour flange takes it too, read back like a given thickness.
+    nx.on_commit("ContourFlangeFeatureBuilder", lambda b: nx.made("SB_CF", nx.tab(4, 3, 0.1)))
+    ok = create(nx, "contour_flange", section=sk.ref, length=3)
+    assert ok.ok and ok.data["thickness"] == 0.1, ok
+    nx.on_commit("ContourFlangeFeatureBuilder", lambda b: nx.made("SB_CF", nx.tab(4, 3, 0.2)))
+    bad = create(nx, "contour_flange", section=sk.ref, length=3)
+    assert bad.error["details"]["check"] == "thickness" and bad.mutation_outcome == "rolled_back"
+
+
+def test_no_thickness_and_no_part_default_is_refused_before_nx():
+    nx = sm_nx()
+    nx.prefs.GetMaterialThickness = lambda: None
+    bad = create(nx, "tab", section=nx.sketch().ref)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT"
+    assert bad.error["field"] == "/parameters/thickness"
+    assert "nx_set_sheet_metal_defaults" in bad.error["hint"]
+    assert bad.mutation_outcome == "not_started" and nx.builders == []
+
+
 def test_sheet_metal_features_need_the_sheet_metal_application():
     nx = sm_nx(application="modeling")
     sk = nx.sketch()
@@ -56,7 +101,6 @@ def test_sheet_metal_features_need_the_sheet_metal_application():
     ("operation", "extra", "field"),
     [
         ("tab", {"thickness": 2, "edges": "EDGES"}, "/parameters/edges"),
-        ("tab", {}, "/parameters/thickness"),
         ("tab", {"thickness": -1}, "/parameters/thickness"),
         ("flange", {"edges": "EDGES"}, "/parameters/length"),
         ("flange", {"edges": "EDGES", "length": 20, "style": "open"}, "/parameters/style"),

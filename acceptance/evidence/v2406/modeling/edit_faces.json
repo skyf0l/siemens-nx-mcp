@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/edit_faces.json",
-  "scenario_sha256": "a627e7db4d9d3c8e524daffe412a906967d9eb14778f4ab3ad2e24622135e2a4",
+  "scenario_sha256": "40095883854a3fc1c89492b5aaf0791c42b8677327353bbdda8c11ee81395fe0",
   "domain": "modeling",
   "covers": {
     "nx_edit_faces": [
@@ -14,11 +14,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_faces": "d4f41cb052ed1e2e7a4646123a925aef8648abed0acd047f7bbd64717077b1cf"
+    "nx_edit_faces": "807b87f9fd2d025fd8dded8e00cc1318006637d9c455d0b21be366691659fc8b"
   },
-  "recorded": "2026-10-10T17:37:26Z",
+  "recorded": "2026-10-10T23:28:33Z",
   "passed": true,
-  "checks": 13,
+  "checks": 23,
   "failed_checks": 0,
   "steps": [
     {
@@ -96,7 +96,7 @@
       "call": "nx_edit_faces",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 12,
@@ -110,7 +110,7 @@
       "call": "nx_edit_faces",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 14,
@@ -191,6 +191,20 @@
     },
     {
       "index": 25,
+      "call": "nx_edit_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 26,
+      "call": "nx_edit_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 27,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

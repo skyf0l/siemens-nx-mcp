@@ -36,13 +36,31 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, classify, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import CurveRef, Doc, Items, Point2, SketchPoint, SketchRef, forbid_extra
+from nx_mcp.core.types import (
+    CurveRef,
+    Doc,
+    Items,
+    Point2,
+    SketchPoint,
+    SketchRef,
+    Text,
+    convert_quantity,
+    forbid_extra,
+)
 from nx_mcp.domains.sketch import common
-from nx_mcp.domains.sketch.common import XY
-from nx_mcp.kit import builders, geom, readback, result
+from nx_mcp.domains.sketch.common import XY, Loose
+from nx_mcp.kit import builders, geom, readback, result, units
 from nx_mcp.kit import sketch as ksketch
 
 VERTEX = ("start", "end", "center")
+
+
+class Vertex(TypedDict):
+    """A point of a sketch curve for a constraint (NX has no midpoint vertex)."""
+
+    curve: CurveRef
+    point: Literal["start", "end", "center"]
+
 
 # ---------------------------------------------------------------------------
 # Geometric constraints: variant sub-schemas and the flat listing schema
@@ -54,7 +72,7 @@ class _Fixed(TypedDict):
 
 class FixedConstraint(_Fixed, total=False):
     curves: Annotated[list[CurveRef], Items(1, 1), Doc("Fix the whole curve")]
-    points: Annotated[list[SketchPoint], Items(1, 1), Doc("Or fix one point")]
+    points: Annotated[list[Vertex], Items(1, 1), Doc("Or fix only this point")]
 
 
 class OneLine(TypedDict):
@@ -71,13 +89,15 @@ class TwoCurves(TypedDict):
 
 class Coincident(TypedDict):
     type: Literal["coincident"]
-    points: Annotated[list[SketchPoint], Items(2, 2)]
+    points: Annotated[list[Vertex], Items(2, 2)]
 
 
 class PointOn(TypedDict):
     type: Literal["midpoint", "point_on_curve"]
-    points: Annotated[list[SketchPoint], Items(1, 1), Doc("The point to place")]
-    curves: Annotated[list[CurveRef], Items(1, 1), Doc("Target curve")]
+    points: Annotated[list[Vertex], Items(1, 1), Doc("The point to move")]
+    curves: Annotated[
+        list[CurveRef], Items(1, 1), Doc("midpoint: the line or arc whose middle; else target")
+    ]
 
 
 class Symmetric(TypedDict):
@@ -104,30 +124,57 @@ CONSTRAINT_TYPES = {
 
 
 class _ConstraintType(TypedDict):
-    type: Literal[
-        "fixed",
-        "horizontal",
-        "vertical",
-        "parallel",
-        "perpendicular",
-        "equal_length",
-        "equal_radius",
-        "concentric",
-        "tangent",
-        "coincident",
-        "midpoint",
-        "point_on_curve",
-        "symmetric",
-    ]
+    type: (
+        Literal[
+            "fixed",
+            "horizontal",
+            "vertical",
+            "parallel",
+            "perpendicular",
+            "equal_length",
+            "equal_radius",
+            "concentric",
+            "tangent",
+            "coincident",
+            "midpoint",
+            "point_on_curve",
+            "symmetric",
+        ]
+        | Loose
+    )
 
 
 class ConstraintSpec(_ConstraintType, total=False):
     curves: Annotated[list[CurveRef], Items(1, 2)]
-    points: Annotated[list[SketchPoint], Items(1, 2)]
+    points: Annotated[list[Vertex], Items(1, 2)]
     centerline: CurveRef
 
 
-forbid_extra(FixedConstraint, OneLine, TwoCurves, Coincident, PointOn, Symmetric, ConstraintSpec)
+# Synonyms agents use; case, spaces and hyphens are ignored anyway.
+CONSTRAINT_ALIASES = {
+    "fix": "fixed",
+    "lock": "fixed",
+    "equal_radii": "equal_radius",
+    "same_radius": "equal_radius",
+    "equal_lengths": "equal_length",
+    "same_length": "equal_length",
+    "coincidence": "coincident",
+    "concentricity": "concentric",
+    "tangency": "tangent",
+    "tangential": "tangent",
+    "parallelism": "parallel",
+    "mid_point": "midpoint",
+    "point_on": "point_on_curve",
+    "on_curve": "point_on_curve",
+    "point_on_line": "point_on_curve",
+    "symmetry": "symmetric",
+    "mirror": "symmetric",
+}
+
+
+forbid_extra(
+    Vertex, FixedConstraint, OneLine, TwoCurves, Coincident, PointOn, Symmetric, ConstraintSpec
+)
 
 
 # ---- local geometry ----------------------------------------------------------------
@@ -396,6 +443,55 @@ def _resolve_item(tx, sk, item, field):
     return objs
 
 
+def _not_created(tx, sk, kind, objs, field):
+    """NX made no constraint: say whether it exists already or which constraint on these
+    curves contradicts it, with every constraint on them in the details."""
+    curves = list(objs["curves"]) + [c for c, _ in objs["points"]]
+    if "centerline" in objs:
+        curves.append(objs["centerline"])
+    existing, seen = [], set()
+    for curve in curves:
+        for c in ksketch.attached(tx, sk, curve):
+            if int(c.Tag) not in seen:
+                seen.add(int(c.Tag))
+                existing.append(
+                    {
+                        "constraint": tx.ref(c, "sketch_constraint")["id"],
+                        "type": ksketch.constraint_type(tx, c),
+                        "curve": tx.ref(curve, "curve")["id"],
+                    }
+                )
+    same = [e for e in existing if e["type"] == kind]
+    opposite = {"horizontal": "vertical", "vertical": "horizontal"}.get(kind)
+    against = [e for e in existing if e["type"] in (opposite, "fixed")] if opposite else []
+    if same:
+        message = f"{same[0]['curve']} already has a {kind} constraint ({same[0]['constraint']})"
+        hint = "Drop this item: the constraint exists already"
+    elif against:
+        e = against[0]
+        message = (
+            f"NX created no {kind} constraint: {e['curve']} is constrained {e['type']} "
+            f"({e['constraint']})"
+        )
+        hint = (
+            "Delete that constraint first (nx_edit_sketch_curves {type: delete, object: "
+            f"{e['constraint']!r}}}), then add {kind}"
+        )
+    else:
+        message = (
+            f"NX created no {kind} constraint: it exists already or contradicts the "
+            "constraints on these curves (details.existing)"
+        )
+        hint = "Drop the item, or delete the conflicting constraint with nx_edit_sketch_curves"
+    fail(
+        "NX_CONSTRAINT_UNSATISFIED",
+        message,
+        field=field,
+        hint=hint,
+        details={"existing": existing},
+    )
+
+
 class AppliedConstraint(TypedDict, total=False):
     item: int
     type: str
@@ -441,7 +537,10 @@ def nx_create_sketch_constraints(
 ) -> ConstraintsData:
     """Add 1-50 geometric constraints to a sketch; each is solved and checked on the geometry.
     The second curve moves; fixed geometry never moves. Conflicts roll back as solver_failed."""
-    items = common.check_items(constraints, CONSTRAINT_TYPES, "type", "/constraints")
+    named = common.natural_items(
+        constraints, "type", list(CONSTRAINT_TYPES), "/constraints", CONSTRAINT_ALIASES
+    )
+    items = common.check_items(named, CONSTRAINT_TYPES, "type", "/constraints")
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
@@ -466,11 +565,7 @@ def nx_create_sketch_constraints(
                 sk.sketch.Update()
             created = [c for c in ksketch.constraints(tx, sk) if int(c.Tag) not in known]
             if not created:
-                fail(
-                    "NX_CONSTRAINT_UNSATISFIED",
-                    f"NX created no {kind} constraint (it may exist already)",
-                    field=field,
-                )
+                _not_created(tx, sk, kind, objs, field)
             residual, tol = _residual(tx, sk, kind, objs)
             if not residual <= tol:
                 fail(
@@ -487,7 +582,7 @@ def nx_create_sketch_constraints(
             )
             applied.append((kind, objs, field))
             rows.append(row)
-            common.require_fixed_unmoved(tx, fixed)
+            common.require_fixed_unmoved(tx, fixed, field)
             if kind == "fixed":
                 fixed = common.fixed_positions(tx, sk)
         for kind, objs, field in applied:  # later constraints must not break earlier ones
@@ -520,26 +615,55 @@ DIM_KINDS = (
 )
 
 
+# A number in part units (degrees for angle) or a unit string: '40 mm', '1.5 in', '30 deg'.
+Value = Annotated[float | Annotated[str, Text(40)], Doc("Part units or '40 mm'")]
+
+
 class _DimKind(TypedDict):
-    kind: Literal[
-        "length",
-        "horizontal",
-        "vertical",
-        "distance",
-        "radius",
-        "diameter",
-        "angle",
-        "parallel_distance",
-        "perpendicular_distance",
-    ]
+    kind: (
+        Literal[
+            "length",
+            "horizontal",
+            "vertical",
+            "distance",
+            "radius",
+            "diameter",
+            "angle",
+            "parallel_distance",
+            "perpendicular_distance",
+        ]
+        | Loose
+    )
     first: Annotated[Target, Doc("A curve, or a point {curve, point}")]
 
 
 class DimensionSpec(_DimKind, total=False):
     second: Target
-    value: Annotated[float, Doc("Part units (degrees for angle); omit to keep the size")]
+    value: Annotated[
+        float | Annotated[str, Text(40)], Doc("Part units or '40 mm'; angle: deg or '30 deg'")
+    ]
     origin: XY
     reference: bool
+
+
+# Synonyms agents use; case, spaces and hyphens are ignored anyway.
+DIMENSION_ALIASES = {
+    "linear": "length",
+    "line_length": "length",
+    "radial": "radius",
+    "diametral": "diameter",
+    "diametric": "diameter",
+    "dia": "diameter",
+    "angular": "angle",
+    "horizontal_distance": "horizontal",
+    "vertical_distance": "vertical",
+    "point_to_point": "distance",
+    "point_distance": "distance",
+    "aligned": "distance",
+    "perpendicular": "perpendicular_distance",
+    "point_to_line": "perpendicular_distance",
+    "line_to_line": "parallel_distance",
+}
 
 
 class _OneCurveDim(TypedDict):
@@ -548,7 +672,7 @@ class _OneCurveDim(TypedDict):
 
 
 class OneCurveDimension(_OneCurveDim, total=False):
-    value: Annotated[float, Doc("Part units")]
+    value: Value
     origin: Point2
     reference: bool
 
@@ -560,7 +684,7 @@ class _AxisDim(TypedDict):
 
 class AxisDimension(_AxisDim, total=False):
     second: SketchPoint
-    value: Annotated[float, Doc("Part units")]
+    value: Value
     origin: Point2
     reference: bool
 
@@ -572,7 +696,7 @@ class _PointDim(TypedDict):
 
 
 class PointDimension(_PointDim, total=False):
-    value: Annotated[float, Doc("Part units")]
+    value: Value
     origin: Point2
     reference: bool
 
@@ -584,7 +708,10 @@ class _LinesDim(TypedDict):
 
 
 class LinesDimension(_LinesDim, total=False):
-    value: Annotated[float, Doc("Part units; degrees for angle, 0 < angle < 180")]
+    value: Annotated[
+        float | Annotated[str, Text(40)],
+        Doc("Part units or '40 mm'; angle: degrees or '30 deg', 0 < angle < 180"),
+    ]
     origin: Point2
     reference: bool
 
@@ -596,7 +723,7 @@ class _PerpDim(TypedDict):
 
 
 class PerpendicularDimension(_PerpDim, total=False):
-    value: Annotated[float, Doc("Part units")]
+    value: Value
     origin: Point2
     reference: bool
 
@@ -817,6 +944,47 @@ class DimensionsData(TypedDict):
     status: common.Status
 
 
+def _natural_dimension(item, field):
+    """A point and a line given as ``distance`` are a perpendicular distance (line first);
+    two curves are refused with what to send instead."""
+    kind, first, second = item["kind"], item.get("first"), item.get("second")
+    point_first, point_second = isinstance(first, dict), isinstance(second, dict)
+    if kind in ("distance", "perpendicular_distance") and second is not None:
+        if point_first and isinstance(second, str):  # point, line -> line, point
+            return {**item, "kind": "perpendicular_distance", "first": second, "second": first}
+        if kind == "distance" and isinstance(first, str) and point_second:
+            return {**item, "kind": "perpendicular_distance"}
+        if kind == "distance" and isinstance(first, str) and isinstance(second, str):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "distance is between two points: give first and second as {curve, point}",
+                field=field + "/first",
+                hint="point is start, end, center or mid; between two parallel lines use "
+                "parallel_distance, from a point to a line perpendicular_distance",
+            )
+    return item
+
+
+def _value(tx, kind, value, field):
+    """A dimension value as a float in part units (degrees for angle)."""
+    if value is None or not isinstance(value, str):
+        return value
+    dim = "angle" if kind == "angle" else "length"
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        return convert_quantity(value, dim, "deg" if dim == "angle" else units.part_units(tx))
+    except ValueError as error:
+        example = "'30 deg' or '0.5 rad'" if dim == "angle" else "'40 mm' or '1.5 in'"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"value {value!r}: {error}; send a number or a string like {example}",
+            field=field + "/value",
+        )
+
+
 def _check_value(kind, value, field):
     if value is None:
         return
@@ -852,11 +1020,14 @@ def nx_create_sketch_dimensions(
     """Add 1-50 driving or reference sketch dimensions; each returns its expression. The sketch
     is solved to every value and read back; fixed geometry never moves. Edit a value later with
     nx_set_expression."""
-    for i, item in enumerate(dimensions):
-        if item.get("kind") not in DIM_KINDS:
-            fail("NX_INVALID_ARGUMENT", "Unknown dimension kind", field=f"/dimensions/{i}/kind")
-    items = common.check_items(dimensions, DIMENSION_TYPES, "kind", "/dimensions")
+    named = common.natural_items(
+        dimensions, "kind", list(DIM_KINDS), "/dimensions", DIMENSION_ALIASES
+    )
+    named = [_natural_dimension(item, f"/dimensions/{i}") for i, item in enumerate(named)]
+    items = common.check_items(named, DIMENSION_TYPES, "kind", "/dimensions")
     for i, item in enumerate(items):
+        if item.get("value") is not None:
+            item["value"] = _value(tx, item["kind"], item["value"], f"/dimensions/{i}")
         _check_value(item["kind"], item.get("value"), f"/dimensions/{i}")
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
@@ -909,7 +1080,7 @@ def nx_create_sketch_dimensions(
                     field=field + "/value",
                     details={"requested": target, "measured": measured},
                 )
-            common.require_fixed_unmoved(tx, fixed)
+            common.require_fixed_unmoved(tx, fixed, field)
             made.append((dim, target))
             row: DimensionRow = {
                 "item": i,

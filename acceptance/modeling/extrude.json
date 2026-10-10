@@ -598,6 +598,106 @@
   },
   {
    "call": "nx_create_extrude",
+   "save": "plain",
+   "args": {
+    "sketch": "$s4.data.sketch.id",
+    "end": "3 mm",
+    "direction": "-z"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 300,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$plain.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      70,
+      0,
+      -3
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      80,
+      10,
+      0
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "plain2",
+   "args": {
+    "sketch": "$s4.data.sketch.id",
+    "start": 6,
+    "end": 8
+   },
+   "expect": {
+    "data.volume": {
+     "close": 200,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$plain2.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      70,
+      0,
+      6
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      80,
+      10,
+      8
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s4.data.sketch.id",
+    "start": 5,
+    "end": 5
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/end"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
    "args": {
     "sketch": "$s4.data.sketch.id",
     "end": {
@@ -704,6 +804,7 @@
   },
   {
    "call": "nx_create_extrude",
+   "save": "inchblk",
    "args": {
     "sketch": "$si.data.sketch.id",
     "end": {
@@ -718,6 +819,25 @@
     },
     "units.length": "in"
    }
-  }
+  },
+  {"call": "nx_create_sketch", "setup": true, "save": "open", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true,
+   "args": {"sketch": "$open.data.sketch.id",
+            "curves": [{"type": "line", "start": [0, 3], "end": [3, 3]}, {"type": "line", "start": [3, 3], "end": [3, 4]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$open.data.sketch.id"}},
+  {"call": "nx_create_extrude", "args": {"sketch": "$open.data.sketch.id", "end": 1.5},
+   "intent": "Acceptance: an open profile extrudes to a sheet body (4 in x 1.5 in)",
+   "expect": {"mutation_outcome": "committed", "data.sheet": true, "data.area": {"close": 6.0, "tol": 1e-06},
+              "data.volume": 0, "data.bodies": {"count": 1}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "far", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true,
+   "args": {"sketch": "$far.data.sketch.id", "curves": [{"type": "circle", "center": [50, 0], "radius": 0.25}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$far.data.sketch.id"}},
+  {"call": "nx_create_extrude",
+   "args": {"sketch": "$far.data.sketch.id", "end": {"type": "through_all"},
+            "combine": {"operation": "subtract", "targets": ["$inchblk.data.bodies.0.id"]}},
+   "intent": "Acceptance: a through-all cut that misses the body names the miss",
+   "expect": {"error.code": "NX_BUILD_FAILED", "error.nx_code": 671473,
+              "error.message": {"contains": "misses the target body"}, "mutation_outcome": "rolled_back"}}
  ]
 }

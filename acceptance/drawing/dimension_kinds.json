@@ -766,6 +766,7 @@
     "view": "$top.data.view.id",
     "kind": "chain",
     "objects": [
+     "$front.data.items.0.id",
      "$h1.data.items.0.id",
      "$h2.data.items.0.id"
     ],
@@ -774,8 +775,183 @@
    "expect": {
     "error.category": "invalid_argument",
     "error.code": "NX_INVALID_ARGUMENT",
-    "error.field": "/objects/1",
+    "error.field": "/objects/2",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "baseline",
+    "datum": "$left.data.items.0.id",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id"
+    ],
+    "direction": "horizontal",
+    "origin": [
+     150,
+     40
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.dimensions": {
+     "count": 2
+    },
+    "data.dimensions.0.value": {
+     "close": 25,
+     "tol": 1e-06
+    },
+    "data.dimensions.1.value": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "data.dimension_set.kind": "annotation"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.name",
+    "kind": "chain",
+    "datum": "$front.data.items.0.id",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$back.data.items.0.id"
+    ],
+    "direction": "vertical",
+    "origin": [
+     270,
+     150
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.dimensions": {
+     "count": 2
+    },
+    "data.dimensions.0.value": {
+     "close": 25,
+     "tol": 1e-06
+    },
+    "data.dimensions.1.value": {
+     "close": 25,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "chain",
+    "objects": [
+     "$left.data.items.0.id",
+     "$h1.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/objects",
+    "error.hint": {
+     "contains": "kind linear"
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "baseline",
+    "datum": "$left.data.items.0.id",
+    "objects": [
+     "$right.data.items.0.id"
+    ],
+    "direction": "horizontal"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/objects",
+    "error.message": {
+     "contains": "got 2"
+    },
+    "error.hint": {
+     "contains": "kind linear"
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "baseline",
+    "objects": [
+     "$front.data.items.0.id",
+     "$back.data.items.0.id"
+    ],
+    "direction": "vertical"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/objects",
+    "error.hint": {
+     "contains": "kind linear"
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "linear",
+    "first": "$left.data.items.0.id",
+    "second": "$right.data.items.0.id",
+    "orientation": "horizontal"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.dimension.value": {
+     "close": 80,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "baseline",
+    "datum": "$left.data.items.0.id",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$left.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/objects"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "NO_SUCH_VIEW@9",
+    "kind": "linear",
+    "first": "$back.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/view",
+    "mutation_outcome": "not_started",
+    "error.details.views": {
+     "count": 2
+    }
    }
   }
  ]

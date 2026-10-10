@@ -96,3 +96,58 @@ def test_get_sheet_metal_lists_bodies_thickness_and_bends_with_paging():
     assert len(one.data["items"]) == 1
     bad = run(nx, "nx_get_sheet_metal", body=body.faces[0].ref)
     assert bad.error["code"] == "NX_WRONG_KIND"
+
+
+def test_a_material_nx_drops_is_refused_with_what_to_send_instead():
+    nx = sm_nx()
+    nx.prefs.GetMaterialName = lambda: ""  # no standards table: NX keeps no material
+    bad = run(nx, "nx_set_sheet_metal_defaults", thickness=2, material="steel")
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.error["field"] == "/material"
+    assert bad.error["details"]["check"] == "material"
+    assert "Leave material out" in bad.error["hint"] and bad.mutation_outcome == "rolled_back"
+
+
+def test_material_reads_back_regardless_of_case():
+    nx = sm_nx()
+    nx.prefs.GetMaterialName = lambda: "Steel"
+    ok = run(nx, "nx_set_sheet_metal_defaults", material="steel")
+    assert ok.ok, ok
+    assert ok.data["material"] == "Steel"
+
+
+def test_a_table_parameter_entry_nx_keeps_as_value_names_the_working_choice():
+    nx = sm_nx()
+    nx.prefs.GetParameterEntryType = lambda: "ParameterEntryTypes.Value"
+    bad = run(nx, "nx_set_sheet_metal_defaults", parameter_entry="material_table")
+    assert bad.error["field"] == "/parameter_entry" and bad.mutation_outcome == "rolled_back"
+    assert "use value" in bad.error["hint"]
+
+
+def test_flat_pattern_bodies_are_flagged():
+    nx = sm_nx()
+    body = nx.tab()
+    tab = nx.made("SB_TAB", body)
+    flat = nx.tab()
+    pattern = nx.made("FLAT_PATTERN", flat, feature_type="FLAT_PATTERN")
+    body.GetFeatures = lambda: [tab, pattern]  # the bent body: not only a flat pattern
+    flat.GetFeatures = lambda: [pattern]
+    ok = run(nx, "nx_get_sheet_metal")
+    assert ok.ok, ok
+    first, second = ok.data["items"]
+    assert first["flat_pattern"] is False and second["flat_pattern"] is True
+    assert second["sheet_metal"] and second["thickness"] == 2
+
+
+def test_flat_pattern_sub_feature_bodies_are_flagged():
+    nx = sm_nx()
+    flat = nx.tab()
+    extract = nx.made("EXTRACT_BODY", flat, feature_type="EXTRACT_BODY")
+    solid = nx.made("SB_FLAT_SOLID", flat, feature_type="SB_FLAT_SOLID")
+    extract.JournalIdentifier, solid.JournalIdentifier = (
+        "FLAT_PATTERN(5:1B:1B)",
+        "FLAT_PATTERN(5:1B)",
+    )
+    flat.GetFeatures = lambda: [extract, solid]  # NX 2406's flat bodies
+    ok = run(nx, "nx_get_sheet_metal")
+    assert ok.ok, ok
+    assert ok.data["items"][0]["flat_pattern"] is True

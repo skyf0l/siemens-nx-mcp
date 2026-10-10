@@ -82,6 +82,8 @@
     "error.code": "NX_UNSUPPORTED_OPTION",
     "error.field": "/operations/1/tool",
     "error.details.child_index": 1,
+    "error.details.batchable": {"contains": "nx_set_name"},
+    "error.hint": {"matches": "nx_preview_changes"},
     "mutation_outcome": "not_started"
    }
   },
@@ -117,6 +119,35 @@
    "call": "nx_list_objects",
    "args": {"kind": "sketch"},
    "expect": {"page.total": 2}
+  },
+  {
+   "call": "nx_run_batch",
+   "intent": "Acceptance: a rename is batchable and names an earlier step's sketch",
+   "args": {"operations": [
+    {"tool": "nx_create_sketch", "arguments": {"placement": {"principal": "yz"}}},
+    {"tool": "nx_set_name", "arguments": {"object": "$$0.data.sketch", "name": "BATCH_RENAMED"}},
+    {"tool": "nx_create_sketch_curves", "arguments": {
+     "sketch": "$$0.data.sketch",
+     "curves": [{"type": "circle", "center": [0, 0], "radius": 4}]}},
+    {"tool": "nx_finish_sketch", "arguments": {"sketch": "$$0.data.sketch"}}
+   ]},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 4,
+    "data.results.1.data.name": {"matches": "(?i)^batch_renamed$"},
+    "data.results.1.data.references": "preserved",
+    "data.results.3.data.curve_count": 1
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {"kind": "sketch", "name_contains": "RENAMED"},
+   "expect": {"page.total": 1}
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 7214.601837, "tol": 1e-3}}
   }
  ]
 }

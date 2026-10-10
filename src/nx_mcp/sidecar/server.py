@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import re
 from typing import Any, cast
 
 from mcp.server.lowlevel.server import NotificationOptions
@@ -64,19 +65,25 @@ AGENT_INSTRUCTIONS = (
     "mutation you may retry: 8-128 characters from A-Z a-z 0-9 _ - (e.g. 'fan_blade_01'); "
     "after an unknown outcome query nx_get_operation before retrying. Compact results keep "
     "result_id; expand the omitted fields with nx_get_result. Never paste base64 file content "
-    "into the conversation."
+    "into the conversation. Lengths are in part units and angles in degrees; they also take "
+    "'10 mm'/'90 deg' or an NX expression name or formula ('thickness', 'thickness/2'), which "
+    "keeps extrude, revolve, hole, pattern, blend and chamfer values driven by the expression. "
+    "Options match in any case or spacing ('Through All')."
 )
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
-# nx_find_tools: default rows for one query and per query of ``queries``; more words than
-# this in one query earn a hint to split the tasks into ``queries``.
-FIND_LIMIT, QUERIES_LIMIT, MAX_QUERY_WORDS = 10, 5, 4
+# nx_find_tools: default rows for one query and per query of ``queries``; a query with more
+# words than this, or joining tasks (``,`` ``;`` ``+`` "and" "then"), earns a hint to split
+# the tasks into ``queries`` (a long single task, "assembly constraints status", does not).
+FIND_LIMIT, QUERIES_LIMIT, MAX_QUERY_WORDS = 10, 5, 5
+TASK_JOINS = re.compile(r"[,;+&]|(?:and|then|also)", re.IGNORECASE)
 FULL_INSTRUCTIONS = (
     "Siemens NX integration. Runtime support varies by NX version; no general certification "
     "is claimed. Tools return {ok, mutation_outcome, data | error}. Every changing tool takes "
     "an optional operation_id (8-128 characters from A-Z a-z 0-9 _ -; omitted, the server "
     "makes one; reuse your own to retry safely) and intent (why, in the engineer's terms; "
     "shown in the NX panel). File paths are workspace-relative or absolute inside the "
-    "workspace."
+    "workspace. Lengths and angles also take '10 mm'/'90 deg' or an NX expression name or "
+    "formula ('thickness/2')."
 )
 
 
@@ -320,11 +327,15 @@ class Surface:
         if spellings:
             notes["did_you_mean"] = spellings  # searched for words no tool matches
         count = len(gateways.query_words(query))
-        if count > MAX_QUERY_WORDS or (partial and count > 2):
+        if count > MAX_QUERY_WORDS or (partial and count > 2 and TASK_JOINS.search(query)):
             notes["hint"] = (
                 "One task per query: for several tasks pass queries, e.g. "
                 "['revolve profile', 'pattern circular', 'unite bodies']"
             )
+        typed = {w for w, _ in gateways.query_words(query)}
+        missing = [text for word, text in gateways.MISSING.items() if word in typed]
+        if missing:
+            notes["note"] = " ".join(missing)
         return notes
 
     def _find(self, request) -> CallToolResult:

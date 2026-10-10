@@ -17,7 +17,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from nx_mcp.core.errors import WARNING_CODES, NXError, fail
 
@@ -80,6 +80,20 @@ class Services:
     def sheet_of(self, obj): ...  # sheet that is/shows obj (+ @sheet_locator kinds) or None
     def sheet_units(self, sheet) -> str: ...  # "mm" or "in"
 
+    # gate 9: a Length/Angle/count given as an NX expression name or formula
+    def evaluate_formula(
+        self, formula: str, dim: str, unit: str, *, field=None, scratch: bool = False
+    ) -> float:
+        """Value of ``formula`` in the work part, in ``unit`` (``mm``/``in``/``deg``/
+        ``unitless``), refused unless of dimension ``dim``. A bare expression name is read;
+        another formula needs ``scratch`` (a model tool, under its undo mark): NX evaluates
+        it in a temporary expression. Optional: without it expressions are refused."""
+        fail(
+            "NX_UNSUPPORTED_OPTION",
+            f"{field or 'value'}: NX expressions as values need the NX session",
+            field=field,
+        )
+
     # object registry handles behind core.references
     def register_handle(self, obj, kind: str, part) -> str: ...
     def resolve_handle(self, handle: str): ...
@@ -109,7 +123,9 @@ class Services:
     def describe(self, entry, live: bool) -> Row: ...  # snapshot entry -> result row
     def feature_errors(self, part, before: dict, mark) -> list: ...
     def clear_update_errors(self) -> None: ...
-    def invalidate(self, before: dict, after: dict, topology: bool) -> None: ...
+    def invalidate(self, before: dict, after: dict, topology: bool) -> set | None: ...
+    # ^ retire deleted objects (and, for ``topology``, faces/edges NX no longer has);
+    #   returns the retired registry handles (None: cannot tell)
     def invalidate_parts(self, parts) -> None: ...
 
     def retire_undone(self, parts) -> set | None:
@@ -146,12 +162,13 @@ class Services:
         return bool(self.session.DoesUndoMarkExist(mark, None))
 
     def after_commit(self, spec) -> None: ...
-    def after_failure(self, spec) -> None: ...
+    def after_failure(self, spec) -> None: ...  # NX host: also (spec, mutation_outcome)
 
     # optional members (defaults below): previews and the NX MCP panel
     def revision(self) -> int:
-        """Counter of changes to the session: every non-read call (``after_commit`` and
-        ``after_failure``) and every engineer change between agent calls bump it.
+        """Counter of changes to the session: every non-read call (``after_commit``, and
+        ``after_failure`` unless its outcome is ``not_started``) and every engineer
+        change between agent calls bump it.
         ``nx_finish_preview`` re-applies a preview only when nothing else happened."""
         return 0
 
@@ -333,6 +350,15 @@ class Display:
             self.camera, [tuple(pair) for pair in self.records.values()], self.highlights
         )
 
+    def forget(self) -> None:
+        """Drop the kept camera, records and highlights after the call's change
+        succeeded: a failure later in the call restores nothing, and a ``restorable``
+        tool returns no ``restore_id`` for this call (a restore of a restore_id must not
+        offer one back, or ``last`` toggles between two states)."""
+        self.camera = None
+        self.records.clear()
+        self.highlights = None
+
     def snapshot(self) -> str | None:
         """A restore_id for the kept camera and records, or None."""
         if self.camera is None and not self.records:
@@ -371,6 +397,8 @@ class Tx:
         self.mark: Any = None  # the NX undo mark of this call
         self.outcome: str | None = None  # "previewed" after tx.preview()
         self.references: str | None = None  # "part_invalidated": overrides changes
+        self.changed: list[Row] = []  # rows for changes.modified (``tx.modified``)
+        self.stale_refs: list[str] = []  # refs an undo made stale (``tx.after_undo``)
         self.files = Files(self)
         self.display = Display(self)
         self.children: list[dict] = []
@@ -446,6 +474,30 @@ class Tx:
         """A result row ``{id, kind, name, part}`` (+ anchor) for ``obj``."""
         kind = kind or self._services.infer_kind(obj)
         return self._services.references.row(obj, kind, part=part, anchor=anchor)
+
+    def modified(self, obj, kind: str | None = None) -> Row:
+        """Report ``obj`` (an NX object or a result row) in ``changes.modified``: an
+        object the call changed without creating or deleting it (attributes, an
+        edited feature, an expression)."""
+        row = cast("Row", obj) if isinstance(obj, dict) else self.ref(obj, kind)
+        if all(r.get("id") != row.get("id") for r in self.changed):
+            self.changed.append(row)
+        return row
+
+    def after_undo(self) -> str:
+        """After the handler undid NX marks (undo, restore): keep the refs of every
+        object NX restored, re-bind moved anchored refs, retire the rest. Sets and
+        returns ``tx.references``: ``preserved`` or ``listed`` (``tx.stale_refs``)."""
+        from nx_mcp.core import kernel
+
+        summary = kernel.rebind_after_undo(self._services)
+        stale = summary.get("stale")
+        if stale is None:
+            self.references = "part_invalidated"
+        else:
+            self.stale_refs = list(stale)
+            self.references = "listed" if stale else "preserved"
+        return self.references
 
     # -- reporting ----------------------------------------------------------------
     def warn(self, code: str, message: str) -> None:

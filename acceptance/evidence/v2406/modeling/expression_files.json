@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/expression_files.json",
-  "scenario_sha256": "fd8f35125660bfd2cc2e4824198a3da19d73662c3a7c2ebf64f25fdc08e23fe4",
+  "scenario_sha256": "aa6e564b696820d8f93a5134d95882fef4a6134458279ab86963b037750e3243",
   "domain": "modeling",
   "covers": {
     "nx_export_expressions": [],
@@ -14,12 +14,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_expressions": "04a38e5e20f5bfac5ccef96c5b3edab053410b2a8b7b52f57912d8199eab32b5",
-    "nx_import_expressions": "04a38e5e20f5bfac5ccef96c5b3edab053410b2a8b7b52f57912d8199eab32b5"
+    "nx_export_expressions": "e4f6e19d5d3b86fc6b92bf881afdfd28397bf0294f5265fe4c4d35d4af66767d",
+    "nx_import_expressions": "e4f6e19d5d3b86fc6b92bf881afdfd28397bf0294f5265fe4c4d35d4af66767d"
   },
-  "recorded": "2026-10-10T13:12:58Z",
+  "recorded": "2026-10-10T22:57:44Z",
   "passed": true,
-  "checks": 58,
+  "checks": 70,
   "failed_checks": 0,
   "steps": [
     {
@@ -97,28 +97,28 @@
       "call": "nx_export_expressions",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 12,
       "call": "nx_export_expressions",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 13,
       "call": "nx_export_expressions",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 14,
       "call": "nx_export_expressions",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 15,
@@ -129,38 +129,38 @@
     },
     {
       "index": 16,
+      "call": "nx_export_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
       "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 17,
+      "index": 18,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 19,
+      "index": 20,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 20,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
     },
     {
       "index": 21,
@@ -171,52 +171,52 @@
     },
     {
       "index": 22,
-      "call": "nx_export_expressions",
+      "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 23,
-      "call": "nx_set_expression",
+      "call": "nx_export_expressions",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 24,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
       "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 25,
+      "index": 26,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 26,
+      "index": 27,
       "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 27,
+      "index": 28,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 28,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
     },
     {
       "index": 29,
@@ -227,21 +227,21 @@
     },
     {
       "index": 30,
-      "call": "nx_export_expressions",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 31,
       "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
+      "index": 31,
+      "call": "nx_export_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
       "index": 32,
-      "call": "nx_import_expressions",
+      "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -249,23 +249,23 @@
     {
       "index": 33,
       "call": "nx_import_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 34,
+      "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 34,
+      "index": 35,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 35,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
     },
     {
       "index": 36,
@@ -283,7 +283,7 @@
     },
     {
       "index": 38,
-      "call": "nx_export_expressions",
+      "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -304,14 +304,14 @@
     },
     {
       "index": 41,
-      "call": "nx_set_expression",
+      "call": "nx_export_expressions",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 42,
-      "call": "nx_import_expressions",
+      "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -326,41 +326,41 @@
     {
       "index": 44,
       "call": "nx_import_expressions",
-      "setup": false,
+      "setup": true,
       "passed": true,
-      "checks": 5
+      "checks": 0
     },
     {
       "index": 45,
       "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 46,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 47,
+      "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 48,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 47,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 48,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
       "index": 49,
-      "call": "nx_export_expressions",
+      "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -374,49 +374,49 @@
     },
     {
       "index": 51,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 52,
-      "call": "nx_import_expressions",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 53,
-      "call": "nx_measure_mass",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 54,
-      "call": "nx_set_expression",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 55,
       "call": "nx_export_expressions",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 56,
+      "index": 52,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 53,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 54,
       "call": "nx_import_expressions",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 55,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 56,
+      "call": "nx_set_expression",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 57,
-      "call": "nx_set_expression",
+      "call": "nx_export_expressions",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -424,26 +424,40 @@
     {
       "index": 58,
       "call": "nx_import_expressions",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 59,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 60,
+      "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 59,
+      "index": 61,
       "call": "nx_import_expressions",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 60,
+      "index": 62,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 61,
+      "index": 63,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

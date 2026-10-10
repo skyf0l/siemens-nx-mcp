@@ -44,7 +44,7 @@ def test_status_reports_bridge_parts_workspace_without_a_panel():
     assert work["path"].endswith("work.prt") and work["units"] == "mm"
     assert work["part"]["id"] and work["modified"] is False
     assert data["parts"]["display"]["part"]["id"] == work["part"]["id"]
-    assert data["parts"]["loaded"] == 1
+    assert data["parts"]["loaded"] == 1 and data["parts"]["work_component"] is None
     assert data["control"] is None and data["operation"] is None
     assert data["workspace"]["root"] == str(services(nx).workspace.root)
     assert data["workspace"]["absolute_paths"] == st.RULES["absolute_paths"]
@@ -142,6 +142,14 @@ def test_unknown_operation_is_unknown_not_an_error(tmp_path, store):
     assert ok.ok and ok.mutation_outcome == "not_applicable"
     assert ok.data["state"] == "unknown" and ok.data["mutation_outcome"] == "unknown"
     assert ok.data["reason"] and ok.data["cancel_requested"] is False
+    assert "read-only call" in ok.data["reason"]  # reads are never receipted
+
+
+def test_a_restarted_receipt_keeps_its_own_reason(tmp_path, store):
+    store.put({"operation_id": "op_restarted", "tool": "nx_create_sketch", "state": "unknown",
+               "fingerprint": "f", "reason": "NX process restarted"})  # fmt: skip
+    data = side(tmp_path, st.nx_get_operation, operation="op_restarted").data
+    assert data["state"] == "unknown" and data["reason"] == "NX process restarted"
 
 
 def test_committed_catalogue_operation_carries_its_result(tmp_path, store):
@@ -190,16 +198,41 @@ def test_cancel_refuses_unknown_finished_and_uncatalogued_operations(tmp_path, s
     record, _ = receipts.begin("nx_create_sketch", {}, "op_done_0001", None)
     receipts.finish(record, {"ok": True, "mutation_outcome": "committed", "data": {}})
     done = side(tmp_path, st.nx_cancel_operation, operation="op_done_0001")
-    assert done.error["code"] == "NX_IN_USE" and done.error["details"]["state"] == "committed"
-    assert done.mutation_outcome == "not_started"
+    # A finished call can never be cancelled: retry never, not a blocker that clears.
+    assert done.error["code"] == "NX_NOT_RUNNING" and done.error["retry"] == "never"
+    assert done.error["details"] == {"state": "committed", "tool": "nx_create_sketch"}
+    assert "already finished as committed" in done.error["message"]
+    assert "nx_undo_operation" in done.error["hint"] and done.mutation_outcome == "not_started"
+    record, _ = receipts.begin("nx_create_sketch", {"a": 1}, "op_failed_0001", None)
+    receipts.finish(record, {"ok": False, "mutation_outcome": "rolled_back",
+                             "error": {"code": "NX_BUILD_FAILED"}})  # fmt: skip
+    failed = side(tmp_path, st.nx_cancel_operation, operation="op_failed_0001")
+    assert failed.error["code"] == "NX_NOT_RUNNING"
+    assert "nx_get_operation" in failed.error["hint"]
     store.put({"operation_id": "op_not_catalogue", "tool": "nx_removed_tool", "state": "running",
                "mutation_outcome": "unknown"})  # fmt: skip
     other = side(tmp_path, st.nx_cancel_operation, operation="op_not_catalogue")
     assert other.error["code"] == "NX_UNSUPPORTED_OPTION"
-    for op in ("op_never_seen", "op_done_0001", "op_not_catalogue"):
+    for op in ("op_never_seen", "op_done_0001", "op_failed_0001", "op_not_catalogue"):
         assert not store.path(op).with_suffix(".cancel").exists()
 
 
 def test_operation_argument_is_checked(tmp_path):
     bad = side(tmp_path, st.nx_get_operation, operation="x")
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/operation"
+    # The error says what is wrong, not just "has an invalid format".
+    short = side(tmp_path, st.nx_get_operation, operation="short")
+    assert "too short: 5 of at least 8" in short.error["message"]
+    chars = side(tmp_path, st.nx_cancel_operation, operation="op/../../x1")
+    assert chars.error["field"] == "/operation" and "'/'" in chars.error["message"]
+    assert chars.mutation_outcome == "not_started"
+    long = side(tmp_path, st.nx_get_operation, operation="o" * 129)
+    assert "too long" in long.error["message"]
+
+
+def test_operation_ids_are_trimmed(tmp_path, store):
+    receipts = Receipts(store, "s")
+    record, _ = receipts.begin("nx_create_sketch", {}, "op_trimmed_1", None)
+    receipts.finish(record, {"ok": True, "mutation_outcome": "committed", "data": {}})
+    ok = side(tmp_path, st.nx_get_operation, operation=" op_trimmed_1\n")
+    assert ok.data["state"] == "committed" and ok.data["operation_id"] == "op_trimmed_1"

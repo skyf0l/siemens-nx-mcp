@@ -1,0 +1,83 @@
+{
+ "covers": {
+  "nx_preview_changes": [],
+  "nx_finish_preview": ["accept"]
+ },
+ "part": "new",
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {
+   "call": "nx_run_batch",
+   "intent": "Acceptance: a heavy feature in a batch is refused with the preview route in the hint",
+   "args": {"operations": [
+    {"tool": "nx_create_sketch", "arguments": {"placement": {"principal": "xy"}}},
+    {"tool": "nx_create_extrude", "arguments": {"sketch": "$$0.data.sketch", "end": {"type": "distance", "value": 10}}}
+   ]},
+   "expect": {
+    "ok": false,
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/operations/1/tool",
+    "error.hint": {"matches": "nx_finish_preview"},
+    "error.details.batchable": {"contains": "nx_create_sketch_curves"},
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_preview_changes",
+   "save": "p",
+   "intent": "Acceptance: sketch, profile and extrude previewed together through $n references",
+   "args": {"operations": [
+    {"tool": "nx_create_sketch", "arguments": {"placement": {"principal": "xy"}, "name": "PREVIEW_PROFILE"}},
+    {"tool": "nx_create_sketch_curves", "arguments": {
+     "sketch": "$$0.data.sketch",
+     "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}]}},
+    {"tool": "nx_finish_sketch", "arguments": {"sketch": "$$0.data.sketch"}},
+    {"tool": "nx_create_extrude", "arguments": {"sketch": "$$0.data.sketch", "end": {"type": "distance", "value": 10}}}
+   ]},
+   "expect": {
+    "mutation_outcome": "previewed",
+    "data.count": 4,
+    "data.before.counts.bodies": 0,
+    "data.after.volume": {"close": 8000, "tol": 1e-3},
+    "data.after.bounds.size": {"close": [40, 20, 10], "tol": 1e-6},
+    "data.delta.sketches": 1,
+    "data.delta.bodies": 1
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "intent": "Acceptance: the preview left the part empty",
+   "args": {"kind": "sketch"},
+   "expect": {"page.total": 0}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: accept applies all four steps under one undo mark",
+   "args": {"preview_id": "$p.data.preview_id", "action": "accept"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.state": "applied",
+    "data.count": 4,
+    "data.results.3.tool": "nx_create_extrude",
+    "data.results.3.data.volume": {"close": 8000, "tol": 1e-3}
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_undo_operation",
+   "intent": "Acceptance: one undo removes the whole accepted preview",
+   "args": {},
+   "expect": {"mutation_outcome": "committed", "data.tool": "nx_finish_preview"}
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {"kind": "sketch"},
+   "expect": {"page.total": 0}
+  }
+ ]
+}

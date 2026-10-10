@@ -16,6 +16,7 @@ import pytest
 from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import make_spec
 from nx_mcp.core.errors import NXError
+from nx_mcp.core.types import QUANTITY_MAX as T_QUANTITY_MAX
 from nx_mcp.core.types import (
     Angle,
     Axis,
@@ -235,13 +236,17 @@ def _strings(value):
 
 @pytest.mark.parametrize("spec", specs(), ids=lambda s: s.name)
 def test_listed_schema_accepts_what_gate_1_accepts(spec):
-    """The compact listing never refuses a valid call except an explicit null for an
-    optional field (documented by omission); it is looser only where gate 1 checks a
-    reference or unit-string pattern that the listing leaves out (and JSON has no inf)."""
+    """The compact listing never refuses the canonical form of a valid call except an
+    explicit null for an optional field (documented by omission); it is looser only where
+    gate 1 checks a reference or unit-string pattern that the listing leaves out (and JSON
+    has no inf). Natural spellings gate 1 also takes ("Through All" for "through_all", one
+    ref for a list of refs) are not listed: gate 1 turns them into the canonical form."""
     validator = jsonschema.Draft202012Validator(schema.input_schema(spec, call_keys=False))
     for args in samples(spec):
         if any(args.get(p.name, 0) is None for p in spec.params.values() if not p.required):
             continue
+        if accepts_core(spec, args):
+            args = validate(spec.params, args).args
         listed_ok = validator.is_valid(args)
         variant = spec.variant_of(args)
         if listed_ok and schema._by_variant(spec) and variant in spec.variant_values():
@@ -291,8 +296,8 @@ def test_unit_strings_refs_defaults_and_call_keys():
     props = generated["properties"]
     length = props["length"]
     length = generated["$defs"][length["$ref"].split("/")[-1]] if "$ref" in length else length
-    assert length["type"] == ["number", "string"] and length["maxLength"] == 40
-    assert "mm" in length["description"] and "rad" in props["angle"]["description"]
+    assert length["type"] == ["number", "string"] and length["maxLength"] == T_QUANTITY_MAX
+    assert "mm" in length["description"] and "deg" in props["angle"]["description"]
     assert props["target"]["description"].startswith("Ref") and "pattern" not in props["target"]
     assert props["label"]["pattern"] == "^[a-z]+$"  # a tool's own pattern stays listed
     assert props["count"]["default"] == 1 and props["count"]["maximum"] == 9

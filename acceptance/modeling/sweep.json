@@ -239,6 +239,174 @@
     "mutation_outcome": "not_started",
     "error.field": "/combine/targets"
    }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "gp",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$gp.data.sketch.id",
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        -5,
+        10
+       ],
+       [
+        20,
+        10
+       ],
+       [
+        20,
+        30
+       ]
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$gp.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "gf",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "gf_c",
+   "args": {
+    "sketch": "$gf.data.sketch.id",
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        -5,
+        10
+       ],
+       [
+        20,
+        10
+       ],
+       [
+        20,
+        30
+       ]
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch_corner",
+   "setup": true,
+   "args": {
+    "sketch": "$gf.data.sketch.id",
+    "first": "$gf_c.data.curves.0.curve.id",
+    "second": "$gf_c.data.curves.1.curve.id",
+    "kind": "fillet",
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$gf.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "args": {
+    "section": "$sec.data.sketch.id",
+    "guide": "$gp.data.sketch.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/guide",
+    "mutation_outcome": "not_started",
+    "error.details.corners.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "save": "bent",
+   "args": {
+    "section": "$sec.data.sketch.id",
+    "guide": "$gf.data.sketch.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 134.62975387836616,
+     "tol": 0.05
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$bent.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      -5,
+      9,
+      4
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      21,
+      30,
+      6
+     ],
+     "tol": 0.001
+    }
+   }
   }
  ]
 }

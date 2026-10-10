@@ -230,7 +230,7 @@
   {
    "call": "nx_set_visibility",
    "args": {
-    "mode": "show"
+    "mode": "hide"
    },
    "expect": {
     "error.category": "invalid_argument",

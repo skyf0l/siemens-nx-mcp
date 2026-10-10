@@ -1,0 +1,52 @@
+{
+ "covers": {
+  "nx_create_extrude": [],
+  "nx_create_chamfer": [
+   "symmetric"
+  ],
+  "nx_create_blend": [],
+  "nx_create_hole": [
+   "simple"
+  ],
+  "nx_create_pattern": [
+   "linear"
+  ],
+  "nx_create_revolve": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "MM"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"name": "thickness", "formula": "10", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"name": "r", "formula": "2", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"name": "d", "formula": "6", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"name": "n", "formula": "3"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"name": "pitch", "formula": "8", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"name": "sweep", "formula": "90", "units": "deg"}},
+  {"call": "nx_create_extrude", "args": {"sketch": "$sk.data.sketch.id", "end": "nope"}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/end", "error.message": {"contains": "no expression 'nope'"}, "mutation_outcome": "not_started"}},
+  {"call": "nx_create_extrude", "args": {"sketch": "$sk.data.sketch.id", "end": "sweep"}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/end", "error.message": {"contains": "not a length"}}},
+  {"call": "nx_create_extrude", "save": "blk", "args": {"sketch": "$sk.data.sketch.id", "end": "thickness"}, "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}},
+  {"call": "nx_set_expression", "args": {"name": "thickness", "formula": "15"}, "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 12000, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "e1", "args": {"owner": "$blk.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "order": "nearest", "near": [20, 0, 15], "limit": 1}},
+  {"call": "nx_create_chamfer", "args": {"edges": ["$e1.data.items.0.id"], "method": "Symmetric", "offset": "r"}, "expect": {"data.volume": {"close": 11920, "tol": 1e-06}}},
+  {"call": "nx_set_expression", "args": {"name": "r", "formula": "3"}, "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 11820, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "e2", "args": {"owner": "$blk.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "order": "nearest", "near": [20, 20, 0], "limit": 1}},
+  {"call": "nx_create_blend", "args": {"edges": ["$e2.data.items.0.id"], "radius": "r/2"}, "expect": {"data.volume": {"close": 11800.685834705770, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top", "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [0, 0, 1], "limit": 1, "order": "highest", "axis": "z"}},
+  {"call": "nx_create_hole", "save": "h", "args": {"face": "$top.data.items.0.id", "positions": [[8, 10, 15]], "form": "Simple", "diameter": "d", "depth": "thickness/3"}, "expect": {"data.removed": {"close": 158.36060317065628, "tol": 1e-04}}},
+  {"call": "nx_create_pattern", "save": "p", "args": {"features": ["$h.data.feature.id"], "layout": "Linear", "parameters": {"direction": [1, 0, 0], "count": "n", "spacing": "pitch"}}, "expect": {"data.count": 3, "data.volume": {"close": 11325.604025193801, "tol": 1e-06}}},
+  {"call": "nx_set_expression", "args": {"name": "n", "formula": "4"}, "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 11167.243422023144, "tol": 1e-06}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "rv", "args": {"placement": {"principal": "xz"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$rv.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [21, 20], "corner2": [25, 30]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$rv.data.sketch.id"}},
+  {"call": "nx_create_revolve", "save": "ring", "args": {"sketch": "$rv.data.sketch.id", "axis": "Z", "end_angle": "sweep"}, "expect": {"data.volume": {"close": 1445.1326206513047, "tol": 1e-06}}},
+  {"call": "nx_set_expression", "args": {"name": "sweep", "formula": "180"}, "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$ring.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 2890.2652413026094, "tol": 1e-06}}}
+ ]
+}

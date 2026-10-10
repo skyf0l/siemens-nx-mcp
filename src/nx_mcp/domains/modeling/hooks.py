@@ -60,16 +60,21 @@ def edges(tx, owner, owner_kind):
 def features(tx, owner, owner_kind):
     if owner is not None:
         fail("NX_UNSUPPORTED_OPTION", "features are listed for the whole part", field="/owner")
-    from nx_mcp.domains.modeling.tree import feature_messages
+    from nx_mcp.domains.modeling.tree import feature_messages, states
 
+    # User-visible features only (a hole's or a sketch's internal sub-feature follows its
+    # owner and no feature tool takes it). NX's Suppressed is also True for features after
+    # the current one: suppressed is the user's suppression, inactive marks rolled back ones.
     out = []
-    for f in tx.part.Features:
+    for f, suppressed, active in states(tx, tx.part).values():
         stamp = getattr(f, "Timestamp", None)
         details = {
-            "suppressed": bool(f.Suppressed),
+            "suppressed": suppressed,
             "timestamp": None if stamp is None else int(stamp),
             "errors": feature_messages(f),
         }
+        if not active:
+            details["inactive"] = True
         out.append((f, "feature", {"type": str(f.FeatureType).lower(), "details": details}))
     return out
 

@@ -2,13 +2,37 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+import math
+from typing import Literal, TypedDict
 
 from nx_mcp.core.errors import fail
-from nx_mcp.kit import builders, measure, readback, result, select
+from nx_mcp.core.types import Axis, Direction, Plane
+from nx_mcp.kit import builders, curve, geom, measure, readback, result, select, units
+from nx_mcp.kit import sketch as ksketch
 
 # Values within this relative band of each other count as "unchanged" volume.
 VOLUME_REL = 1e-9
+
+
+# A bare principal axis name, accepted where an Axis or Direction object is expected.
+PrincipalName = Literal["x", "y", "z", "-x", "-y", "-z"]
+PRINCIPALS = frozenset({"x", "y", "z", "-x", "-y", "-z"})
+# A bare principal plane name, accepted where a Plane object is expected.
+PlaneName = Literal["xy", "yz", "xz"]
+PLANE_NAMES = frozenset({"xy", "yz", "xz"})
+# Short forms first: a bare principal name where an Axis, Direction or Plane is expected
+# (turned into the object form with ``principal``/``principal_plane`` before use).
+AxisArg = PrincipalName | Axis
+DirectionArg = PrincipalName | Direction
+PlaneArg = PlaneName | Plane
+# A path joint turning by more than this many degrees is a corner that a sweep guide or a
+# tube path cannot follow (NX 2406: "Some curves in Guide sections not tangent continuous",
+# "Nonlinear guide objects must be smooth with a continuous tangent").
+CORNER_DEGREES = 0.5
+SMOOTH_HINT = (
+    "Round the corners with nx_create_sketch_corner (kind fillet) or draw the path with arcs "
+    "or splines: it must be tangent-continuous (G1); a polyline cannot be followed"
+)
 
 
 class FeatureData(TypedDict):
@@ -194,3 +218,80 @@ def combined(tx, feature, combine, targets, before: float, tags: set) -> Feature
     out = result_of(tx, feature, [*alive, *new])
     changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
     return out
+
+
+def principal(value):
+    """``{"principal": value}`` for a bare principal axis name (``"z"``, ``"-x"``), else
+    ``value`` unchanged (a ref, a vector or an Axis/Direction object)."""
+    return {"principal": value} if isinstance(value, str) and value in PRINCIPALS else value
+
+
+def principal_plane(value):
+    """``{"principal": value}`` for a bare principal plane name (``"yz"``), else ``value``
+    unchanged (a ref or a Plane object)."""
+    return {"principal": value} if isinstance(value, str) and value in PLANE_NAMES else value
+
+
+def sketch_curves(sk) -> list:
+    """The sketch's non-construction geometry (a path or guide)."""
+    return [c for c in ksketch.geometry(sk) if not getattr(c, "IsReference", False)]
+
+
+def corners(tx, curves) -> list[dict]:
+    """``[{"point", "angle"}]``: joints where two of ``curves`` meet end to end with
+    tangents turning by more than ``CORNER_DEGREES``. Objects that cannot be evaluated
+    (sketch points) are skipped; ends where three or more curves meet are left to NX."""
+    ends = []  # (curve index, point, unit tangent pointing out of the curve)
+    for i, c in enumerate(curves):
+        try:
+            with curve.evaluator(tx, c) as e:
+                (p0, t0), (p1, t1) = e.at(0.0), e.at(1.0)
+        except Exception:  # a point or an object UF Eval does not take
+            continue
+        if geom.norm(t0) < 1e-12 or geom.norm(t1) < 1e-12:
+            continue
+        ends += [(i, p0, geom.scale(geom.unit(t0), -1.0)), (i, p1, geom.unit(t1))]
+    tol = units.part_tolerance(tx)
+    groups: list[list] = []
+    for end in ends:
+        for group in groups:
+            if geom.dist(group[0][1], end[1]) <= max(tol, geom.tol(group[0][1], end[1])):
+                group.append(end)
+                break
+        else:
+            groups.append([end])
+    found = []
+    for group in groups:
+        if len(group) != 2 or group[0][0] == group[1][0]:
+            continue  # a free end, a branch, or a closed curve's own seam
+        cos = max(-1.0, min(1.0, -geom.dot(group[0][2], group[1][2])))
+        angle = math.degrees(math.acos(cos))
+        if angle > CORNER_DEGREES:
+            found.append({"point": [round(v, 6) for v in group[0][1]], "angle": round(angle, 3)})
+    return found
+
+
+def refuse_corners(tx, curves, field: str, what: str) -> None:
+    """Refuse a sweep guide or tube path with sharp corners before NX builds it."""
+    sharp = corners(tx, curves)
+    if sharp:
+        worst = max(sharp, key=lambda c: c["angle"])
+        fail(
+            "NX_WRONG_GEOMETRY",
+            f"The {what} has {len(sharp)} sharp corner(s) (up to {worst['angle']:.3g} deg at "
+            f"{worst['point']}); it must be tangent-continuous",
+            field=field,
+            hint=SMOOTH_HINT,
+            details={"corners": sharp[:10]},
+        )
+
+
+def smooth_hint(error) -> None:
+    """Add ``SMOOTH_HINT`` to NX's own refusal of a path that is not tangent-continuous."""
+    text = str(error.message).lower()
+    if (
+        error.code == "NX_BUILD_FAILED"
+        and not error.hint
+        and ("tangent" in text or "smooth" in text)
+    ):
+        error.hint = SMOOTH_HINT

@@ -130,10 +130,15 @@
     "data.path": {
      "matches": "ex/all\\.exp$"
     },
-    "data.names": {
-     "contains": "len"
+    "data.truncated": false,
+    "data.expressions": {
+     "contains": {
+      "name": "len",
+      "formula": "10",
+      "units": "mm"
+     }
     },
-    "data.truncated": false
+    "data.overwritten": false
    }
   },
   {
@@ -148,10 +153,9 @@
    },
    "expect": {
     "data.count": 2,
-    "data.names": [
-     "len",
-     "wall"
-    ]
+    "data.expressions.0.name": "len",
+    "data.expressions.1.name": "wall",
+    "data.expressions.1.formula": "len/4"
    }
   },
   {
@@ -160,7 +164,28 @@
     "path": "$run/ex/all.exp"
    },
    "expect": {
-    "error.code": "NX_ALREADY_EXISTS"
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.message": {
+     "contains": "overwrite=true"
+    }
+   }
+  },
+  {
+   "call": "nx_export_expressions",
+   "args": {
+    "path": "$run/ex/all.exp",
+    "overwrite": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.overwritten": true,
+    "data.expressions": {
+     "contains": {
+      "name": "wall",
+      "formula": "len/4",
+      "units": "mm"
+     }
+    }
    }
   },
   {
@@ -531,7 +556,27 @@
    "expect": {
     "error.code": "NX_IMPORT_FAILED",
     "error.nx_code": 1050053,
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.details.unknown_names.0.name": "fresh",
+    "error.details.unknown_names.0.uses": [
+     "helper"
+    ]
+   }
+  },
+  {
+   "call": "nx_import_expressions",
+   "args": {
+    "path": "$run/ex/helper.exp",
+    "mode": "delete"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.deleted": {
+     "count": 0
+    },
+    "data.skipped": [
+     "helper"
+    ]
    }
   },
   {

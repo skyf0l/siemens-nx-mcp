@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/sweep.json",
-  "scenario_sha256": "eaa71f9836b978bc6ac8ef4308f647471a64fa884eaf48e0328c61347056be1a",
+  "scenario_sha256": "f654782ae112debb1d210683d91cb64e14ecc5d148db0619dfb02153c61eada4",
   "domain": "modeling",
   "covers": {
     "nx_create_sweep": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sweep": "4e5ace5df68dadf578da6d0cdb6621fbe21cbb6a28a1a478cc200a4ee921ee4a"
+    "nx_create_sweep": "f76e0b2445aab9ca97fc0a9a9c221e1f49518c7f8805c192bcfc339baa8ac614"
   },
-  "recorded": "2026-10-10T15:34:28Z",
+  "recorded": "2026-10-10T23:17:42Z",
   "passed": true,
-  "checks": 12,
+  "checks": 20,
   "failed_checks": 0,
   "steps": [
     {
@@ -127,6 +127,76 @@
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_sketch_corner",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 25,
+      "call": "nx_create_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 26,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
     }
   ]
 }

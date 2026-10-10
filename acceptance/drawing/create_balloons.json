@@ -130,7 +130,10 @@
     "type": "projected",
     "parent": "$top.data.view.id",
     "direction": "right",
-    "spacing": 110
+    "position": [
+     240,
+     160
+    ]
    },
    "expect": {
     "data.position.0": {

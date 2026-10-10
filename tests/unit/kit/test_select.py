@@ -36,6 +36,18 @@ def test_planar_rejects_wrong_geometry_kind_and_owner():
     assert _code(select.planar, nx.tx, "fa:999") == "NX_STALE_REFERENCE"
 
 
+def test_planar_takes_an_occurrence_face_when_asked():
+    nx = fake_nx()
+    face = nx.face(origin=(30, 0, 0), normal=(-1, 0, 0))
+    face.IsOccurrence = True
+    assert _code(select.plane, nx.tx, face.ref) == "NX_WRONG_OWNER"
+    obj, origin, normal = select.plane(nx.tx, face.ref, occurrences=True)
+    assert obj is face and origin == [30.0, 0.0, 0.0] and normal == [-1.0, 0.0, 0.0]
+    other = nx.face()
+    other.OwningPart = object()
+    assert _code(select.plane, nx.tx, other.ref, occurrences=True) == "NX_WRONG_OWNER"
+
+
 def test_plane_union():
     nx = fake_nx()
     assert select.plane(nx.tx, {"principal": "xz"}) == (None, [0, 0, 0], [0.0, -1.0, 0.0])

@@ -190,7 +190,7 @@ def test_namespace_import_reports_missing():
     ]
 
 
-def test_unexpected_errors_carry_a_traceback_in_development(monkeypatch):
+def test_unexpected_errors_keep_the_traceback_out_of_details(monkeypatch):
     from nx_mcp.core.errors import classify
 
     monkeypatch.setenv("NX_MCP_DEV", "1")
@@ -200,7 +200,7 @@ def test_unexpected_errors_carry_a_traceback_in_development(monkeypatch):
         err = classify(exc)
     assert err.code == "NX_ERROR"
     assert err.details["exception_type"] == "ModuleNotFoundError"
-    assert "nx_mcp_no_such_module" in err.details["traceback"]
+    assert "traceback" not in err.details and "nx_mcp_no_such_module" in (err.trace or "")
 
 
 def test_queue_wait_and_run_time_have_separate_timeouts():

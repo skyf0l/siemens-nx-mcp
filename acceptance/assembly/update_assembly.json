@@ -45,6 +45,7 @@
    "expect": {"data.start.2": {"close": 30, "tol": 1e-6}, "data.end.2": {"close": 80, "tol": 1e-6}}},
   {"call": "nx_edit_assembly_constraint", "setup": true, "args": {"constraint": "$touch.data.constraint.id", "suppressed": true}},
   {"call": "nx_update_assembly", "args": {},
-   "expect": {"mutation_outcome": "committed", "data.constraints": {"count": 1}, "data.documentation_complete": true}}
+   "expect": {"mutation_outcome": "committed", "data.constraints": {"count": 2}, "data.constraints.0.status": "Solved",
+              "data.constraints.1.suppressed": true, "data.documentation_complete": true}}
  ]
 }

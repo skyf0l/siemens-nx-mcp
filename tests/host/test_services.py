@@ -115,7 +115,75 @@ def test_engineer_change_clears_undo_history_and_bumps_the_revision(tmp_path):
     s.history.append({"mark": 1})
     s.checkpoints["cp"] = {"mark": 1}
     s.engineer_changed()
-    assert not s.history and not s.checkpoints and s.revision() == 1
+    assert not s.history and s.revision() == 1
+    assert s.checkpoints["cp"]["expired"] == "engineer_change"  # listed, not dropped
+
+
+class _Tagged:
+    def __init__(self, tag, name=""):
+        self.Tag, self.Name, self.JournalIdentifier = tag, name, f"FACE {tag}"
+
+
+def _block(tmp_path):
+    """Services over one part with a body of three faces and two edges."""
+    s = services(tmp_path)
+    faces = [_Tagged(t) for t in (11, 12, 13)]
+    edges = [_Tagged(t) for t in (21, 22)]
+    body = NS(Tag=5, GetFaces=lambda: list(faces), GetEdges=lambda: list(edges))
+    part = NS(Tag=1, FullPath=str(tmp_path / "ws" / "a.prt"), Name="a", Bodies=[body])
+    s.session.Parts.append(part)
+    s.session.Parts.Work = part
+    return s, part, faces, edges
+
+
+def test_a_topology_change_retires_only_consumed_faces_and_edges(tmp_path):
+    s, part, faces, edges = _block(tmp_path)
+    refs = s.references
+    rows = [refs.row(o, "face", part=part)["id"] for o in faces]
+    erows = [refs.row(o, "edge", part=part)["id"] for o in edges]
+    part_ref = refs.row(part, "part", part=part)["id"]
+    consumed, deleted = faces.pop(0), edges[0]
+    deleted.Tag = 0  # NX dropped it: its wrapper reports tag 0
+    retired = s.invalidate({}, {}, True)
+    assert refs.stale(retired) == [rows[0], erows[0]]
+    assert consumed.Tag == 11  # a consumed face's wrapper may keep its tag
+    assert refs.resolve(rows[1], ("face",)) is faces[0]  # untouched, possibly reshaped
+    assert refs.resolve(erows[1], ("edge",)) is edges[1]
+    assert refs.resolve(part_ref, ("part",)) is part
+    with pytest.raises(NXError) as error:
+        refs.resolve(rows[0], ("face",))
+    assert error.value.code == "NX_STALE_REFERENCE" and "nx_find_geometry" in error.value.hint
+
+
+def test_revalidation_after_an_outside_edit_keeps_refs_of_surviving_objects(tmp_path):
+    s, part, faces, _edges = _block(tmp_path)
+    refs = s.references
+    keep = refs.row(faces[1], "face", part=part)["id"]
+    gone = refs.row(faces[0], "face", part=part)["id"]
+    part_ref = refs.row(part, "part", part=part)["id"]
+    faces.pop(0)
+    summary = s.revalidate()
+    assert summary["stale"] == [gone]
+    assert refs.resolve(keep, ("face",)) is faces[0]
+    assert refs.resolve(part_ref, ("part",)) is part
+
+
+def test_deleted_rows_without_a_short_ref_name_the_part_by_its_ref(tmp_path):
+    s, part, _faces, _edges = _block(tmp_path)
+    part_ref = s.references.row(part, "part", part=part)["id"]
+    entry = s.register(_Tagged(99, "ENTITY 3 1 1"), "curve", part)
+    s.invalidate({("curve", 99): entry}, {}, False)
+    row = s.describe(entry, live=False)
+    assert row == {"kind": "curve", "name": "ENTITY 3 1 1", "part": part_ref, "gone": True}
+
+
+def test_a_refused_call_moves_no_revision(tmp_path):
+    s = services(tmp_path)
+    spec = NS(effect="model")
+    s.after_failure(spec, "not_started")
+    assert s.revision() == 0
+    s.after_failure(spec, "rolled_back")
+    assert s.revision() == 1
 
 
 def test_display_records_name_registry_objects_and_restore_them(rig):
@@ -206,3 +274,18 @@ def test_failed_rollback_of_a_development_snippet_is_partial_and_keeps_the_mark(
     assert details["mutation_outcome"] == "partial"
     assert details["rollback_errors"] == ["undo: undo refused"]
     assert s.session.marks  # kept for a manual undo
+
+
+def test_an_undo_revives_refs_of_objects_it_brought_back(tmp_path):
+    s, part, faces, _edges = _block(tmp_path)
+    refs = s.references
+    consumed = faces[0]
+    ref = refs.row(consumed, "face", part=part)["id"]
+    faces.pop(0)  # a blend consumed it
+    assert refs.stale(s.invalidate({}, {}, True)) == [ref]
+    faces.insert(0, consumed)  # the undo restored the same face (same tag)
+    s.revalidate()  # an outside edit revives nothing
+    with pytest.raises(NXError):
+        refs.resolve(ref, ("face",))
+    s.retire_undone(s.parts())
+    assert refs.resolve(ref, ("face",)) is consumed

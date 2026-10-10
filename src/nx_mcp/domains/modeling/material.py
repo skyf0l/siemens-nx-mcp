@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import difflib
 import ntpath
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -90,6 +91,19 @@ UNITS: dict[str, dict[str, float]] = {
     },  # fmt: skip
 }
 ROOM = {"degC": 20.0, "K": 293.15, "degF": 68.0}
+# A custom density string's unit (ASCII, case-insensitive, ``^`` dropped) -> kg/m^3.
+DENSITY_INPUT = {
+    **{unit.casefold(): factor for unit, factor in UNITS["density"].items()},
+    "g/cc": 1e3,
+    "g/ml": 1e3,
+    "kg/l": 1e3,
+    "t/m3": 1e3,
+    "g/m3": 1e-3,
+    "lb/ft3": 16.0184634,
+}  # fmt: skip
+_DENSITY_TEXT = re.compile(r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(.*?)\s*$")
+# British spellings agents send for library names spelled the American way.
+SPELLINGS = {"aluminium": "aluminum", "grey": "gray", "sulphur": "sulfur", "fibre": "fiber"}
 
 
 def _ascii_unit(text: str) -> str:
@@ -98,6 +112,45 @@ def _ascii_unit(text: str) -> str:
                      ("\xb5", "u"), ("μ", "u"), ("\xb7", "*"), ("⋅", "*")):  # fmt: skip
         text = text.replace(old, new)
     return "".join(text.split())
+
+
+def name_words(text: str) -> list[str]:
+    """Lower-case alphanumeric words of a material name or query, American spelling:
+    ``"Aluminium 6061"`` -> ``["aluminum", "6061"]``."""
+    text = str(text).casefold()
+    for british, american in SPELLINGS.items():
+        text = text.replace(british, american)
+    return re.findall(r"[a-z0-9]+", text)
+
+
+def name_key(text: str) -> str:
+    """A name without case, spaces or punctuation: ``"aluminum 6061"`` == ``"Aluminum_6061"``."""
+    return "".join(name_words(text))
+
+
+def density_value(value) -> float:
+    """kg/m^3 of a custom density: a number (kg/m^3) or ``"<number> <unit>"``."""
+    if not isinstance(value, str):
+        return float(value)
+    match = _DENSITY_TEXT.match(value)
+    unit = _ascii_unit(match.group(2)).replace("^", "").casefold() if match else None
+    factor = 1.0 if unit == "" else DENSITY_INPUT.get(unit or "")
+    if match is None or factor is None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"/material/custom/density: cannot read {value!r} as a density",
+            field="/material/custom/density",
+            hint="Send kg/m^3 as a number (1240) or a string like '1.24 g/cm3'; units: "
+            + ", ".join(sorted({u for u in DENSITY_INPUT if "lbm" not in u})),
+        )
+    number = float(match.group(1)) * factor
+    if not 0 < number <= 1e6:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"/material/custom/density: {value!r} is {number:g} kg/m^3; expected > 0 and <= 1e6",
+            field="/material/custom/density",
+        )
+    return number
 
 
 def parse_property(value: str, dim: str) -> float | None:
@@ -181,6 +234,15 @@ def library_names(tx, library: str = DEFAULT_LIBRARY) -> list[str]:
     return names
 
 
+def _rank(own: str, key: str, words: list[str]) -> int:
+    """Exact name first, then a name prefix, then every word in the name, then by category."""
+    if own == key:
+        return 0
+    if own.startswith(key):
+        return 1
+    return 2 if all(w in own for w in words) else 3
+
+
 class LibraryRow(LibraryProperties):
     name: str
     category: str | None
@@ -214,26 +276,41 @@ class LibraryData(TypedDict):
 def nx_list_materials(
     tx: Tx,
     *,
-    query: Annotated[str, Text(64), Doc("Case-insensitive name or category filter")] | None = None,
+    query: Annotated[str, Text(64), Doc("Name or category words, e.g. 'steel', 'abs plastic'")]
+    | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> LibraryData:
-    """List NX material library entries with category, density and mechanical and thermal data.
-    Units: density kg/m^3, Young's modulus MPa, thermal expansion 1/K, conductivity W/(m*K),
-    specific heat J/(kg*K); missing values are null. Assign one with nx_set_material
-    {library: name}."""
+    """List NX library materials with category, density, mechanical and thermal data (null
+    when missing). Query words ignore case, '_' and British spelling; best names first.
+    Units: density kg/m^3, E MPa, expansion 1/K, conductivity W/(m*K), specific heat
+    J/(kg*K). Assign with nx_set_material."""
     source = DEFAULT_LIBRARY
     materials = tx.part.MaterialManager.PhysicalMaterials
-    found = []
-    for name in library_names(tx, source):
+    names = library_names(tx, source)
+    words, key = name_words(query or ""), name_key(query or "")
+    ranked = []
+    for index, name in enumerate(names):
         tx.checkpoint()
         category = _library_value(materials, source, name, "Category")
         category = (category.strip() or None) if category else None
-        if query and not any(
-            query.casefold() in str(text).casefold() for text in (name, category or "")
-        ):
-            continue
-        found.append((name, category))
+        if words:
+            own, kind = name_key(name), name_key(category or "")
+            if not all(w in own or w in kind for w in words):
+                continue
+            ranked.append((_rank(own, key, words), index, name, category))
+        else:
+            ranked.append((0, index, name, category))
+    found = [(name, category) for _, _, name, category in sorted(ranked)]
+    if words and not found:
+        lookup = {name_key(n): n for n in names}
+        close = difflib.get_close_matches(key, list(lookup), 5, 0.5)
+        tx.warn(
+            "NX_NOTE",
+            f"No library material matches {query!r}"
+            + (f"; close names: {', '.join(lookup[c] for c in close)}" if close else "")
+            + ". Omit query to page through every name.",
+        )
     selected, page = result.page(found, offset, limit)
     items: list = []
     for name, category in selected:
@@ -361,14 +438,24 @@ def nx_get_material(
     ] = "part",
 ) -> MaterialData:
     """Read the materials of bodies, the work part or the assembly with density and properties.
-    Density is kg/m^3; library materials add E, Poisson's ratio and thermal data (units as
+    Density kg/m^3; library materials add E, Poisson's ratio and thermal data (units as
     nx_list_materials). Components report their prototype's material."""
     if bodies is not None:
         found = [tx.resolve(ref, "body") for ref in bodies]
     elif scope == "assembly":
         found = _assembly_bodies(tx)
+        if not found:
+            root = tx.part.ComponentAssembly.RootComponent
+            tx.warn(
+                "NX_NOTE",
+                "No loaded, unsuppressed component has a body"
+                if root is not None
+                else "The work part has no components; scope 'part' reads its own bodies",
+            )
     else:
         found = list(tx.part.Bodies)
+        if not found:
+            tx.warn("NX_NOTE", "The work part has no bodies")
     items: list = []
     memo: dict = {}
     for body in found:
@@ -377,31 +464,64 @@ def nx_get_material(
         row = _row(tx, prototype, _material_of(prototype), memo)
         row["body"] = tx.ref(body, kind="body")
         items.append(row)
+    bare = sum(row["material"] is None for row in items)
+    if bare:
+        tx.warn(
+            "NX_NOTE",
+            f"{bare} of {len(items)} bodies have no material: their density is NX's default "
+            "solid density, not a material's; assign one with nx_set_material",
+        )
     return {"items": items}
 
 
 class Custom(TypedDict):
     name: Annotated[str, Text(100, r"^\S.*$"), Doc("New material name")]
-    density: Annotated[float, Range(gt=0, le=1e6), Doc("Mass density in kg/m^3")]
-
-
-class CustomSpec(TypedDict):
-    custom: Custom
-
-
-class LibrarySpec(TypedDict):
-    library: Annotated[
-        str, Text(128, r"^\S.*$"), Doc("Library material name from nx_list_materials")
+    density: Annotated[
+        Annotated[float, Range(gt=0, le=1e6)] | Annotated[str, Text(40)],
+        Doc("kg/m^3, or '1.24 g/cm3', '0.045 lb/in3'"),
     ]
 
 
-MaterialSpec = CustomSpec | LibrarySpec
+class MaterialSpec(TypedDict, total=False):
+    """Exactly one of ``library`` or ``custom`` (checked by the tool, which names both)."""
 
-forbid_extra(Custom, CustomSpec, LibrarySpec)
+    library: Annotated[str, Text(128, r"^\S.*$"), Doc("Library name, e.g. 'Steel'")]
+    custom: Custom
+
+
+forbid_extra(Custom, MaterialSpec)
+
+LibraryName = Annotated[str, Text(128), Doc("Short for {library: name}")]
+FORMS_HINT = (
+    "Send a library name ('Steel' or {library: 'Steel'}; names from nx_list_materials) or "
+    "{custom: {name: 'PLA', density: 1240}} (kg/m^3, or '1.24 g/cm3')"
+)
 
 
 def _material_text(spec) -> str:
-    return spec["custom"]["name"] if "custom" in spec else spec["library"]
+    if isinstance(spec, str):
+        return spec
+    if "custom" in spec:
+        return str(spec["custom"].get("name", "custom"))
+    return str(spec.get("library", "?"))
+
+
+def _form(material) -> tuple[str, str, str]:
+    """``(form, text, field)``: ``name`` (bare string), ``library`` or ``custom``."""
+    if isinstance(material, str):
+        return "name", material, "/material"
+    given = [key for key in ("library", "custom") if key in material]
+    if len(given) != 1:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "/material: "
+            + ("send library or custom, not both" if given else "library or custom is required"),
+            field="/material",
+            hint=FORMS_HINT,
+        )
+    if given == ["custom"]:
+        return "custom", material["custom"]["name"], "/material/custom"
+    return "library", material["library"], "/material/library"
 
 
 def _stored_density(tx, material) -> float | None:
@@ -417,32 +537,47 @@ def _stored_density(tx, material) -> float | None:
         return None
 
 
-def _clash(material, density):
+def _free_name(materials, name: str, density: float) -> str:
+    """An unused material name for ``name`` at ``density``: ``PLA_1300``, ``PLA_1300_2``."""
+    taken = {str(m.Name).casefold() for m in materials}
+    base = f"{name}_{density:.6g}".replace(".", "_").replace("+", "")
+    candidate, n = base, 1
+    while candidate.casefold() in taken:
+        n += 1
+        candidate = f"{base}_{n}"
+    return candidate
+
+
+def _clash(tx, material, density, wanted):
+    name = str(material.Name)
+    free = _free_name(tx.part.MaterialManager.PhysicalMaterials, name, wanted)
     fail(
         "NX_ALREADY_EXISTS",
-        f"Material {material.Name} exists with density {density:g} kg/m^3",
+        f"Material {name} exists with density {density:g} kg/m^3",
         field="/material/custom/name",
-        hint="Use another name, or the existing density",
+        hint=f"A material name keeps one density: send name {free!r} for {wanted:g} kg/m^3, "
+        f"or the bare name {name!r} to reuse {name} at {density:g} kg/m^3",
+        details={"existing_density": density, "free_name": free},
     )
 
 
-def _custom(tx, spec, targets):
+def _custom(tx, name, wanted, targets):
     part = tx.part
     materials = part.MaterialManager.PhysicalMaterials
     with tx.checks():  # a clashing name is refused before anything is assigned
-        existing = [m for m in materials if str(m.Name).casefold() == spec["name"].casefold()]
+        existing = [m for m in materials if str(m.Name).casefold() == name.casefold()]
         stored = _stored_density(tx, existing[0]) if existing else None
-        if stored is not None and abs(stored - spec["density"]) > DENSITY_REL * spec["density"]:
-            _clash(existing[0], stored)
+        if stored is not None and abs(stored - wanted) > DENSITY_REL * wanted:
+            _clash(tx, existing[0], stored, wanted)
     if existing:
         chosen = existing[0]
     else:
         kind = tx.nx.PhysicalMaterial.Type.Isotropic
         with builders.build(tx, materials.CreatePhysicalMaterialBuilder, kind) as b:
-            b.Name = spec["name"]
+            b.Name = name
             b.PropertyTable.SetBaseScalarWithDataPropertyValue(
                 "MassDensity",
-                float(spec["density"]),
+                float(wanted),
                 part.UnitCollection.FindObject("KilogramPerCubicMeter"),
             )
             chosen = b.commit()
@@ -451,31 +586,64 @@ def _custom(tx, spec, targets):
     items, memo = [], {}
     for i, body in enumerate(targets):
         density = _density(tx, body)
-        if existing and abs(density - spec["density"]) > DENSITY_REL * spec["density"]:
-            _clash(chosen, density)  # unreadable before: assigned, then rolled back
-        readback.expect_close(
-            density, spec["density"], f"density[{i}]", tol=DENSITY_REL * spec["density"] + 1e-9
-        )
+        if existing and abs(density - wanted) > DENSITY_REL * wanted:
+            _clash(tx, chosen, density, wanted)  # unreadable before: assigned, then rolled back
+        readback.expect_close(density, wanted, f"density[{i}]", tol=DENSITY_REL * wanted + 1e-9)
         items.append(_row(tx, body, chosen, memo, density))
     return items
 
 
-def _library(tx, spec, targets):
+def _reuse(tx, chosen, targets):
+    """Assign a custom material the part already has (named by the bare-string form)."""
+    stored = _stored_density(tx, chosen)
+    with native():
+        chosen.AssignObjects(targets)
+    items, memo = [], {}
+    for i, body in enumerate(targets):
+        density = _density(tx, body)
+        if stored is not None:
+            readback.expect_close(density, stored, f"density[{i}]", tol=DENSITY_REL * stored + 1e-9)
+        items.append(_row(tx, body, chosen, memo, density))
+    return items
+
+
+def library_match(names: list[str], text: str) -> tuple[str | None, list[str]]:
+    """``(name, candidates)``: the library name ``text`` means, ignoring case, spaces,
+    punctuation and British spelling (``"aluminium 6061"`` -> ``Aluminum_6061``); else
+    ``None`` and the closest names (those holding every word first)."""
+    exact = [n for n in names if n.casefold() == text.casefold()]
+    if exact:
+        return exact[0], []
+    key, words = name_key(text), name_words(text)
+    same = [n for n in names if name_key(n) == key]
+    if len(same) == 1:
+        return same[0], []
+    holding = [n for n in names if words and all(w in name_key(n) for w in words)]
+    lookup = {name_key(n): n for n in names}
+    close = [lookup[k] for k in difflib.get_close_matches(key, list(lookup), 5, 0.4)]
+    return None, list(dict.fromkeys(same + holding[:8] + close))[:8]
+
+
+def _library(tx, text, field, targets, bare):
     source = DEFAULT_LIBRARY
-    field = "/material/library"
     names = library_names(tx, source)
-    wanted = spec["library"].casefold()
-    match = [n for n in names if n.casefold() == wanted]
-    if not match:
+    materials = tx.part.MaterialManager.PhysicalMaterials
+    name, candidates = library_match(names, text)
+    if name is None:
+        own = [m for m in materials if str(m.Name).casefold() == text.casefold()]
+        if bare and own and _library_of(own[0]) is None:
+            return _reuse(tx, own[0], targets)
         fail(
             "NX_NOT_FOUND",
-            f"No material {spec['library']!r} in the library {source or '(NX default)'}",
+            f"No material {text!r} in the library {source or '(NX default)'}"
+            + (f"; did you mean {', '.join(candidates[:3])}?" if candidates else ""),
             field=field,
-            hint="Pick a name from nx_list_materials",
-            details={"candidates": difflib.get_close_matches(spec["library"], names, 5, 0.4)},
+            hint="Send a candidate name exactly"
+            if candidates
+            else "Find names with nx_list_materials {query: 'steel'}, or send "
+            "{custom: {name, density}}",
+            details={"candidates": candidates},
         )
-    name = match[0]
-    materials = tx.part.MaterialManager.PhysicalMaterials
     clash = [
         m for m in materials if str(m.Name).casefold() == name.casefold() and _library_of(m) is None
     ]
@@ -525,25 +693,29 @@ def _library(tx, spec, targets):
     requires=("work_part", "no_active_sketch"),
     cost="light",
     invalidates="deleted",  # materials only: face and edge references stay valid
-    example={"bodies": ["b:3"], "material": {"library": "Aluminum_6061"}},
+    example={"bodies": ["b:3"], "material": "Aluminum_6061"},
 )
 def nx_set_material(
     tx: Tx,
     *,
     bodies: Annotated[list[BodyRef], Items(1, 200), Doc("Omit for every solid body")] | None = None,
-    material: MaterialSpec,
+    material: LibraryName | MaterialSpec,
 ) -> MaterialData:
-    """Assign an NX library material (names from nx_list_materials) or a custom density material.
-    Targets solid bodies of the work part, default all; mass uses its density; the result reads
-    it back. A custom name is reused only with the same density."""
+    """Assign a library or custom density material to solid bodies, default all; reads it back.
+    'Steel' = {library: 'Steel'} (names from nx_list_materials). {custom: {name, density}}: a
+    custom name keeps one density; its bare name reuses it."""
+    form, text, field = _form(material)
+    density = None
+    if form == "custom":
+        density = density_value(material["custom"]["density"])  # type: ignore[index]
     if bodies is not None:
         targets = common.solids(tx, bodies)
     else:
         targets = [b for b in tx.part.Bodies if getattr(b, "IsSolidBody", True)]
         if not targets:
             fail("NX_NOT_FOUND", "The work part has no solid bodies", field="/bodies")
-    if "custom" in material:
-        items = _custom(tx, material["custom"], targets)  # type: ignore[typeddict-item]  # `in` narrows only @final TypedDicts
+    if density is not None:
+        items = _custom(tx, text, density, targets)
     else:
-        items = _library(tx, material, targets)
+        items = _library(tx, text, field, targets, bare=form == "name")
     return {"items": items}

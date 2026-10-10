@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/update_assembly.json",
-  "scenario_sha256": "5c638adf7a215f14b259235c8e7e9a49f8eddb3c03640603277648cffa09fe00",
+  "scenario_sha256": "71e8cbae85bd6c03d5c93eba11b32ad80ac59fb6eee084d3bafc13c1b8b29847",
   "domain": "assembly",
   "covers": {
     "nx_update_assembly": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_update_assembly": "ba0b6b83a60e43ba3fcd81f52c21f977178abc07568c7baea981241a87f678df"
+    "nx_update_assembly": "4aac8eceeeedcff12c39c7cb39769abb0f9b7afe721864c1771043bddb5a81a4"
   },
-  "recorded": "2026-10-10T13:19:19Z",
+  "recorded": "2026-10-10T22:56:11Z",
   "passed": true,
-  "checks": 19,
+  "checks": 21,
   "failed_checks": 0,
   "steps": [
     {
@@ -231,7 +231,7 @@
       "call": "nx_update_assembly",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     }
   ]
 }

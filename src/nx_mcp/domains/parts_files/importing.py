@@ -44,7 +44,7 @@ from typing import Annotated, Literal, NoReturn, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import classify, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import ByVariant, Doc, Json, PathTo, SketchRef
+from nx_mcp.core.types import Doc, PathTo, SketchRef
 from nx_mcp.domains.parts_files import _saving, neutral
 from nx_mcp.domains.parts_files.exchange import Bounds, _settings, _tail
 from nx_mcp.domains.parts_files.parts import new_part
@@ -77,40 +77,24 @@ DXF_CURVES = ("LINE", "ARC", "CIRCLE", "LWPOLYLINE", "POLYLINE", "SPLINE", "ELLI
 MAX_ROWS = 200
 
 
-class NoOptions(TypedDict, total=False):
-    """This format has no options."""
-
-
-class IgesOptions(TypedDict, total=False):
-    sew: Annotated[bool, Doc("Sew the surfaces into solids where they close (default true)")]
-
-
-class StlOptions(TypedDict, total=False):
+class ImportOptions(TypedDict, total=False):
+    sew: Annotated[bool, Doc("iges: sew surfaces into solids (default true)")]
     units: Annotated[
-        Literal["mm", "in", "m"], Doc("Length unit of the file's numbers (default part units)")
+        Literal["mm", "in", "m"],
+        Doc("stl, dxf_dwg (mm/in): file unit (default part units)"),
     ]
 
 
-class DxfOptions(TypedDict, total=False):
-    units: Annotated[
-        Literal["mm", "in"], Doc("Length unit of one drawing unit (default part units)")
-    ]
-
-
-OPTION_FORMS = {
-    "step": NoOptions,
-    "iges": IgesOptions,
-    "parasolid": NoOptions,
-    "stl": StlOptions,
-    "dxf_dwg": DxfOptions,
-    "catia_v5": NoOptions,
-}
-Options = Annotated[
-    dict,
-    Json(max_keys=2),
-    ByVariant("format", OPTION_FORMS),
-    Doc("Per-format options (iges, stl, dxf_dwg): nx_get_tool_schemas(tool#format)"),
-]
+ImportFormat = Literal["step", "iges", "parasolid", "stl", "dxf_dwg", "catia_v5"]
+# Option keys each format accepts.
+FORMAT_OPTIONS = {"iges": ("sew",), "stl": ("units",), "dxf_dwg": ("units",)}
+# The format a path suffix names when ``format`` is omitted. CATIA V5 is chosen
+# explicitly: it needs its own translator license.
+INFERRED: dict[str, ImportFormat] = {
+    ".step": "step", ".stp": "step", ".igs": "iges", ".iges": "iges", ".x_t": "parasolid",
+    ".x_b": "parasolid", ".stl": "stl", ".dxf": "dxf_dwg", ".dwg": "dxf_dwg",
+}  # fmt: skip
+FORMAT_DOC = "Default: from the path suffix; catia_v5 only when named"
 
 
 class ImportData(TypedDict):
@@ -440,7 +424,7 @@ def _product_names(text: str) -> set[str]:
     return names
 
 
-def _check_options(format, flatten, target, sketch, new_part_path, source_suffix):
+def _check_options(format, flatten, target, sketch, new_part_path, source_suffix, options):
     if (target == "new_part") != (new_part_path is not None):
         fail("NX_INVALID_ARGUMENT", "Give new_part_path exactly when target is new_part",
              field="/new_part_path")  # fmt: skip
@@ -455,13 +439,26 @@ def _check_options(format, flatten, target, sketch, new_part_path, source_suffix
     if source_suffix not in SUFFIXES[format]:
         fail("NX_UNSUPPORTED_FILE_TYPE",
              f"A {format} import reads {' or '.join(SUFFIXES[format])}, not {source_suffix}",
-             field="/path")  # fmt: skip
+             field="/path", hint="Omit format to use the one the path suffix names")  # fmt: skip
+    allowed = FORMAT_OPTIONS.get(format, ())
+    for key in options:
+        if key not in allowed:
+            uses = ", ".join(f for f, keys in FORMAT_OPTIONS.items() if key in keys)
+            fail("NX_INVALID_ARGUMENT", f"Option {key!r} applies to {uses} imports, not {format}",
+                 field=f"/options/{key}", hint="Omit it for this format")  # fmt: skip
+    if format == "dxf_dwg" and options.get("units") == "m":
+        fail("NX_INVALID_ARGUMENT", "A DXF/DWG drawing unit is mm or in", field="/options/units")
+
+
+def _format_of(a: dict) -> str:
+    """The requested format, or the one the path suffix names (panel summary)."""
+    return str(a.get("format") or INFERRED.get(Path(str(a.get("path", ""))).suffix.lower(), ""))
 
 
 @tool(
     effect="model",
     label="Import model",
-    summary=lambda a, say: f"Import {str(a.get('format', '')).upper()} {say('path')}",
+    summary=lambda a, say: f"Import {_format_of(a).upper()} {say('path')}",
     keywords=(
         "import step",
         "import iges",
@@ -477,25 +474,31 @@ def _check_options(format, flatten, target, sketch, new_part_path, source_suffix
     cost="long",
     invalidates="deleted",
     new_part="new_part_path",
-    example={"path": "inbox/bracket.step", "format": "step"},
+    example={"path": "inbox/bracket.step"},
 )
 def nx_import_model(
     tx: Tx,
     *,
     path: Annotated[str, PathTo("read", *ALL_SUFFIXES)],
-    format: Literal["step", "iges", "parasolid", "stl", "dxf_dwg", "catia_v5"],
+    format: Annotated[ImportFormat, Doc(FORMAT_DOC)] | None = None,
     target: Literal["work_part", "new_part", "sketch"] = "work_part",
     new_part_path: Annotated[str, PathTo("new", ".prt")] | None = None,
     sketch: Annotated[SketchRef, Doc("target sketch: its X/Y take the file's X/Y")] | None = None,
     flatten: Annotated[bool, Doc("STEP: false keeps the assembly structure as components")] = True,
-    options: Options = {},  # noqa: B006 - never mutated; None would be Optional on Python 3.10
+    options: ImportOptions | None = None,
 ) -> ImportData:
     """Import a CAD file into the work part, or into a new part (new_part_path) made work part.
     STEP, IGES, Parasolid .x_t/.x_b, STL (facet bodies), DXF/DWG (curves; target sketch puts
-    them in a finished sketch), CATIA V5."""
+    them in a finished sketch), CATIA V5; the path suffix picks the format."""
     source = Path(path)
     suffix = source.suffix.lower()
-    _check_options(format, flatten, target, sketch, new_part_path, suffix)
+    if format is None:
+        if suffix not in INFERRED:  # gate 2 admits only the import suffixes
+            fail("NX_INVALID_ARGUMENT", "Name format catia_v5 to import a CATIA V5 file",
+                 field="/format", hint="CATIA V5 import needs its own NX translator license")  # fmt: skip
+        format = INFERRED[suffix]
+    options = options or {}
+    _check_options(format, flatten, target, sketch, new_part_path, suffix, options)
     data = source.read_bytes()
     facts = {
         "step": _check_step,
@@ -531,7 +534,7 @@ def nx_import_model(
             new_part(tx, Path(new_part_path), "mm")
         part = tx.part
         units = kit_units.part_units(tx)
-        opts = dict(options or {})
+        opts: dict = dict(options)
         declared = facts.get("units") if format == "dxf_dwg" else None
         opts["_units"] = opts.get("units") or (declared if declared in ("mm", "in") else units)
         opts["_binary"] = bool(facts.get("binary"))
@@ -636,17 +639,19 @@ def _verify(tx, format, facts, made, file_units, units) -> dict:
     volume = measure.volume(tx, solids) if solids else None
     if format == "iges" and facts.get("surfaces") and not bodies:
         fail("NX_INCOMPLETE_RESULT", "The IGES surfaces were not imported as bodies")
-    shapes = bodies + facets + curves
-    if not shapes:
+    if not bodies + facets + curves:
         return {"volume": volume, "bounds": None}
-    low, high = measure.bounds(tx, shapes)
+    exact = measure.wcs_is_absolute(tx)
+    low, high = _bounds(tx, bodies, facets + curves, exact)
     if facts.get("min") is not None and file_units in FILE_MM:
         k = FILE_MM[file_units] / FILE_MM[units]
         file_low = [v * k for v in facts["min"]]
         file_high = [v * k for v in facts["max"]]
         size = max(h - lo for lo, h in zip(file_low, file_high, strict=True))
         tol = kit_units.part_tolerance(tx) + 1e-6 * size
-        if format == "iges":  # control points enclose the surfaces
+        if format == "iges" and not exact:
+            ok = True  # control points and a conservative box do not bound each other
+        elif format == "iges":  # control points enclose the surfaces
             ok = all(a >= b - tol for a, b in zip(low, file_low, strict=True)) and all(
                 a <= b + tol for a, b in zip(high, file_high, strict=True)
             )
@@ -657,6 +662,20 @@ def _verify(tx, format, facts, made, file_units, units) -> dict:
                         "the file", model_min=low, model_max=high, file_min=file_low,
                         file_max=file_high, tolerance=tol)  # fmt: skip
     return {"volume": volume, "bounds": {"min": low, "max": high}}
+
+
+def _bounds(tx, bodies, others, exact) -> tuple[list[float], list[float]]:
+    """Absolute box of the imported objects. Bodies use the exact box while the WCS is
+    absolute (NX's quick box pads a sewn or translated body, e.g. 0.125 mm on a sewn IGES
+    plate); facet bodies and curves keep the quick box."""
+    boxes = []
+    if bodies:
+        boxes.append(measure.bounds(tx, bodies, exact=exact))
+    if others:
+        boxes.append(measure.bounds(tx, others))
+    low = [min(box[0][i] for box in boxes) for i in range(3)]
+    high = [max(box[1][i] for box in boxes) for i in range(3)]
+    return low, high
 
 
 def _into_sketch(tx, sk, curves, report) -> result.Row:

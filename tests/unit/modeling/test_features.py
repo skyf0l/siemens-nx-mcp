@@ -343,3 +343,34 @@ def test_revolve_refuses_a_profile_on_both_sides_of_the_axis_before_building():
     nx.on_commit("RevolveBuilder", extruded(nx, [-5, 0, -5, 5, 10, 5]))
     ok = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
     assert ok.ok, ok
+
+
+def test_open_profile_extrude_returns_its_sheet():
+    nx = modeling_nx()
+    sk = nx.sketch(origin=(0, 0, 0))
+
+    def sheet(b):
+        body = new_body(nx, [0, 0, 0, 30, 0, 15], volume=0.0)
+        body.IsSolidBody, body.IsSheetBody = False, True
+        body.GetFaces = lambda: [NS(Tag=1)]
+        return feature(nx, "EXTRUDE", [body])
+
+    nx.part.MeasureManager.NewFaceProperties = lambda *a: NS(Area=450.0, Dispose=lambda: None)
+    nx.on_commit("ExtrudeBuilder", sheet)
+    ok = run(nx, "nx_create_extrude", sketch=sk.ref, end=15)
+    assert ok.ok, ok
+    assert ok.data["sheet"] is True and ok.data["area"] == 450 and ok.data["volume"] == 0
+
+
+def test_a_missed_limit_face_says_the_profile_misses_the_target():
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    sk = nx.sketch(origin=(200, 0, 10))
+    nx.refuse("ExtrudeBuilder", code=671473, message="Limit face not found in the limit direction")
+    bad = run(
+        nx, "nx_create_extrude", sketch=sk.ref, end={"type": "through_all"},
+        combine={"operation": "subtract", "targets": [block.ref]},
+    )  # fmt: skip
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671473
+    assert "misses the target body" in bad.error["message"] and "direction" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back"

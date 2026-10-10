@@ -171,6 +171,11 @@
       0
      ],
      "tol": 0.0001
+    },
+    "data.sheet": true,
+    "data.area": {
+     "close": 100,
+     "tol": 0.001
     }
    }
   },
@@ -371,7 +376,19 @@
    },
    "expect": {
     "error.code": "NX_BUILD_FAILED",
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.details.projection": "face_normal",
+    "error.details.region_gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "error.details.boundary_gaps.0.gap": {
+     "close": 80.62257748,
+     "tol": 0.0001
+    },
+    "error.hint": {
+     "contains": "direction"
+    }
    }
   },
   {
@@ -521,6 +538,171 @@
     "error.code": "NX_WRONG_GEOMETRY",
     "error.field": "/body",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "args": {
+    "method": "through_points",
+    "degree": 2,
+    "points": [
+     [
+      0,
+      60,
+      0
+     ],
+     [
+      10,
+      60,
+      4
+     ],
+     [
+      20,
+      60,
+      0
+     ]
+    ]
+   },
+   "save": "dp1"
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "args": {
+    "method": "through_points",
+    "degree": 2,
+    "points": [
+     [
+      0,
+      70,
+      0
+     ],
+     [
+      10,
+      70,
+      4
+     ],
+     [
+      20,
+      70,
+      0
+     ]
+    ]
+   },
+   "save": "dp2"
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "dc1",
+   "args": {
+    "points": [
+     [
+      0,
+      60,
+      0
+     ],
+     [
+      0,
+      70,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "dc2",
+   "args": {
+    "points": [
+     [
+      20,
+      60,
+      0
+     ],
+     [
+      20,
+      70,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "d",
+   "args": {
+    "primary": [
+     "$dp1.data.curve.id",
+     "$dp2.data.curve.id"
+    ],
+    "cross": [
+     "$dc1.data.curve.id",
+     "$dc2.data.curve.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "dcut",
+   "args": {
+    "points": [
+     [
+      10,
+      59,
+      -5
+     ],
+     [
+      10,
+      71,
+      -5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_trim_sheet",
+   "args": {
+    "body": "$d.data.bodies.0.id",
+    "boundaries": [
+     "$dcut.data.curve.id"
+    ],
+    "region_point": [
+     5,
+     65,
+     0
+    ],
+    "direction": [
+     0,
+     0,
+     1
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": true,
+    "data.bounds.min.0": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.bounds.max.0": {
+     "close": 10,
+     "tol": 0.001
+    },
+    "data.bounds.max.2": {
+     "close": 4,
+     "tol": 0.01
+    }
    }
   },
   {

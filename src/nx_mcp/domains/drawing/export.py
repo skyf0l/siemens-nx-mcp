@@ -18,8 +18,9 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import DrawingSheetRef, Items, PathTo
-from nx_mcp.kit import builders, drawing, files, parts, result, select
+from nx_mcp.core.types import Items, PathTo
+from nx_mcp.domains.drawing.common import Loose, SheetArg, choice, sheet_of
+from nx_mcp.kit import builders, drawing, files, parts, result
 
 HEADERS = {
     "pdf": (b"%PDF-",),
@@ -76,20 +77,22 @@ def nx_export_drawing(
     tx: Tx,
     *,
     path: Annotated[str, PathTo("new", ".pdf", ".dxf", ".dwg")],
-    format: Literal["pdf", "dxf", "dwg"] = "pdf",  # noqa: A002 - surface name
-    sheets: Annotated[list[DrawingSheetRef], Items(1, 50)] | None = None,
+    format: Literal["pdf", "dxf", "dwg"] | Loose | None = None,  # noqa: A002 - surface name
+    sheets: Annotated[list[SheetArg], Items(1, 50)] | None = None,
 ) -> ExportData:
     """Export drawing sheets of the work part to a new PDF (all or the given sheets) or a
-    DXF/DWG file (one sheet). Unsaved changes are included; the part is not saved."""
-    if not str(path).lower().endswith("." + format):
-        fail("NX_INVALID_ARGUMENT", f"Use a .{format} path for format {format}", field="/path")
+    DXF/DWG file (one sheet). format follows the path's extension. Unsaved changes are
+    included; the part is not saved."""
+    suffix = str(path).rsplit(".", 1)[-1].lower()
+    wanted = choice(format, HEADERS, "/format", {"acad": "dwg", "autocad": "dwg"})
+    format = wanted or suffix  # noqa: A001 - surface name
+    if suffix != format:
+        fail("NX_INVALID_ARGUMENT", f"The path ends in .{suffix} but format is {format}",
+             field="/path", hint=f"Use a .{format} path, or omit format to follow the path")  # fmt: skip
     with tx.checks():
         part = tx.part
         _check_loaded(part)
-        selected = [
-            select.resolve(tx, s, "drawing_sheet", field=f"/sheets/{i}", work_part=True)
-            for i, s in enumerate(sheets or [])
-        ]
+        selected = [sheet_of(tx, s, f"/sheets/{i}") for i, s in enumerate(sheets or [])]
         if not selected:
             selected = list(part.DrawingSheets)
         if not selected:
@@ -97,8 +100,15 @@ def nx_export_drawing(
                  hint="Create one with nx_create_drawing_sheet")  # fmt: skip
         if format != "pdf":
             if len(selected) != 1:
-                fail("NX_INVALID_ARGUMENT", f"A {format.upper()} file holds one sheet",
-                     field="/sheets")  # fmt: skip
+                which = "" if sheets else " (sheets omitted: every sheet of the work part)"
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    f"A {format.upper()} file holds one sheet, not {len(selected)}{which}",
+                    field="/sheets",
+                    hint="Pass sheets: [one sheet ref or name] and export each sheet to its "
+                    f"own .{format} file, or export all sheets to one .pdf",
+                    details={"sheets": [tx.ref(s, "drawing_sheet") for s in part.DrawingSheets]},
+                )  # fmt: skip
             if tx.session.Parts.Display != part:
                 fail("NX_WRONG_PART_CONTEXT", "Make the work part the display part",
                      hint="Activate it with nx_activate_part")  # fmt: skip

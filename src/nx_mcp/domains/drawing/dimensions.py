@@ -18,14 +18,15 @@ NX 2406 findings encoded here:
 from __future__ import annotations
 
 import math
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    REF_PATTERN,
     DimensionRef,
-    DrawingViewRef,
     EdgeRef,
     FeatureRef,
     Items,
@@ -35,7 +36,16 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.drawing import fits
-from nx_mcp.domains.drawing.common import edge_facts, geometry, true_shape, uf_types
+from nx_mcp.domains.drawing.common import (
+    ViewArg,
+    associated,
+    edge_facts,
+    geometry,
+    kind_of_geometry,
+    true_shape,
+    uf_types,
+    view_of,
+)
 from nx_mcp.kit import args, builders, drawing, facts, geom, readback, result, select, units
 
 MAX_ORDINATES = 50
@@ -62,6 +72,7 @@ FIT_DISPLAY = {
     "symbol_and_limits": "FitSymbolsAndLimits",
 }
 FIT_TOL_MM = 1e-7  # NX's computed fit deviations against ISO 286.
+NO_DEVIATIONS = ("none", "basic", "reference")  # tolerance types that show no upper/lower
 
 
 class DimensionRow(result.Row, total=False):
@@ -208,7 +219,7 @@ def _summary(a, say):
 def nx_create_drawing_dimension(
     tx: Tx,
     *,
-    view: DrawingViewRef,
+    view: ViewArg,
     kind: Literal[
         "linear",
         "radius",
@@ -227,7 +238,7 @@ def nx_create_drawing_dimension(
     orientation: Literal["aligned", "horizontal", "vertical"] = "aligned",
     origin: SheetPoint | None = None,
     datum: EdgeRef | None = None,
-    datum_point: Literal["start", "end", "center"] = "start",
+    datum_point: Literal["auto", "start", "end", "center"] = "auto",
     objects: Annotated[list[EdgeRef], Items(1, MAX_ORDINATES)] | None = None,
     object_point: Literal["auto", "start", "end", "center"] = "auto",
     direction: Literal["horizontal", "vertical"] = "horizontal",
@@ -235,8 +246,17 @@ def nx_create_drawing_dimension(
     hole: FeatureRef | None = None,
 ) -> DimensionData:
     """Create an associative dimension on edges in a drawing view, checked against the model.
-    Linear: one edge or two edges' start points; ordinate: objects from a datum point;
-    chamfer: chamfer edge then reference edge; baseline/chain: objects in a row."""
+    Linear: one edge's length, or first to second; set orientation. Baseline/chain: datum
+    (optional) + objects, 3+ points. Ordinate: objects from datum. Chamfer: chamfer edge,
+    then reference edge."""
+    if not re.match(REF_PATTERN, view):
+        with tx.checks():
+            shown, sheet = view_of(tx, view)
+            target = tx.units.get("sheet_length")
+            if margin is not None and target and drawing.Sheet(tx, sheet).units != target:
+                fail("NX_INVALID_ARGUMENT", "Give the view as a ref (v:N) with margin: the "
+                     "named view is on a sheet in other units", field="/view")  # fmt: skip
+        view = shown
     if kind == "hole_callout":
         if (hole is None) == (first is None):
             fail("NX_INVALID_ARGUMENT", "Give hole or first", field="/hole")
@@ -247,13 +267,23 @@ def nx_create_drawing_dimension(
         return hole_callouts.create_callout(tx, view, hole, first, origin)
     if kind in SETS:
         objects = args.required(objects, "objects")
-        if len(objects) < 2:
-            fail("NX_INVALID_ARGUMENT", f"A {kind} set needs at least two objects",
-                 field="/objects")  # fmt: skip
+        points = len(objects) + (datum is not None)
+        if points < 3:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"A {kind} set needs 3 or more points (datum + 2 objects, or 3 objects) and "
+                f"makes one dimension per step; got {points}",
+                field="/objects",
+                hint="For one distance use kind linear with first, second and orientation",
+            )
         args.distinct("/objects", objects, "edges")
+        if datum is not None and datum in objects:
+            fail("NX_INVALID_ARGUMENT", "datum cannot also be in objects", field="/objects")
         from nx_mcp.domains.drawing import dimension_kinds as more
 
-        return more.dimension_set(tx, view, kind, objects, object_point, direction, origin)
+        return more.dimension_set(
+            tx, view, kind, objects, object_point, direction, origin, (datum, datum_point)
+        )
     if kind == "ordinate":
         args.need(datum=datum)
         objects = args.required(objects, "objects")
@@ -285,18 +315,26 @@ def nx_create_drawing_dimension(
     return linear(tx, view, first, second, orientation, origin)
 
 
-def linear(tx, view_ref, first, second, orientation, origin, existing=None, field="/view"):
+def linear(tx, view_ref, first, second, orientation, origin, existing=None,
+           fields=("/first", "/second")):  # fmt: skip
     """Create (or, with ``existing``, rebind) a linear dimension and verify its value."""
     with tx.checks():
-        view, sheet = drawing.view(tx, view_ref, field) if isinstance(view_ref, str) else view_ref
-        a = geometry(tx, first, ("edge",), "/first")
-        b = geometry(tx, second, ("edge",), "/second") if second else a
-        ends_a = _ends(a, "/first")
-        ends_b = _ends(b, "/second") if second else ends_a
+        view, sheet = view_ref if isinstance(view_ref, tuple) else drawing.view(tx, view_ref)
+        a = geometry(tx, first, ("edge",), fields[0])
+        b = geometry(tx, second, ("edge",), fields[1]) if second else a
+        ends_a = _ends(a, fields[0])
+        ends_b = _ends(b, fields[1]) if second else ends_a
         pa, pb = ends_a[0], (ends_b[0] if second else ends_a[1])
         expected = linear_value(pa, pb, drawing.axes(view), orientation)
         if expected <= 1e-9:
-            fail("NX_INVALID_ARGUMENT", "The two points coincide in this view", field="/second")
+            what = "start points of the two edges" if second else "ends of the edge"
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"The {what} have no {orientation} distance in this view",
+                field=fields[1] if second else fields[0],
+                hint="One edge measures its own length: pick an edge not seen end-on (or across "
+                "the orientation), or give two edges",
+            )
     with drawing.on_sheet(tx, sheet) as sh:
         if origin is None and existing is None:
             gap = drawing.from_mm(sh.units, TEXT_GAP_MM)[0]
@@ -512,8 +550,8 @@ class DimensionTolerance(TypedDict, total=False):
     upper: float
     lower: float
     decimals: int
-    hole: Annotated[str, Text(4, r"^(JS|[A-Z])[0-9]{1,2}$")]
-    shaft: Annotated[str, Text(4, r"^(js|[a-z])[0-9]{1,2}$")]
+    hole: Annotated[str, Text(4)]
+    shaft: Annotated[str, Text(4)]
     display: Literal["symbol", "deviations", "symbol_and_deviations", "symbol_and_limits"]
 
 
@@ -526,6 +564,7 @@ class DimensionInfo(TypedDict, total=False):
     value: float
     valid: bool
     associations: int
+    objects: list[result.Row]
     format: dict
     tolerance: dict
     origin: list[float]
@@ -539,6 +578,17 @@ def _enum(value, enum, table=None):
     if table:
         return next((k for k, v in table.items() if v == name), name)
     return name
+
+
+def bound_objects(tx, d):
+    """Rows of the objects (edges) a dimension measures, in association order."""
+    rows = []
+    for obj in associated(d):
+        try:
+            rows.append(tx.ref(obj, "edge" if kind_of_geometry(obj) == "edge" else None))
+        except NXError:  # an object without a reference kind (a sketch point)
+            continue
+    return rows
 
 
 def dimension_info(tx, d):
@@ -569,11 +619,16 @@ def dimension_info(tx, d):
             },
             "units": units.part_units(tx),
         }
+        if out["tolerance"]["type"] in NO_DEVIATIONS:  # NX keeps, but does not show, them
+            del out["tolerance"]["upper"], out["tolerance"]["lower"]
         if out["tolerance"]["type"] == "fit":
             out["tolerance"].update(fit_info(tx, d, out["value"]))
     finally:
         fmt.Dispose()
         prefs.Dispose()
+    bound = bound_objects(tx, d)
+    if bound:
+        out["objects"] = bound
     if type(d).__name__ == "HoleDimension":
         from nx_mcp.domains.drawing import hole_callouts
 
@@ -688,6 +743,37 @@ def _format_units(tx, d):
         prefs.Dispose()
 
 
+def _normalized(tol):
+    """A copy of a tolerance request with fit classes in ISO case (hole H7, shaft g6)."""
+    tol = dict(tol)
+    for role, case in (("hole", str.upper), ("shaft", str.lower)):
+        if role in tol:
+            tol[role] = case(tol[role].strip())
+    return tol
+
+
+def _deviations(tx, d, tol):
+    """Check upper/lower against the tolerance type (the request's or the dimension's)
+    and mirror a symmetric one (+/- upper)."""
+    kind = tol.get("type") or _enum(d.ToleranceType, tx.nx.Annotations.ToleranceType, TOLERANCES)
+    given = [k for k in ("upper", "lower") if k in tol]
+    if kind in NO_DEVIATIONS and given:
+        fail("NX_INVALID_ARGUMENT", f"A {kind} tolerance shows no deviations: drop "
+             f"{given[0]}, or use type bilateral, symmetric or limits",
+             field=f"/tolerance/{given[0]}")  # fmt: skip
+    if kind != "symmetric":
+        return tol
+    if len(given) == 2 and not math.isclose(tol["lower"], -tol["upper"], abs_tol=1e-12):
+        fail("NX_INVALID_ARGUMENT", "A symmetric tolerance is +/- upper: give upper only",
+             field="/tolerance/lower")  # fmt: skip
+    if given:
+        value = abs(float(tol[given[0]]))
+    else:  # switching to symmetric keeps the upper value NX holds
+        mm = units.part_units(tx) == "mm"
+        value = abs(float(d.UpperMetricToleranceValue if mm else d.UpperToleranceValue))
+    return {**tol, "upper": value, "lower": -value}
+
+
 def _fit_request(tol):
     """Validate a fit tolerance before NX: classes, and no explicit deviations."""
     fit = tol.get("type") == "fit"
@@ -797,12 +883,14 @@ def nx_edit_dimension(
     tolerance: DimensionTolerance | None = None,
     edges: Annotated[list[EdgeRef], Items(1, 2)] | None = None,
 ) -> DimensionInfo:
-    """Change a dimension's format or tolerance, or rebind it to 1-2 edges.
-    Fit: ISO 286 hole/shaft class (H7, g6); limits are checked."""
+    """Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (read
+    back in objects). upper/lower: signed numbers in part units; symmetric takes upper
+    (+/-). Fit: ISO 286 hole/shaft class (H7, g6); limits are checked."""
     if not format and not tolerance and not edges:
         fail("NX_INVALID_ARGUMENT", "Give format, tolerance or edges")
     fit = bool(tolerance and tolerance.get("type") == "fit")
     if tolerance:
+        tolerance = _normalized(tolerance)
         _fit_request(tolerance)
     for field, part in (("format", format), ("tolerance", tolerance)):
         if part and "decimals" in part and not 0 <= part["decimals"] <= 8:
@@ -814,6 +902,8 @@ def nx_edit_dimension(
         fail("NX_INVALID_ARGUMENT", "edges must differ", field="/edges/1")
     with tx.checks():
         d = select.resolve(tx, dimension, "dimension", field="/dimension", work_part=True)
+        if tolerance and not fit:
+            tolerance = _deviations(tx, d, tolerance)
         before = (float(d.ComputedSize), int(d.NumberOfAssociativities), bool(d.IsRetained))
         if first is not None:
             view = _rebind_view(d)
@@ -828,7 +918,16 @@ def nx_edit_dimension(
         elif fit:
             expected = _fit_expected(tx, d, tolerance, (format or {}).get("units"))
     if first is not None:
-        linear(tx, (view, sheet), first, second, mode, None, existing=d)
+        linear(tx, (view, sheet), first, second, mode, None, existing=d,
+               fields=("/edges/0", "/edges/1"))  # fmt: skip
+        wanted_tags = {int(select.resolve(tx, e, "edge").Tag) for e in edges or []}
+        bound = {int(o.Tag) for o in associated(d)}
+        readback.expect(
+            not bound or bound == wanted_tags,
+            "edges",
+            "NX kept the dimension on other objects",
+            objects=bound_objects(tx, d),
+        )
         if fit:
             expected = _fit_expected(tx, d, tolerance, (format or {}).get("units"))
     if format:

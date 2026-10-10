@@ -38,10 +38,10 @@ def test_checkpoint_restore_invalidates_objects_and_preserves_receipt(rig, call)
     assert restored["reverted"] == ["test-operation-001"]
     assert not rig.part.Bodies and not rig.part.IsModified
     with pytest.raises(NXError):
-        rig.e.objects.resolve(ref)
-    with pytest.raises(NXError, match="not in this session"):
-        call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
-    assert not rig.e.history and not rig.e.checkpoints
+        rig.e.objects.resolve(ref)  # the body the restore removed
+    again = call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
+    assert again["reverted"] == []  # a restored checkpoint stays restorable
+    assert not rig.e.history
 
 
 def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, call):
@@ -86,8 +86,8 @@ def test_set_name_renames_by_reference_and_refreshes_references(rig, call):
     created = rig.ref(rig.part.Bodies[-1])
     renamed = call("nx_set_name", object=created, name="Renamed")
     assert renamed["name"] == "Renamed" and renamed["object"]["id"] != created
-    with pytest.raises(NXError):
-        rig.e.objects.resolve(created)
+    # A rename changes no identity: the body's earlier handle still names it.
+    assert rig.e.objects.resolve(created) is rig.part.Bodies[-1]
     assert body is None or body in rig.part.Bodies
 
 
@@ -105,7 +105,8 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     rig.e.checkpoints[key] = {"mark": 1, "part_id": rig.e.part_key(part), "index": 0}
     closed = rig.run("nx_close_part", {"part": p, "save": True})
     assert closed["data"]["closed_count"] == 1
-    assert not rig.session.Parts and not rig.e.checkpoints
+    assert not rig.session.Parts
+    assert rig.e.checkpoints[key]["expired"] == "part_closed"  # listed, never dropped
     with pytest.raises(NXError):
         rig.e.objects.resolve(old)
     rig.session.Parts.append(part)
@@ -118,7 +119,7 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     assert rig.run("nx_list_parts", {})["page"]["total"] == 2
     with pytest.raises(NXError):
         rig.run("nx_open_part", {"path": str(tmp_path / "missing.prt")})
-    assert key not in rig.e.checkpoints
+    assert rig.e.checkpoints[key]["expired"] == "part_closed"
 
 
 def test_snapshot_invalidation_preserves_topology_for_display_only(rig):
@@ -128,6 +129,10 @@ def test_snapshot_invalidation_preserves_topology_for_display_only(rig):
     face = rig.ref(b.faces[0], "face")
     rig.e.invalidate(before, before, False)
     assert rig.e.objects.resolve(face) is b.faces[0]
+    other = rig.ref(b.faces[0], "face")
+    rig.e.invalidate(before, before, True)  # a topology change keeps faces NX still has
+    assert rig.e.objects.resolve(other) is b.faces[0]
+    b.faces.pop(0)  # consumed by a feature
     rig.e.invalidate(before, {}, True)
     for ref in [face, next(iter(before.values()))["id"]]:
         with pytest.raises(NXError):

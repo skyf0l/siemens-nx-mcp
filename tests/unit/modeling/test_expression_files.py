@@ -95,16 +95,26 @@ def test_export_all_and_filtered_never_overwrites():
     ok = run(nx, "nx_export_expressions", path=str(root / "out" / "all.exp"))
     assert ok.ok, ok
     assert ok.data["path"] == "out/all.exp" and ok.data["count"] == 3
-    assert ok.data["names"] == ["len", "wall", "ratio"] and nx.exports == [("work", "alpha")]
+    assert ok.data["expressions"] == [
+        {"name": "len", "formula": "10", "units": "mm"},
+        {"name": "wall", "formula": "len/4", "units": "mm"},
+        {"name": "ratio", "formula": "3", "units": "unitless"},
+    ]
+    assert nx.exports == [("work", "alpha")] and not ok.data["overwritten"]
     assert (root / "out" / "all.exp").read_bytes() == EXP
     part = run(nx, "nx_export_expressions", path=str(root / "out" / "some.exp"),
                names=["w*", "ratio"], sort="timestamp")  # fmt: skip
-    assert part.data["names"] == ["wall", "ratio"] and nx.exports[-1] == ("work", "time")
+    assert [r["name"] for r in part.data["expressions"]] == ["wall", "ratio"]
+    assert nx.exports[-1] == ("work", "time") and part.data["count"] == 2
     assert b"len=10" not in (root / "out" / "some.exp").read_bytes()
     again = run(nx, "nx_export_expressions", path=str(root / "out" / "all.exp"))
-    assert again.error["code"] == "NX_ALREADY_EXISTS"
+    assert again.error["code"] == "NX_ALREADY_EXISTS" and "overwrite" in again.error["message"]
+    over = run(nx, "nx_export_expressions", path=str(root / "out" / "some.exp"), overwrite=True)
+    assert over.ok and over.data["overwritten"] and over.data["count"] == 3, over
+    assert (root / "out" / "some.exp").read_bytes() == EXP
     missing = run(nx, "nx_export_expressions", path=str(root / "out" / "x.exp"), names=["zz*"])
     assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/names"
+    assert missing.error["details"]["available"] == ["len", "wall", "ratio"]
     assert not (root / "out" / "x.exp").exists()
     bad = run(nx, "nx_export_expressions", path=str(root / "out" / "x.txt"))
     assert bad.error["field"] == "/path"
@@ -145,6 +155,50 @@ def test_import_delete_removes_unreferenced_names():
     assert ok.ok, ok
     assert ok.data["deleted"] == ["ratio"] and ok.data["skipped"] == ["len"]
     assert ok.data["changed"] == [] and nx.imports[-1][0] == "delete"
+
+
+def test_file_rows_read_formulas_units_and_strip_comments():
+    data = BOM + b'[MilliMeter]a=b*2 // note\r\n(String) s="x//y"\r\n[Degrees]ang=5\r\n'
+    assert ef.file_rows(data) == [
+        {"name": "a", "formula": "b*2", "units": "mm"},
+        {"name": "s", "formula": '"x//y"', "units": "unitless"},
+        {"name": "ang", "formula": "5", "units": "deg"},
+    ]
+    rows = [{"name": "n", "formula": 'if (a > 1) (sin(b)) else (1e5*c) + "q"'},
+            {"name": "m", "formula": "a+1"}]  # fmt: skip
+    assert ef.unknown_names(rows, {"a"}) == [{"name": "n", "uses": ["b", "c"]}]
+
+
+def test_import_failure_names_the_unknown_expression():
+    nx = exp_nx()
+    nx.expression("len", "10", 10.0)
+    out = run(nx, "nx_import_expressions",
+              path=write(nx, "n.exp", b"ok=len*2\r\nfresh=missing+len\r\n"))  # fmt: skip
+    assert out.error["code"] == "NX_IMPORT_FAILED" and out.error["nx_code"] == 1050053
+    assert "fresh uses missing" in out.error["message"]
+    assert out.error["details"]["unknown_names"] == [{"name": "fresh", "uses": ["missing"]}]
+
+
+def test_import_delete_skips_names_the_part_lacks():
+    nx = exp_nx()
+    nx.expression("ratio", "3", 3.0)
+    real = nx.part.Expressions.ImportFromFile
+
+    def strict(path, mode):  # NX 2406: DeleteImports fails on a name the part lacks
+        names = ef.file_names(Path(path).read_bytes())
+        if mode == "delete" and any(n not in {e.Name for e in nx.part.Expressions} for n in names):
+            raise NXException(1050053, "Expression import failed.")
+        return real(path, mode)
+
+    nx.part.Expressions.ImportFromFile = strict
+    ok = run(nx, "nx_import_expressions", path=write(nx, "d.exp", b"ratio=4\r\nextra=7\r\n"),
+             mode="delete")  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["deleted"] == ["ratio"] and ok.data["skipped"] == ["extra"]
+    assert b"extra" not in nx.imports[-1][1]
+    none = run(nx, "nx_import_expressions", path=write(nx, "e.exp", b"extra=7\r\n"),
+               mode="delete")  # fmt: skip
+    assert none.ok and none.data["skipped"] == ["extra"] and none.data["deleted"] == []
 
 
 def test_import_errors_roll_back_before_the_update():

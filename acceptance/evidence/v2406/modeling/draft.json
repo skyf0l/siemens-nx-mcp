@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/draft.json",
-  "scenario_sha256": "c577f2e6a38505fc160ea619c421b1e301d2c3da50cf776fe06c617ce7baae14",
+  "scenario_sha256": "666d6cb3330b0c966935c4c04e205f927326f1d372e9701c18633738dae80af3",
   "domain": "modeling",
   "covers": {
     "nx_create_draft": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_draft": "cff606b5d1e21fa144e27aa381c267c01816ec84b036ac18f9436a29fdb2a2d8"
+    "nx_create_draft": "c3324e868ef7326595414a7b0227db947971ed6f45d74906cdec7ca76a066318"
   },
-  "recorded": "2026-10-10T13:12:46Z",
+  "recorded": "2026-10-10T22:57:37Z",
   "passed": true,
-  "checks": 8,
+  "checks": 9,
   "failed_checks": 0,
   "steps": [
     {
@@ -102,27 +102,76 @@
     },
     {
       "index": 13,
-      "call": "nx_find_geometry",
+      "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 14,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_create_draft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
       "call": "nx_create_draft",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 15,
+      "index": 22,
       "call": "nx_create_draft",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 16,
+      "index": 23,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/create_drawing_view.json",
-  "scenario_sha256": "898dd2f059679aa0dcbd77707da619ed3e9f5b147b30fe828458684b47703d92",
+  "scenario_sha256": "175efaa494d49dc737fc85d7e056a624a3708ec3909564bf009fb08fdbffc1c3",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_view": [
@@ -14,11 +14,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_view": "fc49d0151a91b4fc99afd66318e032ac424288733b2577d3bc97b358e979006d"
+    "nx_create_drawing_view": "b1c8b2359529ff2f12fcf8718390f77532016947f6c00bce855ba7ed53fc7bbf"
   },
-  "recorded": "2026-10-10T13:19:43Z",
+  "recorded": "2026-10-10T22:21:31Z",
   "passed": true,
-  "checks": 47,
+  "checks": 48,
   "failed_checks": 0,
   "steps": [
     {
@@ -103,7 +103,7 @@
       "call": "nx_create_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 13,

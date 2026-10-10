@@ -9,48 +9,79 @@ the checkpoints whenever the engineer changes the model, so neither tool reaches
 across their edits.
 
 Checkpoints are NX undo marks of this session only. A save or a part close removes
-NX's marks: the checkpoint is then listed as unavailable and cannot be restored.
-Undo and restore refuse to touch another part than the work part, mark the undone
-calls' receipts ``reverted_by`` (a retry of such a call is refused), and invalidate
-every reference of the part: reacquire them afterwards.
+NX's marks, and an undo or a restore back past a checkpoint takes its state off the
+model's timeline: the checkpoint stays listed as unavailable with its
+``expired_reason`` and cannot be restored. A restored checkpoint stays available
+(NX keeps the mark it undid to), so "try, restore, try again" works. A restore takes
+the checkpoint's id or its label. Undo and restore refuse to touch another part than
+the work part and mark the undone calls' receipts ``reverted_by`` (a retry of such a
+call is refused). References follow NX's object identity: the refs of every object the
+undo kept or restored (the part, components, untouched features, faces and edges) stay
+valid; only refs of objects the undo removed go stale (``changes.deleted`` and
+``changes.stale_refs``). Checkpoints are never dropped silently: an engineer edit or a
+part close leaves them listed as expired.
 """
 
 from __future__ import annotations
 
 import contextlib
+import re
 import uuid
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Text
+from nx_mcp.core.types import Doc, Range, Text
 
-CheckpointId = Annotated[str, Text(40, r"^cp_[0-9a-f]{32}$"), Doc("From nx_create_checkpoint")]
-Label = Annotated[str, Text(80, r"^[^\x00-\x1f]{1,80}$"), Doc("Shown in NX's undo list")]
+CHECKPOINT_ID = r"^cp_[0-9a-f]{32}$"
+CheckpointKey = Annotated[
+    str,
+    Text(80, r"^[^\x00-\x1f]{1,80}$"),
+    Doc("checkpoint_id (cp_...) from nx_create/list_checkpoints, or its label"),
+]
+Label = Annotated[
+    str, Text(80, r"^[^\x00-\x1f]{1,80}$"), Doc("Checkpoint name; nx_restore_checkpoint takes it")
+]
+Steps = Annotated[int, Range(ge=1), Doc("Operations to undo")]
+ExpiredReason = Literal["undone_past", "saved_or_closed", "engineer_change", "part_closed"]
 STALE_HINT = (
-    "A save, a part close or the engineer's own edits end checkpoints; create a new "
-    "checkpoint with nx_create_checkpoint"
+    "Create a new checkpoint with nx_create_checkpoint; nx_list_checkpoints shows "
+    "which ones are available"
 )
+LISTED = 20  # checkpoints named in a not-found error
+
+
+class RedoStep(TypedDict):
+    tool: str  # the undone call's tool
+    arguments: dict  # its arguments as received (receipt copy; long text cut)
+    operation_id: str  # the undone call (nx_get_operation shows its result)
+    complete: bool  # false: the receipt cut long text or file content; rebuild those
 
 
 class UndoData(TypedDict):
-    undone_operation_id: str  # the agent's call that was undone
+    undone_operation_id: str  # the latest call undone
     tool: str  # its tool
-    references: str  # part_invalidated: reacquire references of the part
+    undone: list[str]  # every operation id undone, oldest first
+    undo_depth: int  # agent operations nx_undo_operation can still undo
+    references: str  # preserved / listed (stale refs in changes); part_invalidated: re-list
+    # NX 2406 offers no redo to NX Open: repeat these calls in order to restore the undone
+    # work; refs the undone calls created are stale, use the refs the repeats return
+    redo: list[RedoStep]
 
 
 class CheckpointData(TypedDict):
     checkpoint_id: str
     label: str
-    operations: int  # agent operations before the checkpoint in this session
+    undo_depth: int  # agent operations nx_undo_operation can undo (= nx_list_checkpoints)
 
 
 class CheckpointRow(TypedDict):
     checkpoint_id: str
     label: str
     part_id: str
-    available: bool  # False once NX dropped its mark (save, part close): not restorable
+    available: bool  # False: not restorable, expired_reason says why
+    expired_reason: ExpiredReason | None  # undone_past, saved_or_closed, engineer_change...
     operations_after: int  # agent operations a restore would undo
 
 
@@ -62,8 +93,11 @@ class CheckpointsData(TypedDict):
 
 class RestoreData(TypedDict):
     checkpoint_id: str
-    reverted: list[str]  # operation ids undone by the restore, oldest first
-    references: str  # part_invalidated: reacquire references of the part
+    label: str
+    # operation ids undone by the restore, oldest first; calls an earlier undo already
+    # reverted are not in the history any more, so they are not listed again
+    reverted: list[str]
+    references: str  # preserved / listed (stale refs in changes); part_invalidated: re-list
 
 
 def _mark_reverted(services, history: list, by: str) -> None:
@@ -76,6 +110,30 @@ def _mark_reverted(services, history: list, by: str) -> None:
                 services.store.put(record)
 
 
+def _redo_steps(services, undone: list) -> list[RedoStep]:
+    """The undone calls with their receipt arguments, oldest first: what to repeat to
+    restore them. NX 2406's ``Session.Redo`` only redoes ``UndoLastNVisibleMarks``,
+    which NX Open calls cannot use (measured: it undoes nothing from the host)."""
+    steps: list[RedoStep] = []
+    for item in undone:
+        arguments: Any = {}
+        with contextlib.suppress(Exception):
+            arguments = services.store.get(item["operation_id"]).get("arguments") or {}
+        text = repr(arguments)
+        steps.append(
+            {
+                "tool": str(item.get("method") or ""),
+                "arguments": arguments if isinstance(arguments, dict) else {},
+                "operation_id": str(item["operation_id"]),
+                "complete": isinstance(arguments, dict)
+                and "omitted" not in arguments
+                and "omitted>" not in text
+                and "<file content omitted" not in text,
+            }
+        )
+    return steps
+
+
 def _drop_own_mark(tx: Tx) -> None:
     """The kernel's mark for this call lies after the restored mark: NX drops it with
     the undo; drop it here too, so it never enters the history."""
@@ -85,50 +143,144 @@ def _drop_own_mark(tx: Tx) -> None:
             tx.services.delete_mark(mark)
 
 
+def _depth(services, history: list) -> int:
+    """The latest agent operations whose NX undo marks still exist: what undo reaches."""
+    depth = 0
+    for item in reversed(history):
+        if not services.mark_exists(item["mark"]):
+            break
+        depth += 1
+    return depth
+
+
+def _reason(services, cp: dict) -> ExpiredReason | None:
+    """Why a checkpoint cannot be restored; None while it can."""
+    if cp.get("expired"):
+        return cp["expired"]
+    if not services.mark_exists(cp["mark"]):
+        return "saved_or_closed"
+    return None
+
+
+def _alive(services, checkpoints: dict) -> set[str]:
+    return {k for k, cp in checkpoints.items() if _reason(services, cp) is None}
+
+
+def _expire(services, checkpoints: dict, kept: int, alive: set[str]) -> None:
+    """After an undo or restore down to ``kept`` operations: the checkpoints that were
+    restorable and now lie ahead of it, or whose mark NX removed with the undo, are
+    ``undone_past`` for good (NX Open has no redo)."""
+    for key, cp in checkpoints.items():
+        if key in alive and (cp["index"] > kept or not services.mark_exists(cp["mark"])):
+            cp["expired"] = "undone_past"
+
+
+def _label_key(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def _lookup(services, checkpoints: dict, text: str) -> str:
+    """The checkpoint named by id or by label (case and spacing ignored); of several
+    with that label, the newest restorable one."""
+    if text in checkpoints:
+        return text
+    wanted = _label_key(text)
+    matches = [
+        k for k, cp in checkpoints.items() if _label_key(str(cp.get("label") or "")) == wanted
+    ]
+    live = [k for k in matches if _reason(services, checkpoints[k]) is None]
+    if matches:
+        return (live or matches)[-1]
+    listed = [
+        {
+            "checkpoint_id": k,
+            "label": str(cp.get("label") or ""),
+            "available": _reason(services, cp) is None,
+        }
+        for k, cp in checkpoints.items()
+    ][-LISTED:]
+    if re.match(CHECKPOINT_ID, text):
+        fail(
+            "NX_STALE_CHECKPOINT",
+            "The checkpoint is not in this session",
+            field="/checkpoint_id",
+            hint="Closing its part or the engineer's own edits end checkpoints. " + STALE_HINT,
+            details={"checkpoints": listed},
+        )
+    fail(
+        "NX_NOT_FOUND",
+        f"No checkpoint has the id or label {text!r}",
+        field="/checkpoint_id",
+        hint="Pass checkpoint_id from nx_create_checkpoint or nx_list_checkpoints, or "
+        "a label from details.checkpoints",
+        details={"checkpoints": listed},
+    )
+
+
 @tool(
     effect="model",
     label="Undo operation",
     summary="Undo the agent's last operation",
-    keywords=("undo", "revert", "undo last", "take back", "cancel last change"),
+    keywords=("undo", "revert", "undo last", "take back", "cancel last change", "step back"),
     requires=("work_part",),
     cost="light",
     example={},
 )
-def nx_undo_operation(tx: Tx) -> UndoData:
-    """Undo the agent's last committed model operation in the work part (never the
-    engineer's work). Saves, part closes and the engineer's edits end the undo history.
-    Invalidates the part's references."""
+def nx_undo_operation(tx: Tx, *, steps: Steps = 1) -> UndoData:
+    """Undo the agent's last steps operations (never the engineer's); data.redo lists calls
+    to repeat. A save, part close or engineer edit ends the history. Remaining objects keep
+    their refs."""
     services = tx.services
     history = services.undo_history()
+    depth = _depth(services, history)
     with tx.checks():
-        if not history or not services.mark_exists(history[-1]["mark"]):
+        if not depth:
             fail(
                 "NX_NOT_FOUND",
-                "No agent operation can be undone: NX's undo mark is gone or there is none",
+                "No agent operation can be undone: the undo history is empty or NX's "
+                "undo marks are gone",
                 hint="A save, a part close or the engineer's own edits end the undo history; "
                 "delete or edit the objects instead",
+                details={"undo_depth": 0},
+                retry="never",  # no fix makes the same call succeed
             )
-        last = history[-1]
-        if last["part_id"] != services.part_key(tx.part):
+        if steps > depth:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"steps {steps} is more than the {depth} agent operation(s) that can be undone",
+                field="/steps",
+                hint=f"Pass steps from 1 to {depth}; nx_list_checkpoints shows undo_depth",
+                details={"undo_depth": depth},
+            )
+        undone = history[-steps:]
+        key = services.part_key(tx.part)
+        other = next((h for h in undone if h["part_id"] != key), None)
+        if other is not None:
             fail(
                 "NX_CROSS_PART",
-                "The agent's last operation changed another part",
+                "The agent's last operation changed another part"
+                if steps == 1
+                else f"One of the agent's last {steps} operations changed another part",
                 hint="Activate the part owning the latest operation, then undo",
-                details={"part_id": last["part_id"]},
+                details={"part_id": other["part_id"], "operation_id": other["operation_id"]},
             )
-    services.undo_to(last["mark"])
-    _drop_own_mark(tx)
-    _mark_reverted(services, [last], tx.operation_id or "")
-    history.pop()
-    services.invalidate_parts([tx.part])
     checkpoints = services.undo_checkpoints()
-    for key in [k for k, v in checkpoints.items() if v["index"] > len(history)]:
-        del checkpoints[key]
-    tx.references = "part_invalidated"
+    alive = _alive(services, checkpoints)
+    redo = _redo_steps(services, undone)
+    services.undo_to(undone[0]["mark"])
+    _drop_own_mark(tx)
+    _mark_reverted(services, undone, tx.operation_id or "")
+    del history[-steps:]
+    references = tx.after_undo()
+    _expire(services, checkpoints, len(history), alive)
+    last = undone[-1]
     return {
         "undone_operation_id": last["operation_id"],
         "tool": last.get("method") or "",
-        "references": "part_invalidated",
+        "undone": [h["operation_id"] for h in undone],
+        "undo_depth": _depth(services, history),
+        "references": references,
+        "redo": redo,
     }
 
 
@@ -142,20 +294,20 @@ def nx_undo_operation(tx: Tx) -> UndoData:
     example={"label": "before fillets"},
 )
 def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointData:
-    """Set an in-session undo checkpoint in the work part. A save or part close expires
-    it (create a new one after saving); disk saves are never rolled back."""
+    """Set an in-session undo checkpoint in the work part (restore by id or label). A
+    save, part close or undo past it expires it; disk saves are never rolled back."""
     services = tx.services
     part = tx.part
     mark = services.set_mark("NX MCP checkpoint: " + label)
     key = "cp_" + uuid.uuid4().hex
-    index = len(services.undo_history())
+    history = services.undo_history()
     services.undo_checkpoints()[key] = {
         "mark": mark,
         "part_id": services.part_key(part),
-        "index": index,
+        "index": len(history),
         "label": label,
     }
-    return {"checkpoint_id": key, "label": label, "operations": index}
+    return {"checkpoint_id": key, "label": label, "undo_depth": _depth(services, history)}
 
 
 @tool(
@@ -167,25 +319,28 @@ def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointDa
     example={},
 )
 def nx_list_checkpoints(tx: Tx) -> CheckpointsData:
-    """List this session's checkpoints and the agent's undo depth. available=false
-    once a save or part close expired a checkpoint."""
+    """List this session's checkpoints and the agent's undo depth. Expired ones show
+    available=false and expired_reason (undone_past, saved_or_closed, engineer_change or part_closed)."""
     services = tx.services
     history = services.undo_history()
-    rows: list[CheckpointRow] = [
-        {
-            "checkpoint_id": key,
-            "label": str(cp.get("label") or ""),
-            "part_id": str(cp["part_id"]),
-            "available": services.mark_exists(cp["mark"]),
-            "operations_after": max(0, len(history) - int(cp["index"])),
-        }
-        for key, cp in services.undo_checkpoints().items()
-    ]
-    undoable = bool(history) and services.mark_exists(history[-1]["mark"])
+    rows: list[CheckpointRow] = []
+    for key, cp in services.undo_checkpoints().items():
+        reason = _reason(services, cp)
+        rows.append(
+            {
+                "checkpoint_id": key,
+                "label": str(cp.get("label") or ""),
+                "part_id": str(cp["part_id"]),
+                "available": reason is None,
+                "expired_reason": reason,
+                "operations_after": 0 if reason else max(0, len(history) - int(cp["index"])),
+            }
+        )
+    depth = _depth(services, history)
     return {
         "checkpoints": rows,
-        "undo_depth": sum(1 for h in history if services.mark_exists(h["mark"])),
-        "last_operation": history[-1]["operation_id"] if undoable else None,
+        "undo_depth": depth,
+        "last_operation": history[-1]["operation_id"] if depth else None,
     }
 
 
@@ -196,43 +351,50 @@ def nx_list_checkpoints(tx: Tx) -> CheckpointsData:
     keywords=("rollback", "restore checkpoint", "roll back", "revert to checkpoint"),
     requires=("work_part",),
     cost="light",
-    example={"checkpoint_id": "cp_" + "0" * 32},
+    example={"checkpoint_id": "before fillets"},
 )
-def nx_restore_checkpoint(tx: Tx, *, checkpoint_id: CheckpointId) -> RestoreData:
-    """Roll the work part back to a checkpoint of this session, undoing the agent's
-    operations since. Refused when it expired or would undo another part. Invalidates
-    the part's references; save explicitly to persist."""
+def nx_restore_checkpoint(tx: Tx, *, checkpoint_id: CheckpointKey) -> RestoreData:
+    """Roll the work part back to a checkpoint (id or label), undoing the agent's
+    operations since; it stays restorable. Refused when expired or across parts.
+    Refs of objects that remain stay valid; save to persist."""
     services = tx.services
     checkpoints = services.undo_checkpoints()
     history = services.undo_history()
     with tx.checks():
-        cp: dict = checkpoints.get(checkpoint_id) or {}
-        if not cp:
-            fail("NX_STALE_CHECKPOINT", "The checkpoint is not in this session",
+        key = _lookup(services, checkpoints, checkpoint_id)
+        cp: dict = checkpoints[key]
+        reason = _reason(services, cp)
+        if reason == "undone_past":
+            fail("NX_STALE_CHECKPOINT",
+                 "An undo or restore went back past this checkpoint: its state is gone",
                  field="/checkpoint_id", hint=STALE_HINT)  # fmt: skip
-        if not services.mark_exists(cp["mark"]):
+        if reason == "engineer_change":
+            fail("NX_STALE_CHECKPOINT",
+                 "The engineer changed the model after this checkpoint",
+                 field="/checkpoint_id", hint=STALE_HINT)  # fmt: skip
+        if reason:
             fail("NX_STALE_CHECKPOINT",
                  "NX dropped the checkpoint's undo mark (a save or a part close)",
                  field="/checkpoint_id", hint=STALE_HINT)  # fmt: skip
-        key = services.part_key(tx.part)
+        part_key = services.part_key(tx.part)
         later = history[cp["index"] :]
-        if cp["part_id"] != key or any(h["part_id"] != key for h in later):
+        if cp["part_id"] != part_key or any(h["part_id"] != part_key for h in later):
             fail(
                 "NX_CROSS_PART",
                 "Restoring would change another part than the work part",
                 hint="Activate the checkpoint's part, or undo the other part's operations first",
                 details={"part_id": cp["part_id"]},
             )
+    alive = _alive(services, checkpoints)
     services.undo_to(cp["mark"])
     _drop_own_mark(tx)
-    _mark_reverted(services, later, checkpoint_id)
+    _mark_reverted(services, later, key)
     del history[cp["index"] :]
-    services.invalidate_parts([tx.part])
-    for other in [k for k, v in checkpoints.items() if v["index"] >= cp["index"]]:
-        del checkpoints[other]
-    tx.references = "part_invalidated"
+    references = tx.after_undo()
+    _expire(services, checkpoints, cp["index"], alive)
     return {
-        "checkpoint_id": checkpoint_id,
+        "checkpoint_id": key,
+        "label": str(cp.get("label") or ""),
         "reverted": [h["operation_id"] for h in later],
-        "references": "part_invalidated",
+        "references": references,
     }

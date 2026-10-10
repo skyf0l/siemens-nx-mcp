@@ -48,6 +48,22 @@
     {"call": "nx_upload_file",
      "args": {"path": ".nx-mcp/x.txt", "data_base64": "eA==", "offset": 0, "total_size": 1,
               "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"},
-     "expect": {"error.code": "NX_PATH_RESERVED"}}
+     "expect": {"error.code": "NX_PATH_RESERVED"}},
+    {"call": "nx_upload_file", "args": {"path": "$run/up2/note.txt", "content": "hello world"},
+     "expect": {"mutation_outcome": "committed", "data.committed": true, "data.received": 11, "data.total_size": 11,
+                "data.sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"}},
+    {"call": "nx_download_file", "args": {"path": "$run/up2/note.txt", "delivery": "text"},
+     "expect": {"data.text": "hello world", "data.size": 11, "data.sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"}},
+    {"call": "nx_upload_file", "args": {"path": "$run/up2/one.txt", "data_base64": "eA=="},
+     "expect": {"mutation_outcome": "committed", "data.committed": true, "data.received": 1, "data.sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"}},
+    {"call": "nx_upload_file", "args": {"path": "$run/up2/two.txt", "data_base64": "eA==", "total_size": 2},
+     "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/sha256", "mutation_outcome": "not_started"}},
+    {"call": "nx_upload_file", "args": {"path": "$run/up2/two.txt", "data_base64": "eA==", "offset": 1},
+     "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/total_size", "mutation_outcome": "not_started"}},
+    {"call": "nx_upload_file", "args": {"path": "$run/up2/two.txt", "content": "x", "data_base64": "eA=="},
+     "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/content", "mutation_outcome": "not_started"}},
+    {"call": "nx_list_files", "args": {"path": "$run/up2"},
+     "expect": {"page.total": 2, "data.items.0.path": {"matches": "note\\.txt$"}, "data.items.0.size": 11,
+                "data.items.1.size": 1}}
   ]
 }

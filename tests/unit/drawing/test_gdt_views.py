@@ -154,8 +154,7 @@ def test_each_kind_takes_its_own_fields_before_nx():
     face = nx.face()
     flat = {"characteristic": "flatness", "tolerance": 0.05}
     cases = [
-        ({"kind": "view_fcf", "view": nx.top.ref, "object": nx.front.ref, "frame": flat},
-         "/origin"),
+        ({"kind": "view_fcf", "view": nx.top.ref, "origin": [1, 2], "frame": flat}, "/object"),
         ({"kind": "view_fcf", "frame": flat, "faces": [face.ref],
           **view_args(nx, nx.front, [1, 2])}, "/faces"),
         ({"kind": "view_fcf", "frame": flat, "letter": "A", **view_args(nx, nx.front, [1, 2])},

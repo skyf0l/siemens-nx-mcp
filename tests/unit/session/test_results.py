@@ -51,6 +51,12 @@ def test_objects_page_keys_and_pointers_reach_scalars(tmp_path):
     assert ref.data["value"] == ROW  # references stay whole
 
 
+def test_a_pointer_without_its_leading_slash_is_accepted(tmp_path):
+    key = stored(tmp_path, envelope())
+    ok = side(tmp_path, rs.nx_get_result, result_id=key, field="data/curves/7/id")
+    assert ok.data["value"] == "c:7" and ok.data["field"] == "/data/curves/7/id"
+
+
 def test_escaped_pointers_and_text_pages(tmp_path):
     key = stored(tmp_path, {"a/b": {"~x": "y" * 2500}})
     text = side(tmp_path, rs.nx_get_result, result_id=key, field="/a~1b/~0x", limit=1)
@@ -80,13 +86,14 @@ def test_bridge_snapshots_share_the_tool(tmp_path):
 def test_unknown_ids_bad_pointers_and_limits_are_refused(tmp_path):
     key = stored(tmp_path, envelope())
     gone = side(tmp_path, rs.nx_get_result, result_id="result_" + "0" * 32)
-    assert gone.error["code"] == "NX_RESULT_EXPIRED" and gone.error["field"] == "/result_id"
-    assert gone.mutation_outcome == "not_applicable"
+    assert gone.error["code"] == "NX_NOT_FOUND" and gone.error["field"] == "/result_id"
+    assert gone.mutation_outcome == "not_applicable" and gone.error["details"]["state"] == "unknown"
+    assert "never existed" in gone.error["message"] and "omitted" in gone.error["hint"]
     for args, field in [
         ({"field": "/data/nope"}, "/field"),
         ({"field": "/data/curves/45"}, "/field"),
         ({"field": "/data/curves/x"}, "/field"),
-        ({"field": "data"}, "/field"),
+        ({"field": "data/nope"}, "/field"),
         ({"limit": 101}, "/limit"),
         ({"offset": -1}, "/offset"),
     ]:
@@ -106,16 +113,21 @@ def test_delete_previews_then_prunes_both_stores(tmp_path):
     receipt.parent.mkdir(parents=True)
     receipt.write_text("keep")
     preview = side(tmp_path, rs.nx_delete_results, max_age_seconds=50)
-    assert preview.ok
+    assert preview.ok and preview.mutation_outcome == "not_applicable"  # a preview changes nothing
     assert preview.data["applied"] is False and preview.data["snapshot_count"] == 3
     assert preview.data["selected_count"] == 1 and path.exists()
+    assert preview.data["deleted_count"] == 0
     done = side(tmp_path, rs.nx_delete_results, max_age_seconds=50, dry_run=False)
     assert done.data["applied"] and done.data["selected_count"] == 1 and not path.exists()
+    assert done.data["deleted_count"] == 1 and done.mutation_outcome == "committed"
+    nothing = side(tmp_path, rs.nx_delete_results, max_age_seconds="1d", dry_run=False)
+    assert nothing.data["deleted_count"] == 0 and nothing.mutation_outcome == "not_applicable"
     assert side(tmp_path, rs.nx_get_result, result_id=new).ok
     everything = side(tmp_path, rs.nx_delete_results, max_bytes=1, dry_run=False)
     assert everything.data["selected_count"] == 2 and everything.data["bytes_after_cleanup"] == 0
     gone = side(tmp_path, rs.nx_get_result, result_id=bridge["full_result"]["id"])
-    assert gone.error["code"] == "NX_RESULT_EXPIRED"
+    assert gone.error["code"] == "NX_RESULT_EXPIRED" and gone.error["details"]["state"] == "pruned"
+    assert "pruned by retention" in gone.error["message"]
     assert receipt.read_text() == "keep"
 
 
@@ -127,10 +139,35 @@ def test_delete_exact_ids(tmp_path):
     assert side(tmp_path, rs.nx_get_result, result_id=a).ok
     done = side(tmp_path, rs.nx_delete_results, result_ids=[a], dry_run=False)
     assert done.ok and done.data["applied"] and done.data["snapshot_count"] == 2
-    assert side(tmp_path, rs.nx_get_result, result_id=a).error["code"] == "NX_RESULT_EXPIRED"
+    deleted = side(tmp_path, rs.nx_get_result, result_id=a).error
+    assert deleted["code"] == "NX_RESULT_EXPIRED" and deleted["details"]["state"] == "deleted"
     assert side(tmp_path, rs.nx_get_result, result_id=b).ok
     bad = side(tmp_path, rs.nx_delete_results, max_bytes=0)
     assert bad.error["code"] == "NX_INVALID_ARGUMENT"
+
+
+def test_delete_of_only_missing_ids_changes_nothing(tmp_path):
+    missing = "result_" + "e" * 32
+    done = side(tmp_path, rs.nx_delete_results, result_ids=[missing], dry_run=False)
+    assert done.ok and done.mutation_outcome == "not_applicable"
+    assert done.data["deleted_count"] == 0 and done.data["missing"] == [missing]
+
+
+def test_ages_accept_durations_with_units(tmp_path):
+    old = stored(tmp_path, {"old": 1})
+    path = tmp_path / ".nx-mcp" / "agent-results" / (old + ".json")
+    os.utime(path, (time.time() - 7200, time.time() - 7200))
+    stored(tmp_path, {"new": 1})
+    for age, selected in [("1h", 1), ("90 min", 1), ("3 hours", 0), ("1d", 0), ("1.5h", 1)]:
+        preview = side(tmp_path, rs.nx_delete_results, max_age_seconds=age)
+        assert preview.ok and preview.data["selected_count"] == selected, age
+    week = side(tmp_path, rs.nx_delete_results, max_age_seconds="2w")
+    assert week.data["policy"]["max_age_seconds"] == 2 * 604800
+    for value in ["soon", "5ms", "0d", "1 month"]:
+        bad = side(tmp_path, rs.nx_delete_results, max_age_seconds=value)
+        assert bad.error["code"] == "NX_INVALID_ARGUMENT", value
+        assert bad.error["field"] == "/max_age_seconds" and bad.mutation_outcome == "not_started"
+    assert "'7d'" in side(tmp_path, rs.nx_delete_results, max_age_seconds="x").error["hint"]
 
 
 async def test_proxy_forwards_detail_and_never_calls_nx(tmp_path, monkeypatch):

@@ -59,16 +59,26 @@ def box_point(box, p):
     return [min(max(p[i], box[i]), box[i + 3]) for i in range(3)]
 
 
+def box_gap(a, b):
+    """Distance between two axis-aligned boxes [x0, y0, z0, x1, y1, z1]."""
+    return math.sqrt(sum(max(0.0, a[i] - b[i + 3], b[i] - a[i + 3]) ** 2 for i in range(3)))
+
+
 class Spline(Object):
-    def __init__(self, points, degree, periodic):
+    def __init__(self, points, degree, periodic, mm=1.0):
         super().__init__("SPLINE")
         self.shape = Polyline(points)
         self.Order = degree + 1
         self.Periodic = periodic
         self.poles = [point(*p) for p in points]
+        self.mm = mm
 
     def Get3DPoles(self):
         return list(self.poles)
+
+    def GetLength(self):  # NX 2406 answers millimetres whatever the part units
+        pts = self.shape.points
+        return self.mm * sum(math.dist(a, b) for a, b in zip(pts, pts[1:], strict=False))
 
 
 class StudioSpline(Object):
@@ -115,6 +125,8 @@ def freeform_nx(units="mm"):
             gap, q = to_point(first, list(p2))
             return (gap, q, list(p2))
         second = objects[b]
+        if not hasattr(first, "shape") and not hasattr(second, "shape"):
+            return (box_gap(first.box, second.box), [0.0] * 3, [0.0] * 3)
         samples = [first.shape.at(i / 50)[0] for i in range(51)] + first.shape.points
         gap, p = min((to_point(second, s)[0], s) for s in samples)
         return (gap, p, to_point(second, p)[1])
@@ -141,7 +153,7 @@ def freeform_nx(units="mm"):
     nx.part.MeasureManager = NS(
         NewMassProperties=mass,
         NewFaceProperties=lambda _a, _l, _acc, faces: NS(
-            Area=sum(f.area for f in faces), Dispose=lambda: None
+            Area=sum(getattr(f, "area", 0.0) for f in faces), Dispose=lambda: None
         ),
     )
     nx.part.CreateRegionPoint = lambda p, body: NS(kind="region", point=p, body=body)
@@ -157,7 +169,7 @@ def freeform_nx(units="mm"):
             ]
             for c in (call[0][0] for call in b.ConstraintManager.Append.calls)
         ]
-        b.Curve = remember(Spline(points, b.Degree, b.IsPeriodic))
+        b.Curve = remember(Spline(points, b.Degree, b.IsPeriodic, 25.4 if units == "in" else 1.0))
         existing = b.args[0] if b.args else None
         if existing is not None:
             return existing

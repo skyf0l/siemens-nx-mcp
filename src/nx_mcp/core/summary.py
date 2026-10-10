@@ -53,7 +53,10 @@ class _Say:
             return f'"{name}"' if name else value
         if Quantity in markers:
             dim = markers[Quantity].dim
-            number, unit = parse_quantity(value, dim)
+            try:
+                number, unit = parse_quantity(value, dim)
+            except ValueError:
+                return str(value)  # an NX expression name or formula ("thickness/2")
             if unit is None:
                 unit = (
                     "deg"

@@ -4,7 +4,10 @@ Each domain registers ``@lister(kind)`` hooks for its own kinds. A lister is
 ``fn(tx, owner, owner_kind) -> [(obj, kind, extra)]``; ``extra`` holds the
 kind-specific summary (``type`` is used by the ``type`` filter). Rows are only
 built for the requested page, so large inventories register few references.
-A ``type`` outside a kind's known set (``TYPES``) is refused, never an empty page.
+A ``type`` outside a kind's known set (``TYPES``) is refused, never an empty page; it is
+matched without case, with spaces as underscores, a leading kind word dropped
+(``face cylinder``), a plural ``s`` dropped and the adjectives in ``TYPE_ALIASES``
+(``cylindrical``, ``arc``). ``owner`` takes a short ref or a result row's anchor.
 ``include`` adds per-row detail to the page: ``adjacency`` (a face's edge ids, an edge's
 face ids) or ``views`` (a drawing sheet's views). Cylinder and cone face rows of the page
 get their ``details`` here (``common.axial_facts``: radius, or radii and half-angle).
@@ -17,8 +20,9 @@ from typing import Annotated, Any, Literal, TypedDict, cast
 from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Offset, PageLimit, RefTo, Text
+from nx_mcp.core.types import Doc, Offset, PageLimit, RefKind, Text
 from nx_mcp.domains.inspection import common
+from nx_mcp.domains.inspection.geometry import resolve_owner
 from nx_mcp.kit import result
 
 # Every kind some domain registered a @lister for (a test keeps the two in step: a domain
@@ -58,6 +62,17 @@ TYPES: dict[str, tuple[str, ...]] = {
     "explosion": (),
 }
 
+# Natural words for the known types (checked against TYPES of the kind being listed).
+TYPE_ALIASES = {
+    "planar": "plane", "flat": "plane", "cylindrical": "cylinder", "conical": "cone",
+    "spherical": "sphere", "toroidal": "torus", "linear": "line", "straight": "line",
+    "arc": "circle", "circular": "circle", "elliptical": "ellipse", "solid_body": "solid",
+    "sheet_body": "sheet", "datum_plane": "plane", "datum_axis": "axis",
+    "datum_csys": "csys", "datum_point": "point", "coordinate_system": "csys",
+}  # fmt: skip
+OWNER_KINDS = ("body", "face", "feature")
+OwnerRef = Annotated[str, Text(400), RefKind(*OWNER_KINDS), Doc("Ref/anchor: body/face/feature")]
+
 Include = Literal["adjacency", "views"]
 # include value -> the kinds it applies to
 _INCLUDE_KINDS = {"adjacency": ("face", "edge"), "views": ("drawing_sheet",)}
@@ -76,6 +91,26 @@ class ListData(TypedDict):
 
 def _name(obj) -> str:
     return str(getattr(obj, "Name", "") or getattr(obj, "JournalIdentifier", "") or "")
+
+
+def _normal_type(kind: str, value: str) -> str:
+    """``value`` casefolded, spaces as underscores, without a leading kind word."""
+    words = value.casefold().replace("-", " ").replace("_", " ").split()
+    if len(words) > 1 and words[0].rstrip("s") in (kind, *kind.split("_")):
+        words = words[1:]
+    return "_".join(words)
+
+
+def _known_type(kind: str, value: str) -> str:
+    """The listed type ``value`` names (aliases and plurals mapped), or ``value``."""
+    known = TYPES.get(kind)
+    if not known:
+        return value
+    for candidate in (value, value[:-1] if value.endswith("s") else value):
+        candidate = TYPE_ALIASES.get(candidate, candidate)
+        if candidate in known:
+            return candidate
+    return value
 
 
 def _check_type(kind: str, value: str) -> None:
@@ -105,13 +140,13 @@ def _expand(tx, obj, kind: str) -> dict:
     label="List objects",
     summary="List {kind} objects",
     keywords=(
-        "inventory",
         "list bodies",
         "list faces",
+        "list edges",
         "list features",
         "list expressions",
+        "assembly constraints status",
         "topology",
-        "adjacency",
         "part navigator",
     ),
     requires=("work_part",),
@@ -122,15 +157,15 @@ def nx_list_objects(
     tx: Tx,
     *,
     kind: ListKind,
-    owner: Annotated[str, RefTo("body", "face", "feature")] | None = None,
+    owner: OwnerRef | None = None,
     name_contains: Annotated[str, Text(64), Doc("Case-insensitive name filter")] | None = None,
-    type: Annotated[str, Text(32, r"^[a-z_]+$"), Doc("e.g. face cylinder, cone")] | None = None,
+    type: Annotated[str, Text(32), Doc("e.g. cylinder, circle, solid")] | None = None,
     include: Include | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> ListData:
     """List work-part objects of one kind, filtered by owner, name or type, paged.
-    Rows: a reference and a kind-specific summary."""
+    Feature parameters: kind expression, owner the feature."""
     lister = hooks("lister").get(kind)
     if lister is None:
         fail("NX_UNSUPPORTED_OPTION", f"No lister for {kind}", field="/kind")
@@ -138,18 +173,20 @@ def nx_list_objects(
         fail("NX_UNSUPPORTED_OPTION", f"include={include} applies to "
              f"{'/'.join(_INCLUDE_KINDS[include])}, not {kind}", field="/include")  # fmt: skip
     if type:
+        type = _known_type(kind, _normal_type(kind, type))
         _check_type(kind, type)
     owner_obj = owner_kind = None
     if owner is not None:
-        owner_obj = tx.resolve(owner, "body", "face", "feature", work_part=True)
+        owner_obj = resolve_owner(tx, owner, OWNER_KINDS, work_part=True)
         owner_kind = tx.kind_of(owner_obj)
     found = lister(tx, owner_obj, owner_kind)
     if name_contains:
         needle = name_contains.casefold()
         found = [f for f in found if needle in _name(f[0]).casefold()]
     if type:
-        # casefolded: dimension and annotation types are NX class names (PmiNote)
-        found = [f for f in found if str(f[2].get("type") or "").casefold() == type]
+        # Both sides normalised: dimension and annotation types are NX class names
+        # (PmiNote), feature types have spaces ("simple hole").
+        found = [f for f in found if _normal_type(kind, str(f[2].get("type") or "")) == type]
     selected, page = result.page(found, offset, limit)
     items: list[ObjectRow] = []
     for obj, k, extra in selected:

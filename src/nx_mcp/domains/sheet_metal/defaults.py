@@ -4,7 +4,11 @@ NX 2406 findings encoded here:
 
 - ``SheetMetalPreferences.GetMaterialNames`` raises a native memory-access fault, so the
   installed material catalogue is never enumerated: a material or tool name is set as
-  given and verified by read-back.
+  given and verified by read-back. On a seat without a sheet-metal standards table NX
+  drops any material name (it reads back unset) and keeps the parameter entry ``value``;
+  the refusal then says so and that the other defaults go in a call without it.
+- Tab, contour flange, lofted flange and from-solid features take the default thickness
+  when the call gives none (``part_length``).
 - Defaults work in Modeling too (before entering Sheet Metal) and on a plain part; they
   are creation defaults, existing features keep their own expressions.
 """
@@ -17,7 +21,7 @@ from typing import Annotated, Any, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Length, PathTo, Range, Text
+from nx_mcp.core.types import MM_PER_IN, Doc, Length, PathTo, Range, Text
 from nx_mcp.kit import builders, expr, geom, model, readback, result
 from nx_mcp.kit.sketch import snake
 
@@ -79,6 +83,35 @@ def preferences(tx):
     return tx.part.Preferences.SheetMetalPreferences
 
 
+def part_length(tx, key) -> float | None:
+    """A length default (``thickness``...) in work-part units, or None when unset."""
+    exp = getattr(preferences(tx), "Get" + LENGTHS[key])()
+    number = expr.value(tx, exp) if exp is not None else None
+    if number is None:
+        return None
+    have, want = expr.units(exp), tx.units.get("length")
+    if (have, want) == ("in", "mm"):
+        return float(number) * MM_PER_IN
+    if (have, want) == ("mm", "in"):
+        return float(number) / MM_PER_IN
+    return float(number)
+
+
+# Why NX may not keep a table-driven default, and what to send instead.
+TABLE_HINTS = {
+    "material": "NX keeps only a material of its sheet-metal standards table (site setup; "
+    "none is listed). Leave material out to set the other defaults",
+    "tool": "NX keeps only a tool of its sheet-metal standards table (site setup). Leave "
+    "tool out to set the other defaults",
+    "parameter_entry": "material_table and tool_id_table need a sheet-metal standards "
+    "table on this NX; use value (or leave parameter_entry out)",
+}
+
+
+def _same_text(got, wanted) -> bool:
+    return got is not None and str(got).strip().casefold() == str(wanted).strip().casefold()
+
+
 def _text(value):
     text = str(value) if value is not None else ""
     return text or None
@@ -126,8 +159,9 @@ def read(tx) -> DefaultsData:
     example={},
 )
 def nx_get_sheet_metal_defaults(tx: Tx) -> DefaultsData:
-    """Read the part's sheet-metal creation defaults. They cover thickness, bend radius,
-    neutral factor, reliefs, bend method, bend table, formulas, material and tool."""
+    """Read the part's sheet-metal creation defaults (null: not set). They cover thickness,
+    bend radius, neutral factor, reliefs, bend method, bend table, formulas, material and
+    tool; tables and formulas apply only to their bend_definition."""
     return read(tx)
 
 
@@ -234,11 +268,16 @@ def nx_set_sheet_metal_defaults(
             wanted=value,
             got=read_back[key],
         )
-    for key in ("parameter_entry", "bend_definition", "material", "tool"):
-        if texts[key] is not None:
-            readback.expect(
-                read_back[key] == texts[key], key, wanted=texts[key], got=read_back[key]
-            )
+    if bend_definition is not None:
+        readback.expect(read_back["bend_definition"] == bend_definition, "bend_definition",
+                        wanted=bend_definition, got=read_back["bend_definition"])  # fmt: skip
+    for key in ("parameter_entry", "material", "tool"):
+        wanted = texts[key]
+        if wanted is not None and not _same_text(read_back[key], wanted):
+            fail("NX_VERIFICATION_FAILED", f"NX did not keep {key} {wanted!r} (it reads "
+                 f"{read_back[key]!r}); nothing was changed", field="/" + key,
+                 hint=TABLE_HINTS[key],
+                 details={"check": key, "wanted": wanted, "got": read_back[key]})  # fmt: skip
     if bend_formula is not None:
         readback.expect(read_back[method] == bend_formula, "bend_formula", wanted=bend_formula,
                         got=read_back[method])  # fmt: skip

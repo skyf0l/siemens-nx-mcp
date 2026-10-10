@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/wave_links.json",
-  "scenario_sha256": "9848e7353064d62a6d8892fa360d0a4e0ebd5776caba026dc68b8804bc6df0a4",
+  "scenario_sha256": "78c471370e02974dc1aaad40952b3c99ce78f6e1c9ea6086e4ab8a08055c5c9b",
   "domain": "assembly",
   "covers": {
     "nx_create_wave_link": [
@@ -15,11 +15,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_wave_link": "0fa1c28dde03151c36ce3a883ddb659cc8a83f67010d26a620853741e46950d2"
+    "nx_create_wave_link": "6df036632e24490b98eb8236472c8bf29dd0c566d8946ceee96a81345fdb1ea5"
   },
-  "recorded": "2026-10-10T15:59:01Z",
+  "recorded": "2026-10-10T22:56:16Z",
   "passed": true,
-  "checks": 59,
+  "checks": 71,
   "failed_checks": 0,
   "steps": [
     {
@@ -146,7 +146,7 @@
       "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 19,
@@ -223,14 +223,14 @@
       "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 30,
       "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 6
     },
     {
       "index": 31,
@@ -244,80 +244,94 @@
       "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 33,
-      "call": "nx_activate_part",
-      "setup": true,
+      "call": "nx_create_wave_link",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 3
     },
     {
       "index": 34,
-      "call": "nx_create_sketch",
-      "setup": true,
+      "call": "nx_create_wave_link",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 35,
-      "call": "nx_create_sketch_curves",
+      "call": "nx_activate_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 36,
-      "call": "nx_finish_sketch",
+      "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 37,
-      "call": "nx_create_extrude",
+      "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 38,
-      "call": "nx_edit_feature",
+      "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 39,
-      "call": "nx_activate_part",
+      "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 40,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 41,
+      "call": "nx_activate_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 42,
       "call": "nx_update_assembly",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 41,
-      "call": "nx_measure_mass",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 42,
-      "call": "nx_measure_mass",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
       "index": 43,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 44,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 45,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,

@@ -54,8 +54,10 @@ def test_rule_errors_are_invalid_arguments_before_nx():
     assert near.error["field"] == "/near"
     normal = run(nx, "nx_find_geometry", kind="edge", normal=[0, 0, 1], order="lowest")
     assert normal.error["field"] == "/normal"
-    upper = run(nx, "nx_find_geometry", kind="face", order="lowest", axis="Z")
+    upper = run(nx, "nx_find_geometry", kind="face", order="lowest", axis="w")
     assert upper.error["category"] == "invalid_argument"
+    natural = run(nx, "nx_find_geometry", kind="Faces", order="Lowest", axis="Z")
+    assert natural.ok, natural  # gate 1 takes natural spellings of options
 
 
 def test_component_owner_reaches_occurrence_faces():
@@ -78,6 +80,7 @@ def test_holes_group_coaxial_bores():
     for x, radius in ((10, 3.0), (10, 5.0), (30, 3.0)):
         f = nx.remember(nx.face(normal=(0, 0, 1), origin=(x, 10, 0), kind="cylinder", body=body))
         f.radius, f.sense, f.uv_box = radius, -1, (0.0, 2 * 3.141592653589793, 0.0, 1.0)
+        f.GetEdges = lambda: []
         body.faces.append(f)
     boss = nx.remember(nx.face(normal=(0, 0, 1), origin=(0, 0, 0), kind="cylinder", body=body))
     boss.radius, boss.sense = 2.0, 1
@@ -126,6 +129,11 @@ def test_selector_reruns_rule_and_reports_ties():
     assert junk.error["code"] == "NX_INVALID_ARGUMENT" and junk.error["field"] == "/selector"
 
 
+def _no_anchor(row):
+    """A row of an object without a journal anchor (the kit rows carry one now)."""
+    return {k: v for k, v in row.items() if k != "anchor"}
+
+
 def test_owner_selector_uses_the_owner_anchor():
     nx = inspection_nx()
     body = nx.block(10, 10, 10)
@@ -144,7 +152,7 @@ def test_owner_selector_uses_the_owner_anchor():
     assert selector["owner"] == anchor and selector["owner_kind"] == "body"
     ok = run(nx, "nx_resolve_reference", selector=found.data["selector"])
     assert ok.data["object"]["id"] == _top(nx, body).ref
-    refs.row = plain
+    refs.row = lambda obj, kind, **k: _no_anchor(plain(obj, kind))
     lost = run(nx, "nx_find_geometry", owner=body.ref, kind="face", order="highest")
     assert lost.ok and lost.data["selector"] is None
 
@@ -174,6 +182,7 @@ def test_feature_owner_gives_only_the_features_own_faces_and_edges():
     nx.block(5, 5, 5, origin=(100, 0, 0))
     bore = nx.remember(nx.face(normal=(0, 0, 1), origin=(10, 10, 0), kind="cylinder", body=body))
     bore.radius, bore.sense, bore.uv_box = 3.0, -1, (0.0, 2 * math.pi, 0.0, 1.0)
+    bore.GetEdges = lambda: []
     body.faces.append(bore)
     hole = Feature("HOLE(2)", bodies=[body])
     hole.own_faces, hole.own_edges = [bore], body.edges[:2]
@@ -232,3 +241,140 @@ def test_listed_cylinder_and_cone_faces_carry_their_radii():
     assert cones[0]["details"]["half_angle"] == pytest.approx(14.0362435)
     bores = run(nx, "nx_list_objects", kind="face", type="cylinder").data["items"]
     assert bores[0]["details"]["radius"] == 4.0 and bores[0]["details"]["axis"] == [0, 0, 1.0]
+
+
+def test_normal_takes_axis_words_and_implies_plane_and_outermost_order():
+    nx = inspection_nx()
+    low = nx.block(10, 10, 10)
+    high = nx.block(10, 10, 5, origin=(20, 0, 10))
+    up = run(nx, "nx_find_geometry", normal="+Z")
+    assert up.ok, up
+    assert [i["id"] for i in up.data["items"]] == [_top(nx, high).ref, _top(nx, low).ref]
+    rule = json.loads(up.data["selector"])
+    assert rule["geometry_type"] == "plane" and rule["order"] == "highest"
+    assert rule["axis"] == "z" and rule["normal"] == [0.0, 0.0, 1.0]
+    down = run(nx, "nx_find_geometry", normal="bottom", limit=1)
+    assert down.data["items"][0]["center"][2] == 0
+    assert json.loads(down.data["selector"])["order"] == "lowest"
+    left = run(nx, "nx_find_geometry", normal="-x", limit=1)
+    assert left.data["items"][0]["normal"] == [-1, 0, 0]
+    assert left.data["items"][0]["center"][0] == 0
+    assert json.loads(left.data["selector"])["axis"] == "x"
+    vector = run(nx, "nx_find_geometry", normal=[0, 0, 1], order="lowest", axis="z")
+    assert vector.data["items"][0]["id"] == _top(nx, low).ref
+    bad = run(nx, "nx_find_geometry", normal="+q")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/normal"
+    assert "+z" in bad.error["message"] and "top" in bad.error["message"]
+    edge = run(nx, "nx_find_geometry", kind="edge", normal="+z")
+    assert edge.error["field"] == "/normal"
+
+
+def _bore_and_boss(nx, body):
+    faces = []
+    for x, sense in ((2.0, -1), (8.0, 1)):
+        f = nx.remember(nx.face(normal=(0, 0, 1), origin=(x, 5, 0), kind="cylinder", body=body))
+        f.radius, f.sense, f.uv_box = 3.0, sense, (0.0, 2 * math.pi, 0.0, 1.0)
+        f.GetEdges = lambda: []
+        body.faces.append(f)
+        faces.append(f)
+    return faces
+
+
+def test_role_filter_keeps_bores_or_bosses_and_reruns_from_the_selector():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    bore, boss = _bore_and_boss(nx, body)
+    both = run(nx, "nx_find_geometry", radius=3)
+    assert both.ok and both.page["total"] == 2, both
+    assert json.loads(both.data["selector"])["geometry_type"] == "cylinder"
+    bores = run(nx, "nx_find_geometry", role="bore")
+    assert [i["id"] for i in bores.data["items"]] == [bore.ref]
+    rule = json.loads(bores.data["selector"])
+    assert rule["role"] == "bore" and rule["geometry_type"] == "cylinder"
+    again = run(nx, "nx_resolve_reference", selector=bores.data["selector"])
+    assert again.ok and again.data["object"]["id"] == bore.ref, again
+    bosses = run(nx, "nx_find_geometry", geometry_type="cylinder", role="boss")
+    assert [i["id"] for i in bosses.data["items"]] == [boss.ref]
+    wrong = run(nx, "nx_find_geometry", geometry_type="plane", role="bore")
+    assert wrong.error["field"] == "/role"
+    edges = run(nx, "nx_find_geometry", kind="edge", role="bore")
+    assert edges.error["field"] == "/role"
+    circles = run(nx, "nx_find_geometry", kind="edge", radius=3)
+    assert circles.ok and json.loads(circles.data["selector"])["geometry_type"] == "circle"
+
+
+def test_owner_takes_a_row_anchor_and_explains_names():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    nx.block(10, 10, 10, origin=(0, 0, 20))
+    anchor = run(nx, "nx_create_anchor", object=body.ref).data["anchor"]
+    ok = run(nx, "nx_find_geometry", owner=anchor, normal="+z")
+    assert ok.ok and [i["id"] for i in ok.data["items"]] == [_top(nx, body).ref], ok
+    face = run(nx, "nx_create_anchor", object=_top(nx, body).ref).data["anchor"]
+    wrong = run(nx, "nx_find_geometry", owner=face)
+    assert wrong.error["code"] == "NX_WRONG_KIND" and wrong.error["field"] == "/owner"
+    name = run(nx, "nx_find_geometry", owner="BLOCK(1)")
+    assert name.error["code"] == "NX_INVALID_ARGUMENT" and name.error["field"] == "/owner"
+    assert "not a reference" in name.error["message"]
+    junk = run(nx, "nx_find_geometry", owner="@work.prt")
+    assert junk.error["field"] == "/owner" and "anchor" in junk.error["message"]
+
+
+def test_resolve_accepts_live_ids_selector_objects_and_swapped_fields():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top = _top(nx, body)
+    live = run(nx, "nx_resolve_reference", anchor=top.ref)
+    assert live.ok and live.data == {"object": live.data["object"], "via": "reference"}, live
+    assert live.data["object"]["id"] == top.ref
+    found = run(nx, "nx_find_geometry", normal="+z")
+    as_object = run(nx, "nx_resolve_reference", selector=json.loads(found.data["selector"]))
+    assert as_object.ok and as_object.data["object"]["id"] == top.ref, as_object
+    swapped = run(nx, "nx_resolve_reference", anchor=found.data["selector"])
+    assert swapped.ok and swapped.data["via"] == "selector", swapped
+    made = run(nx, "nx_create_anchor", object=top.ref).data["anchor"]
+    into_selector = run(nx, "nx_resolve_reference", selector=made)
+    assert into_selector.ok and into_selector.data["via"] == "anchor", into_selector
+    missing = run(nx, "nx_resolve_reference", selector={"kind": "face"})
+    assert missing.error["field"] == "/selector" and "missing" in missing.error["message"]
+    bad = run(nx, "nx_resolve_reference", anchor="@work.prt")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and "nx_create_anchor" in bad.error["message"]
+
+
+def test_create_anchor_of_a_feature_is_its_row_anchor():
+    from tests.kit.objects import Feature
+
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    feature = Feature("BLEND(5)", bodies=[body])
+    feature.JournalIdentifier, feature.OwningPart, feature.IsOccurrence = "BLEND(5)", nx.part, False
+    nx.part.Features.append(feature)
+    ref = nx.ref_of(feature, "feature")
+    refs = services(nx).references
+    plain, anchor = refs.row, "@work.prt:BLEND(5)"
+    refs.row = lambda obj, kind, **k: (
+        {**plain(obj, kind), "anchor": anchor} if obj is feature else plain(obj, kind)
+    )
+    refs.find_anchor = lambda text, kind: (
+        plain(feature, "feature") if (text, kind) == (anchor, "feature") else None
+    )
+    made = run(nx, "nx_create_anchor", object=ref)
+    assert made.ok, made
+    assert made.data["anchor"] == anchor and made.data["object"]["id"] == ref
+    back = run(nx, "nx_resolve_reference", anchor=made.data["anchor"])
+    assert back.ok and back.data["object"]["id"] == ref, back
+    refs.row = lambda obj, kind, **k: _no_anchor(plain(obj, kind))
+    bare = run(nx, "nx_create_anchor", object=ref)
+    assert bare.error["code"] == "NX_UNSUPPORTED_OPTION" and bare.error["field"] == "/object"
+
+
+def test_a_drawing_view_owner_explains_where_model_edges_come_from():
+    from tests.unit.drawing.fakes import drawing_nx
+
+    nx = drawing_nx()
+    nx.block(10, 10, 10)
+    view = nx.make_view(nx.make_sheet("SHT1"), "Top@1")
+    ref = nx.ref_of(view, "drawing_view")
+    bad = run(nx, "nx_find_geometry", owner=ref, kind="edge")
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/owner", bad
+    assert "model body" in bad.error["hint"]

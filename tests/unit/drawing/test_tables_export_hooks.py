@@ -118,10 +118,14 @@ def test_export_rules_and_a_pdf_published_from_the_staging_area():
     nx = tables_nx()
     other = nx.make_sheet("SHT2")
     root = services(nx).root
-    no_suffix = run(nx, "nx_export_drawing", path="out/a.dxf")
-    assert no_suffix.error["field"] == "/path" and no_suffix.mutation_outcome == "not_started"
-    two = run(nx, "nx_export_drawing", path="out/a.dxf", format="dxf")
-    assert two.error["field"] == "/sheets"
+    mismatch = run(nx, "nx_export_drawing", path="out/a.dxf", format="PDF")
+    assert mismatch.error["field"] == "/path" and mismatch.mutation_outcome == "not_started"
+    two = run(nx, "nx_export_drawing", path="out/a.dxf")  # format follows the extension
+    assert two.error["field"] == "/sheets" and "sheets: [one sheet" in two.error["hint"]
+    assert [s["name"] for s in two.error["details"]["sheets"]] == ["SHT1", "SHT2"]
+    assert run(nx, "nx_export_drawing", path="out/a.pdf", format="tiff").error["field"] == (
+        "/format"
+    )
     nx.part.PlotManager = NS(CreatePrintPdfbuilder=lambda: nx.builder("PrintPdfBuilder"))
 
     def plot(b):
@@ -129,11 +133,11 @@ def test_export_rules_and_a_pdf_published_from_the_staging_area():
 
     nx.on_commit("PrintPdfBuilder", plot)
     nx.part.SaveOptions = NS(DrawingCgmData=False)
-    ok = run(nx, "nx_export_drawing", path="out/a.pdf", sheets=[other.ref])
+    ok = run(nx, "nx_export_drawing", path="out/a.pdf", format="PDF", sheets=["sht2"])
     assert ok.ok, ok
     assert ok.data["path"] == "out/a.pdf" and ok.data["size"] == len(b"%PDF-1.7 fake")
     assert (root / "out" / "a.pdf").read_bytes().startswith(b"%PDF-")
-    assert [s["name"] for s in ok.data["sheets"]] == ["SHT2"]
+    assert [s["id"] for s in ok.data["sheets"]] == [other.ref]  # by its name, any case
     assert nx.live_builders == 0 and nx.part.DrawingSheets.CurrentDrawingSheet is None
     nx.on_commit("PrintPdfBuilder", lambda b: Path(b.Filename).write_bytes(b"not a pdf"))
     bad = run(nx, "nx_export_drawing", path="out/b.pdf")

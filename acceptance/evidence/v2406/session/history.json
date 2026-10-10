@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/history.json",
-  "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
+  "scenario_sha256": "56bf39274833b8e0df6bf741cf0eb1f32e85318ed6b1e8f99bcff6763c416d2e",
   "domain": "session",
   "covers": {
     "nx_create_checkpoint": [],
@@ -13,15 +13,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_checkpoint": "a3a3c6f7bcbbad15aca4a95b08f50ba960434fa1b2af3085cca5aec8c8a256bb",
-    "nx_list_checkpoints": "a3a3c6f7bcbbad15aca4a95b08f50ba960434fa1b2af3085cca5aec8c8a256bb",
-    "nx_restore_checkpoint": "a3a3c6f7bcbbad15aca4a95b08f50ba960434fa1b2af3085cca5aec8c8a256bb",
-    "nx_undo_operation": "a3a3c6f7bcbbad15aca4a95b08f50ba960434fa1b2af3085cca5aec8c8a256bb",
-    "nx_set_name": "7532f1769b1090f59327c277cb08df44f0c56a1fdd506a54ccf44810acfc1ad8"
+    "nx_create_checkpoint": "d7ec42788ea65dfc0035941d700df1829dabaa664c41dfe0f486ab53b12120b5",
+    "nx_list_checkpoints": "d7ec42788ea65dfc0035941d700df1829dabaa664c41dfe0f486ab53b12120b5",
+    "nx_restore_checkpoint": "d7ec42788ea65dfc0035941d700df1829dabaa664c41dfe0f486ab53b12120b5",
+    "nx_undo_operation": "d7ec42788ea65dfc0035941d700df1829dabaa664c41dfe0f486ab53b12120b5",
+    "nx_set_name": "01899b4994bb86e166f449c6c21b3f666ce696258a0f7471908f80294f5cba03"
   },
-  "recorded": "2026-10-10T14:12:23Z",
+  "recorded": "2026-10-10T23:06:55Z",
   "passed": true,
-  "checks": 44,
+  "checks": 99,
   "failed_checks": 0,
   "steps": [
     {
@@ -113,7 +113,7 @@
       "call": "nx_restore_checkpoint",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 14,
@@ -145,42 +145,42 @@
     },
     {
       "index": 18,
-      "call": "nx_find_geometry",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 19,
-      "call": "nx_create_blend",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 20,
-      "call": "nx_undo_operation",
-      "setup": false,
-      "passed": true,
-      "checks": 4
-    },
-    {
-      "index": 21,
-      "call": "nx_get_feature",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 22,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 23,
+      "index": 19,
       "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 23,
+      "call": "nx_get_feature",
       "setup": false,
       "passed": true,
       "checks": 1
@@ -188,82 +188,285 @@
     {
       "index": 24,
       "call": "nx_list_objects",
-      "setup": true,
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 1
     },
     {
       "index": 25,
-      "call": "nx_set_name",
+      "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 1
     },
     {
       "index": 26,
-      "call": "nx_get_feature",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 27,
-      "call": "nx_get_feature",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 28,
-      "call": "nx_set_name",
+      "call": "nx_create_blend",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 29,
-      "call": "nx_create_checkpoint",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 30,
-      "call": "nx_save_part",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 31,
-      "call": "nx_list_checkpoints",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 32,
-      "call": "nx_restore_checkpoint",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 33,
+      "index": 27,
       "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
+      "index": 28,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_set_name",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 30,
+      "call": "nx_get_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 31,
+      "call": "nx_get_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 32,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 33,
+      "call": "nx_set_name",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
       "index": 34,
+      "call": "nx_set_name",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 35,
+      "call": "nx_create_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 36,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 37,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 38,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 39,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 35,
+      "index": 40,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 41,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 42,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 43,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 44,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 45,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 46,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 47,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 48,
+      "call": "nx_create_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 49,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 50,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 51,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 52,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 53,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 54,
+      "call": "nx_list_checkpoints",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 55,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 56,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 57,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 58,
+      "call": "nx_create_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 59,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 60,
+      "call": "nx_list_checkpoints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 61,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 62,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 63,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 64,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,

@@ -1,0 +1,350 @@
+{
+ "covers": {
+  "nx_set_expression": [],
+  "nx_edit_feature": [],
+  "nx_get_feature": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "blk_sk",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       40,
+       20
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "save": "blk",
+   "args": {
+    "sketch": "$blk_sk.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$blk.data.feature.id"
+   },
+   "expect": {
+    "data.parameters.0.aliases": {
+     "contains": "start"
+    },
+    "data.parameters.1.aliases": {
+     "contains": "end"
+    },
+    "data.parameters.1.aliases.1": "distance"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "thick",
+    "formula": "10 mm"
+   },
+   "expect": {
+    "data.created": true,
+    "data.units": "mm",
+    "data.formula": "10",
+    "data.value": {
+     "close": 10,
+     "tol": 1e-12
+    },
+    "data.features": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "n",
+    "formula": 25
+   },
+   "expect": {
+    "data.units": "unitless",
+    "data.formula": "25",
+    "data.value": {
+     "close": 25,
+     "tol": 1e-12
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "Distance",
+      "value": "thick"
+     }
+    ]
+   },
+   "expect": {
+    "data.parameters.1.formula": "thick",
+    "data.parameters.1.value": {
+     "close": 10,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "thick",
+    "formula": "0.5 in"
+   },
+   "expect": {
+    "data.created": false,
+    "data.units": "mm",
+    "data.formula": "12.7",
+    "data.value": {
+     "close": 12.7,
+     "tol": 1e-09
+    },
+    "data.features": {
+     "count": 1
+    },
+    "data.features.0.kind": "feature"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 10160,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "thick",
+    "formula": "3 deg"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/formula",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "n",
+    "formula": "4 mm"
+   },
+   "expect": {
+    "error.field": "/formula",
+    "error.message": {
+     "contains": "unitless"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "thick",
+    "formula": "thick +"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_FORMULA",
+    "error.field": "/formula",
+    "error.hint": {
+     "contains": "10 mm"
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "end",
+      "value": "15 mm"
+     }
+    ]
+   },
+   "expect": {
+    "data.parameters.1.value": {
+     "close": 15,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 12000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "end",
+      "value": "0.25 in"
+     }
+    ]
+   },
+   "expect": {
+    "data.parameters.1.value": {
+     "close": 6.35,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 5080,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "end",
+      "value": "5 deg"
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/parameters/0/value",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "height",
+      "value": 5
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/parameters/0/name",
+    "error.details.aliases.end": {
+     "matches": "^p\\d+$"
+    },
+    "error.hint": {
+     "contains": "details.aliases"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 5080,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

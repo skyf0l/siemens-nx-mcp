@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/extract_geometry.json",
-  "scenario_sha256": "a725e4bbd2cee8f44c4962030ba4267dff009bf4581fda56af18593cb2fbc55a",
+  "scenario_sha256": "a23e9cd0ffac1765f580f08e7a58d3ad2466543d2ff190e9154f7a76a3463f40",
   "domain": "assembly",
   "covers": {
     "nx_create_extract": [
@@ -13,11 +13,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_extract": "0fa1c28dde03151c36ce3a883ddb659cc8a83f67010d26a620853741e46950d2"
+    "nx_create_extract": "6df036632e24490b98eb8236472c8bf29dd0c566d8946ceee96a81345fdb1ea5"
   },
-  "recorded": "2026-10-10T15:58:43Z",
+  "recorded": "2026-10-10T22:56:03Z",
   "passed": true,
-  "checks": 42,
+  "checks": 47,
   "failed_checks": 0,
   "steps": [
     {
@@ -116,7 +116,7 @@
       "call": "nx_create_extract",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 15,
@@ -130,14 +130,14 @@
       "call": "nx_create_extract",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 17,
       "call": "nx_create_extract",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 18,
@@ -169,45 +169,45 @@
     },
     {
       "index": 22,
+      "call": "nx_create_extract",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 23,
+      "index": 24,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 24,
+      "index": 25,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 25,
+      "index": 26,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 26,
+      "index": 27,
       "call": "nx_edit_feature",
       "setup": true,
       "passed": true,
       "checks": 0
-    },
-    {
-      "index": 27,
-      "call": "nx_measure_mass",
-      "setup": false,
-      "passed": true,
-      "checks": 1
     },
     {
       "index": 28,
@@ -218,6 +218,13 @@
     },
     {
       "index": 29,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 30,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,

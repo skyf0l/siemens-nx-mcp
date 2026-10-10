@@ -266,12 +266,16 @@
      "$hole.data.items.0.id"
     ],
     "action": "resize",
-    "diameter": 14
+    "radius": "7 mm"
    },
    "expect": {
     "data.volume": {
      "close": 115849.513533,
      "tol": 1e-06
+    },
+    "data.volume_change": {
+     "close": -1507.964474,
+     "tol": 0.0001
     }
    }
   },
@@ -416,9 +420,7 @@
      "count": 2,
      "spacing": 20
     },
-    "direction": {
-     "principal": "x"
-    }
+    "direction": "x"
    },
    "expect": {
     "data.volume": {

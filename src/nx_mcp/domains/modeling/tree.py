@@ -15,63 +15,118 @@ NX 2406 lessons kept here:
   changed; ``kit.sketch.solve`` (``LocalUpdate``) solves it and checks the
   driven dimensions.
 - Bad formulas are native errors: ``NX_INVALID_FORMULA`` keeps ``nx_code``.
+- An NX formula has no unit words ("10 mm" is syntax error 3270008): a number with a
+  unit (``'10 mm'``, ``'0.5 in'``, ``'30 deg'``) is converted here to a bare number in
+  the expression's own units (``as_number``).
 """
 
 from __future__ import annotations
 
+import math
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, FeatureRef, Items, Pose, Text, forbid_extra
+from nx_mcp.core.types import MM_PER_IN, Doc, FeatureRef, Items, Pose, Text, forbid_extra
 from nx_mcp.kit import args, expr, readback, result
+from nx_mcp.kit import features as kfeatures
 from nx_mcp.kit import sketch as ksketch
 
 ExpressionName = Annotated[
     str, Text(100, r"^[A-Za-z_][A-Za-z0-9_]{0,99}$"), Doc("Expression name (case-sensitive)")
 ]
-Formula = Annotated[str, Text(4096), Doc("NX expression formula, e.g. 'p3*2' or '25'")]
+Formula = Annotated[
+    float | Annotated[str, Text(4096)], Doc("NX formula ('p3*2', '25'), a number, or '10 mm'")
+]
 MAX_FEATURES = 100
+MAX_DRIVEN = 50
+FORMULA_HINT = (
+    "Send a number, a number with units ('10 mm', '0.5 in', '30 deg'), another "
+    "expression's name, or NX syntax such as 'p3*2'"
+)
+
+
+# ---------------------------------------------------------------------------
+# Numbers with units
+
+# "<number> <unit>": a quantity where NX wants a bare number (an NX formula has no units).
+_QUANTITY = re.compile(
+    r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(mm|in|deg|rad)\s*$", re.IGNORECASE
+)
+# unit -> (dimension, size in the dimension's base unit: mm, deg)
+_SCALE = {
+    "mm": ("length", 1.0),
+    "in": ("length", MM_PER_IN),
+    "deg": ("angle", 1.0),
+    "rad": ("angle", 180.0 / math.pi),
+}
+
+
+def unit_key(exp) -> str:
+    """``mm``, ``in``, ``deg``, ``rad``, ``unitless`` or NX's abbreviation of other units."""
+    unit = getattr(exp, "Units", None)
+    if unit is None:
+        return "unitless"
+    names = {v: k for k, v in expr.UNIT_NAMES.items() if v}
+    for text in (getattr(unit, "Abbreviation", None), getattr(unit, "Name", None)):
+        if text in _SCALE:
+            return str(text)
+        if text in names:
+            return names[text]
+    return expr.units(exp)
+
+
+def quantity(value) -> tuple[float, str] | None:
+    """``(number, unit)`` of a ``'10 mm'`` string, else None."""
+    match = _QUANTITY.match(value) if isinstance(value, str) else None
+    if match is None or not math.isfinite(float(match.group(1))):
+        return None
+    return float(match.group(1)), match.group(2).lower()
+
+
+def convert(number: float, unit: str, to: str) -> float | None:
+    """``number`` ``unit`` in ``to`` units; None when they measure different things."""
+    a, b = _SCALE.get(unit), _SCALE.get(to)
+    if a is None or b is None or a[0] != b[0]:
+        return None
+    return number if unit == to else number * a[1] / b[1]
+
+
+def number_text(value: float) -> str:
+    """A number as NX formula text (``25`` rather than ``25.0``)."""
+    text = repr(float(value))
+    return text[:-2] if text.endswith(".0") else text
+
+
+def as_number(value, exp, field: str):
+    """``value`` for ``exp``: ``'20 mm'`` becomes a number in the expression's units;
+    numbers and formulas pass unchanged."""
+    q = quantity(value)
+    if q is None:
+        return value
+    own = unit_key(exp)
+    converted = convert(*q, own)
+    if converted is None:
+        what = "is unitless" if own == "unitless" else f"is in {own}"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{exp.Name} {what}; {value.strip()!r} does not fit it",
+            field=field,
+            hint=f"Give a plain number in {own}" if own != "unitless" else "Give a plain number",
+        )
+    return converted
 
 
 # ---------------------------------------------------------------------------
 # Timeline state
 
 
-def _internal(feature) -> bool:
-    return bool(getattr(feature, "IsInternal", False))
-
-
-def timeline(part) -> list:
-    """User-visible features in timeline order (a sketch's internal datum system omitted).
-
-    Timestamps are not unique, so the stable sort keeps NX's order for ties.
-    """
-    features = list(part.Features)
-    if features and all(hasattr(f, "Timestamp") for f in features):
-        features.sort(key=lambda f: int(f.Timestamp))
-    return [f for f in features if not _internal(f)]
-
-
-def states(tx, part) -> dict:
-    """``{tag: (feature, suppressed, active)}`` in timeline order."""
-    order = timeline(part)
-    current = getattr(part, "CurrentFeature", None)
-    tags = [int(f.Tag) for f in order]
-    cut = tags.index(int(current.Tag)) if current is not None and int(current.Tag) in tags else None
-    ask = getattr(getattr(tx.uf, "Modeling", None), "AskSuppressFeature", None)
-    out = {}
-    for i, f in enumerate(order):
-        active = cut is None or i <= cut
-        if ask is not None:
-            code = int(ask(f.Tag))
-            suppressed = bool(code & 1)
-            active = active and not code & 16
-        else:
-            suppressed = bool(getattr(f, "Suppressed", False)) and active
-        out[int(f.Tag)] = (f, suppressed, active)
-    return out
+# kit.features: the timeline and feature states are shared with the inspection domain.
+_internal = kfeatures.internal
+timeline = kfeatures.timeline
+states = kfeatures.states
 
 
 def child_map(features) -> dict:
@@ -113,14 +168,46 @@ def expected_order(order, moved, anchor, position) -> list:
     return rest[:at] + [moved] + rest[at:]
 
 
+def display_name(f) -> str:
+    """The name a feature row shows (its own name, else NX's journal identifier)."""
+    return str(getattr(f, "Name", "") or getattr(f, "JournalIdentifier", "") or "")
+
+
+def owner_of(part, f):
+    """The user-visible feature an internal one belongs to, else None: NX names an internal
+    feature after its owner (``SKETCH(1:1B)`` of ``SKETCH(1)``) and gives it the owner's
+    timestamp."""
+    jid = str(getattr(f, "JournalIdentifier", "") or "")
+    owned = jid.split(":", 1)[0] + ")" if ":" in jid else None
+    stamp = getattr(f, "Timestamp", None)
+    visible = [o for o in timeline(part) if int(o.Tag) != int(f.Tag)]
+    match = [o for o in visible if owned and getattr(o, "JournalIdentifier", None) == owned]
+    if not match and stamp is not None:
+        match = [o for o in visible if getattr(o, "Timestamp", None) == stamp]
+    return match[0] if match else None
+
+
 def _feature(tx, ref, field="/feature"):
-    """A feature of the work part (an internal sketch datum system is refused)."""
+    """A feature of the work part; an internal one (a hole's or a sketch's own sub-feature)
+    is refused with its owner's ref."""
     f = tx.resolve(ref, "feature", work_part=True)
     if _internal(f):
+        owner = owner_of(tx.part, f)
+        if owner is None:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{display_name(f)} is an internal sub-feature of another feature (such as a "
+                "hole's or a sketch's own); it follows its owner",
+                field=field,
+                hint="Use the owning feature; nx_list_objects kind feature lists only those",
+            )
+        row = tx.ref(owner, kind="feature")
         fail(
             "NX_INVALID_ARGUMENT",
-            "Internal features (a sketch's datum system) follow their owner; use the owner",
+            f"{display_name(f)} is an internal sub-feature of {row['name']} and follows it",
             field=field,
+            hint=f"Use the owner {row['id']} ({row['name']}) instead",
+            details={"owner": row},
         )
     return f
 
@@ -170,6 +257,7 @@ class Parameter(TypedDict):
     value: float | None
     units: str
     editable: bool
+    aliases: list[str]
 
 
 class FeatureInfo(TypedDict):
@@ -184,7 +272,19 @@ class FeatureInfo(TypedDict):
     errors: list[str]
 
 
-def _parameter(tx, e) -> Parameter:
+def aliases(f) -> dict:
+    """``{alias: expression tag}``: the semantic names (``distance``, ``end``...) that
+    ``nx_edit_feature`` resolves on this feature, so p-numbered expressions read clearly."""
+    out = {}
+    for name in expr.ALIASES:
+        try:
+            out[name] = int(expr.alias(f, name).Tag)
+        except NXError:
+            continue
+    return out
+
+
+def _parameter(tx, e, named=None) -> Parameter:
     try:
         value = expr.value(tx, e)
     except Exception:
@@ -196,6 +296,7 @@ def _parameter(tx, e) -> Parameter:
         "value": value,
         "units": expr.units(e),
         "editable": expr.editable(e),
+        "aliases": [a for a, tag in (named or {}).items() if tag == int(e.Tag)],
     }
 
 
@@ -205,6 +306,8 @@ def info(tx, f) -> FeatureInfo:
     children = child_map(list(part.Features)).get(int(f.Tag), set())
     by_tag = {int(x.Tag): x for x in part.Features}
     stamp = getattr(f, "Timestamp", None)
+    expressions = list(f.GetExpressions())
+    named = aliases(f) if expressions else {}
     return {
         "feature": tx.ref(f, kind="feature"),
         "type": str(getattr(f, "FeatureType", "")),
@@ -217,7 +320,7 @@ def info(tx, f) -> FeatureInfo:
             for t in sorted(children)
             if t in by_tag and not _internal(by_tag[t])
         ],
-        "parameters": [_parameter(tx, e) for e in f.GetExpressions()],
+        "parameters": [_parameter(tx, e, named) for e in expressions],
         "errors": feature_messages(f),
     }
 
@@ -238,8 +341,9 @@ def info(tx, f) -> FeatureInfo:
     example={"feature": "f:12"},
 )
 def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:
-    """Read a feature: type, timeline position, state, parents and children. Parameters list
-    each expression with its formula, value, units and editability."""
+    """Read a feature: type, timeline position, state, parents and children. Parameters give
+    formula, value, units and nx_edit_feature aliases. feature: a ref like f:12 (from a create
+    result or nx_list_objects)."""
     return info(tx, _feature(tx, feature))
 
 
@@ -250,7 +354,7 @@ def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:
 class ParameterValue(TypedDict):
     name: Annotated[str, Text(100), Doc("Expression name or alias: distance, radius, count...")]
     value: Annotated[
-        float | Annotated[str, Text(4096)], Doc("Number in the expression's units, or a formula")
+        float | Annotated[str, Text(4096)], Doc("Number in expression units, '20 mm' or formula")
     ]
 
 
@@ -261,6 +365,28 @@ class TransformDefinition(TypedDict):
 forbid_extra(ParameterValue, TransformDefinition)
 
 
+def _unknown(f, owned, error: NXError) -> None:
+    """Say what the feature does take when a parameter name matches nothing."""
+    if error.code != "NX_NOT_FOUND":
+        return
+    if not owned:
+        error.message = f"{f.JournalIdentifier} has no parameters to edit"
+        error.hint = (
+            "A sketch's dimensions are expressions: nx_get_sketch lists them and "
+            "nx_set_expression changes them"
+            if "SKETCH" in str(getattr(f, "FeatureType", "")).upper()
+            else "Edit the feature's parents or its definition instead"
+        )
+        return
+    by_tag = {int(e.Tag): e.Name for e in owned}
+    named = {a: by_tag[t] for a, t in aliases(f).items() if t in by_tag}
+    error.details = {**(error.details or {}), "aliases": named}
+    error.hint = (
+        "Use an expression name from details.expressions or an alias from details.aliases "
+        "(nx_get_feature lists both)"
+    )
+
+
 def _parameter_targets(tx, f, parameters):
     owned = list(f.GetExpressions())
     seen, out = set(), []
@@ -268,18 +394,22 @@ def _parameter_targets(tx, f, parameters):
         field = f"/parameters/{i}"
         name = item["name"]
         exp = next((e for e in owned if e.Name == name), None)
+        folded = [e for e in owned if e.Name.casefold() == name.strip().casefold()]
+        if exp is None and len(folded) == 1:  # 'P1' for p1: the feature's own names
+            exp = folded[0]
         if exp is None:
             try:
-                exp = expr.alias(f, name)
-            except Exception as error:
+                exp = expr.alias(f, name.strip().casefold())
+            except NXError as error:
                 error.field = field + "/name"
+                _unknown(f, owned, error)
                 raise
         if int(exp.Tag) in seen:
             fail("NX_INVALID_ARGUMENT", f"{name} names an expression twice", field=field)
         seen.add(int(exp.Tag))
         if not expr.editable(exp):
             fail("NX_READ_ONLY", f"Expression {exp.Name} is locked or interpart", field=field)
-        out.append((exp, item["value"], field))
+        out.append((exp, as_number(item["value"], exp, field + "/value"), field))
     return out
 
 
@@ -312,7 +442,8 @@ def nx_edit_feature(
     """Set feature parameters to numbers or formulas, by expression name or alias (distance,
     radius, count). definition replaces a transform."""
     args.exactly_one(parameters=parameters, definition=definition)
-    f = _feature(tx, feature)
+    with tx.checks():
+        f = _feature(tx, feature)
     if definition is not None:
         kind = str(getattr(f, "FeatureType", "")).upper().replace(" ", "_")
         handler = hooks("definition").get(kind)
@@ -325,13 +456,16 @@ def nx_edit_feature(
         handler(tx, f, definition)
         update(tx)
     else:
-        targets = _parameter_targets(tx, f, parameters)
+        with tx.checks():
+            targets = _parameter_targets(tx, f, parameters)
         for exp, value, field in targets:
             try:
                 expr.bind(tx, exp, value)
             except Exception as error:
                 if getattr(error, "field", "") is None:
                     error.field = field + "/value"  # type: ignore[attr-defined]  # any exception without a field
+                if isinstance(error, NXError) and error.code == "NX_INVALID_FORMULA":
+                    error.hint = error.hint or FORMULA_HINT
                 raise
         update(tx)
         for exp, value, field in targets:
@@ -394,8 +528,9 @@ def nx_set_feature_suppression(
     features: Annotated[list[FeatureRef], Items(1, MAX_FEATURES)],
     suppressed: bool,
 ) -> SuppressionData:
-    """Suppress or unsuppress features. Dependents follow a suppress; unsuppress restores only
-    the listed ones (see still_suppressed). Reacquire faces and edges after."""
+    """Suppress (suppressed: true) or unsuppress (false) features given as refs like f:12
+    from nx_list_objects. Dependents follow a suppress; unsuppress restores only the listed
+    ones (see still_suppressed). Reacquire faces and edges after."""
     args.distinct("/features", features, "features")
     part = tx.part
     targets = [_feature(tx, ref, f"/features/{i}") for i, ref in enumerate(features)]
@@ -475,8 +610,9 @@ def nx_set_current_feature(
     *,
     feature: FeatureRef | None = None,
 ) -> CurrentData:
-    """Roll the timeline to a feature, or to the end when feature is omitted. Later features
-    become inactive and new features are inserted after the current one."""
+    """Roll the timeline to a feature (a ref like f:12 from nx_list_objects), or to the end
+    when feature is omitted. Later features become inactive (not suppressed) and new features
+    are inserted after the current one."""
     part = tx.part
     order = timeline(part)
     if not order:
@@ -509,68 +645,122 @@ def nx_set_current_feature(
     }
 
 
+class Renamed(result.Row):
+    was: str
+
+
 class OrderData(TypedDict):
     feature: Row
     anchor: Row
     moved: bool
+    renamed: Annotated[list[Renamed], Doc("Features NX renumbered (was: the old name)")]
+
+
+def _placement(anchor, position, before, after) -> tuple[str, str]:
+    """``(anchor ref, position)`` from anchor + position, or from before / after alone."""
+    if before is not None or after is not None:
+        if anchor is not None or position is not None or (before and after):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "Give one placement: before, after, or anchor with position",
+                field="/after" if after is not None else "/before",
+                hint="e.g. {feature: 'f:12', after: 'f:9'} or "
+                "{feature: 'f:12', anchor: 'f:9', position: 'after'}",
+            )
+        return (before, "before") if before is not None else (after, "after")
+    if anchor is None or position is None:
+        missing = "anchor" if anchor is None else "position"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{missing} is required: give anchor (a feature ref) with position 'before' or "
+            "'after', or before/after alone",
+            field="/" + missing,
+            hint="e.g. {feature: 'f:12', after: 'f:9'}",
+        )
+    return anchor, position
 
 
 @tool(
     effect="model",
     label="Reorder feature",
-    summary="Move {feature} {position} {anchor}",
+    summary=lambda a, say: (
+        f"Move {say('feature')} "
+        + next(
+            (
+                f"{p} {say(p)}" if p != "anchor" else f"{a.get('position')} {say('anchor')}"
+                for p in ("before", "after", "anchor")
+                if a.get(p) is not None
+            ),
+            "",
+        )
+    ).strip(),
     keywords=("reorder", "move feature", "timeline order", "feature order", "drag in history"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
-    example={"feature": "f:12", "anchor": "f:9", "position": "before"},
+    example={"feature": "f:12", "after": "f:9"},
 )
 def nx_set_feature_order(
     tx: Tx,
     *,
     feature: FeatureRef,
-    anchor: FeatureRef,
-    position: Literal["before", "after"],
+    anchor: FeatureRef | None = None,
+    position: Literal["before", "after"] | None = None,
+    before: FeatureRef | None = None,
+    after: FeatureRef | None = None,
 ) -> OrderData:
-    """Move a feature directly before or after another. A feature cannot move before a parent
-    or after a child (NX_DEPENDENCY_ORDER lists them); NX renumbers feature names."""
-    if feature == anchor:
-        fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field="/anchor")
+    """Move a feature directly before or after another: before or after alone, or anchor with
+    position. Refs like f:12. A feature cannot move before a parent or after a child
+    (NX_DEPENDENCY_ORDER lists them). NX renumbers names (see renamed)."""
+    ref, where = _placement(anchor, position, before, after)
+    field = "/" + ("anchor" if before is None and after is None else where)
+    if feature == ref:
+        fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
     part = tx.part
-    moved, target = _feature(tx, feature), _feature(tx, anchor, "/anchor")
+    moved, target = _feature(tx, feature), _feature(tx, ref, field)
     key, at = int(moved.Tag), int(target.Tag)
     if key == at:
-        fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field="/anchor")
-    before = states(tx, part)
-    order = list(before)
+        fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
+    old = states(tx, part)
+    order = list(old)
+    names = {tag: display_name(f) for tag, (f, _, _) in old.items()}
     parents = {key: {int(p.Tag) for p in moved.GetParents()}}
     children = {key: child_map(list(part.Features)).get(key, set())}
-    conflicts = reorder_conflicts(order, parents, children, key, at, position)
+    conflicts = reorder_conflicts(order, parents, children, key, at, where)
     if conflicts:
+        relation = "after its child" if conflicts[0][1] == "child" else "before its parent"
         fail(
             "NX_DEPENDENCY_ORDER",
-            f"Moving {moved.Name} {position} {target.Name} would put it before a parent or "
-            "after a child",
-            field="/anchor",
-            details={
-                "conflicts": [{**_row(tx, before[k][0]), "relation": r} for k, r in conflicts]
-            },
+            f"Moving {names[key]} {where} {names[at]} would put it {relation} "
+            + ", ".join(names[k] for k, _ in conflicts),
+            field=field,
+            hint="Pick an anchor that keeps the feature after its parents and before its "
+            "children (details.conflicts)",
+            details={"conflicts": [{**_row(tx, old[k][0]), "relation": r} for k, r in conflicts]},
         )
-    wanted = expected_order(order, key, at, position)
+    wanted = expected_order(order, key, at, where)
+    new = old
     if wanted != order:
         kinds = tx.nx.Features.FeatureCollection.ReorderType
         # NX 2406 refuses some moves natively (670529 "being referenced").
         with native(default="NX_DEPENDENCY_ORDER"):
             part.Features.ReorderFeature(
-                [moved], target, kinds.Before if position == "before" else kinds.After
+                [moved], target, kinds.Before if where == "before" else kinds.After
             )
         update(tx)
-        after = list(states(tx, part))
-        readback.expect(after == wanted, "order", "NX timeline order differs from the request")
+        new = states(tx, part)
+        readback.expect(list(new) == wanted, "order", "NX timeline order differs from the request")
+    # Rows from the refreshed timeline: NX renumbers names after a move.
+    fresh = {tag: f for tag, (f, _, _) in new.items()}
+    renamed: list[Renamed] = []
+    for tag, f in fresh.items():
+        if tag in names and display_name(f) != names[tag] and len(renamed) < MAX_FEATURES:
+            renamed.append({**tx.ref(f, kind="feature"), "was": names[tag]})
     return {
-        "feature": _row(tx, moved, index=wanted.index(key)),
-        "anchor": _row(tx, target, index=wanted.index(at)),
+        "feature": _row(tx, fresh.get(key, moved), index=wanted.index(key)),
+        "anchor": _row(tx, fresh.get(at, target), index=wanted.index(at)),
         "moved": wanted != order,
+        "renamed": renamed,
     }
 
 
@@ -584,6 +774,20 @@ class ExpressionData(TypedDict):
     value: float | None
     units: str
     created: bool
+    features: list[result.Row]
+
+
+def driven_features(tx, expressions) -> list[result.Row]:
+    """Features whose parameters use ``expressions``, directly or through other ones."""
+    tags = ksketch._expression_closure(expressions)
+    out = []
+    for f in timeline(tx.part):
+        query = getattr(f, "GetExpressions", None)
+        if query is not None and any(int(getattr(e, "Tag", -1)) in tags for e in query()):
+            out.append(tx.ref(f, kind="feature"))
+            if len(out) == MAX_DRIVEN:
+                break
+    return out
 
 
 @tool(
@@ -603,25 +807,55 @@ def nx_set_expression(
     formula: Formula,
     units: Literal["mm", "in", "deg", "rad", "unitless"] | None = None,
 ) -> ExpressionData:
-    """Create a named Number expression or change its formula. units apply to a new expression
-    only; the model updates and an active sketch it drives is solved."""
-    existing = expr.find(tx, name)
+    """Create a named Number expression or change its formula ('10 mm' converts to the
+    expression's units). units apply to a new one only. Lists the features it drives."""
+    with tx.checks():
+        existing = expr.find(tx, name)
+        number, unit = _formula_value(existing, formula, units)
+    text = formula if number is None else number_text(number)
     try:
-        exp = _set(tx, existing, name, formula, units)
+        exp = _set(tx, existing, name, text, unit)
     except NXError as error:
-        if error.code == "NX_INVALID_FORMULA" and error.field is None:
-            error.field = "/formula"
+        if error.code == "NX_INVALID_FORMULA":
+            error.field = error.field or "/formula"
+            error.hint = error.hint or FORMULA_HINT
         raise
     update(tx)
     if existing is not None:
         solve_driven_sketch(tx, [exp])
+    value = expr.value(tx, exp)
+    if number is not None:
+        readback.expect_close(value, number, "value")
     return {
         "expression": tx.ref(exp, kind="expression"),
         "formula": str(exp.RightHandSide),
-        "value": expr.value(tx, exp),
+        "value": value,
         "units": expr.units(exp),
         "created": existing is None,
+        "features": driven_features(tx, [exp]),
     }
+
+
+def _formula_value(existing, formula, units) -> tuple[float | None, str | None]:
+    """``(number or None, units)``: a number, or ``'10 mm'`` converted to the existing
+    expression's units (a new expression takes the string's unit unless units is given)."""
+    if isinstance(formula, (int, float)):
+        return float(formula), units
+    q = quantity(formula)
+    if q is None:
+        return None, units
+    if existing is not None:
+        return float(as_number(formula, existing, "/formula")), units
+    target = units or q[1]
+    converted = convert(*q, target)
+    if converted is None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{formula.strip()!r} does not fit units={target}",
+            field="/formula",
+            hint="Omit units to take the formula's unit, or give a plain number",
+        )
+    return converted, target
 
 
 def _set(tx, existing, name, formula, units):
@@ -633,6 +867,7 @@ def _set(tx, existing, name, formula, units):
                 "NX_INVALID_ARGUMENT",
                 f"{name} exists in {expr.units(existing)}; its units cannot change",
                 field="/units",
+                hint="Omit units for an existing expression ('0.5 in' still converts)",
             )
         if getattr(existing, "Type", "Number") != "Number":
             fail("NX_READ_ONLY", f"{name} is not a Number expression", field="/name")
@@ -648,7 +883,8 @@ class HealthData(TypedDict):
     features: int
     errors: list[dict]
     warnings: list[dict]
-    suppressed: int
+    suppressed: Annotated[int, Doc("Features suppressed by the user")]
+    inactive: Annotated[int, Doc("Features after the current feature (rolled back)")]
     bodies_checked: int
 
 
@@ -662,19 +898,21 @@ class HealthData(TypedDict):
     example={},
 )
 def nx_update_model(tx: Tx) -> HealthData:
-    """Run the NX model update and report feature errors, warnings and body consistency. Update
+    """Run the NX model update and report feature errors, warnings and body consistency. Takes
+    no arguments. Counts user-suppressed and inactive (rolled back) features apart. Update
     errors roll the model back."""
     part = tx.part
     update(tx)
     errors: list[dict] = []
     warnings: list[dict] = []
-    suppressed = 0
     for f in part.Features:
         tx.checkpoint()
         for kind, out in (("Error", errors), ("Warning", warnings)):
             for message in feature_messages(f, kind):
                 out.append({"feature": f.JournalIdentifier, "message": message})
-        suppressed += bool(getattr(f, "Suppressed", False))
+    state = states(tx, part).values()
+    suppressed = sum(s for _, s, _ in state)
+    inactive = sum(not a for _, _, a in state)
     bodies = list(part.Bodies)
     check = getattr(getattr(tx.uf, "Modeling", None), "AskBodyConsistency", None)
     if check is not None:
@@ -689,5 +927,6 @@ def nx_update_model(tx: Tx) -> HealthData:
         "errors": errors,
         "warnings": warnings,
         "suppressed": suppressed,
+        "inactive": inactive,
         "bodies_checked": len(bodies) if check is not None else 0,
     }

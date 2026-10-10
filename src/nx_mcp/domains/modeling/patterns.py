@@ -17,31 +17,31 @@ import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
-    Axis,
     BodyRef,
     ByVariant,
-    Direction,
+    CountValue,
     Doc,
     FaceRef,
     FeatureRef,
     Items,
     Json,
     Length,
-    Plane,
     Point3,
     Range,
     RefTo,
     forbid_extra,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, geom, measure, readback, result, select
+from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, select
 
 BodyList = Annotated[list[BodyRef], Items(1, 50)]
-FeatureList = Annotated[list[FeatureRef], Items(1, 50)]
+FeatureList = Annotated[list[FeatureRef], Items(1, 50), Doc("Feature ids f:.., not bodies b:..")]
+AxisArg = common.AxisArg
+DirectionArg = common.DirectionArg
 MAX_INSTANCES = 1000
 
 
@@ -62,11 +62,31 @@ def _seeds(tx, features, field="/features"):
     args.distinct(field, features, "features")
     seeds = []
     for i, ref in enumerate(features):
-        f = tx.resolve(ref, "feature", work_part=True)
+        try:
+            f = tx.resolve(ref, "feature", work_part=True)
+        except NXError as error:
+            if error.code == "NX_WRONG_KIND":
+                _body_instead(tx, ref, error, f"{field}/{i}")
+            raise
         if getattr(f, "IsInternal", False):
             fail("NX_INVALID_ARGUMENT", "Use the owning feature", field=f"{field}/{i}")
         seeds.append(f)
     return seeds
+
+
+def _body_instead(tx, ref, error, field):
+    """Point a body passed where a feature is expected at the feature that made it."""
+    error.field = error.field or field
+    try:
+        body = tx.resolve(ref, "body")
+        made = [tx.ref(f, kind="feature")["id"] for f in list(body.GetFeatures())[:1]]
+    except Exception:  # not a body, or NX cannot tell its features: keep the error
+        return
+    error.hint = (
+        f"Pass the feature that made the body ({made[0]}, see nx_list_objects kind feature)"
+        if made
+        else "Pass a feature id f:.. (nx_list_objects kind feature)"
+    ) + "; to copy whole bodies use nx_create_mirror target bodies or nx_create_transform copy"
 
 
 def _hosts(seeds):
@@ -135,8 +155,10 @@ def _smart_axis(tx, value, field):
     return axis, origin, want
 
 
-def _expression(expr, value):
-    expr.RightHandSide = repr(float(value)) if isinstance(value, float) else str(value)
+def _expression(target, value):
+    """Set a builder expression: an int as a whole number, an expression formula as
+    its formula (the pattern stays driven by the expression)."""
+    expr.drive(target, value, integer=isinstance(value, int))
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +261,7 @@ def _mirror_features(tx, refs, plane, unite):
 def nx_create_mirror(
     tx: Tx,
     *,
-    plane: Plane,
+    plane: common.PlaneArg,
     target: Literal["bodies", "features"] = "bodies",
     bodies: BodyList | None = None,
     features: FeatureList | None = None,
@@ -248,10 +270,11 @@ def nx_create_mirror(
         bool, Doc("features only: unite separate-body mirrors into the seed's body")
     ] = False,
 ) -> MirrorData:
-    """Mirror solid bodies into new bodies, or features into their own bodies, about a
-    plane (associative to a datum plane). target selects which list is used. Mirrors of a
-    feature that made its own body are new bodies (new_bodies) unless unite merges them
+    """Mirror solid bodies, or features into their own bodies, about a plane ('yz', a datum
+    plane or a face). target bodies: bodies and volume are the new mirrors only. Mirrors of
+    a feature that made its own body are new bodies (new_bodies) unless unite merges them
     into the seed's body."""
+    plane = common.principal_plane(plane)
     wanted, other = ("bodies", "features") if target == "bodies" else ("features", "bodies")
     given: dict[str, list[str] | None] = {"bodies": bodies, "features": features}
     if not given[wanted]:
@@ -280,30 +303,28 @@ def nx_create_mirror(
 # Pattern layouts
 
 
-Count = Annotated[int, Range(ge=2, le=MAX_INSTANCES), Doc("Instances including the seed")]
+# Counts may be an NX expression name or formula too (``"n_bolts"``): the pattern follows it.
+Count = Annotated[CountValue, Range(ge=2, le=MAX_INSTANCES), Doc("Instances including the seed")]
 
 
 class _LinearRequired(TypedDict):
-    direction: Direction
+    direction: DirectionArg
     count: Count
     spacing: Length
 
 
 class LinearForm(_LinearRequired, total=False):
-    direction2: Direction
-    count2: Annotated[int, Range(ge=1, le=MAX_INSTANCES)]
+    direction2: DirectionArg
+    count2: Annotated[CountValue, Range(ge=1, le=MAX_INSTANCES)]
     spacing2: Length
 
 
 class CircularForm(TypedDict):
-    axis: Axis
-    count: Annotated[int, Range(ge=2, le=360), Doc("Instances including the seed")]
+    axis: AxisArg
+    count: Annotated[CountValue, Range(ge=2, le=360), Doc("Instances including the seed")]
     angle: Annotated[
         Angle,
-        Doc(
-            "Step (pitch) between neighbouring instances, not the total span: "
-            "6 instances evenly on a full circle use angle 60"
-        ),
+        Doc("Step between neighbours, not the total span: 6 evenly on a circle use 60"),
     ]
 
 
@@ -317,7 +338,7 @@ class AlongCurveForm(TypedDict):
 
 
 class _PolygonRequired(TypedDict):
-    axis: Axis
+    axis: AxisArg
     sides: Annotated[int, Range(ge=3, le=100)]
     count_per_side: Annotated[int, Range(ge=2, le=100), Doc("Instances per side, corners included")]
 
@@ -329,8 +350,8 @@ class PolygonForm(_PolygonRequired, total=False):
 
 
 class _SpiralRequired(TypedDict):
-    normal: Annotated[Direction, Doc("Spiral plane normal; the spiral starts at the seed")]
-    reference: Annotated[Direction, Doc("In-plane start direction of the spiral")]
+    normal: Annotated[DirectionArg, Doc("Spiral plane normal; the spiral starts at the seed")]
+    reference: Annotated[DirectionArg, Doc("In-plane start direction of the spiral")]
     angle: Annotated[Angle, Doc("Total spiral angle (360 = one turn)")]
     pitch: Annotated[Length, Doc("Radial growth per turn")]
     spacing: Annotated[Length, Doc("Distance between instances along the spiral")]
@@ -342,7 +363,7 @@ class SpiralForm(_SpiralRequired, total=False):
 
 class _FillRequired(TypedDict):
     boundary: Annotated[FaceRef, Doc("Planar face the grid through the seed fills")]
-    direction: Annotated[Direction, Doc("In-plane grid direction")]
+    direction: Annotated[DirectionArg, Doc("In-plane grid direction")]
     spacing: Length
 
 
@@ -401,6 +422,13 @@ def _pattern_summary(a, say):
 def _check(layout, p):
     """Argument checks before NX; returns the requested instance count or None (NX decides)."""
     where = "/parameters"
+    for key, low in (("count", 2), ("count2", 1)):
+        if p.get(key) is not None and not low <= p[key] <= MAX_INSTANCES:  # an expression's
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{key} must be {low}..{MAX_INSTANCES}, got {p[key]}",
+                field=f"{where}/{key}",
+            )
     if layout == "linear":
         second = [p.get(k) is not None for k in ("direction2", "count2", "spacing2")]
         if any(second) and not all(second):
@@ -463,8 +491,8 @@ def _linear(tx, service, G, p):
     d = service.RectangularDefinition
     where = "/parameters"
     d.XDirection, first = _smart_direction(tx, p["direction"], where + "/direction")
-    _expression(d.XSpacing.NCopies, int(p["count"]))
-    _expression(d.XSpacing.PitchDistance, float(p["spacing"]))
+    _expression(d.XSpacing.NCopies, p["count"])
+    _expression(d.XSpacing.PitchDistance, expr.number(p["spacing"]))
     if p.get("direction2") is not None:
         smart, other = _smart_direction(tx, p["direction2"], where + "/direction2")
         if geom.parallel(first, other, 1e-6):
@@ -475,8 +503,8 @@ def _linear(tx, service, G, p):
             )
         d.UseYDirectionToggle = True
         d.YDirection = smart
-        _expression(d.YSpacing.NCopies, int(p["count2"]))
-        _expression(d.YSpacing.PitchDistance, float(p["spacing2"]))
+        _expression(d.YSpacing.NCopies, p["count2"])
+        _expression(d.YSpacing.PitchDistance, expr.number(p["spacing2"]))
     else:
         _expression(d.YSpacing.NCopies, 1)
 
@@ -487,8 +515,8 @@ def _circular(tx, service, G, p):
     d.RotationAxis = _smart_axis(tx, p["axis"], "/parameters/axis")[0]
     spacing = d.AngularSpacing
     spacing.SpaceType = G.PatternSpacing.SpacingType.Offset
-    _expression(spacing.NCopies, int(p["count"]))
-    _expression(spacing.PitchAngle, float(p["angle"]))
+    _expression(spacing.NCopies, p["count"])
+    _expression(spacing.PitchAngle, expr.number(p["angle"]))
     _expression(d.RadialSpacing.NCopies, 1)
 
 
@@ -543,8 +571,8 @@ def _along_curve(tx, service, G, p):
     spacing.OnPathSpanDistance.Update(reason)
     pitch.IsPercentUsed = False
     pitch.IsParameterUsed = False
-    _expression(spacing.NCopies, int(p["count"]))
-    _expression(pitch.Expression, float(p["spacing"]))
+    _expression(spacing.NCopies, p["count"])
+    _expression(pitch.Expression, expr.number(p["spacing"]))
     d.UseYDirectionToggle = False
 
 
@@ -574,11 +602,11 @@ def _spiral(tx, service, G, p):
         G.SpiralPattern.OrientType, (p.get("hand") or "right").capitalize() + "hand"
     )
     d.SizeSpiralType = G.SpiralPattern.SpiralDefineSize.TotalAngle
-    _expression(d.TotalAngle, float(p["angle"]))
-    _expression(d.RadialPitch, float(p["pitch"]))
+    _expression(d.TotalAngle, expr.number(p["angle"]))
+    _expression(d.RadialPitch, expr.number(p["pitch"]))
     pitch = d.PitchAlongSpiral.OnPathPitchDistance
     pitch.IsPercentUsed = False
-    _expression(pitch.Expression, float(p["spacing"]))
+    _expression(pitch.Expression, expr.number(p["spacing"]))
 
 
 def _fill(tx, service, G, p):
@@ -600,7 +628,7 @@ def _fill(tx, service, G, p):
     fill.FillBoundary.AddToSection(
         [rule], face, None, None, tx.nx.Point3d(0.0, 0.0, 0.0), tx.nx.Section.Mode.Create, False
     )
-    _expression(fill.FillMargin, float(p.get("margin") or 0.0))
+    _expression(fill.FillMargin, expr.number(p.get("margin") or 0.0))
 
 
 def _general(tx, service, G, p):
@@ -615,6 +643,9 @@ def _general(tx, service, G, p):
         [rule], points[0], None, None, help_point, tx.nx.Section.Mode.Create, False
     )
 
+
+# Layout fields that take a bare principal name ("x", "-z") for the axis or direction.
+SHORT_AXES = frozenset({"direction", "direction2", "axis", "normal", "reference"})
 
 CONFIGURE = {
     "linear": _linear,
@@ -669,7 +700,7 @@ def nx_create_pattern(
     face, or at explicit points. Counts include the seed; NX computes spiral and fill counts.
     A seed with its own body makes new bodies (new_bodies) unless unite; a circular angle
     is the step between instances."""
-    p = dict(parameters)
+    p = {k: common.principal(v) if k in SHORT_AXES else v for k, v in parameters.items()}
     total = _check(layout, p)
     with tx.checks():
         seeds = _seeds(tx, features)

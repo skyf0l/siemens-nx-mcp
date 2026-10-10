@@ -16,15 +16,16 @@ never touched.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, NoReturn, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Offset, Range, Text
 from nx_mcp.kit import result
-from nx_mcp.kit.snapshots import LOCK, maintain, settings
+from nx_mcp.kit.snapshots import LOCK, bury, maintain, settings, tombstone
 
 # The two snapshot folders under <workspace>/.nx-mcp: sidecar compaction, bridge overflow.
 STORES = ("agent-results", "bridge-results")
@@ -33,10 +34,11 @@ COMPACT_CHARS = 2048
 MAX_RESPONSE = 400 * 1024
 ID_PATTERN = r"^result_[0-9a-f]{32}$"
 
-ResultId = Annotated[str, Text(39, ID_PATTERN), Doc("result_id of a compact or oversized result")]
-Pointer = Annotated[
-    str, Text(512, r"^(/.*)?$"), Doc("JSON pointer into the result, e.g. /data/items/3")
+ResultId = Annotated[
+    str, Text(39, ID_PATTERN), Doc("result_id of a result that cut arrays or text (see omitted)")
 ]
+# A pointer without its leading "/" ("data/curves") is read as "/data/curves".
+Pointer = Annotated[str, Text(512), Doc("JSON pointer from omitted, e.g. /data/items/3")]
 Limit = Annotated[int, Range(ge=1, le=100), Doc("Rows per page")]
 Detail = Annotated[
     Literal["compact", "full"], Doc("compact cuts nested arrays to 20 items; full returns all")
@@ -54,13 +56,39 @@ class ResultData(TypedDict, total=False):
 
 
 class CleanupData(TypedDict):
-    applied: bool
+    applied: bool  # false for a preview (dry_run)
+    deleted_count: int  # snapshots actually deleted (0 for a preview)
     policy: dict  # {max_age_seconds, max_bytes}
     snapshot_count: int
     bytes_before: int
     selected_count: int
     bytes_after_cleanup: int
     missing: list[str]  # requested result_ids that do not exist
+
+
+# Units of max_age_seconds given as text ('7d', '12 hours'), in seconds.
+DURATIONS = {"": 1, "s": 1, "sec": 1, "second": 1, "m": 60, "min": 60, "minute": 60,
+             "h": 3600, "hr": 3600, "hour": 3600, "d": 86400, "day": 86400,
+             "w": 604800, "wk": 604800, "week": 604800}  # fmt: skip
+
+
+def _amount(value, units: dict, field: str, example: str) -> int | None:
+    """An int, or text such as '7d' or '12 hours', as a whole number of base units."""
+    if value is None or isinstance(value, int):
+        return value
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([A-Za-z]*)\s*", value)
+    unit = match.group(2).lower() if match else ""
+    if match and unit not in units and len(unit) > 2 and unit.endswith("s"):
+        unit = unit[:-1]  # hours, days, weeks, mins, secs
+    if not match or unit not in units:
+        accepted = ", ".join(u for u in units if u)
+        fail("NX_INVALID_ARGUMENT", f"{field[1:]} {value!r} is not understood",
+             field=field, hint=f"Pass an integer or a number with one of {accepted}, e.g. "
+             f"{example}")  # fmt: skip
+    amount = int(float(match.group(1)) * units[unit])
+    if amount < 1:
+        fail("NX_INVALID_ARGUMENT", f"{field[1:]} must be at least 1", field=field)
+    return amount
 
 
 def directories(root) -> list[Path]:
@@ -73,6 +101,29 @@ def _file(root, result_id: str) -> Path | None:
         if path.is_file() and not path.is_symlink():
             return path
     return None
+
+
+def _missing(root, result_id: str) -> NoReturn:
+    """Fail for a result_id with no snapshot: expired (a tombstone says when it was
+    deleted or pruned) or unknown to this workspace."""
+    fresh = (
+        "Repeat the original call for a fresh result_id. Only compact results that "
+        f"cut an array over {COMPACT_ITEMS} items or text over {COMPACT_CHARS} characters "
+        "(listed in omitted), or results too large for the bridge, carry one; paged lists "
+        "use page.next_offset instead"
+    )
+    for folder in directories(root):
+        gone = tombstone(folder, result_id)
+        if gone is not None:
+            how = "pruned by retention" if gone.get("reason") == "pruned" else "deleted"
+            fail("NX_RESULT_EXPIRED",
+                 f"Stored result {result_id} expired: it was {how} at {gone.get('deleted_at')}",
+                 field="/result_id", hint=fresh,
+                 details={"state": gone.get("reason"), "deleted_at": gone.get("deleted_at")})  # fmt: skip
+    fail("NX_NOT_FOUND",
+         f"No stored result {result_id} exists in this workspace and none was deleted: it "
+         "never existed here (check the id; results from another workspace are not shared)",
+         field="/result_id", hint=fresh, details={"state": "unknown"})  # fmt: skip
 
 
 def _escape(key: str) -> str:
@@ -141,11 +192,11 @@ def nx_get_result(
     """Page or expand a stored result by result_id without repeating the call or reaching NX.
     field is a JSON pointer from omitted; lists, object keys and text are paged (text: limit
     x 1000 characters). References inside may be stale after model changes."""
+    if field and not field.startswith("/"):
+        field = "/" + field
     path = _file(tx.workspace.root, result_id)
     if path is None:
-        fail("NX_RESULT_EXPIRED", f"No stored result {result_id}", field="/result_id",
-             hint="Repeat the original call; snapshots expire after nx_delete_results or "
-             "retention pruning")  # fmt: skip
+        _missing(tx.workspace.root, result_id)
     try:
         with LOCK:
             stored = json.loads(path.read_text(encoding="utf-8"))
@@ -198,25 +249,39 @@ def nx_get_result(
     ),  # fmt: skip
     cost="light",
     runs="sidecar",
-    example={"dry_run": True, "max_age_seconds": 86400},
+    example={"dry_run": True, "max_age_seconds": "1d"},
 )
 def nx_delete_results(
     tx: Tx,
     *,
     dry_run: Annotated[bool, Doc("true previews counts and bytes; false deletes")] = True,
-    max_age_seconds: Annotated[int, Range(ge=1), Doc("Older snapshots are selected")] | None = None,
+    max_age_seconds: Annotated[
+        Annotated[int, Range(ge=1)] | Annotated[str, Text(16)],
+        Doc("Older snapshots go: seconds, or '12h', '7d'"),
+    ]
+    | None = None,
     max_bytes: Annotated[int, Range(ge=1), Doc("Oldest snapshots go until the total fits")]
     | None = None,
     result_ids: Annotated[list[ResultId], Items(1, 100), Doc("Select exactly these snapshots")]
     | None = None,
 ) -> CleanupData:
     """Preview (default) or delete stored result snapshots by age, total size or result_id.
-    Defaults: 7 days, 256 MiB. Receipts and CAD files are never touched; deleted ids expire."""
+    Defaults: 7 days, 256 MiB. Snapshots are shared by all agents on this workspace;
+    result_ids deletes only yours. Receipts and CAD files are never touched."""
     with tx.checks():
+        max_age_seconds = _amount(max_age_seconds, DURATIONS, "/max_age_seconds", "'7d'")
         try:
             policy = settings()
         except ValueError as error:
             fail("NX_INVALID_ARGUMENT", f"Retention settings: {error}")
+    out = _delete(tx, dry_run, max_age_seconds, max_bytes, result_ids, policy)
+    out["deleted_count"] = out["selected_count"] if out["applied"] else 0
+    if not out["deleted_count"]:
+        tx.outcome = "not_applicable"  # a preview, or nothing matched: no file changed
+    return out
+
+
+def _delete(tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy) -> CleanupData:
     root = tx.workspace.root
     if result_ids:
         wanted = list(dict.fromkeys(result_ids))
@@ -240,8 +305,10 @@ def nx_delete_results(
             with LOCK:
                 for p in present:
                     p.unlink(missing_ok=True)
+                    bury(p.parent, [p.stem], "deleted")
         return {
             "applied": not dry_run,
+            "deleted_count": 0,
             "policy": policy,
             "snapshot_count": count,
             "bytes_before": total,
@@ -251,6 +318,7 @@ def nx_delete_results(
         }
     out = {
         "applied": not dry_run,
+        "deleted_count": 0,
         "policy": policy,
         "snapshot_count": 0,
         "bytes_before": 0,

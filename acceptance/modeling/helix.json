@@ -43,7 +43,16 @@
       20
      ],
      "tol": 0.001
-    }
+    },
+    "data.axis.direction": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    },
+    "data.hand": "right"
    }
   },
   {
@@ -91,7 +100,24 @@
       -5
      ],
      "tol": 0.001
-    }
+    },
+    "data.axis.origin": {
+     "close": [
+      50,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.axis.direction": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.hand": "left"
    }
   },
   {
@@ -107,7 +133,8 @@
    },
    "expect": {
     "error.category": "invalid_argument",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "not_started",
+    "error.field": "/height"
    }
   },
   {
@@ -124,6 +151,71 @@
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
     "error.field": "/radius"
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": "-z",
+    "radius": "4 mm",
+    "pitch": "2 mm",
+    "turns": 2
+   },
+   "expect": {
+    "data.start": {
+     "close": [
+      4,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.end": {
+     "close": [
+      4,
+      0,
+      -4
+     ],
+     "tol": 0.001
+    },
+    "data.axis.direction": {
+     "close": [
+      0,
+      0,
+      -1
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "radius": 3,
+    "pitch": 1,
+    "height": "5 mm"
+   },
+   "expect": {
+    "data.turns": {
+     "close": 5,
+     "tol": 1e-09
+    },
+    "data.end": {
+     "close": [
+      3,
+      0,
+      5
+     ],
+     "tol": 0.001
+    },
+    "data.axis.direction": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    }
    }
   }
  ]

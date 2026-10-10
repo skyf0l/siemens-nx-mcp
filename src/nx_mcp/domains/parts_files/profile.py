@@ -1,9 +1,10 @@
 """1:1 profile DXF of a sketch or planar face (tool-surface 3.2), without model changes.
 
 Lines, arcs and circles are written analytically in millimetres; any other curve
-is refused (never approximated). The default frame is the sketch's, or for a
-face its plane with x along the global axis projected into it; the result
-states the frame used. Existing files are never overwritten.
+is refused (never approximated). The file is DXF R12 (no handles), which NX
+imports back. The default frame is the sketch's, or for a face its plane with x
+along the global axis projected into it; the result states the frame used.
+Existing files are never overwritten.
 """
 
 from __future__ import annotations
@@ -28,6 +29,10 @@ FACE_PLANE = 22
 MAX_CURVES = 20_000
 LAYER_PATTERN = r"^[A-Za-z0-9_.\-]{1,64}$"
 Layer = Annotated[str, Text(64), Doc("DXF layer name")]
+SOURCE_DOC = "Sketch s:N or planar face fc:N ref (nx_list_objects); not a name"
+LAYERS_DOC = "[ref, layer] pairs: sketch curves c:N or face edges e:N"
+MAX_LISTED = 50
+CRLF = "\r\n"  # DXF line ends as AutoCAD writes them
 XYZ = tuple[float, float, float]
 
 
@@ -55,7 +60,12 @@ class ProfileData(TypedDict):
 
 
 def dxf_text(entities) -> str:
-    """An ASCII DXF (R2013 header) in millimetres with the layers the entities use."""
+    """An ASCII DXF R12 (AC1009) in millimetres with the layers the entities use.
+
+    R12 needs no entity handles, OBJECTS section or subclass markers, so NX (which reads
+    R13+ DXF only as AutoCAD writes it) imports it with nx_import_model, as do laser and
+    CAM programs. ``$INSUNITS`` 4 states millimetres for readers that honour it.
+    """
     rows: list[str] = []
 
     def put(*pairs):
@@ -64,8 +74,8 @@ def dxf_text(entities) -> str:
                 (str(code), format(value, ".15g") if isinstance(value, float) else str(value))
             )
 
-    put((0, "SECTION"), (2, "HEADER"), (9, "$ACADVER"), (1, "AC1027"))
-    put((9, "$INSUNITS"), (70, 4), (9, "$MEASUREMENT"), (70, 1), (0, "ENDSEC"))
+    put((0, "SECTION"), (2, "HEADER"), (9, "$ACADVER"), (1, "AC1009"))
+    put((9, "$INSUNITS"), (70, 4), (0, "ENDSEC"))
     layers = sorted({e["layer"] for e in entities} | {"0"})
     put((0, "SECTION"), (2, "TABLES"), (0, "TABLE"), (2, "LTYPE"), (70, 1))
     put((0, "LTYPE"), (2, "CONTINUOUS"), (70, 0), (3, "Solid line"), (72, 65), (73, 0))
@@ -75,8 +85,7 @@ def dxf_text(entities) -> str:
     put((0, "ENDTAB"), (0, "ENDSEC"), (0, "SECTION"), (2, "ENTITIES"))
     for e in entities:
         kind = e["type"]
-        put((0, kind), (100, "AcDbEntity"), (8, e["layer"]))
-        put((100, "AcDbLine" if kind == "LINE" else "AcDbCircle"))
+        put((0, kind), (8, e["layer"]))
         p = e["start"] if kind == "LINE" else e["center"]
         put((10, p[0]), (20, p[1]), (30, 0.0))
         if kind == "LINE":
@@ -84,9 +93,9 @@ def dxf_text(entities) -> str:
         else:
             put((40, e["radius"]))
             if kind == "ARC":
-                put((100, "AcDbArc"), (50, e["start_angle"]), (51, e["end_angle"]))
+                put((50, e["start_angle"]), (51, e["end_angle"]))
     put((0, "ENDSEC"), (0, "EOF"))
-    return "\n".join(rows) + "\n"
+    return CRLF.join(rows) + CRLF
 
 
 def _face_frame(tx, face) -> dict:
@@ -125,15 +134,14 @@ def _layers(tx, overrides) -> dict:
 def nx_export_profile(
     tx: Tx,
     *,
-    source: Annotated[str, RefTo("sketch", "face")],
+    source: Annotated[str, RefTo("sketch", "face"), Doc(SOURCE_DOC)],
     path: Annotated[str, PathTo("new", ".dxf")],
     frame: Frame | None = None,
     layer: Layer = "0",
-    layers: Annotated[list[LayerOverride], Items(1, 1000), Doc("[curve/edge, layer] pairs")]
-    | None = None,
+    layers: Annotated[list[LayerOverride], Items(1, 1000), Doc(LAYERS_DOC)] | None = None,
 ) -> ProfileData:
-    """Export a sketch or planar face as a 1:1 mm DXF of lines, arcs and circles. Other
-    curves are refused."""
+    """Export a sketch or planar face as a 1:1 mm DXF R12 of lines, arcs and circles
+    (nx_import_model reads it back). Other curves are refused."""
     if not re.match(LAYER_PATTERN, layer):
         fail("NX_INVALID_ARGUMENT", "Layer names use 1-64 of A-Z a-z 0-9 _ . -", field="/layer")
     if frame is not None:
@@ -165,10 +173,16 @@ def nx_export_profile(
             i for tag, (_l, i) in overrides.items() if tag not in {e["tag"] for e in entities}
         ]
         if unused:
+            owned = "curves (c:N) of the sketch" if kind == "curve" else "edges (e:N) of the face"
             fail(
                 "NX_INVALID_ARGUMENT",
-                "Layer overrides must name curves or edges of the source",
+                f"Layer overrides must name {owned} given as source",
                 field=f"/layers/{unused[0]}/0",
+                hint="Use one of the refs in details.valid",
+                details={
+                    "valid": [tx.ref(c, kind)["id"] for c in curves[:MAX_LISTED]],
+                    "valid_count": len(curves),
+                },
             )
     raw = dxf_text(entities).encode("ascii")
     target = Path(path)

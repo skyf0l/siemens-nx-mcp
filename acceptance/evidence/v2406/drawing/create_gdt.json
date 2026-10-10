@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/create_gdt.json",
-  "scenario_sha256": "b91cb008c23de2a2137978004efb7689edc2d15d6d2cfff8c855d2271c61fad9",
+  "scenario_sha256": "023e9e4c24c8df16286705eb8f839e15daf3cfcae8e7417a724a05963e716477",
   "domain": "drawing",
   "covers": {
     "nx_create_gdt": [
@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_gdt": "f59a888263be4aeb11ce561b918163a9c05edc001ac16aa55af33d205a4a8a3a"
+    "nx_create_gdt": "5999867de8c1fae1bd5b95bdcdfc04aea0e40a5b190e8ca70a3ef6aabf65c21a"
   },
-  "recorded": "2026-10-10T13:19:47Z",
+  "recorded": "2026-10-10T23:40:55Z",
   "passed": true,
   "checks": 21,
   "failed_checks": 0,

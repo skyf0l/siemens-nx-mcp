@@ -5,17 +5,28 @@ from __future__ import annotations
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.errors import NXError, fail
-from nx_mcp.core.types import Items, RefTo
+from nx_mcp.core.types import Items, RefTo, Text
 from nx_mcp.kit import bodies, display, select
+from nx_mcp.kit.args import choice as choice  # natural option spellings
 from nx_mcp.kit.result import Row
 
 # Kinds a display tool accepts; features show their bodies, sketches their curves.
 TARGET_KINDS = ("body", "face", "edge", "curve", "point", "sketch", "component", "feature", "datum")
 Targets = Annotated[list[Annotated[str, RefTo(*TARGET_KINDS)]], Items(1, 1000)]
 
+# A free spelling next to a Literal (``Literal[...] | Loose``): the schema lists the
+# canonical values and ``choice`` maps 'Hide', ' RED ' or 'grey' onto them.
+Loose = Annotated[str, Text(32)]
+
+
+# A camera within this many degrees of a canned look-from direction is named after it;
+# farther off, ``view`` is ``custom`` and ``nearest_view`` names the closest one.
+NAMED_WITHIN = 10.0
+
 
 class Camera(TypedDict, total=False):
     view: str
+    nearest_view: str
     view_angle: float
     rotation: list[list[float]]
     view_from: list[float]
@@ -31,6 +42,7 @@ class DisplayRow(TypedDict, total=False):
     object: Row
     blanked: bool
     color: int
+    color_name: str
     transparency: int | None
 
 
@@ -72,8 +84,29 @@ def targets(tx, refs, *, field="/objects", expand=False) -> list:
     return list(found.values())
 
 
+def faces_of(obj) -> list:
+    """The faces of a body (``[]`` for anything else)."""
+    return list(obj.GetFaces()) if hasattr(obj, "IsSolidBody") else []
+
+
+def color_names(tx) -> dict[int, str]:
+    """``{index: name}`` of the named colours in the displayed part's colour table (the
+    index ``nx_set_appearance`` uses for each name)."""
+    out: dict[int, str] = {}
+    for name in display.COLOR_NAMES:
+        try:
+            out.setdefault(display.color_index(tx, name), name)
+        except Exception:  # noqa: BLE001 - a colour NX cannot name is just not named
+            continue
+    return out
+
+
 def display_rows(tx, pairs) -> list[DisplayRow]:
-    """``[{object, blanked, color?, transparency?}]`` for ``(obj, record)`` pairs."""
+    """``[{object, blanked, color?, color_name?, transparency?}]`` for ``(obj, record)``
+    pairs. ``color_name`` is given where the index is a named colour; a body's
+    transparency is its faces' when they all agree (NX reports it per face)."""
+    records = {int(obj.Tag): record for obj, record in pairs}
+    names = color_names(tx) if any("color_index" in r for r in records.values()) else {}
     out: list[DisplayRow] = []
     for obj, record in pairs:
         row: DisplayRow = {
@@ -82,21 +115,37 @@ def display_rows(tx, pairs) -> list[DisplayRow]:
         }
         if "color_index" in record:
             row["color"] = int(record["color_index"])
+            if row["color"] in names:
+                row["color_name"] = names[row["color"]]
             transparency = record.get("transparency")
+            if transparency is None:
+                transparency = _faces_transparency(obj, records)
             row["transparency"] = None if transparency is None else int(transparency)
         out.append(row)
     return out
 
 
+def _faces_transparency(obj, records):
+    """The one transparency all faces of a body share, else None."""
+    seen = {records[int(f.Tag)].get("transparency") for f in faces_of(obj) if int(f.Tag) in records}
+    return seen.pop() if len(seen) == 1 else None
+
+
 def camera_row(cam: dict, *, named: bool = True) -> Camera:
     """The surface fields of a camera (``kit.display.camera``); ``view_from``, ``up`` and
-    ``right`` are the rotation's columns (world unit vectors). ``view`` is the canned
-    orientation nearest in look-from direction and ``view_angle`` the degrees between the
-    two directions (``named``), else NX's view name (a drawing sheet's view)."""
+    ``right`` are the rotation's columns (world unit vectors). With ``named``, ``view`` is
+    the canned orientation nearest in look-from direction when it is within
+    ``NAMED_WITHIN`` degrees, else ``custom`` with ``nearest_view``; ``view_angle`` is the
+    degrees between the two directions. Without, ``view`` is NX's view name (a sheet's)."""
     axes = display.view_axes(cam["rotation"])
     row: Camera = {"view": cam["view"]}
     if named:
-        row["view"], row["view_angle"] = display.nearest_view(cam["rotation"])
+        nearest, angle = display.nearest_view(cam["rotation"])
+        if angle <= NAMED_WITHIN:
+            row["view"] = nearest
+        else:
+            row["view"], row["nearest_view"] = "custom", nearest
+        row["view_angle"] = angle
     row.update(
         {
             "rotation": cam["rotation"],

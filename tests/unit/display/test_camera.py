@@ -42,17 +42,69 @@ def test_get_camera_reports_the_shown_sheet():
     assert "view_angle" not in data  # a sheet keeps NX's view name
 
 
-def test_a_custom_camera_names_the_nearest_view_and_the_angle_off_it():
+def test_a_custom_camera_is_custom_with_the_nearest_view_and_the_angle_off_it():
     nx = display_nx()
     ok = run(nx, "nx_set_camera", view_from=[-1, -1, 1])
     assert ok.ok and ok.data["view_from"] == pytest.approx([-(3**-0.5), -(3**-0.5), 3**-0.5])
     # (-1,-1,1), the isometric octant facing a part's min-X front, is 54.7 degrees from
-    # front, left and top alike: the smallest whole rotation (front, +Z up) wins.
-    assert ok.data["view"] == "front" and ok.data["view_angle"] == pytest.approx(54.736)
+    # front, left and top alike: the smallest whole rotation (front, +Z up) is nearest,
+    # but that far off the view is not called front.
+    assert ok.data["view"] == "custom" and ok.data["nearest_view"] == "front"
+    assert ok.data["view_angle"] == pytest.approx(54.736)
+    assert run(nx, "nx_get_camera").data["view"] == "custom"
     iso = run(nx, "nx_set_camera", orientation="isometric").data
-    assert iso["view"] == "isometric" and iso["view_angle"] == 0.0
+    assert iso["view"] == "isometric" and iso["view_angle"] == 0.0 and "nearest_view" not in iso
     near = run(nx, "nx_set_camera", view_from=[0.05, -1, 0]).data
     assert near["view"] == "front" and near["view_angle"] == pytest.approx(2.862, abs=1e-3)
+    assert "nearest_view" not in near
+
+
+def test_iso_is_isometric():
+    nx = display_nx()
+    ok = run(nx, "nx_set_camera", orientation="iso", fit=True)
+    assert ok.ok and ok.data["view"] == "isometric" and nx.work_view.fits == 1
+    assert flat(ok.data["rotation"]) == pytest.approx(
+        flat(display.ORIENTATION_ROTATIONS["isometric"])
+    )
+
+
+def test_zoom_multiplies_the_current_scale_about_the_view_centre():
+    nx = display_nx()
+    run(nx, "nx_set_camera", rotation=[[0, -1, 0], [1, 0, 0], [0, 0, 1]], origin=[2, 3, 4],
+        scale=2)  # fmt: skip
+    ok = run(nx, "nx_set_camera", zoom=1.5)
+    assert ok.ok and ok.data["scale"] == pytest.approx(3) and ok.data["origin"] == [2, 3, 4]
+    assert flat(ok.data["rotation"]) == pytest.approx(flat([[0, -1, 0], [1, 0, 0], [0, 0, 1]]))
+    assert ok.restore_id
+    out = run(nx, "nx_set_camera", zoom=0.5).data
+    assert out["scale"] == pytest.approx(1.5)
+
+
+def test_zoom_after_fit_scales_the_fitted_view():
+    nx = display_nx()
+    ok = run(nx, "nx_set_camera", orientation="front", fit=True, zoom=0.8)
+    assert ok.ok and nx.work_view.fits == 1
+    assert ok.data["scale"] == pytest.approx(2.5 * 0.8)  # the fake fits to 2.5
+    plain = run(display_nx(), "nx_set_camera", fit=True, zoom=2).data
+    assert plain["scale"] == pytest.approx(5.0)
+
+
+@pytest.mark.parametrize(
+    ("args", "field", "words"),
+    [
+        ({}, None, "zoom"),
+        ({"orientation": "top", "view_from": [1, 1, 1]}, "/view_from", "orientation and view_from"),
+        ({"scale": 2, "zoom": 2}, "/zoom", "not both"),
+        ({"fit": True, "scale": 2}, "/fit", "zoom"),
+        ({"up": [0, 0, 1], "orientation": "top"}, "/up", "view_from"),
+    ],
+)
+def test_errors_name_the_fields_and_what_to_send(args, field, words):
+    bad = run(display_nx(), "nx_set_camera", **args)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.mutation_outcome == "not_started"
+    assert bad.error.get("field") == field and words in bad.error["message"]
+    if not args:
+        assert "isometric" in bad.error["hint"]
 
 
 def test_nearest_view_names_every_canned_rotation_whatever_the_roll():

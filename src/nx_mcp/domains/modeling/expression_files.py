@@ -17,7 +17,10 @@ NX 2406 lessons kept here:
   applied as is), so a different tag is refused up front.
 - ``DontReplace`` raises 1050053 when the file names any existing expression:
   ``keep`` imports a copy without those lines. ``DeleteImports`` deletes the
-  file's expressions that nothing references and changes no value.
+  file's expressions that nothing references and changes no value; it raises
+  1050053 for a name the part lacks, so ``delete`` imports a copy without those.
+- 1050053 names no line: on that failure the formulas are scanned for names that
+  neither the part nor the file defines (``unknown_names``) to say which line.
 - The import changes no geometry until the model update, which runs here; update
   errors roll the import back (``NX_UPDATE_FAILED``).
 """
@@ -33,7 +36,12 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, PathTo, Text
-from nx_mcp.domains.modeling.tree import feature_messages, solve_driven_sketch, update
+from nx_mcp.domains.modeling.tree import (
+    driven_features,
+    feature_messages,
+    solve_driven_sketch,
+    update,
+)
 from nx_mcp.kit import expr, files, result
 
 NamePattern = Annotated[
@@ -58,6 +66,58 @@ def file_entries(data: bytes) -> list[tuple[str, str | None]]:
         if match:
             unit = match.group(1)
             out.append((match.group(2).decode("ascii"), unit.decode("ascii") if unit else None))
+    return out
+
+
+class FileRow(TypedDict):
+    name: str
+    formula: str
+    units: str
+
+
+def _formula_text(rest: str) -> str:
+    """A line's formula without a trailing ``//`` comment (outside double quotes)."""
+    quoted = False
+    for i, ch in enumerate(rest):
+        if ch == '"':
+            quoted = not quoted
+        elif not quoted and rest.startswith("//", i):
+            return rest[:i].strip()
+    return rest.strip()
+
+
+def file_rows(data: bytes) -> list[FileRow]:
+    """``{name, formula, units}`` of each expression line, in file order (units as
+    ``mm``/``in``/``deg``/``rad`` where known, else NX's tag, ``unitless`` without one)."""
+    short = {v: k for k, v in expr.UNIT_NAMES.items() if v}
+    out: list[FileRow] = []
+    for line in data.splitlines():
+        match = LINE.match(line)
+        if match:
+            unit = match.group(1).decode("ascii", "replace") if match.group(1) else None
+            out.append({
+                "name": match.group(2).decode("ascii"),
+                "formula": _formula_text(line[match.end():].decode("utf-8", "replace")),
+                "units": short.get(unit, unit) if unit else "unitless",
+            })  # fmt: skip
+    return out
+
+
+# A name a formula uses: not inside a longer token, not a function call, not interpart.
+_USED = re.compile(r'(?<![\w.:"])([A-Za-z_][A-Za-z0-9_]*)\b(?!\s*\()')
+_WORDS = {"if", "else", "then", "true", "false", "and", "or", "not"}
+
+
+def unknown_names(rows, known) -> list[dict]:
+    """``[{name, uses}]``: file lines whose formulas use names absent from ``known``."""
+    out = []
+    for row in rows:
+        text = re.sub(r'"[^"]*"', '""', row["formula"])
+        uses = sorted({
+            n for n in _USED.findall(text) if n not in known and n.casefold() not in _WORDS
+        })  # fmt: skip
+        if uses:
+            out.append({"name": row["name"], "uses": uses})
     return out
 
 
@@ -87,8 +147,9 @@ class ExportData(TypedDict):
     size: int
     sha256: str
     count: int
-    names: list[str]
+    expressions: list[FileRow]
     truncated: bool
+    overwritten: bool
 
 
 @tool(
@@ -103,14 +164,24 @@ class ExportData(TypedDict):
 def nx_export_expressions(
     tx: Tx,
     *,
-    path: Annotated[str, PathTo("new", ".exp")],
+    path: Annotated[str, PathTo("replace", ".exp")],
     names: Annotated[list[NamePattern], Items(1, 100)] | None = None,
     sort: Literal["name", "timestamp"] = "name",
+    overwrite: bool = False,
 ) -> ExportData:
-    """Write the work part's expressions (all, or those matching names) to a new .exp file.
-    The model is not changed; an existing file is never overwritten."""
+    """Write the work part's expressions (all, or those matching names) to an .exp file. Returns
+    each name, formula and units; the model is not changed. overwrite replaces a file."""
+    target = Path(path)
+    replacing = target.exists()
+    if replacing and not overwrite:
+        fail(
+            "NX_ALREADY_EXISTS",
+            "/path: a file already exists there; set overwrite=true to replace it",
+            field="/path",
+            details={"path": path},
+        )
     part = tx.part
-    temp = tx.files.stage(path)
+    temp = tx.files.stage(target, replace=overwrite)
     collection = part.Expressions
     with native(default="NX_EXPORT_FAILED"):
         collection.ExportToFile(
@@ -125,7 +196,8 @@ def nx_export_expressions(
                 "NX_NOT_FOUND",
                 f"No expression of the work part matches {', '.join(missing[:10])}",
                 field="/names",
-                details={"missing": missing[:50]},
+                hint="Names are case-sensitive; * and ? are wildcards (see details.available)",
+                details={"missing": missing[:50], "available": exported[:MAX_ROWS]},
             )
         data, exported = keep_lines(data, names)
         temp.write_bytes(data)
@@ -133,11 +205,13 @@ def nx_export_expressions(
         fail("NX_EXPORT_FAILED", "NX wrote no expression lines", details={"size": len(data)})
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
+    rows = file_rows(data)
     return {
         **meta,
-        "count": len(exported),
-        "names": exported[:MAX_ROWS],
-        "truncated": len(exported) > MAX_ROWS,
+        "count": len(rows),
+        "expressions": rows[:MAX_ROWS],
+        "truncated": len(rows) > MAX_ROWS,
+        "overwritten": replacing,
     }
 
 
@@ -161,6 +235,7 @@ class ImportData(TypedDict):
     deleted: list[str]
     skipped: list[str]
     warnings: list[dict]
+    features: list[result.Row]
     truncated: bool
 
 
@@ -225,33 +300,34 @@ def _problems(tx, expressions) -> list[dict]:
 
 
 def _import(tx, source, mode, before) -> list[str]:
-    """Run NX's import; returns the file names left alone (``keep``: existing ones)."""
+    """Run NX's import; returns the file names left alone (``keep``: existing ones,
+    ``delete``: ones the part lacks)."""
     collection = tx.part.Expressions
+    data = source.read_bytes()
     skipped: list[str] = []
-    if mode == "keep":  # NX DontReplace fails on any existing name: drop those lines
-        data, kept = keep_lines(source.read_bytes(), [], keep=lambda n: n not in before)
-        skipped = [n for n in file_names(source.read_bytes()) if n in before]
+    copy = None
+    if mode in ("keep", "delete"):  # DontReplace fails on an existing name, delete on a new
+        wanted = (lambda n: n not in before) if mode == "keep" else (lambda n: n in before)
+        data, kept = keep_lines(data, [], keep=wanted)
+        skipped = [n for n in file_names(source.read_bytes()) if not wanted(n)]
         if not kept:
             return skipped
-        folder = tx.files.folder
-        folder.mkdir(parents=True, exist_ok=True)
-        source = folder / f"keep_{source.name}"
-        source.write_bytes(data)
+        if skipped:
+            folder = tx.files.folder
+            folder.mkdir(parents=True, exist_ok=True)
+            copy = source = folder / f"{mode}_{source.name}"
+            source.write_bytes(data)
     try:
         with native(default="NX_IMPORT_FAILED"):
             _modified, messages = collection.ImportFromFile(
                 str(source), getattr(collection.ImportMode, MODES[mode])
             )
     except NXError as error:
-        error.field = error.field or "/path"
-        error.hint = error.hint or (
-            "Check the file's syntax; every name a new formula uses must exist in the part "
-            "or the file"
-        )
+        _explain(error, data, before)
         raise
     finally:
-        if mode == "keep":
-            source.unlink(missing_ok=True)
+        if copy is not None:
+            copy.unlink(missing_ok=True)
     messages = [str(m) for m in messages or ()]
     if messages:
         fail(
@@ -261,6 +337,24 @@ def _import(tx, source, mode, before) -> list[str]:
             details={"messages": messages[:20]},
         )
     return skipped
+
+
+def _explain(error: NXError, data: bytes, before) -> None:
+    """NX's 1050053 names no line: point at formulas using names nothing defines."""
+    error.field = error.field or "/path"
+    rows = file_rows(data)
+    unknown = unknown_names(rows, set(before) | {r["name"] for r in rows})
+    if unknown:
+        first = unknown[0]
+        error.message = (
+            f"{error.message.rstrip('.')}: {first['name']} uses {', '.join(first['uses'])}, "
+            "which neither the part nor the file defines"
+        )
+        error.details = {**(error.details or {}), "unknown_names": unknown[:20]}
+    error.hint = error.hint or (
+        "Check the file's syntax (name=formula per line, units as a [MilliMeter] prefix); "
+        "every name a new formula uses must exist in the part or the file"
+    )
 
 
 @tool(
@@ -279,11 +373,12 @@ def nx_import_expressions(
     path: Annotated[str, PathTo("read", ".exp")],
     mode: Annotated[
         Literal["replace", "keep", "delete"],
-        Doc("replace: file formulas win; keep: existing stay; delete: remove unused listed"),
+        Doc("replace: file formulas win; keep: existing stay; delete: remove listed unused"),
     ] = "replace",
 ) -> ImportData:
     """Import a workspace .exp file into the work part and update the model. Reports created,
-    changed and deleted expressions; any error (missing name, cycle) rolls it back."""
+    changed, deleted and skipped expressions and the features they drive; an error (missing
+    name, cycle) rolls it back."""
     source = Path(path)
     with tx.checks():
         if source.stat().st_size > MAX_FILE:
@@ -331,7 +426,7 @@ def nx_import_expressions(
         solve_driven_sketch(tx, [e for e, _ in changed])
     deleted = sorted(set(before) - set(after))
     if mode == "delete":
-        skipped = [name for name, _ in entries if name in after]
+        skipped = [name for name, _ in entries if name not in deleted]
     warnings = [
         {"feature": f.JournalIdentifier, "message": m}
         for f in part.Features
@@ -346,5 +441,6 @@ def nx_import_expressions(
         "deleted": deleted[:MAX_ROWS],
         "skipped": skipped[:MAX_ROWS],
         "warnings": warnings[:50],
+        "features": driven_features(tx, [e for e, _ in changed]) if changed else [],
         "truncated": max(map(len, (created, changed, deleted, skipped))) > MAX_ROWS,
     }

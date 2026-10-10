@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/section.json",
-  "scenario_sha256": "adb826b711b3956fc6a5195a746440a4418cd8917c8c448be3cfc827d394ebce",
+  "scenario_sha256": "90637ca23215e9186d9cd4a0684a44d18224913eeae12ac18215a68e70c593ce",
   "domain": "inspection",
   "covers": {
     "nx_measure_section": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_measure_section": "255b796fbc2cca938a191afdd3bd8030c25ad7c4568576bf208d518eb503fcb1"
+    "nx_measure_section": "90111268ce05069c412736ff3de36f923eaab41b9cacb5e6a1b8b2046fc58c50"
   },
-  "recorded": "2026-10-10T17:41:09Z",
+  "recorded": "2026-10-10T23:18:14Z",
   "passed": true,
-  "checks": 31,
+  "checks": 39,
   "failed_checks": 0,
   "steps": [
     {
@@ -84,21 +84,21 @@
       "call": "nx_measure_section",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 11,
       "call": "nx_measure_section",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 1
     },
     {
       "index": 12,
       "call": "nx_measure_section",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 6
     },
     {
       "index": 13,
@@ -112,17 +112,45 @@
       "call": "nx_measure_section",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 15,
+      "call": "nx_measure_section",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 16,
+      "call": "nx_measure_section",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_measure_wall_thickness",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_measure_section",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 16,
+      "index": 20,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

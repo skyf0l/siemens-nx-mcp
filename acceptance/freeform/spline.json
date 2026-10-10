@@ -340,6 +340,111 @@
    }
   },
   {
+   "call": "nx_create_spline",
+   "args": {
+    "points": [
+     [
+      0,
+      70,
+      0
+     ],
+     [
+      3,
+      74,
+      0
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.degree": 1,
+    "data.length": {
+     "close": 5,
+     "tol": 1e-06
+    },
+    "data.end": {
+     "close": [
+      3,
+      74,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "args": {
+    "points": [
+     [
+      0,
+      80,
+      0
+     ],
+     [
+      10,
+      85,
+      0
+     ],
+     [
+      20,
+      80,
+      5
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.degree": 2,
+    "data.start": {
+     "close": [
+      0,
+      80,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.end": {
+     "close": [
+      20,
+      80,
+      5
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "args": {
+    "points": [
+     [
+      0,
+      90,
+      0
+     ],
+     [
+      10,
+      95,
+      0
+     ],
+     [
+      20,
+      90,
+      5
+     ]
+    ],
+    "degree": 3
+   },
+   "expect": {
+    "error.field": "/degree",
+    "error.hint": {
+     "contains": "degree 2"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

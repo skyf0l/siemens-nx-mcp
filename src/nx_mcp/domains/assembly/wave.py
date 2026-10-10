@@ -7,10 +7,16 @@ NX 2406 findings encoded here:
   links, ``ParentPart = OtherPart``), ``CompositeCurveBuilder`` (curves and edges),
   ``WaveDatumBuilder`` (datum planes, axes and CSYS) and ``WaveSketchBuilder``.
 - Sources are occurrences in the displayed assembly; a prototype object plus its
-  ``component`` maps to the occurrence with ``component.FindOccurrence``. The target
-  is the work part, a component part of that assembly (``Parts.WorkComponent``).
+  ``component`` maps to the occurrence with ``component.FindOccurrence`` (without
+  ``component``, the one component of the displayed assembly that shows it). A body
+  link also takes a component: every solid body it shows. The target is the work
+  part, a component part of that assembly (``Parts.WorkComponent``).
+- Occurrences have no journal identifier (their ``JournalIdentifier`` is an NX handle,
+  ``HANDLE R-722``): source rows are named ``<component>/<prototype name>``.
 - ``Features.CreateExtractFaceBuilder(None)`` extracts bodies, faces or a region of
-  faces (seed face inside boundary faces) inside the work part.
+  faces (seed face inside boundary faces) inside the work part. Faces that do not form
+  one edge-connected set fail at commit ("Selected faces will create more than one
+  output body"): they are refused before the build.
 - Results are read back in assembly coordinates: a linked body keeps the source
   volume, a linked face the source area, linked curves the source length, a linked
   datum lies on the source datum (the work component's pose maps it back).
@@ -21,11 +27,12 @@ from __future__ import annotations
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ComponentRef, Doc, FaceRef, Items, Point3, RefTo, Vec3
 from nx_mcp.domains.assembly import structure
 from nx_mcp.kit import builders, display, geom, measure, readback, result, select
+from nx_mcp.kit import parts as kparts
 from nx_mcp.kit.bodies import is_body
 
 LinkKind = Literal["body", "face", "curve", "datum", "sketch"]
@@ -45,12 +52,16 @@ LINK_TYPES = {
     "sketch": "SketchLink",
 }
 EXTRACT_TYPES = {"body": "Body", "face": "Face", "region": "RegionOfFaces"}
-SourceRef = Annotated[str, RefTo("body", "face", "curve", "edge", "datum", "sketch")]
+SourceRef = Annotated[str, RefTo("body", "face", "curve", "edge", "datum", "sketch", "component")]
 ExtractRef = Annotated[str, RefTo("body", "face")]
 REL = 1e-6  # relative band for volume, area and length read-backs
 CONTEXT_HINT = (
     "Keep the assembly displayed and make the target component's part the work part: "
-    "nx_activate_part(part=<target>, work=true, display=false)"
+    "nx_activate_part(part=<target part ref>, display=false)"
+)
+SOURCE_HINT = (
+    "nx_find_geometry(owner=<component ref>, kind='face'|'edge') lists a component's faces "
+    "and edges; kind 'body' also takes the component ref itself (all its solid bodies)"
 )
 
 
@@ -137,8 +148,47 @@ def _link_rows(tx, kind, objs):
     return [tx.ref(o, kind=_ref_kind(kind, o)) for o in objs]
 
 
+def _plain_name(obj) -> str:
+    name = getattr(obj, "Name", "") if obj is not None else ""
+    return str(name or getattr(obj, "JournalIdentifier", "") or "")
+
+
+def _source_rows(tx, kind, occurrences, owners):
+    """Source rows named ``<component>/<prototype name>``: an occurrence's own name is
+    an NX handle (``HANDLE R-722``)."""
+    rows = _link_rows(tx, kind, occurrences)
+    for row, occurrence, owner in zip(rows, occurrences, owners, strict=True):
+        inner = _plain_name(getattr(occurrence, "Prototype", None))
+        name = "/".join(n for n in (_plain_name(owner), inner) if n)
+        if name:
+            row["name"] = name
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # WAVE links
+
+
+def _targets(tx, shown) -> list[dict]:
+    """``[{component, name, part}]`` of the displayed assembly's component parts (at
+    most 10, one row per part): the work parts a WAVE link can go into."""
+    rows: list[dict] = []
+    seen: set[int] = set()
+    for component, _names in kparts.components(shown):
+        prototype = getattr(component, "Prototype", None)
+        if prototype is None or display.same(prototype, shown) or int(prototype.Tag) in seen:
+            continue
+        seen.add(int(prototype.Tag))
+        rows.append(
+            {
+                "component": tx.ref(component, "component")["id"],
+                "name": str(getattr(component, "Name", "") or ""),
+                "part": tx.ref(prototype, "part")["id"],
+            }
+        )
+        if len(rows) == 10:
+            break
+    return rows
 
 
 def _target(tx):
@@ -147,28 +197,126 @@ def _target(tx):
     parts = tx.session.Parts
     work_component = getattr(parts, "WorkComponent", None)
     if display.same(parts.Display, part) or work_component is None:
+        targets = _targets(tx, parts.Display)
+        if targets:
+            first = targets[0]
+            hint = (
+                "Keep this assembly displayed and make the target component's part the "
+                f"work part, e.g. nx_activate_part(part='{first['part']}', display=false) "
+                f"for component {first['name'] or first['component']} (details.targets)"
+            )
+        else:
+            hint = (
+                "Display the assembly (nx_activate_part(part=<assembly ref>)), then make "
+                "the target component's part the work part with "
+                "nx_activate_part(part=<target part ref>, display=false)"
+            )
         fail(
             "NX_WRONG_PART_CONTEXT",
-            "A WAVE link goes into a component part of the displayed assembly",
-            hint=CONTEXT_HINT,
+            "A WAVE link goes into the work part, which must be a component part of the "
+            "displayed assembly"
+            + (" (the work part is now the displayed part)" if work_component is None else ""),
+            hint=hint,
+            details={"targets": targets} if targets else None,
         )
     return part, work_component
 
 
+def _is_component(obj):
+    return hasattr(obj, "FindOccurrence") and hasattr(obj, "Prototype")
+
+
+def _in_work_part(ref, field):
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"{ref} is in the work part; link from another component "
+        "(nx_create_extract copies inside a part)",
+        field=field,
+        hint=CONTEXT_HINT,
+    )
+
+
+def _resolve_source(tx, ref, kind, field):
+    kinds = SOURCE_KINDS[kind] + (("component",) if kind == "body" else ())
+    try:
+        return select.resolve(tx, ref, *kinds, field=field)
+    except NXError as error:
+        if error.code == "NX_WRONG_KIND" and not error.hint:
+            error.hint = SOURCE_HINT
+        raise
+
+
+def _component_bodies(ref, component, field):
+    """``[(occurrence, component)]`` of every solid body ``component`` shows."""
+    prototype = getattr(component, "Prototype", None)
+    out = []
+    with native():
+        bodies = list(getattr(prototype, "Bodies", None) or [])
+    for body in bodies:
+        if not getattr(body, "IsSolidBody", True):
+            continue
+        with native():
+            occurrence = component.FindOccurrence(body)
+        if occurrence is not None:
+            out.append((occurrence, component))
+    if not out:
+        fail(
+            "NX_NOT_FOUND",
+            f"Component {ref} shows no solid body",
+            field=field,
+            hint="Load it fully and show its bodies in its reference set (Entire Part)",
+        )
+    return out
+
+
+def _showing(tx, ref, obj, field):
+    """``(occurrence, component)`` of the one component of the displayed assembly that
+    shows the part object ``obj``."""
+    owning = getattr(obj, "OwningPart", None)
+    found = []
+    for component, _names in kparts.components(tx.session.Parts.Display):
+        if not display.same(getattr(component, "Prototype", None), owning):
+            continue
+        with native():
+            occurrence = component.FindOccurrence(obj)
+        if occurrence is not None:
+            found.append((occurrence, component))
+    if not found:
+        fail(
+            "NX_NOT_FOUND",
+            f"No component of the displayed assembly shows {ref}",
+            field=field,
+            hint="Add its part as a component, or show the object in the component's "
+            "reference set (Entire Part)",
+        )
+    if len(found) > 1:
+        refs = [tx.ref(c, "component")["id"] for _o, c in found[:10]]
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{ref} is shown by {len(found)} components; pass component= one of " + ", ".join(refs),
+            field="/component",
+            details={"components": refs},
+        )
+    return found[0]
+
+
 def _source(tx, ref, kind, component, field):
-    """The occurrence of ``ref`` in the displayed assembly and its component."""
-    obj = select.resolve(tx, ref, *SOURCE_KINDS[kind], field=field)
+    """``[(occurrence, component)]`` of ``ref`` in the displayed assembly: one pair, or
+    every solid body of a component ref (body links)."""
+    obj = _resolve_source(tx, ref, kind, field)
+    if _is_component(obj):
+        if component is not None and not display.same(obj, component):
+            fail("NX_WRONG_OWNER", f"{ref} is not the component given", field=field)
+        return _component_bodies(ref, obj, field)
     if getattr(obj, "IsOccurrence", False):
         owner = getattr(obj, "OwningComponent", None)
         if component is not None and not display.same(owner, component):
             fail("NX_WRONG_OWNER", f"{ref} is not shown by the component", field=field)
-        return obj, owner
+        return [(obj, owner)]
+    if display.same(getattr(obj, "OwningPart", None), tx.part):
+        _in_work_part(ref, field)
     if component is None:
-        fail(
-            "NX_INVALID_ARGUMENT",
-            f"{ref} is a part object; pass the component that shows it",
-            field="/component",
-        )
+        return [_showing(tx, ref, obj, field)]
     if not display.same(getattr(obj, "OwningPart", None), component.Prototype):
         fail("NX_WRONG_OWNER", f"{ref} is not in the component's part", field=field)
     with native():
@@ -180,7 +328,7 @@ def _source(tx, ref, kind, component, field):
             field=field,
             hint="Show it in the component's reference set (Entire Part)",
         )
-    return occurrence, component
+    return [(occurrence, component)]
 
 
 def _absolute(pose, point=None, vector=None):
@@ -317,14 +465,20 @@ def nx_create_wave_link(
     tx: Tx,
     *,
     kind: LinkKind,
-    sources: Annotated[list[SourceRef], Items(1, 50)],
-    component: Annotated[ComponentRef, Doc("Shows part-object sources")] | None = None,
+    sources: Annotated[
+        list[SourceRef],
+        Items(1, 50),
+        Doc("nx_find_geometry owner=<component> lists its faces and edges"),
+    ],
+    component: Annotated[ComponentRef, Doc("Shows part-object sources (found if only one does)")]
+    | None = None,
     associative: Annotated[bool, Doc("false: a dumb copy, no link")] = True,
     at_timestamp: Annotated[bool, Doc("Fix the link at the current timestamp")] = False,
 ) -> LinkData:
     """WAVE link bodies, faces, curves, datums or sketches of another component into the work part.
-    The work part is the target component's part in the displayed assembly; sources are
-    occurrences, or part objects plus their component. Associative links follow the source."""
+    Keep the assembly displayed; make the target component's part work:
+    nx_activate_part(part=<target part>, display=false). Sources: occurrences, part objects
+    or (body) components."""
     if at_timestamp and not associative:
         fail("NX_INVALID_ARGUMENT", "at_timestamp needs an associative link", field="/at_timestamp")
     with tx.checks():
@@ -336,19 +490,14 @@ def nx_create_wave_link(
         seen = set()
         for i, ref in enumerate(sources):
             field = f"/sources/{i}"
-            occ, owner = _source(tx, ref, kind, comp, field)
-            if int(occ.Tag) in seen:
-                fail("NX_INVALID_ARGUMENT", f"{ref} is listed twice", field=field)
-            seen.add(int(occ.Tag))
-            if owner is None or display.same(getattr(owner, "Prototype", None), part):
-                fail(
-                    "NX_INVALID_ARGUMENT",
-                    f"{ref} is in the work part; link from another component "
-                    "(nx_create_extract copies inside a part)",
-                    field=field,
-                )
-            occurrences.append(occ)
-            owners.append(owner)
+            for occ, owner in _source(tx, ref, kind, comp, field):
+                if int(occ.Tag) in seen:
+                    fail("NX_INVALID_ARGUMENT", f"{ref} is listed twice", field=field)
+                seen.add(int(occ.Tag))
+                if owner is None or display.same(getattr(owner, "Prototype", None), part):
+                    _in_work_part(ref, field)
+                occurrences.append(occ)
+                owners.append(owner)
     pose = structure.pose(work_component)
     # One datum or sketch per builder: NX 2406 links only the first of several.
     groups = [[o] for o in occurrences] if kind in ("datum", "sketch") else [occurrences]
@@ -366,7 +515,7 @@ def nx_create_wave_link(
         "kind": kind,
         "associative": associative,
         "at_timestamp": at_timestamp,
-        "sources": _link_rows(tx, kind, occurrences),
+        "sources": _source_rows(tx, kind, occurrences, owners),
     }
     readback.expect(bool(outputs), "objects", "NX linked nothing")
     if kind in ("body", "face"):
@@ -409,6 +558,42 @@ def nx_create_wave_link(
 # Extract geometry
 
 
+def _face_groups(faces) -> list[int]:
+    """The connected-set index of each face: faces sharing an edge share a set."""
+    parent = list(range(len(faces)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    first: dict[int, int] = {}
+    for i, face in enumerate(faces):
+        with native():
+            edges = list(face.GetEdges() or [])
+        for edge in edges:
+            j = first.setdefault(int(edge.Tag), i)
+            parent[find(i)] = find(j)
+    return [find(i) for i in range(len(faces))]
+
+
+def _one_connected_set(faces, refs):
+    """Refuse faces that would make several extracted bodies (NX fails at commit)."""
+    groups = _face_groups(faces)
+    apart = [i for i, g in enumerate(groups) if g != groups[0]]
+    if apart:
+        i = apart[0]
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{refs[i]} is not connected to {refs[0]} by shared edges: the faces of one "
+            "extract must form one connected set (one output body)",
+            field=f"/objects/{i}",
+            hint="Extract each connected set in its own call, or use kind 'body' or 'region'",
+            details={"sets": len(set(groups))},
+        )
+
+
 @tool(
     effect="model",
     label="Extract geometry",
@@ -437,13 +622,14 @@ def nx_create_extract(
         Items(1, 50),
         Doc("body: bodies; face: connected faces; region: the seed face"),
     ],
-    boundary: Annotated[list[FaceRef], Items(1, 50), Doc("region: faces that bound it")]
+    boundary: Annotated[list[FaceRef], Items(1, 50), Doc("region only: faces that stop it")]
     | None = None,
     associative: Annotated[bool, Doc("false: a dumb copy")] = True,
     at_timestamp: Annotated[bool, Doc("Ignore later features of the source")] = False,
 ) -> ExtractData:
-    """Extract bodies, faces or a region of faces of the work part into a new body. A region
-    grows from a seed face up to boundary faces. Associative extracts follow the source."""
+    """Extract bodies, faces or a region of faces of the work part into a new body of the work
+    part. face: one edge-connected set; region: grows from a seed face up to boundary faces.
+    Associative extracts follow the source."""
     if at_timestamp and not associative:
         fail(
             "NX_INVALID_ARGUMENT",
@@ -454,12 +640,25 @@ def nx_create_extract(
         if len(objects) != 1:
             fail("NX_INVALID_ARGUMENT", "region takes one seed face", field="/objects")
         if not boundary:
-            fail("NX_INVALID_ARGUMENT", "region needs boundary faces", field="/boundary")
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "region needs boundary faces",
+                field="/boundary",
+                hint="Pass boundary=[face refs] that stop the region growing from the seed "
+                "face (they are not copied); kind 'face' copies just the listed faces",
+            )
     elif boundary is not None:
-        fail("NX_INVALID_ARGUMENT", f"{kind} takes no boundary", field="/boundary")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{kind} takes no boundary",
+            field="/boundary",
+            hint="boundary is for kind 'region' only",
+        )
     with tx.checks():
         pick = select.bodies if kind == "body" else select.faces
         values = pick(tx, objects, "/objects")
+        if kind == "face":
+            _one_connected_set(values, objects)
         bounds = select.faces(tx, boundary, "/boundary") if boundary else []
         if bounds:
             body = values[0].GetBody()

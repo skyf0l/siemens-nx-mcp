@@ -27,7 +27,17 @@ import typing
 from typing import Annotated, Any, Literal, Union
 
 import typing_extensions as te
-from pydantic import BeforeValidator, ConfigDict, Field, Strict, StringConstraints, TypeAdapter
+from pydantic import (
+    AfterValidator,
+    BeforeValidator,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Strict,
+    StringConstraints,
+    Tag,
+    TypeAdapter,
+)
 
 from nx_mcp.core import types as core_types
 from nx_mcp.core.receipts import OPERATION_ID_CHARS, OPERATION_ID_MAX, OPERATION_ID_MIN
@@ -35,14 +45,25 @@ from nx_mcp.core.types import (
     QUANTITY_MAX,
     QUANTITY_PATTERNS,
     REF_PATTERN,
+    Aliases,
     Doc,
     Items,
     Json,
     Quantity,
     Range,
     Text,
+    quantity_formula,
 )
-from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwrap
+from nx_mcp.core.validate import (
+    is_typeddict,
+    is_union,
+    match_option,
+    natural_scalar,
+    options_message,
+    typeddict_fields,
+    unwrap,
+    wraps_scalar,
+)
 
 # Keys a caller may add next to a tool's own arguments; never handler arguments.
 CALL_KEYS = ("operation_id", "intent", "detail")
@@ -100,10 +121,39 @@ def _integral(value):
     return value
 
 
-def _literal_check(options: tuple):
+def _literal_check(options: tuple, aliases: tuple = ()):
+    """The canonical option of an exact or natural spelling (as ``core.validate``)."""
+
     def check(value):
-        if not any(value == o and type(value) is type(o) for o in options):
-            raise ValueError("expected one of " + ", ".join(repr(o) for o in options))
+        if any(value == o and type(value) is type(o) for o in options):
+            return value
+        hit = match_option(value, options, aliases)
+        if hit is None:
+            raise ValueError(options_message(value, options, aliases))
+        return hit
+
+    return check
+
+
+def _natural(base):
+    return lambda value: natural_scalar(value, base)
+
+
+def _quantity_text(dim: str, bounds: Range | None):
+    """A unit string, numeric string or expression formula of ``dim`` (as gate 1)."""
+
+    def check(value):
+        formula = quantity_formula(value, dim)
+        if formula is None and dim == "count" and bounds is not None:
+            number = float(value)
+            for limit, ok in (
+                (bounds.ge, lambda b: number >= b),
+                (bounds.le, lambda b: number <= b),
+                (bounds.gt, lambda b: number > b),
+                (bounds.lt, lambda b: number < b),
+            ):
+                if limit is not None and not ok(limit):
+                    raise ValueError(f"out of range ({value})")
         return value
 
     return check
@@ -123,10 +173,17 @@ class _Converter:
         if doc is not None:
             meta.append(Field(description=doc.text))
         if Quantity in markers:
-            pattern = QUANTITY_PATTERNS[markers[Quantity].dim]
-            number = Annotated[float, Strict(), Field(allow_inf_nan=False)]
+            dim = markers[Quantity].dim
+            number: Any = (
+                _annotated(int, [*self._range(markers), BeforeValidator(_integral), Strict()])
+                if dim == "count"
+                else Annotated[float, Strict(), Field(allow_inf_nan=False)]
+            )
             text = Annotated[
-                str, Strict(), StringConstraints(max_length=QUANTITY_MAX, pattern=pattern)
+                str,
+                Strict(),
+                StringConstraints(max_length=QUANTITY_MAX),
+                AfterValidator(_quantity_text(dim, markers.get(Range))),
             ]
             return _annotated(Union[number, text], meta)  # noqa: UP007
         if base is dict and Json in markers:
@@ -143,16 +200,31 @@ class _Converter:
             return _annotated(Any, meta)
         if typing.get_origin(base) is Literal:
             options = typing.get_args(base)
-            return _annotated(base, [*meta, BeforeValidator(_literal_check(options))])
+            aliases = markers[Aliases].pairs if Aliases in markers else ()
+            return _annotated(base, [*meta, BeforeValidator(_literal_check(options, aliases))])
         if base is bool:
-            return _annotated(bool, [*meta, Strict()])
+            return _annotated(bool, [*meta, BeforeValidator(_natural(bool)), Strict()])
         if base is int:
             return _annotated(
-                int, [*meta, *self._range(markers), BeforeValidator(_integral), Strict()]
+                int,
+                [
+                    *meta,
+                    *self._range(markers),
+                    BeforeValidator(_integral),
+                    BeforeValidator(_natural(int)),
+                    Strict(),
+                ],
             )
         if base is float:
             return _annotated(
-                float, [*meta, *self._range(markers), Strict(), Field(allow_inf_nan=False)]
+                float,
+                [
+                    *meta,
+                    *self._range(markers),
+                    BeforeValidator(_natural(float)),
+                    Strict(),
+                    Field(allow_inf_nan=False),
+                ],
             )
         if base is str:
             limits = markers.get(Text)
@@ -165,7 +237,8 @@ class _Converter:
             (item,) = typing.get_args(base)
             items = markers.get(Items)
             bounds = [Field(min_length=items.min, max_length=items.max)] if items else []
-            return _annotated(list[self(item)], [*meta, *bounds])
+            wrap = BeforeValidator(lambda v, h=item: [v] if wraps_scalar(h, v) else v)
+            return _annotated(list[self(item)], [*meta, *bounds, wrap])
         if origin is tuple:
             args = tuple(self(a) for a in typing.get_args(base))
             return _annotated(tuple[args], meta)
@@ -222,10 +295,21 @@ def _variant_union(spec, by: dict):
     variant's own forms (what gate 1 checks; the listing keeps the free-form object)."""
     convert = _Converter()
     branches = []
-    for value in spec.variant_values():
+    values = spec.variant_values()
+    aliases = unwrap(spec.params[spec.variants].hint)[1].get(Aliases)
+    pairs = aliases.pairs if aliases is not None else ()
+
+    def tag(args):
+        """The variant a call names, in any natural spelling (as ``core.validate``)."""
+        raw = args.get(spec.variants) if isinstance(args, dict) else None
+        if raw in values:
+            return raw
+        return match_option(raw, values, pairs) or (raw if isinstance(raw, str) else None)
+
+    for value in values:
         fields = {
             name: (te.Required if p.required else te.NotRequired)[
-                Literal[value]
+                Annotated[Literal[value], BeforeValidator(_literal_check(values, pairs))]
                 if name == spec.variants
                 else convert(by[name].forms[value] if name in by else p.hint)
             ]
@@ -233,8 +317,8 @@ def _variant_union(spec, by: dict):
         }
         branch = te.TypedDict(f"{spec.name}_{value}", fields)  # type: ignore[misc]  # built per variant
         branch.__pydantic_config__ = ConfigDict(extra="forbid")  # type: ignore[attr-defined]  # read by Pydantic
-        branches.append(branch)
-    return Annotated[Union[tuple(branches)], Field(discriminator=spec.variants)]  # noqa: UP007
+        branches.append(Annotated[branch, Tag(value)])
+    return Annotated[Union[tuple(branches)], Discriminator(tag)]  # noqa: UP007
 
 
 @functools.cache
@@ -399,8 +483,11 @@ def _body(node: dict, keep_description: bool) -> dict:
 
 @functools.cache
 def _known_names() -> dict:
-    """Canonical subschema -> core type name, for readable ``$defs`` keys."""
+    """Canonical subschema -> core type name, for readable ``$defs`` keys. A subschema
+    two core types share (``Length`` and ``Angle`` without their descriptions) gets no
+    core name: an angle field must not point at ``#/$defs/Length``."""
     names = {_key({"maxLength": 128, "type": "string"}): "Ref"}
+    shared: set = set()
     for name in NAMED_TYPES:
         hint = getattr(core_types, name)
         node = _hoist_description(
@@ -408,9 +495,10 @@ def _known_names() -> dict:
                 _unshown_patterns(tidy(_inline(TypeAdapter(_Converter()(hint)).json_schema())))
             )
         )
-        names.setdefault(_key(_body(node, True)), name)
-        names.setdefault(_key(_body(node, False)), name)
-    return names
+        for key in {_key(_body(node, True)), _key(_body(node, False))}:
+            if "Angle" in {names.setdefault(key, name), name} and names[key] != name:
+                shared.add(key)
+    return {k: v for k, v in names.items() if k not in shared}
 
 
 def _def_name(body: dict, taken: set) -> str:

@@ -1,0 +1,276 @@
+{
+ "covers": {
+  "nx_create_sheet_metal_feature": [
+   "tab",
+   "flat_pattern"
+  ],
+  "nx_get_sheet_metal": [],
+  "nx_get_sheet_metal_defaults": [],
+  "nx_set_sheet_metal_defaults": [],
+  "nx_export_flat_pattern": []
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2.0,
+    "bend_radius": 3.0,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "args": {
+    "thickness": 4.0,
+    "material": "steel"
+   },
+   "expect": {
+    "error.code": "NX_VERIFICATION_FAILED",
+    "error.field": "/material",
+    "error.details.check": "material",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal_defaults",
+   "args": {},
+   "expect": {
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.material": null
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.volume": {
+     "close": 16000,
+     "tol": 1e-06
+    },
+    "data.bend_count": 0
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$tab.data.body.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      -2
+     ],
+     "tol": 1e-06
+    },
+    "data.max": {
+     "close": [
+      100,
+      80,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     50,
+     0,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "args": {
+    "operation": "flange",
+    "parameters": {
+     "edges": [
+      "$e.data.items.0.id"
+     ],
+     "length": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "up",
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     40,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ye",
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     100,
+     40,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "fp",
+   "args": {
+    "operation": "flat_pattern",
+    "parameters": {
+     "face": "$up.data.items.0.id",
+     "edge": "$ye.data.items.0.id"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.flat_extents": {
+     "close": [
+      97.74911455606932,
+      100
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "args": {},
+   "expect": {
+    "data.items.0.sheet_metal": true,
+    "data.items.0.flat_pattern": false,
+    "data.items.0.bend_count": 1,
+    "data.items.1.flat_pattern": true
+   }
+  },
+  {
+   "call": "nx_export_flat_pattern",
+   "args": {
+    "flat_pattern": "$fp.data.feature.id",
+    "path": "$run/sheet_metal_axes.dxf"
+   },
+   "expect": {
+    "data.format": "dxf",
+    "data.revision": "r2018",
+    "data.extents": {
+     "close": [
+      97.74911455606932,
+      100
+     ],
+     "tol": 1e-05
+    }
+   }
+  },
+  {
+   "call": "nx_export_flat_pattern",
+   "args": {
+    "flat_pattern": "$fp.data.feature.id",
+    "path": "$run/sheet_metal_axes.geo"
+   },
+   "expect": {
+    "data.format": "geo",
+    "data.revision": null,
+    "data.area": {
+     "close": 9774.91145560693,
+     "tol": 0.001
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  }
+ ]
+}

@@ -12,12 +12,13 @@ from __future__ import annotations
 import datetime as _dt
 import math
 import re
-from typing import Annotated, Literal, NoReturn, TypedDict
+from dataclasses import dataclass
+from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Ref, Text, forbid_extra
+from nx_mcp.core.types import Doc, Items, Json, Ref, Text, forbid_extra
 from nx_mcp.kit import readback, result
 
 TYPES = ("string", "integer", "number", "boolean", "date")
@@ -30,13 +31,19 @@ OUT_TYPE = {"String": "string", "Integer": "integer", "Real": "number", "Boolean
             "Time": "date", "Reference": "reference", "Null": "null"}  # fmt: skip
 INT32 = 2**31 - 1
 MAX_STRING = 1024
-DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$")
+# ISO dates; also YYYY/MM/DD, one-digit fields, a space for T, fractions and a final Z.
+DATE = re.compile(
+    r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?)?Z?$"
+)
 NX_DATE = re.compile(r"^(\d{4})/(\d{1,2})/(\d{1,2})(?: (\d{1,2}):(\d{2})(?::(\d{2}))?)?$")
 NX_TEXT_DATE = re.compile(r"^(\d{1,2})-([A-Za-z]{3})-(\d{4})(?: (\d{1,2}):(\d{2})(?::(\d{2}))?)?$")
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
-Title = Annotated[str, Text(50, r"^\S(.{0,48}\S)?$"), Doc("Attribute title")]
-Category = Annotated[str, Text(50, r"^\S(.{0,48}\S)?$"), Doc("Attribute category")]
+# Titles and categories are trimmed (``_title``), so " Qty" reads and writes QTY's row.
+Title = Annotated[str, Text(50), Doc("Attribute title")]
+Category = Annotated[str, Text(50)]
+BOOLEAN_TEXT = {"true": True, "yes": True, "false": False, "no": False}
+NUMBER_TEXT = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
 
 
 class AttributeRow(TypedDict, total=False):
@@ -49,9 +56,13 @@ class AttributeRow(TypedDict, total=False):
     system: bool
 
 
-class ObjectAttributes(TypedDict):
+class _ObjectAttributes(TypedDict):
     object: result.Row
     attributes: list[AttributeRow]
+
+
+class ObjectAttributes(_ObjectAttributes, total=False):
+    missing: list[str]  # requested names the object does not carry
 
 
 class GetData(TypedDict):
@@ -61,6 +72,7 @@ class GetData(TypedDict):
 class SetRow(TypedDict):
     object: result.Row
     attributes: list[AttributeRow]
+    created: list[str]  # titles that did not exist before (the others were updated)
     deleted: list[str]
 
 
@@ -68,65 +80,166 @@ class SetData(TypedDict):
     items: list[SetRow]
 
 
+Kind = Literal["string", "integer", "number", "boolean", "date"]
+
+
 class _ValueRequired(TypedDict):
     name: Title
-    type: Annotated[
-        Literal["string", "integer", "number", "boolean", "date"],
-        Doc("date: YYYY-MM-DD[Thh:mm[:ss]]"),
-    ]
     value: Annotated[str, Text(MAX_STRING)] | bool | int | float
 
 
 class AttributeValue(_ValueRequired, total=False):
+    type: Annotated[Kind, Doc("Default: existing or from value; date YYYY-MM-DD")]
     category: Category
 
 
 forbid_extra(_ValueRequired, AttributeValue)
 
 
+@dataclass
+class _Want:
+    """One attribute to write: trimmed title, NX type, checked value and its field."""
+
+    name: str
+    kind: str
+    value: Any
+    category: str
+    field: str  # "/values/0" or "/attributes/QTY"
+    raw: Any  # the value as sent, for an omitted type that adopts the existing one
+    explicit: bool  # type given by the caller
+
+    @property
+    def listed(self) -> bool:
+        return self.field.startswith("/values/")
+
+    @property
+    def name_field(self) -> str:
+        return f"{self.field}/name" if self.listed else self.field
+
+    @property
+    def type_field(self) -> str:
+        return f"{self.field}/type" if self.listed else self.field
+
+    @property
+    def value_field(self) -> str:
+        return f"{self.field}/value" if self.listed else self.field
+
+
 # ---- values --------------------------------------------------------------------------
-def _check_value(spec: AttributeValue, field: str):
-    """The NX value for ``spec`` (validated before NX), else invalid_argument."""
-    kind, value = spec["type"], spec["value"]
+def _title(text: str, field: str) -> str:
+    """``text`` trimmed: one visible line (NX keeps titles and categories on one line)."""
+    title = text.strip()
+    if not title or any(c in title for c in "\r\n\t"):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{field}: a title is one line of visible text, at most 50 characters",
+            field=field,
+        )
+    return title
 
-    def bad(message) -> NoReturn:
-        fail("NX_INVALID_ARGUMENT", f"{field}: {message}", field=f"{field}/value")
-        raise AssertionError  # fail() always raises
 
+def _infer(value) -> str:
+    """The attribute type a JSON value stands for: text is a string, never a date."""
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    return "number" if isinstance(value, float) else "string"
+
+
+def _convert(kind: str, value):
+    """``value`` as an NX value of ``kind``, else ValueError with what to send. Numeric
+    text converts to numbers and true/false/yes/no to booleans; numbers become text."""
     if kind == "string":
-        if not isinstance(value, str):
-            bad("a string attribute needs a string value")
-        if len(value) > MAX_STRING:
-            bad(f"at most {MAX_STRING} characters")
-        return value
-    if kind == "integer":
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
-            bad("an integer attribute needs a whole number")
-        if abs(int(value)) > INT32:
-            bad("integer attributes are 32-bit")
-        return int(value)
-    if kind == "number":
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            bad("a number attribute needs a number")
-        if not math.isfinite(float(value)):
-            bad("must be finite")
-        return float(value)
+        if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+            raise ValueError("a string attribute needs text")
+        text = value if isinstance(value, str) else repr(value)
+        if len(text) > MAX_STRING:
+            raise ValueError(f"at most {MAX_STRING} characters")
+        return text
+    if kind in ("integer", "number"):
+        number = value
+        if isinstance(value, str) and NUMBER_TEXT.match(value.strip()):
+            number = float(value.strip())
+        if isinstance(number, bool) or not isinstance(number, (int, float)):
+            article = "an" if kind == "integer" else "a"
+            raise ValueError(f"{article} {kind} attribute needs a number, e.g. 4")
+        if not math.isfinite(float(number)):
+            raise ValueError("must be finite")
+        if kind == "number":
+            return float(number)
+        if number != int(number):
+            raise ValueError("an integer attribute needs a whole number, e.g. 4")
+        if abs(int(number)) > INT32:
+            raise ValueError("integer attributes are 32-bit")
+        return int(number)
     if kind == "boolean":
+        if isinstance(value, str) and value.strip().casefold() in BOOLEAN_TEXT:
+            return BOOLEAN_TEXT[value.strip().casefold()]
         if not isinstance(value, bool):
-            bad("a boolean attribute needs true or false")
+            raise ValueError("a boolean attribute needs true or false")
         return value
-    # date
-    match = DATE.match(value) if isinstance(value, str) else None
+    match = DATE.match(value.strip()) if isinstance(value, str) else None
     if match is None:
-        bad("a date is YYYY-MM-DD or YYYY-MM-DDThh:mm[:ss]")
+        raise ValueError("a date is YYYY-MM-DD or YYYY-MM-DDThh:mm[:ss]")
     y, mo, d, h, mi, s = (int(g) if g else 0 for g in match.groups())
     try:
         when = _dt.datetime(y, mo, d, h, mi, s)
     except ValueError as error:
-        bad(str(error))
+        raise ValueError(str(error)) from None
     if not 1970 <= when.year <= 2105:
-        bad("NX dates run from 1970 to 2105")
+        raise ValueError("NX dates run from 1970 to 2105")
     return when
+
+
+def _want(name: str, value, kind: str | None, category: str | None, field: str) -> _Want:
+    """A checked attribute (before NX): explicit ``kind`` or the value's own type."""
+    want = _Want("", kind or _infer(value), None, "", field, value, kind is not None)
+    want.name = _title(name, want.name_field)
+    want.category = _title(category, f"{field}/category") if category else ""
+    try:
+        want.value = _convert(want.kind, value)
+    except ValueError as error:
+        fail("NX_INVALID_ARGUMENT", f"{want.value_field}: {error}", field=want.value_field)
+    return want
+
+
+def _wants(values: list[AttributeValue], attributes: dict) -> list[_Want]:
+    """``values`` then ``attributes`` (``{title: value}``) as checked writes; a title
+    listed twice is refused."""
+    out = [
+        _want(v["name"], v["value"], v.get("type"), v.get("category"), f"/values/{i}")
+        for i, v in enumerate(values)
+    ]
+    for name, value in attributes.items():
+        field = f"/attributes/{name}"
+        if not isinstance(name, str) or len(name) > 50:
+            fail("NX_INVALID_ARGUMENT", f"{field}: titles are at most 50 characters", field=field)
+        if value is None or isinstance(value, (list, dict)):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{field}: a value is text, a number or true/false; use values for a type",
+                field=field,
+            )
+        out.append(_want(name, value, None, None, field))
+    seen: set[str] = set()
+    for want in out:
+        if want.name.casefold() in seen:
+            fail("NX_INVALID_ARGUMENT", f"{want.name!r} is listed twice", field=want.field)
+        seen.add(want.name.casefold())
+    return out
+
+
+def _adopt(want: _Want, have: str) -> _Want:
+    """``want`` in the existing attribute's type ``have`` when the caller gave no type and
+    the value converts (4 for a number, "4" for an integer, "2027-01-31" for a date)."""
+    if want.explicit or want.kind == have or have not in TYPES:
+        return want
+    try:
+        value = _convert(have, want.raw)
+    except ValueError:
+        return want
+    return _Want(want.name, have, value, want.category, want.field, want.raw, False)
 
 
 def _nx_date(when: _dt.datetime) -> str:
@@ -228,33 +341,39 @@ def nx_get_attributes(
 ) -> GetData:
     """Read user attributes of the work part or of parts, bodies, faces, features and components.
     A component also lists its part's attributes as inherited."""
+    titles = [_title(n, f"/names/{i}") for i, n in enumerate(names or [])]
     with tx.checks():
         targets = (
             [_target(tx, ref, f"/objects/{i}") for i, ref in enumerate(objects)]
             if objects
             else [tx.part]
         )
-    wanted = {n.casefold() for n in names} if names else None
+    wanted = {n.casefold() for n in titles} if names else None
     items: list[ObjectAttributes] = []
     for obj in targets:
         tx.checkpoint()
-        rows = []
+        rows, found = [], set()
         for info in _scalars(obj):
             if wanted is not None and not _keys(info) & wanted:
                 continue
             if getattr(info, "OwnedBySystem", False) and not include_system and wanted is None:
                 continue
             rows.append(_row(tx, info))
+            found |= _keys(info)
         rows.sort(key=lambda r: (r["name"].casefold(), r["type"]))
-        items.append({"object": _row_of(tx, obj), "attributes": rows})
+        item: ObjectAttributes = {"object": _row_of(tx, obj), "attributes": rows}
+        if wanted is not None:
+            item["missing"] = [n for n in titles if n.casefold() not in found]
+        items.append(item)
     return {"items": items}
 
 
 def _summary(a, say):
     values, deleted = a.get("values") or [], a.get("delete") or []
+    names = [v["name"] for v in values] + list(a.get("attributes") or {})
     parts = []
-    if values:
-        parts.append("set " + ", ".join(v["name"] for v in values[:3]))
+    if names:
+        parts.append("set " + ", ".join(str(n) for n in names[:3]))
     if deleted:
         parts.append("delete " + ", ".join(deleted[:3]))
     target = f"{len(a['objects'])} object(s)" if a.get("objects") else "part"
@@ -288,6 +407,28 @@ def _refuse_read_only(info, ref, name, field):
         )
 
 
+def _plan(tx, wants: list[_Want], existing: dict, dropping: set, label: str) -> list[_Want]:
+    """``wants`` for one object: an omitted type adopts the existing attribute's; a
+    read-only title or one of another type is refused before NX is touched."""
+    planned = []
+    for want in wants:
+        info = existing.get(want.name.casefold())
+        if info is not None and want.name.casefold() not in dropping:
+            _refuse_read_only(info, label, want.name, want.name_field)
+            have = OUT_TYPE.get(_type_name(tx, info), "string")
+            want = _adopt(want, have)
+            if have != want.kind:
+                fail(
+                    "NX_ALREADY_EXISTS",
+                    f"{label} has {want.name!r} as a {have} attribute, not {want.kind}",
+                    field=want.type_field,
+                    hint=f"Send a {have} value, or list {want.name!r} in delete in the same call",
+                    details={"object": label, "name": want.name, "type": have},
+                )
+        planned.append(want)
+    return planned
+
+
 @tool(
     effect="model",
     label="Set attributes",
@@ -296,31 +437,24 @@ def _refuse_read_only(info, ref, name, field):
     requires=("work_part",),
     cost="light",
     invalidates="deleted",  # attributes only: every reference stays valid
-    example={
-        "objects": ["p:1"],
-        "values": [{"name": "DB_PART_NO", "type": "string", "value": "100-200"}],
-    },
+    example={"attributes": {"DB_PART_NO": "100-200", "QTY": 4}},
 )
 def nx_set_attributes(
     tx: Tx,
     *,
     objects: Annotated[list[Ref], Items(1, 50), Doc("Default: the work part")] | None = None,
+    attributes: Annotated[dict, Json(100, 16000), Doc("{title: value}, typed by value")]
+    | None = None,
     values: Annotated[list[AttributeValue], Items(1, 100)] | None = None,
     delete: Annotated[list[Title], Items(1, 100), Doc("Titles to remove first")] | None = None,
 ) -> SetData:
-    """Set user attributes on the work part or on parts, bodies, faces, features, components.
-    `delete` runs first. Locked and NX-owned attributes are refused; to change a title's type,
-    delete it in the same call."""
-    values, delete = list(values or []), list(delete or [])
-    if not values and not delete:
-        fail("NX_INVALID_ARGUMENT", "Pass values, delete or both", field="/values")
-    seen: set[str] = set()
-    converted = []
-    for i, spec in enumerate(values):
-        if spec["name"].casefold() in seen:
-            fail("NX_INVALID_ARGUMENT", f"{spec['name']!r} is listed twice", field=f"/values/{i}")
-        seen.add(spec["name"].casefold())
-        converted.append(_check_value(spec, f"/values/{i}"))
+    """Set user attributes of the work part or of parts, bodies, faces, features, components.
+    delete runs first; delete a title to change its type."""
+    wants = _wants(list(values or []), dict(attributes or {}))
+    delete = [_title(n, f"/delete/{i}") for i, n in enumerate(delete or [])]
+    if not wants and not delete:
+        fail("NX_INVALID_ARGUMENT", "Pass attributes, values or delete", field="/attributes")
+    seen = {w.name.casefold() for w in wants}
     dropping = {n.casefold() for n in delete}
     if len(dropping) != len(delete):
         fail("NX_INVALID_ARGUMENT", "A title is listed twice", field="/delete")
@@ -338,24 +472,10 @@ def nx_set_attributes(
             for j, name in enumerate(delete):
                 if _own(existing, name) is not None:
                     _refuse_read_only(existing[name.casefold()], label, name, f"/delete/{j}")
-            for j, spec in enumerate(values):
-                info = existing.get(spec["name"].casefold())
-                if info is None or spec["name"].casefold() in dropping:
-                    continue
-                _refuse_read_only(info, label, spec["name"], f"/values/{j}/name")
-                have = OUT_TYPE.get(_type_name(tx, info), "string")
-                if have != spec["type"]:
-                    fail(
-                        "NX_ALREADY_EXISTS",
-                        f"{label} has {spec['name']!r} as a {have} attribute",
-                        field=f"/values/{j}/type",
-                        hint="Use that type, or delete the title in the same call",
-                        details={"object": label, "name": spec["name"], "type": have},
-                    )
-            targets.append((obj, existing))
+            targets.append((obj, existing, _plan(tx, wants, existing, dropping, label)))
     now = tx.nx.Update.Option.Now
     items: list[SetRow] = []
-    for obj, existing in targets:
+    for obj, existing, planned in targets:
         tx.checkpoint()
         deleted = []
         for name in delete:
@@ -365,61 +485,63 @@ def nx_set_attributes(
             with native():
                 obj.DeleteUserAttribute(info.Type, str(info.Title), True, now)
             deleted.append(str(info.Title))
-        for spec, value in zip(values, converted, strict=True):
+        created = []
+        for want in planned:
             info = tx.nx.NXObject.AttributeInformation()
-            info.Title = spec["name"]
-            info.Type = getattr(types, NATIVE[spec["type"]])
+            info.Title = want.name
+            info.Type = getattr(types, NATIVE[want.kind])
             info.Array = False
-            old = _own(existing, spec["name"])
-            category = spec.get("category") or (
-                getattr(old, "Category", "")
-                if old is not None and spec["name"].casefold() not in dropping
-                else ""
-            )
+            old = _own(existing, want.name)
+            kept = old is not None and want.name.casefold() not in dropping
+            if not kept:
+                created.append(want.name)
+            category = want.category or (getattr(old, "Category", "") if kept else "")
             if category:
                 info.Category = category  # NX clears a category that is not passed again
-            setattr(info, FIELD[spec["type"]],
-                    _nx_date(value) if spec["type"] == "date" else value)  # fmt: skip
+            setattr(info, FIELD[want.kind],
+                    _nx_date(want.value) if want.kind == "date" else want.value)  # fmt: skip
             with native():
                 obj.SetUserAttribute(info, now)
         after = _existing(obj)
         rows = []
-        for j, (spec, value) in enumerate(zip(values, converted, strict=True)):
-            got = _own(after, spec["name"])
-            readback.expect(got is not None, "attribute", f"{spec['name']} was not set")
-            if str(got.Title).casefold() != spec["name"].casefold():
+        for want in planned:
+            got = _own(after, want.name)
+            readback.expect(got is not None, "attribute", f"{want.name} was not set")
+            if str(got.Title).casefold() != want.name.casefold():
                 fail(
                     "NX_READ_ONLY",
-                    f"{spec['name']!r} is NX's reserved alias of {got.Title}",
-                    field=f"/values/{j}/name",
+                    f"{want.name!r} is NX's reserved alias of {got.Title}",
+                    field=want.name_field,
                     hint="Use another title; assign materials with nx_set_material",
-                    details={"name": spec["name"], "reserved": str(got.Title)},
+                    details={"name": want.name, "reserved": str(got.Title)},
                 )
             row = _row(tx, got)
-            _verify(row, spec, value)
+            _verify(row, want)
             rows.append(row)
         for name in deleted:
             if name.casefold() not in seen:  # deleted and set again: checked above
                 gone = _own(after, name) is None
                 readback.expect(gone, "delete", f"{name} is still present")
-        items.append({"object": _row_of(tx, obj), "attributes": rows, "deleted": deleted})
+        items.append(
+            {"object": _row_of(tx, obj), "attributes": rows, "created": created, "deleted": deleted}
+        )
     return {"items": items}
 
 
-def _verify(row: AttributeRow, spec: AttributeValue, value) -> None:
-    name, kind = spec["name"], spec["type"]
+def _verify(row: AttributeRow, want: _Want) -> None:
+    name, kind, value = want.name, want.kind, want.value
     readback.expect(row["type"] == kind, "type", f"{name} is a {row['type']}", type=row["type"])
     got = row["value"]
     if kind == "number":
         readback.expect_close(got, value, f"value:{name}", tol=1e-9 * max(1.0, abs(value)))
     elif kind == "date":
-        want = f"{value:%Y-%m-%dT%H:%M:%S}"
-        readback.expect(got == want, f"value:{name}", f"{name} reads {got}", value=got)
+        text = f"{value:%Y-%m-%dT%H:%M:%S}"
+        readback.expect(got == text, f"value:{name}", f"{name} reads {got}", value=got)
     else:
         readback.expect(got == value, f"value:{name}", f"{name} reads {got!r}", value=got)
-    if spec.get("category"):
+    if want.category:
         readback.expect(
-            row.get("category") == spec["category"],
+            row.get("category") == want.category,
             f"category:{name}",
             f"{name} has category {row.get('category')!r}",
             category=row.get("category"),

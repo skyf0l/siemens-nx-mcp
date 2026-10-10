@@ -140,6 +140,9 @@ class Constraint(Object):
     def curves(self):
         return [g for g, _ in self.geometry]
 
+    def GetGeometry(self):  # noqa: N802 - NXOpen.SketchGeometricConstraint.GetGeometry
+        return [NS(Geometry=g, PointType=p) for g, p in self.geometry]
+
 
 class Dimension(Constraint):
     def __init__(self, kind, geometry, sketch, expression, reference):

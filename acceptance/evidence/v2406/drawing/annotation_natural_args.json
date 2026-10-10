@@ -1,0 +1,167 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/annotation_natural_args.json",
+  "scenario_sha256": "df8bb6d25ecb5cdb43224efdd817a3feeaa60f5e2d4dbfd9d538b95925dfd0d6",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_gdt": [
+      "fcf",
+      "view_datum_feature",
+      "view_fcf"
+    ],
+    "nx_create_drawing_symbol": [
+      "surface_finish",
+      "weld"
+    ],
+    "nx_create_centerline": [
+      "center_mark",
+      "axis"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_gdt": "5999867de8c1fae1bd5b95bdcdfc04aea0e40a5b190e8ca70a3ef6aabf65c21a",
+    "nx_create_drawing_symbol": "9c542e531ce8ed923d07d8948fe7d811b4ebe6b24e7ab707e6ffd966da232e49",
+    "nx_create_centerline": "9c542e531ce8ed923d07d8948fe7d811b4ebe6b24e7ab707e6ffd966da232e49"
+  },
+  "recorded": "2026-10-10T23:09:15Z",
+  "passed": true,
+  "checks": 39,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 11,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 12,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 13,
+      "call": "nx_create_gdt",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 14,
+      "call": "nx_create_drawing_symbol",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 15,
+      "call": "nx_create_drawing_symbol",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_create_drawing_symbol",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_create_centerline",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 18,
+      "call": "nx_create_centerline",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
+      "call": "nx_create_centerline",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

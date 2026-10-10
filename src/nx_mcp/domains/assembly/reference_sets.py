@@ -7,6 +7,7 @@ additions. Unrequested members are removed and the membership is read back exact
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -17,9 +18,9 @@ from nx_mcp.kit import args, display, model, readback, result, select
 
 BUILT_IN = ("entire part", "empty")
 Member = Annotated[str, RefTo("body", "curve", "datum", "component", "sketch", "point")]
-SetName = Annotated[
-    str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_\-]{0,63}$"), Doc("New reference set name")
-]
+# Checked in the tool, so a refused name gets a suggestion instead of "invalid format".
+NAME_PATTERN = r"^[A-Za-z0-9_][A-Za-z0-9_\-]{0,63}$"
+SetName = Annotated[str, Text(64), Doc("New set name: letters, digits, _ or - (e.g. SOLID)")]
 
 
 class ReferenceSetData(TypedDict):
@@ -58,7 +59,15 @@ def nx_create_reference_set(
     objects: Annotated[list[Member], Items(1, 1000)],
 ) -> ReferenceSetData:
     """Create a custom reference set of the work part with exactly these members. Members are
-    bodies, curves, datums, sketches or components; apply it with nx_edit_component."""
+    bodies, curves, datums, sketches or components. Components of this part then use it via
+    nx_edit_component; for a set in a component's part, nx_activate_part it first."""
+    if not re.match(NAME_PATTERN, name):
+        suggestion = re.sub(r"[^A-Za-z0-9_\-]+", "_", name).strip("_")[:64] or "SET"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"Reference set names use letters, digits, _ and - only, e.g. {suggestion!r}",
+            field="/name",
+        )
     if name.casefold() in BUILT_IN:
         fail("NX_INVALID_ARGUMENT", "Entire Part and Empty are built in", field="/name")
     args.distinct("/objects", objects, "objects")

@@ -6,7 +6,8 @@ with no plane constraint (a free 3D curve); its feature type is ``SPLINE``
 builder crashed NX 2406 natively (memory access violation), so the edit refuses
 anything that is not a ``StudioSpline`` before the builder is created. A native
 refusal (coincident points, impossible degree) is ``NX_BUILD_FAILED`` with
-``nx_code``.
+``nx_code``. An omitted degree is 3, capped at points - 1 so that two or three
+points still make a spline (degree 1 or 2).
 """
 
 from __future__ import annotations
@@ -17,9 +18,10 @@ from nx_mcp.core.catalogue import definition, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Point3, Range
-from nx_mcp.kit import builders, curve, geom, readback, result, units
+from nx_mcp.kit import builders, curve, geom, measure, readback, result, units
 
 METHODS = ("through_points", "poles")
+DEFAULT_DEGREE = 3
 
 
 class SplineData(TypedDict):
@@ -29,6 +31,7 @@ class SplineData(TypedDict):
     periodic: bool
     start: Point3
     end: Point3
+    length: float
 
 
 class _Shape(TypedDict):  # what _verify reads back
@@ -46,13 +49,24 @@ def _points(values, field):
     return points
 
 
+def _degree(points, degree):
+    """The given degree, or the default 3 capped at points - 1."""
+    return min(DEFAULT_DEGREE, len(points) - 1) if degree is None else int(degree)
+
+
 def _check_degree(points, degree, field):
     if len(points) <= degree:
         fail(
             "NX_INVALID_ARGUMENT",
-            f"A degree {degree} spline needs at least {degree + 1} points",
+            f"A degree {degree} spline needs at least {degree + 1} points, got {len(points)}",
             field=field,
+            hint=f"Send degree {len(points) - 1} or lower (or omit it), or add points",
         )
+
+
+def _clean(p):
+    """A point with round-off (|v| < 1e-9, e.g. -6e-16) snapped to 0."""
+    return [0.0 if abs(v) < 1e-9 else v for v in p]
 
 
 def _is_studio_spline(tx, feature):
@@ -100,7 +114,12 @@ def _verify(tx, spline, points, method, degree, periodic) -> _Shape:
                 any(geom.dist(q, p) <= tol for q in near), f"pole[{i}]", "A pole moved", pole=p
             )
     start, end = curve.ends(tx, spline)
-    return {"degree": got, "periodic": bool(spline.Periodic), "start": start, "end": end}
+    return {
+        "degree": got,
+        "periodic": bool(spline.Periodic),
+        "start": _clean(start),
+        "end": _clean(end),
+    }
 
 
 @tool(
@@ -121,13 +140,14 @@ def nx_create_spline(
     tx: Tx,
     *,
     points: Annotated[list[Point3], Items(2, 1000)],
-    method: Literal["through_points", "poles"],
-    degree: Annotated[int, Range(ge=1, le=7), Doc("Needs more points than the degree")] = 3,
-    periodic: Annotated[bool, Doc("Closed, periodic curve")] = False,
+    method: Literal["through_points", "poles"] = "through_points",
+    degree: Annotated[int, Range(ge=1, le=7), Doc("Default min(3, points-1)")] | None = None,
+    periodic: Annotated[bool, Doc("Closed curve")] = False,
 ) -> SplineData:
-    """Create a 3D Studio Spline that interpolates the points or uses them as control poles.
-    Edit it with nx_edit_feature definition {spline: {points, method, degree, periodic}}."""
+    """Create a 3D Studio Spline through the points or with them as control poles. Edit
+    with nx_edit_feature definition {spline: {points, method, degree, periodic}}."""
     values = _points(points, "/points")
+    degree = _degree(values, degree)
     _check_degree(values, degree, "/degree")
     with builders.build(tx, tx.part.Features.CreateStudioSplineBuilderEx, None) as b:
         _configure(tx, b, values, method, degree, periodic)
@@ -138,6 +158,7 @@ def nx_create_spline(
         "feature": tx.ref(feature, kind="feature"),
         "curve": tx.ref(spline, kind="curve"),
         **out,
+        "length": measure.length(tx, spline),
     }
 
 

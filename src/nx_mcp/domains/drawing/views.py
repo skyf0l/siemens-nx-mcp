@@ -9,6 +9,10 @@ NX 2406 findings encoded here:
 - A projected view defaults to 1:1 on 2406: ``ViewStyleProjected.Scale = True``
   makes it inherit the parent's scale. A projected center off the sheet fails in NX
   after the commit ("The view is not located on the drawing"): refused before NX.
+- ``position`` is the view's reference point (``GetDrawingReferencePoint``), not the
+  centre of its border; the border (``AskViewBorders``) includes NX's view margin.
+  Projected ``spacing`` is the clear gap between the two borders, set from the read-back
+  borders after the commit.
 - Detail-view boundaries are recorded (parent handle, model center, radius) and
   re-mapped after parent edits (``nx_update_annotations`` and view edits).
 """
@@ -25,7 +29,6 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     BodyRef,
     Doc,
-    DrawingSheetRef,
     DrawingViewRef,
     EdgeRef,
     ExplosionRef,
@@ -33,6 +36,7 @@ from nx_mcp.core.types import (
     Items,
     Point3,
     Range,
+    RefTo,
     SheetPoint,
     forbid_extra,
 )
@@ -41,11 +45,18 @@ from nx_mcp.domains.drawing import view_kinds as kinds
 from nx_mcp.domains.drawing.common import (
     CONSTRUCTION,
     DETAIL,
+    VIEW_PARENT,
+    Loose,
+    ScaleArg,
     attribute,
+    choice,
+    open_or_only_sheet,
+    scale_terms,
+    scale_value,
     update,
 )
 from nx_mcp.domains.drawing.view_kinds import EdgePoint
-from nx_mcp.kit import args, builders, drawing, geom, parts, readback, result, select, units
+from nx_mcp.kit import builders, drawing, geom, parts, readback, result, select, units
 
 ORIENTATIONS = {
     "top": "Top",
@@ -56,9 +67,21 @@ ORIENTATIONS = {
     "bottom": "Bottom",
     "isometric": "Isometric",
 }
+ORIENTATION_ALIASES = {"iso": "isometric", "plan": "top", "rear": "back"}
 OFFSETS = {"right": (1, 0), "left": (-1, 0), "top": (0, 1), "bottom": (0, -1)}
+DIRECTION_ALIASES = {"above": "top", "up": "top", "below": "bottom", "down": "bottom"}
+# The view z axis (toward the viewer, part coordinates) of NX's standard model views.
+TOWARD_VIEWER = {
+    "top": (0, 0, 1),
+    "bottom": (0, 0, -1),
+    "front": (0, -1, 0),
+    "back": (0, 1, 0),
+    "right": (1, 0, 0),
+    "left": (-1, 0, 0),
+}
 DEFAULT_POSITION_MM = (100.0, 100.0)
-DEFAULT_SPACING_MM = 60.0
+MAX_GAP = 1000.0  # broken-view gap, sheet units
+DEFAULT_GAP_MM = 20.0  # clear space between a projected view's border and its parent's
 DEFAULT_DETAIL_SCALE = 2.0
 NATIVE_TYPES = {
     "BaseView": "base",
@@ -67,15 +90,31 @@ NATIVE_TYPES = {
     "DetailView": "detail",
 }
 
-Vec2 = Annotated[tuple[float, float], Doc("Sheet [x, y] direction")]
-Scale = Annotated[float, Range(gt=0, le=1000), Doc("e.g. 2 for 2:1")]
+Vec2 = tuple[float, float]  # a sheet direction
 Band = tuple[float, float]
+# What each view type needs besides ``type``, said once when something is missing.
+NEEDS = {
+    "base": "e.g. {type: base, orientation: front, position: [120, 150]}; sheet defaults to "
+    "the open sheet, body to the part's only body",
+    "projected": "e.g. {type: projected, parent: <view ref>, direction: right, spacing: 20}",
+    "auxiliary": "hinge: a straight edge ref seen in the parent; position: the sheet point",
+    "broken": "breaks: [[start, end]] sheet coordinates along axis (x or y)",
+    "break_out": "center: a model point [x, y, z]; radius, depth below center: part units",
+    "detail": "center: a model point [x, y, z] and radius (part units); position: sheet point",
+    "flat_pattern": "flat_pattern: the Flat Pattern feature ref",
+    "section": "cut: an edge ref (nx_find_geometry) the section line passes through at "
+    "cut_point (start, end or center of an arc); arrow_direction: the sheet direction the "
+    "arrows point, e.g. [0, 1] (step_direction defaults to it turned 90 deg clockwise); "
+    "position: the sheet point. half: + bend {edge}; stepped: cuts [{edge}, {edge}]; "
+    "revolved: rotation {edge} + 2 cuts",
+}
 
 
 class _ViewExtras(TypedDict, total=False):
     cut_planes: list[dict]  # section views: [{normal, offset}] in part coordinates
     hinge: dict  # auxiliary: hinge edge model_length and view_length (part units)
     breaks: list[dict]  # broken: the bands removed (sheet units)
+    gap: float  # projected: clear space between its border and the parent's (sheet units)
     break_out: dict  # break-out: depth read back, boundary radius
 
 
@@ -83,11 +122,15 @@ class ViewData(_ViewExtras):
     view: result.Row
     sheet: result.Row
     type: str
-    position: list[float]
+    position: Annotated[list[float], Doc("Reference point, not the border centre")]
     scale: float
-    bounds: list[float]
+    bounds: Annotated[list[float], Doc("Border [x0, y0, x1, y1] incl. NX's view margin")]
+    center: list[float]
     inside_sheet: bool
+    overlaps: Annotated[list[result.Row], Doc("Views whose border overlaps this one")]
     toward_viewer: list[float]
+    orientation: str | None
+    parent: result.Row | None
 
 
 # ---- shared ----------------------------------------------------------------------------
@@ -97,8 +140,40 @@ def view_type(view):
     return NATIVE_TYPES.get(type(view).__name__, type(view).__name__.lower())
 
 
+def orientation_of(toward):
+    """The standard view name whose view direction ``toward`` is, else None."""
+    for name, axis in TOWARD_VIEWER.items():
+        if all(abs(a - b) <= 1e-6 for a, b in zip(toward, axis, strict=True)):
+            return name
+    if all(abs(abs(c) - 1 / math.sqrt(3)) <= 1e-6 for c in toward):
+        return "isometric"
+    return None
+
+
+def parent_of(tx, view, sheet):
+    """The view a derived view was made from (recorded at creation), else None."""
+    handle = attribute(tx, view, VIEW_PARENT)
+    detail = attribute(tx, view, DETAIL)
+    if handle is None and detail:
+        handle = json.loads(detail).get("parent")
+    if not handle:
+        return None
+    try:
+        tag = int(tx.uf.Tag.AskTagOfHandle(handle))
+    except Exception:  # the parent was deleted
+        return None
+    return next((v for v in sheet.GetDraftingViews() if int(v.Tag) == tag), None)
+
+
+def _overlap(a, b):
+    return min(a[2], b[2]) - max(a[0], b[0]) > 1e-9 and min(a[3], b[3]) - max(a[1], b[1]) > 1e-9
+
+
 def view_data(tx, view, sheet):
     bounds = drawing.borders(tx, view)
+    toward = [float(v) for v in drawing.axes(view)[2]]  # view z axis, part coords
+    parent = parent_of(tx, view, sheet)
+    others = [v for v in sheet.GetDraftingViews() if int(v.Tag) != int(view.Tag)]
     return {
         "view": tx.ref(view, "drawing_view"),
         "sheet": tx.ref(sheet, "drawing_sheet"),
@@ -106,15 +181,35 @@ def view_data(tx, view, sheet):
         "position": drawing.position(view),
         "scale": drawing.scale(tx, view),
         "bounds": bounds,
+        "center": [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2],
         "inside_sheet": drawing.inside(bounds, sheet),
-        "toward_viewer": [float(v) for v in drawing.axes(view)[2]],  # view z axis, part coords
+        "overlaps": [
+            tx.ref(v, "drawing_view") for v in others if _overlap(bounds, drawing.borders(tx, v))
+        ],
+        "toward_viewer": toward,
+        "orientation": orientation_of(toward),
+        "parent": tx.ref(parent, "drawing_view") if parent is not None else None,
     }
+
+
+def warn_overlaps(tx, out):
+    if out["overlaps"]:
+        names = ", ".join(str(r.get("name") or r.get("id")) for r in out["overlaps"][:5])
+        tx.warn(
+            "NX_VIEW_OVERLAP",
+            f"The view's border overlaps {len(out['overlaps'])} other view(s) ({names}): "
+            "move it with nx_edit_drawing_view position (see bounds)",
+        )
+
+
+def _record_parent(tx, view, parent):
+    view.SetAttribute(VIEW_PARENT, tx.uf.Tag.AskHandleFromTag(parent.Tag))
 
 
 def _configure(tx, b, sheet, scale):
     """Ratio scale (the sheet's unless given) and dashed, self-hidden hidden lines."""
     P = tx.nx.Preferences
-    numerator, denominator = (scale, 1.0) if scale is not None else sheet.GetScale()
+    numerator, denominator = scale_terms(scale) if scale is not None else sheet.GetScale()
     b.Scale.ScaleType = b.Scale.Type.Ratio
     b.Scale.Numerator = float(numerator)
     b.Scale.Denominator = float(denominator)
@@ -204,12 +299,13 @@ def refresh_details(tx, views=None):
 
 def _summary(a, say):
     kind = a.get("type")
+    on = f" on {say('sheet')}" if a.get("sheet") else ""
     if kind == "base":
-        return f"Base view {a.get('orientation', '')} on {say('sheet')}"
+        return f"Base view {a.get('orientation', '')}{on}"
     if kind == "projected":
         return f"Projected view {a.get('direction', '')} of {say('parent')}"
     if kind == "flat_pattern":
-        return f"Flat-pattern view on {say('sheet')}"
+        return f"Flat-pattern view{on}"
     if kind in ("broken", "break_out"):
         return f"{kind.replace('_', '-').capitalize()} {say('parent')}"
     return f"{kind.replace('_', ' ').capitalize()} view of {say('parent')}"
@@ -227,6 +323,7 @@ def _summary(a, say):
         "auxiliary view",
         "broken view",
         "break-out section",
+        "isometric view",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="type",
@@ -256,14 +353,15 @@ def nx_create_drawing_view(
         "revolved_section",
         "break_out",
     ],
-    sheet: DrawingSheetRef | None = None,
+    sheet: Annotated[str, RefTo("drawing_sheet", doc="Ref; default the open sheet")] | None = None,
     parent: DrawingViewRef | None = None,
     orientation: Literal["top", "front", "back", "right", "left", "bottom", "isometric"]
+    | Loose
     | None = None,
     body: BodyRef | None = None,
     explosion: ExplosionRef | None = None,
-    direction: Literal["right", "left", "top", "bottom"] | None = None,
-    spacing: Annotated[float, Range(gt=0, le=10000), Doc("Sheet units")] | None = None,
+    direction: Literal["right", "left", "top", "bottom"] | Loose | None = None,
+    spacing: Annotated[float, Range(gt=0), Doc("Gap between borders")] | None = None,
     hinge: EdgeRef | None = None,
     cut: EdgeRef | None = None,
     cut_point: Literal["start", "end", "center"] = "start",
@@ -274,56 +372,96 @@ def nx_create_drawing_view(
     arrow_direction: Vec2 | None = None,
     axis: Literal["x", "y"] = "x",
     breaks: Annotated[list[Band], Items(1, 4), Doc("Sheet [start, end]")] | None = None,
-    gap: Annotated[float, Range(gt=0, le=1000), Doc("Sheet units")] | None = None,
+    gap: Annotated[float, Range(gt=0), Doc("Sheet units")] | None = None,
     center: Point3 | None = None,
-    radius: Annotated[float, Range(gt=0, le=1e6), Doc("Part units")] | None = None,
-    depth: Annotated[float, Range(gt=0, le=1e6), Doc("Below center, part units")] | None = None,
+    radius: Annotated[float, Range(gt=0), Doc("Part units")] | None = None,
+    depth: Annotated[float, Range(gt=0), Doc("Part units")] | None = None,
     flat_pattern: FeatureRef | None = None,
     position: SheetPoint | None = None,
-    scale: Scale | None = None,
+    scale: ScaleArg | None = None,
 ) -> ViewData:
     """Place a drawing view at a verified sheet point; broken and break_out cut the parent.
     Derived views keep the parent scale."""
-    if type == "base":
-        args.need(sheet=sheet, orientation=orientation)
-        return _create_base(tx, sheet, orientation, body, explosion, position, scale)
-    if type == "projected":
-        args.need(parent=parent, direction=direction)
-        return _create_projected(tx, parent, direction, spacing)
-    if type == "auxiliary":
-        args.need(parent=parent, hinge=hinge, position=position)
-        return _create_auxiliary(tx, parent, hinge, position)
-    if type == "broken":
-        args.need(parent=parent, breaks=breaks)
-        return _create_broken(tx, parent, axis, breaks, gap)
-    if type == "break_out":
-        args.need(parent=parent, center=center, radius=radius, depth=depth)
-        return _create_break_out(tx, parent, center, radius, depth)
-    if type.endswith("section"):
-        kind = type.removesuffix("_section").removesuffix("section") or "simple"
-        needed: dict[str, object] = {"cut": cut} if kind in ("simple", "half") else {}
-        if kind == "half":
-            needed["bend"] = bend
-        elif kind != "simple":
-            needed.update(cuts=cuts, **({"rotation": rotation} if kind == "revolved" else {}))
-        args.need(parent=parent, step_direction=step_direction,
-                  arrow_direction=arrow_direction, position=position, **needed)  # fmt: skip
-        if kind == "revolved" and len(cuts or []) != 2:
-            fail("NX_INVALID_ARGUMENT", "A revolved section takes one cut per leg", field="/cuts")
-        step = geom.unit([*(step_direction or ()), 0.0], "/step_direction")
-        arrow = geom.unit([*(arrow_direction or ()), 0.0], "/arrow_direction")
-        if abs(geom.dot(step, arrow)) > 1e-8:
-            fail("NX_INVALID_ARGUMENT", "step and arrow must be perpendicular",
-                 field="/arrow_direction")  # fmt: skip
-        if kind == "simple":
-            return _create_section(tx, parent, cut, cut_point, step, arrow, position, scale)
-        points = _section_points(kind, cut, cut_point, bend, rotation, cuts)
-        return _create_sx_kind(tx, kind, parent, points, step, arrow, position, scale)
-    if type == "detail":
-        args.need(parent=parent, center=center, radius=radius, position=position)
+    a = {
+        **locals(),
+        "orientation": choice(orientation, ORIENTATIONS, "/orientation", ORIENTATION_ALIASES),
+        "direction": choice(direction, OFFSETS, "/direction", DIRECTION_ALIASES),
+        "scale": scale_value(scale),
+    }
+    out = _create(tx, type, a)
+    if type not in ("broken", "break_out"):  # those cut the parent view in place
+        warn_overlaps(tx, out)
+    return out
+
+
+def _need(kind, **fields):
+    """Every named field is given; else one error naming all the missing ones."""
+    missing = [name for name, value in fields.items() if value is None]
+    if missing:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A {kind.replace('_', ' ')} view needs {', '.join(missing)}",
+            field="/" + missing[0],
+            hint=NEEDS["section" if kind.endswith("section") else kind],
+        )
+
+
+def _create(tx, kind, a):
+    parent, position, scale = a["parent"], a["position"], a["scale"]
+    center, radius = a["center"], a["radius"]
+    if kind == "base":
+        _need(kind, orientation=a["orientation"])
+        return _create_base(tx, a["sheet"], a["orientation"], a["body"], a["explosion"],
+                            position, scale)  # fmt: skip
+    if kind == "projected":
+        _need(kind, parent=parent, direction=a["direction"])
+        return _create_projected(tx, parent, a["direction"], a["spacing"], position)
+    if kind == "auxiliary":
+        _need(kind, parent=parent, hinge=a["hinge"], position=position)
+        return _create_auxiliary(tx, parent, a["hinge"], position)
+    if kind == "broken":
+        _need(kind, parent=parent, breaks=a["breaks"])
+        if (a["gap"] or 0) > MAX_GAP:
+            fail("NX_INVALID_ARGUMENT", f"gap must be at most {MAX_GAP:g}", field="/gap")
+        return _create_broken(tx, parent, a["axis"], a["breaks"], a["gap"])
+    if kind == "break_out":
+        _need(kind, parent=parent, center=center, radius=radius, depth=a["depth"])
+        return _create_break_out(tx, parent, center, radius, a["depth"])
+    if kind.endswith("section"):
+        return _section(tx, kind, a)
+    if kind == "detail":
+        _need(kind, parent=parent, center=center, radius=radius, position=position)
         return _create_detail(tx, parent, center, radius, position, scale)
-    args.need(sheet=sheet, flat_pattern=flat_pattern)
-    return _create_flat(tx, sheet, flat_pattern, position, scale)
+    _need(kind, flat_pattern=a["flat_pattern"])
+    return _create_flat(tx, a["sheet"], a["flat_pattern"], position, scale)
+
+
+def _section(tx, type_, a):
+    kind = type_.removesuffix("_section").removesuffix("section") or "simple"
+    cut, cut_point, bend, rotation, cuts = (
+        a[k] for k in ("cut", "cut_point", "bend", "rotation", "cuts")
+    )
+    parent, position, scale = a["parent"], a["position"], a["scale"]
+    step_direction, arrow_direction = a["step_direction"], a["arrow_direction"]
+    if step_direction is None and arrow_direction is not None:
+        step_direction = (arrow_direction[1], -arrow_direction[0])  # the arrow turned clockwise
+    needed: dict[str, object] = {"cut": cut} if kind in ("simple", "half") else {}
+    if kind == "half":
+        needed["bend"] = bend
+    elif kind != "simple":
+        needed.update(cuts=cuts, **({"rotation": rotation} if kind == "revolved" else {}))
+    _need(type_, parent=parent, arrow_direction=arrow_direction, position=position, **needed)
+    if kind == "revolved" and len(cuts or []) != 2:
+        fail("NX_INVALID_ARGUMENT", "A revolved section takes one cut per leg", field="/cuts")
+    step = geom.unit([*(step_direction or ()), 0.0], "/step_direction")
+    arrow = geom.unit([*(arrow_direction or ()), 0.0], "/arrow_direction")
+    if abs(geom.dot(step, arrow)) > 1e-8:
+        fail("NX_INVALID_ARGUMENT", "step and arrow must be perpendicular",
+             field="/arrow_direction")  # fmt: skip
+    if kind == "simple":
+        return _create_section(tx, parent, cut, cut_point, step, arrow, position, scale)
+    points = _section_points(kind, cut, cut_point, bend, rotation, cuts)
+    return _create_sx_kind(tx, kind, parent, points, step, arrow, position, scale)
 
 
 def _section_points(kind, cut, cut_point, bend, rotation, cuts):
@@ -340,11 +478,15 @@ def _section_points(kind, cut, cut_point, bend, rotation, cuts):
     return out
 
 
+def _sheet(tx, sheet_ref):
+    if sheet_ref is None:
+        return open_or_only_sheet(tx)
+    return select.resolve(tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True)
+
+
 def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, scale):
     with tx.checks():
-        target_sheet = select.resolve(
-            tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True
-        )
+        target_sheet = _sheet(tx, sheet_ref)
         part = tx.part
         assembly = bool(parts.components(part))
         explosion = None
@@ -388,25 +530,39 @@ def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, 
         return view_data(tx, view, target_sheet)
 
 
-def _create_projected(tx, parent_ref, direction, spacing):
+def _create_projected(tx, parent_ref, direction, spacing, position):
     dx, dy = OFFSETS[direction]
+    k, sign = (0, dx) if dx else (1, dy)  # the free axis and the side of the parent
     with tx.checks():
         parent, sheet = drawing.view(tx, parent_ref, "/parent")
+        if spacing is not None and position is not None:
+            fail("NX_INVALID_ARGUMENT", "Give spacing or position, not both", field="/position")
         sheet_units = units.sheet_units(tx, sheet)
-        gap = (
-            spacing if spacing is not None else drawing.from_mm(sheet_units, DEFAULT_SPACING_MM)[0]
-        )
         center = drawing.position(parent)
-        target = [center[0] + dx * gap, center[1] + dy * gap]
-        length, height = drawing.size(sheet)
-        if not (0 <= target[0] <= length and 0 <= target[1] <= height):
-            # NX fails after the commit with "The view is not located on the drawing".
-            fail(
-                "NX_INVALID_ARGUMENT",
-                "The projected view would be off the sheet; reduce spacing or change direction",
-                field="/spacing",
-                details={"center": target, "sheet_size": [length, height]},
-            )
+        border = drawing.borders(tx, parent)
+        facing = border[k + 2] if sign > 0 else border[k]  # the parent border facing the view
+        limit = drawing.size(sheet)[k]
+        gap = spacing if spacing is not None else drawing.from_mm(sheet_units, DEFAULT_GAP_MM)[0]
+        if position is not None:
+            free = float(position[k])
+            if not 0 <= free <= limit or sign * (free - center[k]) <= 0:
+                fail("NX_INVALID_ARGUMENT",
+                     f"position must lie {direction} of the parent and on the sheet",
+                     field="/position", details={"parent_position": center})  # fmt: skip
+        else:
+            reach = facing + sign * gap
+            if not 0 <= reach <= limit:
+                # NX fails after the commit with "The view is not located on the drawing".
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    "The projected view would be off the sheet; reduce spacing or change direction",
+                    field="/spacing",
+                    details={"parent_bounds": border, "sheet_size": drawing.size(sheet)},
+                )
+            # First guess: the parent's own extent; corrected from the read-back border.
+            free = min(max(reach + sign * (border[k + 2] - border[k]) / 2, 0.0), limit)
+        target = list(center)
+        target[k] = free
         explosions = list(getattr(tx.part.ComponentAssembly, "Explosions", None) or [])
         exploded = _explosion_of(tx, parent) if explosions else 0
         parent_scale = drawing.scale(tx, parent)
@@ -423,17 +579,36 @@ def _create_projected(tx, parent_ref, direction, spacing):
             b.Placement.Associative = True
             b.Placement.Placement.SetValue(None, None, sh.point(target))
             view = b.commit()
+        _record_parent(tx, view, parent)
         # Move only along the free axis: moving an aligned view across its alignment drags
         # the parent with it (NX keeps the associative alignment).
-        now = drawing.position(view)
-        free = [target[0], now[1]] if dx else [now[0], target[1]]
-        drawing.place(tx, view, free, axes=(0,) if dx else (1,))
+        point = drawing.position(view)
+        point[k] = free
+        drawing.place(tx, view, point, axes=(k,))
         tol = units.tolerance(sh.units, 1e-4)
+        if position is None:  # the requested gap between the read-back borders
+            mine = drawing.borders(tx, view)
+            point[k] += facing + sign * gap - (mine[k] if sign > 0 else mine[k + 2])
+            if not 0 <= point[k] <= limit:
+                fail("NX_INVALID_ARGUMENT", "The projected view would be off the sheet; reduce "
+                     "spacing or change direction", field="/spacing",
+                     details={"view_bounds": mine, "sheet_size": drawing.size(sheet)})  # fmt: skip
+            drawing.place(tx, view, point, axes=(k,))
         readback.expect_close(drawing.position(parent), center, "parent_position", tol)
+        mine = drawing.borders(tx, view)
+        measured = sign * ((mine[k] if sign > 0 else mine[k + 2]) - facing)
+        if position is None:
+            readback.expect_close(measured, gap, "gap", 10 * tol)
+        elif abs(float(position[1 - k]) - center[1 - k]) > tol:
+            tx.warn("NX_UPDATE_WARNING", f"A {direction} projected view stays aligned with its "
+                    f"parent: {'yx'[k]} = {center[1 - k]:g}, not {position[1 - k]:g}")  # fmt: skip
         if exploded:
             _set_explosion(tx, view, exploded)
+        _construction(tx, view)
         _verify_scale(tx, view, parent_scale)
-        return view_data(tx, view, sheet)
+        out = view_data(tx, view, sheet)
+        out["gap"] = measured
+        return out
 
 
 def _create_section(tx, parent_ref, cut, cut_point, step, arrow, position, scale):
@@ -466,6 +641,7 @@ def _create_sx_kind(tx, kind, parent_ref, given, step, arrow, position, scale):
 
 def _finish_section(tx, sh, parent, tag, arrow, position, scale):
     view = tx.nx.TaggedObjectManager.GetTaggedObject(tag)
+    _record_parent(tx, view, parent)
     tx.part.DraftingViews.UpdateViews([view])
     tx.uf.Draw.SetViewScale(view.Tag, float(scale))
     drawing.place(tx, view, position)  # NX 2406 creates it at its own aligned spot
@@ -489,6 +665,7 @@ def _create_auxiliary(tx, parent_ref, hinge_ref, position):
         model_length = math.dist(found["start"], found["end"])
     with drawing.on_sheet(tx, sheet) as sh:
         view = kinds.create_auxiliary(tx, sh, parent, hinge, position)
+        _record_parent(tx, view, parent)
         _construction(tx, view)
         drawing.place(tx, view, position)
         tol = kinds.sheet_tolerance(tx, sheet)
@@ -556,8 +733,7 @@ def _create_detail(tx, parent_ref, center, radius, position, scale):
             b.BoundaryPoint1.Blank()
             b.BoundaryPoint2.Blank()
             b.Scale.ScaleType = D.ViewScaleBuilder.Type.Ratio
-            b.Scale.Numerator = float(scale)
-            b.Scale.Denominator = 1.0
+            b.Scale.Numerator, b.Scale.Denominator = scale_terms(scale)
             b.Origin.Placement.SetValue(None, None, sh.point(position))
             view = b.commit(validate=True)
         record = {
@@ -573,9 +749,7 @@ def _create_detail(tx, parent_ref, center, radius, position, scale):
 
 def _create_flat(tx, sheet_ref, feature_ref, position, scale):
     with tx.checks():
-        target_sheet = select.resolve(
-            tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True
-        )
+        target_sheet = _sheet(tx, sheet_ref)
         feature = select.resolve(tx, feature_ref, "feature", field="/flat_pattern", work_part=True)
         if str(feature.FeatureType) != "FLAT_PATTERN":
             fail("NX_WRONG_KIND", "Select a Flat Pattern feature", field="/flat_pattern")
@@ -641,21 +815,24 @@ def nx_edit_drawing_view(
     *,
     view: DrawingViewRef,
     position: SheetPoint | None = None,
-    scale: Scale | None = None,
+    scale: ScaleArg | None = None,
     style: ViewStyle | None = None,  # noqa: A002 - surface name
 ) -> ViewInfo:
     """Move a drawing view, change its scale or its display style (fonts 0-7, 0 invisible).
     Every change is read back."""
     changes = {k: v for k, v in (style or {}).items() if v is not None}
-    if position is None and scale is None and not changes:
+    ratio = scale_value(scale)
+    if position is None and ratio is None and not changes:
         fail("NX_INVALID_ARGUMENT", "Give position, scale or style")
     with tx.checks():
         obj, sheet = drawing.view(tx, view)
         before = drawing.position(obj)
     construction = changes.pop("construction_geometry", None)
     with drawing.on_sheet(tx, sheet):
-        if scale is not None:
-            tx.uf.Draw.SetViewScale(obj.Tag, float(scale))
+        others = [v for v in sheet.GetDraftingViews() if int(v.Tag) != int(obj.Tag)]
+        styles = {int(v.Tag): view_style.read_style(tx, v) for v in others} if changes else {}
+        if ratio is not None:
+            tx.uf.Draw.SetViewScale(obj.Tag, ratio)
         if position is not None:
             tx.uf.Draw.MoveView(obj.Tag, [float(position[0]), float(position[1])])
         if changes:
@@ -665,8 +842,9 @@ def nx_edit_drawing_view(
         tx.part.DraftingViews.UpdateViews([obj])
         refresh_details(tx)
         out = view_info(tx, obj, sheet)
-    if scale is not None:
-        readback.expect_close(out["scale"], scale, "scale", 1e-8)
+        _side_effects(tx, obj, others, styles, ratio)
+    if ratio is not None:
+        readback.expect_close(out["scale"], ratio, "scale", 1e-8)
     if position is not None:
         tol = units.tolerance(units.sheet_units(tx, sheet), 1e-4)
         kept = [
@@ -683,7 +861,37 @@ def nx_edit_drawing_view(
                 details={"requested": list(position), "actual": out["position"]},
             )
         readback.expect_close(out["position"], list(position), "position", tol)
+    if position is not None or ratio is not None:
+        warn_overlaps(tx, out)
     return out
+
+
+def _side_effects(tx, view, others, styles, ratio):
+    """Warn about derived views left at another scale and other views whose style NX
+    changed along with this one's."""
+    handle = tx.uf.Tag.AskHandleFromTag(view.Tag) if ratio is not None else None
+    stale = [
+        v
+        for v in others
+        if handle is not None
+        and attribute(tx, v, VIEW_PARENT) == handle
+        and view_type(v) == "projected"
+        and abs(drawing.scale(tx, v) - ratio) > 1e-8 * ratio
+    ]
+    if stale:
+        names = ", ".join(tx.ref(v, "drawing_view")["id"] for v in stale)
+        tx.warn("NX_UPDATE_WARNING", f"Projected views {names} keep their scale; give them "
+                f"scale {ratio:g} with nx_edit_drawing_view to match")  # fmt: skip
+    changed = {}
+    for v in others:
+        if int(v.Tag) in styles:
+            now = view_style.read_style(tx, v)
+            keys = sorted(k for k, value in styles[int(v.Tag)].items() if now[k] != value)
+            if keys:
+                changed[tx.ref(v, "drawing_view")["id"]] = keys
+    if changed:
+        tx.warn("NX_UPDATE_WARNING", f"NX also changed the style of other views: {changed}; "
+                "set them back with nx_edit_drawing_view style")  # fmt: skip
 
 
 def _apply_style(tx, view, changes):
@@ -709,7 +917,7 @@ def nx_get_drawing_view(
     *,
     view: DrawingViewRef,
 ) -> ViewInfo:
-    """Read a drawing view: type, sheet position, actual scale and border. Also whether it
-    lies on the sheet, its display style and construction-geometry state."""
+    """Read a drawing view: type, orientation, parent, position, scale and border. Also the
+    views it overlaps, whether it lies on the sheet, its style and construction state."""
     obj, sheet = drawing.view(tx, view)
     return view_info(tx, obj, sheet)

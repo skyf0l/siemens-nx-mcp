@@ -131,3 +131,28 @@ def test_one_shell_bodies_have_no_void_issue():
     nx = inspection_nx()
     nx.block(10, 10, 10)
     assert run(nx, "nx_check_model").data["issues"] == []
+
+
+def test_summary_features_follow_the_timeline_without_internal_features():
+    nx = inspection_nx()
+    sketch = _feature(nx, "SKETCH(1)")
+    csys = _feature(nx, "DATUM_CSYS(0)")
+    internal = _feature(nx, "SKETCH(1:1B)")
+    extrude = _feature(nx, "EXTRUDE(2)")
+    sketch.FeatureType, csys.FeatureType, internal.FeatureType = (
+        "SKETCH",
+        "DATUM_CSYS",
+        "DATUM_CSYS",
+    )
+    internal.IsInternal = True
+    for f, stamp in ((csys, 0), (sketch, 1), (internal, 1), (extrude, 2)):
+        f.Timestamp = stamp
+    feats = run(nx, "nx_get_model_summary", section="features")
+    assert feats.ok, feats
+    types = [i["type"] for i in feats.data["items"]]
+    assert types == ["datum_csys", "sketch", "extrude"] and feats.page["total"] == 3
+    assert "SKETCH(1:1B)" not in [i["name"] for i in feats.data["items"]]
+    over = run(nx, "nx_get_model_summary")
+    assert over.data["counts"]["features"] == 3
+    health = run(nx, "nx_check_model")
+    assert health.data["features_checked"] == 4  # internal features are still checked

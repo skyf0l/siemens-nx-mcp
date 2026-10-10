@@ -1,5 +1,7 @@
 """nx_analyze_faces, nx_analyze_curve, nx_check_continuity on the fake kit."""
 
+import math
+
 import pytest
 
 from tests.kit import run
@@ -95,7 +97,9 @@ def test_continuity_of_two_boundary_edges(monkeypatch):
     assert data["gap"] == 0.0005 and data["curvature"] == 0.03 and data["samples"] == 8
     e2.GetFaces = lambda: [b.faces[0], b.faces[1]]
     solid = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref)
-    assert solid.error["code"] == "NX_AMBIGUOUS_REFERENCE" and solid.error["field"] == "/second"
+    assert solid.error["code"] == "NX_WRONG_GEOMETRY" and solid.error["field"] == "/second"
+    assert e2.ref in solid.error["message"] and "2 faces" in solid.error["message"]
+    assert "nx_create_extract" in solid.error["hint"] and "candidates" not in solid.error["hint"]
     same = run(nx, "nx_check_continuity", first=e1.ref, second=e1.ref)
     assert same.error["field"] == "/second"
 
@@ -115,3 +119,86 @@ def test_continuity_unresolved_samples_leave_g1_g2_open(monkeypatch):
              tolerances={"position": 0.1})  # fmt: skip
     assert ok.data["g0"] is False and ok.data["g1"] is None and ok.data["g2"] is None
     assert ok.data["tolerances"]["position"] == 0.1 and ok.data["unresolved"] == 4
+
+
+def test_continuity_tolerances_take_units_and_are_checked(monkeypatch):
+    from nx_mcp.kit import surface
+
+    nx = inspection_nx()
+    a = nx.block(1, 1, 1)
+    b = nx.block(1, 1, 1, origin=(5, 0, 0))
+    e1, e2 = a.edges[0], b.edges[0]
+    e1.GetFaces = lambda: [a.faces[0]]
+    e2.GetFaces = lambda: [b.faces[0]]
+    report = {"gap": 0.005, "angle": 0.4, "curvature": 0.0, "samples": 2, "unresolved": 0}
+    monkeypatch.setattr(surface, "edge_continuity", lambda *a, **k: report)
+    ok = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref,
+             tolerances={"position": "0.01mm", "angle": "0.5 deg"})  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["tolerances"] == {"position": 0.01, "angle": 0.5, "curvature": 0.01}
+    assert ok.data["g0"] is True and ok.data["g1"] is True
+    inch = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref,
+               tolerances={"position": "0.001 in"})  # fmt: skip
+    assert inch.data["tolerances"]["position"] == pytest.approx(0.0254)
+    zero = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref,
+               tolerances={"position": 0})  # fmt: skip
+    assert zero.error["field"] == "/tolerances/position"
+    steep = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref,
+                tolerances={"angle": "90 deg"})  # fmt: skip
+    assert steep.error["field"] == "/tolerances/angle"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected", "draft"),
+    [
+        ("z", [0, 0, 1], 90),
+        ("+z", [0, 0, 1], 90),
+        ("Z", [0, 0, 1], 90),
+        ("top", [0, 0, 1], 90),
+        ("-z", [0, 0, -1], -90),
+        ("-x", [-1, 0, 0], 0),
+        ([0, 2, 0], [0, 1, 0], 0),
+    ],
+)
+def test_pull_direction_takes_principal_names(value, expected, draft):
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top = _face(body, (0, 0, 1))
+    ok = run(nx, "nx_analyze_faces", faces=[top.ref], samples_per_axis=1,
+             pull_direction=value, minimum_draft="3deg")  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["pull_direction"] == expected
+    assert ok.data["samples"][0]["draft"] == pytest.approx(draft)
+
+
+def test_pull_direction_rejects_unknown_names():
+    nx = inspection_nx()
+    body = nx.block(1, 1, 1)
+    bad = run(nx, "nx_analyze_faces", faces=[body.faces[0].ref], pull_direction="sideways")
+    assert bad.error["category"] == "invalid_argument" and bad.error["field"] == "/pull_direction"
+    assert "+z" in bad.error["message"]
+
+
+def test_edge_curvature_from_tangent_differences():
+    from tests.unit.inspection.fakes import arc_spec
+
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    arc, line = body.edges[0], body.edges[1]
+    nx.curve_specs[int(arc.Tag)] = arc_spec((0, 0, 0), 4.0, 0.0, math.pi)
+    nx.curve_specs[int(line.Tag)] = ("line", [0, 0, 0], [10, 0, 0])
+    ok = run(nx, "nx_analyze_curve", curve=arc.ref, samples=3)
+    assert ok.ok, ok
+    assert ok.data["curve"]["kind"] == "edge" and "spline" not in ok.data
+    rows = ok.data["samples"]
+    assert [r["t"] for r in rows] == [0, 0.5, 1]
+    for row in rows:  # ends use a one-sided difference, still exact on an arc
+        assert row["curvature"] == pytest.approx(0.25) and row["radius"] == pytest.approx(4)
+    assert rows[1]["point"] == pytest.approx([0, 4, 0], abs=1e-12)
+    assert rows[1]["tangent"] == pytest.approx([-1, 0, 0], abs=1e-12)
+    default = run(nx, "nx_analyze_curve", curve=arc.ref)
+    assert len(default.data["samples"]) == 11
+    straight = run(nx, "nx_analyze_curve", curve=line.ref, samples=2)
+    assert straight.ok, straight
+    # the fake's line has no tangent: no curvature rather than a wrong one
+    assert straight.data["samples"][0]["curvature"] is None

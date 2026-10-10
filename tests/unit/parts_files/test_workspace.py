@@ -213,3 +213,64 @@ def test_upload_expression_and_import_files(tree, name):
               offset=0, total_size=len(data), sha256=hashlib.sha256(data).hexdigest())  # fmt: skip
     assert ok.ok and ok.data["committed"] is True, ok
     assert (tree / name).read_bytes() == data
+
+
+def test_list_files_explains_a_missing_folder(tree):
+    bad = side(tree, ws.nx_list_files, path="proj/missing")
+    assert bad.error["code"] == "NX_FILE_NOT_FOUND"
+    assert "proj/missing" in bad.error["message"] and str(tree) not in bad.error["message"]
+    assert "nx_create_directory" in bad.error["hint"]
+
+
+def test_upload_text_content_in_one_call(tree):
+    text = "Bracket rev B\nmaterial: S235°\n"
+    ok = side(tree, ws.nx_upload_file, path="notes/readme.txt", content=text)
+    assert ok.ok and ok.data["committed"] is True and ok.mutation_outcome == "committed", ok
+    data = text.encode("utf-8")
+    assert (tree / "notes" / "readme.txt").read_bytes() == data
+    assert ok.data["sha256"] == hashlib.sha256(data).hexdigest()
+    assert ok.data["total_size"] == ok.data["received"] == len(data)
+    back = side(tree, ws.nx_download_file, path="notes/readme.txt", delivery="text")
+    assert back.ok and back.data["text"] == text and "data_base64" not in back.data
+
+
+def test_a_single_chunk_needs_no_size_or_checksum(tree):
+    data = b"\x00\x01binary"
+    ok = side(tree, ws.nx_upload_file, path="one.zip", data_base64=base64.b64encode(data).decode())
+    assert ok.ok and ok.data["committed"] is True, ok
+    assert (tree / "one.zip").read_bytes() == data
+
+
+@pytest.mark.parametrize(
+    ("args", "code", "field"),
+    [
+        ({}, "NX_INVALID_ARGUMENT", "/data_base64"),
+        ({"content": "x", "data_base64": "eA=="}, "NX_INVALID_ARGUMENT", "/content"),
+        ({"content": "x", "offset": 1}, "NX_INVALID_ARGUMENT", "/offset"),
+        ({"content": "é" * 140_000}, "NX_REQUEST_TOO_LARGE", "/content"),
+        ({"data_base64": "eA==", "offset": 4}, "NX_INVALID_ARGUMENT", "/total_size"),
+        ({"data_base64": "eA==", "total_size": 10}, "NX_INVALID_ARGUMENT", "/sha256"),
+        ({"content": "x", "sha256": "0" * 64}, "NX_TRANSFER_FAILED", "/sha256"),
+    ],
+)
+def test_upload_shortcut_rejections(tree, args, code, field):
+    bad = side(tree, ws.nx_upload_file, path="s.txt", **args)
+    assert bad.error["code"] == code and bad.error["field"] == field, bad
+    assert not (tree / "s.txt").exists()
+
+
+def test_download_text(tree):
+    (tree / "bom.txt").write_bytes(b"\xef\xbb\xbfQTY=4\r\n")
+    ok = side(tree, ws.nx_download_file, path="bom.txt", delivery="text")
+    assert ok.data["text"] == "QTY=4\r\n" and ok.data["delivery"] == "text"
+    (tree / "bin.prt").write_bytes(b"\xff\xfe\x00\x81")
+    binary = side(tree, ws.nx_download_file, path="bin.prt", delivery="text")
+    assert binary.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and "chunk" in binary.error["hint"]
+    (tree / "big.txt").write_bytes(b"x" * 65_537)
+    big = side(tree, ws.nx_download_file, path="big.txt", delivery="text")
+    assert big.error["code"] == "NX_RESPONSE_TOO_LARGE" and big.error["field"] == "/path"
+    offset = side(tree, ws.nx_download_file, path="bom.txt", delivery="text", offset=1)
+    assert offset.error["field"] == "/offset"
+    (tree / "notes.txt").write_text("hi")
+    image = side(tree, ws.nx_download_file, path="notes.txt", delivery="image")
+    assert "delivery text" in image.error["hint"]

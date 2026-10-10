@@ -285,7 +285,9 @@ def _uses_sheet(hint, seen=None) -> bool:
 
 def _literal_values(hint) -> tuple | None:
     base, _ = unwrap(hint)
-    if is_union(base):
+    # Python < 3.11 wraps an annotation whose default is None in Optional again
+    # (Optional[Annotated[Literal[...] | None, ...]]): strip every Optional level.
+    while is_union(base):
         alts = [a for a in typing.get_args(base) if a is not type(None)]
         if len(alts) != 1:
             return None

@@ -164,3 +164,56 @@ def test_report_without_capture(monkeypatch):
     ok = run(nx, "nx_export_inspection_report", path=str(root / "plain.zip"), capture=False)
     assert ok.ok and ok.data["captures"] == 0, ok
     assert ok.data["files"] == ["report.json", "index.html", "manifest.json"]
+
+
+def _sheet(nx, box):
+    body = nx.block(box[3] - box[0], box[4] - box[1], box[5] - box[2], origin=tuple(box[:3]))
+    body.IsSolidBody = False
+    return body
+
+
+def test_whole_model_check_skips_sheet_bodies_and_lists_them():
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    nx.block(10, 10, 10, origin=(5, 0, 0))
+    sheet = _sheet(nx, [0, 0, 0, 10, 10, 10])
+    ok = run(nx, "nx_check_interference")
+    assert ok.ok, ok
+    assert ok.data["bodies"] == 2 and ok.data["pair_count"] == 1
+    assert [r["id"] for r in ok.data["skipped_sheet_bodies"]] == [sheet.ref]
+    hit = ok.data["pairs"][0]
+    assert hit["classification"] == "penetration" and hit["overlap_volume"] == pytest.approx(500)
+    assert hit["overlap_box"] == {"min": [5, 0, 0], "max": [10, 10, 10]}
+
+
+def test_a_sheet_object_is_named_in_the_error():
+    nx = inspection_nx()
+    solid = nx.block(10, 10, 10)
+    sheet = _sheet(nx, [20, 0, 0, 30, 10, 10])
+    bad = run(nx, "nx_check_interference", objects=[solid.ref, sheet.ref])
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/objects/1"
+    assert sheet.ref in bad.error["message"]
+    assert bad.error["details"]["sheet_bodies"][0]["id"] == sheet.ref
+
+
+def test_only_sheet_bodies_is_wrong_geometry():
+    nx = inspection_nx()
+    _sheet(nx, [0, 0, 0, 10, 10, 10])
+    _sheet(nx, [20, 0, 0, 30, 10, 10])
+    bad = run(nx, "nx_check_interference")
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and "2 sheet" in bad.error["message"]
+    assert len(bad.error["details"]["sheet_bodies"]) == 2
+
+
+def test_report_on_a_model_with_sheets_checks_the_solids(monkeypatch):
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    nx.block(10, 10, 10, origin=(5, 0, 0))
+    _sheet(nx, [0, 0, 0, 10, 10, 10])
+    root = services(nx).root
+    ok = run(nx, "nx_export_inspection_report", path=str(root / "s.zip"), capture=False)
+    assert ok.ok, ok
+    assert ok.data["counts"]["penetration"] == 1
+    with zipfile.ZipFile(root / "s.zip") as archive:
+        report = json.loads(archive.read("report.json"))
+    assert len(report["interference"]["skipped_sheet_bodies"]) == 1

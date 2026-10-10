@@ -315,6 +315,30 @@
    }
   },
   {
+   "call": "nx_create_note",
+   "args": {
+    "text": "BREAK ALL SHARP EDGES\nMATERIAL: STEEL",
+    "origin": [
+     40,
+     80
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.text": [
+     "BREAK ALL SHARP EDGES",
+     "MATERIAL: STEEL"
+    ],
+    "data.origin": {
+     "close": [
+      40,
+      80
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
    "call": "nx_close_part",
    "setup": true,
    "args": {

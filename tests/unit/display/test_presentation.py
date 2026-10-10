@@ -4,9 +4,11 @@ import json
 
 import pytest
 
+from nx_mcp.kit import geom
 from tests.kit import run
 from tests.kit.kernel import services
-from tests.unit.display.fakes import display_nx
+from tests.kit.objects import point
+from tests.unit.display.fakes import display_nx, nx_matrix
 
 ROTATION = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
 
@@ -54,6 +56,40 @@ def test_restore_puts_camera_section_and_colours_back(saved):
     section = nx.part.DynamicSections[0]
     assert section.origin == [0, 0, 0.5] and section.normal == [0, 0, 1]
     assert view.DisplaySectioningToggle and view.ActiveDynamicSection is section
+
+
+def _live_camera(nx, monkeypatch):
+    """Services whose kept camera is the work view's (the shared fake keeps its own)."""
+    kit, view = services(nx), nx.work_view
+    restore = kit.restore_display
+
+    def kept():
+        return {"rotation": geom.rows(view.Matrix), "origin": list(geom.xyz(view.Origin)),
+                "scale": view.Scale}  # fmt: skip
+
+    def put_back(camera, records, highlights):
+        restore(camera, records, highlights)
+        if camera is not None:
+            view.SetRotationTranslationScale(
+                nx_matrix(camera["rotation"]), point(*camera["origin"]), camera["scale"]
+            )
+
+    monkeypatch.setattr(kit, "display_camera", kept)
+    monkeypatch.setattr(kit, "restore_display", put_back)
+
+
+def test_a_presentation_restore_can_be_undone(saved, monkeypatch):
+    nx, body, path, _ = saved
+    _live_camera(nx, monkeypatch)
+    body.faces[0].Color = 5
+    run(nx, "nx_set_camera", orientation="top")
+    before = run(nx, "nx_get_camera").data
+    ok = run(nx, "nx_restore_display", presentation=str(path))
+    assert ok.ok and ok.restore_id and body.faces[0].Color == 33
+    undo = run(nx, "nx_restore_display", restore_id="last")
+    assert undo.ok and undo.data["restored"] == ok.restore_id and body.faces[0].Color == 5
+    assert undo.data["camera"]["view"] == "top" == before["view"]
+    assert "restore_id" not in undo.envelope
 
 
 @pytest.mark.parametrize("fault", ["owner", "format", "missing", "camera"])

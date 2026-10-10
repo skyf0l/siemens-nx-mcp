@@ -25,6 +25,7 @@ from nx_mcp.core.types import CurveRef, Doc, Items, Point2, Range, RefTo, Sketch
 from nx_mcp.domains.sketch import common
 from nx_mcp.domains.sketch.common import XY, CurveRow, Degrees, Size
 from nx_mcp.kit import builders, geom, measure, readback, result
+from nx_mcp.kit import curve as kcurve
 from nx_mcp.kit import sketch as ksketch
 
 # ---------------------------------------------------------------------------
@@ -37,18 +38,29 @@ class LineCurve(TypedDict):
     end: Point2
 
 
-class ArcCurve(TypedDict):
+Diameter = Annotated[Size, Doc("Instead of radius")]
+
+
+class _Arc(TypedDict):
     type: Literal["arc"]
     center: Point2
-    radius: Size
     start_angle: Degrees
     end_angle: Annotated[float, Range(ge=-3600, le=3600), Doc("Degrees; arcs run CCW")]
 
 
-class CircleCurve(TypedDict):
+class ArcCurve(_Arc, total=False):
+    radius: Size
+    diameter: Diameter
+
+
+class _Circle(TypedDict):
     type: Literal["circle"]
     center: Point2
+
+
+class CircleCurve(_Circle, total=False):
     radius: Size
+    diameter: Diameter
 
 
 class _Ellipse(TypedDict):
@@ -140,6 +152,7 @@ class CurveSpec(_CurveType, total=False):
     corner1: XY
     corner2: XY
     radius: Size
+    diameter: Size
     major_radius: Size
     minor_radius: Size
     width: Size
@@ -197,6 +210,20 @@ def _polyline(item, field):
     return (lines, "loop") if closed else (lines[:-1], "chain")
 
 
+def _radius(item, field):
+    """The radius of an arc or circle given by ``radius`` or ``diameter`` (exactly one)."""
+    radius, diameter = item.get("radius"), item.get("diameter")
+    if radius is not None and diameter is not None:
+        fail("NX_INVALID_ARGUMENT", "Give radius or diameter, not both", field=field + "/diameter")
+    if radius is None and diameter is None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "required field is missing: radius (or diameter)",
+            field=field + "/radius",
+        )
+    return radius if radius is not None else diameter / 2
+
+
 def plan(item, field):
     """``(primitives, join)`` for one validated item; pure, raises invalid_argument. ``join``:
     ``loop`` (closed shape), ``chain`` (open polyline) or None (no coincident constraints)."""
@@ -216,7 +243,7 @@ def plan(item, field):
                 "Require 0 < end_angle - start_angle <= 360",
                 field=field + "/end_angle",
             )
-        return [("arc", list(item["center"]), item["radius"], start, end)], None
+        return [("arc", list(item["center"]), _radius(item, field), start, end)], None
     if kind == "ellipse":
         a, b = item["major_radius"], item["minor_radius"]
         if b > a:
@@ -392,17 +419,20 @@ class CurvesData(TypedDict):
 LOOPS_TEXT = "Each closed loop is a region; a loop inside another makes a hollow profile"
 
 
+def curve_type(value, field):
+    """The curve type from a natural spelling ('Line', 'Rounded Rectangle'), else a clear
+    invalid_argument naming the closest type and every accepted one."""
+    return common.choice(value, list(CURVE_TYPES), field, what="type")
+
+
 def check_curves(curves, field="/curves"):
     """The plan of every curve item, validated before NX (pure; raises invalid_argument)."""
+    named = []
     for i, item in enumerate(curves):
-        kind = item.get("type") if isinstance(item, dict) else None
-        if kind not in CURVE_TYPES:
-            fail(
-                "NX_INVALID_ARGUMENT",
-                "type must be one of " + ", ".join(CURVE_TYPES),
-                field=f"{field}/{i}/type",
-            )
-    items = common.check_items(curves, CURVE_TYPES, "type", field)
+        if not isinstance(item, dict):
+            fail("NX_INVALID_ARGUMENT", "expected an object", field=f"{field}/{i}")
+        named.append({**item, "type": curve_type(item.get("type"), f"{field}/{i}/type")})
+    items = common.check_items(named, CURVE_TYPES, "type", field)
     return [plan(item, f"{field}/{i}") for i, item in enumerate(items)]
 
 
@@ -442,7 +472,16 @@ def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
     effect="model",
     label="Create sketch curves",
     summary="Add {curves} to sketch {sketch}",
-    keywords=("polyline", "profile", "line", "arc", "circle", "rectangle", "slot", "sketch curve"),
+    keywords=(
+        "polyline",
+        "profile",
+        "line",
+        "arc",
+        "circle",
+        "sketch rectangle",
+        "slot",
+        "sketch curve",
+    ),
     requires=("work_part",),
     variants=CURVE_TYPES,
     cost="light",
@@ -465,10 +504,10 @@ def nx_create_sketch_curves(
     ],
     construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
 ) -> CurvesData:
-    """Add 1-100 curves to a sketch: lines, polylines, arcs, circles, ellipses, rectangles, slots.
-    Sketch-local coordinates, part units, degrees; connected curves are joined and read back;
-    loops report each chain's closure. Several closed loops are allowed: a loop inside another
-    makes a hollow profile."""
+    """Add 1-100 curves to a sketch: line, polyline, arc, circle, ellipse, rectangle, polygon,
+    slot, rounded_rectangle. Sketch-local, plain numbers in part units and degrees. Curves are
+    joined and read back; loops give each non-construction chain's closure (one inside
+    another makes a hollow profile)."""
     plans = check_curves(curves)
     tx.frame = "sketch_local"
     return add_curves(tx, sketch, plans, construction)
@@ -489,34 +528,43 @@ def sketch_loops(tx, f, sk):
 # Edits
 
 
-class LineEdit(TypedDict):
+class _LineEdit(TypedDict):
     type: Literal["line"]
     curve: CurveRef
-    start: Point2
-    end: Point2
 
 
-class ArcEdit(TypedDict):
+class LineEdit(_LineEdit, total=False):
+    start: Annotated[Point2, Doc("Omit to keep")]
+    end: Annotated[Point2, Doc("Omit to keep")]
+
+
+class _ArcEdit(TypedDict):
     type: Literal["arc"]
-    curve: CurveRef
-    center: Point2
-    radius: Size
-    start_angle: Degrees
+    curve: Annotated[CurveRef, Doc("A sketch arc or circle")]
+
+
+class ArcEdit(_ArcEdit, total=False):
+    center: Annotated[Point2, Doc("Omit to keep")]
+    radius: Annotated[Size, Doc("Omit to keep")]
+    start_angle: Annotated[Degrees, Doc("With end_angle; omit both to keep (circle: 0)")]
     end_angle: Degrees
 
 
 class TrimEdit(TypedDict):
     type: Literal["trim"]
     curve: CurveRef
-    boundaries: Annotated[list[CurveRef], Items(1, 20)]
+    boundaries: Annotated[list[CurveRef], Items(1, 20), Doc("Curves that cross it")]
     pick: Annotated[Point2, Doc("A point on the piece to remove")]
 
 
-class ExtendEdit(TypedDict):
+class _ExtendEdit(TypedDict):
     type: Literal["extend"]
     curve: CurveRef
     boundaries: Annotated[list[CurveRef], Items(1, 20)]
-    pick: Annotated[Point2, Doc("A point near the end to extend")]
+
+
+class ExtendEdit(_ExtendEdit, total=False):
+    pick: Annotated[Point2, Doc("A point near the end to extend; default: the end nearest")]
 
 
 class ConstructionEdit(TypedDict):
@@ -541,7 +589,7 @@ EDIT_TYPES = {
 
 
 class _EditType(TypedDict):
-    type: Literal["line", "arc", "trim", "extend", "construction", "delete"]
+    type: Literal["line", "arc", "trim", "extend", "construction", "delete"] | common.Loose
 
 
 class EditSpec(_EditType, total=False):
@@ -549,17 +597,33 @@ class EditSpec(_EditType, total=False):
     start: XY
     end: XY
     center: XY
-    radius: Size
-    start_angle: Degrees
-    end_angle: Degrees
+    radius: float  # bounds: the item's own variant (check_items)
+    start_angle: float
+    end_angle: float
     boundaries: Annotated[list[CurveRef], Items(1, 20)]
-    pick: XY
+    pick: Annotated[XY, Doc("Required for trim")]
     curves: Annotated[list[CurveRef], Items(1, 100)]
     on: bool
     object: Annotated[str, RefTo("curve", "sketch_constraint")]
 
 
 forbid_extra(*EDIT_TYPES.values(), EditSpec)
+
+# Synonyms agents use; case, spaces and hyphens are ignored anyway.
+EDIT_ALIASES = {
+    "move": "line",
+    "reshape_line": "line",
+    "edit_line": "line",
+    "circle": "arc",
+    "reshape_arc": "arc",
+    "edit_arc": "arc",
+    "trim_curve": "trim",
+    "extend_curve": "extend",
+    "reference": "construction",
+    "toggle_construction": "construction",
+    "remove": "delete",
+    "erase": "delete",
+}
 
 
 class EditRow(TypedDict, total=False):
@@ -578,12 +642,50 @@ def _alive(sk, obj):
     return int(obj.Tag) in ksketch.tags(sk)
 
 
+def _shape_fields(tx, sk, obj, kind, item, field):
+    """The edit with every omitted field kept from the curve's current shape."""
+    given = [
+        k for k in ("start", "end", "center", "radius", "start_angle", "end_angle") if k in item
+    ]
+    if not given:
+        wanted = (
+            "start and/or end"
+            if item["type"] == "line"
+            else "center, radius, or start_angle with end_angle"
+        )
+        fail("NX_INVALID_ARGUMENT", f"Nothing to change: give {wanted}", field=field)
+    if ("start_angle" in item) != ("end_angle" in item):
+        missing = "end_angle" if "start_angle" in item else "start_angle"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give start_angle and end_angle together (or neither, to keep them)",
+            field=f"{field}/{missing}",
+        )
+    row = ksketch.read(tx, sk.frame, obj)
+    if item["type"] == "line":
+        return {
+            **item,
+            "start": item.get("start", row["start"]),
+            "end": item.get("end", row["end"]),
+        }
+    full = kind == "circle"
+    return {
+        **item,
+        "center": item.get("center", row["center"]),
+        "radius": item.get("radius", row["radius"]),
+        "start_angle": item.get("start_angle", 0.0 if full else row["start_angle"]),
+        "end_angle": item.get("end_angle", 360.0 if full else row["end_angle"]),
+    }
+
+
 def _edit_shape(tx, sk, item, field):
     obj = common.owned_curve(tx, sk, item["curve"], field + "/curve")
     kind = ksketch.curve_kind(tx, obj)
     if item["type"] == "line":
         if kind != "line":
-            fail("NX_WRONG_GEOMETRY", "Select a sketch line", field=field + "/curve")
+            hint = "Use type arc for an arc or circle" if kind in ("arc", "circle") else None
+            fail("NX_WRONG_GEOMETRY", "Select a sketch line", field=field + "/curve", hint=hint)
+        item = _shape_fields(tx, sk, obj, kind, item, field)
         if geom.dist(item["start"], item["end"]) <= geom.tol(item["start"], item["end"]):
             fail("NX_INVALID_ARGUMENT", "Line end points must differ", field=field + "/end")
         with native(default="NX_BUILD_FAILED"):
@@ -592,7 +694,14 @@ def _edit_shape(tx, sk, item, field):
         prim = ("line", list(item["start"]), list(item["end"]))
     else:
         if kind not in ("arc", "circle"):
-            fail("NX_WRONG_GEOMETRY", "Select a sketch arc or circle", field=field + "/curve")
+            hint = "Use type line to move a line's ends" if kind == "line" else None
+            fail(
+                "NX_WRONG_GEOMETRY",
+                "Select a sketch arc or circle",
+                field=field + "/curve",
+                hint=hint,
+            )
+        item = _shape_fields(tx, sk, obj, kind, item, field)
         s, e = item["start_angle"], item["end_angle"]
         if not 0 < e - s <= 360:
             fail(
@@ -626,6 +735,32 @@ def _edit_shape(tx, sk, item, field):
     return {"type": item["type"], "curves": [row]}
 
 
+def _gap(row, p):
+    """Distance from sketch-local ``p`` to a read-back line segment or arc/circle ``row``."""
+    if row["type"] == "line":
+        a, b = row["start"], row["end"]
+        d = geom.sub(b, a)
+        t = max(0.0, min(1.0, geom.dot(geom.sub(p, a), d) / (geom.dot(d, d) or 1.0)))
+        return geom.dist(p, geom.add(a, geom.scale(d, t)))
+    if row["type"] in ("arc", "circle"):
+        ring = abs(geom.dist(p, row["center"]) - row["radius"])
+        # contains() with the ring gap as tolerance tests only the arc's angular sweep
+        if row["type"] == "circle" or common.contains(row, p, ring + 1e-9):
+            return ring
+        return min(geom.dist(p, row["start"]), geom.dist(p, row["end"]))
+    return math.inf
+
+
+def _nearest_end_pick(tx, sk, obj, limits):
+    """A pick near the end of ``obj`` closest to a boundary (the end an extend grows)."""
+    f = sk.frame
+    rows = [ksketch.read(tx, f, b) for b in limits]
+    own = ksketch.read(tx, f, obj)
+    ends = ((0.05, own["start"]), (0.95, own["end"]))
+    t, _ = min(ends, key=lambda e: min(_gap(r, e[1]) for r in rows))
+    return ksketch.to_local(f, kcurve.point_at(tx, obj, t))
+
+
 def _trim_extend(tx, sk, item, field):
     obj = common.owned_curve(tx, sk, item["curve"], field + "/curve")
     limits = [
@@ -636,6 +771,8 @@ def _trim_extend(tx, sk, item, field):
         fail("NX_INVALID_ARGUMENT", "curve cannot be its own boundary", field=field + "/boundaries")
     trim = item["type"] == "trim"
     check = field.lstrip("/")
+    if item.get("pick") is None:  # extend only: trim requires pick
+        item = {**item, "pick": _nearest_end_pick(tx, sk, obj, limits)}
     pick = sk.to_part(item["pick"])
     before, length = ksketch.tags(sk), measure.length(tx, obj)
     part = tx.part
@@ -654,10 +791,28 @@ def _trim_extend(tx, sk, item, field):
     rows = [common.curve_row(tx, sk.frame, c) for c in pieces]
     tol = geom.tol(item["pick"]) * 10
     if trim:
+        if not rows:  # NX's quick trim deletes a curve no boundary crosses
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"No boundary crosses {item['curve']}: the trim would delete the whole curve; "
+                "rolled back",
+                field=field + "/boundaries",
+                hint="Choose boundaries that cross the curve (nx_get_sketch shows the "
+                "geometry), or delete the curve with {type: delete, object}",
+            )
         kept = [r["curve"]["id"] for r in rows if common.contains(r, item["pick"], tol)]
         readback.expect(not kept, check + "/trimmed", pick=item["pick"], curves=kept)
     else:
-        readback.expect(alive and measure.length(tx, obj) > length + tol, check + "/extended")
+        if not (alive and measure.length(tx, obj) > length + tol):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"NX did not extend {item['curve']}: no boundary lies on the extension of the "
+                "picked end; rolled back",
+                field=field + "/boundaries",
+                hint="Choose a boundary that the curve's extension meets, and pick near the end "
+                "facing it (or omit pick)",
+                details={"pick": item["pick"], "curve": rows[0] if rows else None},
+            )
         boundaries = [common.curve_row(tx, sk.frame, c) for c in limits]
         row = rows[0]
         reached = any(
@@ -739,7 +894,8 @@ def nx_edit_sketch_curves(
     """Apply 1-100 edits to sketch curves in order. Reshape a line or arc, trim or extend to
     boundary curves, toggle construction, or delete a curve or constraint; a curve its
     constraints hold fails as solver_failed."""
-    items = common.check_items(edits, EDIT_TYPES, "type", "/edits")
+    named = common.natural_items(edits, "type", list(EDIT_TYPES), "/edits", EDIT_ALIASES)
+    items = common.check_items(named, EDIT_TYPES, "type", "/edits")
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
         rows = []

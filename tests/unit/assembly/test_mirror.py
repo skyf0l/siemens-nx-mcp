@@ -35,3 +35,11 @@ def test_mirror_refuses_duplicates_and_rolls_back_a_misplaced_copy(nx):
         off
     )
     assert nx.assembly.components() == [a]
+
+
+def test_mirror_takes_a_bare_principal_plane_name(nx):
+    a = place(nx, nx.blk, "A", (10, 5, 0))
+    ok = run(nx, "nx_create_component_mirror", components=[a.ref], plane="yz")
+    assert ok.ok, ok
+    assert ok.data["components"][0]["mirrored"]["translation"] == [-10, 5, 0]
+    assert ok.data["plane"]["normal"] == [1, 0, 0]

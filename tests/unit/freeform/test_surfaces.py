@@ -192,5 +192,28 @@ def test_bridge_argument_rejections():
     solid = run(nx, "nx_create_bridge_surface", first=a.ref, second=b.ref, continuity="g2")
     assert solid.error["code"] == "NX_WRONG_GEOMETRY" and solid.error["field"] == "/first"
     assert not nx.builders
-    upper = run(nx, "nx_create_bridge_surface", first=a.ref, second=b.ref, continuity="G1")
-    assert upper.error["category"] == "invalid_argument"
+
+
+def test_mesh_takes_single_curve_sections_and_reports_the_sheet():
+    nx = freeform_nx()
+    p, c = network(nx)
+    mesh_commit(nx)
+    ok = run(nx, "nx_create_mesh_surface", primary=[x.ref for x in p],
+             cross=[c[0].ref, [c[1].ref]])  # fmt: skip
+    assert ok.ok, ok
+    b = nx.last("ThroughCurveMeshBuilder")
+    sections = [call[0][0] for call in b.PrimaryCurvesList.Append.calls]
+    assert [s.rules for s in sections] == [[("CurveDumb", [p[0]])], [("CurveDumb", [p[1]])]]
+    assert len(b.CrossCurvesList.Append.calls) == 2
+    assert ok.data["sheet"] is True and ok.data["faces"] == 0 and ok.data["area"] == 0.0
+    dup = run(nx, "nx_create_mesh_surface", primary=[p[0].ref, p[0].ref],
+              cross=[x.ref for x in c])  # fmt: skip
+    assert dup.error["field"] == "/primary/1" and dup.mutation_outcome == "not_started"
+    empty = run(nx, "nx_create_mesh_surface", primary=[[], p[1].ref], cross=[x.ref for x in c])
+    assert empty.error["category"] == "invalid_argument"
+
+
+def test_bridge_reports_sheet_faces_and_area():
+    nx, a, b, _fa, _fb = bridge_nx()
+    ok = run(nx, "nx_create_bridge_surface", first=a.ref, second=b.ref, continuity="g0")
+    assert ok.ok and ok.data["sheet"] is True and ok.data["faces"] == 1, ok

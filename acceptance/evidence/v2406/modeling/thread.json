@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/thread.json",
-  "scenario_sha256": "b7ff820891c7ca8d3558bd6a3e3e06fce3427dd0d148e31cacf3256e16d4b347",
+  "scenario_sha256": "503205a99d8b1a549a0d616c56545ac916132c1782c86e28721b11517c3a3120",
   "domain": "modeling",
   "covers": {
     "nx_create_thread": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_thread": "2cc158f69335e2ca34fa238c1fecfcc137e4dc0eac69331eafd9b9aa913ebc51",
-    "nx_list_thread_sizes": "2cc158f69335e2ca34fa238c1fecfcc137e4dc0eac69331eafd9b9aa913ebc51"
+    "nx_create_thread": "bcad49fe8bb3f92c7e343d40ae4817fe64198e1884c94a9ab402fb418d49e469",
+    "nx_list_thread_sizes": "bcad49fe8bb3f92c7e343d40ae4817fe64198e1884c94a9ab402fb418d49e469"
   },
-  "recorded": "2026-10-10T15:53:30Z",
+  "recorded": "2026-10-10T22:58:18Z",
   "passed": true,
-  "checks": 19,
+  "checks": 21,
   "failed_checks": 0,
   "steps": [
     {
@@ -107,7 +107,7 @@
       "call": "nx_create_thread",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 14,

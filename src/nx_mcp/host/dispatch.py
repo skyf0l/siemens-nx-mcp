@@ -48,6 +48,7 @@ class KernelError(NXError):
             hint=error.get("hint"),
             nx_code=error.get("nx_code"),
             retryable=error.get("retry") in ("after_wait", "after_reacquire"),
+            retry=error.get("retry"),
             details={
                 "mutation_outcome": envelope.get("mutation_outcome"),
                 "operation_id": envelope.get("operation_id"),
@@ -158,6 +159,8 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
         result = dict(handler(**params) or {})
     except BaseException as error:  # a snippet's SystemExit is a failed call, not a host exit
         failure = error if isinstance(error, NXError) else classify(error)
+        if failure.trace:  # a development tool's caller is the developer: show the stack
+            failure.details["traceback"] = failure.trace
         failure.details.update(operation_id=operation_id, **_roll_back_dev(services, mark, shown))
         raise failure from error
     finally:

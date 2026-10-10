@@ -281,6 +281,105 @@
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started"
    }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "lc",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      100
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$lc.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 10
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$lc.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "ls",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      130
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$ls.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$ls.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "save": "cs",
+   "args": {
+    "sections": [
+     "$lc.data.sketch.id",
+     "$ls.data.sketch.id"
+    ]
+   },
+   "expect": {
+    "data.bodies": {
+     "count": 1
+    },
+    "warnings.0.message": {
+     "matches": "twists"
+    }
+   }
   }
  ]
 }

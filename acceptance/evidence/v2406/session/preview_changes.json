@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/preview_changes.json",
-  "scenario_sha256": "2214097144adb1df5dd8f7e99e802c5bac7fa922b88a306b94ec0215abe8a42a",
+  "scenario_sha256": "eb22d08d36a2dfa2e90c424976327cc5922b784675b88c00bb1d5ca90c03e5fc",
   "domain": "session",
   "covers": {
     "nx_preview_changes": [],
@@ -13,12 +13,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_preview_changes": "b1b63cd94cc8a441c5c210450d578fa39a43a427b3c0df6c379be183c39e69dc",
-    "nx_finish_preview": "b1b63cd94cc8a441c5c210450d578fa39a43a427b3c0df6c379be183c39e69dc"
+    "nx_preview_changes": "f9ef2c1dbff2b35ccc84c36571d9c5ca1de4deced157c401a2409abce1ba3d85",
+    "nx_finish_preview": "f9ef2c1dbff2b35ccc84c36571d9c5ca1de4deced157c401a2409abce1ba3d85"
   },
-  "recorded": "2026-10-10T13:09:37Z",
+  "recorded": "2026-10-10T23:06:50Z",
   "passed": true,
-  "checks": 46,
+  "checks": 69,
   "failed_checks": 0,
   "steps": [
     {
@@ -96,7 +96,7 @@
       "call": "nx_finish_preview",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 12,
@@ -131,35 +131,77 @@
       "call": "nx_finish_preview",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 17,
-      "call": "nx_measure_mass",
+      "call": "nx_finish_preview",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 18,
-      "call": "nx_list_objects",
+      "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
       "index": 19,
-      "call": "nx_preview_changes",
+      "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 1
     },
     {
       "index": 20,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 21,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 25,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 26,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 5
     }
   ]
 }

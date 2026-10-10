@@ -23,10 +23,12 @@ import contextlib
 import copy
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 from nx_mcp.core import evidence
 from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
 from nx_mcp.core.receipts import Receipts, new_operation_id
+from nx_mcp.core.references import GENERIC_NAME as _GENERIC
 from nx_mcp.core.tx import Services, Tx, check_owned
 from nx_mcp.core.types import SHEET_KINDS, convert_quantity, expand_kinds
 from nx_mcp.core.validate import Checked, get_at, pointer, set_at, validate
@@ -79,10 +81,46 @@ def _gate_schema(spec, args, *, placeholders=False, where="nx") -> Checked:  # g
     return validate(spec.params, args, placeholders=placeholders)
 
 
+def _application_first(spec, services: Services, error: NXError) -> None:
+    """A schema error of a tool that needs an application NX is not in: name the
+    application step too, so the agent does not fix the arguments only to be refused
+    by gate 4 on the next call."""
+    wanted = next((r.split(":", 1)[1] for r in spec.requires if r.startswith("application:")), None)
+    if wanted is None:
+        return
+    with contextlib.suppress(Exception):
+        if services.state().get("application") != wanted:
+            base = (error.hint or CATEGORIES[error.category][2]).rstrip(".")
+            error.hint = f"{base}. This tool also needs the {wanted} application: " + (
+                "switch with nx_activate_application first"
+            )
+
+
+def _relative(services: Services, path: Path) -> str:
+    """``path`` relative to the workspace root (never the host's absolute path)."""
+    try:
+        return path.resolve().relative_to(Path(services.workspace.root).resolve()).as_posix()
+    except (ValueError, OSError, TypeError, AttributeError):
+        return path.name
+
+
+def _free_name(resolved: Path) -> Path:
+    """The first ``<stem>-<n><suffix>`` beside ``resolved`` that does not exist."""
+    for n in range(2, 1000):
+        candidate = resolved.with_name(f"{resolved.stem}-{n}{resolved.suffix}")
+        if not candidate.exists():
+            return candidate
+    return resolved
+
+
 def _gate_paths(spec, checked: Checked, services: Services) -> None:  # gate 2
+    """Workspace checks of every path argument. A path without a suffix gets the
+    marker's first one (``parts/plate`` -> ``parts/plate.prt``)."""
     for path, marker in checked.paths:
         field = pointer(path)
         value = get_at(checked.args, path)
+        if marker.suffixes and isinstance(value, str) and value and not Path(value).suffix:
+            value = value.rstrip("/" + chr(92)) + marker.suffixes[0]
         try:
             resolved = Path(services.workspace.resolve(value))
         except Exception as error:
@@ -94,40 +132,59 @@ def _gate_paths(spec, checked: Checked, services: Services) -> None:  # gate 2
                 details={"path": value},
             ) from None
         if marker.suffixes and resolved.suffix.lower() not in marker.suffixes:
+            expected = "/".join(marker.suffixes)
             fail(
                 "NX_UNSUPPORTED_FILE_TYPE",
-                f"{field}: expected {'/'.join(marker.suffixes)}",
+                f"{field}: expected a {expected} file, e.g. 'parts/name{marker.suffixes[0]}' "
+                f"(got '{resolved.suffix}')",
                 field=field,
+                hint=f"End the path with {marker.suffixes[0]}, or leave the suffix out",
+                details={"path": value, "expected": list(marker.suffixes)},
             )
         if marker.mode == "read" and not resolved.is_file():
             fail(
-                "NX_FILE_NOT_FOUND", f"{field}: no such file", field=field, details={"path": value}
+                "NX_FILE_NOT_FOUND",
+                f"{field}: no such file",
+                field=field,
+                hint="Check the path with nx_list_files on its folder",
+                details={"path": value},
             )
         if marker.mode == "new" and resolved.exists():
+            free = _relative(services, _free_name(resolved))
             fail(
                 "NX_ALREADY_EXISTS",
                 f"{field}: a file already exists there",
                 field=field,
-                details={"path": str(resolved)},
+                hint=f"Choose a new path such as '{free}'; files are never overwritten",
+                details={"path": _relative(services, resolved), "suggested_path": free},
             )
         if marker.mode == "replace" and resolved.exists() and not resolved.is_file():
             fail(
                 "NX_WRONG_KIND",
                 f"{field}: not a file; only an existing file can be replaced",
                 field=field,
-                details={"path": str(resolved)},
+                hint="Choose a file path; nx_list_files shows what exists",
+                details={"path": _relative(services, resolved)},
             )
         if marker.mode == "dir" and resolved.exists() and not resolved.is_dir():
-            fail("NX_WRONG_KIND", f"{field}: not a directory", field=field)
+            fail(
+                "NX_WRONG_KIND",
+                f"{field}: a file already exists at this path, not a folder",
+                field=field,
+                hint="Choose another folder path; nx_list_files shows what exists",
+                details={"path": _relative(services, resolved)},
+            )
         if marker.mode == "save" and resolved.exists():
             part = services.work_part()
             own = str(getattr(part, "FullPath", "") or "") if part is not None else ""
             if not own or Path(own).resolve() != resolved:
+                free = _relative(services, _free_name(resolved))
                 fail(
                     "NX_ALREADY_EXISTS",
                     f"{field}: saving may only write the part's own file",
                     field=field,
-                    details={"path": str(resolved)},
+                    hint=f"Choose a new path such as '{free}', or omit it to save in place",
+                    details={"path": _relative(services, resolved), "suggested_path": free},
                 )
         set_at(checked.args, path, str(resolved))
 
@@ -234,7 +291,9 @@ def sheet_target(spec, args: dict, refs, services: Services) -> tuple:
 
 def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # gate 9
     """Convert quantities: lengths to part units, sheet lengths to the target sheet's
-    units (part units when no sheet is named), angles to degrees."""
+    units (part units when no sheet is named), angles to degrees. An NX expression name
+    or formula is evaluated by ``services.evaluate_formula`` (a formula only for model
+    tools: it needs a scratch expression) and becomes a ``types.Formula``."""
     part = services.work_part()
     length = services.part_units(part) if part is not None else None
     tx.units = {"length": length, "angle": "deg"}
@@ -243,14 +302,27 @@ def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # 
         tx.sheet, sheet_units = sheet_target(spec, checked.args, checked.refs, services)
         sheet_units = sheet_units or length or "mm"
         tx.units["sheet_length"] = sheet_units
+
+    def evaluate(formula, dim, unit, field=None):
+        return services.evaluate_formula(
+            formula, dim, unit, field=field, scratch=spec.effect == "model"
+        )
+
     for path, dim in checked.quantities:
         if dim == "sheet_length":
             target = sheet_units or length or "mm"
         elif dim == "angle":
             target = "deg"
+        elif dim == "count":
+            target = "unitless"
         else:
             target = length or "mm"
-        set_at(checked.args, path, convert_quantity(get_at(checked.args, path), dim, target))
+        where = pointer(path)
+        try:
+            value = convert_quantity(get_at(checked.args, path), dim, target, evaluate, where)
+        except ValueError as error:
+            fail("NX_INVALID_ARGUMENT", f"{where}: {error}", field=where)
+        set_at(checked.args, path, value)
     return checked.args
 
 
@@ -272,20 +344,58 @@ def _resolve_placeholders(checked: Checked, prior: list) -> None:
         set_at(checked.args, path, value)
 
 
-def _changes(services: Services, before: dict, after: dict, spec, refreshed=()) -> dict:
+def _internal(row) -> bool:
+    """An unnamed internal NX object without a short ref (``ENTITY 3 1 1``: a sketch's
+    helper curve, a pattern's own constraint): counted, not listed one by one."""
+    return ":" not in str(row.get("id") or "") and bool(_GENERIC.match(row.get("name") or ""))
+
+
+def _changes(
+    services: Services,
+    before: dict,
+    after: dict,
+    spec,
+    refreshed=(),
+    *,
+    retired=None,
+    floor: int | None = None,
+    tx: Tx | None = None,
+) -> dict:
+    """``changes`` of a committed call: created, modified and deleted rows and the
+    earlier refs that went stale (``stale_refs``: deleted objects, consumed faces and
+    edges). Every other ref stays valid."""
     created = [services.describe(after[k], live=True) for k in after if k not in before]
     deleted = [services.describe(before[k], live=False) for k in before if k not in after]
-    changes = {
-        "created": created,
-        "modified": list(refreshed),
-        "deleted": deleted,
-        "references": "preserved",
+    internal = {
+        "created": sum(map(_internal, created)),
+        "deleted": sum(map(_internal, deleted)),
     }
-    if spec.invalidates == "topology":
+    created = [r for r in created if not _internal(r)]
+    deleted = [r for r in deleted if not _internal(r)]
+    modified: list = list(refreshed)
+    for row in tx.changed if tx is not None else ():
+        if all(r.get("id") != row.get("id") for r in modified):
+            modified.append(row)
+    stale: list[str] = list(tx.stale_refs) if tx is not None else []
+    stale_of = getattr(getattr(services, "references", None), "stale", None)
+    if retired and stale_of is not None:
+        with contextlib.suppress(Exception):
+            stale.extend(r for r in stale_of(retired, floor) if r not in stale)
+    changes: dict = {
+        "created": created,
+        "modified": modified,
+        "deleted": deleted,
+        "references": "listed" if deleted or stale else "preserved",
+    }
+    if stale:
+        changes["stale_refs"] = stale[:50]
+        changes["stale_references"] = len(stale)
+    if any(internal.values()):
+        changes["internal"] = {k: v for k, v in internal.items() if v}
+    if retired is None and spec.invalidates == "topology":
+        # Services that cannot say which faces and edges died retired them all.
         changes["references"] = "listed"
         changes["stale_kinds"] = ["face", "edge"]
-    elif deleted:
-        changes["references"] = "listed"
     return changes
 
 
@@ -330,7 +440,11 @@ def run(spec, args, ctx: Context) -> dict:
     handler_started = handler_done = False
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
     try:
-        checked = _gate_schema(spec, args, where=getattr(services, "runs", "nx"))  # 1
+        try:
+            checked = _gate_schema(spec, args, where=getattr(services, "runs", "nx"))  # 1
+        except NXError as schema_error:
+            _application_first(spec, services, schema_error)
+            raise
         if spec.effect != "read" and ctx.operation_id:
             # Gate 7's replay goes first: repeating a committed call must not fail on
             # what it created (a `new` path that now exists, a part it loaded).
@@ -365,13 +479,20 @@ def run(spec, args, ctx: Context) -> dict:
         changes = None
         if spec.effect == "model":
             after = _readback(spec, services, part, before, mark)  # 11
-            services.invalidate(before, after, spec.invalidates == "topology")  # 12
+            retired = services.invalidate(before, after, spec.invalidates == "topology")  # 12
             refreshed = _refresh(spec, services, tx) if spec.refresh_annotations else []  # 13
-            changes = _changes(services, before, after, spec, refreshed)
-            if tx.references:  # the handler invalidated more (undo, restore, rename)
+            changes = _changes(
+                services, before, after, spec, refreshed, retired=retired, floor=floor, tx=tx
+            )
+            if tx.references == "part_invalidated":  # the handler invalidated the part
                 changes["references"] = tx.references
                 changes.pop("stale_kinds", None)
-            services.record_history(mark, part, operation_id, spec.name)
+            if tx.outcome != "not_applicable":  # a discarded preview: no mark to undo
+                services.record_history(mark, part, operation_id, spec.name)
+        elif tx.changed:  # a file or session tool reporting the objects it changed
+            changes = {"created": [], "modified": list(tx.changed), "deleted": []}
+            changes["references"] = "preserved"
+        _work_part_units(services, part, tx)
         envelope.update(ok=True)  # 14
         envelope["mutation_outcome"] = tx.outcome or (
             "not_applicable" if spec.effect == "read" else "committed"
@@ -421,13 +542,35 @@ def run(spec, args, ctx: Context) -> dict:
                 envelope["changes"]["stale_references"] = stale
         if tx is not None and tx.warnings:
             envelope["warnings"] = tx.warnings
-        services.after_failure(spec)
-        receipts.finish(record, envelope)
+        _after_failure(services, spec, outcome)
+        trace = getattr(error, "trace", None)
+        receipts.finish(record, envelope, trace=trace)
+        if trace:  # development only (NX_MCP_DEV=1); reads have no receipt
+            receipts.log_trace(spec.name, operation_id, trace)
         return envelope
     finally:
         if tx is not None:  # this call's staging folder, committed or not (Files)
             with contextlib.suppress(Exception):
                 tx.files.discard()
+
+
+def _after_failure(services, spec, outcome: str) -> None:
+    """``Services.after_failure`` with the outcome: a refusal moves no epoch."""
+    try:
+        cast(Any, services).after_failure(spec, outcome)
+    except TypeError:  # services that take only the spec
+        services.after_failure(spec)
+
+
+def _work_part_units(services, part, tx: Tx) -> None:
+    """Gate 14: when the call changed the work part (create, open, activate, close),
+    ``units.length`` is the new work part's."""
+    with contextlib.suppress(Exception):
+        now = services.work_part()
+        if now is None:
+            return
+        if part is None or services.part_key(now) != services.part_key(part):
+            tx.units["length"] = services.part_units(now)
 
 
 def _still_unchanged(spec, services, tx, part, before) -> bool:
@@ -620,12 +763,12 @@ def run_child(
                 parent.non_undoable(child.non_undoable_reason)
         _check_ownership_after(services, flags)
         after = _readback(spec, services, part, before, parent.mark)  # 11
-        services.invalidate(before, after, spec.invalidates == "topology")  # 12
+        retired = services.invalidate(before, after, spec.invalidates == "topology")  # 12
         result = {
             "tool": spec.name,
             "data": data,
             "frame": child.frame,
-            "changes": _changes(services, before, after, spec),
+            "changes": _changes(services, before, after, spec, retired=retired, tx=child),
         }
         if child.units.get("length"):
             result["units"] = {k: v for k, v in child.units.items() if v}

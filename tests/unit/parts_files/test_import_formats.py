@@ -424,3 +424,48 @@ def test_import_sources_can_be_uploaded():
     from nx_mcp.domains.parts_files import workspace
 
     assert set(importing.ALL_SUFFIXES) <= set(workspace.UPLOAD_SUFFIXES)
+
+
+def test_format_defaults_to_the_path_suffix(fx, root, ugii):
+    put(root, "a.igs", neutral_files.iges([BOX]))
+    put(root, "p.dxf", r12())
+    ok = call(fx, importing.nx_import_model, path="a.igs")
+    assert ok.ok and ok.data["format"] == "iges" and fx.importers[-1].kind == "iges", ok
+    dxf = call(fx, importing.nx_import_model, path="p.dxf", options={"units": "mm"})
+    assert dxf.ok and dxf.data["format"] == "dxf_dwg" and dxf.data["curve_count"] == 4, dxf
+    put(root, "a.CATPart", b"V5_CFV2" + bytes(64))
+    count = len(fx.importers)
+    catia = call(fx, importing.nx_import_model, path="a.CATPart")
+    assert catia.error["field"] == "/format" and "catia_v5" in catia.error["message"]
+    assert catia.mutation_outcome == "not_started" and len(fx.importers) == count
+
+
+def test_options_name_the_formats_they_apply_to(fx, root, ugii):
+    from nx_mcp.sidecar import schema
+
+    spec = importing.nx_import_model.spec
+    listed = str(schema.input_schema(spec, call_keys=False)["properties"]["options"])
+    assert "sew" in listed and "units" in listed
+    schema.adapter(spec).validate_python({"path": "a.stl"})  # format may be omitted
+    put(root, "a.igs", neutral_files.iges([BOX]))
+    put(root, "p.dxf", r12())
+    units = call(fx, importing.nx_import_model, path="a.igs", options={"units": "mm"})
+    assert units.error["field"] == "/options/units" and "stl, dxf_dwg" in units.error["message"]
+    metres = call(fx, importing.nx_import_model, path="p.dxf", options={"units": "m"})
+    assert metres.error["field"] == "/options/units" and metres.mutation_outcome == "not_started"
+    assert not fx.importers
+
+
+def test_iges_solid_bounds_are_exact_although_the_quick_box_is_padded(fx, root, ugii):
+    """NX 2406: a sewn IGES plate's quick box was 0.125 mm larger than the file extent."""
+    put(root, "a.igs", neutral_files.iges([BOX]))
+    quick = fx.uf.ModlGeneral.AskBoundingBox
+
+    def padded(tag):
+        box = list(quick(tag))
+        return [v - 0.125 for v in box[:3]] + [v + 0.125 for v in box[3:]]
+
+    fx.uf.ModlGeneral.AskBoundingBox = padded
+    ok = call(fx, importing.nx_import_model, path="a.igs")
+    assert ok.ok and ok.data["solids"] == 1, ok
+    assert ok.data["bounds"] == {"min": BOX[:3], "max": BOX[3:]}

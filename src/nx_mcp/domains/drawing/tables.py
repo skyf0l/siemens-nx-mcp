@@ -6,8 +6,12 @@ NX 2406 findings encoded here:
   parts list per part and a second one fails with raw error 1175188: it is refused
   before NX (``NX_ALREADY_EXISTS``, the existing list in ``details``).
 - A bend table needs an actual flat-pattern drafting view (its builder does not validate
-  otherwise). Automatic bend tables are rebuilt by ``nx_update_annotations``; the
-  automatic flag alone can leave stale rows after reopening a part.
+  otherwise, and commits an empty table): a view that is not named after a flat-pattern
+  model view (``FLAT-PATTERN#1@3``) is refused when the work part has no Flat Pattern.
+  Automatic bend tables are rebuilt by ``nx_update_annotations``; the automatic flag alone
+  can leave stale rows after reopening a part.
+- NX wraps cell text that does not fit its column: the evaluated text then has line
+  breaks the stored text lacks (a warning names the cells).
 - Title blocks are defined from a table section; the section's tabular note keeps the
   cells (its handle is stored on the title block). Cell labels, locks and attribute
   links are handled in ``title_blocks``; created title blocks label their cells
@@ -67,6 +71,9 @@ class TableInfo(TypedDict, total=False):
     position: list[float]
     rows: list[list[str]]
     columns: list[dict]
+    row_height: float
+    origin: dict
+    tables: list[result.Row]
     automatic: bool
     cells: list[title_blocks.CellInfo]
     holes: list[dict]
@@ -181,7 +188,45 @@ def table_info(tx, obj, kind=None):
             {"width": float(tab.AskColumnWidth(tab.AskNthColumn(tag, i))) / scale}
             for i in range(tab.AskNmColumns(tag))
         ]
+        if tab.AskNmRows(tag):
+            out["row_height"] = float(tab.AskRowHeight(tab.AskNthRow(tag, 0))) / scale
+    if tag is not None and kind not in ("hole", "bend"):
+        _warn_wrapped(tx, tag, out.get("rows") or [])
     return out
+
+
+def _warn_wrapped(tx, tag, rows):
+    """Warn about cells NX wraps: line breaks in the shown text, none in the stored text."""
+    raw = cells(tx, tag, raw=True)
+    wrapped = [
+        (i, j)
+        for i, row in enumerate(rows)
+        for j, shown in enumerate(row)
+        if "\n" in shown and i < len(raw) and j < len(raw[i]) and "\n" not in raw[i][j]
+    ]
+    if wrapped:
+        i, j = wrapped[0]
+        columns = sorted({j for _, j in wrapped})
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"NX wraps {len(wrapped)} cell(s) whose text is wider than its column (row {i}, "
+            f"column {j}: {raw[i][j]!r}); rows show the wrapped text. Widen widths {columns}",
+        )
+
+
+def _warn_off_sheet(tx, out, sheet):
+    """Warn when a grid table's origin is off the sheet or its columns run past the edge."""
+    position, columns = out.get("position"), out.get("columns") or []
+    if position is None or sheet is None:
+        return
+    length, height = drawing.size(sheet)
+    right = position[0] + sum(c.get("width", 0.0) for c in columns)
+    if position[0] < 0 or right > length or not 0 <= position[1] <= height:
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"The table at {position} reaches x={right:g}, past the {length:g} x {height:g} "
+            "sheet: move it with position",
+        )
 
 
 # ---- create ---------------------------------------------------------------------------------
@@ -289,9 +334,25 @@ def _create_parts_list(tx, sheet_ref, position, scope):
         return out
 
 
+def _flat_pattern_view(tx, view):
+    """Refuse a view that cannot be a flat pattern: not named after a flat-pattern model
+    view while the work part has no Flat Pattern feature."""
+    named = str(getattr(view, "Name", "")).upper().startswith("FLAT-PATTERN")
+    features = getattr(tx.part, "Features", None) or []
+    if not named and not any(str(f.FeatureType) == "FLAT_PATTERN" for f in features):
+        fail(
+            "NX_WRONG_KIND",
+            "A bend table needs a flat-pattern view, and the work part has no Flat Pattern",
+            field="/view",
+            hint="Create the Flat Pattern of the sheet-metal part, then a view of it with "
+            "nx_create_drawing_view type=flat_pattern",
+        )
+
+
 def _create_bend(tx, view_ref, position, columns, automatic):
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
+        _flat_pattern_view(tx, view)
     A = tx.nx.Annotations
     factory = tx.part.Annotations.BendTables.CreateBendTableBuilder
     with drawing.on_sheet(tx, sheet) as sh:
@@ -314,7 +375,26 @@ def _create_bend(tx, view_ref, position, columns, automatic):
         return out
 
 
-def _fill(tx, tag, rows, widths, height):
+def _fixed_height(tx, cell):
+    """Drop the cell's auto-size-row fit method: NX 2406 otherwise sizes the row to its
+    text on update and drops a given row height (9 mm became 7.01 for one text line)."""
+    tab = tx.uf.Tabnot
+    prefs = tab.AskCellPrefs(cell)
+    count = int(prefs.NmFitMethods)
+    methods = list(prefs.FitMethods)
+    auto = uf_types(tx).Tabnot.FitMethod.FIT_METHOD_AUTO_SIZE_ROW
+    kept = [m for m in methods[:count] if m != auto]
+    if len(kept) == count:
+        return
+    none = uf_types(tx).Tabnot.FitMethod.FIT_METHOD_NONE
+    prefs.FitMethods = kept + [none] * (len(methods) - len(kept))
+    prefs.NmFitMethods = len(kept)
+    tab.SetCellPrefs(cell, prefs)
+
+
+def _fill(tx, tag, rows, widths, height, fixed=False):
+    """Rows, widths and row height of a table; ``fixed`` keeps the height whatever the
+    text (a row height the caller gave)."""
     tab = tx.uf.Tabnot
     if tab.AskNmColumns(tag) != len(widths):
         fail("NX_UNSUPPORTED_OPTION", "Keep the table's column count", field="/widths",
@@ -331,7 +411,12 @@ def _fill(tx, tag, rows, widths, height):
         for j, value in enumerate(values):
             col = tab.AskNthColumn(tag, j)
             tab.SetColumnWidth(col, widths[j])
-            tab.SetCellText(tab.AskCellAtRowCol(row, col), value)
+            cell = tab.AskCellAtRowCol(row, col)
+            if fixed:
+                _fixed_height(tx, cell)
+            tab.SetCellText(cell, value)
+        if fixed:
+            tab.SetRowHeight(row, height)
 
 
 def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
@@ -356,7 +441,7 @@ def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
             section = b.commit()
         section.SetAttribute(TABLE_KIND, kind)
         tag = tx.uf.Tabnot.AskTabularNoteOfSection(section.Tag)
-        _fill(tx, tag, rows, widths_part, height_part)
+        _fill(tx, tag, rows, widths_part, height_part, fixed=row_height is not None)
         section.AnnotationOrigin = sh.point(position)
         table = section
         if kind == "title_block":
@@ -371,7 +456,9 @@ def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
             title_blocks.define_cells(tx, table)
         update(tx)
         _expect_rows(tx, table, rows)
-        return table_info(tx, table, kind)
+        out = table_info(tx, table, kind)
+        _warn_off_sheet(tx, out, sheet)
+        return out
 
 
 # ---- edit and inspect -----------------------------------------------------------------------
@@ -514,6 +601,11 @@ def nx_edit_drawing_table(
         out = table_info(tx, obj, kind)
     if position is not None:
         readback.expect_close(out.get("position"), list(position), "position", 1e-3)
+    if kind in ("title_block", "revision"):
+        if row_height is not None and abs(out.get("row_height", row_height) - row_height) > 1e-3:
+            tx.warn("NX_UPDATE_WARNING", f"NX keeps the first row {out['row_height']:g} high, "
+                    f"not {row_height:g}: its text needs more height")  # fmt: skip
+        _warn_off_sheet(tx, out, sheet)
     return out
 
 
@@ -635,7 +727,10 @@ def _edit_grid(tx, obj, rows, widths, row_height, sh):
             else sh.to_part([drawing.from_mm(sh.units, DEFAULT_ROW_HEIGHT_MM)[0], 0])[0]
         )
     kept = title_blocks.clear_cells(tx, obj) if _is_title_block(obj) else None
-    _fill(tx, tag, rows if rows is not None else current, native_widths, height)
+    _fill(
+        tx, tag, rows if rows is not None else current, native_widths, height,
+        fixed=row_height is not None,
+    )  # fmt: skip
     if kept is not None:
         title_blocks.define_cells(tx, obj, kept)
 
@@ -664,9 +759,9 @@ def nx_get_drawing_table(
     table: DrawingTableRef | None = None,
     sheet: DrawingSheetRef | None = None,
 ) -> TableInfo:
-    """Read a drawing table, or the title block of a sheet. Gives kind, evaluated rows, columns,
-    update mode and position; title blocks list cells (label, lock, text with <W@TITLE> links,
-    value)."""
+    """Read a drawing table, or the title block of a sheet with tables: every table on it. Gives
+    kind, evaluated rows, columns, update mode and position; title blocks list cells (label,
+    lock, text with <W@TITLE> links, value)."""
     if (table is None) == (sheet is None):
         fail("NX_INVALID_ARGUMENT", "Give table or sheet", field="/table")
     if table is not None:
@@ -675,24 +770,53 @@ def nx_get_drawing_table(
         )
         return table_info(tx, obj)
     target = select.resolve(tx, sheet, "drawing_sheet", field="/sheet", work_part=True)
-    found = [
-        b
-        for b in tx.part.DraftingManager.TitleBlocks
-        if (on := drawing.sheet_of_annotation(tx, b)) is not None and int(on.Tag) == int(target.Tag)
+    on_sheet = [
+        (obj, kind)
+        for obj, kind in all_tables(tx)
+        if (on := drawing.sheet_of_annotation(tx, obj)) is not None
+        and int(on.Tag) == int(target.Tag)
     ]
+    rows = [{**tx.ref(obj, "drawing_table"), "type": kind} for obj, kind in on_sheet]
+    found = [obj for obj, _ in on_sheet if _is_title_block(obj)]
     if not found:
         fail("NX_NOT_FOUND", "The sheet has no title block", field="/sheet",
-             hint="Create the sheet from a template, or nx_create_drawing_table "
-             "kind=title_block")  # fmt: skip
+             hint="Read one of details.tables by table, create the sheet from a template, or "
+             "use nx_create_drawing_table kind=title_block", details={"tables": rows})  # fmt: skip
     if len(found) > 1:
         fail("NX_AMBIGUOUS_REFERENCE", "The sheet has several title blocks: pass table",
              field="/sheet", details={"tables": [tx.ref(b, "drawing_table") for b in found]})  # fmt: skip
-    return table_info(tx, found[0], "title_block")
+    out = table_info(tx, found[0], "title_block")
+    out["tables"] = rows
+    return out
 
 
-class BalloonData(TypedDict):
+def all_tables(tx):
+    """``[(table, kind)]`` of the work part: parts lists, bend and hole tables, managed
+    tables and title blocks; a title block's own table section is not listed apart."""
+    part = tx.part
+    blocks = list(getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None) or [])
+    found = [
+        *part.Annotations.PartsLists,
+        *part.Annotations.BendTables,
+        *(getattr(part.Annotations, "HoleTables", None) or []),
+        *(getattr(part.Annotations, "TableSections", None) or []),
+        *blocks,
+    ]
+    inside = {int(t) for b in blocks if (t := table_tag(tx, b)) is not None}
+    out = []
+    for obj in {int(o.Tag): o for o in found}.values():
+        kind = table_kind(tx, obj)
+        if not kind or (type(obj).__name__ == "TableSection" and inside
+                        and int(table_tag(tx, obj)) in inside):  # fmt: skip
+            continue
+        out.append((obj, kind))
+    return out
+
+
+class BalloonData(TypedDict, total=False):
     balloons: list[result.Row]
     parts_list: result.Row
+    note: str
 
 
 @tool(
@@ -711,14 +835,18 @@ def nx_create_balloons(
     parts_list: DrawingTableRef,
     view: DrawingViewRef,
 ) -> BalloonData:
-    """Create parts-list balloons for the components shown in a drawing view. Components that
-    already have a balloon in the view get none."""
+    """Create parts-list balloons for the components shown in a drawing view. One per parts-list
+    row; rows already ballooned in the view get none."""
     with tx.checks():
         obj = select.resolve(
             tx, parts_list, "drawing_table", "annotation", field="/parts_list", work_part=True
         )
-        if table_kind(tx, obj) != "parts_list":
-            fail("NX_WRONG_KIND", "Select a parts list", field="/parts_list")
+        kind = table_kind(tx, obj)
+        if kind != "parts_list":
+            fail("NX_WRONG_KIND", f"parts_list must be a parts list, not a {kind or 'non-table'}",
+                 field="/parts_list", details={"kind": kind},
+                 hint="Pass the table of nx_create_drawing_table kind=parts_list; "
+                 "nx_list_objects kind=drawing_table lists the tables")  # fmt: skip
         shown, sheet = drawing.view(tx, view)
     part = tx.part
     before = {int(a.Tag) for a in part.Annotations.IdSymbols}
@@ -726,7 +854,13 @@ def nx_create_balloons(
         obj.ShowBalloonsInView(shown)
         update(tx)
         created = [a for a in part.Annotations.IdSymbols if int(a.Tag) not in before]
-    return {
+    out: BalloonData = {
         "balloons": [tx.ref(a, "annotation") for a in created],
         "parts_list": tx.ref(obj, "drawing_table"),
     }
+    if not created:
+        out["note"] = (
+            "No new balloons: every parts-list row shown in this view already has one "
+            "(one balloon per row, not per component)"
+        )
+    return out

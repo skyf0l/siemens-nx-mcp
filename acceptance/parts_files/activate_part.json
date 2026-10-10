@@ -31,6 +31,7 @@
     {"call": "nx_create_part", "setup": true, "save": "tmp", "args": {"path": "$run/act/pf_act_tmp.prt"}},
     {"call": "nx_close_part", "setup": true, "args": {"part": "$tmp.data.part.id", "save": false}},
     {"call": "nx_activate_part", "args": {"part": "$tmp.data.part.id"},
-     "expect": {"error.category": "stale_reference", "mutation_outcome": "not_started"}}
+     "expect": {"error.category": "stale_reference", "mutation_outcome": "not_started", "error.field": "/part",
+                "error.hint": {"matches": "nx_list_parts"}, "error.details.loaded_parts.0.kind": "part"}}
   ]
 }

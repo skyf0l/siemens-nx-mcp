@@ -405,19 +405,24 @@ class CatalogueProxy:
         return evidence.available(spec, self.listing()[0])
 
     def _invalid(self, spec, args) -> NXError | None:
+        """Gate 1. ``args`` becomes its canonical form (natural spellings resolved, as
+        ``core.validate`` gives the handler), so the evidence gate and NX see the variant
+        and values that run."""
         try:
-            schema.adapter(spec).validate_python(args)
-            return None
+            canonical = validate(spec.params, args).args  # the precise messages
+        except NXError as precise:
+            return precise
+        try:
+            schema.adapter(spec).validate_python(args)  # same rules (parity test)
         except ValidationError as error:
             first = error.errors()[0]
-            try:
-                validate(spec.params, args)  # Same rules (parity test), clearer message.
-            except NXError as precise:
-                return precise
             field = schema.error_pointer(args, first["loc"], first["type"]) or None
             return NXError(
                 "NX_INVALID_ARGUMENT", f"{field or 'arguments'}: {first['msg']}", field=field
             )
+        args.clear()
+        args.update(canonical)
+        return None
 
     def _resolve_paths(self, spec, args: dict) -> NXError | None:
         for pointer, _mode, _suffixes in spec.paths:

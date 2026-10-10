@@ -163,3 +163,22 @@ def test_every_deletable_kind_has_a_deleter():
         "drawing_sheet",
         "drawing_view",
     }
+
+
+def test_a_body_is_refused_with_the_features_to_delete_instead(nx):
+    extrude, _blend, body = model(nx)
+    extrude.Timestamp, _blend.Timestamp = 1, 2
+    body.GetFeatures = lambda: [_blend, extrude]
+    failed = run(nx, "nx_delete_objects", objects=[body.ref])
+    assert failed.error["code"] == "NX_WRONG_KIND", failed
+    assert failed.error["details"]["features"] == [extrude.ref, _blend.ref]  # oldest first
+    assert "details.features[0]" in failed.error["hint"]
+    ok = run(nx, "nx_delete_objects", objects=failed.error["details"]["features"][:1])
+    assert ok.ok and list(nx.part.Bodies) == [] and list(nx.part.Features) == []
+
+
+def test_dependents_name_the_part_like_the_deleted_rows(nx):
+    extrude, *_ = model(nx)
+    ok = run(nx, "nx_delete_objects", objects=[extrude.ref])
+    part = ok.data["deleted"][0]["part"]
+    assert ok.data["dependents"] and {r["part"] for r in ok.data["dependents"]} == {part}

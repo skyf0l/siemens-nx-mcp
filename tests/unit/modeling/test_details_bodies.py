@@ -59,6 +59,10 @@ def test_variable_blend_points_and_rules():
         ({"method": "symmetric", "offset": 2}, "SymmetricOffsets"),
         ({"method": "two_offsets", "offset": 2, "offset2": 4, "reverse": True}, "TwoOffsets"),
         ({"method": "offset_angle", "offset": 3, "angle": 30}, "OffsetAndAngle"),
+        # method omitted: inferred from the fields given
+        ({"offset": "2mm"}, "SymmetricOffsets"),
+        ({"offset": 2, "offset2": 3}, "TwoOffsets"),
+        ({"offset": 2, "angle": "30deg", "reverse": True}, "OffsetAndAngle"),
     ],
 )
 def test_chamfer_methods(args, option):
@@ -80,6 +84,7 @@ def test_chamfer_methods(args, option):
         {"method": "offset_angle", "offset": 2, "angle": 95},
         {"method": "symmetric", "offset": 2, "reverse": True},
         {"method": "symmetric", "offset": -1},
+        {"offset": 2, "offset2": 3, "angle": 30},
     ],
 )
 def test_chamfer_argument_errors(args):
@@ -87,6 +92,23 @@ def test_chamfer_argument_errors(args):
     block = nx.block(40, 20, 10)
     bad = run(nx, "nx_create_chamfer", edges=[block.edges[0].ref], **args)
     assert bad.error["category"] == "invalid_argument" and bad.mutation_outcome == "not_started"
+
+
+@pytest.mark.parametrize(
+    ("args", "field", "words"),
+    [
+        ({"method": "two_offsets", "offset": 3}, "/offset2", "offset2"),
+        ({"method": "symmetric", "offset": 2, "offset2": 3}, "/offset2", "two_offsets"),
+        ({"method": "offset_angle", "offset": 2, "angle": 95}, "/angle", "angle"),
+        ({"offset": 2, "offset2": 3, "angle": 30}, "/angle", "method"),
+    ],
+)
+def test_chamfer_errors_point_at_the_field_and_say_what_to_send(args, field, words):
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    bad = run(nx, "nx_create_chamfer", edges=[block.edges[0].ref], **args)
+    assert bad.error["field"] == field, bad
+    assert words in bad.error["hint"], bad
 
 
 def test_shell_and_draft():
@@ -108,6 +130,18 @@ def test_shell_and_draft():
     assert drafted.ok, drafted
     assert nx.last("DraftBuilder").FaceSetAngleExpressionList.Append.calls[0][0][0].args[1] == "5.0"
     bottom = nx.ref_of(block.face((0, 0, -1)), "face")
+    side = nx.ref_of(block.face((1, 0, 0)), "face")
+    changes(nx, "DraftBuilder", block, 1900.0)
+    bare = run(nx, "nx_create_draft", faces=[side], stationary_face=bottom,
+               direction="-z", angle="-3deg")  # fmt: skip
+    assert bare.ok, bare  # a bare principal name is a direction
+    assert (
+        nx.last("DraftBuilder").FaceSetAngleExpressionList.Append.calls[0][0][0].args[1] == "-3.0"
+    )
+    bottom = nx.ref_of(block.face((0, 0, -1)), "face")
+    zero = run(nx, "nx_create_draft", faces=[side], stationary_face=bottom,
+               direction="z", angle=0)  # fmt: skip
+    assert zero.error["field"] == "/angle" and "deg" in zero.error["hint"]
     fixed = run(nx, "nx_create_draft", faces=[bottom], stationary_face=bottom,
                 direction=[0, 0, 1], angle=5)  # fmt: skip
     assert fixed.error["field"] == "/faces/0"
@@ -157,7 +191,7 @@ def test_trim_keeps_the_requested_side_and_split_adds_up():
         return feature(nx, "TRIM_BODY", [block])
 
     nx.on_commit("TrimBody2Builder", trimmed)
-    ok = call(nx, "nx_create_trim_body", {"body": block.ref, "tool": plane.ref, "keep": "back"})
+    ok = call(nx, "nx_create_trim_body", {"body": block.ref, "tool": plane.ref})  # keep: back
     assert ok.ok and ok.data["volumes"] == [2000.0], ok
     assert nx.last("TrimBody2Builder").BooleanTool.ReverseDirection is False
     block.box, block.volume = [0, 0, 0, 40, 20, 10], 8000.0
@@ -175,6 +209,7 @@ def test_trim_keeps_the_requested_side_and_split_adds_up():
     miss = nx.datum_plane(origin=(50, 0, 0), normal=(1, 0, 0))
     bad = call(nx, "nx_create_trim_body", {"body": body, "tool": miss.ref, "keep": "back"})
     assert "does not cut" in bad.error["message"] and bad.changes["references"] == "preserved"
+    assert "both signs" in bad.error["hint"]
 
 
 def test_scale_checks_volume_and_fixed_point():
@@ -296,3 +331,125 @@ def test_materials_assign_verify_and_read():
     old = run(nx, "nx_set_material", bodies=[block.ref],
               material={"custom": {"name": "old", "density": 1000}})  # fmt: skip
     assert old.error["code"] == "NX_ALREADY_EXISTS" and old.mutation_outcome == "rolled_back"
+
+
+# ---------------------------------------------------------------------------
+# Live tester batch b25: guidance and short forms
+
+
+def test_boolean_refuses_a_tool_apart_from_the_target_before_nx():
+    nx = modeling_nx()
+    a = nx.block(10, 10, 10)
+    far = nx.block(10, 10, 10, origin=(50, 0, 0))
+    bad = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=[far.ref])
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/tools/0", bad
+    assert "nx_create_transform" in bad.error["hint"]
+    assert not any(b.kind == "BooleanBuilder" for b in nx.builders)
+    # A tool that touches another tool of the call (a chain) is not apart.
+    near = nx.block(10, 10, 10, origin=(10, 0, 0))
+    bridge = nx.block(31, 10, 10, origin=(20, 0, 0))
+    changes(nx, "BooleanBuilder", a, 3000.0)
+    tools = [nx.ref_of(far, "body"), near.ref, bridge.ref]
+    ok = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=tools)
+    assert ok.ok, ok
+
+
+def test_boolean_unite_that_leaves_two_bodies_fails_and_rolls_back():
+    # NX 2406 commits a unite of bodies that do not meet with the tool kept as a second body.
+    nx = modeling_nx()
+    a = nx.block(10, 10, 10)
+    b = nx.block(10, 10, 10, origin=(5, 0, 0))
+
+    def apart(builder):
+        nx.part.Bodies.remove(b)
+        return feature(nx, "UNITE", [a, new_body(nx, [5, 0, 0, 15, 10, 10])])
+
+    nx.on_commit("BooleanBuilder", apart)
+    bad = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=[b.ref])
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["details"]["bodies"] == 2, bad
+    assert bad.mutation_outcome == "rolled_back" and "touch" in bad.error["hint"]
+
+
+def test_boolean_circular_dependency_names_the_associative_copy():
+    nx = modeling_nx()
+    a = nx.block(10, 10, 10)
+    b = nx.block(10, 10, 10, origin=(5, 0, 0))
+    nx.refuse("BooleanBuilder", 670015, "Circular dependency detected")
+    bad = run(nx, "nx_create_boolean", operation="subtract", target=a.ref, tools=[b.ref])
+    assert bad.error["code"] == "NX_BUILD_FAILED", bad
+    assert "derived from the target" in bad.error["hint"], bad
+
+
+def test_scale_about_the_center_keeps_the_centroid():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10, origin=(10, 0, 0))
+
+    def scaled(b):
+        block.volume, block.centroid = 8000.0, [15.0, 5.0, 5.0]
+        return feature(nx, "SCALE", [block])
+
+    nx.on_commit("ScaleBuilder", scaled)
+    ok = run(nx, "nx_create_scale", bodies=[block.ref], factor=2, origin="center")
+    assert ok.ok and ok.data["volume"] == 8000, ok
+    block.volume, block.centroid = 1000.0, None
+    moved = run(nx, "nx_create_scale", bodies=[nx.ref_of(block, "body")], factor=2)
+    assert moved.error["details"]["check"] == "centroid[0]"  # about [0, 0, 0] it moves
+
+
+def _rigid(nx, body):
+    """A Move Object commit that applies the ToCsys pose to ``body``'s centroid."""
+    from nx_mcp.kit import geom
+
+    def moved(b):
+        to, m = b.TransformMotion.ToCsys.args[:2]
+        centre = getattr(body, "centroid", None) or [
+            (body.box[i] + body.box[i + 3]) / 2 for i in range(3)
+        ]
+        body.centroid = geom.add(geom.matvec(geom.rows(m), centre), [to.X, to.Y, to.Z])
+        return feature(nx, "MOVE_OBJECT", [body])
+
+    nx.on_commit("MoveObjectBuilder", moved)
+
+
+def test_transform_rotates_about_an_axis_through_a_point():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    nx.nx.Features.MoveObject = Object
+    _rigid(nx, block)
+    spin = {"axis": [0, 0, 1], "angle": 90, "origin": [5, 5, 0]}
+    ok = run(nx, "nx_create_transform", bodies=[block.ref], transform={"rotation": spin})
+    assert ok.ok, ok
+    to = nx.last("MoveObjectBuilder").TransformMotion.ToCsys.args[0]
+    assert [round(v, 9) for v in (to.X, to.Y, to.Z)] == [10.0, 0.0, 0.0]
+    assert [round(v, 9) for v in block.centroid] == [5.0, 5.0, 5.0]
+    turn_z = {"rotation": {"axis": "z", "angle": "90 deg"}, "translation": [0, 0, 5]}
+    turn = run(nx, "nx_create_transform", bodies=[nx.ref_of(block, "body")], transform=turn_z)
+    assert turn.ok, turn
+    assert [round(v, 9) for v in block.centroid] == [-5.0, 5.0, 10.0]
+    move = next(f for f in nx.part.Features if f.FeatureType == "MOVE_OBJECT")
+    flip = [[1, 0, 0], [0, -1, 0], [0, 0, -1]]  # nx_edit_feature takes the matrix form
+    tilt = {"transform": {"translation": [0, 0, 0], "rotation": flip}}
+    edit = run(nx, "nx_edit_feature", feature=nx.ref_of(move, "feature"), definition=tilt)
+    assert edit.ok, edit
+    still = run(nx, "nx_create_transform", bodies=[nx.ref_of(block, "body")],
+                transform={"translation": [0, 0, 0]})  # fmt: skip
+    assert still.error["field"] == "/transform" and still.mutation_outcome == "not_started"
+    half = {"rotation": {"axis": "z"}}
+    bad = run(nx, "nx_create_transform", bodies=[nx.ref_of(block, "body")], transform=half)
+    assert bad.error["field"].startswith("/transform/rotation"), bad
+
+
+def test_transform_copy_is_fixed_at_its_timestamp():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    nx.nx.Features.MoveObject = Object
+
+    def extracted(b):
+        return feature(nx, "EXTRACT_BODY", [new_body(nx, [0, 0, 0, 10, 10, 10])])
+
+    nx.on_commit("ExtractFaceBuilder", extracted)
+    here = {"translation": [0, 0, 0]}
+    in_place = run(nx, "nx_create_transform", bodies=[block.ref], transform=here, copy=True)
+    assert in_place.ok and "EXTRACT_BODY" in in_place.data["feature"]["name"], in_place
+    assert nx.last("ExtractFaceBuilder").FixAtCurrentTimestamp is True
+    assert not any(b.kind == "MoveObjectBuilder" for b in nx.builders)

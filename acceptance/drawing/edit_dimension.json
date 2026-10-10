@@ -247,6 +247,14 @@
     "data.value": {
      "close": 50,
      "tol": 1e-09
+    },
+    "data.tolerance.upper": {
+     "close": 0.1,
+     "tol": 1e-09
+    },
+    "data.tolerance.lower": {
+     "close": -0.1,
+     "tol": 1e-09
     }
    }
   },
@@ -266,6 +274,52 @@
    "call": "nx_edit_dimension",
    "args": {
     "dimension": "$lin.data.dimension.id",
+    "tolerance": {
+     "type": "none"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.tolerance.type": "none",
+    "data.tolerance": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "tolerance": {
+     "upper": 0.1
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/tolerance/upper"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "tolerance": {
+     "type": "symmetric",
+     "upper": 0.1,
+     "lower": -0.2
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/tolerance/lower"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
     "edges": [
      "$front.data.items.0.id",
      "$ch.data.items.0.id"
@@ -277,7 +331,32 @@
      "tol": 1e-09
     },
     "data.valid": true,
-    "data.associations": 2
+    "data.associations": 2,
+    "data.objects": {
+     "count": 2
+    },
+    "data.objects.0.kind": "edge"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "edges": [
+     "$left.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.value": {
+     "close": 50,
+     "tol": 1e-06
+    },
+    "data.objects": {
+     "count": 2
+    },
+    "data.objects.0.kind": "edge",
+    "data.objects.1.kind": "edge"
    }
   },
   {
@@ -291,7 +370,10 @@
    "expect": {
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
-    "error.field": "/second"
+    "error.field": "/edges/0",
+    "error.hint": {
+     "contains": "own length"
+    }
    }
   },
   {

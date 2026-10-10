@@ -18,7 +18,7 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, ExplosionRef, PathTo, Range
+from nx_mcp.core.types import Doc, PathTo, Range
 from nx_mcp.domains.assembly import common, exploded, structure
 from nx_mcp.kit import capture, drawing, files, readback
 from nx_mcp.kit import pose as kpose
@@ -54,6 +54,7 @@ class AnimationData(TypedDict):
     fps: int
     width: int
     height: int
+    trace_count: int
     frames: list[Frame]
 
 
@@ -75,7 +76,7 @@ def _state(tx, ex) -> dict:
 @tool(
     effect="file",
     label="Export explosion animation",
-    summary="Animate {explosion} to {path}",
+    summary="Animate {explosion} to HTML {path}",
     keywords=("explosion animation", "exploded animation", "html animation", "assembly motion"),
     requires=("work_part", "no_active_sketch", "assembly", "interactive"),
     cost="long",
@@ -84,15 +85,16 @@ def _state(tx, ex) -> dict:
 def nx_export_explosion_animation(
     tx: Tx,
     *,
-    explosion: ExplosionRef,
-    path: Annotated[str, PathTo("new", ".html")],
-    frames: Annotated[int, Range(ge=2, le=30), Doc("Frames from assembled to exploded")] = 12,
+    explosion: common.ExplosionId,
+    path: Annotated[str, Doc("New .html file (no GIF/MP4)"), PathTo("new", ".html")],
+    frames: Annotated[int, Range(ge=2, le=30), Doc("Frames from assembled to exploded, 2-30")] = 12,
     fps: Annotated[int, Range(ge=1, le=60), Doc("Playback frames per second")] = 12,
     width: Annotated[int, Range(ge=128, le=1600), Doc("Frame width in pixels")] = 960,
     height: Annotated[int, Range(ge=128, le=1600), Doc("Frame height in pixels")] = 600,
 ) -> AnimationData:
-    """Write a self-contained HTML animation of an explosion, assembled to exploded. It renders
-    from the current camera, so frame the motion first; the model is left unchanged."""
+    """Write a self-contained HTML page animating an explosion from assembled to exploded,
+    with its trace lines. Renders from the current camera, so frame the motion first
+    (nx_set_camera); the model is left unchanged."""
     with tx.checks():
         part = common.explosion_context(tx)
         if drawing.current(part) is not None or drawing.work_view_is_drawing(part):
@@ -103,6 +105,7 @@ def nx_export_explosion_animation(
         if not entries:
             fail("NX_INVALID_ARGUMENT", "The explosion has no unsuppressed component",
                  field="/explosion")  # fmt: skip
+    trace_count = len(exploded.traces(tx, part, ex))
     poses = [
         (int(c.Tag), structure.pose(c), exploded.exploded_pose(child))
         for child, c, _n, _h in entries
@@ -163,5 +166,6 @@ def nx_export_explosion_animation(
         "fps": fps,
         "width": width,
         "height": height,
+        "trace_count": trace_count,
         "frames": report,
     }

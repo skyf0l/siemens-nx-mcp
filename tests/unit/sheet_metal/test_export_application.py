@@ -71,10 +71,25 @@ def test_geo_export_reports_area_and_thickness():
     assert nx.last("ExportFlatPatternBuilder").Type == "ExportFlatPatternBuilder.FileType.TrumpfGeo"
 
 
+def test_format_follows_the_path_suffix_when_omitted():
+    nx = sm_nx()
+    feature = flat(nx)
+    nx.on_commit("ExportFlatPatternBuilder", writes(GEO))
+    ok = run(nx, "nx_export_flat_pattern", flat_pattern=feature.ref, path="B.GEO")
+    assert ok.ok, ok
+    assert ok.data["format"] == "geo" and ok.data["revision"] is None
+    assert nx.last("ExportFlatPatternBuilder").Type == "ExportFlatPatternBuilder.FileType.TrumpfGeo"
+    nx.on_commit("ExportFlatPatternBuilder", writes(DXF))
+    ok = run(nx, "nx_export_flat_pattern", flat_pattern=feature.ref, path="b.dxf")
+    assert ok.ok, ok
+    assert ok.data["format"] == "dxf" and ok.data["revision"] == "r2018"
+
+
 @pytest.mark.parametrize(
     ("args", "field"),
     [
-        ({"path": "b.geo"}, "/path"),
+        ({"path": "b.geo", "format": "dxf"}, "/path"),
+        ({"path": "b.geo", "dxf": {"mold": "inner"}}, "/dxf"),  # .geo: format geo
         ({"path": "b.geo", "format": "geo", "dxf": {"revision": "r12"}}, "/dxf"),
         ({"path": "b.dxf", "include": ["bend_up", "bend_up"]}, "/include/1"),
         ({"path": "b.dxf", "tolerance": 0}, "/tolerance"),

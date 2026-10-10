@@ -142,3 +142,24 @@ def test_edit_dimension_validation():
     assert radial.error["code"] == "NX_UNSUPPORTED_OPTION" and radial.error["field"] == "/edges"
     for result in (nothing, decimals, units, radial):
         assert result.mutation_outcome == "not_started"
+
+
+def test_the_view_may_be_given_by_name():
+    nx = dims_nx()
+    nx.on_commit("LinearDimensionBuilder", dimension_hook(nx, 70.0))
+    for name in ("TOP@1", "top"):
+        ok = run(nx, "nx_create_drawing_dimension", view=name, kind="linear", first=nx.back.ref,
+                 orientation="horizontal")  # fmt: skip
+        assert ok.ok, (name, ok)
+        assert ok.data["origin"] == pytest.approx([135.0, 160.0])
+    missing = run(nx, "nx_create_drawing_dimension", view="Side@9", kind="linear",
+                  first=nx.back.ref)  # fmt: skip
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/view"
+    assert len(missing.error["details"]["views"]) == 2 and "v:N" in missing.error["hint"]
+    make_view(nx, nx.part.DrawingSheets[0], "Top@3")
+    twice = run(nx, "nx_create_drawing_dimension", view="top", kind="linear", first=nx.back.ref)
+    assert (
+        twice.error["code"] == "NX_INVALID_ARGUMENT" and "More than one" in twice.error["message"]
+    )
+    for result in (missing, twice):
+        assert result.mutation_outcome == "not_started"

@@ -1,5 +1,9 @@
 """Receipts: fingerprint, idempotent replay, states, outcome, progress, cancel flag.
 
+A receipt keeps the request's arguments (``arguments``) so ``nx_get_operation`` can
+show what was asked: file contents (``content``, ``data_base64``) and other long
+strings are replaced by a size note, and the copy is bounded (:func:`redact`).
+
 Gate 7. The records live in an :class:`OperationStore`
 (``.nx-mcp/operations/<operation_id>.json``), which ``nx_get_operation`` and
 ``nx_cancel_operation`` (domains/session/status.py) read from either process.
@@ -19,6 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from nx_mcp.core.errors import NXError, fail
+
+TRACE_LOG_BYTES = 1_000_000
 
 
 def timestamp() -> str:
@@ -71,6 +77,40 @@ def fingerprint(tool: str, args: dict) -> str:
             details={"error": str(error)},
         ) from error
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+# Arguments that carry file contents: never stored in a receipt.
+CONTENT_FIELDS = frozenset({"content", "data_base64", "content_base64", "base64"})
+LONG_TEXT = 400  # characters of a string argument kept in a receipt
+MAX_ARGUMENTS = 8000  # characters of the stored arguments (JSON)
+
+
+def redact(args, _key: str | None = None):
+    """A receipt copy of ``args``: file contents and long strings become a size note,
+    lists keep their first 100 items; a copy over ``MAX_ARGUMENTS`` characters is
+    replaced by ``{"omitted": <characters>}``."""
+
+    def walk(value, key=None):
+        if isinstance(value, dict):
+            return {k: walk(v, k) for k, v in value.items()}
+        if isinstance(value, list):
+            out = [walk(v, key) for v in value[:100]]
+            if len(value) > 100:
+                out.append(f"<{len(value) - 100} more items>")
+            return out
+        if isinstance(value, str):
+            if key in CONTENT_FIELDS:
+                return f"<file content omitted: {len(value)} characters>"
+            if len(value) > LONG_TEXT:
+                return value[:LONG_TEXT] + f"... <{len(value) - LONG_TEXT} characters omitted>"
+        return value
+
+    copy = walk(args, _key)
+    try:
+        size = len(json.dumps(copy, ensure_ascii=False, default=str))
+    except (TypeError, ValueError):
+        return {"omitted": "not JSON"}
+    return copy if size <= MAX_ARGUMENTS else {"omitted": size}
 
 
 class OperationStore:
@@ -196,6 +236,7 @@ class Receipts:
             "fingerprint": digest,
             "session_id": self.session_id,
             "part_id": part_key,
+            "arguments": redact(args),
             "state": "running",
             "mutation_outcome": "unknown",
             "started_at": timestamp(),
@@ -211,10 +252,14 @@ class Receipts:
         record["progress"] = {"completed": done, "total": total, "at": timestamp()}
         self.store.put(record)
 
-    def finish(self, record: dict | None, envelope: dict) -> None:
-        """Write the final state. Never raises: a committed result stays committed."""
+    def finish(self, record: dict | None, envelope: dict, trace: str | None = None) -> None:
+        """Write the final state. Never raises: a committed result stays committed.
+        ``trace``: the development traceback of a native failure (kept out of the
+        envelope)."""
         if record is None:
             return
+        if trace:
+            record["traceback"] = trace
         record.update(
             state="committed" if envelope.get("ok") else "failed",
             mutation_outcome=envelope.get("mutation_outcome"),
@@ -228,6 +273,21 @@ class Receipts:
         # A running receipt becomes unknown on restart; never undo a commit.
         with contextlib.suppress(Exception):
             self.store.put(record)
+
+    def log_trace(self, tool: str, operation_id: str, trace: str) -> None:
+        """Append a development traceback (``NX_MCP_DEV=1``) to
+        ``.nx-mcp/logs/tracebacks.log`` next to the receipts: tracebacks never go into
+        an agent-facing envelope. Never raises; the log is rotated at 1 MB."""
+        root = getattr(self.store, "root", None)
+        if root is None or not trace:
+            return
+        with contextlib.suppress(Exception):
+            log = Path(root).parent / "logs" / "tracebacks.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            if log.exists() and log.stat().st_size > TRACE_LOG_BYTES:
+                log.replace(log.with_suffix(".log.1"))
+            with log.open("a", encoding="utf-8") as stream:
+                stream.write(f"--- {timestamp()} {tool} {operation_id}\n{trace.rstrip()}\n")
 
     def cancel_requested(self, operation_id: str | None) -> bool:
         if not operation_id:

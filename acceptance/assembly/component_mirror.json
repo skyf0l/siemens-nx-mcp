@@ -29,10 +29,23 @@
   {"call": "nx_list_components", "args": {"include_poses": true},
    "expect": {"page.total": 4}},
   {"call": "nx_create_component_mirror",
+   "args": {"components": ["$A.data.component.id"], "plane": "yz"},
+   "expect": {"mutation_outcome": "committed", "data.components": {"count": 1},
+              "data.components.0.mirrored.translation": {"close": [-30, 5, 0], "tol": 1e-06},
+              "data.plane.normal": {"close": [1, 0, 0], "tol": 1e-09}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "Amx",
+   "args": {"owner": "$A.data.component.id", "kind": "face", "geometry_type": "plane", "normal": [-1, 0, 0],
+            "order": "lowest", "axis": "x", "limit": 1}},
+  {"call": "nx_create_component_mirror",
+   "args": {"components": ["$B.data.component.id"], "plane": "$Amx.data.items.0.id"},
+   "expect": {"mutation_outcome": "committed", "data.components": {"count": 1},
+              "data.components.0.mirrored.translation": {"close": [10, -20, 4], "tol": 1e-06},
+              "data.plane.origin.0": {"close": 30, "tol": 1e-06}}},
+  {"call": "nx_create_component_mirror",
    "args": {"components": ["$A.data.component.id", "$A.data.component.id"], "plane": {"principal": "yz"}},
    "expect": {"error.field": "/components/1", "mutation_outcome": "not_started"}},
   {"call": "nx_create_component_mirror",
    "args": {"components": ["$A.data.component.id"], "plane": {"principal": "ab"}},
-   "expect": {"error.field": "/plane/principal", "mutation_outcome": "not_started"}}
+   "expect": {"error.field": {"matches": "^/plane"}, "mutation_outcome": "not_started"}}
  ]
 }

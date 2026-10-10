@@ -93,6 +93,8 @@ def test_point_normal_normalises_and_names():
     assert plane.method == "PointDir"
     assert pytest.approx(s) == plane.geometry[1].Vector.X  # unit direction handed to NX
     assert nx.part.Features[-1].Name in ("mid_plane", "MID_PLANE")
+    # The datum plane carries the name too: its row is what later calls reference.
+    assert ok.data["datum_plane"]["name"] in ("mid_plane", "MID_PLANE")
 
 
 def test_three_points_and_collinear_points():
@@ -153,3 +155,65 @@ def test_active_sketch_is_refused_before_nx():
     )
     assert bad.error["code"] == "NX_SKETCH_ACTIVE" and "nx_finish_sketch" in bad.error["hint"]
     assert bad.mutation_outcome == "not_started" and nx.builders == []
+
+
+@pytest.mark.parametrize(
+    ("reference", "distance", "origin", "normal"),
+    [
+        ("xy", "10 mm", (0, 0, 10), (0, 0, 1)),
+        ("yz", -5, (-5, 0, 0), (1, 0, 0)),
+        ("xz", 4, (0, -4, 0), (0, -1, 0)),  # NX's XZ plane normal is -Y
+    ],
+)
+def test_offset_from_a_world_plane_builds_a_fixed_plane(reference, distance, origin, normal):
+    nx = datum_nx()
+    nx.on_commit("DatumPlaneBuilder", lambda b: plane_feature(nx, origin, normal))
+    ok = run(
+        nx,
+        "nx_create_datum_plane",
+        method="offset",
+        reference=reference,
+        distance=distance,
+        name="TopPl",
+    )
+    assert ok.ok, ok
+    plane = nx.last("DatumPlaneBuilder").plane
+    # No object to follow: a point-and-normal plane at the offset point.
+    assert plane.method == "PointDir" and plane.Expression.RightHandSide is None
+    at = plane.geometry[0].Coordinates
+    assert pytest.approx(list(origin)) == [at.X, at.Y, at.Z]
+    assert ok.data["origin"] == pytest.approx(list(origin))
+    assert ok.data["normal"] == pytest.approx(list(normal))
+    assert ok.data["datum_plane"]["name"] in ("TopPl", "TOPPL")
+    assert ok.data["feature"]["name"] in ("TopPl", "TOPPL")
+
+
+def test_offset_from_a_world_plane_reads_back_the_offset():
+    nx = datum_nx()
+    nx.on_commit("DatumPlaneBuilder", lambda b: plane_feature(nx, (0, 0, 9), (0, 0, 1)))
+    bad = run(nx, "nx_create_datum_plane", method="offset", reference="xy", distance=10)
+    assert bad.error["details"]["check"] == "offset" and bad.mutation_outcome == "rolled_back"
+
+
+def test_a_display_name_reference_is_refused_with_the_accepted_forms():
+    nx = datum_nx()
+    bad = run(
+        nx,
+        "nx_create_datum_plane",
+        method="offset",
+        reference="DATUM_CSYS(0) XY plane",
+        distance=10,
+    )
+    assert bad.error["category"] == "invalid_argument" and bad.error["field"] == "/reference"
+    assert bad.mutation_outcome == "not_started" and nx.builders == []
+
+
+def test_offset_from_a_datum_plane_names_the_datum():
+    nx = datum_nx()
+    base = nx.datum_plane(origin=(0, 0, 0), normal=(0, 0, 1))
+    nx.on_commit("DatumPlaneBuilder", lambda b: plane_feature(nx, (0, 0, 10), (0, 0, 1)))
+    ok = run(
+        nx, "nx_create_datum_plane", method="offset", reference=base.ref, distance=10, name="TopPl"
+    )
+    assert ok.ok and nx.last("DatumPlaneBuilder").plane.method == "Distance"
+    assert ok.data["datum_plane"]["name"] in ("TopPl", "TOPPL")

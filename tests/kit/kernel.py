@@ -20,30 +20,73 @@ from types import SimpleNamespace as NS
 
 from nx_mcp.core import catalogue, kernel
 from nx_mcp.core.errors import fail
+from nx_mcp.core.references import ANCHORED, article
 from nx_mcp.core.tx import Services
 from nx_mcp.core.types import expand_kinds
-from nx_mcp.kit import drawing, units
+from nx_mcp.kit import drawing, expr, units
 
 KINDS = ("Bodies", "body"), ("Features", "feature"), ("Sketches", "sketch"), ("Curves", "curve")
+COLLECTIONS = {"body": "Bodies", "feature": "Features", "sketch": "Sketches"}
 
 
 class _Refs:
-    """The ``References`` surface the kernel uses, over ``FakeNX.refs``."""
+    """The ``References`` surface the kernel uses, over ``FakeNX.refs``.
+
+    Like ``core.references``: features, bodies and sketches whose test set a
+    ``JournalIdentifier`` (kit objects default to ``OBJECT(<tag>)``, which gets none),
+    and any row asked with ``anchor=True``, carry ``anchor``
+    ``@<part file>:<JournalIdentifier>``; :meth:`find_anchor` finds its unique current
+    match, and an anchor resolves wherever a ref does."""
 
     def __init__(self, fake):
         self.fake = fake
 
     def resolve(self, ref, kinds=()):
+        if ref.startswith("@"):
+            for kind in sorted(expand_kinds(kinds) & ANCHORED if kinds else ANCHORED):
+                row = self.find_anchor(ref, kind)
+                if row is not None:
+                    return self.fake.refs[row["id"]][0]
+            fail("NX_NOT_FOUND", f"{ref} names no current object", details={"ref": ref})
         entry = self.fake.refs.get(ref)
         if entry is None:
             fail("NX_STALE_REFERENCE", f"{ref} is not a live reference", details={"ref": ref})
         obj, kind = entry
         if kinds and kind not in expand_kinds(kinds):
-            fail("NX_WRONG_KIND", f"{ref} is a {kind}", details={"ref": ref, "kind": kind})
+            fail(
+                "NX_WRONG_KIND",
+                f"{ref} is {article(kind)} {kind}",
+                details={"ref": ref, "kind": kind},
+            )
         return obj
 
     def row(self, obj, kind, *, part=None, anchor=False):
-        return self.fake.row(obj, kind)
+        row = self.fake.row(obj, kind)
+        jid = str(getattr(obj, "JournalIdentifier", "") or "")
+        # Kit objects default to a placeholder OBJECT(<tag>): anchors only for real ones.
+        if jid and (anchor or (row["kind"] in ANCHORED and not jid.startswith("OBJECT("))):
+            owner = part or getattr(obj, "OwningPart", None) or self.fake.part
+            row["anchor"] = f"@{Path(owner.FullPath).name}:{jid}"
+        return row
+
+    def find_anchor(self, anchor, kind):
+        """The row of the unique object of ``kind`` whose anchor is ``anchor``."""
+        name = COLLECTIONS.get(kind)
+        if name is None or not anchor.startswith("@") or ":" not in anchor:
+            return None
+        file, jid = anchor[1:].rsplit(":", 1)
+        found = [
+            obj
+            for part in self.fake.session.Parts
+            if Path(part.FullPath).name == file
+            for obj in getattr(part, name, [])
+            if str(getattr(obj, "JournalIdentifier", "") or "") == jid
+        ]
+        return self.row(found[0], kind) if len(found) == 1 else None
+
+    def stale(self, retired, floor=None):
+        """Kit handles are the refs themselves."""
+        return sorted(retired)
 
     def name_of(self, ref):
         entry = self.fake.refs.get(ref)
@@ -117,6 +160,9 @@ class KitServices(Services):
     def sheet_units(self, sheet):
         return units.sheet_units(self, sheet)
 
+    def evaluate_formula(self, formula, dim, unit, *, field=None, scratch=False):
+        return expr.evaluate(self, formula, dim, unit, field=field, scratch=scratch)
+
     # display state (view rollback, restore_id)
     def display_camera(self):
         return dict(self.fake.camera)
@@ -129,7 +175,9 @@ class KitServices(Services):
         for obj in objects:
             record = {"blanked": bool(obj.IsBlanked)}
             if appearance:
-                record.update(color_index=obj.Color, transparency=obj.transparency)
+                record["color_index"] = obj.Color
+                if type(obj).__name__ == "Face":  # like the host: translucency of faces only
+                    record["transparency"] = obj.transparency
             out.append((obj, record))
         return out
 
@@ -140,7 +188,9 @@ class KitServices(Services):
         for obj, record in records:
             obj.IsBlanked = record["blanked"]
             if "color_index" in record:
-                obj.Color, obj.transparency = record["color_index"], record["transparency"]
+                obj.Color = record["color_index"]
+            if "transparency" in record:
+                obj.transparency = record["transparency"]
         if highlights is not None:
             for obj in self.fake.highlighted:
                 obj.Unhighlight()
@@ -221,10 +271,22 @@ class KitServices(Services):
         pass
 
     def invalidate(self, before, after, topology):
+        """Like the host: deleted objects, and for a topology change the faces and
+        edges no body of a loaded part has any more; returns the retired refs."""
         gone = {id(v["obj"]) for k, v in before.items() if k not in after}
+        live = set()
+        if topology:
+            for part in self.parts():
+                for body in getattr(part, "Bodies", []):
+                    for method in ("GetFaces", "GetEdges"):
+                        with contextlib.suppress(Exception):
+                            live.update(id(x) for x in getattr(body, method)())
+        retired = set()
         for ref, (obj, kind) in list(self.fake.refs.items()):
-            if id(obj) in gone or (topology and kind in ("face", "edge")):
+            if id(obj) in gone or (topology and kind in ("face", "edge") and id(obj) not in live):
                 del self.fake.refs[ref]
+                retired.add(ref)
+        return retired
 
     def invalidate_parts(self, parts):
         self.fake.refs.clear()
@@ -271,8 +333,9 @@ class KitServices(Services):
         if spec.effect != "read":
             self.revisions += 1
 
-    def after_failure(self, spec):
-        self.after_commit(spec)
+    def after_failure(self, spec, outcome=None):
+        if outcome not in ("not_started", "not_applicable"):  # like the host
+            self.after_commit(spec)
 
 
 class Result:

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/trim_sheet.json",
-  "scenario_sha256": "8cc938e54b59db8191d9351fe11dab06caa070f7a10254f5d8b8bf8076f5b6fd",
+  "scenario_sha256": "8fcf4c9a6ceb25907d1177dbf57fa6d623bb84df2f63f84cdb02367a80951038",
   "domain": "freeform",
   "covers": {
     "nx_create_trim_sheet": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_trim_sheet": "cd1d6768b78880075313d8a38e3114d0d0b9ebaa4de61297bed7a9183db2a0e0"
+    "nx_create_trim_sheet": "872e1935c28da800b1041051949ae4bf7d56dbc352f855a829769d6d0060b117"
   },
-  "recorded": "2026-10-10T13:14:46Z",
+  "recorded": "2026-10-10T23:25:55Z",
   "passed": true,
-  "checks": 11,
+  "checks": 22,
   "failed_checks": 0,
   "steps": [
     {
@@ -70,7 +70,7 @@
       "call": "nx_create_trim_sheet",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 9,
@@ -133,7 +133,7 @@
       "call": "nx_create_trim_sheet",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 6
     },
     {
       "index": 18,
@@ -193,6 +193,55 @@
     },
     {
       "index": 26,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 27,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 30,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 31,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 32,
+      "call": "nx_create_trim_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 33,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

@@ -47,7 +47,7 @@
     {"call": "nx_create_anchor", "save": "an", "args": {"object": "$top.data.items.0.id"},
      "expect": {"data.anchor": {"matches": ":face=RM"}, "data.object.kind": "face"}},
     {"call": "nx_create_anchor", "args": {"object": "$ext.data.feature.id"},
-     "expect": {"error.category": "wrong_kind"}},
+     "expect": {"data.anchor": {"matches": "EXTRUDE"}, "data.object.kind": "feature"}},
     {"call": "nx_resolve_reference", "args": {"anchor": "$an.data.anchor"},
      "expect": {"data.via": "anchor", "data.object.kind": "face", "data.object.name": {"matches": "\\(20,10,10\\)"}}},
     {"call": "nx_edit_feature", "setup": true,

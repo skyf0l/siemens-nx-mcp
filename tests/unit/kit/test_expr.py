@@ -74,3 +74,32 @@ def test_bind():
     nx.part.Expressions.EditExpression = dimension_error
     assert _code(expr.bind, nx.tx, target, source).code == "NX_INVALID_ARGUMENT"
     assert _code(expr.bind, nx.tx, target, True).code == "NX_INVALID_ARGUMENT"
+
+
+def test_rhs_keeps_an_evaluated_formula_and_writes_numbers_exactly():
+    from nx_mcp.core.types import CountFormula, Formula
+
+    assert expr.rhs(Formula(5.0, "t/2")) == "t/2" and expr.rhs(2.5) == "2.5"
+    assert expr.rhs(CountFormula(4, "n")) == "n" and expr.rhs(4, integer=True) == "4"
+    target = NS(RightHandSide="")
+    assert expr.drive(target, Formula(1.0, "a")) is target and target.RightHandSide == "a"
+    kept = Formula(3.0, "b")
+    assert expr.number(kept) is kept and type(expr.number(3)) is float
+
+
+def test_evaluate_reads_names_and_needs_a_scratch_expression_for_formulas():
+    from tests.kit.kernel import services
+
+    nx = fake_nx()
+    svc = services(nx)
+    t = expr.create(nx.tx, "t", "2", "in")
+    t.Value = 50.8  # NX's Value is in part units; GetValueUsingUnits in the expression's
+    t.expression_value = 2.0
+    assert expr.evaluate(svc, "t", "length", "mm") == pytest.approx(50.8)
+    assert expr.evaluate(svc, "t", "length", "in") == pytest.approx(2.0)
+    assert expr.evaluate(svc, "t*2", "length", "mm", scratch=True) == pytest.approx(101.6)
+    assert [e.Name for e in nx.part.Expressions] == ["t"]  # the scratch expression is gone
+    read_only = _code(expr.evaluate, svc, "t*2", "length", "mm", field="/tol")
+    assert read_only.field == "/tol" and "expression name, not a formula" in read_only.message
+    assert "no expression 'u'" in _code(expr.evaluate, svc, "u", "length", "mm").message
+    assert "not an angle" in _code(expr.evaluate, svc, "t", "angle", "deg").message

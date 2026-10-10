@@ -18,8 +18,9 @@ error names the step (``details.child_index``, ``field`` under
 
 from __future__ import annotations
 
+import difflib
 import re
-from typing import Annotated, TypedDict
+from typing import Annotated, NoReturn, TypedDict
 
 from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import tool
@@ -73,6 +74,42 @@ def _at(index: int, error: NXError, tool_name: str | None) -> NXError:
     return error
 
 
+def _admitted(spec, mode: str) -> bool:
+    return spec.runs == "nx" and (spec.batchable if mode == "batch" else spec.previewable)
+
+
+def admitted_tools(registry, mode: str) -> list[str]:
+    """Names of the tools a batch (``mode`` ``"batch"``) or a preview runs."""
+    return sorted(n for n, s in registry.items() if _admitted(s, mode))
+
+
+def _unknown(name: str, registry, mode: str) -> NoReturn:
+    near = difflib.get_close_matches(name, admitted_tools(registry, mode), n=3, cutoff=0.6)
+    hint = f"Did you mean {', '.join(near)}?" if near else f"details.{mode}able lists them"
+    fail("NX_UNKNOWN_TOOL", f"Unknown tool {name}", field="/tool", hint=hint,
+         details={f"{mode}able": admitted_tools(registry, mode)})  # fmt: skip
+
+
+def _refuse(spec, registry, mode: str) -> NoReturn:
+    """``NX_UNSUPPORTED_OPTION`` naming what to do instead and the admitted tools."""
+    name, names = spec.name, admitted_tools(registry, mode)
+    if mode == "batch":
+        why = "a batch runs light steps only (sketch, annotation, placement, rename, delete)"
+        if spec.previewable:
+            hint = (
+                f"Call {name} on its own after the batch, or send all the steps to "
+                "nx_preview_changes, then nx_finish_preview(action='accept') applies them "
+                "under one undo mark. Batchable: " + ", ".join(names)
+            )
+        else:
+            hint = f"Call {name} on its own. Batchable: " + ", ".join(names)
+    else:
+        why = "a preview runs model changes only (features, sketches, placement, renames)"
+        hint = f"Call {name} on its own; details.previewable lists the tools a preview runs"
+    fail("NX_UNSUPPORTED_OPTION", f"{name} cannot run in a {mode}: {why}", field="/tool",
+         hint=hint, details={f"{mode}able": names})  # fmt: skip
+
+
 def _preflight(operations: list[Step], mode: str = "batch") -> list:
     """Every step's spec, checked before any step runs; raise on the first problem.
 
@@ -85,12 +122,9 @@ def _preflight(operations: list[Step], mode: str = "batch") -> list:
         try:
             spec = registry.get(name)
             if spec is None:
-                fail("NX_UNKNOWN_TOOL", f"Unknown tool {name}", field="/tool",
-                     hint="Find batchable tools with nx_find_tools")  # fmt: skip
-            admitted = spec.batchable if mode == "batch" else spec.previewable
-            if not admitted or spec.runs != "nx":
-                fail("NX_UNSUPPORTED_OPTION", f"{name} cannot run in a {mode}", field="/tool",
-                     hint=f"Only {mode}able tools run here; find them with nx_find_tools")  # fmt: skip
+                _unknown(name, registry, mode)
+            if not _admitted(spec, mode):
+                _refuse(spec, registry, mode)
             checked = validate(spec.params, step["arguments"], placeholders=True)
             for path, text in checked.placeholders:
                 step_ref = re.match(r"^\$([0-9]+)", text)  # validate matched PLACEHOLDER_PATTERN
@@ -132,9 +166,9 @@ def nx_run_batch(
     *,
     operations: Annotated[list[Step], Items(1, MAX_STEPS)],
 ) -> BatchData:
-    """Run 1-100 batchable tool calls in order under one undo mark; any failure undoes all.
-    A Ref argument may name an earlier step's result: "$0.data.sketch" (0-based). Heavy
-    features are not batchable; call them on their own."""
+    """Run 1-100 light calls (sketch, annotation, placement, rename) under one undo mark;
+    a failure undoes all. "$0.data.sketch" names step 0's result. Heavy features (extrude):
+    call alone, or preview then accept."""
     with tx.checks():  # a refused step changes nothing
         _preflight(operations)
     total = len(operations)

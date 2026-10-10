@@ -1099,9 +1099,10 @@
     }
    },
    "expect": {
-    "error.category": "invalid_argument",
-    "error.field": "/origin",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "count": 2
+    }
    }
   },
   {

@@ -12,7 +12,8 @@ requested object is gone and reports the other objects NX deleted with them
 
 from __future__ import annotations
 
-from typing import Annotated, TypedDict
+import contextlib
+from typing import Annotated, NoReturn, TypedDict
 
 from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import fail
@@ -23,6 +24,12 @@ from nx_mcp.kit.result import Row
 
 MAX_DEPENDENTS = 100
 QUIET = frozenset({"expression"})  # parameters NX deletes with their feature
+KIND_HINTS = {
+    "body": "Delete the feature that made the body (nx_list_objects kind feature)",
+    "expression": "An expression goes with its feature; change it with nx_set_expression",
+    "face": "Delete curves or constraints inside a sketch with nx_edit_sketch_curves, "
+    "faces with nx_edit_faces, a body by deleting its feature",
+}
 
 
 class DeleteData(TypedDict):
@@ -51,6 +58,32 @@ def _kind(tx, ref, obj) -> str:
     return known.kind if known is not None else tx.kind_of(obj)
 
 
+def _refuse_kind(tx, i: int, ref: str, obj, kind: str, deletable: list[str]) -> NoReturn:
+    """NX_WRONG_KIND with the way to delete that kind: a body goes with the feature that
+    made it (details.features, oldest first), sketch curves, faces and expressions have
+    their own tools."""
+    details: dict = {"ref": ref, "kind": kind, "deletable": deletable}
+    hint = KIND_HINTS.get(kind, KIND_HINTS["face"])
+    if kind == "body":
+        features: list = []
+        with contextlib.suppress(Exception):
+            made = sorted(obj.GetFeatures(), key=lambda f: getattr(f, "Timestamp", 0))
+            features = [tx.ref(f, "feature")["id"] for f in made]
+        if features:
+            details["features"] = features  # oldest first: the first one made the body
+            hint = (
+                "Delete the feature that made the body, details.features[0]; NX deletes "
+                "the body and its later features (details.features) with it"
+            )
+    fail(
+        "NX_WRONG_KIND",
+        f"{ref} is a {kind}; nx_delete_objects cannot delete that kind",
+        field=f"/objects/{i}",
+        hint=hint,
+        details=details,
+    )
+
+
 @tool(
     effect="model",
     label="Delete objects",
@@ -73,12 +106,14 @@ def _kind(tx, ref, obj) -> str:
 def nx_delete_objects(
     tx: Tx,
     *,
-    objects: Annotated[list[Ref], Items(1, 100), Doc("Objects to delete; mixed kinds allowed")],
+    objects: Annotated[
+        list[Ref], Items(1, 100), Doc("Ids such as f:12 or s:3 to delete; mixed kinds allowed")
+    ],
 ) -> DeleteData:
-    """Delete 1-100 objects of the work part in one undoable step; mixed kinds allowed.
+    """Delete 1-100 objects (ids like f:12) of the work part in one undoable step.
     Kinds: feature, sketch, curve, component, explosion, traceline, annotation, dimension,
-    drawing_table, section_view, drawing_sheet, drawing_view. Objects NX deletes with
-    them are reported as dependents."""
+    drawing_table, section_view, drawing_sheet, drawing_view; a body goes with its
+    feature. Objects NX deleted with them are dependents."""
     deleters = hooks("deleter")
     groups: dict[str, list] = {}
     rows: dict[int, Row] = {}
@@ -87,14 +122,7 @@ def nx_delete_objects(
             obj = tx.resolve(ref)
             kind = _kind(tx, ref, obj)
             if kind not in deleters:
-                fail(
-                    "NX_WRONG_KIND",
-                    f"{ref} is a {kind}; nx_delete_objects cannot delete that kind",
-                    field=f"/objects/{i}",
-                    hint="Delete curves or constraints inside a sketch with "
-                    "nx_edit_sketch_curves, faces with nx_edit_faces",
-                    details={"ref": ref, "kind": kind, "deletable": sorted(deleters)},
-                )
+                _refuse_kind(tx, i, ref, obj, kind, sorted(deleters))
             if kind != "component":  # a component's deleter checks it is a direct child
                 tx.resolve(ref, work_part=True)
             tag = int(obj.Tag)
@@ -125,11 +153,14 @@ def nx_delete_objects(
         readback.expect(
             not alive, "deleted", f"NX did not delete {', '.join(alive)}", objects=alive
         )
-    dependents = [
-        services.describe(entry, live=False)
-        for key, entry in before.items()
-        if key not in after and key[0] not in QUIET and int(key[1]) not in rows
-    ]
+    # the work part as the deleted rows name it (short ref), never its registry key
+    part_id = next(iter(rows.values()))["part"]
+    dependents: list[Row] = []
+    for key, entry in before.items():
+        if key not in after and key[0] not in QUIET and int(key[1]) not in rows:
+            row = services.describe(entry, live=False)
+            row["part"] = part_id
+            dependents.append(row)
     return {
         "deleted": list(rows.values()),
         "dependents": dependents[:MAX_DEPENDENTS],

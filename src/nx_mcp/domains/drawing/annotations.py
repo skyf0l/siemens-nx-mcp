@@ -11,10 +11,13 @@ NX 2406 findings encoded here:
   cylinder or cone whose axis lies in the view plane. Both are refused before NX.
 - NX keeps associative annotations (center marks, centerlines) where their geometry puts
   them: a move is read back and refused when NX ignored it.
+- An omitted symbol origin is placed up and right of the leader point.
 """
 
 from __future__ import annotations
 
+import contextlib
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import hooks, tool
@@ -39,6 +42,7 @@ from nx_mcp.domains.drawing.common import (
     associated,
     check_leader,
     commit,
+    default_origin,
     distance_to_line,
     geometry,
     leader_row,
@@ -50,6 +54,7 @@ from nx_mcp.domains.drawing.common import (
 from nx_mcp.kit import args, builders, curve, drawing, facts, geom, readback, result, select
 
 MAX_LINES = 50
+MAX_RA = 1000.0  # um
 FINISHES = {
     "any": "Basic",
     "required": "MaterialRemovalRequired",
@@ -59,6 +64,25 @@ WELDS = {"fillet": "Fillet", "square_butt": "SquareButt", "v_butt": "VButt"}
 SIDES = {"arrow": ("arrow",), "other": ("other",), "both": ("arrow", "other")}
 AXIAL_FACES = (select.FACE_CYLINDER, select.FACE_CONE)
 EdgeOrFace = Annotated[str, RefTo("edge", "face")]
+MAX_LINE = 1024
+NoteText = Annotated[
+    Annotated[list[Annotated[str, Text(MAX_LINE, r"^[^\r\n]*$")]], Items(1, MAX_LINES)]
+    | Annotated[str, Text(4096)],
+    Doc("Lines, or one string split at newlines"),
+]
+
+
+def note_lines(text, field="/text"):
+    """The lines of a note: a list as given, or a string split at its line breaks."""
+    lines = text.splitlines() if isinstance(text, str) else list(text)
+    if not 1 <= len(lines) <= MAX_LINES:
+        fail("NX_INVALID_ARGUMENT", f"A note takes 1-{MAX_LINES} lines", field=field)
+    if any(len(line) > MAX_LINE for line in lines):
+        fail("NX_INVALID_ARGUMENT", f"A note line takes at most {MAX_LINE} characters",
+             field=field)  # fmt: skip
+    if not any(line.strip() for line in lines):
+        fail("NX_INVALID_ARGUMENT", "text needs a non-blank line", field=field)
+    return lines
 
 
 class AnnotationData(TypedDict, total=False):
@@ -66,8 +90,16 @@ class AnnotationData(TypedDict, total=False):
     annotations: list[result.Row]
     sheet: result.Row
     origin: list[float]
+    origins: list[list[float]]
     text: list[str]
     leader: dict
+    symbol: dict
+
+
+def note_text_head(text):
+    """The start of a note's first line (for summaries)."""
+    lines = (text or "").splitlines() if isinstance(text, str) else list(text or [""])
+    return (lines or [""])[0][:30]
 
 
 def number_text(value):
@@ -100,7 +132,7 @@ def _target_sheet(tx, sheet, view):
     effect="model",
     label="Create note",
     summary=lambda a, say: (
-        f"Note {(a.get('text') or [''])[0][:30]!r}"
+        f"Note {note_text_head(a.get('text'))!r}"
         + (f" to {say('leader_to')}" if a.get("leader_to") else "")
     ),
     keywords=("note", "text", "label", "leader", "callout", "drafting note"),
@@ -113,16 +145,15 @@ def _target_sheet(tx, sheet, view):
 def nx_create_note(
     tx: Tx,
     *,
-    text: Annotated[list[Annotated[str, Text(1024, r"^[^\r\n]*$")]], Items(1, MAX_LINES)],
+    text: NoteText,
     origin: SheetPoint,
     sheet: DrawingSheetRef | None = None,
     view: DrawingViewRef | None = None,
     leader_to: EdgeOrFace | None = None,
 ) -> AnnotationData:
-    """Place a drawing note, one list item per line, on a sheet (default the open one).
+    """Place a drawing note on a sheet (default the open one).
     leader_to adds a leader to an edge or face as shown in view."""
-    if not any(line.strip() for line in text):
-        fail("NX_INVALID_ARGUMENT", "text needs a non-blank line", field="/text")
+    text = note_lines(text)
     if (leader_to is None) != (view is None):
         fail("NX_INVALID_ARGUMENT", "leader_to and view go together", field="/view")
     with tx.checks():
@@ -206,6 +237,7 @@ def _center_marks(tx, view_ref, refs):
             arcs.append(f)
     A = tx.nx.Annotations
     part = tx.part
+    _warn_marked(tx, sheet, edges)
     before = {int(c.Tag) for c in part.Annotations.Centerlines}
     with drawing.on_sheet(tx, sheet, part) as sh:
         centers = [drawing.to_sheet(tx, view, f["center"]) for f in arcs]
@@ -220,6 +252,7 @@ def _center_marks(tx, view_ref, refs):
         readback.expect(len(created) == len(edges), "count", created=len(created))
         tags = [int(e.Tag) for e in edges]
         marks = [None] * len(edges)
+        origins = [None] * len(edges)
         for obj in created:
             index = next(
                 (tags.index(int(o.Tag)) for o in associated(obj) if int(o.Tag) in tags), None
@@ -235,26 +268,60 @@ def _center_marks(tx, view_ref, refs):
                 center=position,
             )
             marks[index] = tx.ref(obj, "annotation")
+            origins[index] = position
         return {
             "annotations": marks,
             "sheet": tx.ref(sheet, "drawing_sheet"),
-            "origin": centers[0],
+            "origins": origins,
         }
 
 
-def _axis_line(tx, view, face, field):
+def _warn_marked(tx, sheet, edges):
+    """Warn when an edge already has a center mark on this sheet (NX adds another)."""
+    tags = {int(e.Tag) for e in edges}
+    marked = set()
+    for mark in tx.part.Annotations.Centerlines:
+        on = drawing.sheet_of_annotation(tx, mark)
+        if on is not None and int(on.Tag) == int(sheet.Tag):
+            marked |= {int(o.Tag) for o in associated(mark)} & tags
+    if marked:
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"{len(marked)} of the edges already had a center mark on this sheet: NX added "
+            "another (delete the extra one with nx_delete_objects)",
+        )
+
+
+def _projected(tx, view, point, direction):
+    """``(sheet point, sheet direction)`` of a model axis in ``view``; the direction is
+    about zero when the axis points out of the view."""
+    a = drawing.to_sheet(tx, view, point)
+    b = drawing.to_sheet(tx, view, [p + d * 100.0 for p, d in zip(point, direction, strict=True)])
+    return a, [b[0] - a[0], b[1] - a[1]]
+
+
+def _axis_line(tx, view, sheet, face, field):
     code, point, direction = select.face_data(tx, face)
     if code not in AXIAL_FACES:
         fail("NX_WRONG_GEOMETRY", "An axis centerline needs a cylindrical or conical face",
              field=field)  # fmt: skip
-    a = drawing.to_sheet(tx, view, point)
-    b = drawing.to_sheet(tx, view, [p + d * 100.0 for p, d in zip(point, direction, strict=True)])
-    projected = [b[0] - a[0], b[1] - a[1]]
+    a, projected = _projected(tx, view, point, direction)
     if abs(projected[0]) + abs(projected[1]) < 1e-3:
+        side = []  # views of the sheet that show the axis in their plane
+        for other in sheet.GetDraftingViews():
+            with contextlib.suppress(Exception):  # a view NX cannot map points into
+                seen = _projected(tx, other, point, direction)[1]
+                if abs(seen[0]) + abs(seen[1]) >= 1e-3:
+                    side.append(tx.ref(other, "drawing_view"))
         fail(
             "NX_UNSUPPORTED_GEOMETRY",
-            "The face axis points out of this view: use a center mark on its circular edge",
+            "The face axis points out of this view: use a center mark on its circular edge "
+            "here, or an axis in a view that shows the cylinder from the side",
             field=field,
+            hint="Views on this sheet that show the axis: details.views"
+            if side
+            else "Add a projected view beside this one with nx_create_drawing_view",
+            details={"views": side},
         )
     return a, projected
 
@@ -264,7 +331,7 @@ def _centerline(tx, view_ref, kind, refs):
         view, sheet = drawing.view(tx, view_ref)
         if kind == "axis":
             targets = [geometry(tx, refs[0], ("face",), "/objects/0")]
-            line_point, line_direction = _axis_line(tx, view, targets[0], "/objects/0")
+            line_point, line_direction = _axis_line(tx, view, sheet, targets[0], "/objects/0")
         else:
             targets = [geometry(tx, r, ("edge",), f"/objects/{i}") for i, r in enumerate(refs)]
             ends = []
@@ -337,7 +404,6 @@ def _centerline(tx, view_ref, kind, refs):
     example={
         "view": "v:7",
         "object": "fc:3",
-        "origin": [60, 40],
         "symbol": "surface_finish",
         "roughness_ra": 3.2,
     },
@@ -347,20 +413,25 @@ def nx_create_drawing_symbol(
     *,
     view: DrawingViewRef,
     object: EdgeOrFace,  # noqa: A002
-    origin: SheetPoint,
     symbol: Literal["surface_finish", "weld"],
-    roughness_ra: Annotated[float, Range(gt=0, le=1000), Doc("Micrometres")] | None = None,
+    origin: SheetPoint | None = None,
+    roughness_ra: Annotated[
+        float | Annotated[str, Text(24)],  # range checked by roughness()
+        Doc("Ra in um: 3.2 or '3.2 um'"),
+    ]
+    | None = None,
     removal: Literal["any", "required", "prohibited"] = "required",
     weld: Literal["fillet", "square_butt", "v_butt"] | None = None,
     size: Annotated[float, Range(gt=0, le=1000)] | None = None,
     side: Literal["arrow", "other", "both"] = "arrow",
 ) -> AnnotationData:
-    """Place a surface-finish or weld symbol with a leader to an edge or face shown in a view. The
-    symbol is read back."""
+    """Place a surface-finish or weld symbol with a leader to an edge or face shown in a view.
+    origin defaults to beside the leader."""
     if symbol == "weld":
         args.need(weld=weld, size=size)
     else:
         args.need(roughness_ra=roughness_ra)
+        roughness_ra = roughness(roughness_ra)
     with tx.checks():
         shown, sheet = drawing.view(tx, view)
         obj = geometry(tx, object, ("edge", "face"), "/object")
@@ -369,6 +440,27 @@ def nx_create_drawing_symbol(
     return _finish(
         tx, shown, sheet, obj, origin, {"roughness_ra": roughness_ra, "removal": removal}
     )
+
+
+_RA = re.compile(
+    r"^\s*(?:ra\s*=?\s*)?(\d+(?:\.\d*)?|\.\d+)\s*(?:um|\u00b5m|\u03bcm|microns?|micrometers?|"
+    r"micrometres?)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def roughness(value, field="/roughness_ra"):
+    """Ra in micrometres from 3.2, '3.2', '3.2 um' or 'Ra 3.2'."""
+    if isinstance(value, str):
+        match = _RA.match(value)
+        if match is None:
+            fail("NX_INVALID_ARGUMENT", f"roughness_ra {value!r} is not an Ra in micrometres",
+                 field=field, hint="Send a number in um, such as 3.2 or '3.2 um'")  # fmt: skip
+        value = float(match.group(1))
+    if not 0 < float(value) <= MAX_RA:
+        fail("NX_INVALID_ARGUMENT", f"roughness_ra must be > 0 and <= {MAX_RA:g} um",
+             field=field)  # fmt: skip
+    return float(value)
 
 
 def _finish(tx, view, sheet, obj, origin, spec):
@@ -383,6 +475,7 @@ def _finish(tx, view, sheet, obj, origin, spec):
             b.Finish = getattr(kinds, native)
             b.A2 = text
             anchor = add_leader(tx, b.Leader, obj, view)
+            origin = origin if origin is not None else default_origin(sh, anchor)
             set_origin(tx, b.Origin, sh, origin)
             symbol = commit(b, "surface finish symbol")
         update(tx)
@@ -399,6 +492,11 @@ def _finish(tx, view, sheet, obj, origin, spec):
             "origin": verify_origin(sh, symbol, origin),
             "text": [text],
             "leader": leader_row(tx, obj, view, anchor),
+            "symbol": {
+                "type": "surface_finish",
+                "roughness_ra": float(spec["roughness_ra"]),
+                "removal": next(k for k, v in FINISHES.items() if v == stored["finish"]),
+            },
         }
 
 
@@ -415,6 +513,7 @@ def _weld(tx, view, sheet, obj, origin, spec):
                 data.WeldSymbol = getattr(symbols, WELDS[spec["type"]])
                 data.WeldSize = size
             anchor = add_leader(tx, b.Leader, obj, view)
+            origin = origin if origin is not None else default_origin(sh, anchor)
             set_origin(tx, b.Origin, sh, origin)
             weld = commit(b, "weld symbol")
         update(tx)
@@ -445,6 +544,12 @@ def _weld(tx, view, sheet, obj, origin, spec):
             "origin": verify_origin(sh, weld, origin),
             "text": [size],
             "leader": leader_row(tx, obj, view, anchor),
+            "symbol": {
+                "type": "weld",
+                "weld": spec["type"],
+                "size": float(spec["size"]),
+                "side": spec["side"],
+            },
         }
 
 
@@ -453,18 +558,24 @@ def _weld(tx, view, sheet, obj, origin, spec):
 AnyAnnotation = Annotated[str, RefTo("annotation", "dimension", "drawing_table")]
 
 
+def _is_note(tx, obj):
+    """A drafting note (nx_create_note), not a PMI note, label or other annotation."""
+    return type(obj).__name__ == "Note" or int(obj.Tag) in {int(n.Tag) for n in tx.part.Notes}
+
+
 class EditData(TypedDict, total=False):
     annotation: result.Row
     name: str
     position: list[float]
     frame: str
+    text: list[str]
 
 
 @tool(
     effect="model",
     label="Edit annotation",
     summary=lambda a, say: f"Edit {say('annotation')}",
-    keywords=("move annotation", "rename annotation", "redefine GD&T", "move note", "balloon"),
+    keywords=("move annotation", "rename annotation", "edit note text", "move note", "balloon"),
     requires=("work_part", "no_active_sketch"),
     cost="light",
     batchable=True,
@@ -477,11 +588,13 @@ def nx_edit_annotation(
     annotation: AnyAnnotation,
     position: SheetPoint | Point3 | None = None,
     name: Name | None = None,
+    text: NoteText | None = None,
 ) -> EditData:
-    """Move or rename an annotation, dimension or table. position is [x, y] on the sheet, or [x,
-    y, z] for PMI; a move NX ignores (associative marks) is refused."""
-    if position is None and name is None:
-        fail("NX_INVALID_ARGUMENT", "Give position or name")
+    """Move or rename an annotation, dimension or table, or replace a note's text. position:
+    sheet [x, y], or [x, y, z] for PMI; a move NX ignores (associative marks) is refused."""
+    if position is None and name is None and text is None:
+        fail("NX_INVALID_ARGUMENT", "Give position, name or text")
+    lines = note_lines(text) if text is not None else None
     with tx.checks():
         obj = select.resolve(
             tx,
@@ -492,6 +605,9 @@ def nx_edit_annotation(
             field="/annotation",
             work_part=True,
         )
+        if lines is not None and not _is_note(tx, obj):
+            fail("NX_UNSUPPORTED_OPTION", "Only notes take new text; recreate other "
+                 "annotations with their create tool", field="/text")  # fmt: skip
         sheet = drawing.sheet_of_annotation(tx, obj)
         anchor = drawing.anchor_of(tx, obj)
         if position is not None:
@@ -502,6 +618,15 @@ def nx_edit_annotation(
                      "Use [x, y] for a sheet annotation, [x, y, z] for PMI",
                      field="/position")  # fmt: skip
     out: EditData = {}
+    if lines is not None:
+        factory = tx.part.Annotations.CreateDraftingNoteBuilder
+        with builders.build(tx, factory, obj) as b:
+            b.Text.TextBlock.SetText(lines)
+            commit(b, "note")
+        update(tx)
+        stored = [str(line) for line in obj.GetText()]
+        readback.expect(stored == lines, "text", "NX stored other note text", text=stored)
+        out["text"] = stored
     if name is not None:
         out["name"] = result.rename(tx, obj, name)
     if position is not None:
@@ -533,8 +658,13 @@ def nx_edit_annotation(
     return out
 
 
-class RefreshData(TypedDict):
+class RefreshData(TypedDict, total=False):
     refreshed: list[result.Row]
+    skipped: list[dict]
+    note: str
+
+
+NOT_MANAGED = "Not managed: notes, dimensions and ordinary views follow the model on their own"
 
 
 @tool(
@@ -555,7 +685,8 @@ def nx_update_annotations(
     objects: Annotated[list[Ref], Items(1, 100)] | None = None,
 ) -> RefreshData:
     """Refresh managed annotations from the model: parts lists, bend tables, title blocks,
-    detail boundaries and callouts. Omit objects to refresh all of them."""
+    detail boundaries and callouts. Omit objects to refresh all of them; given objects
+    nothing refreshes come back in skipped."""
     live = (
         [select.resolve(tx, r, field=f"/objects/{i}") for i, r in enumerate(objects)]
         if objects
@@ -565,4 +696,12 @@ def nx_update_annotations(
     for _kind, refresh in sorted(hooks("refresher").items()):
         tx.checkpoint()
         refreshed.extend(refresh(tx, live) or [])
-    return {"refreshed": refreshed}
+    out: RefreshData = {"refreshed": refreshed}
+    done = {row.get("id") for row in refreshed}
+    skipped = [{"id": ref} for ref in objects or [] if ref not in done]
+    if skipped:
+        out["skipped"] = skipped
+        out["note"] = NOT_MANAGED
+    elif not refreshed:
+        out["note"] = "Nothing needed a refresh. " + NOT_MANAGED
+    return out

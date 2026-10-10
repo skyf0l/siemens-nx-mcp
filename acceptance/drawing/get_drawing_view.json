@@ -71,7 +71,19 @@
     "data.style.hidden_font": 2,
     "data.style.self_hidden": true,
     "data.construction_geometry": false,
-    "data.sheet.name": "SHT1"
+    "data.sheet.name": "SHT1",
+    "data.center": {
+     "close": [
+      150,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.orientation": "top",
+    "data.parent": null,
+    "data.overlaps": {
+     "count": 0
+    }
    }
   },
   {

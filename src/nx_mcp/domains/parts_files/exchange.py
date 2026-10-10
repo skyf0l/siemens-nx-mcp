@@ -34,7 +34,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, BodyRef, ByVariant, Doc, Items, Json, Length, PathTo
+from nx_mcp.core.types import Angle, BodyRef, Doc, Items, Length, PathTo
 from nx_mcp.domains.parts_files import _saving, neutral
 from nx_mcp.kit import args, files, measure, parts, readback, result
 from nx_mcp.kit import units as kit_units
@@ -61,30 +61,24 @@ AP242_HINT = "STEP AP242 needs its own NX translator license; use format step (A
 JT_RELATIVE_TOL = 0.005  # JT tessellation tolerance relative to the model size
 
 
-class NoOptions(TypedDict, total=False):
-    """This format has no options."""
+class ExportOptions(TypedDict, total=False):
+    """STL only; the other formats take no options."""
+
+    binary: Annotated[bool, Doc("stl: false writes ASCII (default true)")]
+    chordal_tolerance: Annotated[Length, Doc("stl: max chord deviation (NX default 0.058)")]
+    angular_tolerance: Annotated[Angle, Doc("stl: max angle between facets (NX default 18)")]
 
 
-class StlOptions(TypedDict, total=False):
-    binary: Annotated[bool, Doc("false writes ASCII STL (default true)")]
-    chordal_tolerance: Annotated[Length, Doc("Max chord deviation (NX default 0.058)")]
-    angular_tolerance: Annotated[Angle, Doc("Max angle between facets (NX default 18)")]
-
-
-OPTION_FORMS = {
-    "step": NoOptions,
-    "step_ap242": NoOptions,
-    "stl": StlOptions,
-    "iges": NoOptions,
-    "parasolid": NoOptions,
-    "jt": NoOptions,
-}
-Options = Annotated[
-    dict,
-    Json(max_keys=3),
-    ByVariant("format", OPTION_FORMS),
-    Doc("Per-format options (only stl has any): nx_get_tool_schemas(tool#format)"),
-]
+# Option keys each format accepts (only STL has any).
+FORMAT_OPTIONS = {"stl": frozenset(ExportOptions.__annotations__)}
+ExportFormat = Literal["step", "step_ap242", "stl", "iges", "parasolid", "jt"]
+# The format a path suffix names when ``format`` is omitted (never step_ap242: it needs
+# its own license and is chosen explicitly).
+INFERRED: dict[str, ExportFormat] = {
+    ".step": "step", ".stp": "step", ".stl": "stl", ".igs": "iges", ".iges": "iges",
+    ".x_t": "parasolid", ".x_b": "parasolid", ".jt": "jt",
+}  # fmt: skip
+FORMAT_DOC = "Default: from the path suffix; step_ap242 only when named"
 
 
 class Bounds(TypedDict):
@@ -159,36 +153,60 @@ def _tail(path: Path) -> str | None:
         return None
 
 
+def _format_of(a: dict) -> str:
+    """The requested format, or the one the path suffix names (panel summary)."""
+    return str(a.get("format") or INFERRED.get(Path(str(a.get("path", ""))).suffix.lower(), ""))
+
+
 @tool(
     effect="file",
     label="Export model",
-    summary=lambda a, say: f"Export {str(a.get('format', '')).upper()} {say('path')}",
+    summary=lambda a, say: f"Export {_format_of(a).upper()} {say('path')}",
     keywords=("export step", "ap242", "stl", "iges", "parasolid x_t", "jt", "neutral format"),
     variants="format",
     requires=("work_part", "no_active_sketch"),
     cost="long",
-    example={"path": "exports/base.step", "format": "step"},
+    example={"path": "exports/base.step"},
 )
 def nx_export_model(
     tx: Tx,
     *,
     path: Annotated[str, PathTo("new", *ALL_SUFFIXES)],
-    format: Literal["step", "step_ap242", "stl", "iges", "parasolid", "jt"],
+    format: Annotated[ExportFormat, Doc(FORMAT_DOC)] | None = None,
     bodies: Annotated[list[BodyRef], Items(1, 200), Doc("Only these bodies")] | None = None,
-    options: Options = {},  # noqa: B006 - never mutated; None would be Optional on Python 3.10
+    options: ExportOptions | None = None,
 ) -> ExportData:
-    """Export the work part, or some of its bodies, to a new neutral CAD file. STEP/AP242
-    .step, STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only). Unsaved
-    changes are exported; the part is never saved. Work part = display part."""
+    """Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp
+    (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only); the suffix
+    picks the format. Unsaved changes are exported; the part is never saved. Work part =
+    display part."""
     target = Path(path)
-    if target.suffix.lower() not in SUFFIXES[format]:
+    suffix = target.suffix.lower()
+    if format is None:
+        if suffix not in INFERRED:  # gate 2 already admits only the export suffixes
+            fail("NX_UNSUPPORTED_FILE_TYPE", f"Name the format: expected {'/'.join(INFERRED)}",
+                 field="/path")  # fmt: skip
+        format = INFERRED[suffix]
+    if suffix not in SUFFIXES[format]:
         fail(
             "NX_UNSUPPORTED_FILE_TYPE",
             f"A {format} export is written to {' or '.join(SUFFIXES[format])}, "
             f"not {target.suffix or 'a path without suffix'}",
             field="/path",
+            hint="Give the path the format's suffix, or omit format to use the one the "
+            "suffix names",
         )
     opts = dict(options or {})
+    allowed = FORMAT_OPTIONS.get(format, frozenset())
+    foreign = sorted(set(opts) - allowed)
+    if foreign:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A {format} export takes no option {foreign[0]!r}; binary, chordal_tolerance and "
+            "angular_tolerance apply to stl only",
+            field=f"/options/{foreign[0]}",
+            hint="Omit options for this format",
+        )
     if bodies:
         args.distinct("/bodies", bodies, "bodies")
     with tx.checks():

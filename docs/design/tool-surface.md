@@ -6,8 +6,8 @@ purpose and rationale. Scope: the public tool surface (names, arguments,
 results, errors, profiles) of the catalogue-based re-architecture. Names and
 arguments change freely: no aliases, no backwards compatibility.
 
-**Summary.** The catalogue has **159 catalogue tools** in 10 domains (3.13), reached in the
-agent profile through 4 gateway tools (2.1). Errors use 22 categories and 66 codes (1.8).
+**Summary.** The catalogue has **161 catalogue tools** in 10 domains (3.13), reached in the
+agent profile through 4 gateway tools (2.1). Errors use 22 categories and 67 codes (1.8).
 Code layout and the kernel are specified in [architecture.md](architecture.md). The
 recommended agent profile costs about 4K tokens.
 
@@ -121,9 +121,9 @@ no vector is unbounded.
 | `Vec3` | `[x, y, z]` | Nonzero direction; the kernel normalises it and reports the normalised value |
 | `Mat3` | `[[r00,r01,r02],[r10,r11,r12],[r20,r21,r22]]` | Right-handed orthonormal rotation, row-major, `p_out = R·p + t` |
 | `Pose` | `{translation: Point3, rotation?: Mat3}` | Absolute placement; rotation defaults to identity |
-| `Length` | number or `"10 mm"` | Plain number: part (work-part) length units; a string with `mm`/`in` is converted (decision 12) |
+| `Length` | number, `"10 mm"` or `"thickness"` | Plain number: part (work-part) length units; a string with `mm`/`in` is converted (decision 12); an NX expression name or formula is evaluated in the work part |
 | `SheetLength` | number or `"10 mm"` | Plain number: sheet units of the target sheet |
-| `Angle` | number or `"0.5 rad"` | Plain number: degrees; a string with `deg`/`rad` is converted |
+| `Angle` | number or `"0.5 rad"` | Plain number: degrees; a string with `deg`/`rad` is converted; an expression name or formula as for `Length` |
 | `Units` | `"mm"` or `"in"` | Everywhere (parts, sheets, exports). `"inch"` disappears. Expressions add `"deg"`, `"rad"`, `"unitless"` |
 | `Plane` | `Ref` (datum plane or planar face) or `{principal: "xy"/"yz"/"xz"}` or `{origin: Point3, normal: Vec3}` | One plane shape for sketches, mirrors, datums, trims |
 | `Axis` | `Ref` (datum axis, linear edge, cylindrical face) or `{principal: "x"/"y"/"z"/"-x"/"-y"/"-z"}` or `{origin: Point3, direction: Vec3}` | One axis shape for revolve, circular patterns, rotations |
@@ -134,6 +134,12 @@ no vector is unbounded.
 | `Page` | `offset=0`, `limit=20` (max 200) | Every inventory argument pair |
 
 Enum values are lower snake case (`"first_angle"`, `"mmc"`, `"profile_of_a_surface"`).
+Gate 1 also accepts natural spellings and passes the canonical value on: an option in any
+case and with spaces, `-` or `_` (`"Through All"`), a declared alias or plural, `"true"`/
+`"false"` for a boolean, a numeric string for a number and one string for a list of
+strings. Wherever a quantity is expected (lengths, angles, counts), an NX expression name or
+formula (`"thickness"`, `"thickness/2"`) is accepted; the feature stays driven by it. An
+unknown option or field fails with a did-you-mean (`details.accepted` lists the fields).
 
 ### 1.5 Reference parameter names
 
@@ -184,8 +190,8 @@ Every tool returns the same envelope. Tool-specific data lives in `data`.
 | Reference | `{id, kind, name, part}` plus `path` for assembly occurrences. Repeated reference metadata is omitted in compact detail |
 | `mutation_outcome` | Always present (1.9) |
 | `units`, `frame` | Always present when any length, angle or coordinate is returned. `frame` is `work_part_absolute`, `sketch_local`, `sheet` or `display_part_absolute` |
-| `changes` | `model` tools only. `references`: `preserved` (all earlier refs still valid), `part_invalidated` (re-list the part), `listed` (only those in `deleted` are invalid). After a rollback that renumbered refs, `references` is `part_invalidated` and `stale_references` gives how many refs went stale; the error then carries `details.references: "renumbered"`, `details.stale_references` (a count, or `"all"` when NX cannot say which), `details.stale_refs` (up to 20 ids) and `details.rebound_references` (refs re-bound to their restored objects), and its hint says to list the objects again |
-| `warnings` | `{code, message}`; never dropped by compaction. Warning codes (`NX_UPDATE_WARNING`, `NX_APPROXIMATED`, `NX_PARTIAL_PAGE`, `NX_MODAL_DIALOG` = NX showed a modal dialog during the call) are a separate short list |
+| `changes` | `model` tools only. Refs follow NX's object identity, so after a commit only refs of objects NX no longer has go stale. `references`: `preserved` (all earlier refs still valid), `listed` (only the refs in `deleted` and in `stale_refs` are invalid), `part_invalidated` (re-list the part). `stale_refs` (up to 50) and `stale_references` (their count) name earlier refs that went stale without a `deleted` row (consumed faces and edges, objects an undo removed); `stale_kinds: ["face", "edge"]` appears only when the services cannot tell which faces and edges died. A deleted object that never had a ref is a row without `id`, with `gone: true`; unnamed internal NX objects are only counted (`internal: {created, deleted}`). `nx_undo_operation` and `nx_restore_checkpoint` keep the refs of every object that remains (the part, components, untouched features, faces and edges) and report `preserved` or `listed`. An engineer's edit between calls re-validates refs the same way instead of dropping them. After a rollback that renumbered refs, `references` is `part_invalidated` and `stale_references` gives how many refs went stale; the error then carries `details.references: "renumbered"`, `details.stale_references` (a count, or `"all"` when NX cannot say which), `details.stale_refs` (up to 20 ids) and `details.rebound_references` (refs re-bound to their restored objects), and its hint says to list the objects again |
+| `warnings` | `{code, message}`; never dropped by compaction. Warning codes (`NX_UPDATE_WARNING`, `NX_APPROXIMATED`, `NX_PARTIAL_PAGE`, `NX_MODAL_DIALOG` = NX showed a modal dialog during the call, `NX_VIEW_OVERLAP` = drawing views overlap, `NX_NO_EFFECT` = the call succeeded but changed nothing visible yet, `NX_NOTE` = an informational note) are a separate short list |
 | `page` | Inventories: `{offset, limit, returned, total, next_offset}` |
 | `result_id`, `omitted` | Compact projection: arrays over 20 items are cut and floats rounded to 12 significant digits. No object is listed twice: `changes` drop the rows `data` already shows; of the rest, `created`/`modified` keep none when `data` names the tool's main objects at its top level (feature, body, sketch...), else the rows that are not NX helpers (auto `pNN` expressions, sketch `ENTITY` geometry), and `deleted` keeps its rows. A kept list of more than 3 rows, and a committed mutation's top-level list of more than 3 body references in `data` (seed or target body first), show their first and last row (`omitted` says `shown: first_last`); `changes.counts` gives every row of a cut list by kind. `nx_get_result` expands what was cut; one snapshot store for bridge and sidecar results |
 | `restore_id` | `view` tools that change display state |
@@ -236,7 +242,7 @@ All codes start with `NX_`.
 | # | Category | Codes | `retry` | Agent action | Absorbs current codes |
 |---|---|---|---|---|---|
 | 1 | `invalid_argument` | `NX_INVALID_ARGUMENT`, `NX_INVALID_FORMULA` | after_fix | Fix the argument named in `field`; same call never succeeds | `NX_INVALID_ARGUMENT`, `NX_INVALID_REQUEST`, `NX_INVALID_FORMULA`, `NX_INVALID_STEP`, `NX_CATALOG_INVALID` |
-| 2 | `unsupported` | `NX_UNSUPPORTED_OPTION`, `NX_UNSUPPORTED_GEOMETRY`, `NX_UNSUPPORTED_FILE_TYPE` | never | Choose another tool or approach | `NX_UNSUPPORTED_ARGUMENT`, `NX_UNSUPPORTED_EDIT`, `NX_UNSUPPORTED_SCOPE`, `NX_UNSUPPORTED_UNITS`, `NX_UNSUPPORTED_FRAME`, `NX_UNSUPPORTED_GEOMETRY`, `NX_UNSUPPORTED_IMAGE`, `NX_UNSUPPORTED_FILE_TYPE`, `NX_NOT_IMPLEMENTED` |
+| 2 | `unsupported` | `NX_UNSUPPORTED_OPTION`, `NX_UNSUPPORTED_GEOMETRY`, `NX_UNSUPPORTED_FILE_TYPE`, `NX_NOT_RUNNING` (the operation already finished: nothing to cancel) | never | Choose another tool or approach | `NX_UNSUPPORTED_ARGUMENT`, `NX_UNSUPPORTED_EDIT`, `NX_UNSUPPORTED_SCOPE`, `NX_UNSUPPORTED_UNITS`, `NX_UNSUPPORTED_FRAME`, `NX_UNSUPPORTED_GEOMETRY`, `NX_UNSUPPORTED_IMAGE`, `NX_UNSUPPORTED_FILE_TYPE`, `NX_NOT_IMPLEMENTED` |
 | 3 | `not_found` | `NX_NOT_FOUND`, `NX_FILE_NOT_FOUND`, `NX_RESULT_EXPIRED`, `NX_UNKNOWN_TOOL` | after_fix | Re-list; for expired results re-read (never repeat a mutation) | `NX_NOT_FOUND`, `NX_OBJECT_NOT_FOUND`, `NX_FILE_NOT_FOUND`, `NX_DIRECTORY_NOT_FOUND`, `NX_RESULT_EXPIRED`, `NX_TOOL_NOT_FOUND`, `NX_NO_TABLE_HEADER` |
 | 4 | `stale_reference` | `NX_STALE_REFERENCE`, `NX_STALE_CHECKPOINT`, `NX_STALE_PREVIEW`, `NX_STALE_SOURCE` | after_reacquire | Reacquire references (`nx_list_objects`, `nx_find_geometry`, `nx_resolve_reference`) and retry | `NX_OBJECT_STALE`, `NX_STALE_REFERENCE`, `NX_SAVED_REFERENCE_STALE`, `NX_STALE_TRACE_ANCHOR`, `NX_STALE_ANNOTATION_SOURCE`, `NX_DISPLAY_SNAPSHOT_STALE`, `NX_CHECKPOINT_STALE`, `NX_PREVIEW_STALE`, `NX_SOURCE_CHANGED`, `NX_ARTIFACT_CHANGED`, `NX_EXPLOSION_ASSEMBLY_CHANGED` |
 | 5 | `wrong_kind` | `NX_WRONG_KIND`, `NX_WRONG_GEOMETRY` | after_fix | Pass a reference of the kind or geometry the field names | `NX_OBJECT_TYPE_MISMATCH`, `NX_NOT_SOLID`, `NX_NOT_SHEET`, `NX_NON_PLANAR`, `NX_NOT_SHEET_METAL`, `NX_NOT_DIRECTORY`, `NX_INVALID_GEOMETRY` (input side) |
@@ -259,8 +265,14 @@ All codes start with `NX_`.
 | 22 | `nx_error` | `NX_ERROR` | ask_engineer | Unclassified native exception; `nx_code` and message preserved. Retry once only after changing inputs | `NX_API_ERROR`, `NX_INTERNAL_ERROR` |
 
 `NX_MCP_*` strings in the code are environment variables and marker names, not
-error codes. The new code list has 65 entries (the "Codes" column); a
+error codes. The code list has 67 entries (the "Codes" column); a
 catalogue test fails when a handler raises a code that is not in the list.
+A handler may override `retry` for one error (`fail(..., retry="never")`) when no fix
+of the same call can succeed, e.g. `nx_undo_operation` with an empty history.
+Tracebacks never reach the agent or `error.details`, not even with `NX_MCP_DEV=1`: they go
+to the operation receipt (`traceback`) and `.nx-mcp/logs/tracebacks.log`. A path that already
+exists where a new file goes fails `NX_ALREADY_EXISTS` with `details.suggested_path`; a path
+without a suffix gets the tool's suffix (`parts/plate` → `parts/plate.prt`).
 
 ### 1.9 `mutation_outcome`
 
@@ -287,14 +299,14 @@ Supply your own when you might need to retry after a transport failure.
 
 | Profile | Listed directly | Reached through gateway | Use |
 |---|---|---|---|
-| `agent` (default, recommended) | 4 gateway tools + 14 core tools | all 159 catalogue tools | Any MCP client; smallest context, read-only gateway can be auto-approved |
+| `agent` (default, recommended) | 4 gateway tools + 14 core tools | all 161 catalogue tools | Any MCP client; smallest context, read-only gateway can be auto-approved |
 | `full` | the 4 gateways and every catalogue tool tested on the connected build, with `readOnlyHint`/`destructiveHint` from `effect` | none needed | Clients with native deferred tool search (they index names and load schemas on demand) |
 
 Gateway tools (always listed):
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_find_tools` | A scored OR search after stemming, stop words and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`): every tool matching at least one query word is a hit. Per word: the best field (name > keyword/label > variant > description; a synonym or a prefix counts less than the word itself, plus a little when the word itself is in the name, a keyword or the label) times the word's rarity `1 + log2(N/n)` over the catalogue (a word few tools match, "save", outweighs a common one, "part"). The sum is scaled by the share of query words matched (a tool matching every word beats partial ones of similar weight), plus bonuses for the share of the tool's name words named, a keyword or label phrase in the query and a word naming the tool's domain; an exact name wins. `query` is 1-4 keywords for one task; `queries` (1-10, exclusive with `query`) returns `results: [{query, tools, total}]`, 5 rows per query by default. With two or more words each row lists the words it `matched`; `partial: true` means no tool matched every word; a `hint` says to split the tasks into `queries` when a query has more than four words, or three or more and is partial. Never just empty: when no word matches, the close spellings of names, labels and keywords are searched instead (`did_you_mean`); if none, the domain overview comes with a hint. An empty query returns the domain overview (tool counts and key tools). Rows: name, summary, effect, domain, evidence for the connected build; `call_with` says to call them through `nx_invoke`/`nx_invoke_read` | `query` or `queries[1..10]`, `domain?`, `effect?`, `limit` (10, or 5 per query; max 20), `offset` | read |
+| `nx_find_tools` | A scored OR search after stemming, stop words and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`): every tool matching at least one query word is a hit. Per word: the best field (name > keyword/label > variant > description; a synonym or a prefix counts less than the word itself, plus a little when the word itself is in the name, a keyword or the label) times the word's rarity `1 + log2(N/n)` over the catalogue (a word few tools match, "save", outweighs a common one, "part"). The sum is scaled by the share of query words matched (a tool matching every word beats partial ones of similar weight), plus bonuses for the share of the tool's name words named, a keyword or label phrase in the query and a word naming the tool's domain; an exact name wins. `query` is 1-4 keywords for one task; `queries` (1-20, exclusive with `query`) returns `results: [{query, tools, total}]`, 5 rows per query by default. With two or more words each row lists the words it `matched`; `partial: true` means no tool matched every word; a `hint` says to split the tasks into `queries` when a query has more than four words, or three or more and is partial. Never just empty: when no word matches, the close spellings of names, labels and keywords are searched instead (`did_you_mean`); if none, the domain overview comes with a hint. An empty query returns the domain overview (tool counts and key tools). Rows: name, summary, effect, domain, evidence for the connected build; `call_with` says to call them through `nx_invoke`/`nx_invoke_read` | `query` or `queries[1..20]`, `domain?`, `effect?`, `limit` (10, or 5 per query; max 20), `offset` | read |
 | `nx_get_tool_schemas` | Exact input schema, example, prerequisites and evidence for 1-10 tools or variants in one call; output schema on request | `names[1..10]` (e.g. `nx_create_drawing_view#section`), `include_output=false` | read |
 | `nx_invoke` | Call any task tool; kernel gates apply; `intent` (at most 120 characters) is shown in the NX panel | `tool`, `arguments`, `intent?`, `detail=compact/full` | per tool (declared destructive) |
 | `nx_invoke_read` | Same, but refuses tools whose effect is not `read` before validation; hosts can auto-approve it | `tool`, `arguments`, `detail` | read |
@@ -334,17 +346,17 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_get_tool_schemas` | Schemas, examples, evidence, sub-schemas such as sheet-metal operations | `names[1..10], include_output` | read |
 | `nx_invoke` | Gateway call | `tool, arguments, intent?, detail` | per tool |
 | `nx_invoke_read` | Gateway call for read tools only | `tool, arguments, detail` | read |
-| `nx_get_operation` | Durable state of an operation: running, committed, failed, unknown | `operation_id` | read |
+| `nx_get_operation` | Durable state of an operation: running, committed, failed, unknown; echoes the request's `arguments` (redacted: file contents and long strings become size notes) | `operation_id` | read |
 | `nx_cancel_operation` | Cooperative cancel between batch steps | `operation_id` | session |
 | `nx_get_result` | Page or expand a stored result (one store for bridge and sidecar snapshots) | `result_id, field?: JSON pointer, Page, detail` | read |
 | `nx_delete_results` | Preview or prune stored result snapshots | `dry_run=true, max_age_seconds?, max_bytes?, result_ids?` | file |
 | `nx_run_batch` | 1-100 batchable calls under one undo mark; `"$2.data.feature"` refers to an earlier step's result | `operations[1..100]: {tool, arguments}` | model |
 | `nx_preview_changes` | Apply 1-25 previewable calls, report before/after bounds, volume, health and an optional image, then roll back | `operations[1..25], capture=false` | session |
 | `nx_finish_preview` | Re-apply a preview if the part is unchanged, or discard it | `preview_id, action: accept/discard` | model |
-| `nx_undo_operation` | Undo the last agent operation | — | model |
-| `nx_create_checkpoint` | In-session undo checkpoint (expires on save) | `label?` | session |
-| `nx_list_checkpoints` | Available checkpoints and retained history | — | read |
-| `nx_restore_checkpoint` | Roll the model back to a checkpoint | `checkpoint_id` | model |
+| `nx_undo_operation` | Undo the agent's last operations (never the engineer's); refs of objects that remain stay valid | `steps=1` | model |
+| `nx_create_checkpoint` | In-session undo checkpoint (expires on save, part close, an undo past it or an engineer edit) | `label?` | session |
+| `nx_list_checkpoints` | Checkpoints and retained history; an expired one stays listed with `expired_reason`: `saved_or_closed`, `undone_past`, `engineer_change` or `part_closed` | — | read |
+| `nx_restore_checkpoint` | Roll the model back to a checkpoint (id or label); it stays restorable, refs of objects that remain stay valid | `checkpoint_id` | model |
 | `nx_activate_application` | Switch the NX application for the displayed part | `application: modeling/sheet_metal` | session |
 | `nx_delete_objects` | Delete features, components, explosions, annotations (incl. dimensions, tables, balloons, traces), section views, sheets, views | `objects: Ref[1..100]` | model |
 | `nx_set_name` | Rename any object; returns the NX-normalised name | `object, name` | model |
@@ -510,7 +522,7 @@ Note: components are removed with `nx_delete_objects`.
 | `nx_create_drawing_view` | Place a view; `type` selects the variant | `type: base{sheet, orientation, scope: body/assembly, body?, explosion?, position, scale?}`, `projected{parent, direction: right/left/top/bottom, spacing?}`, `section{parent, cut: SketchPoint-like {edge, point: start/end/center}, step_direction, arrow_direction, position, scale?}`, `detail{parent, center: Point3, radius, position, scale?}`, `flat_pattern{sheet, flat_pattern, position}` | model |
 | `nx_edit_drawing_view` | Position, scale and display style | `view, position?, scale?, style?: {hidden_lines, smooth_edges, shading, ...}` | model |
 | `nx_get_drawing_view` | Actual scale, sheet position, border, containment | `view` | read |
-| `nx_create_drawing_dimension` | Associative dimension in a view | `view, kind: linear/radius/diameter/angle/ordinate, first, second?, orientation?: aligned/horizontal/vertical, origin?: SheetPoint`; ordinate: `datum, datum_point, objects[1..50], direction, margin?` | model |
+| `nx_create_drawing_dimension` | Associative dimension in a view | `view, kind: linear/radius/diameter/angle/ordinate/chamfer/thickness/arc_length/baseline/chain/hole_callout, first, second?, orientation?: aligned/horizontal/vertical, origin?: SheetPoint`; ordinate: `datum, datum_point, objects[1..50], direction, margin?`; baseline/chain: `datum?, objects, direction`, 3 or more points (NX 2406 does not draw a two-point set: use `linear`) | model |
 | `nx_get_dimension` | Measured value, validity, format and tolerance | `dimension` | read |
 | `nx_edit_dimension` | Format, tolerance, or rebind to other edges | `dimension, format?: {decimals, trailing_zeros, units, decimal_separator}, tolerance?: {type, upper, lower, decimals}, first?, second?` | model |
 | `nx_create_note` | Note with optional leader | `text: string[1..50], origin: SheetPoint, sheet?, leader_to?, view?` | model |
@@ -565,7 +577,7 @@ Note: section views are edited with `nx_edit_section_view` and deleted with
 
 ### 3.13 Count
 
-The catalogue (`nx_mcp.core.catalogue`) has 159 tools; the 4 gateway tools of 2.1 are
+The catalogue (`nx_mcp.core.catalogue`) has 161 tools; the 4 gateway tools of 2.1 are
 served by the sidecar outside it.
 
 | Domain | Tools |
@@ -574,17 +586,17 @@ served by the sidecar outside it.
 | display | 11 |
 | drawing | 19 |
 | freeform | 6 |
-| inspection | 17 |
-| modeling | 38 |
+| inspection | 18 |
+| modeling | 39 |
 | parts_files | 16 |
 | session | 15 |
 | sheet_metal | 6 |
 | sketch | 11 |
-| **Total** | **159** |
+| **Total** | **161** |
 
-Effects of the 159: 90 model, 39 read, 14 file, 8 view, 8 session.
+Effects of the 161: 91 model, 40 read, 14 file, 8 view, 8 session.
 
-Added after the design and listed only in the [tool reference](../tools.md): `nx_create_component_mirror`, `nx_create_emboss_body`, `nx_create_extract`, `nx_create_helix`, `nx_create_rib`, `nx_create_tube`, `nx_create_wave_link`, `nx_export_expressions`, `nx_get_attributes`, `nx_import_expressions`, `nx_list_materials`, `nx_set_attributes`.
+Added after the design and listed only in the [tool reference](../tools.md): `nx_create_component_mirror`, `nx_create_emboss_body`, `nx_create_extract`, `nx_create_helix`, `nx_create_primitive` (block, cylinder, cone or sphere solid), `nx_create_rib`, `nx_create_tube`, `nx_create_wave_link`, `nx_export_expressions`, `nx_get_attributes`, `nx_import_expressions`, `nx_list_materials`, `nx_measure_section`, `nx_set_attributes`.
 
 Biggest merges: sketch curves and constraints (32 → 11), inventories into
 `nx_list_objects` (15 → 1), drawing views (5 → 1), drawing dimensions (4 → 1),

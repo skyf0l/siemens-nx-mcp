@@ -403,6 +403,81 @@
    }
   },
   {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "left",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     0,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "hole",
+    "view": "$v.data.view.id",
+    "position": [
+     30,
+     60
+    ],
+    "origin": "$left.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.holes": {
+     "count": 7
+    },
+    "data.origin.origin_point": {
+     "matches": "^(start|end)$"
+    },
+    "data.origin.point": {
+     "count": 3
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     25,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "hole",
+    "view": "$v.data.view.id",
+    "position": [
+     300,
+     60
+    ],
+    "origin": "$right.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.holes": {
+     "count": 7
+    },
+    "data.origin.origin_point": {
+     "matches": "^(start|end)$"
+    }
+   }
+  },
+  {
    "call": "nx_get_feature",
    "setup": true,
    "save": "gf",

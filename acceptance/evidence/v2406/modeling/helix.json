@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/helix.json",
-  "scenario_sha256": "a0509f772f3a3ba1ee042c81407e7e40659c39cc1dcee299a2ca9c6a80584d22",
+  "scenario_sha256": "6632dd6feba84c4c39c0b4aaf01c748cc93c8eb646e04e5371c439d33c7438d9",
   "domain": "modeling",
   "covers": {
     "nx_create_helix": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_helix": "707abad3b9f81e6178e4c30631a55dfeae156087fd2116ef752d58d4f7be049f"
+    "nx_create_helix": "d9fc38f7a1bddb6fffd894ef5264c6b34d32232602154d2def51ff5d461ab67c"
   },
-  "recorded": "2026-10-10T15:52:28Z",
+  "recorded": "2026-10-10T22:57:48Z",
   "passed": true,
-  "checks": 12,
+  "checks": 24,
   "failed_checks": 0,
   "steps": [
     {
@@ -28,24 +28,38 @@
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 3,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 7
     },
     {
       "index": 4,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 5,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
       "call": "nx_create_helix",
       "setup": false,
       "passed": true,
