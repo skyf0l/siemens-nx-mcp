@@ -53,7 +53,7 @@ HOLD_SECONDS = 60
 # bridge (QUEUE_TIMEOUT) waits longer, so this answer always arrives first.
 BUSY_WAIT_SECONDS = 120
 PAD_RIGHT = 16  # Panel margin right of the text and Stop bridge, in pixels.
-MIN_WINDOW = (560, 300)  # Smallest panel window the engineer can resize to.
+MIN_WINDOW = (560, 300)  # Opening and smallest panel window size.
 MIN_CLIENT = (520, 200)  # Layout floor while Windows shrinks the client area.
 PANEL_ROWS = 8  # Panel body lines at the opening size; resizing changes host.panel_rows.
 NOTICE_SECONDS = 30  # A notice replaces the idle line this long.
@@ -242,7 +242,7 @@ class ControlPanel:
         self._class = cls
         if not self.user.RegisterClassW(ctypes.byref(cls)):
             raise ctypes.WinError(ctypes.get_last_error())
-        # Resizable (WS_THICKFRAME), opening at the usual size: the activity list
+        # Resizable (WS_THICKFRAME), opening at its minimum size: the activity list
         # grows with the window, the buttons stay at the bottom and Stop bridge at
         # the right, PAD_RIGHT inside the edge (_layout places every control).
         self.hwnd = self.user.CreateWindowExW(
@@ -252,8 +252,8 @@ class ControlPanel:
             0x10CC0000,
             40,
             60,
-            680,
-            321,
+            MIN_WINDOW[0],
+            MIN_WINDOW[1],
             self.host.main_hwnd,
             None,
             None,
