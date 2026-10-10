@@ -36,6 +36,19 @@ def test_loaded_finds_a_part_by_file(nx, tmp_path):
     assert parts.loaded(nx.tx, tmp_path / "b.prt") is None
 
 
+def test_a_part_nx_no_longer_has_is_a_stale_reference(nx, tmp_path):
+    # NX 2406: a closed part's wrapper reports tag 0 and FullPath raises "Object no
+    # longer exists"; file_of (and so close and in_workspace) report it by code.
+    a = nx.new_part("a.prt")
+    assert parts.file_of(a) == a.FullPath and parts.file_of(None) == ""
+    a.Tag = 0
+    for check in (parts.file_of, lambda p: parts.in_workspace(nx.tx, p)):
+        with pytest.raises(NXError) as gone:
+            check(a)
+        assert gone.value.code == "NX_STALE_REFERENCE"
+        assert gone.value.details["reason"] == "deleted_in_nx"
+
+
 def test_in_workspace_refuses_other_files(nx, tmp_path):
     a = nx.new_part("a.prt")
     assert parts.in_workspace(nx.tx, a) == (tmp_path / "a.prt").resolve()

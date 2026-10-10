@@ -10,15 +10,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
-    "nx_create_sheet_metal_feature": "8829052ca2c1c1c2b3aaec621247991c1d872b522fe551e48c85ea4a85ce0e03"
+    "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261009-230028-f8225c",
-  "owner": "sm_ops_b",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230028-f8225c\\sheet_metal_three_bend_corner_f8225c.prt",
-  "started": "2026-10-09T19:00:28Z",
-  "finished": "2026-10-09T19:00:30Z",
+  "run_id": "20261010-155354-3fd345",
+  "owner": "reg_final2_2",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_three_bend_corner_3fd345.prt",
+  "started": "2026-10-10T11:54:49Z",
+  "finished": "2026-10-10T11:54:51Z",
   "passed": true,
   "checks": 11,
   "failed_checks": 0,
@@ -29,8 +29,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.953,
-      "result_sha256": "3a1b14b2247d1dc5d7223b6c1b5748410772e84b1ec91c4b5dd2b95153123269"
+      "seconds": 0.469,
+      "result_sha256": "d4d71b8338c01e38564ef4463fe02fd4dbc909f427dc51d414772b97a91b1494"
     },
     {
       "index": 2,
@@ -38,8 +38,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.234,
-      "result_sha256": "3badb608424e4f19b4447733f07f81caa5e0e1ef39c06d24cf2e695f1cad4212"
+      "seconds": 0.218,
+      "result_sha256": "2cd111f451b485604a3e63e6eb84399d883f9ae2da85fd9a7c7cd56f816312c3"
     },
     {
       "index": 3,
@@ -48,7 +48,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.063,
-      "result_sha256": "856c7891c3dd91f195335cac88770bc3943a60e5a5862d9ad760b80d8accd05c"
+      "result_sha256": "5e9dfed8d34b800881d4c0699d6939dd0cb789e59e39e943771608b019d49c06"
     },
     {
       "index": 4,
@@ -57,7 +57,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.047,
-      "result_sha256": "ad43bb6444cb5437a523a8c4e300562ad0fae23c2da0e110936828ba7bb8085b"
+      "result_sha256": "115b918331ea2d2e23447b531e18010ee8f9bc4de65117fa5d3fecd6ddf63a5e"
     },
     {
       "index": 5,
@@ -65,8 +65,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "ed99300c8186a46f8c67110ccac958a80ecb43407c038c327cdf218f39c3cd07"
+      "seconds": 0.063,
+      "result_sha256": "623b01ac7610110141e1962e5aae7fec27e3e3c0cc477e6e4d3a4c85dfb4e814"
     },
     {
       "index": 6,
@@ -74,8 +74,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "0b8fd85eb10d2f3ac2026ddb5c88211ee64c0ed3f0663253fef0c7402ba07878"
+      "seconds": 0.062,
+      "result_sha256": "5de9f568d7c623b508632b885b68366f468c0f7d940378aa71db84925a4df29b"
     },
     {
       "index": 7,
@@ -83,8 +83,8 @@
       "setup": true,
       "passed": true,
       "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "2964f60a500a6b0147c553c9d2270b8dd8f2a8578129863603f7d85edfcc53e9"
+      "seconds": 0.063,
+      "result_sha256": "8131d44e4849425617e70dee616cdece46805a8badd587c3eb3797c3cd0443de"
     },
     {
       "index": 8,
@@ -93,7 +93,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.047,
-      "result_sha256": "2601b9e8a03f76259f9c364f6ce2b1b60c0b3d4d6489b326c0f3dd21e65c17b1"
+      "result_sha256": "fdaf2edeb290f6fe535426a527228454b7c44a7a4370e7094225e9c69af73a90"
     },
     {
       "index": 9,
@@ -102,7 +102,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.078,
-      "result_sha256": "ffd141533a3cfb823c4b1596a903b002053dc04024a86735903e6e5053cc52ae"
+      "result_sha256": "6556902c27b254ddc0ff33c31935d8d4d1422af14e042faf2eca153090ec8a8e"
     },
     {
       "index": 10,
@@ -110,8 +110,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "8c2c53613dd24c86b3c814accffb60b1591ef9672c3e43de51edf46e3932bb3c"
+      "seconds": 0.031,
+      "result_sha256": "ef6f74bf855f7fd174563ebc38d1195537f6913afecc578a399fa3e1b2e29923"
     },
     {
       "index": 11,
@@ -120,7 +120,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "8ea006aed562f3f57bce75d3b1b1a06ccc2af4313165d750c08968ff9661f4ab"
+      "result_sha256": "d7612870225d6d6c20bd14ab870b16af3e9efc9e4efb0bfcda546f8261911cf8"
     },
     {
       "index": 12,
@@ -128,8 +128,8 @@
       "setup": true,
       "passed": true,
       "checks": 2,
-      "seconds": 0.094,
-      "result_sha256": "8c69f9e487ce600d7b6b3136624b91d7df54cebf21ab165b4e35aa5e5f684d9b"
+      "seconds": 0.11,
+      "result_sha256": "c21e6b116fee09d5395af95a838e803ea4922b9f97bc73f1e30f67d39dd4e56b"
     },
     {
       "index": 13,
@@ -138,7 +138,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "97770bad0fd5959a46297630a74bed22d210695e2ba9541b01db17dd056741e8"
+      "result_sha256": "b62588c1a03533c22ba80e2e47bfb057537b06bc39b659843e45fea92c4596f5"
     },
     {
       "index": 14,
@@ -146,8 +146,8 @@
       "setup": false,
       "passed": true,
       "checks": 4,
-      "seconds": 0.265,
-      "result_sha256": "ad6e8d2eaa9227996b0ddf9b67dc2d6ee4d5feaabc93a885c950f66d37efae82"
+      "seconds": 0.234,
+      "result_sha256": "190644ca1ebc0bfeb96ea1a5556133b53819149c85590293f69c727f289dd96a"
     },
     {
       "index": 15,
@@ -155,14 +155,14 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.032,
-      "result_sha256": "1eebf1045058ff9ef86237639f55feb73d16212b47588d0e3bde448df359156c"
+      "seconds": 0.047,
+      "result_sha256": "154520a0578b630e88245c8c786bfa4181ece3d644fc0d493da00e0d7bb64fe6"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-230028-f8225c/sheet_metal_three_bend_corner_f8225c.prt"
+      "smoke/20261010-155354-3fd345/sheet_metal_three_bend_corner_3fd345.prt"
     ],
     "failed": []
   }

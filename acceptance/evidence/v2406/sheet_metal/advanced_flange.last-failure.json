@@ -10,15 +10,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f4fea47ecdd91f04177f713b0f423db0b1156a11",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
-    "nx_create_sheet_metal_feature": "a080d8ebf070ed2aa1cbb0fbc80821fdb64e49c9c3f7b3e057a0e05761eb15db"
+    "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e"
   },
-  "run_id": "20261009-230052-50880b",
-  "owner": "sm_ops_a",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-230052-50880b\\sheet_metal_advanced_flange_50880b.prt",
-  "started": "2026-10-09T19:01:00Z",
-  "finished": "2026-10-09T19:01:02Z",
+  "run_id": "20261010-155354-3fd345",
+  "owner": "reg_final2_2",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_advanced_flange_3fd345.prt",
+  "started": "2026-10-10T11:53:56Z",
+  "finished": "2026-10-10T11:53:57Z",
   "passed": false,
   "checks": 5,
   "failed_checks": 6,
@@ -29,8 +29,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.875,
-      "result_sha256": "1e9ced999d72f76706f009848b0e01679029f079d79b616b7d070012693bb300"
+      "seconds": 0.484,
+      "result_sha256": "456705b4db6c4fd77e1cd734c74fd7106a386747077353f520d2a6595b2e8e3c"
     },
     {
       "index": 2,
@@ -38,8 +38,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.234,
-      "result_sha256": "c038a30dbd761bb4ab0b124607242537087a045f2bfae996967fd6a04af149d3"
+      "seconds": 0.203,
+      "result_sha256": "a5eaf693035efc43734eb1e34eef03d95ac12836ecfaaa119a73c09171596b1f"
     },
     {
       "index": 3,
@@ -48,7 +48,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.078,
-      "result_sha256": "dd388f404c9e20deb34f4e1c941803aa110fdae803c6ab391b1af9974f53684d"
+      "result_sha256": "00f62aa56e6132eaee0fa5cfea762c625adbbdc9a6189a4d0802f489c880f6fa"
     },
     {
       "index": 4,
@@ -57,7 +57,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.063,
-      "result_sha256": "45349e5ba4b4e695d9f81293f0a7ffb07a1f4b137fa006bd81659a3ca18bd745"
+      "result_sha256": "adaecaab0d7ec63f9534ff5af25bb543c68fb442744d1fb6f2c63a1e7fd55fbf"
     },
     {
       "index": 5,
@@ -65,8 +65,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "301a81f9907172889a928a0495b9791bdeafd6b9b8f5c253324f221ba93b312d"
+      "seconds": 0.062,
+      "result_sha256": "97f03063af10868d3ebfa4d9f6d9756a40c7f0c6b210ce8d8237022973dd581a"
     },
     {
       "index": 6,
@@ -74,8 +74,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "e41fb1c2863b34e49c6bf4221f87f895f358477bbbff33522085dbd9438102c1"
+      "seconds": 0.063,
+      "result_sha256": "ee3f9c0b0f6536034769feff844412434e37d61bfd864d722729e27aba3e2df3"
     },
     {
       "index": 7,
@@ -83,8 +83,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "f04cb2de29ffb3aabd1913f6621ac4efa9763e23f970f4551c12b21ce89f3852"
+      "seconds": 0.062,
+      "result_sha256": "54f0b1bfe637dea740dfedcdbba491a4f3e7a6cd6fc5528d9708a4aaeacd19ed"
     },
     {
       "index": 8,
@@ -93,7 +93,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.047,
-      "result_sha256": "25680806cac4202fb78465d37fc62214856048bd80e8eb0065a45a3676e32020"
+      "result_sha256": "6a2325c29000a4c4bde03ac071d933a3757cd745db1937a42a89cccba0b1bed8"
     },
     {
       "index": 9,
@@ -101,8 +101,8 @@
       "setup": false,
       "passed": false,
       "checks": 5,
-      "seconds": 0.062,
-      "result_sha256": "abb032236f4ab64558679c7a4911ac4cfaa5065ca2fc97a0104a3568716e3697",
+      "seconds": 0.125,
+      "result_sha256": "7f63914c40823a77c82a3081be670b791010729e95e8ea5c44e9da88d9eb8256",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -116,7 +116,7 @@
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-230052-50880b/sheet_metal_advanced_flange_50880b.prt"
+      "smoke/20261010-155354-3fd345/sheet_metal_advanced_flange_3fd345.prt"
     ],
     "failed": []
   }

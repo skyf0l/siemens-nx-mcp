@@ -232,6 +232,9 @@ class FakeServices(Services):
     def delete_mark(self, mark):
         self.marks.pop(mark, None)
 
+    def mark_exists(self, mark):
+        return mark in self.marks
+
     def snapshot(self, part):
         return {
             (o.kind, o.Tag): {

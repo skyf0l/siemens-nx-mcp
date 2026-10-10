@@ -607,6 +607,34 @@ async def test_cleanup_restores_only_the_runs_own_display_part(tmp_path, monkeyp
     assert [c[0] for c in nx.calls] == ["nx_close_part"]
 
 
+async def test_cleanup_reactivates_by_fresh_ids_and_skips_parts_the_steps_closed(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    nx = FakeNX()
+    own = nx.row("smoke/dev/kept.prt", display=True)
+    nx.parts = [nx.row("C:/eng/bracket.prt"), own]
+    before = [dict(p, part=dict(p["part"])) for p in nx.parts]
+    nx.parts.append(nx.row("smoke/dev/new.prt", display=True))
+    own["display"] = own["work"] = False
+    own["part"]["id"] = "p:77"  # NX renewed the kept part's ID since the run started
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        report = await runner.close_new_parts(
+            session, before, own_dir=tmp_path / "smoke" / "dev", workspace=tmp_path
+        )
+        assert not report["failed"] and report["restored"] == [own["path"]]
+        assert nx.calls[-1] == ("nx_activate_part", nx.calls[-1][1])
+        assert nx.calls[-1][1]["part"] == "p:77"  # not the stale ID listed before the run
+        # A scenario that closed the run's own part itself: nothing to re-activate.
+        nx.calls.clear()
+        nx.parts = [nx.row("C:/eng/bracket.prt")]
+        report = await runner.close_new_parts(
+            session, before, own_dir=tmp_path / "smoke" / "dev", workspace=tmp_path
+        )
+    assert report["failed"] == [] and "restored" not in report and nx.calls == []
+
+
 def test_inside_resolves_relative_and_absolute_paths(tmp_path):
     own = tmp_path / "smoke" / "r1"
     assert runner._inside("smoke/r1/a.prt", own, tmp_path)

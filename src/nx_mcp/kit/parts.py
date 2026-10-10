@@ -37,11 +37,22 @@ import uuid
 from pathlib import Path
 
 from nx_mcp.core.errors import fail
+from nx_mcp.core.references import deleted
 from nx_mcp.kit import drawing
 
 
 def file_of(part) -> str:
-    """The part's full path ('' for a part NX has no file name for)."""
+    """The part's full path ('' for None or a part NX has no file name for).
+
+    A part NX no longer has (closed, or undone by NX itself) fails as
+    ``NX_STALE_REFERENCE``: NX would raise "Object no longer exists"."""
+    if part is not None and deleted(part):
+        fail(
+            "NX_STALE_REFERENCE",
+            "The part is no longer loaded in NX",
+            hint="List the loaded parts again with nx_list_parts",
+            details={"reason": "deleted_in_nx"},
+        )
     return str(getattr(part, "FullPath", "") or "")
 
 

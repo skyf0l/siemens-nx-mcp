@@ -186,6 +186,64 @@ def test_rollback_failure_is_partial(svc):
     assert bad["error"]["details"]["operation_error"]["code"] == "NX_BUILD_FAILED"
 
 
+class NativeLicenseError(Exception):
+    """NXOpen's license refusal (NX 2406: 948801, no token feature)."""
+
+    ErrorCode = 948801
+
+
+def _with_handler(svc, handler, **args):
+    spec = SPECS["nx_create_block"]
+    object.__setattr__(spec, "handler", handler)
+    try:
+        return run(svc, "nx_create_block", **args)
+    finally:
+        object.__setattr__(spec, "handler", tools.nx_create_block)
+
+
+def test_native_license_failure_in_a_model_tool_rolls_back_cleanly(svc):
+    def refused(tx, *, size):
+        tx.part.add("feature")
+        raise NativeLicenseError("License Error, the check out of a feature failed")
+
+    bad = _with_handler(svc, refused, size=1)
+    assert bad["error"]["code"] == "NX_LICENSE_UNAVAILABLE" and bad["error"]["nx_code"] == 948801
+    assert bad["mutation_outcome"] == "rolled_back" and svc.part.objects == []
+    assert not svc.marks  # the call's mark is gone after the undo
+
+
+def test_license_failure_nx_undid_itself_is_rolled_back_not_rollback_failed(svc):
+    # Live NX 2406 (a session in "protected" error recovery): NX undid the refused call
+    # back to the call's mark and removed the mark; UndoToMark would fail with "Undo mark
+    # is missing". The model is as before, so the call is rolled back with its own error.
+    def refused(tx, *, size):
+        tx.part.add("feature")
+        svc.undo_to(tx.mark)
+        svc.delete_mark(tx.mark)
+        raise NativeLicenseError("License Error, the check out of a feature failed")
+
+    keep = svc.part.add("feature")
+    kept = svc.references.row(keep, "feature")["id"]
+    svc.undone.clear()
+    bad = _with_handler(svc, refused, size=1)
+    assert bad["error"]["code"] == "NX_LICENSE_UNAVAILABLE"
+    assert bad["mutation_outcome"] == "rolled_back" and svc.part.objects == [keep]
+    assert bad["changes"]["references"] == "preserved"
+    assert svc.references.resolve(kept, ("feature",)) is keep
+    assert len(svc.undone) == 1  # only NX's own undo: the kernel had nothing left to undo
+
+
+def test_a_missing_mark_with_a_changed_model_is_rollback_failed(svc):
+    def dropped(tx, *, size):
+        tx.part.add("feature")
+        svc.delete_mark(tx.mark)  # the mark is gone but the change stays
+        raise NativeLicenseError("License Error")
+
+    bad = _with_handler(svc, dropped, size=1)
+    assert bad["mutation_outcome"] == "partial" and bad["error"]["code"] == "NX_ROLLBACK_FAILED"
+    assert bad["error"]["details"]["operation_error"]["code"] == "NX_LICENSE_UNAVAILABLE"
+
+
 def test_python_exception_is_nx_error_with_type(svc):
     def broken(tx, *, size):
         tx.part.add("feature")

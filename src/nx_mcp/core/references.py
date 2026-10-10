@@ -116,6 +116,27 @@ def _tag(obj) -> str:
     return str(tag if tag is not None else id(obj))
 
 
+def deleted(obj) -> bool:
+    """Whether ``obj`` wraps an object NX no longer has (a closed part, an object NX
+    undid itself). NX 2406: such a wrapper reports tag 0 (NULL_TAG), its properties
+    raise "Object no longer exists", and NX refuses it as an argument with "First
+    parameter is invalid. Expecting int type, found str"."""
+    try:
+        tag = getattr(obj, "Tag", None)
+        return tag is not None and int(tag) == 0
+    except Exception:
+        return False
+
+
+def _gone(ref: str, kind: str | None, name: str | None):
+    fail(
+        "NX_STALE_REFERENCE",
+        f"{ref} ({name or kind or 'object'}) no longer exists in NX",
+        hint="List the objects again (nx_list_parts, nx_find_geometry) for current refs",
+        details={"ref": ref, "kind": kind, "reason": "deleted_in_nx"},
+    )
+
+
 def _name(obj) -> str:
     name = getattr(obj, "Name", "")
     if callable(name):
@@ -153,6 +174,9 @@ class References:
             self._identity[key] = ref
         else:
             entry.name = _name(obj)
+            # Same NX object (part, kind, tag): keep the registry on this live wrapper, so
+            # a ref whose earlier wrapper NX invalidated works again after a fresh listing.
+            entry.handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
         if entry.anchor is None and (kind in ANCHORED or anchor):
             entry.anchor = self._anchor(obj, kind, part)
         out = {"id": entry.id, "kind": kind, "name": entry.name, "part": entry.part_id}
@@ -202,7 +226,10 @@ class References:
             possible = REGISTRY_KINDS.get(kind, frozenset({kind}))
             if kind is not None and wanted is not None and not (possible & wanted):
                 self._wrong_kind(ref, kind, wanted)
-            return self.backend.resolve_handle(ref)
+            obj = self.backend.resolve_handle(ref)
+            if deleted(obj):
+                _gone(ref, kind, self.backend.handle_name(ref))
+            return obj
         match = _SHORT.match(ref)
         if not match:
             fail("NX_INVALID_ARGUMENT", f"Not a reference: {ref!r}")
@@ -229,7 +256,10 @@ class References:
                 f"{ref} ({entry.name or entry.kind}) is no longer valid",
                 details=details,
             )
-        return self.backend.resolve_handle(entry.handle)
+        obj = self.backend.resolve_handle(entry.handle)
+        if deleted(obj):
+            _gone(ref, entry.kind, entry.name)
+        return obj
 
     @staticmethod
     def _wrong_kind(ref, kind, wanted):

@@ -432,6 +432,19 @@ def _still_unchanged(spec, services, tx, part, before) -> bool:
     return True
 
 
+def _mark_gone(services, mark) -> bool:
+    """Whether NX already dropped the call's undo mark.
+
+    NX can undo a failed NXOpen call itself, back to the call's mark, and remove that
+    mark (NX 2406: a license refusal with "protected" error recovery, seen live). The
+    model is then as before the call and there is nothing left to undo; ``UndoToMark``
+    would fail with "Undo mark is missing". Unknown means present."""
+    try:
+        return not services.mark_exists(mark)
+    except Exception:
+        return False
+
+
 def _settle(spec, services, tx, mark, part, before, error, touched, handler_started):
     """``(mutation_outcome, references, error)`` after a failed call; rolls back."""
     if spec.effect == "read":
@@ -454,7 +467,11 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
                 unchanged = failed_snap is not None and set(failed_snap) == set(before)
             except Exception:
                 unchanged = False
-            services.undo_to(mark)
+            gone = _mark_gone(services, mark)
+            if gone and not unchanged:
+                raise RuntimeError("NX removed the call's undo mark and the model has changed")
+            if not gone:  # else NX undid the failed step itself (see _mark_gone)
+                services.undo_to(mark)
             if not unchanged and failed_snap is not None and spec.invalidates != "topology":
                 # Undo removed what a non-topology handler created (a constraint, a
                 # pattern): the same objects are back, so retire only the created IDs.
@@ -466,7 +483,8 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
             references = "preserved" if unchanged else "part_invalidated"
             if not unchanged:
                 services.invalidate_parts(services.parts())
-            services.delete_mark(mark)
+            if not gone:
+                services.delete_mark(mark)
             services.clear_update_errors()
         except Exception as rollback_error:
             with contextlib.suppress(Exception):

@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
     "nx_create_draft": "0fd852e592b56eddc796542b00de436a52c7110bdff4c8078000ef08b0bd8986"
   },
-  "run_id": "20261009-215815-3a4d65",
-  "owner": "reg_final_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-215815-3a4d65\\modeling_draft_3a4d65.prt",
-  "started": "2026-10-09T17:58:28Z",
-  "finished": "2026-10-09T17:58:29Z",
+  "run_id": "20261010-154505-433572",
+  "owner": "reg_final2_1",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_draft_433572.prt",
+  "started": "2026-10-10T11:45:17Z",
+  "finished": "2026-10-10T11:45:19Z",
   "passed": true,
   "checks": 8,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.438,
-      "result_sha256": "77dd82bdc538c42dcaeef14f8adb7a28b631af35ce922b139649055285bd57dc"
+      "seconds": 0.485,
+      "result_sha256": "99113898ddca336fcde6eb71d0f8c0058382e59fb5b87f8ad8a0e28a32536dc2"
     },
     {
       "index": 2,
@@ -37,7 +37,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.062,
-      "result_sha256": "209d69484308dc7241d55dd32dba993a490b0190945fbd08648ff395fbb479fe"
+      "result_sha256": "973284b6d389cd0032646dfed1abf8e8f61a48a3b64dfe04117c30d7e70f65e5"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "1053ea95a728f5525b78721b4f8844e030a4b0463f5c0d77c5a656caa6ea075a"
+      "seconds": 0.047,
+      "result_sha256": "3e8c39916a2bf4f8f2f756b31f0f1892525695ca090248d0782bce16e86e8805"
     },
     {
       "index": 4,
@@ -54,8 +54,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "2788662f0583aca276a7e166eda01825dfaf1f55e68430fa18d5818caacfb1f5"
+      "seconds": 0.078,
+      "result_sha256": "f2b04673482a4970e15026c21d4dbecbb4904e897a51de8c87ea3113b0b4ad22"
     },
     {
       "index": 5,
@@ -63,8 +63,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "8bc513a9a60e3f8468c324a77289d58f5acf73a37a77cb5491e4d70b632afeac"
+      "seconds": 0.078,
+      "result_sha256": "85d67eaf29452945a0bdc7d5563d46f64e42d905392dd363e7dbd97c5d1e27f7"
     },
     {
       "index": 6,
@@ -73,7 +73,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "172b59a691cfa6989a64a4d47b7e547e6a033431e69c9fa4d8a47b3bee766035"
+      "result_sha256": "1b94c7e5fb2a7858a19d35b7ccd0bcbfcb878e6301131b50b30d6157d449e1dc"
     },
     {
       "index": 7,
@@ -81,8 +81,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.016,
-      "result_sha256": "d1a7ab3372d056c9c5f1ff4e6f13e2da8c3810e05b5fd6fd85e6d596994168e6"
+      "seconds": 0.032,
+      "result_sha256": "e7962ed2c3411613fe86c0d0514bd18e9544b34e72aa800d64eda79f9a4140c9"
     },
     {
       "index": 8,
@@ -91,7 +91,7 @@
       "passed": true,
       "checks": 1,
       "seconds": 0.062,
-      "result_sha256": "e49cf9d98f46e4e7424d7033d1adb904a05bb977a1ff1730fba493429fe867ff"
+      "result_sha256": "7cf245e99881cb79adba4a1cb54b0fcbf9a655a5d1523fe2af4beca29fc3824f"
     },
     {
       "index": 9,
@@ -99,8 +99,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.032,
-      "result_sha256": "37002ec47bdebff04c6a5b729731b06581b03989b83cef2c362442e35c59c70e"
+      "seconds": 0.047,
+      "result_sha256": "18da26870fd170b9dcd7421f4bcddc6975e3958ae9cb87ed48d244536e6831de"
     },
     {
       "index": 10,
@@ -108,8 +108,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "74f5747ee5088e4345a444d624e6a0fd9934831b1b1bbecadaae38e9a8bbeb1e"
+      "seconds": 0.047,
+      "result_sha256": "24e9f3879f67025142a6dc8dd6324fe75efd4f273132dc9246a58b066745c32d"
     },
     {
       "index": 11,
@@ -117,8 +117,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "ef7fd2dd8061bcaaa0c3d12eb683fe290937753c53577b6eb8f92b6937abfe32"
+      "seconds": 0.016,
+      "result_sha256": "955f5a8db5d317018e918217b1dee5dc970aac815a05dad7c0157ad8a405329d"
     },
     {
       "index": 12,
@@ -126,8 +126,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.047,
-      "result_sha256": "37d8cf5ec37772972abcad34cb41306ed445d0cdd45576c2116c894ab614d4c8"
+      "seconds": 0.062,
+      "result_sha256": "1edca211ad44a21e825fa665374c8eed726378e00cd66af3dd1ba7bc38da3fbb"
     },
     {
       "index": 13,
@@ -135,8 +135,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "eea0f6f352592cfd48e32df799829d056ebdf1a3628f594f4775686ce0fec92f"
+      "seconds": 0.016,
+      "result_sha256": "eeb5e1bc2dc425d0645a08da39ee87b3dbb98268186d511ccd669395214a4b8c"
     },
     {
       "index": 14,
@@ -145,7 +145,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.047,
-      "result_sha256": "0f40fd3773aa8f20c68d5e85601a889835c406bb69693e1cbc8a5f4c35c3979d"
+      "result_sha256": "19e3b89255b15ef20f30fdc6f83a33bb4d25f5f42119314dc1d09aa311140467"
     },
     {
       "index": 15,
@@ -153,8 +153,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.047,
-      "result_sha256": "6cb6aabce7c12d68365ce6899482f4dbf59d05fc1403e0b3710a00bd0369e81b"
+      "seconds": 0.046,
+      "result_sha256": "8d40efbecff50406fe635b0af8f78ad036cc340eb85aa9643d462e40846a7571"
     },
     {
       "index": 16,
@@ -162,14 +162,14 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.016,
-      "result_sha256": "955bf6bf5aca06f6e48b166926a04192755dc57e7eba369a1e888a88dc713767"
+      "seconds": 0.032,
+      "result_sha256": "daf609dd71b2c029c25caa79bc7c70a6ed8c305d123eb1edcc5b834ebd54a54d"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-215815-3a4d65/modeling_draft_3a4d65.prt"
+      "smoke/20261010-154505-433572/modeling_draft_433572.prt"
     ],
     "failed": []
   }

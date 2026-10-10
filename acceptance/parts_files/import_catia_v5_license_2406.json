@@ -5,10 +5,10 @@
   "steps": [
     {"call": "nx_create_part", "setup": true, "args": {"path": "$part"}},
     {"call": "nx_upload_file", "setup": true,
-     "args": {"path": "$run/v5/probe.CATPart", "offset": 0, "total_size": 45,
+     "args": {"path": "$run/v5_license/probe.CATPart", "offset": 0, "total_size": 45,
               "sha256": "8087dbb8d1eac24e553d364df2c316c4bcc45b4d2328ec11a58b0ab4b118f921",
               "data_base64": "VjVfQ0ZWMiBhdmFpbGFiaWxpdHkgcHJvYmUsIG5vdCBhIENBVElBIHBhcnQK"}},
-    {"call": "nx_import_model", "args": {"path": "$run/v5/probe.CATPart", "format": "catia_v5"},
+    {"call": "nx_import_model", "args": {"path": "$run/v5_license/probe.CATPart", "format": "catia_v5"},
      "expect": {"error.code": "NX_LICENSE_UNAVAILABLE", "error.category": "unavailable",
                 "error.nx_code": 3755014, "error.message": {"matches": "NX_CATIAV5 translator"},
                 "error.details.translator": "Catiav5Importer", "mutation_outcome": "rolled_back"}},

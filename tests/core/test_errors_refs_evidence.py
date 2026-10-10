@@ -101,6 +101,30 @@ def test_refs_from_earlier_sessions_are_stale_and_kinds_checked(tmp_path):
     assert e.value.code == "NX_NOT_FOUND"
 
 
+def test_a_wrapper_nx_invalidated_is_stale_until_listed_again(tmp_path):
+    # NX 2406: a wrapper of an object NX deleted reports tag 0; NX refuses it with "First
+    # parameter is invalid. Expecting int type, found str" (seen live on a closed part).
+    from tests.core.fakes import Obj
+
+    svc = FakeServices(tmp_path)
+    old = svc.part.add("feature", "EXTRUDE(1)")
+    tag = old.Tag
+    row = svc.references.row(old, "feature")
+    handle = svc.references.entry(row["id"]).handle
+    old.Tag = 0  # NX dropped the object behind this wrapper
+    for ref in (row["id"], handle):
+        with pytest.raises(NXError) as e:
+            svc.references.resolve(ref, ("feature",))
+        assert e.value.code == "NX_STALE_REFERENCE"
+        assert e.value.details["reason"] == "deleted_in_nx"
+    # A fresh listing hands out the live wrapper of the same NX object (same tag).
+    live = Obj("feature", "EXTRUDE(1)", svc.part)
+    live.Tag = tag
+    assert svc.references.row(live, "feature")["id"] == row["id"]
+    assert svc.references.resolve(row["id"], ("feature",)) is live
+    assert svc.references.resolve(handle, ("feature",)) is live
+
+
 def test_datum_group_and_body_anchor_index(tmp_path):
     svc = FakeServices(tmp_path)
     plane = svc.part.add("datum_plane", "DATUM_PLANE(2)")

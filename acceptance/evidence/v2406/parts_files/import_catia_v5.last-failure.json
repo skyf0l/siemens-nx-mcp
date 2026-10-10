@@ -10,15 +10,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "b24f1f4ce44d3798636f439040afbbc2af9ae72b",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
     "nx_import_model": "b7e3854d7c227d029122b32eecdf775f8f5cd285938a25353fdce1bdf2b29e54"
   },
-  "run_id": "20261010-010505-ed5fae",
-  "owner": "fix_probe_evidence",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-010505-ed5fae\\parts_files_import_catia_v5_ed5fae.prt",
-  "started": "2026-10-09T21:05:05Z",
-  "finished": "2026-10-09T21:05:06Z",
+  "run_id": "20261010-154424-066da0",
+  "owner": "reg_final2_1",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154424-066da0\\parts_files_import_catia_v5_066da0.prt",
+  "started": "2026-10-10T11:44:24Z",
+  "finished": "2026-10-10T11:44:25Z",
   "passed": false,
   "checks": 2,
   "failed_checks": 3,
@@ -29,8 +29,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.453,
-      "result_sha256": "1191cf8fb107e3ccc8cd754894b43dec659775fd89a2e13bb3280a673c8e7979"
+      "seconds": 0.562,
+      "result_sha256": "6399cf478a7a27817efdffad18feb2789fc2cd6114a44eb6a4f800320ee40e03"
     },
     {
       "index": 2,
@@ -38,8 +38,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.015,
-      "result_sha256": "65051a502f952577b9bf6ccca5e12b0331062312e951c4e6e726fcdc07f8f3c7"
+      "seconds": 0.031,
+      "result_sha256": "c059025846769d88ec3d9c8582264b8076c4f44b5bfc266da197f10c972d5f9c"
     },
     {
       "index": 3,
@@ -47,8 +47,8 @@
       "setup": false,
       "passed": false,
       "checks": 2,
-      "seconds": 0.11,
-      "result_sha256": "b1831ef2f7b037e48b4ec5f60f5aa330fe9ea568359bc44c9ba0924fbbe1887d",
+      "seconds": 0.141,
+      "result_sha256": "26676de69ea098ade40a0412032b071a6731f4523879a62f6371bcbaf822f572",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: There are no licenses available for the NX_CATIAV5 translator.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -59,7 +59,7 @@
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261010-010505-ed5fae/parts_files_import_catia_v5_ed5fae.prt"
+      "smoke/20261010-154424-066da0/parts_files_import_catia_v5_066da0.prt"
     ],
     "failed": []
   }

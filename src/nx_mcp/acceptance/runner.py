@@ -533,7 +533,7 @@ async def close_new_parts(
     workspace: Path | None = None,
 ) -> dict:
     """Close every part loaded since ``before``; re-activate the earlier parts only when
-    they are the run's own (under ``own_dir``).
+    they are the run's own (under ``own_dir``) and still loaded (by fresh part IDs).
 
     ``mode`` is the scenario's ``cleanup``: ``close`` (default, without saving),
     ``save`` (save, then close) or ``keep``. Closing a drawing part closes its
@@ -608,21 +608,27 @@ async def close_new_parts(
     targets = [(display, True)]
     if work is not None and work is not display:
         targets.append((work, False))  # a different work part, made work afterwards
-    for part, show in targets:
-        if part is None:
+    # Fresh part IDs: a close renews them, and a part the steps closed is not shown again.
+    listed = await loaded_parts(session)
+    current = None if listed is None else {p.get("path"): p for p in listed}
+    for earlier, show in targets:
+        if earlier is None:
             continue
+        target: dict | None = earlier if current is None else current.get(earlier.get("path"))
+        if target is None:
+            continue  # the scenario closed it itself
         restored = await call_tool(
             session,
             "nx_activate_part",
-            {"part": part["part"]["id"], "work": True, "display": show},
+            {"part": target["part"]["id"], "work": True, "display": show},
             intent="Acceptance cleanup: return to the previous part",
         )
         if restored.get("ok"):
-            report.setdefault("restored", []).append(part.get("path"))
+            report.setdefault("restored", []).append(target.get("path"))
         else:
             error = restored.get("error") or {}
             reason = ": ".join(str(x) for x in (error.get("code"), error.get("message")) if x)
-            report["failed"].append(f"could not re-activate {part.get('path')}: {reason}")
+            report["failed"].append(f"could not re-activate {target.get('path')}: {reason}")
     return report
 
 

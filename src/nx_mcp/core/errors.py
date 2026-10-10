@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import os
 import traceback
-from typing import Any
+from typing import Any, NoReturn
 
 # category -> (retry, codes, default hint)
 CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
@@ -250,7 +250,7 @@ def fail(
     hint: str | None = None,
     details: dict | None = None,
     nx_code: int | None = None,
-):
+) -> NoReturn:
     """Raise :class:`NXError` with a stable code from the table (``nx_code`` kept)."""
     raise NXError(code, message, field=field, hint=hint, nx_code=nx_code, details=details)
 

@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
-    "nx_create_directory": "9d35b73ed61b6bb90d5a30c40ba68f8d52b10a7600d1265d602702c46ac3f68b"
+    "nx_create_directory": "5264f6cde61226bb40954ac238dddd0a5c9afbaff148f8cd62baa42278f67016"
   },
-  "run_id": "20261009-215551-50bce1",
-  "owner": "reg_final_1",
+  "run_id": "20261010-154111-17dd9e",
+  "owner": "reg_final2_1",
   "part": null,
-  "started": "2026-10-09T17:55:56Z",
-  "finished": "2026-10-09T17:55:56Z",
+  "started": "2026-10-10T11:41:19Z",
+  "finished": "2026-10-10T11:41:19Z",
   "passed": true,
   "checks": 18,
   "failed_checks": 0,
@@ -28,7 +28,7 @@
       "passed": true,
       "checks": 3,
       "seconds": 0.015,
-      "result_sha256": "3ac541084d355365b90e715a5965ba45e5e70a3121f2d6edea90b367e2541332"
+      "result_sha256": "571a5f5a84fa8aa630fda61e23b43b29b093e222d7d8aae98c860dad13cac8f6"
     },
     {
       "index": 2,
@@ -36,8 +36,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "6ee2b421522c6970bd2f61ce8319bc6ca5d5551685d55633bea41a5542a20e11"
+      "seconds": 0.016,
+      "result_sha256": "4b9587a507ea6494e18fcba74553a8b7fdf7729b5812bded193b6769f688afc1"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "a553fc1e9e3389547ce2953678316a81d0136787ebcc8f0d5a2c4fbbadbffd6f"
+      "seconds": 0.016,
+      "result_sha256": "483c0769e054e64bd3e11d3a6529e8ec50f0c1f4fa98265740809d4f62c0f88f"
     },
     {
       "index": 4,
@@ -55,7 +55,7 @@
       "passed": true,
       "checks": 3,
       "seconds": 0.0,
-      "result_sha256": "798b5b34ea57a554c1d6ffda2f64578709460f62d71ac237eaf5cfced33d679d"
+      "result_sha256": "ba01c9044d30113f54f2e440617de0140b7514d46aedce9f274b9ace1dc6158f"
     },
     {
       "index": 5,
@@ -81,7 +81,7 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.016,
+      "seconds": 0.0,
       "result_sha256": "6ae9be3a100fe535b68e65591b2e312794aafbe16b139b3b26614663529e5894"
     },
     {
@@ -99,8 +99,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.0,
-      "result_sha256": "a73a9fbf25582b65728cf2f93e64f07170d8c204957a5c76503bf21c472f345b"
+      "seconds": 0.015,
+      "result_sha256": "86e5bb328bd831f6fbe0b11c983887980be00377ac89faebe766796b00fbd0fe"
     }
   ],
   "cleanup": {

@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
     "nx_create_datum_point": "09709e0657b14a4198982ab4592892e7698754fca7c0fb5ee4f2303f488da93c"
   },
-  "run_id": "20261009-215815-3a4d65",
-  "owner": "reg_final_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-215815-3a4d65\\modeling_datum_point_3a4d65.prt",
-  "started": "2026-10-09T17:58:27Z",
-  "finished": "2026-10-09T17:58:28Z",
+  "run_id": "20261010-154505-433572",
+  "owner": "reg_final2_1",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_datum_point_433572.prt",
+  "started": "2026-10-10T11:45:16Z",
+  "finished": "2026-10-10T11:45:17Z",
   "passed": true,
   "checks": 6,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.859,
-      "result_sha256": "0c660edc3d9988243584a62a14415c42b4d0540d38c9dcf17cf3aaab96644f58"
+      "seconds": 0.578,
+      "result_sha256": "3ff0acb104eb00d0916918328d4829c035a4cdcbc06ec9bd1fe76b6bd11cce30"
     },
     {
       "index": 2,
@@ -37,7 +37,7 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.047,
-      "result_sha256": "44f1a120510415c1c478cc21bc5e2b580ce643a279af24901acac5acc60347f0"
+      "result_sha256": "0f70ef9057e91f5e4e7f54d9a1935b241940008dd41ff11ce991b3c38e0aa637"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.031,
-      "result_sha256": "a9c9b87fe9193c9c265986197295ba540c8905eebbc5ef0be6678cb75e79f561"
+      "seconds": 0.047,
+      "result_sha256": "f85a9201a7b2f2354bbe7fcac60242bf7622f2ebcf90fa3e5137bce83fae53b3"
     },
     {
       "index": 4,
@@ -63,14 +63,14 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.032,
-      "result_sha256": "ed14d9d3af7ce0f747cfbf532d35a8fabfba819fdbb2fb54b2c2d1d117de666e"
+      "seconds": 0.031,
+      "result_sha256": "2c837f5bec8b34a9e429f485891fb09ad9932359993c2badd15d76107cc10057"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-215815-3a4d65/modeling_datum_point_3a4d65.prt"
+      "smoke/20261010-154505-433572/modeling_datum_point_433572.prt"
     ],
     "failed": []
   }

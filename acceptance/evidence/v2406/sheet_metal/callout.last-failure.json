@@ -11,15 +11,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
     "nx_create_sheet_metal_callout": "c75d9e7eb5f14c0ffe126933e8892ffb2546c27957fe4ca1be178fd4338b654c"
   },
-  "run_id": "20261009-220234-965409",
-  "owner": "reg_final_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-220234-965409\\sheet_metal_callout_965409.prt",
-  "started": "2026-10-09T18:02:48Z",
-  "finished": "2026-10-09T18:02:50Z",
+  "run_id": "20261010-155354-3fd345",
+  "owner": "reg_final2_2",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-155354-3fd345\\sheet_metal_callout_3fd345.prt",
+  "started": "2026-10-10T11:54:15Z",
+  "finished": "2026-10-10T11:54:16Z",
   "passed": false,
   "checks": 10,
   "failed_checks": 10,
@@ -31,7 +31,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.453,
-      "result_sha256": "b8c919c8e628a2297dd62e3fcc4cad8a34fd29010de402c9ddf11a3b947a2627"
+      "result_sha256": "3f38902aece6c447f88fd5c258197daba804751effec3a3abcc6a01f4c462002"
     },
     {
       "index": 2,
@@ -39,8 +39,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.188,
-      "result_sha256": "7c20069686765b8cad273c712f4eec2e117dc47479bc47e30b51289dae2b78c6"
+      "seconds": 0.218,
+      "result_sha256": "5fc05c404f98f4ec455c79a761dcf4831d07c759709542f43ea47322fa161558"
     },
     {
       "index": 3,
@@ -48,8 +48,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "dc670f18c0a6e9114d376e7066e130271aa2c3b44597a4543889e03952bdd43c"
+      "seconds": 0.079,
+      "result_sha256": "031b0ba0d3c717295832e5464c18d5b622b5e00c585dbde2fd380dd1b6a7ef8a"
     },
     {
       "index": 4,
@@ -57,8 +57,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "e127672fd23d19e230b6fc748b9bbea3e4271f3aed7ea0707927f6167acfd1b9"
+      "seconds": 0.062,
+      "result_sha256": "d3c7e3ae0ab0d21a903f700aee80f824563fddc2ff92a5e8c2cc44c68a46d3fb"
     },
     {
       "index": 5,
@@ -66,8 +66,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "32bea0d20ff2a71cb82a2842e580d62f9f3d92c57a4798df635390f3ede5588a"
+      "seconds": 0.078,
+      "result_sha256": "6e77ab222fa673c68d5676f337d3811cfd4575e9a30d66cd20009eeb465076e3"
     },
     {
       "index": 6,
@@ -75,8 +75,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.062,
-      "result_sha256": "c0bd934bec7a8e0500b1e5bc90b4d8db3b2c94b738d2d80371b69f4a4ed9880c"
+      "seconds": 0.063,
+      "result_sha256": "a8154850cded98c8eae264bab016c9a9bd63852e767461a005a916ef3bcb15b6"
     },
     {
       "index": 7,
@@ -84,8 +84,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "d3242f76f2e5f88d3c965b209eab0e8f9350ce376817e25962e8fe6277ff6bce"
+      "seconds": 0.078,
+      "result_sha256": "65875ae2cba79b8f6b31adbb932e36517be7a569d73bc76249ab95aeedb9e7da"
     },
     {
       "index": 8,
@@ -94,7 +94,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "0d2bca38350e80b03bf1bd4c8482fdf19bb2e7a21ffe0f8a73caaf7e637ecd32"
+      "result_sha256": "88100950ff8966d1ee746e8d83308869a6001a9ac65ca2021d1e3dffa8d1b709"
     },
     {
       "index": 9,
@@ -102,8 +102,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "1cf21f138002c6b3a5b05dd2c33e7f006600a52650233c23adb52456c78b29ec"
+      "seconds": 0.047,
+      "result_sha256": "cb6caf9025831728369ff7ba78d1a04e3f3c18002b5b7891eb7fc17a93d04249"
     },
     {
       "index": 10,
@@ -112,7 +112,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "d616ebeb1f84ea7188df8f0598569f6f68f2b63e8c265328a968c59d18321eba"
+      "result_sha256": "5949a095b9e8e5f9c41f1c735f585df09bca225aea4e272454039771aebf80ef"
     },
     {
       "index": 11,
@@ -120,8 +120,8 @@
       "setup": false,
       "passed": false,
       "checks": 4,
-      "seconds": 0.344,
-      "result_sha256": "f635fb551bb8baca7dc06dbdebae19f802682faaae57b7bfe012e9539e36d2d5",
+      "seconds": 0.094,
+      "result_sha256": "4eee1189f408e1472bd29c4e35c016b09cd990dae81090adee86f3150fb0b805",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -136,8 +136,8 @@
       "setup": false,
       "passed": false,
       "checks": 4,
-      "seconds": 0.078,
-      "result_sha256": "c992d83ee0e51527a7c80c1007168831b1f360533c46b91244d85e57417f8049",
+      "seconds": 0.062,
+      "result_sha256": "3000b59d137df6df739994960dbc172431001007c737855875859bf89397c1ca",
       "failures": [
         "unexpected error NX_LICENSE_UNAVAILABLE: This NX seat has no license for the NX command this tool uses: License Error, The check out of a feature failed because its token feature does not exist.",
         "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
@@ -153,13 +153,13 @@
       "passed": true,
       "checks": 2,
       "seconds": 0.047,
-      "result_sha256": "6b3e047ece7e2b32abd5925a4526ee43ea39bb6dff4aee0cefe4e98242f3d66c"
+      "result_sha256": "cda4a3afdb16a85d6d89a97bb3ac28bf3e8205d33b951b388eedca869fb70a54"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-220234-965409/sheet_metal_callout_965409.prt"
+      "smoke/20261010-155354-3fd345/sheet_metal_callout_3fd345.prt"
     ],
     "failed": []
   }

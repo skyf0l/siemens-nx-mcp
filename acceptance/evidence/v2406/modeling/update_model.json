@@ -8,15 +8,15 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "8a1d2a532ee6de1d61776d94c263f5654fa302dc",
   "sources": {
     "nx_update_model": "504bff3812bc13f8b1c26ac14bf61de50ed64696b9be7500c22c2f0c92041cb7"
   },
-  "run_id": "20261009-215815-3a4d65",
-  "owner": "reg_final_1",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-215815-3a4d65\\modeling_update_model_3a4d65.prt",
-  "started": "2026-10-09T17:59:10Z",
-  "finished": "2026-10-09T17:59:12Z",
+  "run_id": "20261010-154505-433572",
+  "owner": "reg_final2_1",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-154505-433572\\modeling_update_model_433572.prt",
+  "started": "2026-10-10T11:46:36Z",
+  "finished": "2026-10-10T11:46:37Z",
   "passed": true,
   "checks": 7,
   "failed_checks": 0,
@@ -27,8 +27,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.515,
-      "result_sha256": "6a967042406e5e1a152a4d2c88bb6beb5e62082eb3bd9aa6174f50625a9e21f7"
+      "seconds": 0.437,
+      "result_sha256": "43250b11a2193a92fd374b73e19a1df0e276d4109788e6833626afe6d27f26b7"
     },
     {
       "index": 2,
@@ -36,8 +36,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "99ae9e4d03ee0570d50c41145d2ec12eb6b65774327826c62c986894f8278926"
+      "seconds": 0.063,
+      "result_sha256": "74727f8d40dbc6366911e36e79f8cddc5576e086dfdd78ff7ceacb76225acbe3"
     },
     {
       "index": 3,
@@ -45,8 +45,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "740aa5c7ffac7251fc4fc4dfcc3c83e71e4168ef7dc01c9484f1e64700bc3a6b"
+      "seconds": 0.062,
+      "result_sha256": "0ee81f3e8373b4ef3cd50d55008b5ee30934afc77d3771c678946d2e2f5a6b5e"
     },
     {
       "index": 4,
@@ -54,8 +54,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "e2fb21c6624173718db93fbb42d95468dfaf86ea56df816ee3b242ea10584baa"
+      "seconds": 0.063,
+      "result_sha256": "246d9e103b61f3ee71d371ad5322d58c32b7b036038875a4434adfa0534d92f6"
     },
     {
       "index": 5,
@@ -63,8 +63,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "9bdd422ac43c373da88c76f83a76f9c5f2702518bcd0f07531c8b3b0c8af87c8"
+      "seconds": 0.062,
+      "result_sha256": "d826e28325715ce986132c185d653f933f88b7bdf49d0dbc94cd69bd190c2710"
     },
     {
       "index": 6,
@@ -72,8 +72,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "a28282c9437448cc806035596ce4f1f166a570976879fa0e883b72f17aef73e4"
+      "seconds": 0.078,
+      "result_sha256": "6cbd83c00245fa22cacdbb395f1f8873b95a9a9ccd26e2efce72a14133b8f9b6"
     },
     {
       "index": 7,
@@ -82,7 +82,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.047,
-      "result_sha256": "9fa8fb4b9f011ea339a138de702cdb33a7a83c673dd4dcd4ecca985c8897464a"
+      "result_sha256": "5727b359897ceed73e4ed4d292025441fb4cfaa75ffd93394801ad9325f4d480"
     },
     {
       "index": 8,
@@ -90,8 +90,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.078,
-      "result_sha256": "8a6b880092452579a46ad586cd8162a1ebc225de980da29d0d18bc2736ad96d1"
+      "seconds": 0.063,
+      "result_sha256": "d7a9d3915be5d7422970944b53b1554552efec7b33f7d1dd72a02661e56eb9fa"
     },
     {
       "index": 9,
@@ -99,8 +99,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "725aa559f82ad0fe544219421cfb50750a070b2bbeab720b3b461d1b3bf5e0d7"
+      "seconds": 0.062,
+      "result_sha256": "4c896917744962ff654d42dfff601510bd8128349be5a4117dc5b04ca90edb76"
     },
     {
       "index": 10,
@@ -109,7 +109,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "3b0129f57bb9975d8026b532f5dd6c9f82edd872b9480b48ce62a3a386448baf"
+      "result_sha256": "ec8422d18d00eb4df1e67b3d6202fedff85582469e994e30bc3b8aeafc897480"
     },
     {
       "index": 11,
@@ -117,8 +117,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "5eaca88ae20fb2e0e0e1978c560f63cbcaf4a6c0ea5886597fb53d03830e88bf"
+      "seconds": 0.063,
+      "result_sha256": "360e43c48bd9e66ca7515699468c8b7412819485796f01b9cf09afabe07053a4"
     },
     {
       "index": 12,
@@ -127,7 +127,7 @@
       "passed": true,
       "checks": 4,
       "seconds": 0.047,
-      "result_sha256": "95fad0b785fc84360c6acd6d0c6990ebae194d2408958b1be34edfaf91de284b"
+      "result_sha256": "26386ec3454ede4777ab7db2fc502690080d3fa5609e96b85f973c2a2ec14082"
     },
     {
       "index": 13,
@@ -135,8 +135,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.046,
-      "result_sha256": "20ab6568c3fed03a5a0b4a1aa15c7c534585b2cb56d8fd7fad3dd991af486e06"
+      "seconds": 0.047,
+      "result_sha256": "573d07685240bce0ae328a7731239912e9174c9034ed20e1fa8b7275a0487c58"
     },
     {
       "index": 14,
@@ -144,8 +144,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.032,
-      "result_sha256": "55cc1ad3878a180b7193cc4f3d73d9562ec53abf913b7df14d3f18a998c1f5d7"
+      "seconds": 0.062,
+      "result_sha256": "23f266203139ce90090e2078e6e270a38bac2922b8e8b9665f992b35bcb0c816"
     },
     {
       "index": 15,
@@ -153,14 +153,14 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.015,
-      "result_sha256": "137694d58c02b8ca69fe2f9eb49088acf49c2f884e6cb0a387fe6752bf28d7ee"
+      "seconds": 0.016,
+      "result_sha256": "85953e881ce8a0c9b82e33ffe3c27fde26a259897ebf360aed53b88393e46678"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-215815-3a4d65/modeling_update_model_3a4d65.prt"
+      "smoke/20261010-154505-433572/modeling_update_model_433572.prt"
     ],
     "failed": []
   }
