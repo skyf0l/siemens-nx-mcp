@@ -36,11 +36,10 @@ Set `NX_MCP_WORKSPACE` for NX to a dedicated CAD directory (for example
 - **NX 2406:** point NX at this checkout's `nx_app` folder once
   (`UGII_USER_DIR=<checkout>\nx_app`, or a line in `custom_dirs.dat`) and start NX
   normally. NX loads the startup application `nx_app/startup/nx_mcp_startup.py`
-  and keeps it loaded; nothing is played. Do not use the resident 2406 journals in
-  `examples/` for real work: they hold NX's main loop and can freeze NX.
-- **NX 2606:** in graphical NX, play `examples/start_nx_interactive_2606.py`. It
+  and keeps it loaded; nothing is played.
+- **NX 2606:** in graphical NX, play `nx_app/journals/start_2606.py`. It
   returns; a Win32 timer runs queued calls on the NX UI thread.
-- **Batch:** `examples/start_nx_bridge.py` under `run_journal.exe`.
+- **Batch:** `nx_app/journals/start_batch.py` under `run_journal.exe`.
 
 Details, panel and troubleshooting: [INTERACTIVE-NX.md](INTERACTIVE-NX.md). Do not
 attach batch and graphical hosts to the same workspace.

@@ -19,8 +19,8 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
   parts_files, sketch, modeling, freeform, assembly, inspection, drawing,
   sheet_metal, display).
 - `host/dispatch.py` -> `core/kernel.py`, with `host/services.py` (`NXServices`).
-  Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406), `examples/start_nx_interactive_2606.py`
-  (2606), `examples/start_nx_bridge.py` (batch, `nx_bridge.py`); `interactive.py` is the
+  Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406), `nx_app/journals/start_2606.py`
+  (2606), `nx_app/journals/start_batch.py` (batch, `nx_bridge.py`); `interactive.py` is the
   UI-thread host and panel.
 - `sidecar/`: `server.py` generates the `agent` profile (default: 4 gateways + 14 core
   tools, 18 in all) and `full` (gateways + every visible catalogue tool); `proxy.py`,

@@ -1,13 +1,13 @@
 # Interactive NX MCP, NX 2406 and 2606
 
 On NX 2406 run the bridge as an NX startup application (next section). On NX 2606,
-play `examples/start_nx_interactive_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window has three mode buttons at the top (**Mode: (•) Auto ( ) Agent drives ( ) Ask me first**, see [Panel modes](#panel-modes)), the agent's activity, **Open log** and **Stop bridge**, and the **Allow agent to change <part>** checkbox when the work part is yours. Long native operations can temporarily block NX; a mode change and stopping take effect between calls.
+play `nx_app/journals/start_2606.py` once in graphical NX. The journal returns. A pinned Win32 timer callback drains one authenticated bridge request at a time on the registering NX UI thread. The HTTP/MCP process remains separate; it never calls NXOpen. The NX MCP control window has three mode buttons at the top (**Mode: (•) Auto ( ) Agent drives ( ) Ask me first**, see [Panel modes](#panel-modes)), the agent's activity, **Open log** and **Stop bridge**, and the **Allow agent to change <part>** checkbox when the work part is yours. Long native operations can temporarily block NX; a mode change and stopping take effect between calls.
 
 ## NX 2406: run the bridge as an NX startup application (recommended)
 
 NX 2406 unloads a played Python journal's interpreter as soon as it returns
 (`GetUnloadOption` is not read for Python), so the 2606 timer journal stops at
-once. Keeping a journal running instead (`start_nx_interactive_2406.py`) holds
+once. Keeping a journal running instead holds
 NX's main loop inside a journal command: NX work that needs that loop - the
 first part of a fresh session (starting Modeling), the first PDF export - then
 waits forever and **NX freezes**. Do not use the resident journal for real work.
@@ -172,8 +172,7 @@ the host, drops every `nx_mcp` module and starts a fresh host. It exits 1 and
 prints the traceback if the new code does not load; the next reload recovers.
 The panel mode you picked is kept across reloads. Changing
 `nx_app/startup/nx_mcp_startup.py` itself needs an NX restart. The panel title
-reads **NX MCP DEV**. `examples/start_nx_interactive_dev_2406.py` is the older
-resident-journal variant and can freeze NX as described above.
+reads **NX MCP DEV**.
 
 ## What the agent is doing
 

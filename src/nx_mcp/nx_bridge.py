@@ -1,4 +1,4 @@
-"""Batch bridge lifecycle (``examples/start_nx_bridge.py`` under ``run_journal.exe``).
+"""Batch bridge lifecycle (``nx_app/journals/start_batch.py`` under ``run_journal.exe``).
 
 The journal thread pumps bridge calls (:func:`pump_bridge`); each call runs through
 the same ``host.dispatch`` and catalogue kernel as the interactive host.

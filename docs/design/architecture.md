@@ -232,7 +232,7 @@ and expressions), `material.py`, `hooks.py`.
 | Package | Modules |
 |---|---|
 | `host/` (NX) | `dispatch.py`: every bridge call goes to the kernel (`execute`), panel summaries come from `spec`, the part grant (`grant_state`/`set_grant`). `services.py`: `NXServices` (work part, snapshots, undo marks, receipts, object registry, ownership, update-error cleanup) |
-| NX hosts | `interactive.py`: UI-thread host (timer tick, Win32 panel with the three modes and the "Allow agent to change <part>" grant, holds); `activity.py`: panel history and `.nx-mcp/activity.log`; `nx_bridge.py`: batch lifecycle. Bootstraps: `nx_app/startup/nx_mcp_startup.py` (2406), `examples/start_nx_interactive_2606.py`, `examples/start_nx_bridge.py` |
+| NX hosts | `interactive.py`: UI-thread host (timer tick, Win32 panel with the three modes and the "Allow agent to change <part>" grant, holds); `activity.py`: panel history and `.nx-mcp/activity.log`; `nx_bridge.py`: batch lifecycle. Bootstraps: `nx_app/startup/nx_mcp_startup.py` (2406), `nx_app/journals/start_2606.py`, `nx_app/journals/start_batch.py` |
 | Bridge | `bridge.py`: descriptor, authenticated loopback server and client (protocol, token and the 1 MiB limit); `result_transport.py`: bounded receipts with pageable full results |
 | `sidecar/` | `server.py`: `create_server()`/`install()`, profile from `NX_MCP_SURFACE`. `agent` (default) lists 4 gateways + 14 core tools; `full` lists the gateways and every visible catalogue tool, with `readOnlyHint`/`destructiveHint` from `effect`. `schema.py`: core types -> Pydantic and JSON Schema. `proxy.py`: validates, resolves paths and calls the bridge. `local.py`: `runs="sidecar"` tools. `gateways.py`: `nx_find_tools` (ranked, filtered by evidence for the descriptor's build), `nx_get_tool_schemas`, `nx_invoke`, `nx_invoke_read`. `artifacts.py`: result snapshots and the `nx-artifact://` resource. `http_surface.py` (top level): optional HTTP transport |
 | `acceptance/` | `runner.py` replays `acceptance/<domain>/*.json` through a real stdio MCP client (the production path). Fixtures in `acceptance/fixtures/` are saved in NX 2406 and copied to `smoke/<agent>/`. Every `expect` is machine-checked. A passing run writes `src/nx_mcp/evidence/<domain>.json` for the connected build |
@@ -489,7 +489,7 @@ other name lists are deleted. The plan and the per-step as-built notes are in
 [docs/history/migration.md](../history/migration.md). What holds today:
 
 - **Call path.** NX side: host (`nx_app/startup/nx_mcp_startup.py` on NX 2406,
-  `examples/start_nx_interactive_2606.py` on 2606, `examples/start_nx_bridge.py` batch via
+  `nx_app/journals/start_2606.py` on 2606, `nx_app/journals/start_batch.py` batch via
   `nx_bridge.py`) -> `host/dispatch.py` -> `core/kernel.py`, with `host/services.py`
   (`NXServices`: receipts, object registry, ownership, undo history, checkpoints, snapshots,
   update-error cleanup). Sidecar: `sidecar/server.py` installs `tools/list`/`tools/call`,

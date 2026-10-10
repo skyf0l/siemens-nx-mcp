@@ -70,7 +70,7 @@ jobs:
         shell: pwsh
         run: |
           $startedAt = [DateTime]::UtcNow
-          $bridgeScript = Join-Path $PWD 'examples\start_nx_bridge.py'
+          $bridgeScript = Join-Path $PWD 'nx_app\journals\start_batch.py'
           $bridgeProcess = Start-Process -FilePath $env:NX_RUN_JOURNAL -ArgumentList @(
             '-nx',
             "`"$bridgeScript`""
