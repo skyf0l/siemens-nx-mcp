@@ -75,7 +75,13 @@ async def run(url, output):
             offset = 0
             while True:
                 result = await session.call_tool(
-                    "nx_discover_tools", {"include_schema": True, "offset": offset, "limit": 20}
+                    "nx_discover_tools",
+                    {
+                        "include_schema": True,
+                        "include_output_schema": True,
+                        "offset": offset,
+                        "limit": 20,
+                    },
                 )
                 if result.isError:
                     raise RuntimeError(result.structuredContent)
