@@ -10,7 +10,7 @@ from nx_mcp.kit import assembly, files, result, select
 
 ComponentRef = RefTo("component")
 Translation = Annotated[tuple[float, float, float], Doc("[x, y, z] in part units")]
-# Total instances of one component pattern, including the seed (legacy bound).
+# Total instances of one component pattern, including the seed.
 MAX_INSTANCES = 100
 OWNER_HINT = "Activate the subassembly that owns it with nx_activate_part"
 

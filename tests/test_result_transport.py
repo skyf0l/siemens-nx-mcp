@@ -3,7 +3,7 @@
 import pytest
 
 from nx_mcp.bridge import BridgeClient, BridgeServer
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.domains.session.results import nx_get_result
 from nx_mcp.result_transport import bound_result, encoded
 from tests.unit.parts_files.support import side
@@ -61,7 +61,7 @@ def test_result_storage_failure_preserves_commit_and_restore(tmp_path, monkeypat
         raise OSError("disk full")
 
     monkeypatch.setattr(Path, "write_bytes", fail)
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         bound_result(
             {
                 "operation_id": "op",
@@ -71,7 +71,7 @@ def test_result_storage_failure_preserves_commit_and_restore(tmp_path, monkeypat
             },
             tmp_path,
         )
-    assert error.value.code == "NX_RESULT_STORAGE_FAILED"
+    assert error.value.code == "NX_TRANSFER_FAILED"
     assert error.value.details["mutation_outcome"] == "committed"
     assert error.value.details["restore_id"] == "restore"
 

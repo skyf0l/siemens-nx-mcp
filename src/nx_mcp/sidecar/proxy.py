@@ -24,7 +24,7 @@ from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
 from pydantic import ValidationError
 
 from nx_mcp.core import errors, evidence
-from nx_mcp.core.errors import NXError, NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import new_operation_id
 from nx_mcp.core.validate import validate
 from nx_mcp.sidecar import schema
@@ -81,7 +81,7 @@ def failure(
     return envelope
 
 
-def from_bridge_error(tool: str, effect: str, error: NXToolError, operation_id=None) -> dict:
+def from_bridge_error(tool: str, effect: str, error: NXError, operation_id=None) -> dict:
     """Map a bridge failure to an envelope; the kernel's own envelope wins (F1)."""
     details = dict(error.details or {})
     kernel = details.get("envelope")
@@ -90,6 +90,7 @@ def from_bridge_error(tool: str, effect: str, error: NXToolError, operation_id=N
     stated = details.get("mutation_outcome")
     classified = errors.classify(error)
     classified.details.pop("envelope", None)
+    classified.details.pop("mutation_outcome", None)  # stated once, at the envelope level
     operation_id = details.get("operation_id") or operation_id
     classified.details.pop("operation_id", None)
     if effect == "read":
@@ -349,7 +350,7 @@ class CatalogueProxy:
             params["intent"] = " ".join(intent.split())
         try:
             answer = await self.bridge.call(spec.name, params)
-        except NXToolError as error:
+        except NXError as error:
             envelope = from_bridge_error(spec.name, spec.effect, error, operation_id)
             if spec.name == "nx_get_status" and envelope["error"].get("category") == "bridge":
                 # Status still answers with NX down: workspace rules, bridge unavailable.

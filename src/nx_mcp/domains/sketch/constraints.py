@@ -219,13 +219,7 @@ def _residual(tx, sk, kind, objs):
     if kind == "symmetric":
         (a, b), c = objs["curves"], objs["centerline"]
         o, t = _local(tx, sk, c, "start"), _direction(tx, sk, c)
-
-        def reflect(p):
-            d = geom.sub(p, o)
-            k = geom.dot(d, t) / geom.dot(t, t)
-            return geom.sub(geom.add(o, geom.scale(t, 2 * k)), d)
-
-        pa = [reflect(_local(tx, sk, a, w)) for w in ("start", "end")]
+        pa = [geom.reflect_across_line(_local(tx, sk, a, w), o, t) for w in ("start", "end")]
         pb = [_local(tx, sk, b, w) for w in ("start", "end")]
         error = min(
             max(geom.dist(x, y) for x, y in zip(pa, order, strict=True)) for order in (pb, pb[::-1])

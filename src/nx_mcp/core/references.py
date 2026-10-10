@@ -5,10 +5,11 @@ one workspace-wide counter that is never reused: its floor is persisted in
 ``.nx-mcp/refs.json`` when the host starts, so a ref from an earlier session or
 reload fails as ``stale_reference`` and never aliases another object.
 
-During migration every short ref is backed by an entry in the legacy
-``ObjectRegistry`` (through the services adapter). Legacy invalidation (part
-close, deleted objects, rolled-back parts, topology changes) therefore makes the
-short spelling stale as well, and a legacy ``obj_...`` ID still resolves.
+Every short ref is backed by a handle in the host's object registry (through the
+services adapter, see ``core.tx.Services``). Registry invalidation (part close,
+deleted objects, rolled-back parts, topology changes) therefore makes the short
+ref stale as well. A registry handle (``obj_...``) resolves too: change rows fall
+back to it for objects that have no short ref.
 
 Features, bodies and sketches carry an automatic anchor built from the
 persistent journal identifier (``@smoke/a/blk.prt:EXTRUDE(4)``, plus ``#<i>`` for
@@ -57,10 +58,10 @@ PREFIX = {
     "modeling_view": "mv",
 }
 ANCHORED = frozenset({"feature", "body", "sketch"})
-# Legacy registry kinds -> exact kinds they may stand for.
-LEGACY_KINDS = {"datum": KIND_GROUPS["datum"], "section": frozenset({"section_view"})}
-# Exact kind -> kind name in the legacy registry (its kinds are coarser).
-TO_LEGACY = {**dict.fromkeys(KIND_GROUPS["datum"], "datum"), "section_view": "section"}
+# Registry kinds -> exact kinds they may stand for.
+REGISTRY_KINDS = {"datum": KIND_GROUPS["datum"], "section": frozenset({"section_view"})}
+# Exact kind -> kind name in the object registry (its kinds are coarser).
+TO_REGISTRY = {**dict.fromkeys(KIND_GROUPS["datum"], "datum"), "section_view": "section"}
 _SHORT = re.compile(r"^([a-z]{1,3}):([1-9][0-9]{0,11})$")
 _ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
 BLOCK = 1000
@@ -103,7 +104,7 @@ class Counter:
 class Entry:
     id: str
     kind: str
-    legacy_id: str
+    handle: str  # the object registry ID behind the ref
     part_key: str
     part_id: str
     name: str
@@ -140,14 +141,14 @@ class References:
         part_key = self.backend.part_key(part)
         key = (part_key, kind, _tag(obj))
         entry = self._entries.get(self._identity.get(key, ""))
-        if entry is not None and not self.backend.legacy_live(entry.legacy_id):
+        if entry is not None and not self.backend.handle_live(entry.handle):
             entry = None
         if entry is None:
             number = self.counter.next()
             ref = f"{PREFIX[kind]}:{number}"
-            legacy_id = self.backend.legacy_register(obj, TO_LEGACY.get(kind, kind), part)
+            handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
             part_id = ref if kind == "part" else self.row(part, "part", part=part)["id"]
-            entry = Entry(ref, kind, legacy_id, part_key, part_id, _name(obj), None)
+            entry = Entry(ref, kind, handle, part_key, part_id, _name(obj), None)
             self._entries[ref] = entry
             self._identity[key] = ref
         else:
@@ -189,7 +190,7 @@ class References:
         if entry is not None:
             return entry.name or entry.kind
         if ref.startswith("obj_"):
-            return self.backend.legacy_name(ref)
+            return self.backend.handle_name(ref)
         return None
 
     def resolve(self, ref: str, kinds=()) -> object:
@@ -197,11 +198,11 @@ class References:
         wanted = expand_kinds(kinds) if kinds else None
         if ref.startswith("obj_"):
             # Check the kind before resolving: obtaining a live object counts as touching NX.
-            legacy_kind = self.backend.legacy_kind(ref)
-            possible = LEGACY_KINDS.get(legacy_kind, frozenset({legacy_kind}))
-            if legacy_kind is not None and wanted is not None and not (possible & wanted):
-                self._wrong_kind(ref, legacy_kind, wanted)
-            return self.backend.legacy_resolve(ref)
+            kind = self.backend.handle_kind(ref)
+            possible = REGISTRY_KINDS.get(kind, frozenset({kind}))
+            if kind is not None and wanted is not None and not (possible & wanted):
+                self._wrong_kind(ref, kind, wanted)
+            return self.backend.resolve_handle(ref)
         match = _SHORT.match(ref)
         if not match:
             fail("NX_INVALID_ARGUMENT", f"Not a reference: {ref!r}")
@@ -216,7 +217,7 @@ class References:
             fail("NX_NOT_FOUND", f"{ref} was never issued in this session", details={"ref": ref})
         if wanted is not None and entry.kind not in wanted:
             self._wrong_kind(ref, entry.kind, wanted)
-        if not self.backend.legacy_live(entry.legacy_id):
+        if not self.backend.handle_live(entry.handle):
             details: dict = {"ref": ref, "kind": entry.kind}
             if entry.anchor:
                 details["anchor"] = entry.anchor
@@ -228,7 +229,7 @@ class References:
                 f"{ref} ({entry.name or entry.kind}) is no longer valid",
                 details=details,
             )
-        return self.backend.legacy_resolve(entry.legacy_id)
+        return self.backend.resolve_handle(entry.handle)
 
     @staticmethod
     def _wrong_kind(ref, kind, wanted):

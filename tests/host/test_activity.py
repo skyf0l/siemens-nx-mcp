@@ -1,7 +1,7 @@
 """Agent activity history shown in the NX MCP panel and written to activity.log."""
 
 from nx_mcp.activity import LINE_WIDTH, Activity, created_name
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 
 T = 1_791_460_000.0  # Fixed wall-clock start for readable assertions.
 
@@ -28,13 +28,11 @@ def test_success_failure_and_partial_lines_say_what_happened_to_the_model(tmp_pa
         'Extrude "profile" 10 mm',
         result={"feature": {"name": "EXTRUDE(2)"}},
     )
-    rolled = NXToolError(
+    rolled = NXError(
         "NX_STALE_REFERENCE", "face reference is stale", details={"mutation_outcome": "rolled_back"}
     )
     run(activity, "nx_hole", "Drill hole Ø6.6 mm", error=rolled, at=5)
-    partial = NXToolError(
-        "NX_ROLLBACK_FAILED", "undo failed", details={"mutation_outcome": "partial"}
-    )
+    partial = NXError("NX_ROLLBACK_FAILED", "undo failed", details={"mutation_outcome": "partial"})
     run(activity, "nx_blend", "Blend 2 edges R3 mm", error=partial, at=9)
     lines = activity.recent()
     assert lines[0].startswith("✓ ") and 'Extrude "profile" 10 mm → EXTRUDE(2)  1.2 s' in lines[0]
@@ -66,7 +64,7 @@ def test_recap_counts_only_this_sessions_model_changes():
     run(activity, "nx_extrude", "Extrude")
     run(activity, "nx_blend", "Blend")
     run(activity, "nx_list_bodies", "List", read_only=True)
-    failure = NXToolError("X", "no", details={"mutation_outcome": "rolled_back"})
+    failure = NXError("X", "no", details={"mutation_outcome": "rolled_back"})
     run(activity, "nx_hole", "Hole", error=failure)
     recap = activity.session_recap()
     assert recap.startswith("Agent's last session: 2 changes, 1 failed (")
@@ -83,7 +81,7 @@ def test_lines_are_clipped_and_history_is_bounded():
 
 def test_model_state_survives_a_very_long_summary():
     activity = Activity()
-    failure = NXToolError("X", "why", details={"mutation_outcome": "rolled_back"})
+    failure = NXError("X", "why", details={"mutation_outcome": "rolled_back"})
     run(activity, "nx_extrude", "Extrude " + "x" * 300, error=failure)
     run(activity, "nx_extrude", "Extrude " + "y" * 300, result={"feature": {"name": "EXTRUDE(9)"}})
     failed, done = activity.recent()
@@ -121,15 +119,15 @@ def test_log_failure_never_breaks_recording(tmp_path):
 
 def test_panel_shows_short_reason_and_log_keeps_the_full_message(tmp_path):
     activity = Activity(tmp_path / "activity.log")
-    stale = NXToolError(
-        "NX_OBJECT_STALE",
+    missing = NXError(
+        "NX_NOT_FOUND",
         "Object reference is not valid: obj_123456789",
         details={"mutation_outcome": "rolled_back"},
     )
-    run(activity, "nx_blend", "Blend 1 edge R50 mm", error=stale)
-    assert activity.recent()[0].endswith("— rolled back, model unchanged (stale reference)")
+    run(activity, "nx_blend", "Blend 1 edge R50 mm", error=missing)
+    assert activity.recent()[0].endswith("— rolled back, model unchanged (object not found)")
     log = (tmp_path / "activity.log").read_text(encoding="utf-8")
-    assert "NX_OBJECT_STALE: Object reference is not valid: obj_123456789" in log
+    assert "NX_NOT_FOUND: Object reference is not valid: obj_123456789" in log
 
 
 def test_catalogue_envelopes_name_the_result_and_the_model_state(tmp_path):

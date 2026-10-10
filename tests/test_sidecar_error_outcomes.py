@@ -7,7 +7,7 @@ import pytest
 
 from nx_mcp import bridge as bridge_module
 from nx_mcp.bridge import CLIENT_TIMEOUT, DISPATCHER_TIMEOUT, BridgeClient, MainThreadDispatcher
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
@@ -34,7 +34,7 @@ async def test_connect_failure_before_send_is_retryable_not_started():
     probe.close()
     await probe.wait_closed()
     client = BridgeClient("127.0.0.1", port, token="t", timeout=2)
-    with pytest.raises(NXToolError) as caught:
+    with pytest.raises(NXError) as caught:
         await client.call("nx_extrude", {"operation_id": "op_1"})
     assert caught.value.code == "NX_BRIDGE_UNAVAILABLE"
     assert caught.value.retryable is True
@@ -54,13 +54,13 @@ async def test_timeout_after_send_is_unknown_and_not_retryable():
     port = server.sockets[0].getsockname()[1]
     try:
         client = BridgeClient("127.0.0.1", port, token="t", timeout=0.3)
-        with pytest.raises(NXToolError) as caught:
+        with pytest.raises(NXError) as caught:
             await client.call("nx_extrude", {"operation_id": "op_sent"})
     finally:
         server.close()
     assert received.is_set()
     error = caught.value
-    assert error.code == "NX_BRIDGE_OUTCOME_UNKNOWN"
+    assert error.code == "NX_OUTCOME_UNKNOWN"
     assert error.retryable is False
     assert error.details == {"operation_id": "op_sent", "mutation_outcome": "unknown"}
     assert "nx_get_operation" in error.message
@@ -74,7 +74,7 @@ async def test_dropped_connection_after_send_is_unknown():
     server = await asyncio.start_server(drop, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
     try:
-        with pytest.raises(NXToolError) as caught:
+        with pytest.raises(NXError) as caught:
             await BridgeClient("127.0.0.1", port, token="t", timeout=2).call(
                 "nx_extrude", {"operation_id": "op_drop"}
             )
@@ -91,7 +91,7 @@ def test_client_waits_longer_than_the_nx_dispatcher():
     dispatcher = MainThreadDispatcher(lambda m, p: {})
     assert dispatcher._timeout == DISPATCHER_TIMEOUT
     dispatcher.stop()
-    with pytest.raises(NXToolError) as caught:
+    with pytest.raises(NXError) as caught:
         dispatcher.call("nx_extrude", {})
     assert caught.value.details["mutation_outcome"] == "not_started"
 

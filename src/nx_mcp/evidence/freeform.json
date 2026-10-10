@@ -26,10 +26,10 @@
   "nx_create_sew": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-09T18:03:25Z",
+      "recorded": "2026-10-10T11:33:00Z",
       "scenario": "acceptance/freeform/sew_thicken.json",
       "scenario_sha256": "84053f0068823d4d4885700e178a35555d78ba621e8acedb6a74253842f5368e",
-      "source_sha256": "3f6c968745338f2b117c13d8fc19161bd8de70c035ff4251f79697cd18f1b9f8",
+      "source_sha256": "30b86512e2c4dd953cf6a945fa9785cb021f5a33b2bf4d35e2bf0f5b76d7e2c3",
       "variants": []
     }
   },
@@ -49,20 +49,20 @@
   "nx_create_thicken": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-09T18:03:25Z",
+      "recorded": "2026-10-10T11:33:00Z",
       "scenario": "acceptance/freeform/sew_thicken.json",
       "scenario_sha256": "84053f0068823d4d4885700e178a35555d78ba621e8acedb6a74253842f5368e",
-      "source_sha256": "3f6c968745338f2b117c13d8fc19161bd8de70c035ff4251f79697cd18f1b9f8",
+      "source_sha256": "30b86512e2c4dd953cf6a945fa9785cb021f5a33b2bf4d35e2bf0f5b76d7e2c3",
       "variants": []
     }
   },
   "nx_create_trim_sheet": {
     "v2406": {
       "checks": 11,
-      "recorded": "2026-10-09T18:03:29Z",
+      "recorded": "2026-10-10T11:33:02Z",
       "scenario": "acceptance/freeform/trim_sheet.json",
       "scenario_sha256": "7ba9bd3256ea596348f79eb12de60ce6af276fede0ec4ee4e1d540867a1533c4",
-      "source_sha256": "3f6c968745338f2b117c13d8fc19161bd8de70c035ff4251f79697cd18f1b9f8",
+      "source_sha256": "30b86512e2c4dd953cf6a945fa9785cb021f5a33b2bf4d35e2bf0f5b76d7e2c3",
       "variants": []
     }
   }

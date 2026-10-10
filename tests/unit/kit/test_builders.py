@@ -113,6 +113,9 @@ def test_smart_objects_and_collectors():
     assert c.GetRules() == [("EdgeDumb", block.edges[:2])]
     with pytest.raises(ValueError):
         builders.collector(nx.tx, [], "Curve")
+    own = nx.part.ScCollectors.CreateCollector()  # a builder's own collector
+    assert builders.fill(nx.tx, own, [block.ref], "Body") is own
+    assert own.GetRules() == [("BodyDumb", [block])]
     s = nx.sketch()
     section = builders.section(nx.tx, s)
     assert section is not None

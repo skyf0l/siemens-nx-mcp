@@ -5,7 +5,7 @@ import json
 import pytest
 
 from nx_mcp.core import errors, evidence
-from nx_mcp.core.errors import NXError, NXToolError, classify, native
+from nx_mcp.core.errors import NXError, classify, native
 from nx_mcp.core.references import Counter, References
 from tests.core.fakes import FakeServices
 
@@ -13,7 +13,6 @@ from tests.core.fakes import FakeServices
 def test_taxonomy_has_22_categories_and_66_codes():
     assert len(errors.CATEGORIES) == 22 and len(errors.CODES) == 66
     assert all(c.startswith("NX_") for c in errors.CODES)
-    assert set(errors.LEGACY_CODES.values()) <= set(errors.CODES)
 
 
 class NativeError(Exception):
@@ -53,10 +52,9 @@ def test_traceback_only_in_dev(monkeypatch):
     assert "traceback" in classify(ValueError("x")).details
 
 
-def test_legacy_errors_map_to_new_codes():
-    mapped = classify(NXToolError("NX_OBJECT_STALE", "gone", nx_code=5))
-    assert mapped.code == "NX_STALE_REFERENCE" and mapped.retry == "after_reacquire"
-    assert mapped.details["legacy_code"] == "NX_OBJECT_STALE" and mapped.nx_code == 5
+def test_unlisted_codes_become_nx_error():
+    stale = NXError("NX_STALE_REFERENCE", "gone", nx_code=5)
+    assert classify(stale) is stale and stale.retry == "after_reacquire" and stale.retryable
     unknown = NXError("NX_MADE_UP", "x")
     assert unknown.code == "NX_ERROR" and unknown.details["unlisted_code"] == "NX_MADE_UP"
     shape = NXError("NX_WRONG_KIND", "m", field="/x").error_dict()
@@ -92,8 +90,8 @@ def test_refs_from_earlier_sessions_are_stale_and_kinds_checked(tmp_path):
     with pytest.raises(NXError) as e:
         svc.references.resolve(row["id"], ("body",))
     assert e.value.code == "NX_WRONG_KIND"
-    legacy = svc.references.entry(row["id"]).legacy_id
-    assert svc.references.resolve(legacy, ("feature",)) is feature  # obj_ spelling
+    handle = svc.references.entry(row["id"]).handle
+    assert svc.references.resolve(handle, ("feature",)) is feature  # obj_ registry handle
     restarted = References(svc, Counter(tmp_path / ".nx-mcp" / "refs.json"))
     with pytest.raises(NXError) as e:
         restarted.resolve(row["id"], ("feature",))
@@ -136,14 +134,15 @@ def test_build_keys_and_evidence_record(tmp_path, monkeypatch):
     assert evidence.load(tmp_path)["nx_x"]["v2406"]["checks"] == 3
 
 
-def test_nx_error_is_a_legacy_error_with_both_shapes():
-    with pytest.raises(NXToolError) as e:
+def test_nx_error_has_the_envelope_and_the_bridge_shape():
+    with pytest.raises(NXError) as e:
         errors.fail("NX_BUILD_FAILED", "radius too large", field="/radius", nx_code=670015)
     error = e.value
     assert isinstance(error, NXError) and error.nx_code == 670015
-    legacy = error.as_dict()
-    assert legacy["status"] == "error" and legacy["code"] == "NX_BUILD_FAILED"
-    assert legacy["nx_code"] == 670015 and legacy["category"] == "geometry_failed"
+    wire = error.as_dict()
+    assert wire["status"] == "error" and wire["code"] == "NX_BUILD_FAILED"
+    assert wire["nx_code"] == 670015 and wire["category"] == "geometry_failed"
+    assert wire["field"] == "/radius" and wire["retryable"] is False
     assert error.error_dict()["nx_code"] == 670015 and error.error_dict()["field"] == "/radius"
     assert error.hint is None and error.error_dict()["hint"]  # category default hint
 
@@ -154,7 +153,7 @@ def test_development_tools_report_kit_errors_by_code(rig):
         errors.fail("NX_WRONG_GEOMETRY", "Select a planar face", nx_code=12)
 
     rig.e.dev_tools["nx_test_read"] = handler
-    with pytest.raises(NXToolError) as e:
+    with pytest.raises(NXError) as e:
         rig.run("nx_test_read", {})
     assert e.value.code == "NX_WRONG_GEOMETRY" and e.value.nx_code == 12
     assert e.value.details["mutation_outcome"] == "rolled_back"

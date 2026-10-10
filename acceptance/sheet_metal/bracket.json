@@ -353,6 +353,16 @@
    }
   },
   {
+   "call": "nx_activate_application",
+   "args": {
+    "application": "sheet_metal"
+   },
+   "expect": {
+    "data.previous": "sheet_metal",
+    "data.changed": false
+   }
+  },
+  {
    "call": "nx_export_flat_pattern",
    "save": "dxf",
    "args": {

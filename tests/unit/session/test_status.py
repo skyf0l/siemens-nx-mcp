@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import Receipts
 from nx_mcp.domains.session import status as st
 from nx_mcp.sidecar.proxy import CatalogueProxy
@@ -102,7 +102,7 @@ def test_snapshot_parts_survive_a_broken_session():
 async def test_the_proxy_answers_status_when_the_bridge_is_down(tmp_path, monkeypatch):
     monkeypatch.setenv("NX_MCP_DEV", "1")
     bridge = AsyncMock()
-    bridge.call.side_effect = NXToolError("NX_BRIDGE_UNAVAILABLE", "connection refused")
+    bridge.call.side_effect = NXError("NX_BRIDGE_UNAVAILABLE", "connection refused")
     proxy = CatalogueProxy(bridge, Workspace(tmp_path), None, build=None)
     answer = await proxy.call(st.nx_get_status.spec, {}, detail="full")
     body = answer.structuredContent
@@ -117,7 +117,7 @@ async def test_the_proxy_answers_status_when_the_bridge_is_down(tmp_path, monkey
 async def test_other_bridge_failures_stay_errors(tmp_path, monkeypatch):
     monkeypatch.setenv("NX_MCP_DEV", "1")
     bridge = AsyncMock()
-    bridge.call.side_effect = NXToolError("NX_INVALID_ARGUMENT", "bad")
+    bridge.call.side_effect = NXError("NX_INVALID_ARGUMENT", "bad")
     proxy = CatalogueProxy(bridge, Workspace(tmp_path), None, build=None)
     answer = await proxy.call(st.nx_get_status.spec, {}, detail="full")
     assert answer.isError and answer.structuredContent["error"]["code"] == "NX_INVALID_ARGUMENT"

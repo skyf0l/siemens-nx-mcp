@@ -34,12 +34,6 @@ class MirrorData(TypedDict):
     plane: dict
 
 
-def reflect_point(p, origin, normal):
-    """``p`` reflected across the plane through ``origin`` with unit ``normal``."""
-    d = geom.dot(geom.sub(p, origin), normal)
-    return geom.sub(p, geom.scale(normal, 2.0 * d))
-
-
 @tool(
     effect="model",
     label="Mirror components",
@@ -85,7 +79,7 @@ def nx_create_component_mirror(
     names = assembly.paths(part)
     out = []
     for i, source in enumerate(values):
-        want = reflect_point(assembly.pose(source)[0], origin, normal)
+        want = geom.reflect(assembly.pose(source)[0], origin, normal)
         copy = min(added, key=lambda c: geom.dist(assembly.pose(c)[0], want))
         got = assembly.pose(copy)[0]
         readback.expect(

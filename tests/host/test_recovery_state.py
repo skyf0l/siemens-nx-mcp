@@ -4,7 +4,7 @@ part lifetimes (agent changes come from a development tool, which records histor
 import pytest
 
 from nx_mcp.core import kernel
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from tests.fakes import Body, Part
 
 pytestmark = pytest.mark.fake_nx
@@ -39,9 +39,9 @@ def test_checkpoint_restore_invalidates_objects_and_preserves_receipt(rig, call)
     restored = call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
     assert restored["reverted"] == ["test-operation-001"]
     assert not rig.part.Bodies and not rig.part.IsModified
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         rig.e.objects.resolve(ref)
-    with pytest.raises(NXToolError, match="not in this session"):
+    with pytest.raises(NXError, match="not in this session"):
         call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
     assert not rig.e.history and not rig.e.checkpoints
 
@@ -58,10 +58,10 @@ def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, call):
     saved = call("nx_save_part")
     assert saved["saved_files"] == ["test.prt"]
     assert call("nx_list_checkpoints")["checkpoints"][0]["available"] is False
-    with pytest.raises(NXToolError, match="save") as error:
+    with pytest.raises(NXError, match="save") as error:
         call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
     assert error.value.code == "NX_STALE_CHECKPOINT"
-    with pytest.raises(NXToolError, match="No agent operation") as error:
+    with pytest.raises(NXError, match="No agent operation") as error:
         call("nx_undo_operation")
     assert error.value.code == "NX_NOT_FOUND"
 
@@ -72,10 +72,10 @@ def test_cross_part_undo_and_checkpoint_refuse_unrelated_changes(rig, call, tmp_
     add()
     other = Part(rig.session, tmp_path / "other.prt")
     rig.e.own(other)  # the agent's own part: refused for crossing parts
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         call("nx_undo_operation")
     assert error.value.code == "NX_CROSS_PART"
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
     assert error.value.code == "NX_CROSS_PART"
     assert len(rig.part.Bodies) == 1 and not other.Bodies
@@ -88,7 +88,7 @@ def test_set_name_renames_by_reference_and_refreshes_references(rig, call):
     created = rig.ref(rig.part.Bodies[-1])
     renamed = call("nx_set_name", object=created, name="Renamed")
     assert renamed["name"] == "Renamed" and renamed["object"]["id"] != created
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         rig.e.objects.resolve(created)
     assert body is None or body in rig.part.Bodies
 
@@ -108,7 +108,7 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     closed = rig.run("nx_close_part", {"part": p, "save": True})
     assert closed["data"]["closed_count"] == 1
     assert not rig.session.Parts and not rig.e.checkpoints
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         rig.e.objects.resolve(old)
     rig.session.Parts.append(part)
     rig.session.Parts.Work = rig.session.Parts.Display = part
@@ -118,7 +118,7 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     new_part = rig.run("nx_open_part", {"path": str(path), "work": False, "display": False})
     assert not new_part["data"]["already_loaded"]
     assert rig.run("nx_list_parts", {})["page"]["total"] == 2
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         rig.run("nx_open_part", {"path": str(tmp_path / "missing.prt")})
     assert key not in rig.e.checkpoints
 
@@ -132,13 +132,13 @@ def test_snapshot_invalidation_preserves_topology_for_display_only(rig):
     assert rig.e.objects.resolve(face) is b.faces[0]
     rig.e.invalidate(before, {}, True)
     for ref in [face, next(iter(before.values()))["id"]]:
-        with pytest.raises(NXToolError):
+        with pytest.raises(NXError):
             rig.e.objects.resolve(ref)
 
 
 def test_guard_failures_never_create_undo_marks(rig):
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         rig.run("nx_list_objects", {"unexpected": 1})
-    with pytest.raises(NXToolError, match="NX_TOOL_NOT_FOUND|nx_no_such_tool"):
+    with pytest.raises(NXError, match="NX_UNKNOWN_TOOL|nx_no_such_tool"):
         rig.run("nx_no_such_tool", {})
     assert not rig.session.marks

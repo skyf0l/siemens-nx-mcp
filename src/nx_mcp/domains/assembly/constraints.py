@@ -7,7 +7,7 @@ NX 2406 findings encoded here:
 - Concentric needs circular edges (cylindrical faces leave it unsolved), and the
   solver may move either component unless one is fixed: ``moved`` lists every
   direct component whose pose changed.
-- Align is a Touch constraint with co-alignment (the legacy mate "align").
+- Align is a Touch constraint with co-alignment (the classic mate "align").
 - Align/Lock aligns two axes and locks the rotation about them: a cylindrical face
   gives its axis (``usesAxis``), an edge its own line or circle axis.
 - Fit takes two faces of equal radius; Bond welds the components (its references

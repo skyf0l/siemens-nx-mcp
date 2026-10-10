@@ -408,10 +408,36 @@ def _material_text(spec) -> str:
     return spec["custom"]["name"] if "custom" in spec else spec["library"]
 
 
+def _stored_density(tx, material) -> float | None:
+    """The kg/m^3 a part material stores (its property table), None when unreadable."""
+    try:
+        value, unit = material.GetPropTable().GetBaseScalarWithDataPropertyValue("MassDensity")
+        collection = tx.part.UnitCollection
+        kg = collection.FindObject("KilogramPerCubicMeter")
+        if unit is not None and int(unit.Tag) != int(kg.Tag):
+            value = collection.Convert(unit, kg, value)
+        return float(value)
+    except Exception:  # an older or Teamcenter material: read back after assigning
+        return None
+
+
+def _clash(material, density):
+    fail(
+        "NX_ALREADY_EXISTS",
+        f"Material {material.Name} exists with density {density:g} kg/m^3",
+        field="/material/custom/name",
+        hint="Use another name, or the existing density",
+    )
+
+
 def _custom(tx, spec, targets):
     part = tx.part
     materials = part.MaterialManager.PhysicalMaterials
-    existing = [m for m in materials if str(m.Name).casefold() == spec["name"].casefold()]
+    with tx.checks():  # a clashing name is refused before anything is assigned
+        existing = [m for m in materials if str(m.Name).casefold() == spec["name"].casefold()]
+        stored = _stored_density(tx, existing[0]) if existing else None
+        if stored is not None and abs(stored - spec["density"]) > DENSITY_REL * spec["density"]:
+            _clash(existing[0], stored)
     if existing:
         chosen = existing[0]
     else:
@@ -430,12 +456,7 @@ def _custom(tx, spec, targets):
     for i, body in enumerate(targets):
         density = _density(tx, body)
         if existing and abs(density - spec["density"]) > DENSITY_REL * spec["density"]:
-            fail(
-                "NX_ALREADY_EXISTS",
-                f"Material {chosen.Name} exists with density {density:g} kg/m^3",
-                field="/material/custom/name",
-                hint="Use another name, or the existing density",
-            )
+            _clash(chosen, density)  # unreadable before: assigned, then rolled back
         readback.expect_close(
             density, spec["density"], f"density[{i}]", tol=DENSITY_REL * spec["density"] + 1e-9
         )

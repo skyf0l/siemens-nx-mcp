@@ -15,9 +15,9 @@ the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). Every cal
 ``python -m nx_mcp.server`` (agent profile): catalogue read tools through
 ``nx_invoke_read``, everything else through ``nx_invoke`` with an intent, both
 with ``detail=full`` (a step's ``"detail": "compact"`` asks for the compact
-projection, to check ``result_id`` and ``omitted``). Legacy results are unwrapped to the envelope shape
-(``ok``, ``error.code``/``category``, ``mutation_outcome``) so one ``expect``
-vocabulary covers both. Only steps with an ``expect`` count as checks.
+projection, to check ``result_id`` and ``omitted``); ``expect`` paths address the
+envelope (``ok``, ``data``, ``error.code``/``category``, ``mutation_outcome``). Only
+steps with an ``expect`` count as checks.
 
 A run writes ``acceptance/evidence/<nx-version>/<domain>/<name>.json`` (commit,
 NX build, timestamps, per-step pass/fail and result digests). ``fold`` builds
@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from nx_mcp.acceptance import expect as expectations
-from nx_mcp.core import catalogue, errors
+from nx_mcp.core import catalogue
 from nx_mcp.core import evidence as core_evidence
 
 # The checkout (scenarios, fixtures, scripts/dev_lock.py); an installed release
@@ -135,29 +135,12 @@ def coverage() -> dict[str, set[str]]:
 
 
 def unwrap(structured: Any) -> dict:
-    """The envelope view of a result: catalogue envelopes as they are; legacy
-    results get ``ok``, and an error also ``error`` and ``mutation_outcome``."""
+    """The envelope view of a result: envelopes as they are, any other dict as a
+    success, anything else as an ``NX_ERROR`` failure."""
     if not isinstance(structured, dict):
         return {"ok": False, "error": {"code": "NX_ERROR", "message": repr(structured)}}
     if "ok" in structured:
         return structured
-    if structured.get("status") == "error":
-        legacy = errors.NXToolError(
-            structured.get("code", "NX_ERROR"),
-            structured.get("message", ""),
-            nx_code=structured.get("nx_code"),
-            details=structured.get("details"),
-        )
-        classified = errors.classify(legacy)
-        error = classified.error_dict()
-        error["legacy_code"] = structured.get("code")
-        details = structured.get("details") or {}
-        return {
-            **structured,
-            "ok": False,
-            "error": error,
-            "mutation_outcome": details.get("mutation_outcome", structured.get("mutation_outcome")),
-        }
     return {**structured, "ok": True}
 
 

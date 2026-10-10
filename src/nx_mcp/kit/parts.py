@@ -178,6 +178,29 @@ def keep_sheet_metal(tx) -> None:
         session.ApplicationSwitchImmediate(SHEET_METAL_APP)
 
 
+@contextlib.contextmanager
+def keeping_application(tx):
+    """Run a block that may leave Sheet Metal, then re-enter it if NX left it.
+
+    Back in Sheet Metal the displayed part also records it (``keep_sheet_metal``), so
+    no later close or display opens NX's warning. Only a changed application is
+    re-entered: NX 2406 closes a shown drawing sheet on ``ApplicationSwitchImmediate``
+    (live: leaving and reopening a sheet keeps Sheet Metal), so run this inside
+    ``drawing.in_modeling``, which reopens the sheet afterwards.
+    """
+    session = tx.session
+    before = str(session.ApplicationName or "")
+    failed = True
+    try:
+        yield
+        failed = False
+    finally:
+        now = str(session.ApplicationName or "")
+        if before == SHEET_METAL_APP != now and has_sheet_metal(session.Parts.Display):
+            with contextlib.suppress(Exception) if failed else contextlib.nullcontext():
+                session.ApplicationSwitchImmediate(SHEET_METAL_APP)
+
+
 def _set_display(parts, part) -> None:
     _, status = parts.SetDisplay(part, False, False)
     _dispose(status)

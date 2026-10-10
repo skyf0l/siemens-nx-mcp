@@ -24,7 +24,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Point2, Range, RefTo
 from nx_mcp.domains.sketch import common
 from nx_mcp.domains.sketch.common import XY, CurveRef, CurveRow, Degrees, Size, SketchRef
-from nx_mcp.kit import builders, geom, readback, result
+from nx_mcp.kit import builders, geom, measure, readback, result
 from nx_mcp.kit import sketch as ksketch
 
 # ---------------------------------------------------------------------------
@@ -485,10 +485,6 @@ def _alive(sk, obj):
     return int(obj.Tag) in ksketch.tags(sk)
 
 
-def _length(curve):
-    return float(curve.GetLength())
-
-
 def _edit_shape(tx, sk, item, field):
     obj = common.owned_curve(tx, sk, item["curve"], field + "/curve")
     kind = ksketch.curve_kind(tx, obj)
@@ -548,7 +544,7 @@ def _trim_extend(tx, sk, item, field):
     trim = item["type"] == "trim"
     check = field.lstrip("/")
     pick = sk.to_part(item["pick"])
-    before, length = ksketch.tags(sk), _length(obj)
+    before, length = ksketch.tags(sk), measure.length(tx, obj)
     part = tx.part
     sketches = part.Sketches
     factory = sketches.CreateQuickTrimBuilder if trim else sketches.CreateQuickExtendBuilder
@@ -568,7 +564,7 @@ def _trim_extend(tx, sk, item, field):
         kept = [r["curve"]["id"] for r in rows if common.contains(r, item["pick"], tol)]
         readback.expect(not kept, check + "/trimmed", pick=item["pick"], curves=kept)
     else:
-        readback.expect(alive and _length(obj) > length + tol, check + "/extended")
+        readback.expect(alive and measure.length(tx, obj) > length + tol, check + "/extended")
         boundaries = [common.curve_row(tx, sk.frame, c) for c in limits]
         row = rows[0]
         reached = any(

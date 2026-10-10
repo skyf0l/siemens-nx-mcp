@@ -128,14 +128,22 @@ def collector(tx, objects, kind):
     ``kind`` is ``"Edge"``, ``"Face"`` or ``"Body"``; ``objects`` are live NX
     objects or references (resolved through ``tx.resolve``).
     """
+    return fill(tx, tx.part.ScCollectors.CreateCollector(), objects, kind)
+
+
+def fill(tx, collector, objects, kind):
+    """Replace the rules of an existing ``collector`` (a builder's own collector)
+    with one dumb rule over ``objects``; returns the collector.
+
+    ``kind`` is ``"Edge"``, ``"Face"`` or ``"Body"``; ``objects`` are live NX
+    objects or references (resolved through ``tx.resolve``).
+    """
     if kind not in ("Edge", "Face", "Body"):
         raise ValueError("collector kind must be Edge, Face or Body")
     items = [tx.resolve(o, kind.lower()) if isinstance(o, str) else o for o in objects]
-    part = tx.part
-    rule = getattr(part.ScRuleFactory, "CreateRule" + kind + "Dumb")(items)
-    result = part.ScCollectors.CreateCollector()
-    result.ReplaceRules([rule], False)
-    return result
+    rule = getattr(tx.part.ScRuleFactory, "CreateRule" + kind + "Dumb")(items)
+    collector.ReplaceRules([rule], False)
+    return collector
 
 
 def section(tx, sketch, into=None):

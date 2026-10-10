@@ -10,7 +10,7 @@ are always rolled back (``tx.scratch``). NX 2406 findings kept here:
 
 - If that rollback fails the call fails as ``NX_ROLLBACK_FAILED`` (the model may
   hold leftover bodies) and the check's own error stays in ``details.original_error``.
-- ``NX_TOO_MANY_OBJECTS`` (legacy ``NX_PAIR_LIMIT``) is raised before any native
+- ``NX_TOO_MANY_OBJECTS`` is raised before any native
   pair check; ``details`` gives the pair counts.
 """
 

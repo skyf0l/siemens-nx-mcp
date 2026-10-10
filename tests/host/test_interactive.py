@@ -4,13 +4,13 @@ import time
 import pytest
 
 from nx_mcp.bridge import MainThreadDispatcher
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 
 
 def test_expired_queued_mutation_never_executes():
     calls = []
     dispatcher = MainThreadDispatcher(lambda m, p: calls.append(m) or {}, timeout=0.01)
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         dispatcher.call("nx_reposition_component", {})
     assert error.value.details["mutation_outcome"] == "not_started"
     dispatcher.drain()
@@ -34,7 +34,7 @@ def test_timeout_of_running_mutation_reports_unknown_without_duplicate():
     def caller():
         try:
             dispatcher.call("mutation", {})
-        except NXToolError as e:
+        except NXError as e:
             errors.append(e)
 
     client = threading.Thread(target=caller)
@@ -156,14 +156,14 @@ def test_base_exceptions_from_a_tool_are_errors_and_keep_the_panel_mode(monkeypa
     while not dispatcher.drain(timeout=1):
         pass
     caller.join(1)
-    assert isinstance(results[0], NXToolError) and type(raised).__name__ in results[0].message
+    assert isinstance(results[0], NXError) and type(raised).__name__ in results[0].message
     assert host.mode == "agent" and host.owns_lock
 
 
 def _call(dispatcher, results):
     try:
         results.append(dispatcher.call("nx_dev_python", {"code": "raise SystemExit"}))
-    except NXToolError as error:
+    except NXError as error:
         results.append(error)
 
 
@@ -223,7 +223,7 @@ def test_queue_wait_and_run_time_have_separate_timeouts():
 
     held = MainThreadDispatcher(lambda m, p: {}, timeout=5, queue_timeout=0.05)
     started = clock.monotonic()
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         held.call("nx_extrude", {})
     assert error.value.details["mutation_outcome"] == "not_started"
     assert clock.monotonic() - started < 1 and held.parked == 0

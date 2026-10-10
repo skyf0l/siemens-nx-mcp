@@ -29,17 +29,11 @@ _MODEL_STATE = {
 _UNCHANGED = frozenset({"rolled_back", "not_started", "not_applicable"})
 # Error code -> short reason for the panel line; the log keeps the full message.
 _SHORT_REASON = {
-    "NX_OBJECT_STALE": "stale reference",
     "NX_NOT_FOUND": "object not found",
-    "NX_OBJECT_OWNER_MISMATCH": "object belongs to another part",
-    "NX_OBJECT_TYPE_MISMATCH": "wrong kind of object",
     "NX_INVALID_ARGUMENT": "invalid argument",
-    "NX_UNSUPPORTED_ARGUMENT": "unsupported option",
     "NX_VERIFICATION_FAILED": "result failed verification",
     "NX_UPDATE_FAILED": "NX update failed",
     "NX_SKETCH_ACTIVE": "another sketch is active",
-    "NX_NO_TARGET_BODY": "no target body",
-    "NX_FILE_EXISTS": "file already exists",
     "NX_FILE_NOT_FOUND": "file not found",
     "NX_PATH_OUTSIDE_WORKSPACE": "path outside the workspace",
     "NX_UI_BUSY": "an NX dialog is open",
@@ -93,7 +87,7 @@ def created_name(result: dict[str, Any]) -> str | None:
     """
     data = result.get("data") if isinstance(result.get("data"), dict) else {}
     for key in _CREATED_KEYS:
-        value = result.get(key) or data.get(key)  # legacy result or catalogue envelope
+        value = result.get(key) or data.get(key)  # a development-tool result or catalogue envelope
         if isinstance(value, dict) and value.get("name"):
             return str(value["name"])
     created = [

@@ -7,7 +7,7 @@ import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.core import catalogue, evidence
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
 from nx_mcp.sidecar.proxy import CatalogueProxy, _walk_paths
@@ -258,7 +258,7 @@ async def test_kernel_error_envelope_is_returned_as_is(tmp_path, tested):
         "changes": {"references": "preserved"},
     }
     bridge = AsyncMock()
-    bridge.call.side_effect = NXToolError(
+    bridge.call.side_effect = NXError(
         "NX_VERIFICATION_FAILED",
         "offset mismatch",
         details={"mutation_outcome": "rolled_back", "envelope": kernel},
@@ -273,16 +273,16 @@ async def test_kernel_error_envelope_is_returned_as_is(tmp_path, tested):
     "error, outcome, code, retry",
     [
         # Forwarded, no outcome stated: unknown, never not_started.
-        (NXToolError("NX_BRIDGE_OUTCOME_UNKNOWN", "lost"), "unknown", "NX_OUTCOME_UNKNOWN",
+        (NXError("NX_OUTCOME_UNKNOWN", "lost"), "unknown", "NX_OUTCOME_UNKNOWN",
          "after_status_check"),
-        (NXToolError("NX_MAIN_THREAD_UNAVAILABLE", "busy", details={"mutation_outcome": "unknown"}),
+        (NXError("NX_BRIDGE_UNAVAILABLE", "busy", details={"mutation_outcome": "unknown"}),
          "unknown", "NX_BRIDGE_UNAVAILABLE", "after_status_check"),
         # NX says it never started: stays not_started and retryable after a wait.
-        (NXToolError("NX_BRIDGE_UNAVAILABLE", "down", details={"mutation_outcome": "not_started"}),
+        (NXError("NX_BRIDGE_UNAVAILABLE", "down", details={"mutation_outcome": "not_started"}),
          "not_started", "NX_BRIDGE_UNAVAILABLE", "after_wait"),
-        (NXToolError("NX_UI_DECLINED", "Not now", details={"mutation_outcome": "not_started"}),
+        (NXError("NX_CONTROL_DECLINED", "Not now", details={"mutation_outcome": "not_started"}),
          "not_started", "NX_CONTROL_DECLINED", "ask_engineer"),
-        (NXToolError("NX_API_ERROR", "native", nx_code=1234), "unknown", "NX_ERROR",
+        (NXError("NX_ERROR", "native", nx_code=1234), "unknown", "NX_ERROR",
          "after_status_check"),
     ],
 )  # fmt: skip
@@ -298,13 +298,13 @@ async def test_bridge_errors_map_to_envelopes(tmp_path, tested, error, outcome, 
     assert failure["operation_id"].startswith("op_")
     if error.nx_code:
         assert failure["error"]["nx_code"] == 1234
-    if code != error.code:
-        assert failure["error"]["details"]["legacy_code"] == error.code
+    assert failure["error"]["code"] == error.code
+    assert "mutation_outcome" not in failure["error"]["details"]  # stated once, at the top
 
 
 async def test_read_tool_failures_are_not_applicable(tmp_path, tested):
     bridge = AsyncMock()
-    bridge.call.side_effect = NXToolError("NX_BRIDGE_OUTCOME_UNKNOWN", "lost")
+    bridge.call.side_effect = NXError("NX_OUTCOME_UNKNOWN", "lost")
     result = await server(tmp_path, bridge).call_tool("nx_list_objects", {"kind": "body"})
     assert body(result)["mutation_outcome"] == "not_applicable"
     bridge.call.side_effect = None
@@ -409,8 +409,8 @@ async def test_agent_presentation_never_relabels_a_finished_call(tmp_path, teste
 
 async def test_a_long_call_outlasting_the_bridge_wait_says_how_to_check(tmp_path, tested):
     bridge = AsyncMock()
-    bridge.call.side_effect = NXToolError(
-        "NX_BRIDGE_OUTCOME_UNKNOWN",
+    bridge.call.side_effect = NXError(
+        "NX_OUTCOME_UNKNOWN",
         "no answer within the wait",
         details={"operation_id": "op_long", "mutation_outcome": "unknown"},
     )
@@ -427,10 +427,10 @@ async def test_a_long_call_outlasting_the_bridge_wait_says_how_to_check(tmp_path
 
 async def test_part_not_granted_keeps_its_category_and_hint(tmp_path, tested):
     bridge = AsyncMock()
-    bridge.call.side_effect = NXToolError(
+    bridge.call.side_effect = NXError(
         "NX_PART_NOT_GRANTED",
         "The work part belongs to the engineer",
-        suggestion="Ask the engineer to grant it on the NX MCP panel, or work on a copy",
+        hint="Ask the engineer to grant it on the NX MCP panel, or work on a copy",
         details={"mutation_outcome": "not_started"},
     )
     failure = body(

@@ -92,6 +92,7 @@ from nx_mcp.kit import (
     geom,
     measure,
     model,
+    parts,
     readback,
     result,
     select,
@@ -1201,8 +1202,11 @@ def nx_create_sheet_metal_feature(
     sm = common.namespace(tx)
     view = None
     leave = operation == "flat_pattern"
+    # The flat pattern commits with no sheet shown; should NX leave Sheet Metal on the
+    # way, it is re-entered (and recorded) before the sheet reopens.
     shown = drawing.in_modeling(tx) if leave else contextlib.nullcontext()
-    with shown, builders.build(tx, factory, None) as b:
+    kept = parts.keeping_application(tx) if leave else contextlib.nullcontext()
+    with shown, kept, builders.build(tx, factory, None) as b:
         if b.has("SetApplicationContext"):
             b.SetApplicationContext(sm.ApplicationContext.NxSheetMetal)
         CONFIGURE[operation](tx, b, i)

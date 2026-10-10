@@ -488,9 +488,7 @@ def _configure(tx, b, action, selected, a):
         b.Direction = a["distance"] < 0
     elif action == "replace":
         b.ReplaceFaces.ReplaceRules([rule], False)
-        b.ReplacementFaces.ReplaceRules(
-            [part.ScRuleFactory.CreateRuleFaceDumb([a["other"]])], False
-        )
+        builders.fill(tx, b.ReplacementFaces, [a["other"]], "Face")
     elif action in ("delete", "delete_blend"):
         types = tx.nx.Features.DeleteFaceBuilder.SelectTypes
         if action == "delete":

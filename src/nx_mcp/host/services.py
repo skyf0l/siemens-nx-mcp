@@ -276,21 +276,21 @@ class NXServices(Services):
         )
         return ref
 
-    def legacy_register(self, obj, kind: str, part) -> str:
+    def register_handle(self, obj, kind: str, part) -> str:
         return self.register(obj, kind, part, kind.replace("_", " ").title())["id"]
 
-    def legacy_resolve(self, legacy_id: str):
-        return self.objects.resolve(legacy_id)
+    def resolve_handle(self, handle: str):
+        return self.objects.resolve(handle)
 
-    def legacy_live(self, legacy_id: str) -> bool:
-        return legacy_id in self.objects._objects
+    def handle_live(self, handle: str) -> bool:
+        return handle in self.objects._objects
 
-    def legacy_kind(self, legacy_id: str):
-        entry = self.objects._objects.get(legacy_id)
+    def handle_kind(self, handle: str):
+        entry = self.objects._objects.get(handle)
         return entry.reference.kind if entry is not None else None
 
-    def legacy_name(self, legacy_id: str):
-        return self.objects.display_name(legacy_id)
+    def handle_name(self, handle: str):
+        return self.objects.display_name(handle)
 
     def resolve(self, ref: str, kinds=()):
         """The live object of a short ref or obj_ ID (development snippets)."""
@@ -433,19 +433,19 @@ class NXServices(Services):
         return snap
 
     def describe(self, entry: dict, live: bool) -> dict:
-        legacy_id = entry.get("id")
-        if live and self.legacy_live(legacy_id):
-            obj = self.objects._objects[legacy_id].value
+        handle = entry.get("id")
+        if live and self.handle_live(handle):
+            obj = self.objects._objects[handle].value
             kind = entry.get("kind")
             if kind not in PREFIX or kind in ("datum", "section"):
                 kind = self.infer_kind(obj, default=None) or {"section": "section_view"}.get(kind)
             if kind in PREFIX:
                 return self.references.row(obj, kind)
         for ref, known in self.references._entries.items():
-            if known.legacy_id == legacy_id:
+            if known.handle == handle:
                 return {"id": ref, "kind": known.kind, "name": known.name, "part": known.part_id}
         return {
-            "id": legacy_id,
+            "id": handle,
             "kind": entry.get("kind"),
             "name": entry.get("name") or entry.get("display_name") or "",
             "part": entry.get("part_id"),

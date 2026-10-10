@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from nx_mcp.core import kernel
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.host import dispatch
 from tests.kit.objects import Body, Part
 
@@ -42,11 +42,11 @@ def _edit(rig, part=None):
 def test_changes_are_refused_on_the_engineers_part_until_granted(engineer, monkeypatch):
     monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
     engineer.part.Save = Mock(wraps=engineer.part.Save)
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         engineer.run("nx_save_part", {})
     assert error.value.code == "NX_PART_NOT_GRANTED"
     assert error.value.details["mutation_outcome"] == "not_started"
-    assert "NX MCP panel" in error.value.suggestion
+    assert "NX MCP panel" in error.value.hint
     engineer.part.Save.assert_not_called()
     # The engineer ticks "Allow agent to change test" on the panel.
     assert dispatch.grant_state(engineer.e) == {"name": "test", "granted": False}
@@ -54,7 +54,7 @@ def test_changes_are_refused_on_the_engineers_part_until_granted(engineer, monke
     assert dispatch.grant_state(engineer.e) == {"name": "test", "granted": True}
     assert engineer.run("nx_save_part", {})["ok"]
     dispatch.set_grant(engineer.e, False)
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         engineer.run("nx_save_part", {})
 
 

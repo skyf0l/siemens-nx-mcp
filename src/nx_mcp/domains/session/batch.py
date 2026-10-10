@@ -1,8 +1,7 @@
 """``nx_run_batch``: 1-100 batchable calls under one undo mark (tool-surface 3.1).
 
-It replaces the legacy ``nx_batch``. Only tools marked ``batchable`` run
-(decision 6: sketch geometry, constraints and dimensions, annotations, component
-placement); heavy features stay one call each. Every step is checked before the
+Only tools marked ``batchable`` run (decision 6: sketch geometry, constraints and
+dimensions, annotations, component placement); heavy features stay one call each. Every step is checked before the
 first one runs: an unknown or non-batchable tool, arguments that break the
 tool's schema or a ``"$n.path"`` reference to a step that has not run yet refuse
 the batch with nothing changed.

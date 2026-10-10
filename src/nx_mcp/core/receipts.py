@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from nx_mcp.core.errors import NXError, NXToolError, fail
+from nx_mcp.core.errors import NXError, fail
 
 
 def timestamp() -> str:
@@ -53,7 +53,7 @@ class OperationStore:
         if not isinstance(operation_id, str) or not re.fullmatch(
             r"[A-Za-z0-9_-]{8,128}", operation_id
         ):
-            raise NXToolError(
+            raise NXError(
                 "NX_INVALID_ARGUMENT",
                 "operation_id must be 8–128 ASCII letters, digits, underscores or hyphens",
             )
@@ -71,7 +71,7 @@ class OperationStore:
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except (ValueError, OSError) as e:
-            raise NXToolError("NX_RECEIPT_UNREADABLE", str(e)) from e
+            raise NXError("NX_TRANSFER_FAILED", str(e)) from e
 
     def put(self, record):
         path = self.path(record["operation_id"])

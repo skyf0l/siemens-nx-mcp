@@ -1,9 +1,9 @@
 """``nx_preview_changes`` and ``nx_finish_preview``: try changes, then keep or drop them
 (tool-surface 3.1).
 
-They replace the legacy ``nx_preview_change`` / ``nx_finish_preview``. A preview runs
-1-25 ``previewable`` catalogue calls (features, expression and feature edits, sketch
-operations, component placement) as children under ``tx.preview()``: every kernel gate
+A preview runs 1-25 ``previewable`` catalogue calls (features, expression and
+feature edits, sketch operations, component placement) as children under
+``tx.preview()``: every kernel gate
 runs per child, a ``"$n.path"`` Ref may name an earlier step's result, and the preview's
 mark is always undone. The result reports the work part before and after (solid volume,
 bounds, object counts, feature health, changed expressions), each step's

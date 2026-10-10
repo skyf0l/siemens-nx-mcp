@@ -9,7 +9,7 @@ from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.acceptance import expect, runner
 from nx_mcp.core import catalogue
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
@@ -81,19 +81,10 @@ def test_double_dollar_passes_a_literal_batch_reference():
     }
 
 
-def test_unwrap_gives_legacy_errors_the_envelope_shape():
-    legacy = {
-        "status": "error",
-        "code": "NX_OBJECT_TYPE_MISMATCH",
-        "message": "Expected face",
-        "details": {"mutation_outcome": "not_started"},
-    }
-    view = runner.unwrap(legacy)
-    assert view["ok"] is False and view["mutation_outcome"] == "not_started"
-    assert view["error"]["code"] == "NX_WRONG_KIND" and view["error"]["category"] == "wrong_kind"
-    assert view["error"]["legacy_code"] == "NX_OBJECT_TYPE_MISMATCH"
+def test_unwrap_gives_every_result_the_envelope_shape():
     assert runner.unwrap({"status": "success", "x": 1}) == {"status": "success", "x": 1, "ok": True}
     assert runner.unwrap({"ok": False, "error": {}}) == {"ok": False, "error": {}}
+    assert runner.unwrap("text")["error"]["code"] == "NX_ERROR"
 
 
 def test_scenario_format_is_checked(tmp_path):
@@ -147,7 +138,7 @@ def test_dev_lock_already_held_by_the_owner_is_kept(tmp_path):
 
 
 class FakeNX:
-    """Answers like the bridge: legacy dicts for setup tools, kernel envelopes otherwise."""
+    """Answers like the bridge: plain dicts for setup tools, kernel envelopes otherwise."""
 
     def __init__(self):
         self.calls = []
@@ -209,7 +200,7 @@ class FakeNX:
                 "data": {"origin": [0, 0, 25], "normal": [0, 0, 1]},
                 "changes": {"created": [{"kind": "feature"}], "references": "preserved"},
             }
-        raise NXToolError(
+        raise NXError(
             "NX_WRONG_KIND",
             "Expected a face",
             details={
@@ -379,8 +370,8 @@ class PanelNX(FakeNX):
         wanted = {"manual": "ask"}.get(params.get("mode"), params.get("mode"))
         if wanted not in (None, "status"):
             if self.RANK[wanted] > self.RANK[self.mode]:
-                raise NXToolError(
-                    "NX_UI_PAUSED",
+                raise NXError(
+                    "NX_CONTROL_PAUSED",
                     "Only the engineer can",
                     details={"mutation_outcome": "not_started"},
                 )
@@ -529,7 +520,7 @@ class AssemblyNX(FakeNX):
         error = {"code": code, "category": "blocked", "message": message, "details": details}
         error["nx_code"] = 3520018 if code == "NX_READ_ONLY" else None
         envelope = {"ok": False, "tool": "nx_close_part", "mutation_outcome": "not_started"}
-        raise NXToolError(code, message, details={"envelope": {**envelope, "error": error}})
+        raise NXError(code, message, details={"envelope": {**envelope, "error": error}})
 
     async def call(self, method, params):
         if method != "nx_close_part":

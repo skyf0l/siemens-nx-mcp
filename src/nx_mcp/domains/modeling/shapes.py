@@ -40,15 +40,6 @@ COMBINE_CHANGE = {"unite": "more", "subtract": "less", "intersect": "less"}
 FORMULA_REL = 1e-3
 
 
-def _rule_bodies(tx, collector, bodies):
-    collector.ReplaceRules([tx.part.ScRuleFactory.CreateRuleBodyDumb(list(bodies))], False)
-
-
-def _length(tx, curves):
-    """Total length in part units (NX 2406 ``GetLength`` answers millimetres)."""
-    return sum(float(c.GetLength()) for c in curves) * units.factor("mm", units.part_units(tx))
-
-
 def _new_bodies(feature, *known):
     tags = {int(b.Tag) for b in known}
     return [b for b in common.feature_bodies(feature) if int(b.Tag) not in tags]
@@ -105,7 +96,7 @@ def nx_create_rib(
     collection = tx.part.Features.DesignFeatureCollection
     with builders.build(tx, collection.CreateRibBuilder, None) as b:
         builders.section(tx, sk, into=b.Section)
-        _rule_bodies(tx, b.TargetBody, [target])
+        builders.fill(tx, b.TargetBody, [target], "Body")
         b.RibType = (
             rib.RibTypes.PerpendiculartoSectionPlane
             if orientation == "perpendicular"
@@ -217,7 +208,7 @@ def nx_create_tube(
     out = common.result_of(tx, feature)
     common.changed(0.0, out["volume"], "positive")
     if single is not None:
-        length = _length(tx, [single])
+        length = measure.length(tx, [single])
         want = math.pi / 4 * (outer**2 - inner**2) * length
         readback.expect(
             abs(out["volume"] - want) <= FORMULA_REL * want,
@@ -326,7 +317,7 @@ def nx_create_helix(
         feature = b.commit()
     curves = [e for e in feature.GetEntities() if hasattr(e, "GetLength")]
     readback.expect(bool(curves), "curves", "The helix built no curve")
-    length = _length(tx, curves)
+    length = measure.length(tx, curves)
     want = n * math.hypot(2 * math.pi * r, p)
     readback.expect(
         abs(length - want) <= FORMULA_REL * want,

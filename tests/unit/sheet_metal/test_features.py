@@ -186,10 +186,13 @@ def test_flat_pattern_leaves_a_shown_drawing_for_the_commit_and_reopens_it():
     body, up, edge = flat_setup(nx)
     sheet = nx.sheet("SHT1")
     sheet.Open()
+    session = nx.session
+    session.ApplicationName, session.Parts.Display = "UG_APP_SBSM", nx.part
     seen = {}
 
     def commit(b):
         seen["current"] = nx.part.DrawingSheets.CurrentDrawingSheet
+        session.ApplicationName = "UG_APP_MODELING"  # should NX leave Sheet Metal
         b.FlatPatternViewName = "FLAT-PATTERN#1"
         feature = nx.made("FLAT_PATTERN", body, feature_type="FLAT_PATTERN")
         feature.GetCurves = lambda: [Line(a, b) for a, b in OUTLINE]
@@ -200,6 +203,7 @@ def test_flat_pattern_leaves_a_shown_drawing_for_the_commit_and_reopens_it():
     assert ok.ok, ok
     assert seen["current"] is None  # NX 2406 refuses the commit while a sheet is shown
     assert nx.part.DrawingSheets.CurrentDrawingSheet is sheet
+    assert session.ApplicationName == "UG_APP_SBSM"  # re-entered before the sheet reopened
     b = nx.last("FlatPatternBuilder")
     assert b.UpwardFace.Value is up and b.XAxisEdge.Value is edge
     assert ok.data["view"] == "FLAT-PATTERN#1" and ok.data["body"]["id"] == body.ref

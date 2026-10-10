@@ -13,7 +13,7 @@ import pytest
 from nx_mcp import interactive
 from nx_mcp.bridge import BridgeDescriptor
 from nx_mcp.core import kernel
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.interactive import ControlPanel, InteractiveHost
 from tests.fakes import Body, Collection
 
@@ -157,12 +157,12 @@ def test_agent_drives_waits_for_a_busy_engineer_before_locking(host):
 
 
 def test_operation_failure_relocks_ui_and_refresh_failure_is_warning(host, rig):
-    with pytest.raises(NXToolError, match="NX MCP panel"):
+    with pytest.raises(NXError, match="NX MCP panel"):
         host.execute("nx_list_objects", BODIES)
     host.control("agent")
     assert host.status()["mode"] == "agent"
     rig.e.dev_tools["nx_test_fail"] = Mock(side_effect=RuntimeError("native error"))
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         host.execute("nx_test_fail", {})
     assert host.ui.AskLockStatus() == 1
     rig.part.ModelingViews.WorkView.UpdateDisplay.side_effect = RuntimeError("refresh")
@@ -197,7 +197,7 @@ def test_leaving_agent_drives_releases_nx_and_keeps_references_without_edits(hos
     host._light = True  # as the scheduler runs an Auto step
     host.execute("nx_list_objects", BODIES)  # the engineer changed nothing in between
     assert rig.e.objects.resolve(ref) is body and rig.e.checkpoints
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         host.control("bad")
     host.thread = -1
     with pytest.raises(RuntimeError):
@@ -221,7 +221,7 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     host._engineer_had_nx = True  # NX was released after the call
     model["marks"] = 6  # the engineer added a feature (an undo mark)
     host.execute("nx_list_objects", BODIES)
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         rig.e.objects.resolve(ref)
     assert not rig.e.checkpoints and not rig.e.history
     line = host.history_lines(8)[1]
@@ -234,9 +234,9 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     host.execute("nx_list_objects", BODIES)
     assert rig.e.objects.resolve(ref) is body
     # Neither undo nor restore reaches back across the engineer's edit.
-    with pytest.raises(NXToolError) as undo:
+    with pytest.raises(NXError) as undo:
         host.execute("nx_undo_operation", {})
-    with pytest.raises(NXToolError) as restore:
+    with pytest.raises(NXError) as restore:
         host.execute("nx_restore_checkpoint", {"checkpoint_id": checkpoint})
     assert (undo.value.code, restore.value.code) == ("NX_NOT_FOUND", "NX_STALE_CHECKPOINT")
     assert len(rig.part.Bodies) == 2
@@ -297,11 +297,11 @@ def test_agent_can_lower_but_never_raise_its_own_control(host):
     host.tick()
     assert not raise_.complete.is_set() and host.waiting_count == 1  # on the card
     assert "Take control of NX" in host.panel_text()
-    with pytest.raises(NXToolError, match="Only the engineer"):
+    with pytest.raises(NXError, match="Only the engineer"):
         host.execute("nx_set_control", {"mode": "auto"})  # never around the card
     host.answer_requested = "decline"
     host.tick()
-    assert raise_.error.code == "NX_UI_DECLINED" and host.mode == "ask"
+    assert raise_.error.code == "NX_CONTROL_DECLINED" and host.mode == "ask"
     host.control("agent")
     lower = queue.submit("nx_set_control", {"mode": "auto"})
     host.tick()
@@ -455,7 +455,7 @@ def test_auto_asks_before_a_long_step(host, rig, monkeypatch):
     assert host.waiting_count == 1  # each long step asks once
     host.answer_requested = "decline"
     host.tick()
-    assert second.error.code == "NX_UI_DECLINED"
+    assert second.error.code == "NX_CONTROL_DECLINED"
 
 
 def test_auto_idle_and_running_lines(host):
@@ -515,7 +515,7 @@ def test_not_now_declines_every_waiting_request(host):
     host.answer_requested = "decline"
     host.tick()
     for pending in (first, second):
-        assert pending.complete.is_set() and pending.error.code == "NX_UI_DECLINED"
+        assert pending.complete.is_set() and pending.error.code == "NX_CONTROL_DECLINED"
         assert pending.error.details["mutation_outcome"] == "not_started"
     assert host.mode == "ask" and "You declined" in host.panel_text()
 
@@ -526,7 +526,7 @@ def test_unanswered_request_expires_without_running(host):
     host.tick()
     host.waiting_since -= 61
     host.tick()
-    assert pending.error.code == "NX_UI_PAUSED" and pending.error.retryable
+    assert pending.error.code == "NX_CONTROL_PAUSED" and pending.error.retryable
     assert "expired after 60 s" in host.panel_text()
 
 
@@ -783,7 +783,7 @@ def test_history_idle_text_and_recap_follow_real_operations(host, rig):
     rig.e.dev_tools["nx_test_fail"] = fail
     host.execute("nx_test_make", {"intent": "Add the boss"})
     host.execute("nx_list_objects", BODIES)
-    with pytest.raises(NXToolError):
+    with pytest.raises(NXError):
         host.execute("nx_test_fail", {})
     # One list, newest first, under the idle line; no separate status block.
     idle, *history = host.panel_text().splitlines()
@@ -827,15 +827,15 @@ def test_fresh_nx_without_a_part_refuses_mutations_instead_of_freezing(host, rig
     real_session = host.session
     host.session = NS2(ApplicationName="UG_APP_NOPART", Parts=[])
     assert not host._nx_application_ready()
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         host.execute("nx_create_part", {"path": "x.prt"})
-    assert error.value.code == "NX_NO_PART_OPEN"
+    assert error.value.code == "NX_NO_WORK_PART"
     assert "File > New" in error.value.message
     assert error.value.details["mutation_outcome"] == "not_started"
     host.driver = "startup"  # The startup app runs between NX commands: no refusal.
     with pytest.raises(Exception) as other:
         host.execute("nx_create_part", {"path": "x.prt"})
-    assert getattr(other.value, "code", None) != "NX_NO_PART_OPEN"
+    assert getattr(other.value, "code", None) != "NX_NO_WORK_PART"
     host.session = NS2(ApplicationName="UG_APP_MODELING", Parts=[object()])
     assert host._nx_application_ready()
     host.session = NS2()  # A failed probe never blocks work.
@@ -946,7 +946,7 @@ def test_agent_drives_refuses_a_model_step_under_a_dialog_but_answers_reads(host
     _dialog_open(monkeypatch, lambda: True)
     host.control("agent")
     rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
-    with pytest.raises(NXToolError) as refused:
+    with pytest.raises(NXError) as refused:
         host.execute("nx_test_edit", {})
     assert refused.value.code == "NX_MODAL_DIALOG_OPEN"
     assert refused.value.details["mutation_outcome"] == "not_started"

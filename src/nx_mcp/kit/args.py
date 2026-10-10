@@ -2,8 +2,8 @@
 
 Every failure raises ``invalid_argument`` (``NX_INVALID_ARGUMENT``) whose
 ``field`` is a JSON pointer. ``field`` may be given as a plain name
-(``"radius"``) or a pointer (``"/radius"``); messages use the plain name, so
-legacy callers keep their exact wording.
+(``"radius"``) or a pointer (``"/radius"``); messages always use the plain
+name.
 """
 
 from __future__ import annotations

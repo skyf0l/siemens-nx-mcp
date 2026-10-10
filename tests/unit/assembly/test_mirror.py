@@ -1,6 +1,5 @@
 import pytest
 
-from nx_mcp.domains.assembly.mirror import reflect_point
 from tests.kit import run
 from tests.unit.assembly.fakes import assembly_nx, place
 
@@ -8,10 +7,6 @@ from tests.unit.assembly.fakes import assembly_nx, place
 @pytest.fixture
 def nx():
     return assembly_nx()
-
-
-def test_reflect_point_mirrors_across_the_plane():
-    assert reflect_point([10, 2, 3], [4, 0, 0], [1, 0, 0]) == [-2, 2, 3]
 
 
 def test_mirror_creates_one_component_per_source_at_the_reflected_origin(nx):

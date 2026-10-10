@@ -86,10 +86,10 @@ def test_mirror_target_errors(extra, field):
 # Pattern
 
 
-def pattern_nx(count=None):
+def pattern_nx(count=None, units="mm"):
     """A fake whose pattern commit removes 50 per instance and reports ``count`` instances
     (default: the requested linear count)."""
-    nx = modeling_nx()
+    nx = modeling_nx(units=units)
     block = nx.block(40, 20, 10)
     seed = feature(nx, "HOLE PACKAGE", [block])
     nx.count = count
@@ -167,6 +167,17 @@ def test_circular_polygon_spiral_and_general_configure_their_definitions():
     assert ok.ok and ok.data["count"] == 3, ok
     g = nx.last("PatternFeatureBuilder").PatternService.GeneralDefinition
     assert g.ToPoints.AddToSection.calls and g.FromLocationPoint.kind == "point"
+
+
+def test_along_curve_compares_the_spacing_with_the_length_in_part_units():
+    nx, block, seed = pattern_nx(count=3, units="in")
+    edge = nx.edge((0, 0, 10), (2, 0, 10), body=block)
+    edge.GetLength = lambda: 50.8  # NX 2406 answers millimetres: 2 in
+    far = pattern(nx, seed, "along_curve", curve=nx.ref_of(edge, "edge"), count=3, spacing=1.5)
+    assert far.error["code"] == "NX_INVALID_ARGUMENT", far
+    assert far.error["field"] == "/parameters/spacing" and far.mutation_outcome == "not_started"
+    ok = pattern(nx, seed, "along_curve", curve=nx.ref_of(edge, "edge"), count=3, spacing=1)
+    assert ok.ok, ok
 
 
 def test_along_curve_and_fill():

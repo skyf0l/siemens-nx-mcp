@@ -235,6 +235,12 @@ def test_materials_assign_verify_and_read():
                 nx.densities[int(b.Tag)] = self.density
                 assigned[int(b.Tag)] = self
 
+        def GetPropTable(self):
+            if self.Name == "OLD":  # an older material: no readable property table
+                raise RuntimeError("no property table")
+            g_cc = NS(Tag=7)  # stored in g/cm^3: converted to kg/m^3
+            return NS(GetBaseScalarWithDataPropertyValue=lambda name: (self.density / 1000, g_cc))
+
     library = type(
         "Materials", (list,), {
             "CreatePhysicalMaterialBuilder": lambda self, kind: nx.builder("PhysicalMaterialBuilder", kind),
@@ -255,10 +261,19 @@ def test_materials_assign_verify_and_read():
     assert ok.ok and ok.data["items"][0]["density"] == 2700, ok
     again = run(nx, "nx_set_material", bodies=[block.ref], material=spec)
     assert again.ok and len(library) == 1
+    nx.part.UnitCollection = NS(FindObject=lambda name: NS(Tag=1),
+                                Convert=lambda src, dst, v: v * 1000)  # fmt: skip
+    assigns = dict(assigned)
     clash = run(nx, "nx_set_material", bodies=[block.ref],
                 material={"custom": {"name": "al6061", "density": 1000}})  # fmt: skip
-    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.mutation_outcome == "rolled_back"
+    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.mutation_outcome == "not_started"
+    assert "2700" in clash.error["message"] and assigned == assigns  # refused before assigning
     read = run(nx, "nx_get_material")
     assert (
         read.data["items"][0]["material"] == "AL6061" and read.mutation_outcome == "not_applicable"
     )
+    # The fake's undo does not restore this assignment record: checked last.
+    library.append(Material("OLD", 500))
+    old = run(nx, "nx_set_material", bodies=[block.ref],
+              material={"custom": {"name": "old", "density": 1000}})  # fmt: skip
+    assert old.error["code"] == "NX_ALREADY_EXISTS" and old.mutation_outcome == "rolled_back"

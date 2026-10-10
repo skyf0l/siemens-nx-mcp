@@ -159,7 +159,7 @@ KINDS = frozenset(
 )
 KIND_GROUPS = {"datum": frozenset({"datum_plane", "datum_axis", "datum_csys", "datum_point"})}
 
-# Short refs ("b:41") and, during migration, legacy registry IDs ("obj_...").
+# Short refs ("b:41") and object registry handles ("obj_...", see core.references).
 REF_PATTERN = r"^([a-z]{1,3}:[1-9][0-9]{0,11}|obj_[A-Za-z0-9_]{8,120})$"
 # Batch children may refer to an earlier step's result: "$2.data.feature".
 PLACEHOLDER_PATTERN = r"^\$[0-9]{1,3}(\.[A-Za-z0-9_]{1,64}){1,8}$"

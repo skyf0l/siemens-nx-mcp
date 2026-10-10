@@ -3,6 +3,7 @@
     m = measure.mass(tx, [body])          # {"volume", "area", "centroid"}
     v = measure.volume(tx, body)          # part units^3
     low, high = measure.bounds(tx, bodies)  # absolute axis-aligned box
+    n = measure.length(tx, curves)        # arc length, part units
 
 NX measures in millimetres here (``MeasureBodies`` with ``KilogramMillimeter``,
 as the NX 2406 legacy tools did); values are converted to the work part's
@@ -123,6 +124,18 @@ def area(tx, faces):
 UF_SOLID = 1  # AskMassProps3d: solid bodies
 UF_KG_M = 4  # AskMassProps3d units: kilograms and metres
 M_PER = {"mm": 1e-3, "in": 0.0254}
+
+
+def length(tx, curves):
+    """Total arc length of one curve or edge, or a list of them, in part units.
+
+    NX 2406 ``GetLength`` answers millimetres whatever the part units (live NX 2406).
+    """
+    if not isinstance(curves, (list, tuple)):
+        curves = [curves]
+    with native(default="NX_ERROR"):
+        total = sum(float(c.GetLength()) for c in curves)
+    return total * _scale(tx)
 
 
 def wcs(tx):

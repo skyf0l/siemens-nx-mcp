@@ -20,7 +20,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from nx_mcp import side_effects
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 
 ObjectKind = Literal[
     "reference_set",
@@ -66,7 +66,7 @@ class ObjectRef:
 BRIDGE_PROTOCOL_VERSION = 1
 _MAX_MESSAGE_BYTES = 1024 * 1024
 # NX answers a request it could not finish within DISPATCHER_TIMEOUT of starting
-# it itself (NX_MAIN_THREAD_UNAVAILABLE with a known outcome). The interactive
+# it itself (NX_BRIDGE_UNAVAILABLE with a known outcome). The interactive
 # host may hold a request in its queue for up to QUEUE_TIMEOUT first (the engineer
 # is busy in an NX command, or has not answered the panel yet); it answers held
 # requests itself before that. The sidecar waits a little longer than both so
@@ -133,7 +133,7 @@ def default_descriptor_path() -> Path:
     return Path.home() / ".local" / "state" / "nx-mcp" / "bridge.json"
 
 
-def _error_payload(error: NXToolError) -> dict[str, Any]:
+def _error_payload(error: NXError) -> dict[str, Any]:
     return error.as_dict()
 
 
@@ -179,21 +179,19 @@ class _BridgeRequestHandler(socketserver.StreamRequestHandler):
         request_id: str | None = None
         try:
             if len(raw) > _MAX_MESSAGE_BYTES:
-                raise NXToolError("NX_REQUEST_TOO_LARGE", "Bridge request is too large")
+                raise NXError("NX_REQUEST_TOO_LARGE", "Bridge request is too large")
             request = json.loads(raw)
             request_id = request.get("id")
             if request.get("jsonrpc") != "2.0":
-                raise NXToolError("NX_PROTOCOL_ERROR", "Expected JSON-RPC 2.0")
+                raise NXError("NX_PROTOCOL_MISMATCH", "Expected JSON-RPC 2.0")
             if request.get("protocol_version") != BRIDGE_PROTOCOL_VERSION:
-                raise NXToolError(
-                    "NX_PROTOCOL_VERSION_MISMATCH", "Bridge protocol version does not match"
-                )
+                raise NXError("NX_PROTOCOL_MISMATCH", "Bridge protocol version does not match")
             if not hmac.compare_digest(str(request.get("token", "")), self.server.token):
-                raise NXToolError("NX_AUTH_FAILED", "Bridge authentication failed")
+                raise NXError("NX_AUTH_FAILED", "Bridge authentication failed")
             method = request.get("method")
             params = request.get("params", {})
             if not isinstance(method, str) or not isinstance(params, dict):
-                raise NXToolError("NX_INVALID_REQUEST", "Bridge method and params are invalid")
+                raise NXError("NX_INVALID_ARGUMENT", "Bridge method and params are invalid")
             result = self.server.executor(method, params)
             from nx_mcp.result_transport import bound_result
 
@@ -205,7 +203,7 @@ class _BridgeRequestHandler(socketserver.StreamRequestHandler):
                 "ok": True,
                 "result": result,
             }
-        except NXToolError as error:
+        except NXError as error:
             response = {
                 "jsonrpc": "2.0",
                 "protocol_version": BRIDGE_PROTOCOL_VERSION,
@@ -219,7 +217,7 @@ class _BridgeRequestHandler(socketserver.StreamRequestHandler):
                 "protocol_version": BRIDGE_PROTOCOL_VERSION,
                 "id": request_id,
                 "ok": False,
-                "error": NXToolError("NX_OPERATION_FAILED", str(error)).as_dict(),
+                "error": NXError("NX_BUILD_FAILED", str(error)).as_dict(),
             }
         self.wfile.write(json.dumps(response, ensure_ascii=False).encode("utf-8") + b"\n")
 
@@ -399,7 +397,7 @@ class MainThreadDispatcher:
         pending = _PendingBridgeCall(method, params)
         with self._lock:
             if self._stopped:
-                raise NXToolError(
+                raise NXError(
                     "NX_BRIDGE_UNAVAILABLE",
                     "NX bridge is stopping.",
                     retryable=True,
@@ -415,7 +413,7 @@ class MainThreadDispatcher:
         if pending.error is not None:
             raise pending.error
         if pending.result is None:
-            raise NXToolError("NX_OPERATION_FAILED", "NX bridge returned no result")
+            raise NXError("NX_BUILD_FAILED", "NX bridge returned no result")
         return pending.result
 
     def _wait(self, pending: _PendingBridgeCall) -> None:
@@ -431,8 +429,8 @@ class MainThreadDispatcher:
                     deadline = (pending.started_at or pending.queued_at) + self._timeout
             if started and time.monotonic() < deadline:
                 continue
-            raise NXToolError(
-                "NX_MAIN_THREAD_UNAVAILABLE",
+            raise NXError(
+                "NX_BRIDGE_UNAVAILABLE",
                 "NX did not complete the bridge request before the timeout. Query the operation receipt before retrying a started mutation.",
                 retryable=not started,
                 details={"mutation_outcome": "unknown" if started else "not_started"},
@@ -473,14 +471,14 @@ class MainThreadDispatcher:
         self._execute(pending)
         return 1
 
-    def reject_where(self, reject: Callable[[_PendingBridgeCall], bool], error: NXToolError) -> int:
+    def reject_where(self, reject: Callable[[_PendingBridgeCall], bool], error: NXError) -> int:
         """Complete matching queued calls with ``error`` without executing them."""
         with self._calls.mutex:
             rejected = [p for p in self._calls.queue if reject(p)]
             for pending in rejected:
                 self._calls.queue.remove(pending)
         for pending in rejected:
-            pending.error = NXToolError(
+            pending.error = NXError(
                 error.code,
                 error.message,
                 retryable=error.retryable,
@@ -497,7 +495,7 @@ class MainThreadDispatcher:
                     pending = self._calls.get_nowait()
                 except Empty:
                     return
-                pending.error = NXToolError(
+                pending.error = NXError(
                     "NX_BRIDGE_UNAVAILABLE",
                     "NX bridge is stopping.",
                     retryable=True,
@@ -508,7 +506,7 @@ class MainThreadDispatcher:
     def _execute(self, pending: _PendingBridgeCall) -> None:
         with self._lock:
             if self._stopped or pending.cancelled:
-                pending.error = NXToolError(
+                pending.error = NXError(
                     "NX_BRIDGE_UNAVAILABLE",
                     "Bridge stopped or queued request expired before execution.",
                     retryable=True,
@@ -588,7 +586,7 @@ class BridgeClient:
             sent = True
             raw = await asyncio.wait_for(reader.readline(), timeout=self.timeout)
         except ValueError as error:
-            raise NXToolError(
+            raise NXError(
                 "NX_RESPONSE_TOO_LARGE",
                 "Bridge response exceeded framing limit; inspect operation status before retry",
                 details={"operation_id": params.get("operation_id"), "mutation_outcome": "unknown"},
@@ -596,8 +594,8 @@ class BridgeClient:
         except (OSError, asyncio.TimeoutError) as error:
             if sent:
                 # NX may be running or have committed the request: never retry blindly.
-                raise NXToolError(
-                    "NX_BRIDGE_OUTCOME_UNKNOWN",
+                raise NXError(
+                    "NX_OUTCOME_UNKNOWN",
                     "The request reached the NX bridge but no answer arrived "
                     f"({type(error).__name__}: {error}). Query nx_get_operation with this "
                     "operation_id before retrying.",
@@ -607,7 +605,7 @@ class BridgeClient:
                         "mutation_outcome": "unknown",
                     },
                 ) from error
-            raise NXToolError(
+            raise NXError(
                 "NX_BRIDGE_UNAVAILABLE",
                 f"NX bridge is unavailable: {error}",
                 retryable=True,
@@ -621,36 +619,37 @@ class BridgeClient:
 
         if not raw or len(raw) > _MAX_MESSAGE_BYTES:
             # The request was delivered; a dropped connection leaves its outcome unknown.
-            raise NXToolError(
-                "NX_PROTOCOL_ERROR",
+            raise NXError(
+                "NX_PROTOCOL_MISMATCH",
                 "NX bridge returned an invalid response size; query nx_get_operation "
                 "before retrying",
+                retryable=False,
                 details={"operation_id": params.get("operation_id"), "mutation_outcome": "unknown"},
             )
         try:
             response = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError) as parse_error:
-            raise NXToolError(
-                "NX_PROTOCOL_ERROR", "NX bridge returned invalid JSON"
+            raise NXError(
+                "NX_PROTOCOL_MISMATCH", "NX bridge returned invalid JSON"
             ) from parse_error
         if (
             response.get("id") != request_id
             or response.get("protocol_version") != BRIDGE_PROTOCOL_VERSION
         ):
-            raise NXToolError("NX_PROTOCOL_ERROR", "NX bridge returned an invalid response")
+            raise NXError("NX_PROTOCOL_MISMATCH", "NX bridge returned an invalid response")
         if not response.get("ok"):
             error_payload = response.get("error", {})
-            raise NXToolError(
-                error_payload.get("code", "NX_OPERATION_FAILED"),
+            raise NXError(
+                error_payload.get("code", "NX_BUILD_FAILED"),
                 error_payload.get("message", "NX operation failed"),
-                suggestion=error_payload.get("suggestion"),
+                hint=error_payload.get("suggestion"),
                 nx_code=error_payload.get("nx_code"),
                 retryable=error_payload.get("retryable", False),
                 details=error_payload.get("details"),
             )
         result = response.get("result", {})
         if not isinstance(result, dict):
-            raise NXToolError("NX_PROTOCOL_ERROR", "NX bridge result must be an object")
+            raise NXError("NX_PROTOCOL_MISMATCH", "NX bridge result must be an object")
         return result
 
 
@@ -669,15 +668,15 @@ class DescriptorBridgeClient:
         try:
             descriptor = BridgeDescriptor.read(self.descriptor_path)
         except (OSError, ValueError) as error:
-            raise NXToolError(
+            raise NXError(
                 "NX_BRIDGE_UNAVAILABLE",
                 "Start the NX MCP bridge inside Siemens NX before calling tools.",
                 retryable=True,
                 details={"mutation_outcome": "not_started"},
             ) from error
         if descriptor.protocol_version != BRIDGE_PROTOCOL_VERSION:
-            raise NXToolError(
-                "NX_PROTOCOL_VERSION_MISMATCH",
+            raise NXError(
+                "NX_PROTOCOL_MISMATCH",
                 "NX bridge and sidecar use different protocol versions.",
             )
         return await BridgeClient(
@@ -746,19 +745,19 @@ class ObjectRegistry:
                 and not object_id.startswith("obj_" + self.session_id + "_")
             )
             code = (
-                "NX_OBJECT_STALE"
+                "NX_STALE_REFERENCE"
                 if object_id in self._stale_ids or foreign_session
-                else "NX_OBJECT_NOT_FOUND"
+                else "NX_NOT_FOUND"
             )
-            raise NXToolError(code, f"Object reference is not valid: {object_id}")
+            raise NXError(code, f"Object reference is not valid: {object_id}")
         if expected_kind is not None and entry.reference.kind != expected_kind:
-            raise NXToolError(
-                "NX_OBJECT_TYPE_MISMATCH",
+            raise NXError(
+                "NX_WRONG_KIND",
                 f"Expected {expected_kind}, got {entry.reference.kind}",
             )
         if part_id is not None and entry.reference.part_id != part_id:
-            raise NXToolError(
-                "NX_OBJECT_STALE",
+            raise NXError(
+                "NX_STALE_REFERENCE",
                 "Object reference belongs to a different work part",
             )
         side_effects.touch()  # The caller now holds a live NX object.

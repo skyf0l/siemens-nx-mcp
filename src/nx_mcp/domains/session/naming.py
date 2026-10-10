@@ -2,9 +2,8 @@
 
 It replaces ``nx_rename_object``, which also accepted a unique display name: the
 catalogue takes a reference only. NX may normalise the name (case, characters), so
-the result reads the name back from the object. Like the legacy tool, every
-reference of the part is invalidated (``changes.references`` is
-``part_invalidated``); the result carries a fresh reference to the renamed object.
+the result reads the name back from the object. Every reference of the part is
+invalidated (``changes.references`` is ``part_invalidated``); the result carries a fresh reference to the renamed object.
 """
 
 from __future__ import annotations

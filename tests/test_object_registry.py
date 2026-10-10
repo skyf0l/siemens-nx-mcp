@@ -1,7 +1,7 @@
 import pytest
 
 from nx_mcp.bridge import ObjectRegistry
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 
 
 def test_object_reference_resolves_only_in_its_part_session():
@@ -13,18 +13,18 @@ def test_object_reference_resolves_only_in_its_part_session():
 
     registry.invalidate_part("part-1")
 
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         registry.resolve(reference.id, expected_kind="sketch")
-    assert error.value.code == "NX_OBJECT_STALE"
+    assert error.value.code == "NX_STALE_REFERENCE"
 
 
 def test_object_reference_rejects_wrong_kind():
     registry = ObjectRegistry()
     reference = registry.register(object(), kind="body", name="BODY(1)", part_id="part-1")
 
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         registry.resolve(reference.id, expected_kind="sketch")
-    assert error.value.code == "NX_OBJECT_TYPE_MISMATCH"
+    assert error.value.code == "NX_WRONG_KIND"
 
 
 def test_registering_same_live_object_returns_same_session_id():
@@ -41,10 +41,10 @@ def test_object_reference_cannot_be_used_with_another_work_part():
     registry = ObjectRegistry()
     reference = registry.register(object(), kind="sketch", name="PROFILE", part_id="part-1")
 
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         registry.resolve(reference.id, expected_kind="sketch", part_id="part-2")
 
-    assert error.value.code == "NX_OBJECT_STALE"
+    assert error.value.code == "NX_STALE_REFERENCE"
 
 
 def test_an_identity_hit_keeps_the_live_object_when_nx_reuses_a_tag():

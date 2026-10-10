@@ -342,14 +342,13 @@ def _mirror(tx, sk, inputs, mirror_line):
         len(created) == len(inputs), "mirror_count", created=len(created), requested=len(inputs)
     )
 
-    def reflect(p):
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
-        fx, fy = a[0] + t * dx, a[1] + t * dy
-        return [2 * fx - p[0], 2 * fy - p[1]]
-
+    line = geom.sub(b, a)
     sources = [
-        sorted(tuple(reflect(ksketch.to_local(f, p))) for p in kcurve.ends(tx, c)) for c in inputs
+        sorted(
+            tuple(geom.reflect_across_line(ksketch.to_local(f, p), a, line))
+            for p in kcurve.ends(tx, c)
+        )
+        for c in inputs
     ]
     tol = 1e-6 * max(1.0, *[abs(v) for e in sources for p in e for v in p])
     unmatched = []
@@ -480,7 +479,7 @@ def _intersect(tx, sk, refs):
         b.Associative = True
         b.JoinCurves = False
         b.IgnoreHoles = False
-        b.FaceCollector.ReplaceRules([part.ScRuleFactory.CreateRuleFaceDumb(faces)], False)
+        builders.fill(tx, b.FaceCollector, faces, "Face")
         with common.rejected_inputs("The faces do not cross the sketch plane"):
             b.CollectorUpdated()
         return b.CommitFeature()

@@ -1,7 +1,7 @@
 """Helpers shared by the drawing tools (private to the drawing domain).
 
-Attribute names are the ones the legacy tools wrote, so drawings made before the
-migration keep their managed detail boundaries, table kinds and construction state.
+Attribute names never change: drawings saved by earlier NX MCP versions keep their
+managed detail boundaries, table kinds and construction state.
 """
 
 from __future__ import annotations

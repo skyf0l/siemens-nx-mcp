@@ -61,6 +61,14 @@ def test_mass_needs_bodies_and_disposes_on_failure():
     assert error.value.code == "NX_ERROR" and disposed == [True]
 
 
+@pytest.mark.parametrize(("units", "want"), [("mm", 60.0), ("in", 60.0 / 25.4)])
+def test_length_converts_nx_millimetres_to_part_units(units, want):
+    nx = fake_nx(units=units)
+    edge = NS(GetLength=lambda: 50.8)
+    assert measure.length(nx.tx, [edge, NS(GetLength=lambda: 9.2)]) == pytest.approx(want)
+    assert measure.length(nx.tx, edge) == pytest.approx(want * 50.8 / 60.0)
+
+
 def test_bounds_union_of_objects():
     nx = fake_nx()
     a, b = nx.block(1, 1, 1), nx.block(2, 2, 2, origin=(5, 0, -1))

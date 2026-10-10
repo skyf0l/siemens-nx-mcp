@@ -1,4 +1,4 @@
-"""A small in-memory ``Services`` for kernel tests (no NX, no legacy executor).
+"""A small in-memory ``Services`` for kernel tests (no NX).
 
 Objects live in ``FakePart.objects``; an undo mark copies that list, so undo
 restores structure exactly like NX undo restores the model.
@@ -173,22 +173,22 @@ class FakeServices(Services):
     def infer_kind(self, obj, default="error"):
         return "part" if isinstance(obj, FakePart) else obj.kind
 
-    # legacy registry
-    def legacy_register(self, obj, kind, part):
+    # object registry handles
+    def register_handle(self, obj, kind, part):
         return self.registry.register(obj, kind=kind, name=obj.Name, part_id=self.part_key(part)).id
 
-    def legacy_resolve(self, legacy_id):
-        return self.registry.resolve(legacy_id)
+    def resolve_handle(self, handle):
+        return self.registry.resolve(handle)
 
-    def legacy_live(self, legacy_id):
-        return legacy_id in self.registry._objects
+    def handle_live(self, handle):
+        return handle in self.registry._objects
 
-    def legacy_kind(self, legacy_id):
-        entry = self.registry._objects.get(legacy_id)
+    def handle_kind(self, handle):
+        entry = self.registry._objects.get(handle)
         return entry.reference.kind if entry else None
 
-    def legacy_name(self, legacy_id):
-        return self.registry.display_name(legacy_id)
+    def handle_name(self, handle):
+        return self.registry.display_name(handle)
 
     # state
     def state(self):
@@ -235,7 +235,7 @@ class FakeServices(Services):
     def snapshot(self, part):
         return {
             (o.kind, o.Tag): {
-                "id": self.legacy_register(o, o.kind, part),
+                "id": self.register_handle(o, o.kind, part),
                 "kind": o.kind,
                 "name": o.Name,
                 "part_id": self.part_key(part),
@@ -244,7 +244,7 @@ class FakeServices(Services):
         }
 
     def describe(self, entry, live):
-        if live and self.legacy_live(entry["id"]):
+        if live and self.handle_live(entry["id"]):
             obj = self.registry._objects[entry["id"]].value
             return self.references.row(obj, obj.kind)
         return {"id": entry["id"], "kind": entry["kind"], "name": entry["name"], "part": None}

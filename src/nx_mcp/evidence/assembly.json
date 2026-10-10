@@ -2,10 +2,10 @@
   "nx_create_assembly_constraint": {
     "v2406": {
       "checks": 82,
-      "recorded": "2026-10-10T10:54:44Z",
+      "recorded": "2026-10-10T11:23:11Z",
       "scenario": "acceptance/assembly/constraints.json",
       "scenario_sha256": "ac9bfd63ba36af0418ace42bba653f2eab14e4ad3e9bde34da36731496ca9319",
-      "source_sha256": "bec86fa780015e4d334a2e21637e74d229a56438cf7d37e1b3c7593968b31d98",
+      "source_sha256": "9702c26f319538fdcc4c7a0e434d6ad94d054d1e2a9f3caf1d1f62fa16aa0045",
       "variants": [
         "align",
         "align_lock",
@@ -39,10 +39,10 @@
   "nx_create_component_mirror": {
     "v2406": {
       "checks": 12,
-      "recorded": "2026-10-10T10:57:11Z",
+      "recorded": "2026-10-10T11:33:06Z",
       "scenario": "acceptance/assembly/component_mirror.json",
       "scenario_sha256": "94fde0afd3fc358ecc230814b4edf95f3a369cc7d9c0c10d7898d4bf89148090",
-      "source_sha256": "032add9627fa15545a6c0c321a85ca88ac969743646b8675d28624287c5a813e",
+      "source_sha256": "c7bbb5f358d8877d4c1d5dcd61b8a37e64ae124e7727855881fbf6e8e54a8f9b",
       "variants": []
     }
   },
@@ -76,6 +76,20 @@
       "variants": []
     }
   },
+  "nx_create_extract": {
+    "v2406": {
+      "checks": 42,
+      "recorded": "2026-10-10T11:35:07Z",
+      "scenario": "acceptance/assembly/extract_geometry.json",
+      "scenario_sha256": "a725e4bbd2cee8f44c4962030ba4267dff009bf4581fda56af18593cb2fbc55a",
+      "source_sha256": "1139f22e187c6ea27f28e6c9cc0b72e77d588cae9e0a781c4c56b8ce7ae91f37",
+      "variants": [
+        "body",
+        "face",
+        "region"
+      ]
+    }
+  },
   "nx_create_reference_set": {
     "v2406": {
       "checks": 108,
@@ -86,13 +100,29 @@
       "variants": []
     }
   },
+  "nx_create_wave_link": {
+    "v2406": {
+      "checks": 59,
+      "recorded": "2026-10-10T11:35:05Z",
+      "scenario": "acceptance/assembly/wave_links.json",
+      "scenario_sha256": "9848e7353064d62a6d8892fa360d0a4e0ebd5776caba026dc68b8804bc6df0a4",
+      "source_sha256": "1139f22e187c6ea27f28e6c9cc0b72e77d588cae9e0a781c4c56b8ce7ae91f37",
+      "variants": [
+        "body",
+        "curve",
+        "datum",
+        "face",
+        "sketch"
+      ]
+    }
+  },
   "nx_edit_assembly_constraint": {
     "v2406": {
       "checks": 82,
-      "recorded": "2026-10-10T10:54:44Z",
+      "recorded": "2026-10-10T11:23:11Z",
       "scenario": "acceptance/assembly/constraints.json",
       "scenario_sha256": "ac9bfd63ba36af0418ace42bba653f2eab14e4ad3e9bde34da36731496ca9319",
-      "source_sha256": "bec86fa780015e4d334a2e21637e74d229a56438cf7d37e1b3c7593968b31d98",
+      "source_sha256": "9702c26f319538fdcc4c7a0e434d6ad94d054d1e2a9f3caf1d1f62fa16aa0045",
       "variants": []
     }
   },

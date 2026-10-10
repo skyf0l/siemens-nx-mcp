@@ -186,3 +186,32 @@ def test_keep_sheet_metal_only_acts_in_sheet_metal_on_sheet_metal_parts(nx, tmp_
     nx.Parts.Display = bent
     parts.keep_sheet_metal(tx)
     assert nx.switches == [SHEET_METAL]
+
+
+DRAFTING = "UG_APP_DRAFTING"
+
+
+def test_keeping_application_re_enters_sheet_metal_after_a_drawing_round_trip(nx, tmp_path):
+    bent = nx.part(sheet_metal=True)
+    parts.activate(tx_of(nx, tmp_path), bent)
+    nx.switches.clear()
+    with parts.keeping_application(tx_of(nx, tmp_path)):
+        nx.ApplicationName = DRAFTING  # leaving and reopening a drawing sheet
+    assert nx.ApplicationName == SHEET_METAL and nx.switches == [SHEET_METAL]
+    assert nx.remembered[bent.Tag] == SHEET_METAL and nx.dialogs == []
+    with pytest.raises(KeyError), parts.keeping_application(tx_of(nx, tmp_path)):
+        nx.ApplicationName = MODELING
+        raise KeyError("the block failed")  # still re-entered, the error propagates
+    assert nx.ApplicationName == SHEET_METAL
+    nx.switches.clear()
+    with parts.keeping_application(tx_of(nx, tmp_path)):
+        pass  # unchanged: no switch (NX 2406 would close a shown drawing sheet)
+    assert nx.switches == []
+
+
+def test_keeping_application_leaves_other_applications_alone(nx, tmp_path):
+    plain = nx.part()
+    parts.activate(tx_of(nx, tmp_path), plain)
+    with parts.keeping_application(tx_of(nx, tmp_path)):
+        nx.ApplicationName = DRAFTING
+    assert nx.switches == [] and nx.ApplicationName == DRAFTING

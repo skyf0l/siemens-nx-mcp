@@ -81,13 +81,13 @@ def test_development_tools_keep_their_shape_and_record_ownership(rig, monkeypatc
 
 
 def test_a_development_snippets_system_exit_is_a_rolled_back_error(rig):
-    from nx_mcp.core.errors import NXToolError
+    from nx_mcp.core.errors import NXError
 
     def snippet():
         raise SystemExit(2)
 
     rig.e.dev_tools["nx_test_exit"] = snippet
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         rig.run("nx_test_exit", {})
     assert error.value.details["mutation_outcome"] == "rolled_back"
 

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from nx_mcp.bridge import MainThreadDispatcher, ObjectRegistry
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.core.summary import humanize, relative_path
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
@@ -47,9 +47,9 @@ def test_dispatcher_runs_selected_call_and_rejects_held_ones():
     assert dispatcher.waiting() == [held, status]
     assert dispatcher.drain_where(lambda p: p.method == "nx_get_status") == 1
     assert ran == ["nx_get_status"] and dispatcher.waiting() == [held]
-    error = NXToolError("NX_UI_DECLINED", "no", details={"x": 1})
+    error = NXError("NX_CONTROL_DECLINED", "no", details={"x": 1})
     assert dispatcher.reject_where(lambda p: True, error) == 1
-    assert held.error.code == "NX_UI_DECLINED" and held.error.details == {
+    assert held.error.code == "NX_CONTROL_DECLINED" and held.error.details == {
         "x": 1,
         "mutation_outcome": "not_started",
     }

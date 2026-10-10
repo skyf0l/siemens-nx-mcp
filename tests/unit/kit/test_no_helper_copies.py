@@ -1,8 +1,10 @@
 """Shared helpers live once, in ``nx_mcp.kit`` (architecture.md 1.4, rule 2).
 
-Fails when a module outside ``kit/`` defines its own module-level copy of a kit
-helper (vector math, validators, enum names, units, sheet and sketch helpers).
-Import the kit version instead.
+Fails when a module outside ``kit/`` defines its own copy of a kit helper (vector
+math, reflections, validators, enum names, units, sheet and sketch helpers), at
+module level or nested in a function, or re-codes a kit idiom inline (a raw
+``GetLength()``, a one-rule ``ReplaceRules([...Dumb(...)])``). Import the kit
+version instead.
 """
 
 import ast
@@ -31,6 +33,14 @@ HELPERS = {
     # sketch
     "snake",
 }  # fmt: skip
+# Also caught nested inside a function (``add`` or ``close`` closures are common
+# and harmless; these names are not).
+NESTED = {
+    # geom.reflect / reflect_across_line, builders.fill
+    "reflect", "reflect_point", "reflect_across_line", "mirror_point", "rule_bodies",
+    "fill_collector",
+}  # fmt: skip
+HELPERS |= NESTED
 
 # (module, function) copies not removed yet, with the reason. Remove an entry when
 # its module migrates; a stale entry fails the test.
@@ -49,14 +59,17 @@ def _copies():
     found = set()
     for rel, path in _modules():
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            is_def = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            if is_def and node.name.lstrip("_") in HELPERS:
+        top = set(map(id, tree.body))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            name = node.name.lstrip("_")
+            if name in NESTED or (id(node) in top and name in HELPERS):
                 found.add((rel.as_posix(), node.name))
     return found
 
 
-def test_no_module_level_helper_copies_outside_kit():
+def test_no_helper_copies_outside_kit():
     copies = _copies() - set(ALLOWLIST)
     assert not copies, f"Import these from nx_mcp.kit instead of copying them: {sorted(copies)}"
 
@@ -64,6 +77,35 @@ def test_no_module_level_helper_copies_outside_kit():
 def test_allowlist_has_no_stale_entries():
     stale = set(ALLOWLIST) - _copies()
     assert not stale, f"Remove migrated entries from ALLOWLIST: {sorted(stale)}"
+
+
+def _inline_idioms():
+    """Calls that re-code a kit helper in place."""
+    found = []
+    for rel, path in _modules():
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+                continue
+            where = f"{rel.as_posix()}:{node.lineno}"
+            if node.func.attr == "GetLength":  # NX 2406 answers mm: kit.measure.length
+                found.append(f"{where} GetLength() -> measure.length")
+            first = node.args[0] if node.args else None
+            if node.func.attr == "ReplaceRules" and isinstance(first, ast.List):
+                rules = first.elts
+                one = rules[0] if len(rules) == 1 else None
+                if (
+                    isinstance(one, ast.Call)
+                    and isinstance(one.func, ast.Attribute)
+                    and one.func.attr in {"CreateRuleBodyDumb", "CreateRuleFaceDumb",
+                                          "CreateRuleEdgeDumb"}
+                ):  # fmt: skip
+                    found.append(f"{where} ReplaceRules([{one.func.attr}]) -> builders.fill")
+    return found
+
+
+def test_no_inline_copies_of_kit_idioms():
+    found = _inline_idioms()
+    assert not found, f"Use the kit helper instead: {found}"
 
 
 KIT = ROOT / "kit"

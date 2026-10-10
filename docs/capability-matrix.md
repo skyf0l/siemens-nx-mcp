@@ -3,13 +3,13 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `98149a8a13fcbbca9b1edf5f7d85ac8ea9735089692f562886c39ef23e877618`.
+Canonical SHA-256 (catalogue evidence): `62854d10e9ba10bc7b0139693e04a04c21b5d33b699fa7269bbd376e4ecb94a9`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 157 |
+| Native-tested | 159 |
 | Experimental | 1 |
 
 ## Catalogue tools
@@ -54,6 +54,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_emboss_body | Native-tested | modeling | model | v2406: tested; 8 checks in acceptance/modeling/emboss_body.json |
 | nx_create_explosion | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
 | nx_create_explosion_trace | Native-tested | assembly | model | v2406: tested; 93 checks in acceptance/assembly/explosions.json |
+| nx_create_extract | Native-tested | assembly | model | v2406: all variants; 42 checks in acceptance/assembly/extract_geometry.json |
 | nx_create_extrude | Native-tested | modeling | model | v2406: tested; 36 checks in acceptance/modeling/extrude.json |
 | nx_create_gdt | Native-tested | drawing | model | v2406: fcf, view_datum_feature, view_datum_target, view_fcf (untested: datum_feature); 18 checks in acceptance/drawing/gdt_views_inch.json |
 | nx_create_helix | Native-tested | modeling | model | v2406: tested; 12 checks in acceptance/modeling/helix.json |
@@ -63,7 +64,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_mirror | Native-tested | modeling | model | v2406: all variants; 14 checks in acceptance/modeling/mirror_features.json |
 | nx_create_note | Native-tested | drawing | model | v2406: tested; 23 checks in acceptance/drawing/inch_units.json |
 | nx_create_part | Native-tested | parts_files | file | v2406: tested; 33 checks in acceptance/parts_files/create_part.json |
-| nx_create_pattern | Native-tested | modeling | model | v2406: all variants; 59 checks in acceptance/modeling/pattern_layouts.json |
+| nx_create_pattern | Native-tested | modeling | model | v2406: all variants; 68 checks in acceptance/modeling/pattern_layouts.json |
 | nx_create_reference_set | Native-tested | assembly | model | v2406: tested; 108 checks in acceptance/assembly/components.json |
 | nx_create_revolve | Native-tested | modeling | model | v2406: tested; 17 checks in acceptance/modeling/revolve.json |
 | nx_create_rib | Native-tested | modeling | model | v2406: all variants; 22 checks in acceptance/modeling/rib.json |
@@ -88,6 +89,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_trim_body | Native-tested | modeling | model | v2406: all variants; 16 checks in acceptance/modeling/trim_body.json |
 | nx_create_trim_sheet | Native-tested | freeform | model | v2406: tested; 11 checks in acceptance/freeform/trim_sheet.json |
 | nx_create_tube | Native-tested | modeling | model | v2406: tested; 3 checks in acceptance/modeling/tube_inch.json |
+| nx_create_wave_link | Native-tested | assembly | model | v2406: all variants; 59 checks in acceptance/assembly/wave_links.json |
 | nx_delete_objects | Native-tested | session | model | v2406: tested; 30 checks in acceptance/session/delete_objects.json |
 | nx_delete_results | Native-tested | session | file | v2406: tested; 57 checks in acceptance/session/results.json |
 | nx_download_file | Native-tested | parts_files | read | v2406: all variants; 27 checks in acceptance/parts_files/download_file.json |

@@ -198,7 +198,10 @@
    },
    "expect": {
     "error.code": "NX_ALREADY_EXISTS",
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "not_started",
+    "error.message": {
+     "matches": "density 2700 kg/m"
+    }
    }
   },
   {

@@ -6,7 +6,7 @@ the batch bridge) hands each bridge call to :func:`execute` with its
 ``CatalogueError`` stops the host from starting and ``dev_reload.py`` prints it
 (architecture.md 1.2).
 
-A failed catalogue call is raised as :class:`KernelError`, an ``NXToolError``
+A failed catalogue call is raised as :class:`KernelError`, an ``NXError``
 whose bridge payload keeps the bridge keys (``code``, ``message``, ``details``
 with ``mutation_outcome``) and carries the complete surface 1.6 error envelope
 under ``details.envelope`` for the sidecar (step F3).
@@ -25,7 +25,7 @@ import contextlib
 import inspect
 
 from nx_mcp.core import catalogue, kernel, summary
-from nx_mcp.core.errors import NXToolError, classify
+from nx_mcp.core.errors import NXError, classify
 from nx_mcp.core.receipts import new_operation_id
 from nx_mcp.core.tx import NOT_GRANTED_HINT
 from nx_mcp.core.validate import validate
@@ -37,7 +37,7 @@ catalogue.load()
 CALL_KEYS = ("intent", "operation_id", "detail")
 
 
-class KernelError(NXToolError):
+class KernelError(NXError):
     """A failed catalogue call; ``envelope`` is the surface 1.6 error envelope."""
 
     def __init__(self, envelope: dict) -> None:
@@ -45,7 +45,7 @@ class KernelError(NXToolError):
         super().__init__(
             error["code"],
             error["message"],
-            suggestion=error.get("hint"),
+            hint=error.get("hint"),
             nx_code=error.get("nx_code"),
             retryable=error.get("retry") in ("after_wait", "after_reacquire"),
             details={
@@ -90,7 +90,7 @@ def execute(services, method: str, params: dict):
     spec = catalogue.get(method)
     handler = None if spec is not None else services.dev_tools.get(method)
     if spec is None and handler is None:
-        raise NXToolError("NX_TOOL_NOT_FOUND", method)
+        raise NXError("NX_UNKNOWN_TOOL", method)
     calm = Calm()
     guard = getattr(services, "quiet", None)
     try:
@@ -99,7 +99,7 @@ def execute(services, method: str, params: dict):
                 result = run(services, spec, params)
             else:
                 result = run_dev_tool(services, method, handler, params)
-    except NXToolError as error:
+    except NXError as error:
         if calm.listing:
             error.details["listing"] = calm.listing
             envelope = error.details.get("envelope")
@@ -147,7 +147,7 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     try:
         inspect.signature(handler).bind(**params)
     except TypeError as error:
-        raise NXToolError("NX_INVALID_ARGUMENT", str(error)) from error
+        raise NXError("NX_INVALID_ARGUMENT", str(error)) from error
     part = services.work_part()
     shown = services.shown_parts()
     before = services.snapshot(part) if part is not None else {}
@@ -157,7 +157,7 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     try:
         result = dict(handler(**params) or {})
     except BaseException as error:  # a snippet's SystemExit is a failed call, not a host exit
-        failure = error if isinstance(error, NXToolError) else classify(error)
+        failure = error if isinstance(error, NXError) else classify(error)
         failure.details.update(operation_id=operation_id, **_roll_back_dev(services, mark, shown))
         raise failure from error
     finally:

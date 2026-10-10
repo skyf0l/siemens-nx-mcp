@@ -9,7 +9,7 @@ import pytest
 
 from nx_mcp import interactive
 from nx_mcp.activity import Activity
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.host import dialogs
 
 PID, OTHER = 7740, 1234
@@ -111,7 +111,7 @@ def host(tmp_path):
 
 def test_a_call_is_refused_while_a_dialog_blocks_nx(tmp_path, monkeypatch):
     monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [dialogs.Dialog(5, "Sheet Metal", TEXT)])
-    with pytest.raises(NXToolError) as raised:
+    with pytest.raises(NXError) as raised:
         interactive.InteractiveHost._watch_dialogs(host(tmp_path), refuse=True)
     error = raised.value
     assert error.code == "NX_MODAL_DIALOG_OPEN"
@@ -139,7 +139,7 @@ def test_a_dialog_during_a_call_is_logged_and_reported(tmp_path, monkeypatch):
     # Answered during a failed call: the error carries it.
     monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [])
     envelope = {"ok": False, "error": {}}
-    error = NXToolError("NX_ERROR", "failed", details={"envelope": envelope})
+    error = NXError("NX_ERROR", "failed", details={"envelope": envelope})
     interactive.InteractiveHost._report_dialogs(stub, None, [warning], error=error)
     assert error.details["modal_dialogs"][0]["open"] is False
     assert "someone answered it" in envelope["warnings"][0]["message"]
@@ -169,7 +169,7 @@ def test_dev_mode_answers_a_call_blocked_by_a_new_dialog_at_once(tmp_path, dev):
     def call():
         try:
             results.append(stub.dispatcher.call("nx_dev_python", {}))
-        except NXToolError as error:
+        except NXError as error:
             results.append(error)
 
     caller = threading.Thread(target=call)
@@ -186,7 +186,7 @@ def test_dev_mode_answers_a_call_blocked_by_a_new_dialog_at_once(tmp_path, dev):
         assert error.details["mutation_outcome"] == "unknown"
         assert error.details["dialogs"][0]["title"] == "Error During Update"
     else:  # production: reported only; the caller waits (here: the bridge timeout)
-        assert results[0].code == "NX_MAIN_THREAD_UNAVAILABLE"
+        assert results[0].code == "NX_BRIDGE_UNAVAILABLE"
     released.set()
     runner.join(2)
     assert len(results) == 1 and stub.dispatcher._running is None  # late result dropped

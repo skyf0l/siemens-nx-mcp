@@ -12,7 +12,7 @@ import math
 
 from nx_mcp.core.errors import fail
 
-# Row-major identity rotation (list of lists, matching the legacy constant).
+# Row-major identity rotation (list of lists).
 IDENTITY = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 
 # Relative tolerance used for coordinate comparisons (scaled by ``tol``).
@@ -101,6 +101,20 @@ def on_plane(point, origin, normal, tol=None):
     if tol is None:
         tol = _scaled_tol(point, origin)
     return abs(dot(sub(point, origin), normal)) <= tol
+
+
+def reflect(point, origin, normal):
+    """``point`` mirrored across the plane through ``origin`` with unit ``normal``."""
+    d = dot(sub(point, origin), normal)
+    return sub(point, scale(normal, 2.0 * d))
+
+
+def reflect_across_line(point, origin, direction):
+    """``point`` mirrored across the line through ``origin`` along ``direction``
+    (any length, 2D or 3D)."""
+    d = sub(point, origin)
+    k = dot(d, direction) / dot(direction, direction)
+    return sub(add(origin, scale(direction, 2.0 * k)), d)
 
 
 def plane_through(points, field="points"):

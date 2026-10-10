@@ -63,8 +63,8 @@ def nx_create_sew(
         b.Type = F.SewBuilder.Types.Sheet
         b.BodyPreference = getattr(F.SewBuilder.BodyPreferenceTypes, "Solid" if solid else "Sheet")
         b.Tolerance = tol
-        b.TargetBodiesCollector.ReplaceRules([part.ScRuleFactory.CreateRuleBodyDumb([body])], False)
-        b.ToolBodiesCollector.ReplaceRules([part.ScRuleFactory.CreateRuleBodyDumb(others)], False)
+        builders.fill(tx, b.TargetBodiesCollector, [body], "Body")
+        builders.fill(tx, b.ToolBodiesCollector, others, "Body")
         feature = b.commit()
         unsewn = list(b.GetUnsewnBodies() or [])
     if unsewn:
@@ -123,7 +123,7 @@ def nx_create_thicken(
         selected = select.faces(tx, faces, "/faces")
     part = tx.part
     with builders.build(tx, part.Features.CreateThickenBuilder, None) as b:
-        b.FaceCollector.ReplaceRules([part.ScRuleFactory.CreateRuleFaceDumb(selected)], False)
+        builders.fill(tx, b.FaceCollector, selected, "Face")
         b.Tolerance = units.part_tolerance(tx)
         b.FirstOffset.RightHandSide = repr(first)
         b.SecondOffset.RightHandSide = repr(second)

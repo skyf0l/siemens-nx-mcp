@@ -107,7 +107,7 @@ class OperationData(TypedDict, total=False):
     reverted_by: str | None
     reason: str | None  # why the state is unknown
     error: dict | None
-    result: dict | None  # the committed result (envelope or legacy payload)
+    result: dict | None  # the committed result (envelope; older receipts: stored result)
 
 
 class CancelData(TypedDict):

@@ -38,7 +38,7 @@ import time
 import uuid
 from pathlib import Path
 
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 
 _host = None
 _retired = []
@@ -56,7 +56,7 @@ MODE_LABELS = {"auto": "Auto", "agent": "Agent drives", "ask": "Ask me first"}
 # How much control a mode gives the agent. The agent may lower it itself; only
 # the engineer can raise it (a request to raise it waits for the panel's answer).
 _RANK = {"ask": 0, "auto": 1, "agent": 2}
-LEGACY_MODES = {"manual": "ask"}  # nx_set_control(mode="manual") = hand NX back
+MODE_ALIASES = {"manual": "ask"}  # nx_set_control(mode="manual") = hand NX back
 CONTROL_TOOL = "nx_set_control"  # the panel-mode tool (domains/session/control.py)
 STATUS_TOOL = "nx_get_status"  # the status read (domains/session/status.py)
 
@@ -126,7 +126,7 @@ def _span(seconds):
 def control_target(params):
     """The mode an nx_set_control call asks for ("status" for a read)."""
     mode = params.get("mode", "status")
-    return LEGACY_MODES.get(mode, mode)
+    return MODE_ALIASES.get(mode, mode)
 
 
 def runs_while_engineer_has_control(pending):
@@ -901,10 +901,10 @@ class InteractiveHost:
         NX is released before any bookkeeping."""
         if threading.get_ident() != self.thread:
             raise RuntimeError("UI control called off NX thread")
-        mode = LEGACY_MODES.get(mode, mode)
+        mode = MODE_ALIASES.get(mode, mode)
         if mode != "status":
             if mode not in MODES:
-                raise NXToolError(
+                raise NXError(
                     "NX_INVALID_ARGUMENT", "mode must be status, auto, agent or ask (manual = ask)"
                 )
             previous = self.mode
@@ -934,14 +934,14 @@ class InteractiveHost:
     def agent_control(self, mode):
         """nx_set_control from the agent: it may lower its control, never raise it
         unless the engineer approved the request on the panel."""
-        target = LEGACY_MODES.get(mode, mode)
+        target = MODE_ALIASES.get(mode, mode)
         if (
             target in _RANK
             and _RANK[target] > _RANK.get(self.mode, 0)
             and not self._control_approved
         ):
-            raise NXToolError(
-                "NX_UI_PAUSED",
+            raise NXError(
+                "NX_CONTROL_PAUSED",
                 "Only the engineer can give the agent more control of NX. Ask them in chat "
                 "to pick the mode on the NX MCP panel.",
                 details={"mutation_outcome": "not_started"},
@@ -1181,8 +1181,8 @@ class InteractiveHost:
             return dispatch.execute(self.services, method, params)
         reserved = self.mode == "agent" and self.owns_lock
         if not (reserved or self._light):
-            raise NXToolError(
-                "NX_UI_PAUSED",
+            raise NXError(
+                "NX_CONTROL_PAUSED",
                 "The engineer has NX and has not approved this step. Ask them to answer "
                 "the request on the NX MCP panel or to pick Auto.",
                 details={"mutation_outcome": "not_started"},
@@ -1191,8 +1191,8 @@ class InteractiveHost:
             # Seen on NX 2406: the first part creation in a fresh session must
             # start NX's Modeling application, which waits for NX's own main
             # loop - held by this host - and freezes NX for good. Refuse instead.
-            raise NXToolError(
-                "NX_NO_PART_OPEN",
+            raise NXError(
+                "NX_NO_WORK_PART",
                 "NX has no part open yet. In NX, create or open any part once "
                 "(File > New or File > Open), then retry.",
                 details={"mutation_outcome": "not_started"},
@@ -1242,8 +1242,8 @@ class InteractiveHost:
             if not isinstance(raised, Exception):
                 # SystemExit, KeyboardInterrupt...: an error result for this call only.
                 # Escaping to tick() would drop the panel mode to Ask me first.
-                exc = NXToolError(
-                    "NX_OPERATION_FAILED",
+                exc = NXError(
+                    "NX_BUILD_FAILED",
                     f"{type(raised).__name__} raised by {method}: {raised}",
                     details={"mutation_outcome": "unknown"},
                 )
@@ -1309,10 +1309,10 @@ class InteractiveHost:
 
         open_now = scan()
         if open_now and refuse:
-            raise NXToolError(
+            raise NXError(
                 "NX_MODAL_DIALOG_OPEN",
                 dialogs.message(open_now, still_open=True),
-                suggestion="Ask the engineer to answer the NX dialog, then retry",
+                hint="Ask the engineer to answer the NX dialog, then retry",
                 details={"mutation_outcome": "not_started",
                          "dialogs": [d.row() for d in open_now]},
             )  # fmt: skip
@@ -1340,10 +1340,10 @@ class InteractiveHost:
 
         try:
             self.dispatcher.fail_running(
-                NXToolError(
+                NXError(
                     "NX_MODAL_DIALOG_OPEN",
                     dialogs.message([dialog], still_open=True),
-                    suggestion="Stop and ask the engineer to answer the NX dialog; never "
+                    hint="Stop and ask the engineer to answer the NX dialog; never "
                     "click it. The call's outcome is unknown until then: check it with "
                     "nx_get_operation",
                     details={
@@ -1403,7 +1403,7 @@ class InteractiveHost:
                 mode, self.requested_mode = self.requested_mode, None
                 try:
                     self.control(mode, by_engineer=True)
-                except NXToolError as exc:
+                except NXError as exc:
                     self.last_error = self.handover_error = str(exc)
             if self.open_log_requested:
                 self.open_log_requested = False
@@ -1550,7 +1550,7 @@ class InteractiveHost:
             span = _span(BUSY_WAIT_SECONDS)
             self.dispatcher.reject_where(
                 lambda p: id(p) in expired,
-                NXToolError(
+                NXError(
                     "NX_UI_BUSY",
                     f"The engineer was busy in an NX command for {span}, so the step did "
                     "not run. Retry later, or ask in chat when NX is free.",
@@ -1572,8 +1572,8 @@ class InteractiveHost:
         self.card = tuple(waiting)
         if time.monotonic() - self.waiting_since >= HOLD_SECONDS:
             self._reject_card(
-                NXToolError(
-                    "NX_UI_PAUSED",
+                NXError(
+                    "NX_CONTROL_PAUSED",
                     f"The engineer did not answer within {HOLD_SECONDS} s. Ask them in chat, "
                     "or ask them to answer the request on the NX MCP panel.",
                     retryable=True,
@@ -1599,8 +1599,8 @@ class InteractiveHost:
             return
         if answer == "decline":
             self._reject_card(
-                NXToolError(
-                    "NX_UI_DECLINED",
+                NXError(
+                    "NX_CONTROL_DECLINED",
                     "The engineer chose 'Not now' in the NX MCP control window. "
                     "Ask in chat before requesting this again.",
                 ),

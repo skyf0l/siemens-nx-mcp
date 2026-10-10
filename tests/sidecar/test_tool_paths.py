@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.server import create_server
 from nx_mcp.workspace import Workspace
 
@@ -51,6 +51,6 @@ async def test_sidecar_path_errors_are_not_started(tmp_path, monkeypatch):
     assert result.structuredContent["error"]["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
     assert result.structuredContent["mutation_outcome"] == "not_started"
     bridge.call.assert_not_called()
-    bridge.call.side_effect = NXToolError("NX_BRIDGE_UNAVAILABLE", "lost")
+    bridge.call.side_effect = NXError("NX_BRIDGE_UNAVAILABLE", "lost")
     result = await server.call_tool("nx_export_inspection_report", {"path": "r.zip"})
     assert result.structuredContent["mutation_outcome"] == "unknown"

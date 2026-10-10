@@ -194,7 +194,7 @@ def _on_path(tx, p):
             along.SketchOrientationType, "RelativeToFace" if face else "Automatic"
         )
         if face is not None:
-            b.OrientingFace.ReplaceRules([part.ScRuleFactory.CreateRuleFaceDumb([face])], False)
+            builders.fill(tx, b.OrientingFace, [face], "Face")
         location = b.PlaneLocation
         location.IsParameterUsed = False
         location.IsPercentUsed = True

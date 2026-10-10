@@ -5,7 +5,7 @@ import contextlib
 import sys
 
 from nx_mcp import side_effects
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from tests.fakes import Body
 
 
@@ -24,7 +24,7 @@ def _touched(rig, step):
 
 
 def _fail(*_):
-    raise NXToolError("NX_INVALID_ARGUMENT", "bad")
+    raise NXError("NX_INVALID_ARGUMENT", "bad")
 
 
 def test_argument_errors_before_any_side_effect_leave_the_observer_untouched(rig):

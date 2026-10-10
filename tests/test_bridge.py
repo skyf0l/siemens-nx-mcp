@@ -11,7 +11,7 @@ from nx_mcp.bridge import (
     MainThreadDispatcher,
     default_descriptor_path,
 )
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 
 pytestmark = pytest.mark.integration
 
@@ -85,7 +85,7 @@ async def test_bridge_rejects_invalid_session_token():
     server.start()
     try:
         client = BridgeClient("127.0.0.1", server.port, token="wrong-token")
-        with pytest.raises(NXToolError) as error:
+        with pytest.raises(NXError) as error:
             await client.call("nx_get_status", {})
     finally:
         server.stop()
@@ -100,10 +100,10 @@ async def test_descriptor_client_fails_closed_on_protocol_mismatch(tmp_path: Pat
     descriptor.protocol_version = 999
     descriptor.write(descriptor_path)
 
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         await DescriptorBridgeClient(descriptor_path).call("nx_get_status", {})
 
-    assert error.value.code == "NX_PROTOCOL_VERSION_MISMATCH"
+    assert error.value.code == "NX_PROTOCOL_MISMATCH"
 
 
 @pytest.mark.asyncio

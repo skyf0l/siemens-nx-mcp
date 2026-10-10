@@ -7,7 +7,7 @@ import json
 import uuid
 from pathlib import Path
 
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.kit.snapshots import LOCK, maintain, settings
 
 
@@ -44,7 +44,7 @@ def bound_result(result, directory):
     if len(raw) < 512 * 1024:
         return result
     if directory is None:
-        raise NXToolError(
+        raise NXError(
             "NX_RESPONSE_TOO_LARGE",
             "Bridge result exceeds the delivery budget",
             details={
@@ -70,8 +70,8 @@ def bound_result(result, directory):
                 tmp.unlink(missing_ok=True)
             maintain(root, apply=True, max_age_seconds=age, max_bytes=budget, protect=p.stem)
     except OSError as error:
-        raise NXToolError(
-            "NX_RESULT_STORAGE_FAILED",
+        raise NXError(
+            "NX_TRANSFER_FAILED",
             "Result delivery failed after execution; inspect durable operation status before retrying",
             details={
                 "operation_id": result.get("operation_id"),

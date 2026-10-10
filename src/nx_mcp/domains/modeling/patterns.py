@@ -54,11 +54,6 @@ def _plane(tx, value, field):
     return builders.fixed_plane(tx, origin, normal), origin, normal
 
 
-def reflect(point, origin, normal):
-    d = geom.dot(geom.sub(point, origin), normal)
-    return geom.sub(point, geom.scale(normal, 2.0 * d))
-
-
 def _seeds(tx, features, field="/features"):
     args.distinct(field, features, "features")
     seeds = []
@@ -139,7 +134,7 @@ def _mirror_bodies(tx, refs, plane, keep_original):
     readback.expect(len(made) == len(sources), "bodies", "NX mirrored a different body count")
     got = [measure.mass(tx, [m]) for m in made]
     for i, m in enumerate(masses):
-        wanted = reflect(m["centroid"], origin, normal) if m["centroid"] else None
+        wanted = geom.reflect(m["centroid"], origin, normal) if m["centroid"] else None
         match = [
             g
             for g in got
@@ -429,8 +424,7 @@ def _resolve(tx, layout, p):
     """Resolve and check the layout's own references before any builder exists."""
     if layout == "along_curve":
         path = select.one(tx, p["curve"], "edge", "curve", field="/parameters/curve")
-        with native():
-            length = float(path.GetLength())
+        length = measure.length(tx, path)  # part units, like spacing
         if (p["count"] - 1) * p["spacing"] > length * (1 + 1e-9):
             fail(
                 "NX_INVALID_ARGUMENT",

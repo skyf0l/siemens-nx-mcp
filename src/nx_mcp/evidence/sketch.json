@@ -12,10 +12,10 @@
   "nx_create_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-09T17:57:44Z",
+      "recorded": "2026-10-10T11:32:56Z",
       "scenario": "acceptance/sketch/create_sketch.json",
       "scenario_sha256": "f399d8c7f229275cb8df6ca59e4969416982bf326313c77a39cfe18c3f1a8e3b",
-      "source_sha256": "af7b92ad99632866c8c5b9dce267ae69126cdb4cca9a513abdc7711ed10b35fa",
+      "source_sha256": "96f680a3d3372cf4b3db8b0572dbc0155536726a8663806ac37e93b4181f7828",
       "variants": [
         "on",
         "path",
@@ -26,10 +26,10 @@
   "nx_create_sketch_constraints": {
     "v2406": {
       "checks": 44,
-      "recorded": "2026-10-09T17:57:54Z",
+      "recorded": "2026-10-10T11:32:46Z",
       "scenario": "acceptance/sketch/sketch_constraints.json",
       "scenario_sha256": "9a335f576bda96910df33950487c64fc8ff1cf3a44eaa22ec90c149e5bf78d68",
-      "source_sha256": "39fc745244c7d8b5142bab1a3e0b35c8307f95ebd944ac5d6d1dfa589aa4b285",
+      "source_sha256": "599a57582e1207f9d0fe8e9896c43f1cf65ef023c7f54e45cd9b22a4c153fd8c",
       "variants": [
         "coincident",
         "concentric",
@@ -50,10 +50,10 @@
   "nx_create_sketch_copy": {
     "v2406": {
       "checks": 35,
-      "recorded": "2026-10-09T17:57:56Z",
+      "recorded": "2026-10-10T11:32:49Z",
       "scenario": "acceptance/sketch/sketch_copy.json",
       "scenario_sha256": "4b8f122eafa6533abbe11a7348ef4eab0c7c485fbc7ec307c0e1dd415d3642ef",
-      "source_sha256": "06438ff68481417fb2852f3c962f8af0f8ac2c24cfeb593f8a47be244ac956e1",
+      "source_sha256": "1b572cea1dc36056469f53fef527d555b69ddad89e03dae89f7756f833dde02d",
       "variants": [
         "mirror",
         "offset"
@@ -115,10 +115,10 @@
   "nx_create_sketch_projection": {
     "v2406": {
       "checks": 26,
-      "recorded": "2026-10-09T17:58:08Z",
+      "recorded": "2026-10-10T11:32:53Z",
       "scenario": "acceptance/sketch/sketch_projection.json",
       "scenario_sha256": "4c9f46e7a536f897f5eb4edbf4e1c91c7726fb61c2a063248a40d960417c7cc3",
-      "source_sha256": "06438ff68481417fb2852f3c962f8af0f8ac2c24cfeb593f8a47be244ac956e1",
+      "source_sha256": "1b572cea1dc36056469f53fef527d555b69ddad89e03dae89f7756f833dde02d",
       "variants": [
         "intersect",
         "project"
@@ -128,10 +128,10 @@
   "nx_edit_sketch_curves": {
     "v2406": {
       "checks": 32,
-      "recorded": "2026-10-09T17:57:47Z",
+      "recorded": "2026-10-10T11:32:51Z",
       "scenario": "acceptance/sketch/edit_sketch_curves.json",
       "scenario_sha256": "bdf6b0f0c885c36eb7fd5f77bb371de5bbfd435992577676ccc840bbf89b56dd",
-      "source_sha256": "1d4d86e978c22198691079ec5d621d2a8eafb5aa5d314bf4631ff8d6ba99056e",
+      "source_sha256": "096195b542041bc6ed77ac6bff030513122c08d398d691335ead38900703e025",
       "variants": [
         "arc",
         "construction",

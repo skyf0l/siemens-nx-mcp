@@ -83,3 +83,13 @@ def test_arc_plane_normal():
     full = [[38.0, 25.0, 20.0], [26.0, 31.928, 20.0], [26.0, 18.072, 20.0]]
     assert abs(geom.arc_plane_normal(center, full)[2]) == pytest.approx(1.0)
     assert geom.arc_plane_normal(center, [[38.0, 25.0, 20.0], [22.0, 25.0, 20.0]]) is None
+
+
+def test_reflect_across_a_plane_and_a_line():
+    assert geom.reflect([10, 2, 3], [4, 0, 0], [1, 0, 0]) == [-2, 2, 3]
+    assert geom.reflect([1, 1, 1], [0, 0, 0], [0, 0, 1]) == [1, 1, -1]
+    # Line through (1, 0) along y (any length): x mirrors about 1.
+    assert geom.reflect_across_line([3, 5], [1, 0], [0, 2]) == [-1, 5]
+    # 3D line along the diagonal of the xy plane swaps x and y.
+    got = geom.reflect_across_line([2, 0, 1], [0, 0, 1], [1, 1, 0])
+    assert got == pytest.approx([0, 2, 1])

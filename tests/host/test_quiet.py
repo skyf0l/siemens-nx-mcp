@@ -8,7 +8,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from nx_mcp import interactive
-from nx_mcp.core.errors import NXToolError
+from nx_mcp.core.errors import NXError
 from nx_mcp.host import dispatch, quiet
 from nx_mcp.host.services import NXServices
 from nx_mcp.workspace import Workspace
@@ -79,7 +79,7 @@ def test_update_failures_undo_during_a_call_and_the_engineers_setting_returns(tm
 
     s.dev_tools["nx_dev_python"] = tool
     if fails:
-        with pytest.raises(NXToolError) as error:
+        with pytest.raises(NXError) as error:
             dispatch.execute(s, "nx_dev_python", {})
         assert error.value.details["mutation_outcome"] == "rolled_back"
     else:
@@ -115,7 +115,7 @@ def test_listing_output_of_a_failed_call_is_in_the_error(tmp_path):
         raise RuntimeError("boom")
 
     s.dev_tools["nx_dev_python"] = tool
-    with pytest.raises(NXToolError) as error:
+    with pytest.raises(NXError) as error:
         dispatch.execute(s, "nx_dev_python", {})
     assert error.value.details["listing"] == "partial output\n"
     assert s.session.ListingWindow.window == []

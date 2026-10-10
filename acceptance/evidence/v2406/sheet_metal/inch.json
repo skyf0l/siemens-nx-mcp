@@ -15,18 +15,18 @@
   },
   "nx_version": "v2406",
   "nx_build": "v2406",
-  "commit": "f2c43ada67e923a372c3396e2cfd10faf4bcc0d7",
+  "commit": "43ed727660e37658e46825e3346361f5dfc68ded",
   "sources": {
-    "nx_create_sheet_metal_feature": "930960bf7bece830681681cc55854ed1d19dc49e98adfeb81e6f8f4ddbed361d",
+    "nx_create_sheet_metal_feature": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e",
     "nx_export_flat_pattern": "357b13f2499c785920188a39c94a046a5d3681348a393f2ff8ec69b96c6db2ab",
     "nx_get_sheet_metal": "16f9e0ce886d58f2dde571b270310711b43f016ec738e9d6933f5e7cc5c40327",
     "nx_set_sheet_metal_defaults": "02508ec6c439e267d5637240012cb25e2d2fae8d1c1e42b5ade36851b5b06753"
   },
-  "run_id": "20261009-220234-965409",
-  "owner": "reg_final_2",
-  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261009-220234-965409\\sheet_metal_inch_965409.prt",
-  "started": "2026-10-09T18:02:57Z",
-  "finished": "2026-10-09T18:03:01Z",
+  "run_id": "20261010-153428-7e6413",
+  "owner": "fix_review_b",
+  "part": "C:\\Users\\testuser\\NX_MCP_WORKSPACE\\smoke\\20261010-153428-7e6413\\sheet_metal_inch_7e6413.prt",
+  "started": "2026-10-10T11:34:36Z",
+  "finished": "2026-10-10T11:34:40Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,
@@ -37,8 +37,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.937,
-      "result_sha256": "f73c398c86733143715bf208f33e85497d5726e0c5618992770d39640c6abb84"
+      "seconds": 0.453,
+      "result_sha256": "55c0788ea1eb2f4d555bc3422408e3aaad3e269536fcc78bafaf85fb0b578bba"
     },
     {
       "index": 2,
@@ -46,8 +46,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.172,
-      "result_sha256": "8123310180249f72370cd69e42641ad3b43e3d63763546d30884297dcd2f44c2"
+      "seconds": 0.203,
+      "result_sha256": "ccffcd2e7dd1d952b0efc2532f337a60062f081885786ab30a66604136a3e9e3"
     },
     {
       "index": 3,
@@ -55,8 +55,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.062,
-      "result_sha256": "2fc7247cc78621b50fb151f85e9e1ae27229b151a1536002c76e7e3714075091"
+      "seconds": 0.063,
+      "result_sha256": "f5309dff9e2f5e650e75073ed8109bef9f935614b22d676a1a6c10e8479d2338"
     },
     {
       "index": 4,
@@ -64,8 +64,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.063,
-      "result_sha256": "c732337ff7406c9495f0f04f4a7faadb0971203fbc0ff9dadfcaf59e46eeb2ca"
+      "seconds": 0.062,
+      "result_sha256": "49c11beae1bf5bab13ab82bc11d2b681eb52ef040367582fedc12b39cbc12318"
     },
     {
       "index": 5,
@@ -73,8 +73,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.047,
-      "result_sha256": "c51c8f7ef42f94f8580268a7d3f6f58ee9f1b7e0bd1c09a88c48c6983ed8fe1b"
+      "seconds": 0.063,
+      "result_sha256": "bb23a09fd179124dc113d2a3c6e76cfdccade175a2d4c7d4c72f37738fbd0f73"
     },
     {
       "index": 6,
@@ -83,7 +83,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.062,
-      "result_sha256": "a6a39107370f1f226296e51b362650227fed1604005b4b95d79a335b82ee859a"
+      "result_sha256": "cb80d02834d88790189a110fdc9d4d0778dfe5fe6981fa153f3a60225b606204"
     },
     {
       "index": 7,
@@ -91,8 +91,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "e9ce1d108be1a80252aa9c217cf2e010346336769ad096475131c3d11e1c95e6"
+      "seconds": 0.078,
+      "result_sha256": "ce037cca2a6177a92d8e905e72c1f0576dbe7581410f5ec9e29d2e780940532e"
     },
     {
       "index": 8,
@@ -100,8 +100,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.031,
-      "result_sha256": "713497fdc2a2408fed619d1509e571c1458b87ba648511def0c0fe16215c8790"
+      "seconds": 0.047,
+      "result_sha256": "9e0323f47fa1aba502d36fa038e9aed9fc8e3835873bed0ad28afc093287b7b8"
     },
     {
       "index": 9,
@@ -109,8 +109,8 @@
       "setup": false,
       "passed": true,
       "checks": 3,
-      "seconds": 0.063,
-      "result_sha256": "5d24cafeb8db51ce9b0620240b6a5bd6e424638a10220607ca625ea8613e69f5"
+      "seconds": 0.047,
+      "result_sha256": "63a749a43bc02a3e549b415ad4404960120c8386964a7d1dd3ed4dae31f89574"
     },
     {
       "index": 10,
@@ -118,8 +118,8 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 0.015,
-      "result_sha256": "8b7b951e4c1079dfea95c29d13b6494d03f8c20ef4cb46336163b41028d504f9"
+      "seconds": 0.047,
+      "result_sha256": "944a40744243dbadbd9b2f84ba52616cf4af0a863219395802becc1680d6742d"
     },
     {
       "index": 11,
@@ -128,7 +128,7 @@
       "passed": true,
       "checks": 0,
       "seconds": 0.031,
-      "result_sha256": "fa7831cf8d391dca8f1439fbbaac1747a1f74457f2f6e90f851ad74f36a00a3d"
+      "result_sha256": "86d569f60e2988de81c69be5eda3b0f69c3152d3255c6444613cfed09334d5dc"
     },
     {
       "index": 12,
@@ -136,8 +136,8 @@
       "setup": true,
       "passed": true,
       "checks": 0,
-      "seconds": 0.032,
-      "result_sha256": "577ae9ad571eab26793a28808b078ca0f4eeebfe0edb8d07b788c4aa4b6465db"
+      "seconds": 0.031,
+      "result_sha256": "ee48844cddd1552a7d6da04897da6ad8b141ef6f88fa5c743b3d3cb3d11383d9"
     },
     {
       "index": 13,
@@ -145,8 +145,8 @@
       "setup": false,
       "passed": true,
       "checks": 1,
-      "seconds": 0.156,
-      "result_sha256": "d2471fe5355c883021afb2b807a277c389adbee081da5088305d9b01b2ec06c3"
+      "seconds": 0.157,
+      "result_sha256": "90deae98f1504584c34e5c4ad6dd4ad4db6bf27e9fea611364ee6d50c756fff8"
     },
     {
       "index": 14,
@@ -154,14 +154,14 @@
       "setup": false,
       "passed": true,
       "checks": 2,
-      "seconds": 1.906,
-      "result_sha256": "c10b12d158d991e458b77bd679e9e9f95adb9bf0607ff44e02cf77cdcc11dd38"
+      "seconds": 1.75,
+      "result_sha256": "e8738c61c424dcb6bdb51edbf91976db275719b75644c1e83288cf5b6f144a65"
     }
   ],
   "cleanup": {
     "mode": "close",
     "closed": [
-      "smoke/20261009-220234-965409/sheet_metal_inch_965409.prt"
+      "smoke/20261010-153428-7e6413/sheet_metal_inch_7e6413.prt"
     ],
     "failed": []
   }
