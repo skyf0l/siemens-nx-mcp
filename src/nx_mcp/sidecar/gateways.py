@@ -1,9 +1,11 @@
 """The four gateway tools (tool-surface 2.1).
 
-- ``nx_find_tools``: ranked search. Every query word must match after simple
-  stemming and synonym expansion; a word matching the name outranks keywords,
-  which outrank the label/summary, which outrank the description; an exact name
-  wins.
+- ``nx_find_tools``: ranked search after simple stemming and synonym expansion. A
+  word matching the name outranks keywords and the label, which outrank the
+  description; a keyword or label phrase in the query and a word naming the
+  tool's domain add to the score; an exact name wins. Tools matching every word
+  come first; when none do, tools matching most words are returned, flagged
+  ``partial``. An empty query returns a domain overview.
 - ``nx_get_tool_schemas``: input schema, example, prerequisites and evidence for
   1-10 tools or variants (``nx_create_datum_plane#offset``).
 - ``nx_invoke``: call any tool; ``intent`` is shown in the NX panel.
@@ -43,7 +45,71 @@ SYNONYMS = {
     "inventory": ("list",),
     "show": ("list", "get"),
 }
-WEIGHTS = {"name": 8, "keyword": 4, "variant": 4, "label": 2, "description": 1}
+WEIGHTS = {"name": 8, "keyword": 4, "variant": 4, "label": 4, "description": 1}
+MISSING = 6  # score lost per query word a tool does not match (partial results)
+PHRASE = 6  # bonus when a whole keyword or the label appears in the query
+DOMAIN = 3  # bonus when a query word names the tool's domain
+# The empty-query overview names these first in each domain (others: alphabetical).
+KEY_TOOLS = {
+    "assembly": ("nx_create_component", "nx_create_assembly_constraint", "nx_list_components"),
+    "display": ("nx_capture_view", "nx_set_camera", "nx_set_appearance"),
+    "drawing": (
+        "nx_create_drawing_sheet",
+        "nx_create_drawing_view",
+        "nx_create_drawing_dimension",
+    ),
+    "freeform": ("nx_create_spline", "nx_create_bridge_surface", "nx_create_thicken"),
+    "inspection": ("nx_list_objects", "nx_find_geometry", "nx_measure_mass"),
+    "modeling": ("nx_create_extrude", "nx_create_revolve", "nx_create_blend", "nx_set_expression"),
+    "parts_files": ("nx_create_part", "nx_open_part", "nx_save_part"),
+    "session": ("nx_get_status", "nx_undo_operation", "nx_run_batch"),
+    "sheet_metal": ("nx_create_sheet_metal_feature", "nx_export_flat_pattern"),
+    "sketch": ("nx_create_sketch", "nx_create_sketch_curves", "nx_finish_sketch"),
+}
+# Words that carry no meaning in a tool search ("create a new part in the work part").
+STOP_WORDS = frozenset(
+    [
+        "a",
+        "an",
+        "the",
+        "to",
+        "of",
+        "for",
+        "in",
+        "on",
+        "at",
+        "by",
+        "with",
+        "into",
+        "from",
+        "and",
+        "or",
+        "my",
+        "this",
+        "that",
+        "it",
+        "nx",
+        "please",
+        "using",
+    ]
+)
+DOMAIN_WORDS = {
+    "part": "parts_files",
+    "file": "parts_files",
+    "sketch": "sketch",
+    "assembly": "assembly",
+    "component": "assembly",
+    "drawing": "drawing",
+    "sheet": "sheet_metal",
+    "inspect": "inspection",
+    "display": "display",
+    "view": "display",
+    "session": "session",
+    "freeform": "freeform",
+    "surface": "freeform",
+    "feature": "modeling",
+    "model": "modeling",
+}
 
 
 def stem(word: str) -> str:
@@ -76,13 +142,21 @@ class Entry:
             "label": set(words(label)),
             "description": set(words(description)),
         }
+        # Multi-word keywords and the label, matched as phrases in the query.
+        self.phrases = {" ".join(p) for p in (words(k) for k in (*keywords, label)) if len(p) > 1}
 
     def score(self, query: list[str], variants=()) -> int | None:
         """Sum of the best field weight per query word; None when a word is missing.
         ``variants``: the tool's variant values offered on this build (searchable too)."""
+        matched, total = self.match(query, variants)
+        return total if matched == len(query) else None
+
+    def match(self, query: list[str], variants=()) -> tuple[int, int]:
+        """``(matched words, score)``: field weights, phrase and domain bonuses, minus
+        ``MISSING`` per unmatched word."""
         fields = dict(self.fields)
         fields["variant"] = {w for v in variants for w in words(v)}
-        total = 0
+        total = matched = 0
         for word in query:
             synonyms = [stem(s) for s in SYNONYMS.get(word, ())]
             best = 0
@@ -91,10 +165,16 @@ class Entry:
                     best = max(best, WEIGHTS[field])
                 elif any(_match(s, t) for s in synonyms for t in tokens):
                     best = max(best, WEIGHTS[field] // 2)  # a synonym ranks below the word
-            if not best:
-                return None
-            total += best
-        return total
+            if best:
+                matched += 1
+                total += best
+            else:
+                total -= MISSING
+        text = " " + " ".join(query) + " "
+        total += sum(PHRASE for p in self.phrases if f" {p} " in text)
+        if any(DOMAIN_WORDS.get(w) == self.domain for w in query):
+            total += DOMAIN
+        return matched, total
 
 
 def _match(word: str, token: str) -> bool:
@@ -106,22 +186,40 @@ def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def query_words(query: str) -> list[str]:
+    """Stemmed query words without stop words (all of them if every word is one)."""
+    found = words(query)
+    return [w for w in found if w not in STOP_WORDS] or found
+
+
 def search(entries, query: str, domain=None, effect=None, variants=None) -> list:
-    """``variants(entry)``: the entry's offered variant values (None: not searched)."""
-    query_words = words(query)
+    """Ranked entries; ``variants(entry)``: the entry's offered variant values (None: not
+    searched). See :func:`ranked` for the partial flag."""
+    return ranked(entries, query, domain, effect, variants)[0]
+
+
+def ranked(entries, query: str, domain=None, effect=None, variants=None) -> tuple[list, bool]:
+    """``(entries, partial)``, best score first: tools matching every query word, plus tools
+    matching at least half of them that outscore the best full match (a strong name match
+    beats a word found only in a description). ``partial``: no tool matched every word."""
+    wanted = query_words(query)
     exact = query.strip()
-    ranked = []
+    full, part = [], []
     for entry in entries:
         if (domain and entry.domain != domain) or (effect and entry.effect != effect):
             continue
         if entry.name == exact:
-            ranked.append(((0, 0), entry))
+            full.append((-(10**6), entry))
             continue
-        score = entry.score(query_words, variants(entry) if variants else ())
-        if score is not None:
-            ranked.append(((1, -score), entry))
-    ranked.sort(key=lambda item: (item[0], item[1].name))
-    return [entry for _, entry in ranked]
+        matched, score = entry.match(wanted, variants(entry) if variants else ())
+        if not wanted or matched == len(wanted):
+            full.append((-score, entry))
+        elif matched and 2 * matched >= len(wanted):
+            part.append((-score, entry))
+    best = min((key for key, _ in full), default=None)
+    chosen = full + [item for item in part if best is None or item[0] <= best]
+    chosen.sort(key=lambda item: (item[0], item[1].name))
+    return [entry for _, entry in chosen], not full and bool(part)
 
 
 def close_matches(name: str, known) -> list[str]:
@@ -150,7 +248,11 @@ class _Strict(BaseModel):
 
 class FindTools(_Strict):
     query: Annotated[
-        str, Field(max_length=120, description="Task words, e.g. 'fillet edges'; empty lists all")
+        str,
+        Field(
+            max_length=120,
+            description="Task words, e.g. 'fillet edges'; empty: an overview of the domains",
+        ),
     ] = ""
     domain: Domain | None = None
     effect: Effect | None = None
@@ -174,7 +276,10 @@ class GetToolSchemas(_Strict):
 
 class Invoke(_Strict):
     tool: Annotated[str, Field(max_length=100, pattern=TOOL_NAME)]
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    arguments: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Tool arguments; own operation_id (to retry a mutation): 8-128 of A-Za-z0-9_-",
+    )
     intent: Annotated[
         str | None,
         Field(max_length=120, description="Why, in the engineer's terms (shown in the NX panel)"),
@@ -196,18 +301,18 @@ MODELS: dict[str, type[BaseModel]] = {
 }
 DESCRIPTIONS = {
     "nx_find_tools": (
-        "Search NX tools by task words; every word must match (synonyms count: fillet finds "
-        "blend). Rows: name, summary, effect, domain. Then fetch "
-        "schemas with nx_get_tool_schemas and call nx_invoke."
+        "Search NX tools by task words (synonyms count: fillet finds blend). Rows: name, "
+        "summary, effect, domain. Fetch schemas with nx_get_tool_schemas, then call the tools "
+        "through nx_invoke (nx_invoke_read for effect read), not as MCP tools."
     ),
     "nx_get_tool_schemas": (
         "Exact input schemas, examples, prerequisites and evidence for 1-10 tools; "
         "'tool#variant' narrows a tool to one variant. Output schemas on request."
     ),
     "nx_invoke": (
-        "Call any NX tool with its exact arguments; the kernel checks and undoes failures. Put "
-        "operation_id inside arguments to retry safely. intent is shown to the engineer in the "
-        "NX panel. Compact results keep result_id (expand with nx_get_result)."
+        "Call any NX tool with its exact arguments; the kernel checks and undoes failures. "
+        "operation_id is optional (made when omitted). intent is shown in the NX panel. "
+        "Compact results keep result_id (expand with nx_get_result)."
     ),
     "nx_invoke_read": (
         "Call a read-only NX tool (effect read) with its exact arguments; any other tool is "
@@ -217,4 +322,11 @@ DESCRIPTIONS = {
 
 
 def tool_schema(name: str) -> dict:
-    return schema.tidy(MODELS[name].model_json_schema())
+    out = schema.tidy(MODELS[name].model_json_schema())
+    for key, prop in list(out.get("properties", {}).items()):
+        # An optional field is documented by omission, not by null (as for catalogue tools).
+        prop = schema._without_null(prop)
+        if "default" in prop and prop["default"] is None:
+            prop = {k: v for k, v in prop.items() if k != "default"}
+        out["properties"][key] = prop
+    return out

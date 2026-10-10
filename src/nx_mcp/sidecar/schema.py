@@ -30,6 +30,7 @@ import typing_extensions as te
 from pydantic import BeforeValidator, ConfigDict, Field, Strict, StringConstraints, TypeAdapter
 
 from nx_mcp.core import types as core_types
+from nx_mcp.core.receipts import OPERATION_ID_CHARS, OPERATION_ID_MAX, OPERATION_ID_MIN
 from nx_mcp.core.types import (
     QUANTITY_MAX,
     QUANTITY_PATTERNS,
@@ -46,7 +47,12 @@ from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwra
 # Keys a caller may add next to a tool's own arguments; never handler arguments.
 CALL_KEYS = ("operation_id", "intent", "detail")
 # Explained once in the server instructions (sidecar/server.py), not in every listing.
-OPERATION_ID = {"type": "string", "maxLength": 128}
+OPERATION_ID = {
+    "type": "string",
+    "minLength": OPERATION_ID_MIN,
+    "maxLength": OPERATION_ID_MAX,
+    "pattern": OPERATION_ID_CHARS,
+}
 INTENT = {"type": "string", "maxLength": 120}
 # Regular expressions gate 1 checks but listings omit (references, unit strings).
 LISTING_UNSHOWN_PATTERNS = frozenset({REF_PATTERN, *QUANTITY_PATTERNS.values()})
@@ -572,6 +578,9 @@ def output_schema(spec) -> dict:
                     "modified": {"type": "array", "items": row},
                     "deleted": {"type": "array", "items": row},
                     "references": {"enum": ["preserved", "part_invalidated", "listed"]},
+                    # after a rollback that renumbered refs (error.details.references
+                    # is then "renumbered"; changes.references stays part_invalidated)
+                    "stale_references": {"type": "integer"},
                 },
             },
             "warnings": {"type": "array", "items": {"type": "object"}},

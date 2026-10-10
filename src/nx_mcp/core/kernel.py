@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from nx_mcp.core import evidence
-from nx_mcp.core.errors import NXError, classify, fail
+from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
 from nx_mcp.core.receipts import Receipts, new_operation_id
 from nx_mcp.core.tx import Services, Tx, check_owned
 from nx_mcp.core.types import SHEET_KINDS, convert_quantity, expand_kinds
@@ -107,6 +107,13 @@ def _gate_paths(spec, checked: Checked, services: Services) -> None:  # gate 2
             fail(
                 "NX_ALREADY_EXISTS",
                 f"{field}: a file already exists there",
+                field=field,
+                details={"path": str(resolved)},
+            )
+        if marker.mode == "replace" and resolved.exists() and not resolved.is_file():
+            fail(
+                "NX_WRONG_KIND",
+                f"{field}: not a file; only an existing file can be replaced",
                 field=field,
                 details={"path": str(resolved)},
             )
@@ -318,6 +325,7 @@ def run(spec, args, ctx: Context) -> dict:
     mark = None
     part = None
     before: dict = {}
+    floor: int | None = None
     observer = None
     handler_started = handler_done = False
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
@@ -342,6 +350,7 @@ def run(spec, args, ctx: Context) -> dict:
                 return replay
         if spec.effect == "model":  # 8
             before = services.snapshot(part) if part is not None else {}
+            floor = _ref_floor(services)
             mark = services.set_mark("NX MCP: " + spec.label)
         tx = Tx(services, spec, operation_id=operation_id, receipts=receipts, record=record)
         tx.mark = mark
@@ -402,11 +411,14 @@ def run(spec, args, ctx: Context) -> dict:
         ):
             touched = False  # raised inside tx.checks(): nothing was changed yet
         outcome, references, error = _settle(
-            spec, services, tx, mark, part, before, error, touched, handler_started
+            spec, services, tx, mark, part, before, error, touched, handler_started, floor
         )
         envelope.update(ok=False, mutation_outcome=outcome, error=error.error_dict())
         if spec.effect == "model":
             envelope["changes"] = {"references": references}
+            stale = error.details.get("stale_references")
+            if isinstance(stale, int):
+                envelope["changes"]["stale_references"] = stale
         if tx is not None and tx.warnings:
             envelope["warnings"] = tx.warnings
         services.after_failure(spec)
@@ -445,7 +457,53 @@ def _mark_gone(services, mark) -> bool:
         return False
 
 
-def _settle(spec, services, tx, mark, part, before, error, touched, handler_started):
+def _ref_floor(services) -> int | None:
+    """The next short-ref number (refs below it existed before the call), or None."""
+    try:
+        return int(services.references.issued())
+    except Exception:
+        return None
+
+
+def rebind_after_undo(services, floor: int | None = None) -> dict:
+    """After an undo: keep the refs of every object NX restored (NX 2406 undo restores
+    the same tags), re-bind anchored refs whose object came back under a new tag and
+    retire the rest. Never touches part refs of parts that are still open.
+
+    ``{"rebound": [refs], "stale": [refs] | None}`` (``None``: the services retired
+    every handle of the parts and cannot say which)."""
+    retired = services.retire_undone(services.parts())
+    rebind = getattr(getattr(services, "references", None), "rebind", None)
+    if retired is None or rebind is None:
+        return {"rebound": [], "stale": None}
+    return rebind(retired, floor)
+
+
+def _report_stale(error, summary: dict) -> str:
+    """``changes.references`` after a rollback, and the error's explicit note of the
+    refs that went stale (renumbered) or were re-bound."""
+    stale, rebound = summary.get("stale"), summary.get("rebound") or []
+    if rebound:
+        error.details["rebound_references"] = len(rebound)
+    if stale is None:
+        error.details["references"] = "renumbered"
+        error.details["stale_references"] = "all"
+    elif stale:
+        error.details["references"] = "renumbered"
+        error.details["stale_references"] = len(stale)
+        error.details["stale_refs"] = stale[:20]
+    else:
+        return "preserved"
+    note = (
+        "The rollback renumbered references of the part: list the objects again "
+        "(nx_list_objects, nx_find_geometry) before reusing older refs."
+    )
+    base = error.hint or CATEGORIES[error.category][2]
+    error.hint = f"{base.rstrip('.')}. {note}" if base else note
+    return "part_invalidated"
+
+
+def _settle(spec, services, tx, mark, part, before, error, touched, handler_started, floor=None):
     """``(mutation_outcome, references, error)`` after a failed call; rolls back."""
     if spec.effect == "read":
         outcome = "partial" if error.code == "NX_ROLLBACK_FAILED" else "not_applicable"
@@ -472,17 +530,11 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
                 raise RuntimeError("NX removed the call's undo mark and the model has changed")
             if not gone:  # else NX undid the failed step itself (see _mark_gone)
                 services.undo_to(mark)
-            if not unchanged and failed_snap is not None and spec.invalidates != "topology":
-                # Undo removed what a non-topology handler created (a constraint, a
-                # pattern): the same objects are back, so retire only the created IDs.
-                with contextlib.suppress(Exception):
-                    restored = services.snapshot(part)
-                    if set(restored) == set(before):
-                        services.invalidate(failed_snap, restored, False)
-                        unchanged = True
-            references = "preserved" if unchanged else "part_invalidated"
+            references = "preserved"
             if not unchanged:
-                services.invalidate_parts(services.parts())
+                # NX 2406 undo restores the same objects under the same tags: keep their
+                # refs, re-bind moved anchored ones, retire only what did not come back.
+                references = _report_stale(error, rebind_after_undo(services, floor))
             if not gone:
                 services.delete_mark(mark)
             services.clear_update_errors()

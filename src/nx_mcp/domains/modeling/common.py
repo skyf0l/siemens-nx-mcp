@@ -98,3 +98,62 @@ def result_of(tx, feature, bodies=None) -> FeatureData:
         "bodies": body_rows(tx, bodies),
         "volume": volume,
     }
+
+
+# How a combined feature changes the targets' total volume.
+COMBINE_CHANGE = {"unite": "more", "subtract": "less", "intersect": "less"}
+
+
+def check_combine(combine, field="/combine/targets") -> None:
+    """Refuse a unite with several targets before anything touches NX.
+
+    NX 2406 unites the new geometry with each target separately: two targets become
+    two overlapping bodies that both hold a copy of the tool, never one merged body.
+    Unite therefore takes exactly one target; subtract and intersect take several."""
+    if combine is not None and combine["operation"] == "unite" and len(combine["targets"]) > 1:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "unite takes one target body: NX unites a separate copy of the new geometry "
+            "into each target and never merges the targets",
+            field=field,
+            hint="Unite the target bodies first (nx_create_boolean), then pass the one "
+            "result body, or combine with one target and unite the rest afterwards",
+        )
+
+
+def combine_targets(tx, combine, field="/combine/targets") -> list:
+    """The solid target bodies of a ``Combine`` argument (``[]`` for a new body)."""
+    if combine is None:
+        return []
+    check_combine(combine, field)
+    return solids(tx, combine["targets"], field)
+
+
+def body_tags(tx) -> set:
+    """Tags of the work part's bodies (before a combined feature)."""
+    return {int(b.Tag) for b in tx.part.Bodies}
+
+
+def combined(tx, feature, combine, targets, before: float, tags: set) -> FeatureData:
+    """Read back a feature built with ``combine``: result bodies are the targets NX kept
+    plus any new bodies (a subtract may split a target).
+
+    A unite whose new geometry does not touch the target leaves NX 2406 committing it as
+    a separate body (measured: extrude and revolve report success, the target keeps its
+    volume and the feature lists both bodies); that is refused, so the call rolls back."""
+    after = list(tx.part.Bodies)
+    kept = {int(b.Tag) for b in after}
+    alive = [t for t in targets if int(t.Tag) in kept]
+    new = [b for b in after if int(b.Tag) not in tags]
+    if combine["operation"] == "unite" and new and alive:
+        fail(
+            "NX_BUILD_FAILED",
+            "The new geometry does not touch the target body, so NX kept it as a separate "
+            "body instead of uniting it",
+            hint="Move or resize the profile so it overlaps or touches the target, or omit "
+            "combine to make a new body",
+            details={"separate_bodies": len(new)},
+        )
+    out = result_of(tx, feature, [*alive, *new])
+    changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
+    return out

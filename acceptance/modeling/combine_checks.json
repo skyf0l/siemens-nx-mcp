@@ -1,0 +1,515 @@
+{
+ "covers": {
+  "nx_create_extrude": [],
+  "nx_create_revolve": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s1",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s1.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s1.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s1.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "save": "t1",
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s2",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s2.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       20,
+       0
+      ],
+      "corner2": [
+       30,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s2.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "save": "t2",
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s3",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s3.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       8,
+       0
+      ],
+      "corner2": [
+       12,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s3.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s3.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$t1.data.bodies.0.id",
+      "$t2.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.code": {
+     "equals": "NX_INVALID_ARGUMENT"
+    },
+    "error.field": {
+     "equals": "/combine/targets"
+    },
+    "mutation_outcome": {
+     "equals": "not_started"
+    }
+   },
+   "intent": "Unite with two targets is refused before building"
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s3.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$t1.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1200,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s4",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s4.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       50,
+       0
+      ],
+      "corner2": [
+       60,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s4.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s4.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$t1.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.code": {
+     "equals": "NX_BUILD_FAILED"
+    },
+    "error.details.separate_bodies": {
+     "equals": 1
+    },
+    "mutation_outcome": {
+     "equals": "rolled_back"
+    }
+   },
+   "intent": "A unite that leaves a separate body is refused and rolled back"
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s5",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s5.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       5,
+       2
+      ],
+      "corner2": [
+       25,
+       8
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s5.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s5.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 5
+    },
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$t1.data.bodies.0.id",
+      "$t2.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1840,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 2
+    }
+   },
+   "intent": "Subtract from two targets reads both targets back"
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$t2.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 850,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "r1",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$r1.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -5,
+       0
+      ],
+      "corner2": [
+       5,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$r1.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$r1.data.sketch.id",
+    "axis": {
+     "principal": "y"
+    }
+   },
+   "intent": "A profile across the axis is refused before building",
+   "expect": {
+    "error.code": {
+     "equals": "NX_INVALID_ARGUMENT"
+    },
+    "error.field": {
+     "equals": "/axis"
+    },
+    "error.message": {
+     "contains": "crosses the revolve axis"
+    },
+    "mutation_outcome": {
+     "equals": "not_started"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "r2",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$r2.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       40,
+       0
+      ],
+      "corner2": [
+       45,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$r2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$r2.data.sketch.id",
+    "axis": {
+     "principal": "y"
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$t1.data.bodies.0.id",
+      "$t2.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.code": {
+     "equals": "NX_INVALID_ARGUMENT"
+    },
+    "mutation_outcome": {
+     "equals": "not_started"
+    }
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$r2.data.sketch.id",
+    "axis": {
+     "principal": "y"
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$t1.data.bodies.0.id"
+     ]
+    }
+   },
+   "intent": "A revolve unite that does not touch its target is refused and rolled back",
+   "expect": {
+    "error.code": {
+     "equals": "NX_BUILD_FAILED"
+    },
+    "mutation_outcome": {
+     "equals": "rolled_back"
+    }
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$r2.data.sketch.id",
+    "axis": {
+     "principal": "y"
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 13351.769,
+     "tol": 0.001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  }
+ ]
+}

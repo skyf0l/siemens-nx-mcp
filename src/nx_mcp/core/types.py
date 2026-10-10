@@ -75,9 +75,11 @@ class Quantity:
 @dataclass(frozen=True)
 class PathArg:
     """Workspace path. ``read`` must exist, ``new`` must not, ``dir`` is a
-    directory, ``save`` may only be the target part's own file."""
+    directory, ``save`` may only be the target part's own file, ``replace`` is new
+    or an existing file of the allowed suffixes (never a directory) that the tool
+    replaces only when asked (``Files.stage(..., replace=True)``)."""
 
-    mode: Literal["read", "new", "dir", "save"]
+    mode: Literal["read", "new", "dir", "save", "replace"]
     suffixes: tuple[str, ...] = ()
 
 
@@ -239,10 +241,12 @@ class PathTo:
     and optional allowed suffixes. Shorthand for ``Text(260)``, ``PathArg`` and a ``Doc``;
     ``core.validate.unwrap`` expands it in place."""
 
-    mode: Literal["read", "new", "dir", "save"]
+    mode: Literal["read", "new", "dir", "save", "replace"]
     suffixes: tuple[str, ...]
 
-    def __init__(self, mode: Literal["read", "new", "dir", "save"], *suffixes: str) -> None:
+    def __init__(
+        self, mode: Literal["read", "new", "dir", "save", "replace"], *suffixes: str
+    ) -> None:
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "suffixes", tuple(s.lower() for s in suffixes))
 
@@ -305,7 +309,11 @@ Limit = LimitDistance | LimitThroughAll | LimitUntilFace
 
 class Combine(TypedDict):
     operation: Literal["unite", "subtract", "intersect"]
-    targets: Annotated[list[BodyRef], Items(1, 20)]
+    targets: Annotated[
+        list[BodyRef],
+        Items(1, 20),
+        Doc("Target bodies; unite takes exactly one (NX never merges several targets)"),
+    ]
 
 
 class _PoseRequired(TypedDict):

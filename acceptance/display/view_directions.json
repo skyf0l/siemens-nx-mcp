@@ -1,0 +1,515 @@
+{
+ "covers": {
+  "nx_set_camera": [],
+  "nx_get_camera": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_list_parts",
+   "args": {
+    "path_prefix": "$run",
+    "modified": false
+   },
+   "expect": {
+    "page.total": 1
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "top"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.view_from": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "bottom"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.view_from": {
+     "close": [
+      0,
+      0,
+      -1
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "front"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.view_from": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "back"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.view_from": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "right"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.view_from": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "left"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.view_from": {
+     "close": [
+      -1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "orientation": "isometric",
+    "fit": true
+   },
+   "expect": {
+    "data.view_from": {
+     "close": [
+      0.5773502691896257,
+      -0.5773502691896257,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      -0.408248290463863,
+      0.408248290463863,
+      0.816496580927726
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "view_from": [
+     1,
+     -1,
+     1
+    ]
+   },
+   "expect": {
+    "data.rotation.0": {
+     "close": [
+      0.7071067811865476,
+      -0.408248290463863,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation.1": {
+     "close": [
+      0.7071067811865476,
+      0.408248290463863,
+      -0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation.2": {
+     "close": [
+      0,
+      0.816496580927726,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "save": "back_iso",
+   "args": {
+    "view_from": [
+     -2,
+     2,
+     2
+    ],
+    "fit": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "restore_id": {
+     "matches": "^display_[0-9a-f]{32}$"
+    },
+    "data.view_from": {
+     "close": [
+      -0.5773502691896257,
+      0.5773502691896257,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.right": {
+     "close": [
+      -0.7071067811865476,
+      -0.7071067811865476,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.up.2": {
+     "close": 0.816496580927726,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "data.view_from": {
+     "close": [
+      -0.5773502691896257,
+      0.5773502691896257,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation.2": {
+     "close": [
+      0,
+      0.816496580927726,
+      0.5773502691896257
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "view_from": [
+     0,
+     0,
+     -3
+    ]
+   },
+   "expect": {
+    "data.view_from": {
+     "close": [
+      0,
+      0,
+      -1
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "view_from": [
+     1,
+     0,
+     0
+    ],
+    "up": [
+     0,
+     1,
+     1
+    ]
+   },
+   "expect": {
+    "data.view_from": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.up": {
+     "close": [
+      0,
+      0.7071067811865476,
+      0.7071067811865476
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "rotation": [
+     [
+      0,
+      -1,
+      0
+     ],
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ]
+   },
+   "expect": {
+    "data.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.rotation.1": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.rotation.2": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    },
+    "data.right": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.up": {
+     "close": [
+      -1,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.view_from": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_camera",
+   "args": {},
+   "expect": {
+    "data.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.right": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_list_parts",
+   "args": {
+    "path_prefix": "$run",
+    "modified": false
+   },
+   "expect": {
+    "page.total": 1
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "view_from": [
+     1,
+     1,
+     1
+    ],
+    "orientation": "top"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/view_from",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "view_from": [
+     0,
+     0,
+     1
+    ],
+    "up": [
+     0,
+     0,
+     5
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/up",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "args": {
+    "up": [
+     0,
+     0,
+     1
+    ],
+    "fit": true
+   },
+   "expect": {
+    "error.field": "/up",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

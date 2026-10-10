@@ -42,17 +42,17 @@
   "nx_export_flat_pattern": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-10T13:22:00Z",
+      "recorded": "2026-10-10T16:01:58Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "abf19bc9d64e29124ae26f88e068635f3112284fb8f12f24035a6c57b921626b",
+      "source_sha256": "349983481d54337e82a757e14a19f8346ca98cd7d11a95b0f81c1035a006a51e",
       "variants": []
     }
   },
   "nx_get_sheet_metal": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-10T13:22:00Z",
+      "recorded": "2026-10-10T16:01:58Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
       "source_sha256": "140671c41e06e782ac0b7e5df05b49a0c6f9c9599b047d3d5906581400889ca9",
@@ -62,20 +62,20 @@
   "nx_get_sheet_metal_defaults": {
     "v2406": {
       "checks": 30,
-      "recorded": "2026-10-10T13:21:46Z",
+      "recorded": "2026-10-10T16:01:42Z",
       "scenario": "acceptance/sheet_metal/defaults.json",
       "scenario_sha256": "30b119a55e4b710d3d092067b915de9e53091a05d68fe77e6dded3f347a2065a",
-      "source_sha256": "729c1d070988cce47023fa7734388513bf326a8e854a31965ea61d2363735013",
+      "source_sha256": "92fad52287005e28969dc141e78f586a2706fe7a452cc59a4484f6552a22aa0c",
       "variants": []
     }
   },
   "nx_set_sheet_metal_defaults": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-10T13:22:00Z",
+      "recorded": "2026-10-10T16:01:58Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "729c1d070988cce47023fa7734388513bf326a8e854a31965ea61d2363735013",
+      "source_sha256": "92fad52287005e28969dc141e78f586a2706fe7a452cc59a4484f6552a22aa0c",
       "variants": []
     }
   }

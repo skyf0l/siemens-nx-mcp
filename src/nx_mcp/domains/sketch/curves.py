@@ -89,6 +89,15 @@ class SlotCurve(TypedDict):
     height: Annotated[float, Range(gt=0), Doc("Width across; end radius is height/2")]
 
 
+class _Polyline(TypedDict):
+    type: Literal["polyline"]
+    points: Annotated[list[Point2], Items(2, 100), Doc("Vertices [[x, y], ...] in order")]
+
+
+class PolylineCurve(_Polyline, total=False):
+    closed: Annotated[bool, Doc("Also join the last point back to the first")]
+
+
 class RoundedRectangleCurve(TypedDict):
     type: Literal["rounded_rectangle"]
     center: Point2
@@ -99,6 +108,7 @@ class RoundedRectangleCurve(TypedDict):
 
 CURVE_TYPES = {
     "line": LineCurve,
+    "polyline": PolylineCurve,
     "arc": ArcCurve,
     "circle": CircleCurve,
     "ellipse": EllipseCurve,
@@ -111,7 +121,15 @@ CURVE_TYPES = {
 
 class _CurveType(TypedDict):
     type: Literal[
-        "line", "arc", "circle", "ellipse", "rectangle", "polygon", "slot", "rounded_rectangle"
+        "line",
+        "polyline",
+        "arc",
+        "circle",
+        "ellipse",
+        "rectangle",
+        "polygon",
+        "slot",
+        "rounded_rectangle",
     ]
 
 
@@ -131,6 +149,8 @@ class CurveSpec(_CurveType, total=False):
     rotation: Degrees
     sides: Annotated[int, Range(ge=3, le=64)]
     inscribed: bool
+    points: Annotated[list[XY], Items(2, 100)]
+    closed: bool
 
 
 forbid_extra(*CURVE_TYPES.values(), CurveSpec)
@@ -156,14 +176,38 @@ def _loop(points):
     return [("line", points[k], points[(k + 1) % len(points)]) for k in range(len(points))]
 
 
+def _polyline(item, field):
+    """Lines through ``points`` (and back to the first when ``closed``)."""
+    points = [list(p) for p in item["points"]]
+    closed = bool(item.get("closed", False))
+    if closed and len(points) > 2 and geom.dist(points[0], points[-1]) <= geom.tol(*points):
+        points.pop()  # the first point repeated at the end: the closing segment is implied
+    if closed and len(points) < 3:
+        fail("NX_INVALID_ARGUMENT", "A closed polyline needs 3 or more points", field=field)
+    for k in range(1, len(points) + (1 if closed else 0)):
+        a, b = points[k - 1], points[k % len(points)]
+        if geom.dist(a, b) <= geom.tol(a, b):
+            # NX 2406 creates a zero-length line silently.
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"Consecutive points {k - 1} and {k % len(points)} coincide",
+                field=f"{field}/points/{k % len(points)}",
+            )
+    lines = _loop(points)
+    return (lines, "loop") if closed else (lines[:-1], "chain")
+
+
 def plan(item, field):
-    """``(primitives, closed)`` for one validated item; pure, raises invalid_argument."""
+    """``(primitives, join)`` for one validated item; pure, raises invalid_argument. ``join``:
+    ``loop`` (closed shape), ``chain`` (open polyline) or None (no coincident constraints)."""
     kind = item["type"]
     if kind == "line":
         if geom.dist(item["start"], item["end"]) <= geom.tol(item["start"], item["end"]):
             # NX 2406 creates a zero-length line silently.
             fail("NX_INVALID_ARGUMENT", "Line end points must differ", field=field + "/end")
-        return [("line", list(item["start"]), list(item["end"]))], False
+        return [("line", list(item["start"]), list(item["end"]))], None
+    if kind == "polyline":
+        return _polyline(item, field)
     if kind in ("arc", "circle"):
         start, end = item.get("start_angle", 0.0), item.get("end_angle", 360.0)
         if not 0 < end - start <= 360:
@@ -172,7 +216,7 @@ def plan(item, field):
                 "Require 0 < end_angle - start_angle <= 360",
                 field=field + "/end_angle",
             )
-        return [("arc", list(item["center"]), item["radius"], start, end)], kind == "circle"
+        return [("arc", list(item["center"]), item["radius"], start, end)], None
     if kind == "ellipse":
         a, b = item["major_radius"], item["minor_radius"]
         if b > a:
@@ -189,7 +233,7 @@ def plan(item, field):
                 field=field + "/end_angle",
             )
         prim = ("ellipse", list(item["center"]), a, b, item.get("rotation", 0.0), start, end)
-        return [prim], end - start >= 360.0 - 1e-9
+        return [prim], None
     if kind == "rectangle":
         (x1, y1), (x2, y2) = item["corner1"], item["corner2"]
         if geom.close(x1, x2) or geom.close(y1, y2):
@@ -198,7 +242,7 @@ def plan(item, field):
                 "Rectangle width and height must be nonzero",
                 field=field + "/corner2",
             )
-        return _loop([[x1, y1], [x2, y1], [x2, y2], [x1, y2]]), True
+        return _loop([[x1, y1], [x2, y1], [x2, y2], [x1, y2]]), "loop"
     if kind == "polygon":
         corners = _vertices(
             item["center"],
@@ -207,7 +251,7 @@ def plan(item, field):
             item.get("inscribed", True),
             item.get("rotation", 0.0),
         )
-        return _loop(corners), True
+        return _loop(corners), "loop"
     cx, cy = item["center"]
     w, h = item["width"], item["height"]
     left, right, bottom, top = cx - w / 2, cx + w / 2, cy - h / 2, cy + h / 2
@@ -220,7 +264,7 @@ def plan(item, field):
             ("arc", [right - r, cy], r, -90.0, 90.0),
             ("line", [right - r, top], [left + r, top]),
             ("arc", [left + r, cy], r, 90.0, 270.0),
-        ], True
+        ], "loop"
     r = item["radius"]
     if r >= min(w, h) / 2:
         fail(
@@ -237,7 +281,7 @@ def plan(item, field):
         ("arc", [left + r, top - r], r, 90.0, 180.0),
         ("line", [left, top - r], [left, bottom + r]),
         ("arc", [left + r, bottom + r], r, 180.0, 270.0),
-    ], True
+    ], "loop"
 
 
 def _arc_end(c, r, angle):
@@ -320,10 +364,11 @@ def _check(prim, row, check):
         readback.expect_close(row["length"], perimeter, check + "/perimeter", 1e-6 * perimeter)
 
 
-def _join(tx, sk, curves):
-    """Coincident constraints between consecutive curves of a closed primitive."""
+def _join(tx, sk, curves, join):
+    """Coincident constraints between consecutive curves of a closed shape (``loop``) or of
+    an open polyline (``chain``)."""
     with native(default="NX_BUILD_FAILED"):
-        for k, curve in enumerate(curves):
+        for k, curve in enumerate(curves if join == "loop" else curves[:-1]):
             nxt = curves[(k + 1) % len(curves)]
             sk.sketch.CreateCoincidentConstraint(
                 ksketch.constraint_geometry(tx, curve, "end"),
@@ -331,16 +376,24 @@ def _join(tx, sk, curves):
             )
 
 
+class Loop(TypedDict, total=False):
+    closed: bool
+    curves: int
+    open_ends: int
+    branched: bool
+
+
 class CurvesData(TypedDict):
     sketch: result.Row
     curves: list[CurveRow]
+    loops: Annotated[list[Loop], Doc("Connected curve chains of the sketch (construction out)")]
 
 
 @tool(
     effect="model",
     label="Create sketch curves",
     summary="Add {curves} to sketch {sketch}",
-    keywords=("line", "arc", "circle", "rectangle", "polygon", "ellipse", "slot", "sketch curve"),
+    keywords=("polyline", "profile", "line", "arc", "circle", "rectangle", "slot", "sketch curve"),
     requires=("work_part",),
     variants=CURVE_TYPES,
     cost="light",
@@ -361,19 +414,19 @@ def nx_create_sketch_curves(
     ],
     construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
 ) -> CurvesData:
-    """Add 1-100 curves to a sketch: lines, arcs, circles, ellipses, rectangles, polygons, slots.
-    Sketch-local coordinates, part units, degrees; closed shapes are joined by coincident
-    constraints and every curve is read back."""
+    """Add 1-100 curves to a sketch: lines, polylines, arcs, circles, ellipses, rectangles, slots.
+    Sketch-local coordinates, part units, degrees; connected curves are joined by coincident
+    constraints, read back, and loops report each chain's closure."""
     items = common.check_items(curves, CURVE_TYPES, "type", "/curves")
     plans = [plan(item, f"/curves/{i}") for i, item in enumerate(items)]
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
         made = []
-        for i, (prims, closed) in enumerate(plans):
+        for i, (prims, join) in enumerate(plans):
             tx.checkpoint(done=i, total=len(plans))
             group = [_make(tx, sk, prim) for prim in prims]
-            if closed and len(group) > 1:
-                _join(tx, sk, group)
+            if join and len(group) > 1:
+                _join(tx, sk, group, join)
             made.append(group)
         with native(default="NX_UPDATE_FAILED"):
             sk.sketch.Update()
@@ -381,13 +434,30 @@ def nx_create_sketch_curves(
         if construction:
             ksketch.set_construction(tx, flat, True)
         rows = []
-        for i, ((prims, _closed), group) in enumerate(zip(plans, made, strict=True)):
+        for i, ((prims, _join_kind), group) in enumerate(zip(plans, made, strict=True)):
             for k, (prim, curve) in enumerate(zip(prims, group, strict=True)):
                 row = common.curve_row(tx, sk.frame, curve, item=i)
                 _check(prim, row, f"curves/{i}/{k}")
                 readback.expect(row["construction"] == construction, f"curves/{i}/construction")
+                if not construction:
+                    del row["construction"]  # the default; shown only when true
                 rows.append(row)
-        return {"sketch": tx.ref(sk.sketch, "sketch"), "curves": rows}
+        return {
+            "sketch": tx.ref(sk.sketch, "sketch"),
+            "curves": rows,
+            "loops": sketch_loops(tx, sk.frame, sk),
+        }
+
+
+def sketch_loops(tx, f, sk):
+    """Closure of every connected chain of the sketch's non-construction curves."""
+    rows = []
+    for c in ksketch.geometry(sk):
+        if ksketch.curve_kind(tx, c) != "other":
+            row = ksketch.read(tx, f, c)
+            if not row.get("construction"):
+                rows.append(row)
+    return ksketch.loops(rows)
 
 
 # ---------------------------------------------------------------------------

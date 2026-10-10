@@ -29,6 +29,37 @@ def new_operation_id() -> str:
     return "op_" + uuid.uuid4().hex
 
 
+# An operation_id is optional (the server makes one); a caller's own id must match this.
+OPERATION_ID_MIN, OPERATION_ID_MAX = 8, 128
+OPERATION_ID_CHARS = r"^[A-Za-z0-9_-]+$"
+OPERATION_ID_RULE = "8-128 characters from A-Z a-z 0-9 _ -"
+
+
+def operation_id_problem(value) -> str | None:
+    """Why ``value`` is not a valid operation_id (None when it is)."""
+    if not isinstance(value, str):
+        return f"operation_id must be a string of {OPERATION_ID_RULE}"
+    if len(value) < OPERATION_ID_MIN:
+        return (
+            f"operation_id {value!r} is too short: {len(value)} of at least "
+            f"{OPERATION_ID_MIN} characters ({OPERATION_ID_RULE})"
+        )
+    if len(value) > OPERATION_ID_MAX:
+        return f"operation_id is too long: {len(value)} of at most {OPERATION_ID_MAX} characters"
+    bad = sorted({c for c in value if not re.match(OPERATION_ID_CHARS, c)})
+    if bad:
+        return f"operation_id {value!r} has characters outside A-Z a-z 0-9 _ -: " + " ".join(
+            repr(c) for c in bad
+        )
+    return None
+
+
+OPERATION_ID_HINT = (
+    "operation_id is optional: omit it and the server makes one. Pass your own "
+    f"({OPERATION_ID_RULE}, e.g. 'fan_blade_01') only for a mutation you may retry"
+)
+
+
 def fingerprint(tool: str, args: dict) -> str:
     """SHA-256 of the tool name and canonical JSON arguments."""
     try:
@@ -50,13 +81,9 @@ class OperationStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def path(self, operation_id):
-        if not isinstance(operation_id, str) or not re.fullmatch(
-            r"[A-Za-z0-9_-]{8,128}", operation_id
-        ):
-            raise NXError(
-                "NX_INVALID_ARGUMENT",
-                "operation_id must be 8–128 ASCII letters, digits, underscores or hyphens",
-            )
+        problem = operation_id_problem(operation_id)
+        if problem is not None:
+            raise NXError("NX_INVALID_ARGUMENT", problem, hint=OPERATION_ID_HINT)
         return self.root / (operation_id + ".json")
 
     def get(self, operation_id):
@@ -100,14 +127,11 @@ class Receipts:
         self.session_id = session_id
 
     def check_id(self, operation_id: str) -> None:
-        try:
-            self.store.path(operation_id)
-        except Exception as error:
+        problem = operation_id_problem(operation_id)
+        if problem is not None:
             raise NXError(
-                "NX_INVALID_ARGUMENT",
-                "operation_id must be 8-128 ASCII letters, digits, underscores or hyphens",
-                field="/operation_id",
-            ) from error
+                "NX_INVALID_ARGUMENT", problem, field="/operation_id", hint=OPERATION_ID_HINT
+            )
 
     def replay(self, tool: str, args: dict, operation_id: str) -> dict | None:
         """The replayed envelope of a finished operation with this id, else None.

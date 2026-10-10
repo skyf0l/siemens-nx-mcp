@@ -55,18 +55,24 @@ CORE_TOOLS = (
 )
 AGENT_INSTRUCTIONS = (
     "NX agent profile. Find tools with nx_find_tools (task words), fetch exact schemas with "
-    "nx_get_tool_schemas (1-10 names; 'tool#variant' for one variant), then call nx_invoke, or "
-    "nx_invoke_read for read-only tools. Results carry ok, mutation_outcome and data, or error "
-    "{category, code, retry, hint, field}. Put operation_id inside arguments for mutations you "
-    "may retry; after an unknown outcome query nx_get_operation before retrying. "
-    "Compact results keep result_id; "
-    "expand the omitted fields with nx_get_result. Never paste base64 file content into the conversation."
+    "nx_get_tool_schemas (1-10 names; 'tool#variant' for one variant), then call them through "
+    "nx_invoke, or nx_invoke_read for read-only tools: catalogue tools found with nx_find_tools "
+    "are not MCP tools of their own (only the listed core tools are). Results carry ok, "
+    "mutation_outcome and data, or error {category, code, retry, hint, field}. operation_id is "
+    "optional: the server makes one when omitted. Pass your own inside arguments only for a "
+    "mutation you may retry: 8-128 characters from A-Z a-z 0-9 _ - (e.g. 'fan_blade_01'); "
+    "after an unknown outcome query nx_get_operation before retrying. Compact results keep "
+    "result_id; expand the omitted fields with nx_get_result. Never paste base64 file content "
+    "into the conversation."
 )
+CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
 FULL_INSTRUCTIONS = (
     "Siemens NX integration. Runtime support varies by NX version; no general certification "
     "is claimed. Tools return {ok, mutation_outcome, data | error}. Every changing tool takes "
-    "operation_id (reuse it to retry safely) and intent (why, in the engineer's terms; shown "
-    "in the NX panel). File paths are workspace-relative or absolute inside the workspace."
+    "an optional operation_id (8-128 characters from A-Z a-z 0-9 _ -; omitted, the server "
+    "makes one; reuse your own to retry safely) and intent (why, in the engineer's terms; "
+    "shown in the NX panel). File paths are workspace-relative or absolute inside the "
+    "workspace."
 )
 
 
@@ -76,7 +82,8 @@ def tool_annotations(effect: str, name: str, label: str | None = None) -> ToolAn
     return ToolAnnotations(
         title=label,
         readOnlyHint=effect == "read",
-        destructiveHint=effect in ("model", "session"),
+        # MCP: destructiveHint means something only for tools that are not read-only.
+        destructiveHint=None if effect == "read" else effect in ("model", "session"),
         idempotentHint=effect == "read" or verb == "set",
         openWorldHint=False,
     )
@@ -275,7 +282,9 @@ class Surface:
         return note
 
     def _find(self, request) -> CallToolResult:
-        found = gateways.search(
+        if not request.query.strip() and request.domain is None:
+            return self._overview(request.effect)
+        found, partial = gateways.ranked(
             self._visible_entries(),
             request.query,
             request.domain,
@@ -284,16 +293,46 @@ class Surface:
         )
         selected = found[request.offset : request.offset + request.limit]
         end = request.offset + len(selected)
+        data: dict[str, Any] = {"tools": [self.row(e) for e in selected], "call_with": CALL_WITH}
+        if partial:
+            data["partial"] = True  # no tool matched every word; best matches first
+        data["listing"] = self.build_note()
         return result(
             {
                 "ok": True,
                 "tool": "nx_find_tools",
                 "mutation_outcome": "not_applicable",
-                "data": {"tools": [self.row(e) for e in selected], "listing": self.build_note()},
+                "data": data,
                 "page": {
                     "offset": request.offset,
                     "total": len(found),
                     "next_offset": end if end < len(found) else None,
+                },
+            }
+        )
+
+    def _overview(self, effect) -> CallToolResult:
+        """An empty query: the domains with their tool counts and a few key tools each."""
+        domains: dict[str, list] = {}
+        for entry in self._visible_entries():
+            if effect is None or entry.effect == effect:
+                domains.setdefault(entry.domain, []).append(entry.name)
+        rows = []
+        for domain in sorted(domains):
+            names = domains[domain]
+            key = [n for n in gateways.KEY_TOOLS.get(domain, ()) if n in names]
+            rows.append({"domain": domain, "tools": len(names), "key": key or sorted(names)[:3]})
+        return result(
+            {
+                "ok": True,
+                "tool": "nx_find_tools",
+                "mutation_outcome": "not_applicable",
+                "data": {
+                    "domains": rows,
+                    "hint": "Search with task words (e.g. 'revolve', 'sketch polyline'), or "
+                    "pass domain with an empty query to list one domain's tools",
+                    "call_with": CALL_WITH,
+                    "listing": self.build_note(),
                 },
             }
         )

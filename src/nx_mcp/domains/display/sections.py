@@ -1,7 +1,11 @@
 """Dynamic section views of the model view: create, edit, list, delete (tool-surface 3.12).
 
 A section is a one-plane view clip in absolute coordinates: material on the positive
-side of the normal is cut away, the model itself is unchanged. NX 2406 findings:
+side of the normal (where it points) is hidden, the negative side and its cut face stay;
+the model itself is unchanged. The cut face is seen from ``view_from = normal``
+(``nx_set_camera(view_from=...)``). A section stays in the part (and is saved with it)
+until ``nx_delete_objects`` removes it; ``remove_with`` in the result spells that call
+out. NX 2406 findings:
 committing a new section makes it active and switches view sectioning on;
 ``DeleteSections`` leaves sectioning on with no section left, so the deleter switches
 it off when no active section remains (``kit.display.delete_sections``). A failed
@@ -28,6 +32,9 @@ class SectionData(TypedDict):
     cap: bool
     active: bool
     sectioning: bool
+    hidden_side: str
+    cut_face_view_from: list[float]
+    remove_with: dict
 
 
 def _context(tx):
@@ -70,13 +77,17 @@ def guarded(tx, part, view):
 
 def _data(tx, part, view, section) -> SectionData:
     state = display.section_state(tx, part, view, section)
+    ref = tx.ref(section, "section_view")
     return {
-        "section": tx.ref(section, "section_view"),
+        "section": ref,
         "origin": state["origin"],
         "normal": state["normal"],
         "cap": state["cap"],
         "active": state["active"],
         "sectioning": bool(view.DisplaySectioningToggle),
+        "hidden_side": "positive",  # the half space the normal points into
+        "cut_face_view_from": geom.unit(state["normal"]),
+        "remove_with": {"tool": "nx_delete_objects", "arguments": {"objects": [ref["id"]]}},
     }
 
 
@@ -99,8 +110,9 @@ def _expect_plane(state, origin, normal):
 def nx_create_section_view(
     tx: Tx, *, plane: PlaneByNormal, name: Name | None = None, cap: bool = True
 ) -> SectionData:
-    """Cut the model view with a section plane; the side the normal points to is hidden and
-    the model is unchanged. Refused while another section is active."""
+    """Cut the model view with a section plane; the model is unchanged. The side the normal
+    points to is hidden; the cut face shows from cut_face_view_from. It stays (also saved
+    with the part) until nx_delete_objects (remove_with) deletes it. One active at a time."""
     normal = geom.unit(plane["normal"], field="/plane/normal")
     origin = [float(v) for v in plane["origin"]]
     with tx.checks():
@@ -144,7 +156,7 @@ def nx_edit_section_view(
     cap: bool | None = None,
 ) -> SectionData:
     """Move a section plane, switch its cap, or enable/disable it (enabling makes it the
-    active section). Delete sections with nx_delete_objects."""
+    active section). The normal's side is hidden. Delete sections with nx_delete_objects."""
     if plane is None and enabled is None and cap is None:
         fail("NX_INVALID_ARGUMENT", "Give plane, enabled or cap", field="/plane")
     normal = geom.unit(plane["normal"], field="/plane/normal") if plane else None

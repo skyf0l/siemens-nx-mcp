@@ -130,7 +130,10 @@ async def test_find_ranks_by_name_keywords_and_synonyms(tmp_path, tested):
     assert names[0] == "nx_create_blend"  # synonym fillet -> blend
     exact = body(await agent.call_tool("nx_find_tools", {"query": "nx_list_objects"}))["data"]
     assert exact["tools"][0]["name"] == "nx_list_objects"
-    none = body(await agent.call_tool("nx_find_tools", {"query": "fillet zebra"}))
+    partial = body(await agent.call_tool("nx_find_tools", {"query": "fillet zebra"}))
+    assert partial["data"]["tools"][0]["name"] == "nx_create_blend"
+    assert partial["data"]["partial"] is True  # no tool matched every word
+    none = body(await agent.call_tool("nx_find_tools", {"query": "zebra quokka"}))
     assert none["data"]["tools"] == [] and none["page"]["total"] == 0
     reads = body(await agent.call_tool("nx_find_tools", {"query": "list", "effect": "read"}))
     assert all(r["effect"] == "read" for r in reads["data"]["tools"])
@@ -426,17 +429,23 @@ async def test_a_long_call_outlasting_the_bridge_wait_says_how_to_check(tmp_path
     bridge.call.side_effect = NXError(
         "NX_OUTCOME_UNKNOWN",
         "no answer within the wait",
-        details={"operation_id": "op_long", "mutation_outcome": "unknown"},
+        details={"operation_id": "op_long_call", "mutation_outcome": "unknown"},
     )
     failure = body(
         await server(tmp_path, bridge).call_tool(
             "nx_invoke",
-            {"tool": "nx_create_datum_plane", "arguments": {**OFFSET, "operation_id": "op_long"}},
+            {
+                "tool": "nx_create_datum_plane",
+                "arguments": {**OFFSET, "operation_id": "op_long_call"},
+            },
         )
     )
-    assert failure["mutation_outcome"] == "unknown" and failure["operation_id"] == "op_long"
+    assert failure["mutation_outcome"] == "unknown" and failure["operation_id"] == "op_long_call"
     assert failure["error"]["retry"] == "after_status_check"
-    assert "nx_get_operation" in failure["error"]["hint"] and "op_long" in failure["error"]["hint"]
+    assert (
+        "nx_get_operation" in failure["error"]["hint"]
+        and "op_long_call" in failure["error"]["hint"]
+    )
 
 
 async def test_part_not_granted_keeps_its_category_and_hint(tmp_path, tested):
@@ -462,3 +471,188 @@ def test_output_schema_allows_restore_ids_and_sheet_units():
 
     out = schema.output_schema(catalogue.get("nx_list_objects"))["properties"]
     assert "restore_id" in out and "sheet_length" in out["units"]["properties"]
+
+
+# ---- discovery regressions (turbofan runs, 2026-10-10) ------------------------
+
+
+def _entries():
+    return [
+        gateways.Entry(
+            s.name,
+            effect=s.effect,
+            domain=s.domain,
+            label=s.label,
+            description=s.description,
+            keywords=s.keywords,
+        )
+        for s in catalogue.load().values()
+    ]
+
+
+@pytest.mark.parametrize(
+    ("query", "first"),
+    [
+        ("create part", "nx_create_part"),
+        ("new part", "nx_create_part"),
+        ("create a new part", "nx_create_part"),
+        ("create part units", "nx_create_part"),  # all words: only a description match
+        ("create new part mm", "nx_create_part"),
+        ("close part", "nx_close_part"),
+        ("close the part without saving", "nx_close_part"),
+        ("save part", "nx_save_part"),
+        ("open part", "nx_open_part"),
+        ("sketch rectangle", "nx_create_sketch_curves"),
+        ("fillet edges", "nx_create_blend"),
+        ("set expression", "nx_set_expression"),
+    ],
+)
+def test_find_ranks_the_obvious_tool_first(query, first):
+    found, _ = gateways.ranked(_entries(), query)
+    assert found[0].name == first, [e.name for e in found[:5]]
+
+
+def test_find_keeps_unrelated_tools_below_name_matches():
+    names = [e.name for e in gateways.ranked(_entries(), "create part")[0][:3]]
+    assert not any("explosion" in n or n.startswith("nx_export") for n in names), names
+
+
+async def test_empty_find_returns_a_domain_overview(tmp_path):
+    every = {
+        n: {"v2406": {"variants": list(s.variant_values())}} for n, s in catalogue.load().items()
+    }
+    evidence._CACHE = every  # restored by the module fixture of other tests
+    try:
+        data = body(await server(tmp_path).call_tool("nx_find_tools", {}))["data"]
+    finally:
+        evidence._CACHE = None
+    domains = {row["domain"]: row for row in data["domains"]}
+    assert set(domains) == {s.domain for s in catalogue.load().values()}
+    assert sum(row["tools"] for row in data["domains"]) == len(catalogue.load())
+    assert domains["parts_files"]["key"][0] == "nx_create_part"
+    assert "nx_invoke" in data["call_with"] and "hint" in data
+
+
+def test_key_tools_of_the_overview_exist_in_their_domain():
+    specs = catalogue.load()
+    for domain, names in gateways.KEY_TOOLS.items():
+        assert all(specs[n].domain == domain for n in names), domain
+
+
+async def test_find_rows_say_to_call_through_the_gateways(tmp_path, tested):
+    data = body(await server(tmp_path).call_tool("nx_find_tools", {"query": "fillet"}))["data"]
+    assert data["call_with"].startswith("nx_invoke")
+
+
+@pytest.mark.parametrize(
+    ("operation_id", "words"),
+    [
+        ("e1", "too short: 2 of at least 8"),
+        ("r4_part", "too short: 7 of at least 8"),
+        ("blade row 1", "outside A-Z a-z 0-9 _ -: ' '"),
+        ("x" * 129, "too long: 129 of at most 128"),
+    ],
+)
+async def test_a_bad_operation_id_says_what_is_wrong(tmp_path, tested, operation_id, words):
+    bridge = AsyncMock()
+    failure = body(
+        await server(tmp_path, bridge).call_tool(
+            "nx_invoke",
+            {
+                "tool": "nx_create_datum_plane",
+                "arguments": {**OFFSET, "operation_id": operation_id},
+            },
+        )
+    )
+    assert failure["mutation_outcome"] == "not_started" and not bridge.call.called
+    assert words in failure["error"]["message"], failure["error"]["message"]
+    assert "optional" in failure["error"]["hint"] and failure["error"]["field"] == "/operation_id"
+
+
+async def test_operation_id_schema_states_the_rule(tmp_path, tested):
+    tools = {t.name: t for t in await server(tmp_path, surface="full").list_tools()}
+    rule = tools["nx_create_datum_plane"].inputSchema["properties"]["operation_id"]
+    assert rule["minLength"] == 8 and rule["maxLength"] == 128
+    assert rule["pattern"] == "^[A-Za-z0-9_-]+$"
+    invoke = tools["nx_invoke"].inputSchema["properties"]["arguments"]["description"]
+    assert "operation_id" in invoke and "8-128" in invoke
+
+
+# ---- compact changes ---------------------------------------------------------
+
+
+class _Store:
+    def __init__(self):
+        self.saved = []
+
+    def put(self, envelope):
+        self.saved.append(envelope)
+        return "result_" + "0" * 32
+
+
+def _ref(i, kind, name):
+    return {"id": f"{kind[0]}:{i}", "kind": kind, "name": name, "part": "p:1"}
+
+
+def test_compact_changes_keep_the_main_object_and_count_the_rest():
+    from nx_mcp.sidecar.proxy import _project
+
+    pattern = _ref(10, "feature", "Pattern Feature(11)")
+    created = [_ref(20 + k, "expression", f"p{17 + k}") for k in range(8)]
+    created += [pattern] + [_ref(40 + k, "feature", f"Pattern Feature(11:{k}A)") for k in range(35)]
+    full = {
+        "ok": True,
+        "tool": "nx_create_pattern",
+        "mutation_outcome": "committed",
+        "data": {"feature": pattern, "bodies": [_ref(3, "body", "")], "volume": 1.0000000000000002},
+        "changes": {"created": created, "modified": [], "deleted": [], "references": "listed"},
+    }
+    store = _Store()
+    compact = _project(full, store)
+    assert compact["changes"]["created"] == [pattern]
+    assert compact["changes"]["counts"] == {"created": {"expression": 8, "feature": 36}}
+    assert compact["omitted"]["/changes/created"] == {"total": 44, "returned": 1}
+    assert compact["data"]["volume"] == 1.0 and compact["result_id"]
+    assert store.saved == [full] and len(full["changes"]["created"]) == 44  # full kept
+
+
+def test_compact_changes_drop_rows_data_already_shows_and_nx_helpers():
+    from nx_mcp.sidecar.proxy import _project
+
+    curves = [_ref(k, "curve", f"Line{k}") for k in range(12)]
+    full = {
+        "ok": True,
+        "tool": "nx_create_sketch_curves",
+        "mutation_outcome": "committed",
+        "data": {"sketch": _ref(1, "sketch", "S"), "curves": [{"curve": c} for c in curves]},
+        "changes": {"created": curves, "modified": [], "deleted": [], "references": "preserved"},
+    }
+    compact = _project(full, _Store())
+    assert compact["changes"]["created"] == []
+    assert compact["changes"]["counts"] == {"created": {"curve": 12}}
+    helpers = [_ref(70 + k, "point", f"ENTITY 2 {k} 1") for k in range(4)]
+    helpers += [_ref(80 + k, "curve", f"ENTITY 3 {k} 1") for k in range(4)]
+    datum = _ref(9, "datum_plane", "DATUM_PLANE(3)")
+    full["data"] = {"active": True}
+    full["changes"]["created"] = [*helpers, datum]
+    assert _project(full, _Store())["changes"]["created"] == [datum]
+
+
+def test_small_compact_result_needs_no_result_id():
+    """Two rows cost less than the result_id, omitted and counts that would replace them."""
+    from nx_mcp.sidecar.proxy import _project
+
+    feature = _ref(5, "feature", "EXTRUDE(2)")
+    full = {
+        "ok": True,
+        "tool": "nx_create_extrude",
+        "mutation_outcome": "committed",
+        "data": {"feature": feature},
+        "changes": {
+            "created": [_ref(1, "expression", "p0"), feature],
+            "modified": [],
+            "deleted": [],
+            "references": "preserved",
+        },
+    }
+    assert _project(full, _Store()) == full

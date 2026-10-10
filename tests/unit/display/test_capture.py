@@ -17,7 +17,7 @@ def root(nx) -> Path:
 def test_viewport_capture_reports_the_window_size_and_an_inline_image():
     nx = display_nx()
     ok = run(nx, "nx_capture_view", width=800, height=500)
-    assert ok.ok and ok.mutation_outcome == "committed"
+    assert ok.ok and ok.mutation_outcome == "not_applicable"  # a view-only action
     data = ok.data
     assert data["requested"] == [800, 500] and data["resolution"] == list(WINDOW)
     assert data["path"].startswith("captures/view-") and data["path"].endswith(".png")
@@ -105,3 +105,63 @@ def test_batch_nx_has_no_viewport():
     nx.session.IsBatch = True
     bad = run(nx, "nx_capture_view")
     assert bad.error["code"] == "NX_VIEWPORT_UNAVAILABLE"
+
+
+def test_overwrite_replaces_an_existing_png_and_path_never_does():
+    nx = display_nx()
+    first = run(nx, "nx_capture_view", quality="studio", path="shots/o.png", width=320,
+                height=240, overwrite=True)  # fmt: skip
+    assert first.ok and first.data["overwritten"] is False  # nothing there yet: a new file
+    again = run(nx, "nx_capture_view", path="shots/o.png")
+    assert again.error["code"] == "NX_ALREADY_EXISTS" and again.error["field"] == "/path"
+    assert again.mutation_outcome == "not_started"
+    file = root(nx) / "shots" / "o.png"
+    ok = run(nx, "nx_capture_view", quality="studio", path="shots/o.png", overwrite=True,
+             width=640, height=480)  # fmt: skip
+    assert ok.ok and ok.mutation_outcome == "not_applicable" and ok.data["overwritten"] is True
+    assert ok.data["path"] == "shots/o.png" and files.png_size(file) == (640, 480)
+    assert ok.data["sha256"] == files.sha256(file)
+    staging = root(nx) / ".nx-mcp" / "staging"
+    assert not staging.exists() or not any(staging.rglob("*.png"))
+
+
+@pytest.mark.parametrize(
+    ("args", "code", "field"),
+    [
+        ({"overwrite": True}, "NX_INVALID_ARGUMENT", "/overwrite"),
+        ({"path": "shots/text.png", "overwrite": True}, "NX_UNSUPPORTED_FILE_TYPE", "/path"),
+        ({"path": "shots/text.png"}, "NX_ALREADY_EXISTS", "/path"),
+        ({"path": "shots", "overwrite": True}, "NX_UNSUPPORTED_FILE_TYPE", "/path"),
+        ({"path": "dir.png", "overwrite": True}, "NX_WRONG_KIND", "/path"),
+        ({"path": "../outside.png", "overwrite": True}, "NX_PATH_OUTSIDE_WORKSPACE", "/path"),
+        ({"path": ".nx-mcp/x.png", "overwrite": True}, "NX_PATH_RESERVED", "/path"),
+    ],
+)
+def test_overwrite_keeps_the_workspace_checks(args, code, field):
+    nx = display_nx()
+    text = root(nx) / "shots" / "text.png"
+    text.parent.mkdir(parents=True, exist_ok=True)
+    text.write_text("not an image")
+    (root(nx) / "dir.png").mkdir(exist_ok=True)
+    bad = run(nx, "nx_capture_view", **args)
+    assert bad.error["code"] == code and bad.error["field"] == field
+    assert bad.mutation_outcome == "not_started" and text.read_text() == "not an image"
+
+
+def test_a_capture_that_marks_the_part_modified_says_so():
+    nx = display_nx()
+    plain = run(nx, "nx_capture_view", quality="studio", width=320, height=240)
+    assert plain.data["part_modified"] is False and not plain.warnings
+    original = nx.part.Views.CreateLighting
+
+    def lighting(arg):  # NX 2406 stores the lighting in the part: it is then modified
+        lights = original(arg)
+        commit = lights.Commit
+        lights.Commit = lambda: (commit(), setattr(nx.part, "IsModified", True))
+        return lights
+
+    nx.part.Views.CreateLighting = lighting
+    lit = run(nx, "nx_capture_view", quality="studio", width=320, height=240, lighting=2)
+    assert lit.ok and lit.mutation_outcome == "not_applicable" and lit.data["part_modified"]
+    assert [w["code"] for w in lit.warnings] == ["NX_UPDATE_WARNING"]
+    assert "modified" in lit.warnings[0]["message"]

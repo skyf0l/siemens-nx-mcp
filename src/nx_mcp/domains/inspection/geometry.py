@@ -5,6 +5,9 @@
 (``nearest``) or by the conservative bounding-box centre along an axis
 (``highest``/``lowest``) and returns a ``selector``: the same rule, with a persistent
 owner anchor, that ``nx_resolve_reference`` re-evaluates after edits or a reopen.
+Without ``order``, ``nearest`` is used when ``near`` is given, else ``lowest``.
+A feature owner limits the candidates to the feature's own faces or edges
+(``Feature.GetFaces``/``GetEdges``), not every face of its bodies.
 
 Plane normals are UF ``AskFaceData`` directions (the outward normal on NX 2406);
 a cylinder whose face sense is reversed (``AskFaceData`` sign -1) is a bore.
@@ -83,7 +86,11 @@ def _check_rule(kind, geometry_type, normal, radius, near, order):
     if radius is not None and geometry_type not in ("cylinder", "circle"):
         fail("NX_INVALID_ARGUMENT", "radius filters cylinders or circles", field="/radius")
     if order == "nearest" and near is None:
-        fail("NX_INVALID_ARGUMENT", "order nearest needs a near point", field="/near")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "order nearest needs a near point: give near, or choose order highest or lowest",
+            field="/near",
+        )
 
 
 def _owner(tx, owner):
@@ -94,11 +101,17 @@ def _owner(tx, owner):
 
 
 def _candidates(tx, kind, owner_obj):
-    found = bodies.of(tx, owner_obj) if owner_obj is not None else bodies.scope(tx, "auto")
+    """Faces or edges of the owner (a feature: only its own) or of every body in scope."""
+    if owner_obj is not None and tx.kind_of(owner_obj) == "feature":
+        found = [owner_obj]  # Feature.GetFaces/GetEdges: the feature's faces, not its bodies'
+    elif owner_obj is not None:
+        found = bodies.of(tx, owner_obj)
+    else:
+        found = bodies.scope(tx, "auto")
     entities: dict[int, Any] = {}
-    for body in found:
+    for source in found:
         tx.checkpoint()
-        for obj in body.GetFaces() if kind == "face" else body.GetEdges():
+        for obj in source.GetFaces() if kind == "face" else source.GetEdges():
             entities.setdefault(int(obj.Tag), obj)
         if len(entities) > MAX_CANDIDATES:
             fail(
@@ -189,14 +202,16 @@ def nx_find_geometry(
     normal: Vec3 | None = None,
     radius: Annotated[float, Range(gt=0), Doc("Part units")] | None = None,
     near: Point3 | None = None,
-    order: Order = "nearest",
+    order: Order | None = None,
     axis: Literal["x", "y", "z"] = "z",
     tolerance: Tolerance = DEFAULT_TOLERANCE,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> FindData:
-    """Find faces or edges by type, normal, radius, nearest point or extreme along an axis.
-    The selector re-runs the rule in nx_resolve_reference."""
+    """Find faces or edges by type, normal, radius, nearest point (default with near) or
+    extreme along an axis (else lowest). Its selector re-runs in nx_resolve_reference."""
+    if order is None:
+        order = "nearest" if near is not None else "lowest"
     _check_rule(kind, geometry_type, normal, radius, near, order)
     owner_obj, owner_kind = _owner(tx, owner)
     ranked = search(

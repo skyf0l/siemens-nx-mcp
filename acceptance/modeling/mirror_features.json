@@ -222,7 +222,8 @@
     "data.volume": {
      "close": 7890.0442571243575,
      "tol": 1e-06
-    }
+    },
+    "data.new_bodies": 0
    }
   },
   {
@@ -363,6 +364,111 @@
    "expect": {
     "error.field": "/bodies",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "own_s",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$own_s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       30,
+       0
+      ],
+      "corner2": [
+       40,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$own_s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "own",
+   "args": {
+    "sketch": "$own_s.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   }
+  },
+  {
+   "call": "nx_create_mirror",
+   "intent": "Mirror of an extrude with its own body: the mirror is a new body",
+   "args": {
+    "target": "features",
+    "features": [
+     "$own.data.feature.id"
+    ],
+    "plane": {
+     "principal": "yz"
+    }
+   },
+   "expect": {
+    "ok": true,
+    "data.count": 1,
+    "data.new_bodies": {
+     "equals": 1
+    },
+    "data.volume": {
+     "close": 2000,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     -1,
+     0,
+     0
+    ],
+    "near": [
+     -40,
+     5,
+     5
+    ],
+    "limit": 1
+   },
+   "expect": {
+    "data.items.0.distance": {
+     "close": 0,
+     "tol": 1e-06
+    }
    }
   },
   {

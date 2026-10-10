@@ -2,20 +2,20 @@
   "nx_check_sketch": {
     "v2406": {
       "checks": 28,
-      "recorded": "2026-10-10T13:11:56Z",
+      "recorded": "2026-10-10T15:40:22Z",
       "scenario": "acceptance/sketch/check_sketch.json",
       "scenario_sha256": "dcfe1b8997f246f15e873335a33d4be9ad245420654018a9b099f5a7d9530209",
-      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
+      "source_sha256": "36c207800abde66494e5b4da457c6f2af79d94b203e1109ede0667b68fa964ca",
       "variants": []
     }
   },
   "nx_create_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-10T13:11:59Z",
+      "recorded": "2026-10-10T15:40:26Z",
       "scenario": "acceptance/sketch/create_sketch.json",
       "scenario_sha256": "f399d8c7f229275cb8df6ca59e4969416982bf326313c77a39cfe18c3f1a8e3b",
-      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
+      "source_sha256": "36c207800abde66494e5b4da457c6f2af79d94b203e1109ede0667b68fa964ca",
       "variants": [
         "on",
         "path",
@@ -75,17 +75,18 @@
   },
   "nx_create_sketch_curves": {
     "v2406": {
-      "checks": 52,
-      "recorded": "2026-10-10T13:12:16Z",
-      "scenario": "acceptance/sketch/sketch_curves.json",
-      "scenario_sha256": "2cd1519f1047878571354ecaa96f533f1d5fee64e76c18748c2baa218d7bec29",
-      "source_sha256": "c6360fdb649a7c7bcb72ace79759ffd37f199e9bb635c6030dcd1c4743a05676",
+      "checks": 38,
+      "recorded": "2026-10-10T15:38:45Z",
+      "scenario": "acceptance/sketch/sketch_polyline.json",
+      "scenario_sha256": "f97a3322896b8750e03c5029b899cf6b046a804ae685635170fac6e2423ca985",
+      "source_sha256": "8a54cea0ba2a20e4ef1a7c1837a2e0c2580a2a8e71b805ab792764ce1c872f92",
       "variants": [
         "arc",
         "circle",
         "ellipse",
         "line",
         "polygon",
+        "polyline",
         "rectangle",
         "rounded_rectangle",
         "slot"
@@ -128,10 +129,10 @@
   "nx_edit_sketch_curves": {
     "v2406": {
       "checks": 32,
-      "recorded": "2026-10-10T13:12:01Z",
+      "recorded": "2026-10-10T15:40:29Z",
       "scenario": "acceptance/sketch/edit_sketch_curves.json",
       "scenario_sha256": "bdf6b0f0c885c36eb7fd5f77bb371de5bbfd435992577676ccc840bbf89b56dd",
-      "source_sha256": "c6360fdb649a7c7bcb72ace79759ffd37f199e9bb635c6030dcd1c4743a05676",
+      "source_sha256": "8a54cea0ba2a20e4ef1a7c1837a2e0c2580a2a8e71b805ab792764ce1c872f92",
       "variants": [
         "arc",
         "construction",
@@ -145,20 +146,20 @@
   "nx_finish_sketch": {
     "v2406": {
       "checks": 20,
-      "recorded": "2026-10-10T13:12:03Z",
+      "recorded": "2026-10-10T15:40:30Z",
       "scenario": "acceptance/sketch/finish_sketch.json",
       "scenario_sha256": "70b4b772b75f27b790a71d211e4e9a3230157c4ed5bf46c330ff53d1688b320a",
-      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
+      "source_sha256": "36c207800abde66494e5b4da457c6f2af79d94b203e1109ede0667b68fa964ca",
       "variants": []
     }
   },
   "nx_get_sketch": {
     "v2406": {
       "checks": 34,
-      "recorded": "2026-10-10T13:12:05Z",
+      "recorded": "2026-10-10T15:40:33Z",
       "scenario": "acceptance/sketch/get_sketch.json",
       "scenario_sha256": "5f43fd9a4becde1d8e72734026bc9275df6ea0f15eeca59ce78c14996fad8565",
-      "source_sha256": "6d4d6b8f5db8cef7c418f9e7dd08232979165429a1b89b578e37a85c9993db19",
+      "source_sha256": "36c207800abde66494e5b4da457c6f2af79d94b203e1109ede0667b68fa964ca",
       "variants": []
     }
   }

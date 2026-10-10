@@ -184,10 +184,10 @@ Every tool returns the same envelope. Tool-specific data lives in `data`.
 | Reference | `{id, kind, name, part}` plus `path` for assembly occurrences. Repeated reference metadata is omitted in compact detail |
 | `mutation_outcome` | Always present (1.9) |
 | `units`, `frame` | Always present when any length, angle or coordinate is returned. `frame` is `work_part_absolute`, `sketch_local`, `sheet` or `display_part_absolute` |
-| `changes` | `model` tools only. `references`: `preserved` (all earlier refs still valid), `part_invalidated` (re-list the part), `listed` (only those in `deleted` are invalid) |
+| `changes` | `model` tools only. `references`: `preserved` (all earlier refs still valid), `part_invalidated` (re-list the part), `listed` (only those in `deleted` are invalid). After a rollback that renumbered refs, `references` is `part_invalidated` and `stale_references` gives how many refs went stale; the error then carries `details.references: "renumbered"`, `details.stale_references` (a count, or `"all"` when NX cannot say which), `details.stale_refs` (up to 20 ids) and `details.rebound_references` (refs re-bound to their restored objects), and its hint says to list the objects again |
 | `warnings` | `{code, message}`; never dropped by compaction. Warning codes (`NX_UPDATE_WARNING`, `NX_APPROXIMATED`, `NX_PARTIAL_PAGE`, `NX_MODAL_DIALOG` = NX showed a modal dialog during the call) are a separate short list |
 | `page` | Inventories: `{offset, limit, returned, total, next_offset}` |
-| `result_id`, `omitted` | Compact projection: arrays over 20 items are cut, `nx_get_result` expands them; one snapshot store for bridge and sidecar results |
+| `result_id`, `omitted` | Compact projection: arrays over 20 items are cut and floats rounded to 12 significant digits; `changes.created`/`modified` keep only the rows `data` names at its top level (the tool's feature, body, sketch...), or, when it names none, up to 5 rows `data` does not already show that are not NX helpers (auto `pNN` expressions, sketch `ENTITY` geometry); `changes.counts` gives every row by kind and `deleted` stays whole. `nx_get_result` expands what was cut; one snapshot store for bridge and sidecar results |
 | `restore_id` | `view` tools that change display state |
 | `marks_part_modified` | When a non-model call nevertheless marks a part modified |
 
@@ -268,15 +268,15 @@ Present in every result, success or error.
 
 | Value | Meaning | References | Agent may |
 |---|---|---|---|
-| `not_applicable` | Tool effect is `read` | preserved | continue |
+| `not_applicable` | Nothing in NX changed: tool effect `read`, or a `view` call that changes nothing in the session, such as `nx_capture_view` (it writes a PNG to the workspace and puts the view back) | preserved | continue |
 | `committed` | Every change applied and verified | `changes.references` says which survive | continue |
 | `previewed` | Changes applied temporarily and reverted (`nx_preview_changes`) | refs in the preview result are stale | accept or discard the preview |
 | `not_started` | Failed before NX, the session or the workspace changed | preserved | fix and retry |
-| `rolled_back` | Started, failed, undo mark restored | `changes.references` = `preserved` or `part_invalidated` | fix, reacquire if needed, retry |
+| `rolled_back` | Started, failed, undo mark restored | `changes.references` = `preserved` or `part_invalidated` (with `changes.stale_references`; the error's `details.references` = `renumbered`, 1.6) | fix, reacquire if needed, retry |
 | `partial` | Some changes remain (rollback failed, or a non-undoable step such as a translator file or a session change ran) | `part_invalidated` | inspect (`nx_check_model`, screenshot); ask the engineer before more mutations |
 | `unknown` | Transport lost or timeout; NX may still finish | unknown | query `nx_get_operation(operation_id)` only; never retry until it reports `committed` or `failed` |
 
-`operation_id` is optional; the kernel generates one when absent and returns it.
+`operation_id` is optional; the kernel generates one when absent and returns it. A caller's own id is 8-128 characters from `A-Z a-z 0-9 _ -` (listed schemas carry `minLength` and `pattern`); a bad one is refused before NX with what is wrong ("too short: 7 of at least 8 characters").
 Supply your own when you might need to retry after a transport failure.
 
 ---
@@ -294,7 +294,7 @@ Gateway tools (always listed):
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_find_tools` | Ranked search: exact name > keyword/synonym > summary > description; all query words must match after stemming and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`). Rows: name, summary, effect, domain, evidence for the connected build | `query`, `domain?`, `effect?`, `limit=10` (max 20), `offset` | read |
+| `nx_find_tools` | Ranked search after stemming, stop words and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`): name > keyword/label > description per word, plus a bonus for a keyword or label phrase in the query and for a word naming the tool's domain; an exact name wins. Tools matching every word come first, with tools matching at least half the words that outscore them; when none match every word the best partial matches are returned with `partial: true`. An empty query returns a domain overview (tool counts and key tools). Rows: name, summary, effect, domain, evidence for the connected build; `call_with` says to call them through `nx_invoke`/`nx_invoke_read` | `query`, `domain?`, `effect?`, `limit=10` (max 20), `offset` | read |
 | `nx_get_tool_schemas` | Exact input schema, example, prerequisites and evidence for 1-10 tools or variants in one call; output schema on request | `names[1..10]` (e.g. `nx_create_drawing_view#section`), `include_output=false` | read |
 | `nx_invoke` | Call any task tool; kernel gates apply; `intent` (at most 120 characters) is shown in the NX panel | `tool`, `arguments`, `intent?`, `detail=compact/full` | per tool (declared destructive) |
 | `nx_invoke_read` | Same, but refuses tools whose effect is not `read` before validation; hosts can auto-approve it | `tool`, `arguments`, `detail` | read |
@@ -548,7 +548,7 @@ Note: an existing sheet-metal feature is edited with
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_capture_view` | PNG of the current view or sheet, inline; `quality=studio` renders with lighting | `quality: viewport/studio, path?, width=1024, height=768, background: white/original/transparent/color, color?, style: current/shaded/shaded_with_edges/wireframe/studio, fit=false, lighting?` | view |
+| `nx_capture_view` | PNG of the current view or sheet, inline; `quality=studio` renders with lighting | `quality: viewport/studio, path?, overwrite=false (replace an existing PNG at path), width=1024, height=768, background: white/original/transparent/color, color?, style: current/shaded/shaded_with_edges/wireframe/studio, fit=false, lighting?` | view |
 | `nx_get_camera` | Displayed view, camera matrix, scale, style | — | read |
 | `nx_set_camera` | Named orientation, explicit camera, and/or fit | `orientation?: top/front/right/back/left/bottom/isometric/trimetric, rotation?: Mat3, origin?, scale?, fit=false` | view |
 | `nx_set_visibility` | Show, hide or isolate objects, or all datums | `objects?` or `datums=true`, `mode: show/hide/isolate` | view |

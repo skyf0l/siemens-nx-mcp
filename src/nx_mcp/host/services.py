@@ -554,6 +554,73 @@ class NXServices(Services):
         for part in parts:
             self.objects.invalidate_part(self.part_key(part))
 
+    _UNDO_COLLECTIONS = {
+        "body": "Bodies",
+        "feature": "Features",
+        "sketch": "Sketches",
+        "curve": "Curves",
+        "expression": "Expressions",
+        "datum": "Datums",
+    }
+
+    def retire_undone(self, parts) -> set:
+        """After an undo: retire the handles of ``parts`` whose object did not come back.
+
+        NX 2406 undo restores the same objects under the same tags (measured live for
+        the part, bodies, features, sketches, faces and edges after UndoToMark of a
+        committed unite, a feature delete and a feature edit). A handle stays live when
+        its wrapper still has a non-zero tag that is again in its part's collection
+        (faces and edges: of the part's bodies); kinds without a collection, and
+        occurrences, only need the non-zero tag."""
+        objects = self.objects
+        retired: set[str] = set()
+        for part in parts:
+            try:
+                key = self.part_key(part)
+            except Exception:
+                continue
+            live: dict[str, set | None] = {}
+            for handle, entry in list(objects._objects.items()):
+                if entry.reference.part_id != key:
+                    continue
+                kind = entry.reference.kind
+                try:
+                    tag = int(entry.value.Tag)
+                    if getattr(entry.value, "IsOccurrence", False):
+                        known = None
+                    else:
+                        if kind not in live:
+                            live[kind] = self._undo_tags(part, kind)
+                        known = live[kind]
+                    alive = tag != 0 and (known is None or tag in known)
+                except Exception:
+                    alive = False
+                if not alive:
+                    retired.add(handle)
+        for handle in retired:
+            objects._objects.pop(handle, None)
+            objects._stale_ids.add(handle)
+        if retired:
+            objects._identities = {
+                k: v for k, v in objects._identities.items() if v in objects._objects
+            }
+        return retired
+
+    def _undo_tags(self, part, kind: str) -> set | None:
+        """Tags of ``part``'s objects of registry ``kind``; None when NX cannot list them
+        (then only the wrapper's tag is checked)."""
+        try:
+            if kind in ("face", "edge"):
+                method = "GetFaces" if kind == "face" else "GetEdges"
+                return {int(x.Tag) for b in part.Bodies for x in getattr(b, method)()}
+            if kind == "part":
+                return {int(p.Tag) for p in self.parts()}
+            name = self._UNDO_COLLECTIONS.get(kind)
+            values = getattr(part, name, None) if name else None
+            return None if values is None else {int(v.Tag) for v in values}
+        except Exception:
+            return None
+
     def forget_parts(self, keys) -> None:
         """Parts NX closed (``part_key`` taken before the close): drop their references,
         undo history, checkpoints and ownership, and retire the key so a reused NX tag

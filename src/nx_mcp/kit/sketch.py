@@ -349,7 +349,8 @@ def read(tx, f, curve):
     else:
         s, e = kcurve.ends(tx, curve)
     row = {"type": kind, "start": to_local(f, s), "end": to_local(f, e)}
-    row["closed"] = geom.dist(s, e) <= geom.tol(s, e)
+    if geom.dist(s, e) <= geom.tol(s, e):
+        row["closed"] = True  # the curve closes on itself (circle, full ellipse); see loops()
     length = getattr(curve, "GetLength", None)
     if length is not None:
         row["length"] = float(length())
@@ -383,6 +384,52 @@ def read(tx, f, curve):
         )
     row["construction"] = bool(getattr(curve, "IsReference", False))
     return row
+
+
+def loops(rows):
+    """Chains of connected curves from read rows (``start``/``end``, ``closed``), in row
+    order: ``[{"closed": bool, "curves": n}]`` plus ``open_ends`` for an open chain and
+    ``branched`` where more than two curve ends meet. Pure; points in any one frame."""
+    nodes: list = []
+
+    def node(p):
+        for i, q in enumerate(nodes):
+            if geom.dist(p, q) <= geom.tol(p, q):
+                return i
+        nodes.append(p)
+        return len(nodes) - 1
+
+    ends = [(node(r["start"]), node(r["end"])) for r in rows]
+    parent = list(range(len(nodes)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for a, b in ends:
+        parent[root(a)] = root(b)
+    groups: dict = {}
+    for k, (a, _b) in enumerate(ends):
+        groups.setdefault(root(a), []).append(k)
+    out = []
+    for members in groups.values():
+        degree: dict = {}
+        for k in members:
+            if rows[k].get("closed"):
+                continue  # a closed curve is its own loop: no free ends
+            for n in ends[k]:
+                degree[n] = degree.get(n, 0) + 1
+        loop = {"closed": all(d == 2 for d in degree.values()), "curves": len(members)}
+        open_ends = sum(1 for d in degree.values() if d == 1)
+        if open_ends:
+            loop["open_ends"] = open_ends
+        if any(d > 2 for d in degree.values()):
+            loop["closed"] = False
+            loop["branched"] = True
+        out.append(loop)
+    return out
 
 
 def constraint_geometry(tx, curve, which=None):

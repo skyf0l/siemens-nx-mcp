@@ -10,7 +10,7 @@ from nx_mcp.core import catalogue, evidence, kernel
 from nx_mcp.core import tx as tx_module
 from nx_mcp.core.errors import fail
 from tests.core import tools
-from tests.core.fakes import FakePart, FakeServices
+from tests.core.fakes import FakePart, FakeServices, Obj
 
 SPECS = tools.specs()
 
@@ -141,24 +141,84 @@ def test_checks_refusal_is_not_started_unless_something_changed(svc):
     assert late["mutation_outcome"] == "rolled_back" and svc.part.Features == []
 
 
-def test_touched_failure_rolls_back_and_invalidates_part(svc):
+def test_touched_failure_rolls_back_and_keeps_restored_references(svc):
     keep = svc.part.add("feature", "KEEP")
+    body = svc.part.add("body", "")
     first = run(svc, "nx_get_count")  # nothing registered yet
     assert first["ok"]
     row = svc.references.row(keep, "feature")
+    body_ref = ref(svc, body, "body")
+    part_ref = row["part"]
     bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED")
     assert (
         bad["mutation_outcome"] == "rolled_back" and bad["error"]["category"] == "geometry_failed"
     )
     assert bad["error"]["retry"] == "after_fix"
-    assert svc.part.objects == [keep] and svc.marks == {}
-    # Structure changed before undo -> every ref of the part is stale now.
-    assert bad["changes"]["references"] == "part_invalidated"
-    stale = svc.references
+    assert svc.part.objects == [keep, body] and svc.marks == {}
+    # NX undo restores the same objects: the part, body and feature refs keep working.
+    assert bad["changes"]["references"] == "preserved"
+    assert "stale_references" not in bad["error"]["details"]
+    assert svc.references.resolve(row["id"], ("feature",)) is keep
+    assert svc.references.resolve(body_ref, ("body",)) is body
+    assert svc.references.resolve(part_ref, ("part",)) is svc.part
+    again = svc.references.row(keep, "feature")
+    assert again["id"] == row["id"] and again["part"] == part_ref  # no renumbering
+
+
+def _undo_replacing(svc, monkeypatch, old, new):
+    """An undo after which ``old`` came back as ``new`` (another tag)."""
+    undo = svc.undo_to
+
+    def undo_to(mark):
+        undo(mark)
+        objects = svc.part.objects
+        objects[objects.index(old)] = new
+        old.retagged = True
+
+    monkeypatch.setattr(svc, "undo_to", undo_to)
+
+
+def test_rollback_rebinds_a_ref_whose_object_came_back_under_a_new_tag(svc, monkeypatch):
+    keep = svc.part.add("feature", "KEEP", jid="EXTRUDE(2)")
+    row = svc.references.row(keep, "feature")
+    twin = Obj("feature", "KEEP", svc.part, "EXTRUDE(2)")
+    _undo_replacing(svc, monkeypatch, keep, twin)
+    bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED")
+    assert bad["mutation_outcome"] == "rolled_back"
+    assert bad["changes"]["references"] == "preserved"
+    assert bad["error"]["details"]["rebound_references"] == 1
+    # Same short ref, now on the restored object (its anchor's unique match).
+    assert svc.references.resolve(row["id"], ("feature",)) is twin
+    assert svc.references.row(twin, "feature")["id"] == row["id"]
+
+
+def test_rollback_reports_refs_that_went_stale(svc, monkeypatch):
+    keep = svc.part.add("feature", "KEEP", jid="EXTRUDE(2)")
+    row = svc.references.row(keep, "feature")
+    other = Obj("feature", "OTHER", svc.part, "EXTRUDE(9)")
+    _undo_replacing(svc, monkeypatch, keep, other)
+    bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED")
+    assert bad["mutation_outcome"] == "rolled_back"
+    assert bad["changes"] == {"references": "part_invalidated", "stale_references": 1}
+    details = bad["error"]["details"]
+    assert details["references"] == "renumbered" and details["stale_references"] == 1
+    assert details["stale_refs"] == [row["id"]]  # refs made inside the call are not counted
+    assert "list the objects again" in bad["error"]["hint"]
     with pytest.raises(Exception) as error:
-        stale.resolve(row["id"], ("feature",))
+        svc.references.resolve(row["id"], ("feature",))
     assert error.value.code == "NX_STALE_REFERENCE"
-    assert error.value.details["current"]["name"] == "KEEP"  # anchor's unique match
+
+
+def test_rollback_of_one_part_keeps_refs_of_other_parts(svc, tmp_path):
+    other = FakePart(tmp_path / "b.prt")
+    svc.extra_parts.append(other)
+    feature = other.add("feature", "THERE")
+    there = ref(svc, feature, "feature")
+    other_part = svc.references.row(other, "part")["id"]
+    bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED")
+    assert bad["mutation_outcome"] == "rolled_back"
+    assert svc.references.resolve(there, ("feature",)) is feature
+    assert svc.references.resolve(other_part, ("part",)) is other
 
 
 def test_non_topology_failure_restored_by_undo_preserves_references(svc):
@@ -514,6 +574,28 @@ def test_publish_copies_exclusively_where_hard_links_fail(svc, monkeypatch):
     ok = run(svc, "nx_export_note", path="out/d.txt")
     assert ok["ok"] and (svc.root / "out" / "d.txt").read_text(encoding="utf-8") == "hello"
     assert not (svc.root / ".nx-mcp" / "staging").exists()
+
+
+def test_replace_path_mode_replaces_an_existing_file_only_when_asked(svc):
+    target = svc.root / "out" / "r.txt"
+    target.parent.mkdir(parents=True)
+    target.write_text("old", encoding="utf-8")
+    kept = run(svc, "nx_export_text", path="out/r.txt")
+    assert kept["error"]["code"] == "NX_ALREADY_EXISTS"
+    assert target.read_text(encoding="utf-8") == "old"
+    ok = run(svc, "nx_export_text", path="out/r.txt", replace=True)
+    assert ok["ok"] and target.read_text(encoding="utf-8") == "new"
+    assert not (svc.root / ".nx-mcp" / "staging").exists()
+    fresh = run(svc, "nx_export_text", path="out/s.txt", replace=True)
+    assert fresh["ok"] and (svc.root / "out" / "s.txt").read_text(encoding="utf-8") == "new"
+    (svc.root / "out" / "d.txt").mkdir()
+    folder = run(svc, "nx_export_text", path="out/d.txt", replace=True)
+    assert folder["error"]["code"] == "NX_WRONG_KIND" and folder["error"]["field"] == "/path"
+    assert folder["mutation_outcome"] == "not_started"
+    outside = run(svc, "nx_export_text", path="../x.txt", replace=True)
+    assert outside["error"]["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
+    wrong = run(svc, "nx_export_text", path="out/r.png", replace=True)
+    assert wrong["error"]["code"] == "NX_UNSUPPORTED_FILE_TYPE"
 
 
 # -- session license memory ---------------------------------------------------------

@@ -124,3 +124,30 @@ def test_feature_rows_carry_timestamp_and_errors_and_expressions_are_listed():
     assert exprs.ok, exprs
     assert [r["name"] for r in exprs.data["items"]] == ["p1", "p2"]
     assert {"formula", "value", "units"} <= set(exprs.data["items"][0]["details"])
+
+
+def test_unknown_type_names_are_refused_with_the_valid_names():
+    nx = fake_nx()
+    body = nx.block(1, 1, 1)
+    nx.sketch()
+    for kind, wrong in (("face", "cylindrical"), ("face", "conical"), ("edge", "arc")):
+        bad = run(nx, "nx_list_objects", kind=kind, owner=body.ref, type=wrong)
+        assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+        assert bad.error["field"] == "/type" and bad.mutation_outcome == "not_applicable"
+    message = run(nx, "nx_list_objects", kind="face", type="cylindrical").error["message"]
+    assert "cylinder" in message and "cone" in message and "plane" in message
+    untyped = run(nx, "nx_list_objects", kind="sketch", type="planar")
+    assert untyped.error["field"] == "/type"
+    open_ended = run(nx, "nx_list_objects", kind="feature", type="no_such_feature")
+    assert open_ended.ok and open_ended.page["total"] == 0
+
+
+def test_known_type_names_follow_the_listers():
+    import typing
+
+    from nx_mcp.domains.inspection.inventory import TYPES, ListKind
+    from nx_mcp.domains.modeling import hooks
+
+    assert set(TYPES) <= set(typing.get_args(ListKind))
+    assert set(TYPES["face"]) == {*hooks.FACE_TYPES.values(), "other"}
+    assert set(TYPES["edge"]) == {*hooks.EDGE_TYPES.values(), "other"}

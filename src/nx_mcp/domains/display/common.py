@@ -17,6 +17,9 @@ Targets = Annotated[list[Annotated[str, RefTo(*TARGET_KINDS)]], Items(1, 1000)]
 class Camera(TypedDict):
     view: str
     rotation: list[list[float]]
+    view_from: list[float]
+    up: list[float]
+    right: list[float]
     origin: list[float]
     absolute_origin: list[float]
     scale: float
@@ -85,10 +88,15 @@ def display_rows(tx, pairs) -> list[DisplayRow]:
 
 
 def camera_row(cam: dict) -> Camera:
-    """The surface fields of a camera (``kit.display.camera``)."""
+    """The surface fields of a camera (``kit.display.camera``); ``view_from``, ``up`` and
+    ``right`` are the rotation's columns (world unit vectors)."""
+    axes = display.view_axes(cam["rotation"])
     return {
         "view": cam["view"],
         "rotation": cam["rotation"],
+        "view_from": axes["view_from"],
+        "up": axes["up"],
+        "right": axes["right"],
         "origin": cam["origin"],
         "absolute_origin": cam["absolute_origin"],
         "scale": cam["scale"],

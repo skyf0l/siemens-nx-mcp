@@ -102,9 +102,23 @@ class Feature(Object):
         self.FeatureType = "EXTRUDE"
         self.bodies = bodies or []
         self.expressions = [NS(Name="p1", RightHandSide="10", Value=10)]
+        # The feature's own faces and edges (NX Feature.GetFaces/GetEdges); None: every
+        # face or edge of its bodies, as for a feature that made the whole body.
+        self.own_faces = None
+        self.own_edges = None
 
     def GetBodies(self):
         return self.bodies
+
+    def GetFaces(self):
+        if self.own_faces is not None:
+            return list(self.own_faces)
+        return [f for b in self.bodies for f in b.GetFaces()]
+
+    def GetEdges(self):
+        if self.own_edges is not None:
+            return list(self.own_edges)
+        return [e for b in self.bodies for e in b.GetEdges()]
 
     def GetExpressions(self):
         return self.expressions

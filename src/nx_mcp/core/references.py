@@ -14,7 +14,11 @@ back to it for objects that have no short ref.
 Features, bodies and sketches carry an automatic anchor built from the
 persistent journal identifier (``@smoke/a/blk.prt:EXTRUDE(4)``, plus ``#<i>`` for
 bodies); faces and edges only on request. A stale ref reports the anchor's
-unique current match in ``details.current``; nothing is re-resolved silently.
+unique current match in ``details.current``; nothing is re-resolved silently,
+except after a rollback: NX 2406 undo restores the same tags (measured for parts,
+bodies, features, sketches, faces and edges), so refs of restored objects stay
+live, and a ref whose object came back under a new tag is re-bound to its anchor's
+unique match (:meth:`References.rebind`); only the rest go stale.
 """
 
 from __future__ import annotations
@@ -284,6 +288,16 @@ class References:
 
     def find_anchor(self, anchor: str, kind: str) -> Row | None:
         """The row of the unique current object matching ``anchor``, or None."""
+        found = self._anchor_match(anchor, kind)
+        if found is None:
+            return None
+        try:
+            return self.row(found[0], kind, part=found[1])
+        except Exception:
+            return None
+
+    def _anchor_match(self, anchor: str | None, kind: str):
+        """``(object, part)`` of the unique current object matching ``anchor``, or None."""
         match = _ANCHOR.match(anchor or "")
         if not match:
             return None
@@ -298,8 +312,45 @@ class References:
             if match["index"] is not None:
                 index = int(match["index"])
                 found = found[index : index + 1]
-            if len(found) != 1:
+            if len(found) != 1 or deleted(found[0]):
                 return None
-            return self.row(found[0], kind, part=part)
+            return found[0], part
         except Exception:
             return None
+
+    def rebind(self, retired, floor: int | None = None) -> dict:
+        """Re-point short refs after an undo (architecture.md 1.3).
+
+        ``retired`` are the registry handles the undo retired (objects that did not
+        come back with the same tag). A ref on one of them whose anchor has exactly one
+        current match of its kind keeps its number and points at that object; the
+        others stay stale. ``floor``: refs numbered below it existed before the call
+        (refs issued inside the failed call are not reported as stale).
+        Returns ``{"rebound": [refs], "stale": [refs]}``."""
+        retired = set(retired)
+        rebound: list[str] = []
+        stale: list[str] = []
+        for entry in list(self._entries.values()):
+            if entry.handle not in retired:
+                continue
+            found = self._anchor_match(entry.anchor, entry.kind) if entry.anchor else None
+            if found is not None:
+                obj, part = found
+                try:
+                    entry.handle = self.backend.register_handle(
+                        obj, TO_REGISTRY.get(entry.kind, entry.kind), part
+                    )
+                except Exception:
+                    found = None
+                else:
+                    self._identity[(entry.part_key, entry.kind, _tag(obj))] = entry.id
+                    rebound.append(entry.id)
+                    continue
+            number = int(entry.id.split(":", 1)[1])
+            if floor is None or number < floor:
+                stale.append(entry.id)
+        return {"rebound": rebound, "stale": stale}
+
+    def issued(self) -> int:
+        """The next ref number: refs at or above it are issued after this point."""
+        return self.counter.value

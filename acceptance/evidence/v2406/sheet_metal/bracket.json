@@ -17,9 +17,9 @@
   "sources": {
     "nx_create_sheet_metal_feature": "d48dbf2369df0f00f7c3273cc4ab02ae8b597b4593b4a88b7158f3f6d254e0bf",
     "nx_get_sheet_metal": "140671c41e06e782ac0b7e5df05b49a0c6f9c9599b047d3d5906581400889ca9",
-    "nx_export_flat_pattern": "abf19bc9d64e29124ae26f88e068635f3112284fb8f12f24035a6c57b921626b"
+    "nx_export_flat_pattern": "349983481d54337e82a757e14a19f8346ca98cd7d11a95b0f81c1035a006a51e"
   },
-  "recorded": "2026-10-10T13:21:33Z",
+  "recorded": "2026-10-10T16:01:26Z",
   "passed": true,
   "checks": 62,
   "failed_checks": 0,

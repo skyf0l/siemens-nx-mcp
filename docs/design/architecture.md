@@ -70,7 +70,7 @@ validators accept and reject the same generated samples.
 | `Text(max, pattern)` | string bounds | `maxLength`, `pattern` |
 | `RefKind(*kinds)` | accepted reference kinds | description (gate 1 checks the pattern; section 4) |
 | `Quantity(dim)` | `length`, `sheet_length` or `angle`; allows unit strings | `[number, string]`, `maxLength` 40 |
-| `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir` or `save` | `string` |
+| `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir`, `save` or `replace` (new, or an existing file the tool replaces only when asked) | `string` |
 | `RefTo(*kinds, doc=None)` | shorthand for `Text(128, ref pattern)`, `RefKind(*kinds)`, `Doc` | as its parts |
 | `PathTo(mode, *suffixes)` | shorthand for `Text(260)`, `PathArg`, `Doc("Workspace path")` | as its parts |
 
@@ -155,7 +155,7 @@ start, and `dev_reload.py` prints the error. The checks:
   defaults that validate;
 - summary placeholders that name real parameters, and `variants` naming a `Literal` field;
 - `batchable` implies `model` with `cost` ≤ `light`; `previewable` implies `model`;
-- no `new` or `save` path on a `read` tool;
+- no `new`, `save` or `replace` path on a `read` tool;
 - known hook kinds.
 
 ### 1.3 Other `core/` modules
@@ -411,7 +411,7 @@ always reports `not_started`.
 | # | Gate | Where | Rule |
 |---|---|---|---|
 | 1 | Schema validation | S (Pydantic), N (`validate.py`) · C | Rejects an unknown tool, extra fields, out-of-bounds values and unit strings of the wrong dimension. The sidecar checks batch children against the child spec, which must be `batchable` or `previewable`. `"$2.data.feature"` placeholders are allowed only in Ref fields |
-| 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. `.nx-mcp` is reserved; `new` must not exist, `read` must exist, and `save` may write only the part's own file |
+| 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. `.nx-mcp` is reserved; `new` must not exist, `read` must exist, `save` may write only the part's own file, and `replace` may be an existing file (never a directory) that the tool replaces atomically only when asked (`Files.stage(path, replace=True)`) |
 | 3 | Evidence/version | S (build from the descriptor), N · C | The tool and the value of its variant field must be tested on the connected build. On an unknown build only `read` and `view` tools run. A refusal is `unavailable/NX_VERSION_UNSUPPORTED`. Listings show only what runs: untested variants leave the schema enum, `tool#variant` schemas and `nx_find_tools`, and a tool with no variant left is hidden; before NX connects listings assume the default build (v2406) and say so, and a change sends `tools/list_changed`. `NX_MCP_DEV=1` still offers untested variants, marked. A tested tool/variant that failed with `NX_LICENSE_UNAVAILABLE` is remembered for the NX session: refused before NX ("remembered from <time>") and hidden via `nx_get_status` `bridge.license_unavailable` until NX restarts |
 | 4 | `requires` | N · C | Read-only state checks (`NX_NO_WORK_PART`, `NX_SKETCH_ACTIVE`, `NX_WRONG_APPLICATION`, ...) whose hint names the tool to run. They run before the hold, so the engineer is never asked to approve a request that cannot succeed, and again after it |
 | 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`); **Run once** or **Run & switch to Auto** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. Only the engineer changes the mode; no tool does |

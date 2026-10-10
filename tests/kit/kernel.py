@@ -52,6 +52,11 @@ class _Refs:
     def kind_of(self, obj):
         return next((k for o, k in self.fake.refs.values() if o is obj), None)
 
+    def rebind(self, retired, floor=None):
+        """Kit objects keep their identity across undo: nothing moves, retired refs
+        are stale."""
+        return {"rebound": [], "stale": sorted(retired)}
+
 
 class KitServices(Services):
     def __init__(self, fake, root=None, build="v2406"):
@@ -223,6 +228,17 @@ class KitServices(Services):
 
     def invalidate_parts(self, parts):
         self.fake.refs.clear()
+
+    def retire_undone(self, parts):
+        """Refs of bodies, features, sketches and curves the undo removed."""
+        live = {id(o) for p in parts for name, _ in KINDS for o in getattr(p, name, [])}
+        kinds = {kind for _, kind in KINDS}
+        retired = set()
+        for ref, (obj, kind) in list(self.fake.refs.items()):
+            if kind in kinds and id(obj) not in live:
+                del self.fake.refs[ref]
+                retired.add(ref)
+        return retired
 
     def forget_parts(self, keys):
         """Closed parts: their refs go stale (``nx.forgotten`` records the keys)."""

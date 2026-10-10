@@ -15,15 +15,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_explosion": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
-    "nx_edit_explosion": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
-    "nx_get_explosion": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
-    "nx_set_explosion_display": "592c82eaf3b76ebd1c457041a4976fcae298777988ca41c446a5f2fd392be939",
+    "nx_create_explosion": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
+    "nx_edit_explosion": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
+    "nx_get_explosion": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
+    "nx_set_explosion_display": "73d05960c96a20d2b0e2c5dbeeee09e29b8e4bf04c01767714b2c6945b86b9d5",
     "nx_create_explosion_trace": "663d27ffdcb4e552fe74c20c7c599491ca7e14298308fb3e8ff6d9dfdd3ce608",
     "nx_edit_explosion_trace": "663d27ffdcb4e552fe74c20c7c599491ca7e14298308fb3e8ff6d9dfdd3ce608",
-    "nx_export_explosion_animation": "2f6129db600483c6a949ab3ffdff987614ecda4ddc454c7cd90a8467c8e56d66"
+    "nx_export_explosion_animation": "ddb18fc0863a857deb562c8f1527aa42d50aeba2b0159fd547afb20da9f288f5"
   },
-  "recorded": "2026-10-10T13:19:06Z",
+  "recorded": "2026-10-10T15:58:40Z",
   "passed": true,
   "checks": 93,
   "failed_checks": 0,

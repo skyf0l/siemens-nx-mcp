@@ -286,14 +286,15 @@ No arguments.
 
 ### `nx_capture_view`
 
-**Capture view** · effect `view` · NX 2406: tested; 45 checks in `acceptance/display/capture_view.json`
+**Capture view** · effect `view` · NX 2406: tested; 74 checks in `acceptance/display/capture_view.json`
 
-Capture the displayed view or drawing sheet as an inline PNG. studio renders the exact size; viewport exports the window at its own size. The view is left as it was.
+Capture the displayed view or drawing sheet as an inline PNG; the view is unchanged. Only studio renders width x height exactly; viewport exports the NX window's size.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `quality` | `viewport` \| `studio` | `"viewport"` |  |
-| `path` | string | optional | Workspace path |
+| `path` | string | optional | PNG to write; an existing one needs overwrite |
+| `overwrite` | boolean | `false` | Replace an existing PNG at path |
 | `width` | integer | `1024` |  |
 | `height` | integer | `768` |  |
 | `background` | `white` \| `original` \| `transparent` \| `color` | `"white"` |  |
@@ -304,9 +305,9 @@ Capture the displayed view or drawing sheet as an inline PNG. studio renders the
 
 ### `nx_create_section_view`
 
-**Create section view** · effect `view` · NX 2406: tested; 40 checks in `acceptance/display/sections.json`
+**Create section view** · effect `view` · NX 2406: tested; 47 checks in `acceptance/display/sections.json`
 
-Cut the model view with a section plane; the side the normal points to is hidden and the model is unchanged. Refused while another section is active.
+Cut the model view with a section plane; the model is unchanged. The side the normal points to is hidden; the cut face shows from cut_face_view_from. It stays (also saved with the part) until nx_delete_objects (remove_with) deletes it. One active at a time.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -316,9 +317,9 @@ Cut the model view with a section plane; the side the normal points to is hidden
 
 ### `nx_edit_section_view`
 
-**Edit section view** · effect `view` · NX 2406: tested; 40 checks in `acceptance/display/sections.json`
+**Edit section view** · effect `view` · NX 2406: tested; 47 checks in `acceptance/display/sections.json`
 
-Move a section plane, switch its cap, or enable/disable it (enabling makes it the active section). Delete sections with nx_delete_objects.
+Move a section plane, switch its cap, or enable/disable it (enabling makes it the active section). The normal's side is hidden. Delete sections with nx_delete_objects.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -340,7 +341,7 @@ Read blank state, colour and transparency of objects; bodies list their faces to
 
 ### `nx_get_camera`
 
-**Get camera** · effect `read` · NX 2406: tested; 48 checks in `acceptance/display/camera.json`
+**Get camera** · effect `read` · NX 2406: tested; 52 checks in `acceptance/display/view_directions.json`
 
 Read the displayed view: camera rotation, origin, scale and rendering style, or the shown drawing sheet. origin is the value nx_set_camera takes back.
 
@@ -381,15 +382,17 @@ Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) o
 
 ### `nx_set_camera`
 
-**Set camera** · effect `view` · NX 2406: tested; 48 checks in `acceptance/display/camera.json`
+**Set camera** · effect `view` · NX 2406: tested; 52 checks in `acceptance/display/view_directions.json`
 
-Orient the model view (named orientation or explicit rotation), set its origin or scale, and/or fit it. Work and display part must match; returns restore_id.
+Orient the model view (orientation, view_from or rotation), set origin or scale, and/or fit. Named views have +Z up (top +Y, bottom -Y); the result adds the rotation's columns right, up, view_from. Work and display part must match; returns restore_id.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `orientation` | `top` \| `front` \| `right` \| `back` \| `left` \| `bottom` \| `isometric` \| `trimetric` | optional |  |
-| `rotation` | array[3] of array[3] of number | optional | Rotation matrix, row-major |
-| `origin` | array[3] of number | optional | NX view origin, as nx_get_camera gives |
+| `orientation` | `top` \| `front` \| `right` \| `back` \| `left` \| `bottom` \| `isometric` \| `trimetric` | optional | Looks from +Z top, -Z bottom, -Y front, +Y back, +X right, -X left, iso (1,-1,1) |
+| `view_from` | Point3 | optional | World direction to look from, e.g. [1,1,1] |
+| `up` | Point3 | optional | Screen up for view_from (default +Z) |
+| `rotation` | array[3] of Point3 | optional | Row-major; columns = world screen-right, screen-up, toward-viewer |
+| `origin` | Point3 | optional | NX view origin, as nx_get_camera gives |
 | `scale` | number | optional | Absolute NX view scale |
 | `fit` | boolean | `false` |  |
 
@@ -848,7 +851,7 @@ Check feature errors and warnings, suppression, unloaded components and body con
 
 ### `nx_create_anchor`
 
-**Create anchor** · effect `read` · NX 2406: tested; 51 checks in `acceptance/inspection/geometry.json`
+**Create anchor** · effect `read` · NX 2406: tested; 57 checks in `acceptance/inspection/geometry.json`
 
 Make a persistent anchor for a body, face or edge of the work part. It survives edits that keep the entity, save and reopen; re-resolve it with nx_resolve_reference.
 
@@ -873,9 +876,9 @@ Write a ZIP report of interference results with a model summary and SHA-256 mani
 
 ### `nx_find_geometry`
 
-**Find geometry** · effect `read` · NX 2406: tested; 51 checks in `acceptance/inspection/geometry.json`
+**Find geometry** · effect `read` · NX 2406: tested; 57 checks in `acceptance/inspection/geometry.json`
 
-Find faces or edges by type, normal, radius, nearest point or extreme along an axis. The selector re-runs the rule in nx_resolve_reference.
+Find faces or edges by type, normal, radius, nearest point (default with near) or extreme along an axis (else lowest). Its selector re-runs in nx_resolve_reference.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -885,7 +888,7 @@ Find faces or edges by type, normal, radius, nearest point or extreme along an a
 | `normal` | array[3] of number | optional | Direction [x, y, z] |
 | `radius` | number | optional | Part units |
 | `near` | array[3] of number | optional | [x, y, z] absolute, part units |
-| `order` | `nearest` \| `highest` \| `lowest` | `"nearest"` |  |
+| `order` | `nearest` \| `highest` \| `lowest` | optional |  |
 | `axis` | `x` \| `y` \| `z` | `"z"` |  |
 | `tolerance` | number | `0.001` | Radius and normal tolerance |
 | `offset` | integer | `0` | First row to return |
@@ -893,7 +896,7 @@ Find faces or edges by type, normal, radius, nearest point or extreme along an a
 
 ### `nx_find_holes`
 
-**Find holes** · effect `read` · NX 2406: tested; 51 checks in `acceptance/inspection/geometry.json`
+**Find holes** · effect `read` · NX 2406: tested; 57 checks in `acceptance/inspection/geometry.json`
 
 Find holes: inward cylindrical faces grouped by common axis. Rows give radius, axis and whether the face is a full circle; no thread or blind/through inference.
 
@@ -917,7 +920,7 @@ Summarise the work part: counts, bounds and health, or one page of its features,
 
 ### `nx_list_objects`
 
-**List objects** · effect `read` · NX 2406: tested; 38 checks in `acceptance/inspection/list_objects.json`
+**List objects** · effect `read` · NX 2406: tested; 44 checks in `acceptance/inspection/list_objects.json`
 
 List work-part objects of one kind, filtered by owner, name or type, paged. Rows: a reference and a kind-specific summary.
 
@@ -926,7 +929,7 @@ List work-part objects of one kind, filtered by owner, name or type, paged. Rows
 | `kind` | `body` \| `face` \| `edge` \| `datum` \| `feature` \| `expression` \| `sketch` \| `drawing_sheet` \| `drawing_view` \| `dimension` \| `annotation` \| `drawing_table` \| `reference_set` \| `explosion` \| `component_pattern` \| `assembly_constraint` \| `section_view` | required |  |
 | `owner` | string | optional | Ref: body/face/feature |
 | `name_contains` | string | optional | Case-insensitive name filter |
-| `type` | string | optional | Kind-specific type, e.g. plane |
+| `type` | string | optional | Kind-specific type, e.g. face plane/cylinder/cone |
 | `include` | `adjacency` \| `views` | optional |  |
 | `offset` | integer | `0` | First row to return |
 | `limit` | integer | `20` | Rows per page |
@@ -991,7 +994,7 @@ Measure sampled wall thickness of a solid: from points on its faces along the in
 
 ### `nx_resolve_reference`
 
-**Resolve reference** · effect `read` · NX 2406: tested; 51 checks in `acceptance/inspection/geometry.json`
+**Resolve reference** · effect `read` · NX 2406: tested; 57 checks in `acceptance/inspection/geometry.json`
 
 Turn a selector from nx_find_geometry or an anchor into a current reference. A selector re-runs its rule and fails when the best two candidates tie.
 
@@ -1188,9 +1191,9 @@ Loft a body through 2-20 section sketches in order (NX Through Curves); solid=fa
 
 ### `nx_create_mirror`
 
-**Mirror bodies or features** · effect `model` · NX 2406: tested (all variants); 14 checks in `acceptance/modeling/mirror_features.json`
+**Mirror bodies or features** · effect `model` · NX 2406: tested (all variants); 21 checks in `acceptance/modeling/mirror_features.json`
 
-Mirror solid bodies into new bodies, or features into their own bodies, about a plane (associative to a datum plane). target selects which list is used.
+Mirror solid bodies into new bodies, or features into their own bodies, about a plane (associative to a datum plane). target selects which list is used. Mirrors of a feature that made its own body are new bodies (new_bodies).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1204,7 +1207,7 @@ Mirror solid bodies into new bodies, or features into their own bodies, about a 
 
 **Pattern features** · effect `model` · NX 2406: tested (all variants); 68 checks in `acceptance/modeling/pattern_layouts.json`
 
-Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a face, or at explicit points. Counts include the seed; NX computes spiral and fill counts.
+Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a face, or at explicit points. Counts include the seed; NX computes spiral and fill counts. Instances of a feature that made its own body are new bodies (new_bodies); a circular angle is the step between instances.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1525,14 +1528,14 @@ Make a loaded part the work and/or display part; nothing is closed. A new displa
 
 ### `nx_close_part`
 
-**Close part** · effect `session` · NX 2406: tested; 21 checks in `acceptance/parts_files/close_part.json`
+**Close part** · effect `session` · NX 2406: tested; 36 checks in `acceptance/parts_files/close_part.json`
 
-Close one loaded part, named by its Ref (never implicitly the work part), saving it first unless save is false. Refused while a loaded assembly uses it; NX may also unload prototypes nobody uses.
+Close one loaded part, named by its Ref (never implicitly the work part). Nothing is saved by default: a part with unsaved changes is refused (NX_UNSAVED_PART) until save is given explicitly, true or false. Refused while a loaded assembly uses it; NX may also unload prototypes nobody uses.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref: part |
-| `save` | boolean | `true` |  |
+| `save` | boolean | optional | true saves first, false discards changes; required if modified |
 
 ### `nx_create_directory`
 
@@ -1700,7 +1703,7 @@ Open a workspace part, or reuse it when it is already loaded, and make it the wo
 
 ### `nx_save_part`
 
-**Save part** · effect `file` · NX 2406: tested; 30 checks in `acceptance/parts_files/save_part.json`
+**Save part** · effect `file` · NX 2406: tested; 32 checks in `acceptance/parts_files/save_part.json`
 
 Save a loaded part (default the work part) in place, or as a new workspace .prt (path). The save is verified against every loaded file; nothing is overwritten. Saving expires NX undo marks.
 
@@ -2082,14 +2085,14 @@ Fillet or chamfer the corner where two sketch curves meet; both curves are trimm
 
 ### `nx_create_sketch_curves`
 
-**Create sketch curves** · effect `model` · NX 2406: tested (all variants); 52 checks in `acceptance/sketch/sketch_curves.json`
+**Create sketch curves** · effect `model` · NX 2406: tested (all variants); 38 checks in `acceptance/sketch/sketch_polyline.json`
 
-Add 1-100 curves to a sketch: lines, arcs, circles, ellipses, rectangles, polygons, slots. Sketch-local coordinates, part units, degrees; closed shapes are joined by coincident constraints and every curve is read back.
+Add 1-100 curves to a sketch: lines, polylines, arcs, circles, ellipses, rectangles, slots. Sketch-local coordinates, part units, degrees; connected curves are joined by coincident constraints, read back, and loops report each chain's closure.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `sketch` | string | required | Ref: sketch |
-| `curves` | array[1-100] of object {type, start, end, center, corner1, corner2, radius, major_radius, minor_radius, width, height, start_angle, end_angle, rotation, sides, inscribed} | required | Fields per type: nx_get_tool_schemas(tool#type) |
+| `curves` | array[1-100] of object {type, start, end, center, corner1, corner2, radius, major_radius, minor_radius, width, height, start_angle, end_angle, rotation, sides, inscribed, points, closed} | required | Fields per type: nx_get_tool_schemas(tool#type) |
 | `construction` | boolean | `false` | Create construction (reference) curves |
 
 ### `nx_create_sketch_dimensions`

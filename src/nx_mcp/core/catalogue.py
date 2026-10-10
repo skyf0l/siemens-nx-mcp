@@ -468,8 +468,8 @@ def make_spec(
     paths: list = []
     for param in params.values():
         _collect_paths(param.hint, "/" + param.name, paths)
-    if effect == "read" and any(mode in ("new", "save") for _, mode, _ in paths):
-        problems.append("a read tool cannot take a new or save path")
+    if effect == "read" and any(mode in ("new", "save", "replace") for _, mode, _ in paths):
+        problems.append("a read tool cannot take a new, save or replace path")
     if new_part is not None and (
         effect != "model"
         or not any(

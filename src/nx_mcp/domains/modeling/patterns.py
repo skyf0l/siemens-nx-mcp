@@ -114,6 +114,9 @@ def _expression(expr, value):
 class MirrorData(common.FeatureData):
     target: str
     count: int
+    new_bodies: Annotated[
+        int, Doc("New bodies: every mirrored body, or mirrors of a feature with its own body")
+    ]
 
 
 def _mirror_summary(a, say):
@@ -152,7 +155,8 @@ def _mirror_bodies(tx, refs, plane, keep_original):
     if not keep_original:
         with native():
             tx.session.DisplayManager.BlankObjects(sources)
-    return {**common.result_of(tx, feature), "target": "bodies", "count": len(made)}
+    out = common.result_of(tx, feature)
+    return {**out, "target": "bodies", "count": len(made), "new_bodies": len(made)}
 
 
 def _mirror_features(tx, refs, plane):
@@ -164,6 +168,7 @@ def _mirror_features(tx, refs, plane):
                  field="/features")  # fmt: skip
     datum, _origin, _normal = _plane(tx, plane, "/plane")
     before = measure.volume(tx, list(hosts.values()))
+    existing = {int(b.Tag) for b in tx.part.Bodies}
     G = tx.nx.GeometricUtilities
     with builders.build(tx, tx.part.Features.CreateMirrorBuilder, None) as b:
         b.FeatureList.Add(seeds)
@@ -173,10 +178,12 @@ def _mirror_features(tx, refs, plane):
         mirror.PlaneOption = G.MirrorPattern.PlaneOptions.Existing
         mirror.ExistingPlane.Value = datum
         feature = b.commit()
-    bodies = list(hosts.values())
-    out = common.result_of(tx, feature, bodies)
+    # As for patterns: NX mirrors a seed that made its own body (an extrude without
+    # combine) as a new body and leaves the seed body unchanged: count it in.
+    new = [b for b in tx.part.Bodies if int(b.Tag) not in existing]
+    out = common.result_of(tx, feature, [*hosts.values(), *new])
     common.changed(before, out["volume"], "differs")
-    return {**out, "target": "features", "count": len(seeds)}
+    return {**out, "target": "features", "count": len(seeds), "new_bodies": len(new)}
 
 
 @tool(
@@ -200,7 +207,8 @@ def nx_create_mirror(
     keep_original: Annotated[bool, Doc("bodies only: false hides the sources")] = True,
 ) -> MirrorData:
     """Mirror solid bodies into new bodies, or features into their own bodies, about a
-    plane (associative to a datum plane). target selects which list is used."""
+    plane (associative to a datum plane). target selects which list is used. Mirrors of a
+    feature that made its own body are new bodies (new_bodies)."""
     wanted, other = ("bodies", "features") if target == "bodies" else ("features", "bodies")
     given: dict[str, list[str] | None] = {"bodies": bodies, "features": features}
     if not given[wanted]:
@@ -240,7 +248,13 @@ class LinearForm(_LinearRequired, total=False):
 class CircularForm(TypedDict):
     axis: Axis
     count: Annotated[int, Range(ge=2, le=360), Doc("Instances including the seed")]
-    angle: Annotated[Angle, Doc("Angle between instances")]
+    angle: Annotated[
+        Angle,
+        Doc(
+            "Step (pitch) between neighbouring instances, not the total span: "
+            "6 instances evenly on a full circle use angle 60"
+        ),
+    ]
 
 
 class AlongCurveForm(TypedDict):
@@ -322,6 +336,9 @@ class PatternData(TypedDict):
     volume: float
     layout: str
     count: int
+    new_bodies: Annotated[
+        int, Doc("Instances NX built as separate bodies (a seed that made its own body)")
+    ]
 
 
 def _pattern_summary(a, say):
@@ -582,10 +599,10 @@ def instance_count(feature):
     variants="layout",
     cost="heavy",
     previewable=True,
-    example={
+    example={  # 6 instances evenly on a full circle: angle is the 60 deg step, not 360
         "features": ["f:8"],
-        "layout": "linear",
-        "parameters": {"direction": [1, 0, 0], "count": 3, "spacing": 10},
+        "layout": "circular",
+        "parameters": {"axis": {"principal": "z"}, "count": 6, "angle": 60},
     },
 )
 def nx_create_pattern(
@@ -596,7 +613,9 @@ def nx_create_pattern(
     parameters: Parameters,
 ) -> PatternData:
     """Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a
-    face, or at explicit points. Counts include the seed; NX computes spiral and fill counts."""
+    face, or at explicit points. Counts include the seed; NX computes spiral and fill counts.
+    Instances of a feature that made its own body are new bodies (new_bodies); a circular
+    angle is the step between instances."""
     p = dict(parameters)
     total = _check(layout, p)
     with tx.checks():
@@ -604,6 +623,7 @@ def nx_create_pattern(
         _resolve(tx, layout, p)
     hosts = _hosts(seeds)
     before = measure.volume(tx, list(hosts.values())) if hosts else 0.0
+    existing = {int(b.Tag) for b in tx.part.Bodies}
     G = tx.nx.GeometricUtilities
     with builders.build(tx, tx.part.Features.CreatePatternFeatureBuilder, None) as b:
         b.FeatureList.Add(seeds)
@@ -617,8 +637,11 @@ def nx_create_pattern(
         readback.expect(count >= 2, "count", "NX built no instance", count=count)
         readback.expect(count <= MAX_INSTANCES, "count", f"More than {MAX_INSTANCES} instances",
                         count=count)  # fmt: skip
-    bodies = list(hosts.values()) or common.feature_bodies(feature)
+    # NX 2406 patterns a seed that made its own body (an extrude without combine) as new
+    # bodies, one per instance, and leaves the seed body unchanged: count them in.
+    new = [b for b in tx.part.Bodies if int(b.Tag) not in existing]
+    bodies = [*hosts.values(), *new] or common.feature_bodies(feature)
     out = common.result_of(tx, feature, bodies)
     if hosts:
         common.changed(before, out["volume"], "differs")
-    return {**out, "layout": layout, "count": count}
+    return {**out, "layout": layout, "count": count, "new_bodies": len(new)}

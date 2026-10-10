@@ -1,5 +1,7 @@
 """nx_create_extrude / revolve / sweep / loft on the shared fake, through the real kernel."""
 
+from types import SimpleNamespace as NS
+
 import pytest
 
 from tests.kit import run
@@ -210,3 +212,134 @@ def test_loft_sections_in_order_and_body_type():
     nx.on_commit("ThroughCurvesBuilder", extruded(nx, [0, 0, 0, 10, 10, 20]))
     sheet = run(nx, "nx_create_loft", sections=[a.ref, b2.ref], solid=False)
     assert sheet.error["details"]["check"] == "body_type"  # NX built a solid
+
+
+# ---------------------------------------------------------------------------
+# Combine read-back: one unite target, a unite that does not touch, several cut targets
+
+
+def test_unite_takes_one_target_before_building():
+    nx = modeling_nx()
+    a, b = nx.block(10, 10, 10), nx.block(10, 10, 10, origin=(20, 0, 0))
+    sk = nx.sketch()
+    bad = run(
+        nx,
+        "nx_create_extrude",
+        sketch=sk.ref,
+        end={"type": "distance", "value": 5},
+        combine={"operation": "unite", "targets": [a.ref, b.ref]},
+    )
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.mutation_outcome == "not_started"
+    assert bad.error["field"] == "/combine/targets" and "nx_create_boolean" in bad.error["hint"]
+    assert not any(x.kind == "ExtrudeBuilder" for x in nx.builders)
+    bad = run(
+        nx,
+        "nx_create_revolve",
+        sketch=sk.ref,
+        axis={"principal": "z"},
+        combine={"operation": "unite", "targets": [a.ref, b.ref]},
+    )
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.mutation_outcome == "not_started"
+
+
+def test_unite_that_leaves_a_separate_body_fails_and_rolls_back():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    sk = nx.sketch(origin=(0, 0, 20))
+
+    def apart(b):  # NX 2406: the target is unchanged, the tool is a new body
+        return feature(nx, "EXTRUDE", [block, new_body(nx, [0, 0, 20, 10, 10, 30])])
+
+    nx.on_commit("ExtrudeBuilder", apart)
+    bad = run(
+        nx,
+        "nx_create_extrude",
+        sketch=sk.ref,
+        end={"type": "distance", "value": 10},
+        combine={"operation": "unite", "targets": [block.ref]},
+    )
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
+    assert "does not touch the target" in bad.error["message"]
+    assert bad.error["details"]["separate_bodies"] == 1
+    assert list(nx.part.Bodies) == [block]
+
+    def merged(b):
+        block.volume += 500
+        return feature(nx, "EXTRUDE", [block])
+
+    nx.on_commit("ExtrudeBuilder", merged)
+    ok = run(
+        nx,
+        "nx_create_extrude",
+        sketch=sk.ref,
+        end={"type": "distance", "value": 10},
+        combine={"operation": "unite", "targets": [block.ref]},
+    )
+    assert ok.ok and ok.data["volume"] == 1500 and len(ok.data["bodies"]) == 1, ok
+
+
+def test_subtract_from_several_targets_reads_every_target():
+    nx = modeling_nx()
+    a, b = nx.block(10, 10, 10), nx.block(10, 10, 10, origin=(20, 0, 0))
+    sk = nx.sketch()
+
+    def cut(builder):  # NX lists one target on the feature; both lost material
+        a.volume, b.volume = 900, 900
+        return feature(nx, "EXTRUDE", [a])
+
+    nx.on_commit("ExtrudeBuilder", cut)
+    ok = run(
+        nx,
+        "nx_create_extrude",
+        sketch=sk.ref,
+        end={"type": "distance", "value": 10},
+        combine={"operation": "subtract", "targets": [a.ref, b.ref]},
+    )
+    assert ok.ok, ok
+    assert ok.data["volume"] == 1800 and len(ok.data["bodies"]) == 2
+
+
+def test_revolve_profile_across_the_axis_is_a_clear_argument_error():
+    nx = modeling_nx()
+    sk = nx.sketch()
+    nx.refuse("RevolveBuilder", code=671623, message="Section crosses the axis")
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["nx_code"] == 671623
+    assert "crosses the revolve axis" in bad.error["message"]
+    assert bad.error["field"] == "/axis" and bad.mutation_outcome in ("rolled_back", "not_started")
+    assert nx.live_builders == 0
+
+
+def _square(nx, corners):
+    """Sketch lines around ``corners``, evaluable through a minimal ``uf.Eval``."""
+    lines = {}
+    nx.uf.Eval = NS(
+        Initialize=lambda tag: tag,
+        AskLimits=lambda tag: [0.0, 1.0],
+        EvaluateUnitVectors=lambda tag, t: (
+            [a + t * (b - a) for a, b in zip(*lines[tag], strict=True)],
+            [1.0, 0.0, 0.0],
+        ),
+        Free=lambda tag: None,
+    )
+    out = []
+    for i, (a, b) in enumerate(zip(corners, corners[1:] + corners[:1], strict=True)):
+        line = NS(Tag=9000 + i, IsReference=False)
+        lines[line.Tag] = (a, b)
+        out.append(line)
+    return out
+
+
+def test_revolve_refuses_a_profile_on_both_sides_of_the_axis_before_building():
+    nx = modeling_nx()
+    sk = nx.sketch()
+    sk.geometry = _square(nx, [(-5, 0, 0), (5, 0, 0), (5, 10, 0), (-5, 10, 0)])
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.mutation_outcome == "not_started"
+    assert "crosses the revolve axis" in bad.error["message"] and bad.error["nx_code"] is None
+    assert not any(b.kind == "RevolveBuilder" for b in nx.builders)
+    # On one side (touching the axis is fine) the revolve is built.
+    sk.geometry = _square(nx, [(0, 0, 0), (5, 0, 0), (5, 10, 0), (0, 10, 0)])
+    nx.on_commit("RevolveBuilder", extruded(nx, [-5, 0, -5, 5, 10, 5]))
+    ok = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert ok.ok, ok

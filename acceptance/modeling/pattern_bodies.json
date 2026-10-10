@@ -1,0 +1,195 @@
+{
+ "covers": {
+  "nx_create_pattern": [
+   "linear",
+   "circular"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s1",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s1.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       20,
+       0
+      ],
+      "corner2": [
+       30,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s1.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s1.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "save": "a",
+   "setup": true
+  },
+  {
+   "call": "nx_create_pattern",
+   "args": {
+    "features": [
+     "$a.data.feature.id"
+    ],
+    "layout": "circular",
+    "parameters": {
+     "axis": {
+      "principal": "z"
+     },
+     "count": 4,
+     "angle": 90
+    }
+   },
+   "intent": "Circular pattern of an extrude with its own body: instances are new bodies",
+   "expect": {
+    "data.count": {
+     "equals": 4
+    },
+    "data.new_bodies": {
+     "equals": 3
+    },
+    "data.volume": {
+     "close": 4000,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 4
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s2",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s2.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       50
+      ],
+      "corner2": [
+       10,
+       60
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s2.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 5
+    }
+   },
+   "save": "b",
+   "setup": true
+  },
+  {
+   "call": "nx_create_pattern",
+   "args": {
+    "features": [
+     "$b.data.feature.id"
+    ],
+    "layout": "linear",
+    "parameters": {
+     "direction": [
+      1,
+      0,
+      0
+     ],
+     "count": 3,
+     "spacing": 15
+    }
+   },
+   "expect": {
+    "data.count": {
+     "equals": 3
+    },
+    "data.new_bodies": {
+     "equals": 2
+    },
+    "data.volume": {
+     "close": 1500,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 3
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "body"
+   },
+   "expect": {
+    "data.items": {
+     "count": 7
+    }
+   }
+  }
+ ]
+}

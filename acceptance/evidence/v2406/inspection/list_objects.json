@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/list_objects.json",
-  "scenario_sha256": "7008f0db837d6c41793b92e440b307d150f3441b87c9b8374019befd84a044fc",
+  "scenario_sha256": "c8d257a921c19b8db3ce3974e9035d8cf5aed930301c0952d83ed682f2fcb120",
   "domain": "inspection",
   "covers": {
     "nx_list_objects": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_objects": "60571256f50696bf9a0483d1a7032ee308bb19039c40ea4aa3f0ea5f5a176d53"
+    "nx_list_objects": "b5a9fc15094c5b4aaba6cd6d8af5c678af3e42eedf69a6e1a2d83b91b5eaa745"
   },
-  "recorded": "2026-10-10T13:15:06Z",
+  "recorded": "2026-10-10T15:40:12Z",
   "passed": true,
-  "checks": 38,
+  "checks": 44,
   "failed_checks": 0,
   "steps": [
     {
@@ -70,28 +70,28 @@
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 9,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 10,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 11,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 1
     },
     {
       "index": 12,
@@ -105,49 +105,49 @@
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 2
     },
     {
       "index": 14,
-      "call": "nx_set_expression",
-      "setup": true,
+      "call": "nx_list_objects",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 15,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 5
     },
     {
       "index": 16,
-      "call": "nx_list_objects",
-      "setup": false,
+      "call": "nx_set_expression",
+      "setup": true,
       "passed": true,
-      "checks": 1
+      "checks": 0
     },
     {
       "index": 17,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 7
     },
     {
       "index": 18,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 1
     },
     {
       "index": 19,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 20,
@@ -158,6 +158,20 @@
     },
     {
       "index": 21,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

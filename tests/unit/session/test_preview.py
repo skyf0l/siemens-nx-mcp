@@ -42,9 +42,9 @@ def test_preview_reports_the_change_and_leaves_the_model_unchanged():
     assert data["image"] is None
     assert list(nx.part.Bodies) == [] and len(nx.part.Features) == 0
     assert len(nx.undo_marks) == marks  # the preview's mark is gone
-    # The rollback invalidates the part's refs: the input sketch gets a new ref.
+    # The rollback restores the same objects: the input sketch keeps its ref.
     fresh = data["references"][sk.ref]
-    assert fresh != sk.ref and nx.refs[fresh][0] is sk
+    assert fresh == sk.ref and nx.refs[fresh][0] is sk
 
 
 def test_accept_reapplies_exactly_the_preview_under_one_mark():

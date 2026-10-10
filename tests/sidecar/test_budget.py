@@ -129,7 +129,8 @@ async def test_a_page_of_ten_discovery_rows_fits(tmp_path, every_tool_tested, qu
     result = await make(tmp_path, "agent").call_tool("nx_find_tools", {"query": query})
     text = result.content[0].text
     print(f"find {query!r}: {len(text)} chars")
-    assert len(result.structuredContent["data"]["tools"]) <= 10
+    data = result.structuredContent["data"]
+    assert len(data["tools"] if query else data["domains"]) <= 10  # empty: domain overview
     assert len(text) <= FIND_PAGE
 
 

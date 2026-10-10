@@ -1,6 +1,7 @@
 """nx_find_geometry, nx_find_holes, nx_create_anchor, nx_resolve_reference on the fake kit."""
 
 import json
+import math
 
 from tests.kit import run
 from tests.kit.kernel import services
@@ -144,3 +145,46 @@ def test_owner_selector_uses_the_owner_anchor():
     refs.row = plain
     lost = run(nx, "nx_find_geometry", owner=body.ref, kind="face", order="highest")
     assert lost.ok and lost.data["selector"] is None
+
+
+def test_order_defaults_to_nearest_with_near_else_lowest():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    assert run(nx, "nx_find_geometry").error is None
+    plain = run(nx, "nx_find_geometry", kind="face", geometry_type="plane", axis="z")
+    assert plain.ok and plain.page["total"] == 6, plain
+    assert plain.data["items"][0]["center"][2] == 0 and plain.data["items"][-1]["center"][2] == 10
+    assert json.loads(plain.data["selector"])["order"] == "lowest"
+    near = run(nx, "nx_find_geometry", kind="face", near=[5, 5, 13], limit=1)
+    assert near.data["items"][0]["id"] == _top(nx, body).ref
+    assert near.data["items"][0]["distance"] == 3
+    assert json.loads(near.data["selector"])["order"] == "nearest"
+    bad = run(nx, "nx_find_geometry", kind="face", order="nearest")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/near"
+    assert "highest or lowest" in bad.error["message"]
+
+
+def test_feature_owner_gives_only_the_features_own_faces_and_edges():
+    from tests.kit.objects import Feature
+
+    nx = inspection_nx()
+    body = nx.block(40, 20, 10)
+    nx.block(5, 5, 5, origin=(100, 0, 0))
+    bore = nx.remember(nx.face(normal=(0, 0, 1), origin=(10, 10, 0), kind="cylinder", body=body))
+    bore.radius, bore.sense, bore.uv_box = 3.0, -1, (0.0, 2 * math.pi, 0.0, 1.0)
+    body.faces.append(bore)
+    hole = Feature("HOLE(2)", bodies=[body])
+    hole.own_faces, hole.own_edges = [bore], body.edges[:2]
+    ref = nx.ref_of(hole, "feature")
+    faces = run(nx, "nx_find_geometry", owner=ref, kind="face")
+    assert faces.ok and faces.page["total"] == 1, faces
+    assert faces.data["items"][0]["id"] == bore.ref and faces.data["items"][0]["role"] == "bore"
+    edges = run(nx, "nx_find_geometry", owner=ref, kind="edge", order="highest")
+    assert edges.page["total"] == 2
+    whole = run(nx, "nx_find_geometry", owner=body.ref, kind="face")
+    assert whole.page["total"] == 7
+    holes = run(nx, "nx_find_holes", owner=ref)
+    assert holes.page["total"] == 1 and holes.data["items"][0]["id"] == bore.ref
+    hole.own_faces = []
+    empty = run(nx, "nx_find_geometry", owner=ref, kind="face")
+    assert empty.ok and empty.page["total"] == 0

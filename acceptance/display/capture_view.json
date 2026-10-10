@@ -29,7 +29,7 @@
     "height": 500
    },
    "expect": {
-    "mutation_outcome": "committed",
+    "mutation_outcome": "not_applicable",
     "data.quality": "viewport",
     "data.requested": [
      800,
@@ -47,7 +47,19 @@
      "matches": "viewport[.]png$"
     },
     "data.camera.style": "shaded_with_edges",
-    "frame": "display_part_absolute"
+    "frame": "display_part_absolute",
+    "data.overwritten": false,
+    "data.part_modified": false
+   }
+  },
+  {
+   "call": "nx_list_parts",
+   "args": {
+    "path_prefix": "$run",
+    "modified": false
+   },
+   "expect": {
+    "page.total": 1
    }
   },
   {
@@ -73,10 +85,10 @@
     ],
     "data.image.width": 640,
     "data.image.height": 400,
-    "warnings": {
-     "count": 0
-    },
-    "data.style": "studio"
+    "data.style": "studio",
+    "warnings.0.code": "NX_UPDATE_WARNING",
+    "data.part_modified": true,
+    "mutation_outcome": "not_applicable"
    }
   },
   {
@@ -151,6 +163,96 @@
    },
    "expect": {
     "error.category": "already_exists",
+    "mutation_outcome": "not_started",
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/viewport.png",
+    "overwrite": true,
+    "quality": "studio",
+    "width": 320,
+    "height": 200
+   },
+   "expect": {
+    "ok": true,
+    "mutation_outcome": "not_applicable",
+    "data.overwritten": true,
+    "data.path": {
+     "matches": "viewport[.]png$"
+    },
+    "data.resolution": [
+     320,
+     200
+    ],
+    "data.image.width": 320,
+    "data.image.height": 200
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/viewport.png",
+    "overwrite": true,
+    "width": 800,
+    "height": 500
+   },
+   "expect": {
+    "ok": true,
+    "data.overwritten": true,
+    "data.requested": [
+     800,
+     500
+    ],
+    "data.resolution": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "overwrite": true
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/overwrite",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/fresh.png",
+    "overwrite": true,
+    "width": 400,
+    "height": 300
+   },
+   "expect": {
+    "ok": true,
+    "mutation_outcome": "not_applicable",
+    "data.overwritten": false,
+    "data.path": {
+     "matches": "fresh[.]png$"
+    },
+    "data.requested": [
+     400,
+     300
+    ]
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "../outside.png",
+    "overwrite": true
+   },
+   "expect": {
+    "error.code": "NX_PATH_OUTSIDE_WORKSPACE",
+    "error.field": "/path",
     "mutation_outcome": "not_started"
    }
   },

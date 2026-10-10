@@ -4,7 +4,9 @@ A save is audited: every loaded part's flags and file fingerprint are taken
 before and after the native save. It counts as saved only when the target's
 file exists, the part is no longer modified, NX reported no unsaved objects,
 and no other loaded part or file changed (``NX_VERIFICATION_FAILED`` with
-``details.check = "save"`` otherwise). Saving expires NX undo marks.
+``details.check = "save"`` otherwise). ``other_modified_parts`` names the other
+loaded parts that had unsaved changes before the save (left unsaved). Saving expires
+NX undo marks.
 """
 
 from __future__ import annotations
@@ -14,13 +16,13 @@ from pathlib import Path
 from typing import TypedDict
 
 from nx_mcp.core.errors import classify, fail
-from nx_mcp.kit import files, parts
+from nx_mcp.kit import files, parts, result
 
 
 class SaveAudit(TypedDict):
     saved_files: list[str]
     changed_files: list[str]
-    other_modified_parts: int
+    other_modified_parts: list[result.Row]
     verified_parts: int
 
 
@@ -47,8 +49,11 @@ def snapshot(tx) -> dict:
     }
 
 
-def verify(before: dict, after: dict, tag: int, native_errors: list, root) -> SaveAudit:
-    """The audit of a save of part ``tag``; raises ``NX_VERIFICATION_FAILED``."""
+def verify(
+    before: dict, after: dict, tag: int, native_errors: list, root, others: list | None = None
+) -> SaveAudit:
+    """The audit of a save of part ``tag``; raises ``NX_VERIFICATION_FAILED``.
+    ``others``: rows of the other parts that were modified before the save."""
     target = after.get(tag)
     unexpected = [
         files.relative(row["path"], root)
@@ -70,7 +75,7 @@ def verify(before: dict, after: dict, tag: int, native_errors: list, root) -> Sa
             for t, row in after.items()
             if t not in before or row["file"] != before[t]["file"]
         ],
-        "other_modified_parts": sum(1 for t, row in before.items() if t != tag and row["modified"]),
+        "other_modified_parts": list(others or []),
         "verified_parts": len(before),
     }
     if not saved or unexpected or new_parts:
@@ -106,6 +111,12 @@ def verified_save(tx, part) -> SaveAudit:
             before = snapshot(tx)
         except Exception as error:
             fail("NX_SAVE_FAILED", f"Could not fingerprint the loaded parts before saving: {error}")
+    tag = int(part.Tag)
+    others = [
+        tx.ref(p, "part")
+        for p in tx.session.Parts
+        if int(p.Tag) != tag and before.get(int(p.Tag), {}).get("modified")
+    ]
     native_errors: list = []
     save_error = None
     called = False
@@ -134,12 +145,12 @@ def verified_save(tx, part) -> SaveAudit:
         # The native failure is the cause; the audit of what changed goes with it.
         try:
             save_error.details["audit"] = verify(
-                before, snapshot(tx), int(part.Tag), native_errors, tx.workspace.root
+                before, snapshot(tx), tag, native_errors, tx.workspace.root, others
             )
         except Exception as error:
             save_error.details["audit"] = getattr(error, "details", {"error": str(error)})
         raise save_error
-    return verify(before, snapshot(tx), int(part.Tag), native_errors, tx.workspace.root)
+    return verify(before, snapshot(tx), tag, native_errors, tx.workspace.root, others)
 
 
 def close_part(tx, target, *, save: bool) -> dict:

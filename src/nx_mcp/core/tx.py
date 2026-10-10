@@ -111,6 +111,14 @@ class Services:
     def clear_update_errors(self) -> None: ...
     def invalidate(self, before: dict, after: dict, topology: bool) -> None: ...
     def invalidate_parts(self, parts) -> None: ...
+
+    def retire_undone(self, parts) -> set | None:
+        """After an undo: retire the registry handles of ``parts`` whose object did not
+        come back (NX restores the same tags) and return them; ``None`` = every handle
+        of ``parts`` was retired (services that cannot tell)."""
+        self.invalidate_parts(parts)
+        return None
+
     def forget_parts(self, keys) -> None: ...  # closed parts (by part_key): refs, undo, owner
 
     def refreshers(self) -> dict:
@@ -196,13 +204,16 @@ class Files:
     Staged files live in ``.nx-mcp/staging/<operation_id>/``; the kernel removes
     that folder when the call ends, committed or not (``cleanup``). ``publish``
     never overwrites: a target that exists fails the whole publish before any
-    file is moved.
+    file is moved. The one exception is a file staged with ``replace=True`` (a
+    ``replace`` path the caller asked to overwrite): it replaces an existing file
+    atomically (``os.replace``: the old file or the complete new one, never a part).
     """
 
     def __init__(self, tx: Tx) -> None:
         self._tx = tx
-        self._staged: list[tuple[Path, Path]] = []
+        self._staged: list[tuple[Path, Path, bool]] = []
         self.published = False
+        self.replaced: list[Path] = []  # targets whose earlier file ``publish`` replaced
 
     @property
     def folder(self) -> Path:
@@ -211,21 +222,28 @@ class Files:
             self._name = self._tx.operation_id or uuid.uuid4().hex
         return root / ".nx-mcp" / "staging" / self._name
 
-    def stage(self, path) -> Path:
-        """A temporary path to write; ``publish()`` moves it to ``path``."""
+    def stage(self, path, *, replace: bool = False) -> Path:
+        """A temporary path to write; ``publish()`` moves it to ``path``. With
+        ``replace`` an existing file at ``path`` is replaced (never a directory)."""
         target = Path(path)
         folder = self.folder
         folder.mkdir(parents=True, exist_ok=True)
         temp = folder / f"{len(self._staged)}_{target.name}"
         self._tx.touched = True
-        self._staged.append((temp, target))
+        self._staged.append((temp, target, replace))
         return temp
 
     def publish(self) -> list[Path]:
-        for temp, target in self._staged:
+        for temp, target, replace in self._staged:
             if not temp.exists():
                 fail("NX_EXPORT_FAILED", f"Nothing was written for {target.name}")
-            if target.exists():
+            if replace and target.exists() and not target.is_file():
+                fail(
+                    "NX_WRONG_KIND",
+                    f"{target.name} is not a file; only a file can be replaced",
+                    details={"path": str(target)},
+                )
+            if not replace and target.exists():
                 fail(
                     "NX_ALREADY_EXISTS",
                     f"{target.name} already exists; files are never overwritten",
@@ -234,8 +252,12 @@ class Files:
         out: list[Path] = []
         staged, self._staged = self._staged, []
         try:
-            for temp, target in staged:
-                publish_new(temp, target, field=None)
+            for temp, target, replace in staged:
+                if replace and target.exists():
+                    os.replace(temp, target)  # atomic on one volume (staging is inside)
+                    self.replaced.append(target)
+                else:
+                    publish_new(temp, target, field=None)
                 self.published = True
                 out.append(target)
         except BaseException:
@@ -248,7 +270,7 @@ class Files:
         """Remove unpublished staged files and the staging folder; True when nothing
         of them remains."""
         clean = True
-        for temp, _target in self._staged:
+        for temp, _target, _replace in self._staged:
             try:
                 temp.unlink(missing_ok=True)
             except OSError:
@@ -535,9 +557,13 @@ class Tx:
                 after = services.snapshot(part) if part is not None else {}
             except Exception as error:
                 rollback_error = error
-            if rollback_error is not None or set(after) != set(before) or self.children:
+            if rollback_error is not None:
                 with contextlib.suppress(Exception):
                     services.invalidate_parts(services.parts())
+            elif set(after) != set(before) or self.children:
+                from nx_mcp.core import kernel
+
+                kernel.rebind_after_undo(services)
             if failed is not None:
                 self.outcome = "rolled_back" if rollback_error is None else "partial"
                 if rollback_error is not None and isinstance(failed, NXError):

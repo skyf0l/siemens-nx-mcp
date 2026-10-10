@@ -16,7 +16,13 @@ NX 2406 findings encoded here:
   the point shown at the viewport centre. It round-trips exactly; callers pass the
   value ``camera()`` reported.
 - ``rotation`` is row-major; its columns are the view axes (screen right, screen up,
-  toward the viewer) in display-part coordinates (``geom.rows``/``builders.matrix``).
+  toward the viewer) in display-part coordinates (``geom.rows``/``builders.matrix``):
+  ``rotation[i][j]`` is world component i of view axis j. The third column is the
+  direction the camera looks *from* (``view_axes``). NX's native ``view.Matrix`` rows
+  are those axes, so a matrix written as rows of view axes is the transpose.
+- Canned orientations (``ORIENTATION_FROM``): top looks from +Z (screen up +Y),
+  bottom from -Z (up -Y), front from -Y, back from +Y, right from +X, left from -X
+  (up +Z), isometric from (1,-1,1)/sqrt3, trimetric from about (0.72,-0.59,0.38).
 - ``DeleteSections`` leaves ``DisplaySectioningToggle`` on with no section left (the
   model looks cut by nothing): sectioning is switched off when no active section remains.
 - Opening a ``DynamicSectionBuilder`` on an existing section to read it changes nothing.
@@ -67,6 +73,10 @@ ORIENTATION_ROTATIONS = {
         [0.775604603, 0.236971772, -0.585048613],
         [0.0, 0.926855114, 0.375419229],
     ],
+}
+# Direction each canned orientation looks from and its screen up (world axes).
+ORIENTATION_FROM = {
+    name: ([r[2] for r in rot], [r[1] for r in rot]) for name, rot in ORIENTATION_ROTATIONS.items()
 }
 # Named colours -> UF_DISP colour names (closest colour in the part's colour table).
 COLOR_NAMES = {
@@ -159,6 +169,30 @@ def camera(tx, view) -> dict:
         "scale": float(view.Scale),
         "style": style,
     }
+
+
+def view_axes(rotation) -> dict:
+    """``{right, up, view_from}`` world unit vectors: the columns of a camera rotation."""
+    return {
+        name: [float(rotation[i][j]) for i in range(3)]
+        for j, name in enumerate(("right", "up", "view_from"))
+    }
+
+
+def rotation_from(view_from, up=None, field="/view_from") -> list[list[float]]:
+    """The camera rotation looking from ``view_from`` (world direction from the model to
+    the camera) with ``up`` as near screen up as possible (default world +Z, or +Y when
+    looking along Z). ``up`` parallel to ``view_from`` is ``invalid_argument``."""
+    z = geom.unit(view_from, field=field)
+    if up is None:
+        up = [0.0, 1.0, 0.0] if abs(z[2]) > 1 - 1e-9 else [0.0, 0.0, 1.0]
+    u = geom.unit(up, field="/up")
+    x = geom.cross(u, z)
+    if geom.norm(x) < 1e-9:
+        fail("NX_INVALID_ARGUMENT", "up must not be parallel to view_from", field="/up")
+    x = geom.unit(x)
+    y = geom.cross(z, x)
+    return [[x[i], y[i], z[i]] for i in range(3)]
 
 
 def expect_camera(got: dict, rotation=None, origin=None, scale=None, check="camera") -> None:

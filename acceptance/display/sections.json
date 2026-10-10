@@ -84,6 +84,19 @@
     "data.section.kind": "section_view",
     "data.section.name": {
      "matches": "(?i)^cut_x$"
+    },
+    "data.hidden_side": "positive",
+    "data.cut_face_view_from": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-12
+    },
+    "data.remove_with.tool": "nx_delete_objects",
+    "data.remove_with.arguments.objects": {
+     "count": 1
     }
    }
   },
@@ -297,6 +310,29 @@
     "error.category": "invalid_argument",
     "error.field": "/plane/normal",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "args": {
+    "objects": [
+     "$sec.data.section.id"
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "section_view"
+   },
+   "expect": {
+    "data.items": {
+     "count": 0
+    }
    }
   }
  ]

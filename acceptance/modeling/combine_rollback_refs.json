@@ -1,0 +1,221 @@
+{
+ "covers": {
+  "nx_create_extrude": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s1",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s1.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s1.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s1.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    }
+   },
+   "save": "a",
+   "setup": true
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s2",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s2.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       5,
+       0
+      ],
+      "corner2": [
+       15,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s3",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s3.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       40,
+       0
+      ],
+      "corner2": [
+       50,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s3.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s3.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$a.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.code": {
+     "equals": "NX_BUILD_FAILED"
+    },
+    "mutation_outcome": {
+     "equals": "rolled_back"
+    },
+    "changes.references": {
+     "equals": "preserved"
+    }
+   },
+   "intent": "A unite that does not touch its target fails and rolls back"
+  },
+  {
+   "call": "nx_activate_part",
+   "args": {
+    "part": "$p.data.part.id"
+   },
+   "intent": "The pre-failure part ref still resolves",
+   "expect": {
+    "ok": {
+     "equals": true
+    }
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$a.data.feature.id"
+   },
+   "expect": {
+    "ok": {
+     "equals": true
+    },
+    "data.feature.name": {
+     "equals": "EXTRUDE(2)"
+    }
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "args": {
+    "sketch": "$s2.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 10
+    },
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$a.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1500,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   },
+   "intent": "The pre-failure sketch and body refs still resolve"
+  }
+ ]
+}

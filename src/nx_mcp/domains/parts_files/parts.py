@@ -59,7 +59,7 @@ class SaveData(TypedDict, total=False):
     saved_as: bool
     saved_files: list[str]
     changed_files: list[str]
-    other_modified_parts: int
+    other_modified_parts: list[result.Row]  # loaded parts left with unsaved changes
     verified_parts: int
 
 
@@ -359,7 +359,7 @@ def nx_save_part(
     effect="session",
     label="Close part",
     summary=lambda a, say: (
-        f"Close {say('part')}" + ("" if a.get("save", True) else " without saving")
+        f"Close {say('part')}" + (", saving it" if a.get("save") else " without saving")
     ),
     keywords=("close", "unload part", "close file", "discard part", "close without saving"),
     cost="heavy",
@@ -369,11 +369,13 @@ def nx_close_part(
     tx: Tx,
     *,
     part: Annotated[PartRef, Doc("The part to close: its Ref from nx_list_parts or nx_open_part")],
-    save: bool = True,
+    save: Annotated[bool, Doc("true saves first, false discards changes; required if modified")]
+    | None = None,
 ) -> CloseData:
-    """Close one loaded part, named by its Ref (never implicitly the work part), saving it
-    first unless save is false. Refused while a loaded assembly uses it; NX may also
-    unload prototypes nobody uses."""
+    """Close one loaded part, named by its Ref (never implicitly the work part). Nothing is
+    saved by default: a part with unsaved changes is refused (NX_UNSAVED_PART) until save
+    is given explicitly, true or false. Refused while a loaded assembly uses it; NX may
+    also unload prototypes nobody uses."""
     with tx.checks():
         target = tx.resolve(part, "part")
         field = "/part"
@@ -388,6 +390,15 @@ def nx_close_part(
                 hint="Close the assemblies in details.parent_assemblies with nx_close_part",
                 details={"parent_assemblies": [_rel(tx, p) for p in parents]},
             )
+        if save is None and bool(target.IsModified):
+            fail(
+                "NX_UNSAVED_PART",
+                "The part has unsaved changes: give save=true to save them or save=false "
+                "to discard them",
+                field="/save",
+                hint="Call nx_close_part again with save=true or save=false",
+            )
+    save = bool(save)
     closed = _saving.close_part(tx, target, save=save)
     return {
         "closed": closed["closed"],

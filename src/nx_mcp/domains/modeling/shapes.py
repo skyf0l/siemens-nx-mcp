@@ -45,7 +45,6 @@ from nx_mcp.kit import args, builders, curve, geom, measure, readback, result, s
 from nx_mcp.kit import sketch as ksketch
 
 PathRef = Annotated[str, RefTo("sketch", "curve", "edge")]
-COMBINE_CHANGE = {"unite": "more", "subtract": "less", "intersect": "less"}
 # Relative tolerance of the closed-form read-backs (tube volume, helix length).
 FORMULA_REL = 1e-3
 
@@ -198,11 +197,11 @@ def nx_create_tube(
             "inner_diameter must be 0 or more and below outer_diameter",
             field="/inner_diameter",
         )
+    common.check_combine(combine)
     fill, single = _path(tx, path)
-    targets = (
-        common.solids(tx, combine["targets"], "/combine/targets") if combine is not None else []
-    )
+    targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
+    tags = common.body_tags(tx)
     with builders.build(tx, tx.part.Features.CreateTubeBuilder, None) as b:
         b.Tolerance = units.part_tolerance(tx)
         fill(b.PathSection)
@@ -212,9 +211,7 @@ def nx_create_tube(
         builders.boolean(tx, b.BooleanOption, combine)
         feature = b.commit()
     if combine is not None:
-        out = common.result_of(tx, feature, targets)
-        common.changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
-        return out
+        return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)
     common.changed(0.0, out["volume"], "positive")
     if single is not None:

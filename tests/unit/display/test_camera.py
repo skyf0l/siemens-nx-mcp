@@ -112,3 +112,61 @@ def test_work_and_display_part_must_match():
     nx.session.Parts.Display = NS(Tag=-1)
     bad = run(nx, "nx_set_camera", fit=True)
     assert bad.error["code"] == "NX_WRONG_PART_CONTEXT"
+
+
+@pytest.mark.parametrize(
+    ("orientation", "view_from", "up"),
+    [
+        ("top", [0, 0, 1], [0, 1, 0]),
+        ("bottom", [0, 0, -1], [0, -1, 0]),
+        ("front", [0, -1, 0], [0, 0, 1]),
+        ("back", [0, 1, 0], [0, 0, 1]),
+        ("right", [1, 0, 0], [0, 0, 1]),
+        ("left", [-1, 0, 0], [0, 0, 1]),
+    ],
+)
+def test_named_orientations_report_where_they_look_from(orientation, view_from, up):
+    data = run(display_nx(), "nx_set_camera", orientation=orientation).data
+    assert data["view_from"] == pytest.approx(view_from) and data["up"] == pytest.approx(up)
+    assert display.ORIENTATION_FROM[orientation] == (pytest.approx(view_from), pytest.approx(up))
+    # the axes are the rotation's columns: rotation[i][j] = world component i of axis j
+    columns = [[row[j] for row in data["rotation"]] for j in range(3)]
+    assert columns == [data["right"], data["up"], data["view_from"]]
+
+
+def test_view_from_reproduces_nx_isometric_and_reaches_every_octant():
+    iso = display.rotation_from([1, -1, 1])
+    assert flat(iso) == pytest.approx(flat(display.ORIENTATION_ROTATIONS["isometric"]))
+    nx = display_nx()
+    ok = run(nx, "nx_set_camera", view_from=[-2, 2, 2], fit=True)
+    assert ok.ok and ok.data["view_from"] == pytest.approx([-(3**-0.5), 3**-0.5, 3**-0.5])
+    assert ok.data["right"][2] == pytest.approx(0) and ok.data["up"][2] > 0
+    assert nx.work_view.fits == 1 and ok.restore_id
+    down = run(display_nx(), "nx_set_camera", view_from=[0, 0, -5]).data
+    assert down["view_from"] == pytest.approx([0, 0, -1]) and down["up"] == pytest.approx([0, 1, 0])
+    tilted = run(display_nx(), "nx_set_camera", view_from=[1, 0, 0], up=[0, 1, 1]).data
+    assert tilted["up"] == pytest.approx([0, 2**-0.5, 2**-0.5])
+
+
+def test_explicit_rotation_is_echoed_unchanged_with_its_columns():
+    r = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+    data = run(display_nx(), "nx_set_camera", rotation=r).data
+    assert flat(data["rotation"]) == pytest.approx(flat(r))
+    assert data["right"] == pytest.approx([0, 1, 0]) and data["up"] == pytest.approx([-1, 0, 0])
+    assert data["view_from"] == pytest.approx([0, 0, 1])
+
+
+@pytest.mark.parametrize(
+    ("args", "field"),
+    [
+        ({"view_from": [1, 1, 1], "orientation": "top"}, "/view_from"),
+        ({"view_from": [1, 1, 1], "rotation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}, "/rotation"),
+        ({"up": [0, 0, 1], "orientation": "top"}, "/up"),
+        ({"view_from": [0, 0, 1], "up": [0, 0, 2]}, "/up"),
+        ({"view_from": [0, 0, 0]}, "/view_from"),
+    ],
+)
+def test_view_from_conflicts_are_invalid(args, field):
+    bad = run(display_nx(), "nx_set_camera", **args)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field
+    assert bad.mutation_outcome == "not_started"

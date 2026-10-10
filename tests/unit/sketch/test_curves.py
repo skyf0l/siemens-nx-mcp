@@ -201,3 +201,85 @@ def test_edits_refuse_foreign_curves_and_bad_items():
     extra = _edit(nx, sk, {"type": "delete", "object": nx.cref(foreign), "on": True})
     assert extra.error["field"] == "/edits/0/on" and extra.mutation_outcome == "not_started"
     assert isinstance(foreign, Line)
+
+
+# ---- polyline and loops ------------------------------------------------------
+
+
+def test_closed_polyline_makes_joined_lines_and_one_closed_loop():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    points = [[0, 0], [40, 0], [40, 10], [20, 30], [0, 10]]
+    ok = _curves(nx, sk, {"type": "polyline", "points": points, "closed": True})
+    assert ok.ok, ok
+    rows = ok.data["curves"]
+    assert len(rows) == 5 and all(r["type"] == "line" and r["item"] == 0 for r in rows)
+    assert rows[-1]["start"] == pytest.approx([0, 10]) and rows[-1]["end"] == pytest.approx([0, 0])
+    assert "closed" not in rows[0]  # a line never closes on itself; loops say it
+    coincident = [c for c in sk.constraints if c.ConstraintType == CT.Coincident]
+    assert len(coincident) == 5
+    assert ok.data["loops"] == [{"closed": True, "curves": 5}]
+
+
+def test_open_polyline_is_a_chain_with_two_open_ends():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    ok = _curves(nx, sk, {"type": "polyline", "points": [[0, 0], [10, 0], [10, 5], [20, 5]]})
+    assert ok.ok, ok
+    assert len(ok.data["curves"]) == 3
+    assert len([c for c in sk.constraints if c.ConstraintType == CT.Coincident]) == 2
+    assert ok.data["loops"] == [{"closed": False, "curves": 3, "open_ends": 2}]
+
+
+def test_repeated_first_point_closes_the_polyline_once():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    square = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]
+    ok = _curves(nx, sk, {"type": "polyline", "points": square, "closed": True})
+    assert ok.ok, ok
+    assert len(ok.data["curves"]) == 4 and ok.data["loops"] == [{"closed": True, "curves": 4}]
+
+
+def test_loops_cover_the_whole_sketch_across_calls():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    _curves(nx, sk, {"type": "polyline", "points": [[0, 0], [10, 0], [10, 10]]})
+    ok = _curves(
+        nx,
+        sk,
+        {"type": "polyline", "points": [[10, 10], [0, 10], [0, 0]]},
+        {"type": "circle", "center": [50, 0], "radius": 3},
+    )
+    assert ok.ok, ok
+    assert ok.data["loops"] == [{"closed": True, "curves": 4}, {"closed": True, "curves": 1}]
+
+
+@pytest.mark.parametrize(
+    ("item", "field"),
+    [
+        ({"type": "polyline", "points": [[0, 0], [0, 0], [5, 5]]}, "/curves/0/points/1"),
+        ({"type": "polyline", "points": [[0, 0], [5, 5]], "closed": True}, "/curves/0"),
+        ({"type": "polyline", "points": [[0, 0]]}, "/curves/0/points"),
+    ],
+)
+def test_bad_polylines_are_refused_before_nx(item, field):
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    bad = _curves(nx, sk, item)
+    assert not bad.ok and bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == field and not sk.geometry
+
+
+def test_loops_flag_branches_and_open_ends():
+    from nx_mcp.kit.sketch import loops
+
+    tee = [
+        {"start": [0, 0], "end": [10, 0]},
+        {"start": [10, 0], "end": [20, 0]},
+        {"start": [10, 0], "end": [10, 10]},
+    ]
+    assert loops(tee) == [{"closed": False, "curves": 3, "open_ends": 3, "branched": True}]
+    assert loops([{"start": [0, 0], "end": [0, 0], "closed": True}]) == [
+        {"closed": True, "curves": 1}
+    ]
+    assert loops([]) == []

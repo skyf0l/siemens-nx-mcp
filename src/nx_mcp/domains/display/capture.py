@@ -4,7 +4,17 @@ NX 2406 findings (``kit.capture``): the viewport export rasterises the graphics 
 at its own size, so ``resolution`` can differ from ``requested`` (a warning says so);
 Studio quality renders exactly the requested size, also for drawing sheets. Captures
 never use a desktop screenshot. The rendering style, lighting and (with ``fit``) the
-camera are put back afterwards, so the engineer's view is unchanged.
+camera are put back afterwards, so the engineer's view is unchanged and the result's
+``mutation_outcome`` is ``not_applicable``, as for a read. NX 2406 measured: viewport
+and Studio captures in the current style, and a viewport capture in another style, leave
+the part unmodified; ``style=studio`` and ``lighting`` mark it modified although both are
+put back (NX stores them in the part), which ``part_modified`` and a warning report.
+
+``path`` never overwrites unless ``overwrite=true``: then an existing PNG there is
+replaced. ``path`` passes the kernel's ``replace`` path gate on both process boundaries
+(inside the workspace, not reserved, ``.png``, a file and not a directory); the old PNG
+is replaced atomically only after the new one is complete (``Files.publish``), and a
+file there that is not a PNG is refused. ``overwritten`` says whether a file was replaced.
 """
 
 from __future__ import annotations
@@ -43,6 +53,8 @@ class ImageInfo(TypedDict):
 
 class CaptureData(TypedDict, total=False):
     path: str
+    overwritten: bool
+    part_modified: bool
     size: int
     sha256: str
     image: ImageInfo
@@ -56,6 +68,8 @@ class CaptureData(TypedDict, total=False):
 
 def _summary(a, say):
     what = "Render" if a.get("quality") == "studio" else "Capture"
+    if a.get("overwrite") and a.get("path"):
+        return f"{what} the view over {say('path')}"
     return f"{what} the view" + (f" to {say('path')}" if a.get("path") else "")
 
 
@@ -72,7 +86,11 @@ def nx_capture_view(
     tx: Tx,
     *,
     quality: Literal["viewport", "studio"] = "viewport",
-    path: Annotated[str, PathTo("new", ".png")] | None = None,
+    path: Annotated[
+        str, Doc("PNG to write; an existing one needs overwrite"), PathTo("replace", ".png")
+    ]
+    | None = None,
+    overwrite: Annotated[bool, Doc("Replace an existing PNG at path")] = False,
     width: Pixels = 1024,
     height: Pixels = 768,
     background: Literal["white", "original", "transparent", "color"] = "white",
@@ -81,8 +99,18 @@ def nx_capture_view(
     fit: bool = False,
     lighting: Annotated[int, Range(ge=1, le=5), Doc("Studio light preset")] | None = None,
 ) -> CaptureData:
-    """Capture the displayed view or drawing sheet as an inline PNG. studio renders the exact
-    size; viewport exports the window at its own size. The view is left as it was."""
+    """Capture the displayed view or drawing sheet as an inline PNG; the view is unchanged.
+    Only studio renders width x height exactly; viewport exports the NX window's size."""
+    if overwrite and path is None:
+        fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
+    replacing = path is not None and Path(path).exists()
+    if replacing and not overwrite:
+        fail(
+            "NX_ALREADY_EXISTS",
+            "/path: a file already exists there; set overwrite=true to replace it",
+            field="/path",
+            details={"path": path},
+        )
     if (background == "color") != (color is not None):
         fail("NX_INVALID_ARGUMENT", "color goes with background=color", field="/color")
     if lighting is not None and quality != "studio":
@@ -100,9 +128,15 @@ def nx_capture_view(
             )
         if fit and not sheet:
             display.shown_part(tx, work=True)  # the kept camera is restored in the work part
+        if replacing and files.png_size(Path(str(path))) is None:
+            fail(
+                "NX_UNSUPPORTED_FILE_TYPE",
+                "overwrite replaces PNG images only; the file there is not a PNG",
+                field="/path",
+            )
     root = Path(tx.workspace.root)
     target = Path(path) if path else root / "captures" / f"view-{uuid.uuid4().hex[:12]}.png"
-    temp = tx.files.stage(target)
+    temp = tx.files.stage(target, replace=overwrite)
     out: CaptureData = {"quality": quality, "requested": [width, height]}
     if sheet:
         current = drawing.current(part)
@@ -119,6 +153,7 @@ def nx_capture_view(
             view.UpdateDisplay()
         out["camera"] = camera_row(display.camera(tx, view))
         tx.frame = "display_part_absolute"
+    was_modified = bool(part.IsModified)
     chosen = None if style == "current" else style
     if quality == "studio":
         size = capture.studio_png(
@@ -131,7 +166,7 @@ def nx_capture_view(
         )
     if tx.display.kept:
         tx.display.restore()  # the fitted camera goes back: the engineer's view is unchanged
-    published = tx.files.publish()[0]
+    published = tx.files.publish()[0]  # with overwrite: atomic replace of the old PNG
     meta = files.metadata(published, root)
     if list(size) != [width, height]:
         tx.warn(
@@ -139,9 +174,18 @@ def nx_capture_view(
             f"NX exported the graphics window at {size[0]}x{size[1]}, not {width}x{height}; "
             "use quality=studio for an exact size",
         )
+    if not was_modified and bool(part.IsModified):
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            "NX marked the part modified (studio style or lighting is stored in the part); "
+            "the view and model are unchanged",
+        )
+    tx.outcome = "not_applicable"  # nothing in NX changed: reported like a read
     out.update(
         {
             **meta,
+            "overwritten": published in tx.files.replaced,
+            "part_modified": bool(part.IsModified),
             "resolution": list(size),
             "style": style,
             "image": {

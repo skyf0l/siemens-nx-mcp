@@ -119,3 +119,18 @@ def test_deleting_one_of_two_keeps_sectioning_only_with_an_active_one(keep_activ
     target = first if keep_active else second
     catalogue.hooks("deleter")["section_view"](nx.tx, [target])
     assert view.DisplaySectioningToggle is keep_active
+
+
+def test_create_says_which_side_is_hidden_and_how_to_remove_it():
+    nx = display_nx()
+    ok = run(nx, "nx_create_section_view", plane={"origin": [0, 0, 0], "normal": [0, -3, 4]})
+    data = ok.data
+    assert data["hidden_side"] == "positive"
+    assert data["cut_face_view_from"] == pytest.approx([0, -0.6, 0.8])
+    assert data["remove_with"] == {
+        "tool": "nx_delete_objects",
+        "arguments": {"objects": [data["section"]["id"]]},
+    }
+    removed = run(nx, data["remove_with"]["tool"], **data["remove_with"]["arguments"])
+    assert removed.ok and not nx.part.DynamicSections
+    assert nx.work_view.DisplaySectioningToggle is False

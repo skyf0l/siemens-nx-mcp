@@ -47,7 +47,10 @@ PRINCIPAL = {
 
 
 class _Principal(TypedDict):
-    principal: Literal["xy", "xz", "yz"]
+    principal: Annotated[
+        Literal["xy", "xz", "yz"],
+        Doc("Local x,y = world xy: X,Y; xz: X,Z (normal -Y); yz: Y,Z (normal X)"),
+    ]
 
 
 class PrincipalPlacement(_Principal, total=False):
@@ -341,6 +344,7 @@ class SketchInfo(TypedDict, total=False):
     active: bool
     frame: Frame
     curves: list[GeometryRow]
+    loops: Annotated[list[dict], Doc("Connected curve chains (construction out): closed, curves")]
     constraints: list[common.ConstraintRow]
     status: Status
 
@@ -420,6 +424,9 @@ def nx_get_sketch(
     }
     if "geometry" in wanted:
         data["curves"] = _geometry(tx, sk, f)
+        data["loops"] = ksketch.loops(
+            [r for r in data["curves"] if r["type"] != "other" and not r.get("construction")]
+        )
     if "constraints" in wanted:
         data["constraints"] = _constraints(tx, sk)
     if "status" in wanted:

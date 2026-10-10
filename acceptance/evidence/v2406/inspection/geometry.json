@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/geometry.json",
-  "scenario_sha256": "4eb5d2319ee027786368a2f6a655800c67986a3585de18836945ffd9f2d45a01",
+  "scenario_sha256": "a62aa7ec2a506c231dd9ebac154c276b734b3b994b7b3f471eddd5422de89fba",
   "domain": "inspection",
   "covers": {
     "nx_find_geometry": [],
@@ -12,14 +12,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_find_geometry": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1",
-    "nx_find_holes": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1",
-    "nx_create_anchor": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1",
-    "nx_resolve_reference": "83ea9c278a88c9034274c128891ef4593da67c342c92c9d78f81ca8367b638a1"
+    "nx_find_geometry": "43642955fa286cbee5846182fabb79e731f9652b6c04d044c35a984cccf04cfd",
+    "nx_find_holes": "43642955fa286cbee5846182fabb79e731f9652b6c04d044c35a984cccf04cfd",
+    "nx_create_anchor": "43642955fa286cbee5846182fabb79e731f9652b6c04d044c35a984cccf04cfd",
+    "nx_resolve_reference": "43642955fa286cbee5846182fabb79e731f9652b6c04d044c35a984cccf04cfd"
   },
-  "recorded": "2026-10-10T13:14:53Z",
+  "recorded": "2026-10-10T15:40:08Z",
   "passed": true,
-  "checks": 51,
+  "checks": 57,
   "failed_checks": 0,
   "steps": [
     {
@@ -90,70 +90,70 @@
       "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 11,
       "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 5
     },
     {
       "index": 12,
-      "call": "nx_find_holes",
+      "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 1
     },
     {
       "index": 13,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 14,
-      "call": "nx_create_anchor",
+      "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 15,
       "call": "nx_create_anchor",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 16,
+      "call": "nx_create_anchor",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 17,
       "call": "nx_resolve_reference",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 17,
+      "index": 18,
       "call": "nx_edit_feature",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 18,
-      "call": "nx_resolve_reference",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
       "index": 19,
       "call": "nx_resolve_reference",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 20,
@@ -164,14 +164,14 @@
     },
     {
       "index": 21,
-      "call": "nx_find_geometry",
+      "call": "nx_resolve_reference",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 22,
-      "call": "nx_resolve_reference",
+      "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -185,6 +185,13 @@
     },
     {
       "index": 24,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 25,
       "call": "nx_resolve_reference",
       "setup": false,
       "passed": true,

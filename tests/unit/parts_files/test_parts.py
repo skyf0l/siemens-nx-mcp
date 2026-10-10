@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -205,6 +206,23 @@ def test_close_part_without_saving_forgets_its_references(nx):
     assert nx.forgotten == [f"part_{part.Tag}"]
 
 
+def test_close_part_never_saves_by_default_and_refuses_unsaved_changes(nx):
+    assert tools.nx_close_part.spec.params["save"].default is None
+    clean = nx.new_part("clean.prt")
+    clean.Save = Mock(side_effect=AssertionError("saved"))
+    ok = call(nx, tools.nx_close_part, part=nx.ref_of(clean, "part"))
+    assert ok.ok and ok.data["saved"] is False and clean not in nx.session.Parts
+    dirty = nx.new_part("dirty.prt")
+    dirty.IsModified = True
+    ref = nx.ref_of(dirty, "part")
+    refused = call(nx, tools.nx_close_part, part=ref)
+    assert refused.error["code"] == "NX_UNSAVED_PART" and refused.error["field"] == "/save"
+    assert "save=false" in refused.error["message"] and dirty in nx.session.Parts
+    assert refused.mutation_outcome == "not_started"
+    discarded = call(nx, tools.nx_close_part, part=ref, save=False)
+    assert discarded.ok and discarded.data["saved"] is False and dirty not in nx.session.Parts
+
+
 def test_close_part_needs_an_explicit_part_never_the_work_part(nx):
     part = nx.new_part("work.prt")
     assert tools.nx_close_part.spec.params["part"].required
@@ -339,8 +357,15 @@ def test_save_leaves_other_modified_parts_alone(nx, root):
     before = (root / "child.prt").read_bytes()
     nx.session.Parts.Work = nx.session.Parts.Display = nx.session.Parts[-2]
     ok = call(nx, tools.nx_save_part)
-    assert ok.data["saved_files"] == ["top.prt"] and ok.data["other_modified_parts"] == 1
+    assert ok.data["saved_files"] == ["top.prt"]
+    others = ok.data["other_modified_parts"]
+    assert [(r["id"], r["kind"], r["name"]) for r in others] == [
+        (nx.ref_of(child, "part"), "part", child.Name)
+    ]
     assert child.IsModified and (root / "child.prt").read_bytes() == before
+    child.IsModified = False
+    clean = call(nx, tools.nx_save_part)
+    assert clean.ok and clean.data["other_modified_parts"] == []
 
 
 def test_a_flag_flipped_on_another_part_is_partial(nx):
@@ -358,6 +383,7 @@ def test_a_flag_flipped_on_another_part_is_partial(nx):
     assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.mutation_outcome == "partial"
     assert bad.error["details"]["unexpected_changes"] == ["child.prt"]
     assert bad.error["details"]["saved_files"] == ["top.prt"]
+    assert [r["name"] for r in bad.error["details"]["other_modified_parts"]] == [child.Name]
 
 
 def test_native_unsaved_objects_are_not_a_success(nx):

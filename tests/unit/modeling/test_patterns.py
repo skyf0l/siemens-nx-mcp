@@ -29,6 +29,7 @@ def test_mirror_bodies_checks_the_reflection_and_hides_sources():
              plane={"principal": "yz"}, keep_original=False)  # fmt: skip
     assert ok.ok, ok
     assert block.IsBlanked and ok.data["volume"] == 8000 and ok.data["count"] == 1
+    assert ok.data["new_bodies"] == 1
     nx.on_commit("MirrorBodyBuilder", lambda b: feature(nx, "MIRROR_BODY",
                  [new_body(nx, [0, 0, 0, 40, 20, 10])]))  # fmt: skip
     bad = run(nx, "nx_create_mirror", bodies=[block.ref],
@@ -51,6 +52,7 @@ def test_mirror_features_uses_the_mirror_layout_and_reads_the_volume():
              plane=nx.ref_of(plane, "datum_plane"))  # fmt: skip
     assert ok.ok, ok
     assert ok.data["target"] == "features" and ok.data["count"] == 1
+    assert ok.data["new_bodies"] == 0
     b = nx.last("MirrorBuilder")
     assert b.PatternService.MirrorDefinition.ExistingPlane.Value is plane
     assert b.FeatureList.Add.calls[0][0][0] == [seed] and b.destroyed
@@ -58,6 +60,21 @@ def test_mirror_features_uses_the_mirror_layout_and_reads_the_volume():
     same = run(nx, "nx_create_mirror", target="features", features=[nx.ref_of(seed, "feature")],
                plane={"principal": "yz"})  # fmt: skip
     assert same.error["details"]["check"] == "volume" and same.mutation_outcome == "rolled_back"
+
+
+def test_mirror_of_a_feature_with_its_own_body_counts_the_new_body():
+    # NX 2406: the mirror of a seed that made its own body is a new body; the seed body
+    # keeps its volume (it failed the volume check before new bodies were counted in).
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+    nx.on_commit("MirrorBuilder", lambda b: feature(nx, "MIRROR", [
+        new_body(nx, [-10, 0, 0, 0, 10, 10])]))  # fmt: skip
+    ok = run(nx, "nx_create_mirror", target="features", features=[nx.ref_of(seed, "feature")],
+             plane={"principal": "yz"})  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["new_bodies"] == 1 and ok.data["count"] == 1
+    assert ok.data["volume"] == 2000 and len(ok.data["bodies"]) == 2
 
 
 @pytest.mark.parametrize(
@@ -280,3 +297,21 @@ def test_pattern_parameters_follow_the_layout_form():
     assert bad.error["category"] == "invalid_argument" and "sides" in bad.error["field"], bad
     extra = pattern(nx, seed, "circular", axis={"principal": "z"}, count=3, angle=10, spacing=4)
     assert extra.error["category"] == "invalid_argument", extra
+
+
+def test_pattern_of_a_feature_with_its_own_body_counts_the_new_bodies():
+    # NX 2406: instances of a seed that made its own body are new bodies; the seed body
+    # keeps its volume.
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+
+    def commit(b):
+        made = [new_body(nx, [20 * i, 0, 0, 20 * i + 10, 10, 10]) for i in (1, 2)]
+        return counted(feature(nx, "PATTERN_FEATURE", []), 1 + len(made))
+
+    nx.on_commit("PatternFeatureBuilder", commit)
+    ok = pattern(nx, seed, "circular", axis={"principal": "z"}, count=3, angle=120)
+    assert ok.ok, ok
+    assert ok.data["count"] == 3 and ok.data["new_bodies"] == 2
+    assert ok.data["volume"] == 3000 and len(ok.data["bodies"]) == 3

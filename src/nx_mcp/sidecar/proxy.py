@@ -15,8 +15,11 @@ import asyncio
 import base64
 import hashlib
 import json
+import math
 import os
+import re
 import time
+from collections import Counter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
@@ -25,7 +28,7 @@ from pydantic import AnyUrl, ValidationError
 
 from nx_mcp.core import errors, evidence
 from nx_mcp.core.errors import NXError
-from nx_mcp.core.receipts import new_operation_id
+from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
 from nx_mcp.core.validate import validate
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
@@ -34,6 +37,13 @@ if TYPE_CHECKING:
     from nx_mcp.sidecar.local import SidecarServices
 
 COMPACT_ITEMS = 20
+# Compact changes list at most this many rows when data names none of them.
+COMPACT_CHANGE_ROWS = 5
+# Terse changes only when they save more than the result_id/omitted/counts they add.
+TERSE_MIN_SAVING = 160
+# NX's internal helpers: auto-named expressions (p12) and sketch-internal geometry
+# ("ENTITY 3 1 1"); kept in the stored full result, counted in compact detail.
+HELPER_NAME = re.compile(r"^(p\d+|ENTITY \d+ \d+ \d+)$")
 INLINE_IMAGE_BYTES = 8 * 1024 * 1024
 
 
@@ -123,12 +133,87 @@ def _walk_paths(args: dict, pointer: str):
     return [(c, k) for c, k, v in frontier if c is not None and isinstance(v, str)]
 
 
+def _is_ref(value) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("id"), str) and "kind" in value
+
+
+def _data_refs(value, *, top: bool) -> set:
+    """IDs of the references in ``data``: those it names at its top level (a reference or a
+    list of references), or (``top`` False) anywhere inside it."""
+    found: set = set()
+    if not isinstance(value, dict):
+        return found
+    if top:
+        for item in value.values():
+            items = item if isinstance(item, list) else [item]
+            found.update(i["id"] for i in items if _is_ref(i))
+        return found
+
+    def walk(node):
+        if _is_ref(node):
+            found.add(node["id"])
+        if isinstance(node, dict):
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(value)
+    return found
+
+
+def _terse_changes(envelope: dict, omitted: dict) -> dict | None:
+    """Compact ``changes``: created/modified keep the rows ``data`` names at its top level
+    (the tool's main objects, e.g. its feature, body or sketch); when it names none, up to
+    COMPACT_CHANGE_ROWS rows that ``data`` does not already show and that are not NX
+    helpers. ``counts`` gives every row by kind; deleted rows (invalid references) stay."""
+    changes = envelope.get("changes")
+    if not isinstance(changes, dict):
+        return None
+    data = envelope.get("data")
+    top, shown = _data_refs(data, top=True), _data_refs(data, top=False)
+    out, counts = dict(changes), {}
+    for key in ("created", "modified"):
+        rows = changes.get(key)
+        if not isinstance(rows, list) or not rows:
+            continue
+        keep = [r for r in rows if _is_ref(r) and r["id"] in top]
+        if not keep:
+            keep = [
+                r
+                for r in rows
+                if _is_ref(r)
+                and r["id"] not in shown
+                and not HELPER_NAME.match(str(r.get("name") or ""))
+            ][:COMPACT_CHANGE_ROWS]
+        if len(keep) < len(rows):
+            kinds = Counter(str(r.get("kind")) for r in rows if isinstance(r, dict))
+            counts[key] = dict(sorted(kinds.items()))
+            omitted[f"/changes/{key}"] = {"total": len(rows), "returned": len(keep)}
+            out[key] = keep
+    if not counts:
+        return None
+    out["counts"] = counts
+    if _size(changes) - _size(out) < TERSE_MIN_SAVING:
+        for key in counts:
+            omitted.pop(f"/changes/{key}", None)
+        return None  # a few rows cost less than result_id, omitted and counts
+    return out
+
+
+def _size(value) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str))
+
+
 def _project(envelope: dict, store) -> dict:
-    """Compact detail: arrays over 20 items go to the result store (gate 14, S)."""
+    """Compact detail (gate 14, S): terse ``changes`` (:func:`_terse_changes`) and arrays
+    over 20 items cut; the full result goes to the result store for ``nx_get_result``."""
     if not envelope.get("ok"):
         return envelope
     omitted: dict[str, Any] = {}
     paged = envelope.get("page") is not None
+    terse = _terse_changes(envelope, omitted)
 
     def cut(value, path):
         if isinstance(value, dict):
@@ -138,13 +223,17 @@ def _project(envelope: dict, store) -> dict:
                 omitted[path] = {"total": len(value), "returned": COMPACT_ITEMS}
                 value = value[:COMPACT_ITEMS]
             return [cut(v, f"{path}/{i}") for i, v in enumerate(value)]
+        if isinstance(value, float) and math.isfinite(value):
+            return float(f"{value:.12g}")  # 250.00000000000003 -> 250.0 (full: nx_get_result)
         return value
 
+    envelope_view = {**envelope, "changes": terse} if terse is not None else envelope
     projected = {
-        k: v if k in ("warnings", "error", "page") else cut(v, "/" + k) for k, v in envelope.items()
+        k: v if k in ("warnings", "error", "page") else cut(v, "/" + k)
+        for k, v in envelope_view.items()
     }
     if not omitted:
-        return envelope
+        return projected
     try:
         result_id = store.put(envelope)
     except Exception:
@@ -315,11 +404,12 @@ class CatalogueProxy:
         intent = args.pop("intent", None) or intent
         detail = args.pop("detail", None) or detail
         problem = None
-        if operation_id is not None and (
-            not isinstance(operation_id, str) or not 1 <= len(operation_id) <= 128
-        ):
+        if operation_id is not None and operation_id_problem(operation_id) is not None:
             problem = NXError(
-                "NX_INVALID_ARGUMENT", "operation_id: 1-128 characters", field="/operation_id"
+                "NX_INVALID_ARGUMENT",
+                str(operation_id_problem(operation_id)),
+                field="/operation_id",
+                hint=OPERATION_ID_HINT,
             )
         elif intent is not None and (not isinstance(intent, str) or len(intent) > 120):
             problem = NXError("NX_INVALID_ARGUMENT", "intent: at most 120 characters")

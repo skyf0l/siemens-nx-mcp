@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
@@ -19,11 +19,13 @@ from nx_mcp.core.types import (
     SketchRef,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, geom, measure, readback, select, units
+from nx_mcp.kit import args, builders, curve, geom, measure, readback, select, units
 from nx_mcp.kit import sketch as ksketch
 
 ZERO: LimitDistance = {"type": "distance", "value": 0.0}
-COMBINE_CHANGE = {"unite": "more", "subtract": "less", "intersect": "less"}
+COMBINE_CHANGE = common.COMBINE_CHANGE
+# NX 2406 revolve refusal for a profile on both sides of the axis.
+REVOLVE_CROSSES_AXIS = 671623
 
 
 def _limit_text(limit, say) -> str:
@@ -114,12 +116,12 @@ def nx_create_extrude(
         fail("NX_INVALID_ARGUMENT", "end must lie beyond start", field="/end/value")
     if "through_all" in (start["type"], end["type"]) and combine is None:
         fail("NX_INVALID_ARGUMENT", "through_all needs combine targets", field="/combine")
+    common.check_combine(combine)
     sk = ksketch.resolve(tx, sketch)
     origin = geom.xyz(sk.Origin)
-    targets = (
-        common.solids(tx, combine["targets"], "/combine/targets") if combine is not None else []
-    )
+    targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
+    tags = common.body_tags(tx)
     with builders.build(tx, tx.part.Features.CreateExtrudeBuilder, None) as b:
         b.Section = builders.section(tx, sk)
         b.Direction, want = _sketch_direction(tx, sk, direction, origin)
@@ -127,24 +129,23 @@ def nx_create_extrude(
         _set_limit(tx, b.Limits.EndExtend, end, "/end")
         builders.boolean(tx, b.BooleanOperation, combine)
         feature = b.commit()
+    if combine is not None:
+        return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)
-    if combine is None:
-        common.changed(0.0, out["volume"], "positive")
-        axis = _principal(want)
-        if axis is not None and start["type"] == "distance" and end["type"] == "distance":
-            # The body spans exactly [start, end] along the extrude direction.
-            low, high = measure.bounds(tx, common.feature_bodies(feature))
-            sign = want[axis]
-            span = sorted(origin[axis] + sign * float(v["value"]) for v in (start, end))
-            readback.expect_close([low[axis], high[axis]], span, "extent")
-    else:
-        common.changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
+    common.changed(0.0, out["volume"], "positive")
+    axis = _principal(want)
+    if axis is not None and start["type"] == "distance" and end["type"] == "distance":
+        # The body spans exactly [start, end] along the extrude direction.
+        low, high = measure.bounds(tx, common.feature_bodies(feature))
+        sign = want[axis]
+        span = sorted(origin[axis] + sign * float(v["value"]) for v in (start, end))
+        readback.expect_close([low[axis], high[axis]], span, "extent")
     return out
 
 
-def _axis(tx, value):
+def _axis(tx, value, resolved=None):
     """A smart axis for the Axis union (associative to a datum axis)."""
-    obj, origin, want = select.axis(tx, value, "/axis")
+    obj, origin, want = resolved or select.axis(tx, value, "/axis")
     update = tx.nx.SmartObject.UpdateOption.WithinModeling
     part = tx.part
     if obj is not None and hasattr(obj, "Direction") and not hasattr(obj, "Normal"):
@@ -152,6 +153,44 @@ def _axis(tx, value):
     else:
         smart = builders.direction(tx, want, origin, "/axis")
     return part.Axes.CreateAxis(builders.point(tx, origin), smart, update)
+
+
+def _crosses_axis(tx, sk, origin, direction) -> bool:
+    """Whether the sketch's profile curves lie on both sides of an axis in the sketch
+    plane (sampled at five points per curve); False when the axis leaves the plane."""
+    f = ksketch.frame(sk)
+    n = geom.unit(f["normal"])
+    d = geom.unit(direction)
+    tol = units.part_tolerance(tx)
+    if abs(geom.dot(d, n)) > 1e-9 or abs(ksketch.height(f, origin)) > tol:
+        return False
+    side = geom.cross(d, n)  # in-plane normal of the axis line
+    signs = set()
+    for c in ksketch.geometry(sk):
+        if getattr(c, "IsReference", False):
+            continue
+        try:
+            points = [curve.point_at(tx, c, t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)]
+        except Exception:
+            continue  # a sketch point, not a curve
+        for p in points:
+            s = geom.dot(geom.sub(geom.xyz(p) if hasattr(p, "X") else list(p), origin), side)
+            if abs(s) > tol:
+                signs.add(s > 0)
+    return len(signs) == 2
+
+
+def _crosses(nx_code=None, nx_message=None):
+    details = {"nx_message": nx_message} if nx_message else None
+    fail(
+        "NX_INVALID_ARGUMENT",
+        "The profile crosses the revolve axis; keep it on one side of the axis",
+        field="/axis",
+        hint="Move the sketch curves to one side of the axis (touching it is fine), "
+        "or choose another axis",
+        nx_code=nx_code,
+        details=details,
+    )
 
 
 @tool(
@@ -180,23 +219,31 @@ def nx_create_revolve(
     start, end = float(start_angle), float(end_angle)
     if not start < end <= start + 360.0:
         fail("NX_INVALID_ARGUMENT", "Use start < end <= start + 360", field="/end_angle")
-    sk = ksketch.resolve(tx, sketch)
-    targets = (
-        common.solids(tx, combine["targets"], "/combine/targets") if combine is not None else []
-    )
+    common.check_combine(combine)
+    with tx.checks():
+        sk = ksketch.resolve(tx, sketch)
+        resolved = select.axis(tx, axis, "/axis")
+        if _crosses_axis(tx, sk, resolved[1], resolved[2]):
+            _crosses()
+    targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
-    with builders.build(tx, tx.part.Features.CreateRevolveBuilder, None) as b:
-        b.Section = builders.section(tx, sk)
-        b.Axis = _axis(tx, axis)
-        b.Limits.StartExtend.Value.RightHandSide = repr(start)
-        b.Limits.EndExtend.Value.RightHandSide = repr(end)
-        builders.boolean(tx, b.BooleanOperation, combine)
-        feature = b.commit()
+    tags = common.body_tags(tx)
+    try:
+        with builders.build(tx, tx.part.Features.CreateRevolveBuilder, None) as b:
+            b.Section = builders.section(tx, sk)
+            b.Axis = _axis(tx, axis, resolved)
+            b.Limits.StartExtend.Value.RightHandSide = repr(start)
+            b.Limits.EndExtend.Value.RightHandSide = repr(end)
+            builders.boolean(tx, b.BooleanOperation, combine)
+            feature = b.commit()
+    except NXError as error:
+        if error.nx_code != REVOLVE_CROSSES_AXIS:
+            raise
+        _crosses(error.nx_code, error.message)  # a crossing the samples missed
+    if combine is not None:
+        return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)
-    if combine is None:
-        common.changed(0.0, out["volume"], "positive")
-    else:
-        common.changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
+    common.changed(0.0, out["volume"], "positive")
     return out
 
 

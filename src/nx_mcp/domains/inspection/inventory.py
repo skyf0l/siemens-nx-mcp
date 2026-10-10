@@ -4,6 +4,7 @@ Each domain registers ``@lister(kind)`` hooks for its own kinds. A lister is
 ``fn(tx, owner, owner_kind) -> [(obj, kind, extra)]``; ``extra`` holds the
 kind-specific summary (``type`` is used by the ``type`` filter). Rows are only
 built for the requested page, so large inventories register few references.
+A ``type`` outside a kind's known set (``TYPES``) is refused, never an empty page.
 ``include`` adds per-row detail to the page: ``adjacency`` (a face's edge ids, an edge's
 face ids) or ``views`` (a drawing sheet's views).
 """
@@ -40,6 +41,21 @@ ListKind = Literal[
     "section_view",
 ]
 
+# kind -> every type its lister reports (empty: rows have no type). Kinds missing here
+# report open-ended types (feature types, NX class names) and are not checked.
+TYPES: dict[str, tuple[str, ...]] = {
+    "body": ("solid", "sheet"),
+    "face": ("plane", "cylinder", "cone", "sphere", "torus", "other"),
+    "edge": ("line", "circle", "ellipse", "other"),
+    "datum": ("plane", "axis", "csys", "point"),
+    "drawing_table": ("parts_list", "bend", "hole", "title_block", "revision", "table"),
+    "reference_set": ("custom",),
+    "section_view": ("one_plane",),
+    "sketch": (),
+    "drawing_sheet": (),
+    "explosion": (),
+}
+
 Include = Literal["adjacency", "views"]
 # include value -> the kinds it applies to
 _INCLUDE_KINDS = {"adjacency": ("face", "edge"), "views": ("drawing_sheet",)}
@@ -58,6 +74,19 @@ class ListData(TypedDict):
 
 def _name(obj) -> str:
     return str(getattr(obj, "Name", "") or getattr(obj, "JournalIdentifier", "") or "")
+
+
+def _check_type(kind: str, value: str) -> None:
+    known = TYPES.get(kind)
+    if known is None or value in known:
+        return
+    if not known:
+        fail("NX_INVALID_ARGUMENT", f"{kind} rows have no type; omit type", field="/type")
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"type {value!r} is not a {kind} type; use one of: {', '.join(known)}",
+        field="/type",
+    )
 
 
 def _expand(tx, obj, kind: str) -> dict:
@@ -93,7 +122,9 @@ def nx_list_objects(
     kind: ListKind,
     owner: Annotated[str, RefTo("body", "face", "feature")] | None = None,
     name_contains: Annotated[str, Text(64), Doc("Case-insensitive name filter")] | None = None,
-    type: Annotated[str, Text(32, r"^[a-z_]+$"), Doc("Kind-specific type, e.g. plane")]
+    type: Annotated[
+        str, Text(32, r"^[a-z_]+$"), Doc("Kind-specific type, e.g. face plane/cylinder/cone")
+    ]
     | None = None,
     include: Include | None = None,
     offset: Offset = 0,
@@ -107,6 +138,8 @@ def nx_list_objects(
     if include is not None and kind not in _INCLUDE_KINDS[include]:
         fail("NX_UNSUPPORTED_OPTION", f"include={include} applies to "
              f"{'/'.join(_INCLUDE_KINDS[include])}, not {kind}", field="/include")  # fmt: skip
+    if type:
+        _check_type(kind, type)
     owner_obj = owner_kind = None
     if owner is not None:
         owner_obj = tx.resolve(owner, "body", "face", "feature", work_part=True)
@@ -116,7 +149,8 @@ def nx_list_objects(
         needle = name_contains.casefold()
         found = [f for f in found if needle in _name(f[0]).casefold()]
     if type:
-        found = [f for f in found if f[2].get("type") == type]
+        # casefolded: dimension and annotation types are NX class names (PmiNote)
+        found = [f for f in found if str(f[2].get("type") or "").casefold() == type]
     selected, page = result.page(found, offset, limit)
     items: list[ObjectRow] = []
     for obj, k, extra in selected:

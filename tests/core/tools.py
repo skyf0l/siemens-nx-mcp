@@ -90,6 +90,19 @@ def nx_export_note(
     return {"path": path}
 
 
+def nx_export_text(
+    tx,
+    *,
+    path: Annotated[str, PathTo("replace", ".txt")],
+    replace: bool = False,
+) -> Written:
+    """Write a text file, replacing an existing one when asked."""
+    temp = tx.files.stage(path, replace=replace)
+    temp.write_text("new", encoding="utf-8")
+    tx.files.publish()
+    return {"path": path}
+
+
 def nx_run_blocks(
     tx,
     *,
@@ -253,6 +266,14 @@ def specs():
             nx_export_note,
             effect="file",
             label="Export note",
+            keywords=KEYWORDS,
+            domain="parts_files",
+            example={"path": "x.txt"},
+        ),
+        "nx_export_text": make_spec(
+            nx_export_text,
+            effect="file",
+            label="Replace note",
             keywords=KEYWORDS,
             domain="parts_files",
             example={"path": "x.txt"},
