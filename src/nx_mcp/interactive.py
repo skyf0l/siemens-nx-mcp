@@ -52,6 +52,7 @@ HOLD_SECONDS = 60
 # Auto: a step waits at most this long while the engineer is busy in NX. The
 # bridge (QUEUE_TIMEOUT) waits longer, so this answer always arrives first.
 BUSY_WAIT_SECONDS = 120
+PAD_RIGHT = 16  # Panel margin right of the text and Stop bridge (96-DPI px).
 PANEL_ROWS = 8  # Panel body lines: running/idle line or request card, then history.
 NOTICE_SECONDS = 30  # A notice replaces the idle line this long.
 
@@ -230,6 +231,7 @@ class ControlPanel:
         self.user.DestroyWindow.argtypes = [w.HWND]
         self.user.UnregisterClassW.argtypes = [w.LPCWSTR, w.HINSTANCE]
         self.user.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASS)]
+        self.user.GetClientRect.argtypes = [w.HWND, ctypes.POINTER(w.RECT)]
         self.proc = self.proc_type(self._message)
         cls = WNDCLASS()
         cls.lpfnWndProc = self.proc
@@ -238,15 +240,21 @@ class ControlPanel:
         self._class = cls
         if not self.user.RegisterClassW(ctypes.byref(cls)):
             raise ctypes.WinError(ctypes.get_last_error())
+        # Layout in 96-DPI units, scaled to NX's DPI so the text fits the controls.
+        scale = self._dpi() / 96
+
+        def s(value):
+            return round(value * scale)
+
         self.hwnd = self.user.CreateWindowExW(
             0x80,
             cls.lpszClassName,
             "NX MCP control",
             0x10C80000,
-            40,
-            60,
-            680,
-            321,
+            s(40),
+            s(60),
+            s(700),
+            s(321),
             self.host.main_hwnd,
             None,
             None,
@@ -255,38 +263,58 @@ class ControlPanel:
         if not self.hwnd:
             raise ctypes.WinError(ctypes.get_last_error())
 
+        # Controls end PAD_RIGHT inside the client area: the text and Stop bridge
+        # never touch the window's right edge.
+        rect = w.RECT()
+        if self.user.GetClientRect(self.hwnd, ctypes.byref(rect)) and rect.right > s(400):
+            right = rect.right - s(PAD_RIGHT)
+        else:
+            right = s(700 - 16 - PAD_RIGHT)  # frame estimate
+
         def control(cls_name, text, style, x, y, width, height, ident=None):
             return self.user.CreateWindowExW(
-                0, cls_name, text, style, x, y, width, height, self.hwnd, ident, None, None
+                0,
+                cls_name,
+                text,
+                style,
+                s(x),
+                s(y),
+                width,
+                s(height),
+                self.hwnd,
+                ident,
+                None,
+                None,
             )
 
         # Mode: (•) Auto ( ) Ask me first. BS_RADIOBUTTON (not auto): a click
         # only asks for the mode; the host sets the check marks.
-        mode_label = control("STATIC", "Mode:", 0x50000000, 12, 12, 48, 20)
+        mode_label = control("STATIC", "Mode:", 0x50000000, 12, 12, s(48), 20)
         self.radios = {
-            "auto": control("BUTTON", "Auto", 0x50010004, 66, 8, 72, 24, 111),
-            "ask": control("BUTTON", "Ask me first", 0x50000004, 144, 8, 124, 24, 113),
+            "auto": control("BUTTON", "Auto", 0x50010004, 66, 8, s(72), 24, 111),
+            "ask": control("BUTTON", "Ask me first", 0x50000004, 144, 8, s(124), 24, 113),
         }
         # One list, newest first: the running step (or idle line / request card) on
         # top, then recent activity. The title says the mode and what the agent does.
         # SS_LEFTNOWORDWRAP (0xC): an entry never wraps into the next one; a line too
         # long for a high-DPI font is clipped at the right edge instead.
         self.label = control(
-            "STATIC", "Starting interactive bridge...", 0x5000000C, 12, 38, 650, 164
+            "STATIC", "Starting interactive bridge...", 0x5000000C, 12, 38, right - s(12), 164
         )
         # Production only: the engineer allows the agent to change the work part
         # (a part the agent neither created nor opened). BS_CHECKBOX, hidden until
         # needed; the host owns the checked state (show_grant).
-        self.grant = control("BUTTON", "", 0x40010002, 12, 206, 650, 22, ID_GRANT)
+        self.grant = control("BUTTON", "", 0x40010002, 12, 206, right - s(12), 22, ID_GRANT)
         # The request card's answers replace "Open log" while the agent waits for
         # one. Stop sits apart so it is not hit by mistake.
-        self.run_once = control("BUTTON", "Run once", 0x40010000, 12, 234, 110, 28, ID_RUN_ONCE)
+        self.run_once = control("BUTTON", "Run once", 0x40010000, 12, 234, s(110), 28, ID_RUN_ONCE)
         self.run_auto = control(
-            "BUTTON", "Run && switch to Auto", 0x40010000, 128, 234, 170, 28, ID_RUN_AUTO
+            "BUTTON", "Run && switch to Auto", 0x40010000, 128, 234, s(170), 28, ID_RUN_AUTO
         )
-        self.decline = control("BUTTON", "Not now", 0x40010000, 304, 234, 110, 28, ID_DECLINE)
-        self.open_log = control("BUTTON", "Open log", 0x50010000, 12, 234, 110, 28, ID_OPEN_LOG)
-        stop = control("BUTTON", "Stop bridge", 0x50010000, 532, 234, 130, 28, ID_STOP)
+        self.decline = control("BUTTON", "Not now", 0x40010000, 304, 234, s(110), 28, ID_DECLINE)
+        self.open_log = control("BUTTON", "Open log", 0x50010000, 12, 234, s(110), 28, ID_OPEN_LOG)
+        stop = control("BUTTON", "Stop bridge", 0x50010000, 0, 234, s(130), 28, ID_STOP)
+        self.user.MoveWindow(stop, right - s(130), s(234), s(130), s(28), False)
         # The dialog font fits a full activity line; the default system font does not.
         try:
             gdi = ctypes.WinDLL("gdi32")
@@ -307,6 +335,18 @@ class ControlPanel:
                 self.user.SendMessageW(child, 0x30, font, 1)  # WM_SETFONT
         except Exception as exc:
             self.host.last_error = "Panel font: " + str(exc)
+
+    def _dpi(self):
+        """NX's DPI (96 when Windows scales NX itself or the call is unavailable)."""
+        from ctypes import wintypes as w
+
+        try:
+            self.user.GetDpiForWindow.argtypes = [w.HWND]
+            self.user.GetDpiForWindow.restype = w.UINT
+            dpi = self.user.GetDpiForWindow(self.host.main_hwnd) if self.host.main_hwnd else 0
+            return dpi if 96 <= dpi <= 480 else 96
+        except (AttributeError, OSError):
+            return 96
 
     def _message(self, hwnd, msg, wp, lp):
         try:
