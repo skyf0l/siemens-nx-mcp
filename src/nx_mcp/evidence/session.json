@@ -12,17 +12,17 @@
   "nx_cancel_operation": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-10T12:46:21Z",
+      "recorded": "2026-10-10T13:11:42Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
-      "source_sha256": "e1051b75f6d3ccb52d256f4449d497324d0c6e36787cc4dc7b604180b04c89cd",
+      "source_sha256": "c9a632997aeb0ffdf51e9c5f13947e97e1dbab6e8d47b927e600f47fae870c3b",
       "variants": []
     }
   },
   "nx_create_checkpoint": {
     "v2406": {
       "checks": 44,
-      "recorded": "2026-10-10T11:38:55Z",
+      "recorded": "2026-10-10T13:09:35Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
       "source_sha256": "9fa6e69924d2e75a9884b43ad07545e3294c2e110a888becf00e6c07116d40c2",
@@ -32,30 +32,30 @@
   "nx_delete_objects": {
     "v2406": {
       "checks": 30,
-      "recorded": "2026-10-10T11:38:53Z",
+      "recorded": "2026-10-10T13:09:32Z",
       "scenario": "acceptance/session/delete_objects.json",
       "scenario_sha256": "e4fdaf4870141538cf219ae8ea1a00cd343c204346a3465fbe5d78709ee7c972",
-      "source_sha256": "8bcdcc2f1f39e8e3fee24143b1e1cac08983b266f99a61f0da4d6536b11a96c2",
+      "source_sha256": "d971fc64c8c1a80146b0376a6ebc7e7c138572611414bffb822951a11ae3dd79",
       "variants": []
     }
   },
   "nx_delete_results": {
     "v2406": {
       "checks": 57,
-      "recorded": "2026-10-10T11:38:58Z",
+      "recorded": "2026-10-10T13:09:38Z",
       "scenario": "acceptance/session/results.json",
       "scenario_sha256": "d39cd65b428cb83f9f094b20f8b71722f080ea2d6e38e896db825b0fbc529973",
-      "source_sha256": "cad599a1655b687ad5b0d5cffaf031f904cf77410300c31df39dc6cab7225ffe",
+      "source_sha256": "ebf58f35f5184bb97653e2d0a25261e22c39f3d23a3070b2e60b634d73f19c60",
       "variants": []
     }
   },
   "nx_finish_preview": {
     "v2406": {
       "checks": 46,
-      "recorded": "2026-10-10T11:38:57Z",
+      "recorded": "2026-10-10T13:09:37Z",
       "scenario": "acceptance/session/preview_changes.json",
       "scenario_sha256": "2214097144adb1df5dd8f7e99e802c5bac7fa922b88a306b94ec0215abe8a42a",
-      "source_sha256": "f15ef90420536ba04c9a0333a21af261a026fddda4c001608421d7dcc7cbe151",
+      "source_sha256": "f152aaeeaa076526788e842075721a2c82b12330026297a67e8d22ff7f07b381",
       "variants": [
         "accept",
         "discard"
@@ -65,37 +65,37 @@
   "nx_get_operation": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-10T12:46:21Z",
+      "recorded": "2026-10-10T13:11:42Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
-      "source_sha256": "e1051b75f6d3ccb52d256f4449d497324d0c6e36787cc4dc7b604180b04c89cd",
+      "source_sha256": "c9a632997aeb0ffdf51e9c5f13947e97e1dbab6e8d47b927e600f47fae870c3b",
       "variants": []
     }
   },
   "nx_get_result": {
     "v2406": {
       "checks": 57,
-      "recorded": "2026-10-10T11:38:58Z",
+      "recorded": "2026-10-10T13:09:38Z",
       "scenario": "acceptance/session/results.json",
       "scenario_sha256": "d39cd65b428cb83f9f094b20f8b71722f080ea2d6e38e896db825b0fbc529973",
-      "source_sha256": "cad599a1655b687ad5b0d5cffaf031f904cf77410300c31df39dc6cab7225ffe",
+      "source_sha256": "ebf58f35f5184bb97653e2d0a25261e22c39f3d23a3070b2e60b634d73f19c60",
       "variants": []
     }
   },
   "nx_get_status": {
     "v2406": {
       "checks": 38,
-      "recorded": "2026-10-10T12:46:21Z",
+      "recorded": "2026-10-10T13:11:42Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "2cd15e00e9a7c174d25f49c44b5660b27e8b112329fe063ea466b3508bb9aa28",
-      "source_sha256": "e1051b75f6d3ccb52d256f4449d497324d0c6e36787cc4dc7b604180b04c89cd",
+      "source_sha256": "c9a632997aeb0ffdf51e9c5f13947e97e1dbab6e8d47b927e600f47fae870c3b",
       "variants": []
     }
   },
   "nx_list_checkpoints": {
     "v2406": {
       "checks": 44,
-      "recorded": "2026-10-10T11:38:55Z",
+      "recorded": "2026-10-10T13:09:35Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
       "source_sha256": "9fa6e69924d2e75a9884b43ad07545e3294c2e110a888becf00e6c07116d40c2",
@@ -105,17 +105,17 @@
   "nx_preview_changes": {
     "v2406": {
       "checks": 46,
-      "recorded": "2026-10-10T11:38:57Z",
+      "recorded": "2026-10-10T13:09:37Z",
       "scenario": "acceptance/session/preview_changes.json",
       "scenario_sha256": "2214097144adb1df5dd8f7e99e802c5bac7fa922b88a306b94ec0215abe8a42a",
-      "source_sha256": "f15ef90420536ba04c9a0333a21af261a026fddda4c001608421d7dcc7cbe151",
+      "source_sha256": "f152aaeeaa076526788e842075721a2c82b12330026297a67e8d22ff7f07b381",
       "variants": []
     }
   },
   "nx_restore_checkpoint": {
     "v2406": {
       "checks": 44,
-      "recorded": "2026-10-10T11:38:55Z",
+      "recorded": "2026-10-10T13:09:35Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
       "source_sha256": "9fa6e69924d2e75a9884b43ad07545e3294c2e110a888becf00e6c07116d40c2",
@@ -125,10 +125,10 @@
   "nx_run_batch": {
     "v2406": {
       "checks": 34,
-      "recorded": "2026-10-10T11:39:00Z",
+      "recorded": "2026-10-10T13:09:40Z",
       "scenario": "acceptance/session/run_batch.json",
       "scenario_sha256": "ab335d6137a0c8d07f7240a43492f71588c22b080d4bf94ee3d0fca9f3d813f4",
-      "source_sha256": "9c724033454d352203fc0ee01a5c1d258ad19692064af8b8a9a9597df35cf054",
+      "source_sha256": "8bca8687bcca14b5ab63b78f225fc48addcfef794a4df45a667f9528ee5f9e7c",
       "variants": []
     }
   },
@@ -151,17 +151,17 @@
   "nx_set_name": {
     "v2406": {
       "checks": 44,
-      "recorded": "2026-10-10T11:38:55Z",
+      "recorded": "2026-10-10T13:09:35Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
-      "source_sha256": "a5950dea6aa312bd9215e0febe6d181e1def5dabe2d505e5dc4c9a2ec22109eb",
+      "source_sha256": "51ca5e3cb958431b7b5a22bfa5825d4e7672c5ca216c0f9a2f8a88ec24f28ec1",
       "variants": []
     }
   },
   "nx_undo_operation": {
     "v2406": {
       "checks": 44,
-      "recorded": "2026-10-10T11:38:55Z",
+      "recorded": "2026-10-10T13:09:35Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "14ec5ac96d50dc9d32ba22aff92e46ed9ea5e7a2b10e89357a087b1186921065",
       "source_sha256": "9fa6e69924d2e75a9884b43ad07545e3294c2e110a888becf00e6c07116d40c2",

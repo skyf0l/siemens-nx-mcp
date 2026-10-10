@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_gdt": "b8d7515e39d1c47bbab57e7724955bbb11b3d75f6e37bc48fa5889d3c28f0ca9"
+    "nx_create_gdt": "c3f8897071916ef26468bbef098e092da7582d048860a6b6ddc62625bbb30f48"
   },
-  "recorded": "2026-10-10T12:25:35Z",
+  "recorded": "2026-10-10T13:19:48Z",
   "passed": false,
   "checks": 4,
   "failed_checks": 4,

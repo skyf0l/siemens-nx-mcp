@@ -15,15 +15,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_explosion": "58739e3a3221c01afd780568738d42a034620f93bcfaaa4cf4d246145044ec11",
-    "nx_edit_explosion": "58739e3a3221c01afd780568738d42a034620f93bcfaaa4cf4d246145044ec11",
-    "nx_get_explosion": "58739e3a3221c01afd780568738d42a034620f93bcfaaa4cf4d246145044ec11",
-    "nx_set_explosion_display": "58739e3a3221c01afd780568738d42a034620f93bcfaaa4cf4d246145044ec11",
-    "nx_create_explosion_trace": "d5a552b366dcbde4c6c9ed9a965a1afaf3d71228255df620e0059a2bcabb8dce",
-    "nx_edit_explosion_trace": "d5a552b366dcbde4c6c9ed9a965a1afaf3d71228255df620e0059a2bcabb8dce",
-    "nx_export_explosion_animation": "0f58c4a86409ed48ba0da409d1d28fe85937845d59ced9c76045339bfd1d909d"
+    "nx_create_explosion": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
+    "nx_edit_explosion": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
+    "nx_get_explosion": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
+    "nx_set_explosion_display": "6ac5bce166cb93c8dadbf953b43da7c8123e17bf4fcbf75f3104adfe11a3f711",
+    "nx_create_explosion_trace": "05e7b86206e86b14e695a2ec6c78d74f154f384439c2f821329ce2a2044003ca",
+    "nx_edit_explosion_trace": "05e7b86206e86b14e695a2ec6c78d74f154f384439c2f821329ce2a2044003ca",
+    "nx_export_explosion_animation": "0cf42a3deb499e6e624baa8bdce54a79bde62e5e677df53d6dee4d7ac6d6b2df"
   },
-  "recorded": "2026-10-10T12:24:36Z",
+  "recorded": "2026-10-10T13:19:06Z",
   "passed": true,
   "checks": 93,
   "failed_checks": 0,

@@ -2,10 +2,10 @@
   "nx_create_sheet_metal_feature": {
     "v2406": {
       "checks": 11,
-      "recorded": "2026-10-10T11:54:51Z",
+      "recorded": "2026-10-10T13:22:13Z",
       "scenario": "acceptance/sheet_metal/three_bend_corner.json",
       "scenario_sha256": "bf31ad5f795a262c56abdb9ac2f6b111ad782586712775dd2c3e98c0a2798fac",
-      "source_sha256": "f6e688d300dff149d3a696eada019dc4309e9723e8bcce77ef39c4f367fe533e",
+      "source_sha256": "8fc75db78e02d60a3dca5cd86fc8652f026c1904687cdd958e01e3362c6c1d85",
       "variants": [
         "bead",
         "bend",
@@ -42,40 +42,40 @@
   "nx_export_flat_pattern": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-10T11:54:38Z",
+      "recorded": "2026-10-10T13:22:00Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "357b13f2499c785920188a39c94a046a5d3681348a393f2ff8ec69b96c6db2ab",
+      "source_sha256": "8c01cfb69e692c19af2b461d38543f88237f20a5b990e898f05725b318010c0d",
       "variants": []
     }
   },
   "nx_get_sheet_metal": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-10T11:54:38Z",
+      "recorded": "2026-10-10T13:22:00Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "16f9e0ce886d58f2dde571b270310711b43f016ec738e9d6933f5e7cc5c40327",
+      "source_sha256": "56e66cd3c358e8215bc8aab662d31f923e963ebf41d980c71d8175589b4a7687",
       "variants": []
     }
   },
   "nx_get_sheet_metal_defaults": {
     "v2406": {
       "checks": 30,
-      "recorded": "2026-10-10T11:54:24Z",
+      "recorded": "2026-10-10T13:21:46Z",
       "scenario": "acceptance/sheet_metal/defaults.json",
       "scenario_sha256": "2fe16b227736cc75a2eeed764b56bd518faf4228f53b4dfa31fee18114591f56",
-      "source_sha256": "02508ec6c439e267d5637240012cb25e2d2fae8d1c1e42b5ade36851b5b06753",
+      "source_sha256": "581ceb4687aa745d3eb91f6aca4b0e752154f983afb80bfa90d011034f97e802",
       "variants": []
     }
   },
   "nx_set_sheet_metal_defaults": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-10T11:54:38Z",
+      "recorded": "2026-10-10T13:22:00Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "4d18e97901a87d3037ba23bc612b5ab2f82ed8989fbadc1beb2af8ae97065a72",
-      "source_sha256": "02508ec6c439e267d5637240012cb25e2d2fae8d1c1e42b5ade36851b5b06753",
+      "source_sha256": "581ceb4687aa745d3eb91f6aca4b0e752154f983afb80bfa90d011034f97e802",
       "variants": []
     }
   }

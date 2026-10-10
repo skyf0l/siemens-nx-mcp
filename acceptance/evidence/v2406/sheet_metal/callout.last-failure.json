@@ -12,9 +12,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_callout": "c75d9e7eb5f14c0ffe126933e8892ffb2546c27957fe4ca1be178fd4338b654c"
+    "nx_create_sheet_metal_callout": "153e431cead40ff021da3fe069b0fbd36b4fd050278913a91d3ee755f33653a8"
   },
-  "recorded": "2026-10-10T11:54:16Z",
+  "recorded": "2026-10-10T13:21:38Z",
   "passed": false,
   "checks": 10,
   "failed_checks": 10,
