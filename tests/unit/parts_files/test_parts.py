@@ -14,10 +14,25 @@ def test_create_part_loads_activates_and_reports_units(nx, root):
     assert ok.ok and ok.mutation_outcome == "committed", ok
     part = nx.session.Parts.Work
     assert Path(part.FullPath) == root / "proj" / "base.prt"
-    assert nx.session.Parts.Display is part  # NX 2406 FileNew left the display empty
+    assert nx.session.Parts.Display is part  # made without display, then shown
+    assert nx.file_news[-1].MakeDisplayedPart is False and nx.session.shown[-1][0] == "retain"
     assert part.template == "model-plain-1-inch-template.prt"
     assert ok.data["units"] == "in" and ok.data["path"] == "proj/base.prt"
     assert ok.data["work"] and ok.data["display"] and ok.data["part"]["kind"] == "part"
+
+
+def test_create_part_without_display_only_loads_it(nx, root):
+    work = nx.session.Parts.Work
+    mark = nx.session.SetUndoMark(1, "before")
+    ok = call(nx, tools.nx_create_part, path="agents/b/b.prt", display=False)
+    assert ok.ok and not ok.data["work"] and not ok.data["display"], ok
+    assert nx.session.Parts.Work is work and nx.session.Parts.Display is work
+    assert ok.data["path"] == "agents/b/b.prt" and mark in nx.session.marks
+    assert nx.session.shown == []
+    say = {"path": "b.prt"}.get
+    assert tools.nx_create_part.spec.summary({"path": "b.prt", "display": False}, say) == (
+        "Create part b.prt in mm, not displayed"
+    )
 
 
 def test_create_part_refuses_files_and_loaded_basenames_before_nx(nx, root):

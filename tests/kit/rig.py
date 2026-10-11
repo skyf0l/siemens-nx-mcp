@@ -43,13 +43,9 @@ def rig(tmp_path, monkeypatch):
     nx.View = NS(
         RenderingStyleType=NS(Shaded="shaded", ShadedWithEdges="edges", StaticWireframe="wire")
     )
-    session.Parts.SetWork = lambda p: setattr(session.Parts, "Work", p)
-
-    def display(p, *_):
-        session.Parts.Display = p
-        return None, NS(Dispose=Mock())
-
-    session.Parts.SetDisplay = display
+    # Display switches: tests.kit.objects.Session (NX's undo-mark rules).
+    nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)
+    nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0)
     session.Parts.OpenBase = lambda path: (
         Part(session, __import__("pathlib").Path(path)),
         NS(Dispose=Mock()),

@@ -309,6 +309,9 @@ refused with `NX_CALL_EXPIRED` and never runs). They are not schema properties; 
 own `part` parameter (`nx_activate_part`, `nx_close_part`, `nx_save_part`) stays its
 argument. Phase P0 resolves and reports the target but does not switch parts: a `part`
 that is not the work part is refused (`NX_WRONG_PART_CONTEXT`, activate it first).
+Loading or displaying a part never drops NX's undo marks (phase P1): parallel agents create
+their parts with `nx_create_part(display: false)`, and a load only ends the undo history
+before it (architecture.md 1.3).
 
 ---
 
@@ -372,10 +375,10 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_run_batch` | 1-100 batchable calls under one undo mark; `"$2.data.feature"` refers to an earlier step's result | `operations[1..100]: {tool, arguments}` | model |
 | `nx_preview_changes` | Apply 1-25 previewable calls, report before/after bounds, volume, health and an optional image, then roll back | `operations[1..25], capture=false` | session |
 | `nx_finish_preview` | Re-apply a preview if the part is unchanged, or discard it | `preview_id, action: accept/discard` | model |
-| `nx_undo_operation` | Undo the agent's last operations (never the engineer's); refs of objects that remain stay valid. `data.redo` lists the undone calls as `{tool, arguments, complete}` (no `operation_id`; `complete: false` = the receipt cut long text or file content) and `redo_depth` how many `nx_redo_operation` can repeat: repeat them with it or with `nx_invoke` | `steps=1` | model |
+| `nx_undo_operation` | Undo the agent's last operations (never the engineer's); refs of objects that remain stay valid. The history ends at a part load by a file or session call (undoing across it would unload that part), a save or close, or a mark NX evicted: the refusal names it (`details.reason`); a part an undone call loaded is unloaded again (`NX_NOTE`). `data.redo` lists the undone calls as `{tool, arguments, complete}` (no `operation_id`; `complete: false` = the receipt cut long text or file content) and `redo_depth` how many `nx_redo_operation` can repeat: repeat them with it or with `nx_invoke` | `steps=1` | model |
 | `nx_redo_operation` | Repeat calls an undo or a checkpoint restore reverted, next first, each as its own operation under its original `operation_id` with its receipt arguments (new refs, new receipt linked to the reverted run under `previous`; `data.results` gives each call's `data` and `changes`); new committed work or an engineer edit ends the redo list, a part close drops that part's entries; a call whose receipt cut its arguments is refused (`NX_UNSUPPORTED_OPTION`: repeat it with `nx_invoke`); a failing step undoes the steps redone | `steps=1` | session |
-| `nx_create_checkpoint` | In-session undo checkpoint (expires on save, part close, an undo past it or an engineer edit) | `label?` | session |
-| `nx_list_checkpoints` | Checkpoints and retained history; an expired one stays listed with `expired_reason`: `saved_or_closed`, `undone_past`, `engineer_change` or `part_closed` | — | read |
+| `nx_create_checkpoint` | In-session undo checkpoint (expires on save, part close, a later part load, an undo past it or an engineer edit) | `label?` | session |
+| `nx_list_checkpoints` | Checkpoints and retained history; an expired one stays listed with `expired_reason`: `saved_or_closed`, `undone_past`, `part_loaded` (a part was loaded after it: restoring would unload it), `display_reset` (a display switch outside NX MCP dropped NX's marks), `mark_evicted` (NX keeps about 180 undo marks for the session), `engineer_change` or `part_closed` | — | read |
 | `nx_restore_checkpoint` | Roll the model back to a checkpoint (id or label); it stays restorable, refs of objects that remain stay valid; `nx_redo_operation` repeats the reverted calls | `checkpoint_id` | model |
 | `nx_activate_application` | Switch the NX application for the displayed part | `application: modeling/sheet_metal` | session |
 | `nx_delete_objects` | Delete features, components, explosions, annotations (incl. dimensions, tables, balloons, traces), section views, sheets, views | `objects: Ref[1..100]` | model |
@@ -389,7 +392,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_create_directory` | Create a workspace directory (idempotent) | `path` | file |
 | `nx_upload_file` | Upload one chunk of a new workspace file | `path, data_base64, offset, total_size, sha256` | file |
 | `nx_download_file` | Metadata, inline PNG, or base64 chunk of a workspace file | `path, delivery: metadata/image/chunk, offset?, length?` | read |
-| `nx_create_part` | New part file, loaded and made work part | `path, units: mm/in` | file |
+| `nx_create_part` | New part file, loaded and made work and display part; `display: false` only loads it (work and display part stay: parallel agents) | `path, units: mm/in, display=true` | file |
 | `nx_open_part` | Open or reuse a part; optionally load all components | `path, work=true, display=true, load_components=false` | session |
 | `nx_activate_part` | Make a loaded part work and/or display part | `part, work, display` | session |
 | `nx_list_parts` | Loaded parts with modified state, paged | `path_prefix?, modified?, active_only=false, Page` | read |

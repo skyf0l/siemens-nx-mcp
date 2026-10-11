@@ -79,10 +79,10 @@
   "nx_create_extract": {
     "v2406": {
       "checks": 47,
-      "recorded": "2026-10-11T08:07:41Z",
+      "recorded": "2026-10-11T15:20:00Z",
       "scenario": "acceptance/assembly/extract_geometry.json",
       "scenario_sha256": "a23e9cd0ffac1765f580f08e7a58d3ad2466543d2ff190e9154f7a76a3463f40",
-      "source_sha256": "98f3f840ff6ca996be3bc8aa8dd11091b6ab3b60e4827eacb46f9a075368e649",
+      "source_sha256": "9d62c299207d15668be429fcae1a84135eac12db61583c722a71359387f4696a",
       "variants": [
         "body",
         "face",

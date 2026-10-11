@@ -89,6 +89,15 @@ def _model_unchanged(method):
     return effect_of(method) in ("read", "view")
 
 
+def _display_changed(before, now):
+    """Whether two ``model_fingerprint`` values name different display parts (the
+    engineer switched the display, which drops NX's undo marks)."""
+    try:
+        return before[4] != now[4]
+    except (IndexError, TypeError):
+        return False
+
+
 def _running_tail(method):
     """Catalogue tools of cost light do not pause NX noticeably (arch. 3.3)."""
     from nx_mcp.host.dispatch import cost_of
@@ -1021,14 +1030,14 @@ class InteractiveHost:
         now = self.model_fingerprint()
         if now is not None and now == self._fingerprint:
             return False
-        self._invalidate_references()
+        self._invalidate_references(_display_changed(self._fingerprint, now))
         try:
             self.activity.engineer_change()
         except Exception as exc:
             self.last_error = "Activity history: " + str(exc)
         return True
 
-    def _invalidate_references(self):
+    def _invalidate_references(self, display_changed=False):
         """Manual edits have no bridge receipt: a later agent rollback must not undo
         them. References are re-validated: refs of objects the edit deleted go stale,
         the others (and every loaded part's ref) stay, because a ref follows NX's
@@ -1040,7 +1049,9 @@ class InteractiveHost:
             self._record_release_error("Cannot re-validate references", exc)
             self._drop_references()
         try:
-            self.services.engineer_changed()  # undo history, checkpoints, review epoch
+            # undo history, checkpoints (display_reset when a display switch dropped
+            # NX's undo marks), review epoch
+            self.services.engineer_changed(display_changed)
         except Exception as exc:
             self._record_release_error("Cannot clear rollback history", exc)
 

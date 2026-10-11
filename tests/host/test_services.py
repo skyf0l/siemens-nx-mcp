@@ -39,7 +39,11 @@ class FakeSession:
         return mark in self.marks
 
 
-NXOPEN = NS(Session=NS(MarkVisibility=NS(Visible=1, Invisible=0)))
+NXOPEN = NS(
+    Session=NS(MarkVisibility=NS(Visible=1, Invisible=0)),
+    DisplayPartOption=NS(ReplaceExisting=0),
+    PartDisplayPartWorkPartOption=NS(SameAsDisplay=0),
+)
 
 
 def services(tmp_path, name="ws"):
@@ -231,11 +235,16 @@ def test_annotations_include_drafting_gdt_and_datum_targets():
 
 
 class Shown(Parts):
-    """Parts that change the display (and with it the work) part like NX."""
+    """Parts that change the display (and with it the work) part like NX; the host
+    restores them only with the variant that keeps NX's undo marks."""
 
     def SetDisplay(self, part, *_):
         type(self).Display = type(self).Work = part
         return part, None
+
+    def SetActiveDisplayRetainUndoMarks(self, part, *_):
+        type(self).retained = [*getattr(type(self), "retained", []), part]
+        return self.SetDisplay(part)
 
     def SetWork(self, part):
         type(self).Work = part
@@ -258,6 +267,7 @@ def test_failed_development_snippet_restores_display_and_work_parts(tmp_path):
         dispatch.execute(s, "nx_dev_python", {})
     assert error.value.details["mutation_outcome"] == "rolled_back"
     assert s.session.values == [] and Shown.Display is assembly and Shown.Work is piece
+    assert Shown.retained == [assembly]  # the display switch kept NX's undo marks
 
 
 def test_failed_rollback_of_a_development_snippet_is_partial_and_keeps_the_mark(tmp_path):

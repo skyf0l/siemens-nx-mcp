@@ -24,6 +24,7 @@ from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import PREFIX, Counter, References, Row
 from nx_mcp.core.tx import Services
 from nx_mcp.kit import builders, display, drawing, expr, units
+from nx_mcp.kit import parts as kit_parts
 
 APPLICATIONS = {
     "UG_APP_MODELING": "modeling",
@@ -197,10 +198,7 @@ class NXServices(Services):
             return a is not None and b is not None and int(a.Tag) == int(b.Tag)
 
         if display is not None and not same(getattr(parts, "Display", None), display):
-            _, status = parts.SetDisplay(display, False, False)
-            if status is not None and hasattr(status, "Dispose"):
-                with contextlib.suppress(Exception):
-                    status.Dispose()
+            kit_parts.show(self.nx, parts, display)  # keeps NX's undo marks
         if work is not None and not same(getattr(parts, "Work", None), work):
             parts.SetWork(work)
 
@@ -720,21 +718,30 @@ class NXServices(Services):
         for tag, generation in list(self._generations.items()):
             if any(key.endswith("_" + generation) for key in keys):
                 self._generations.pop(tag, None)
-        self.history[:] = [h for h in self.history if h.get("part_id") not in keys]
+        # A load barrier stays: undo across the load still crosses the part's lifetime.
+        self.history[:] = [
+            h for h in self.history if h.get("load") is not None or h.get("part_id") not in keys
+        ]
         redo = self.redo_steps()
         redo[:] = [h for h in redo if h.get("part_id") not in keys]
         for cp in self.checkpoints.values():  # listed as expired, never dropped silently
-            if cp.get("part_id") in keys:
-                cp.setdefault("expired", "part_closed")
+            if cp.get("part_id") in keys and cp.get("expired") in (None, "mark_evicted"):
+                cp["expired"] = "part_closed"  # what matters more than an evicted mark
 
-    def engineer_changed(self) -> None:
+    def engineer_changed(self, display_changed: bool = False) -> None:
         """The engineer edited the model between agent calls: no undo or checkpoint
         reaches back over the edit (checkpoints stay listed, expired). References are
         re-validated by the host (:meth:`revalidate`), not dropped. Nothing is left
-        to redo either: the undone calls were made for the model before the edit."""
+        to redo either: the undone calls were made for the model before the edit.
+
+        ``display_changed``: the engineer also switched the display part, which drops
+        NX's undo marks (a plain display switch): checkpoints whose mark went say
+        ``display_reset``."""
         self.history.clear()
         self.redo_steps().clear()
         for cp in self.checkpoints.values():
+            if display_changed and not cp.get("expired") and not self.mark_exists(cp["mark"]):
+                cp["expired"] = "display_reset"
             cp.setdefault("expired", "engineer_change")
         self.epoch += 1
 

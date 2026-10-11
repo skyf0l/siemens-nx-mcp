@@ -166,7 +166,7 @@ def _patch_new_parts(nx, manager):
 
         def committed():
             part = commit()
-            nx.session.Parts.Work.ImportManager = manager
+            part.ImportManager = manager  # FileNew no longer makes it the work part
             return part
 
         builder.Commit = committed

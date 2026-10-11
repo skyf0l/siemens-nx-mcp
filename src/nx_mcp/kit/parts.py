@@ -2,7 +2,7 @@
 
     part = parts.loaded(tx, path)                  # the loaded part of this file, or None
     parts.check_new_name(tx, path)                 # NX_ALREADY_EXISTS / NX_NAME_CONFLICT
-    parts.activate(tx, part, work=True, display=True)
+    parts.activate(tx, part, work=True, display=True)  # keeps NX undo marks (show)
     for component, names in parts.components(part): ...
     with parts.saving(tx, part) as updated:        # drawing preview data survives the save
         part.Save(...)                             # updated: views it brought up to date
@@ -17,11 +17,19 @@ NX 2406 findings encoded here:
   then restores the sheet, the modeling display and the work/display parts.
 - Views saved out of date reopen with an "(Out of Date)" sheet banner: ``saving``
   updates the views NX flags out of date before the save.
-- ``SetDisplay`` also changes the work part; set the work part afterwards.
+- Displaying a part never drops NX's undo marks here: a plain ``SetDisplay`` (or a
+  load that displays: ``FileNew`` with ``MakeDisplayedPart``, ``OpenBaseDisplay``)
+  resets the whole undo list whenever a live mark is older than the first display of
+  the shown or hidden part (measured on NX 2406), and a plain ``Close`` of any part
+  drops every mark too. ``show`` is the one display switch:
+  ``SetActiveDisplayRetainUndoMarks(ReplaceExisting, SameAsDisplay)`` keeps every mark
+  at the same cost (107-391 ms) and also makes the part the work part. Loads go
+  through ``OpenBase`` or ``FileNew(MakeDisplayedPart=False)``, which leave the
+  display and work parts as they were.
 - NX remembers an application per part: the one last entered with
   ``ApplicationSwitchImmediate`` while it was displayed (a new part keeps its
   template's Modeling). From no displayed part (``UG_APP_NOPART``, after the
-  display part was closed), ``SetDisplay`` enters the part's own application, and
+  display part was closed), a display switch enters the part's own application, and
   closing any part re-enters the display part's own application. When that is
   Modeling for a part with sheet-metal features, NX opens the modal "Sheet Metal"
   warning ("Features added in the Modeling environment may not be properly
@@ -214,9 +222,16 @@ def keeping_application(tx):
                 session.ApplicationSwitchImmediate(SHEET_METAL_APP)
 
 
-def _set_display(parts, part) -> None:
-    _, status = parts.SetDisplay(part, False, False)
-    _dispose(status)
+def show(nx, parts, part) -> None:
+    """Display ``part`` (and make it the work part) keeping NX's undo marks: the only
+    display switch of NX MCP (a grep test forbids any other)."""
+    result = parts.SetActiveDisplayRetainUndoMarks(
+        part,
+        nx.DisplayPartOption.ReplaceExisting,
+        nx.PartDisplayPartWorkPartOption.SameAsDisplay,
+    )
+    for status in result if isinstance(result, tuple) else (result,):
+        _dispose(status)
 
 
 def _display_in_sheet_metal(tx, part) -> None:
@@ -225,7 +240,9 @@ def _display_in_sheet_metal(tx, part) -> None:
     NX would enter the part's remembered application, possibly Modeling (the
     blocking warning). A scratch part (never saved) is displayed and switched to
     Sheet Metal first; the part then keeps Sheet Metal and is recorded in it before
-    the scratch part closes.
+    the scratch part closes. Every step keeps NX's undo marks: the scratch part is
+    created without display, shown with ``show`` and closed with
+    ``CloseRetainUndoMarks`` once it is no longer displayed.
     """
     session = tx.session
     parts = session.Parts
@@ -235,19 +252,19 @@ def _display_in_sheet_metal(tx, part) -> None:
         builder.TemplateFileName = SCRATCH_TEMPLATE
         builder.Units = tx.nx.Part.Units.Millimeters
         builder.NewFileName = str(Path(tx.workspace.root) / ".nx-mcp" / name)
+        builder.MakeDisplayedPart = False
         builder.DisplayPartOption = tx.nx.DisplayPartOption.AllowAdditional
         scratch = builder.Commit()
     finally:
         with contextlib.suppress(Exception):
             builder.Destroy()
     try:
-        if not same_part(parts.Display, scratch):
-            _set_display(parts, scratch)
+        show(tx.nx, parts, scratch)
         session.ApplicationSwitchImmediate(SHEET_METAL_APP)
-        _set_display(parts, part)
+        show(tx.nx, parts, part)
         session.ApplicationSwitchImmediate(SHEET_METAL_APP)  # before the scratch part closes
     finally:
-        scratch.Close(
+        scratch.CloseRetainUndoMarks(
             tx.nx.BasePart.CloseWholeTree.FalseValue,
             tx.nx.BasePart.CloseModified.CloseModified,
             None,
@@ -257,14 +274,15 @@ def _display_in_sheet_metal(tx, part) -> None:
 def activate(tx, part, *, work: bool = True, display: bool = True) -> None:
     """Make ``part`` the display and/or work part (display first: NX moves work too).
 
-    Never lets NX open its Sheet Metal application dialog (module notes).
+    Keeps NX's undo marks (``show``) and never lets NX open its Sheet Metal
+    application dialog (module notes).
     """
     parts = tx.session.Parts
     if display and parts.Display != part:
         if parts.Display is None and has_sheet_metal(part):
             _display_in_sheet_metal(tx, part)
         else:
-            _set_display(parts, part)
+            show(tx.nx, parts, part)
     if display:
         keep_sheet_metal(tx)
     if work and parts.Work != part:

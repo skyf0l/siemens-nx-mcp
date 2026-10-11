@@ -2,10 +2,12 @@
 
 The fake mirrors what NX 2406 did live: NX remembers per part the application last
 entered with ApplicationSwitchImmediate while it was displayed (Modeling for a new
-part). From no display part, SetDisplay enters the part's remembered application;
-closing any part re-enters the display part's remembered application. Entering
-Modeling with sheet-metal features opens the dialog. Changing the display part
-while an application runs keeps that application.
+part). From no display part, a display switch enters the part's remembered
+application; closing any part re-enters the display part's remembered application.
+Entering Modeling with sheet-metal features opens the dialog. Changing the display part
+while an application runs keeps that application. A plain SetDisplay, a displaying
+FileNew and a plain Close also drop NX's undo marks (``marks_dropped``); kit.parts uses
+only the variants that keep them.
 """
 
 from __future__ import annotations
@@ -31,6 +33,10 @@ class Part:
         self.Bodies = []
 
     def Close(self, *_):
+        self.nx.marks_dropped.append("close")
+        self.nx.close(self)
+
+    def CloseRetainUndoMarks(self, *_):
         self.nx.close(self)
 
 
@@ -46,7 +52,9 @@ class FakeNX:
         self.dialogs: list[str] = []
         self.switches: list[str] = []
         self.loaded: list[Part] = []
-        self.Parts = PartList(Display=None, Work=None, SetDisplay=self.set_display,
+        self.marks_dropped: list[str] = []
+        self.Parts = PartList(Display=None, Work=None, SetDisplay=self.plain_display,
+                              SetActiveDisplayRetainUndoMarks=self.set_display,
                               SetWork=self.set_work, FileNew=self.file_new,
                               loaded=self.loaded)  # fmt: skip
         self.tags = iter(range(100, 200))
@@ -67,6 +75,10 @@ class FakeNX:
         self.Parts.Display = self.Parts.Work = part
         return None, NS(Dispose=lambda: None)
 
+    def plain_display(self, part, *_):
+        self.marks_dropped.append("SetDisplay")
+        return self.set_display(part)
+
     def set_work(self, part):
         self.Parts.Work = part
 
@@ -81,10 +93,14 @@ class FakeNX:
         nx = self
 
         class Builder:
+            MakeDisplayedPart = True
+
             def Commit(self):
                 self.made = nx.part()
-                nx.Parts.Display = nx.Parts.Work = self.made
-                nx.ApplicationName = MODELING
+                if self.MakeDisplayedPart:
+                    nx.marks_dropped.append("FileNew")
+                    nx.Parts.Display = nx.Parts.Work = self.made
+                    nx.ApplicationName = MODELING
                 return self.made
 
             def Destroy(self):
@@ -110,7 +126,8 @@ def nx():
 def tx_of(nx, tmp_path):
     enums = NS(
         Part=NS(Units=NS(Millimeters=1)),
-        DisplayPartOption=NS(AllowAdditional=1),
+        DisplayPartOption=NS(AllowAdditional=1, ReplaceExisting=0),
+        PartDisplayPartWorkPartOption=NS(SameAsDisplay=0),
         BasePart=NS(CloseWholeTree=NS(FalseValue=False), CloseModified=NS(CloseModified=1)),
     )
     services = NS(part_key=lambda p: p.Tag, forget_parts=lambda keys: None)
@@ -132,6 +149,7 @@ def test_a_sheet_metal_part_is_displayed_from_no_part_without_the_dialog(nx, tmp
     assert nx.Parts.Display is bent and nx.Parts.Work is bent
     assert nx.ApplicationName == SHEET_METAL and nx.remembered[bent.Tag] == SHEET_METAL
     assert nx.loaded == [bent]  # the scratch part is closed again
+    assert nx.marks_dropped == []  # no displaying FileNew, plain SetDisplay or Close
     # Recorded: from no display part again, NX now enters Sheet Metal by itself.
     nx.close(bent)
     nx.loaded.append(bent)
@@ -144,6 +162,7 @@ def test_a_plain_part_is_displayed_directly(nx, tmp_path):
     parts.activate(tx_of(nx, tmp_path), plain)
     assert nx.Parts.Display is plain and nx.ApplicationName == MODELING
     assert nx.loaded == [plain] and nx.switches == []  # no scratch part, no switch
+    assert nx.marks_dropped == []
 
 
 def test_display_changes_in_sheet_metal_record_it(nx, tmp_path):

@@ -3,10 +3,10 @@
 It wires what the parts and files domain needs onto a ``FakeNX`` without changing
 the shared fake for other domains:
 
-- ``session.Parts``: ``FileNew`` (a builder), ``OpenBase``, ``SetDisplay``,
-  ``SetWork``, ``LoadOptions``; parts it makes are :class:`FilePart` (``Save`` and
-  ``SaveAs`` write the file, ``Close`` refuses a part a loaded assembly uses
-  only when NX would).
+- ``session.Parts``: ``FileNew`` (a builder), ``OpenBase``, ``LoadOptions`` (display
+  switches: ``tests/kit/objects.Session``); parts it makes are :class:`FilePart`
+  (``Save`` and ``SaveAs`` write the file, ``Close`` refuses a part a loaded assembly
+  uses only when NX would).
 - ``nx.assemble(top, [prototype, ...])``: a fake assembly whose occurrences use the
   given parts; ``OpenBase`` of a file in ``nx.structure`` loads its prototypes.
 - ``session.DexManager``: ``CreateStepCreator`` writes a STEP file with one
@@ -16,8 +16,10 @@ the shared fake for other domains:
   copied assembly structure.
 - ``uf.Eval``: lines and arcs from ``nx.curves`` (``nx.line``/``nx.arc``).
 
-NX 2406 behaviour mirrored: ``FileNew`` leaves the display part empty when
-``nx.file_new_keeps_display`` is False (the default here).
+NX 2406 behaviour mirrored: ``FileNew`` with ``MakeDisplayedPart`` false and
+``OpenBase`` leave the display and work parts and the undo marks alone; a displaying
+``FileNew`` drops every undo mark and leaves the display part empty when there was
+none and ``nx.file_new_keeps_display`` is False (the default here).
 """
 
 from __future__ import annotations
@@ -80,12 +82,18 @@ class FilePart(Part):
         return _status()
 
     def Close(self, *_):
+        self._close(retain=False)
+
+    def CloseRetainUndoMarks(self, *_):
+        self._close(retain=True)
+
+    def _close(self, retain):
         for other in list(self.session.Parts):
             if other is self:
                 continue
             if any(c.Prototype is self for c in self.fake.occurrences(other)):
                 raise NXException(4, "Part is used by a loaded assembly")
-        super().Close()
+        super().CloseRetainUndoMarks() if retain else super().Close()
         # NX unloads prototypes that no loaded part uses any more.
         for proto in [c.Prototype for c in self.fake.occurrences(self)]:
             used = any(
@@ -94,7 +102,7 @@ class FilePart(Part):
                 for c in self.fake.occurrences(other)
             )
             if proto in self.session.Parts and not used:
-                proto.Close()
+                proto._close(retain)
 
 
 class Occurrence(Object):
@@ -111,21 +119,34 @@ class Occurrence(Object):
 class FileNew(NS):
     def __init__(self, fake):
         super().__init__(
-            TemplateFileName=None, Units=None, NewFileName=None, DisplayPartOption=None
+            TemplateFileName=None,
+            Units=None,
+            NewFileName=None,
+            DisplayPartOption=None,
+            MakeDisplayedPart=True,  # NX's default
         )
         self._fake = fake
         self.destroyed = False
 
     def Commit(self):
+        """NX 2406: ``MakeDisplayedPart`` false leaves the display and work parts and the
+        undo marks as they were. True displays the new part and drops every undo mark;
+        from no display part (``file_new_keeps_display`` false) the display stays empty."""
         fake = self._fake
         if any(Path(p.FullPath).stem.casefold() == Path(self.NewFileName).stem.casefold()
                for p in fake.session.Parts):  # fmt: skip
             raise NXException(5, "File already exists")
-        display = fake.session.Parts.Display
+        parts = fake.session.Parts
+        display, work = parts.Display, parts.Work
         part = FilePart(fake, self.NewFileName, "mm" if self.Units == "mm" else "in")
         part.template = self.TemplateFileName
-        if not fake.file_new_keeps_display:
-            fake.session.Parts.Display = display  # NX 2406: display part unchanged
+        fake.file_news.append(self)
+        if not self.MakeDisplayedPart:
+            parts.Display, parts.Work = display, work
+            return part
+        fake.session.marks.clear()
+        if display is None and not fake.file_new_keeps_display:
+            parts.Display = display  # NX 2406: display part unchanged
         return part
 
     def Destroy(self):
@@ -374,6 +395,7 @@ def with_parts(nx, root):
     """Wire part files under ``root`` (the kit workspace) onto ``nx``; returns ``nx``."""
     nx.root = Path(root)
     nx.file_new_keeps_display = False
+    nx.file_news = []  # the committed FileNew builders
     nx.save_error = None
     nx.export_error = None
     nx.export_writes = True
@@ -391,7 +413,8 @@ def with_parts(nx, root):
     nx.BasePart = NS(Units=nx.nx.BasePart.Units, **ENUMS)
     nx.nx.BasePart = nx.BasePart
     nx.nx.Part = NS(Units=nx.nx.BasePart.Units)
-    nx.nx.DisplayPartOption = NS(AllowAdditional=1)
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
     nx.nx.StepCreator = NS(
         ExportFromOption=NS(DisplayPart=0, ExistingPart=1),
         ExportAsOption=NS(Ap203=0, Ap214=1, Ap242=2, Ap242ED2=3),
@@ -407,27 +430,20 @@ def with_parts(nx, root):
     parts.LoadOptions = NS(UsePartialLoading=True, ComponentLoadMethod="search")
     parts.FileNew = lambda: FileNew(nx)
 
-    def set_display(part, *_):
-        parts.Display = parts.Work = part
-        return None, _status()
-
-    def set_work(part):
-        parts.Work = part
-
     def open_base(path):
+        """NX 2406: loads without display; display, work part and undo marks stay."""
         if not Path(path).is_file():
             raise NXException(1020001, "File not found")
+        display, work = parts.Display, parts.Work
         part = FilePart(nx, path)
         nx.opened_files.append(str(path))
         for child in nx.structure.get(str(Path(path).resolve()).casefold(), []):
             proto = next((p for p in parts if Path(p.FullPath) == Path(child)), None)
             proto = proto or FilePart(nx, child)
             nx.attach(part, proto)
-        parts.Work = parts.Display = part
+        parts.Display, parts.Work = display, work
         return part, _status()
 
-    parts.SetDisplay = set_display
-    parts.SetWork = set_work
     parts.OpenBase = open_base
     nx.opened_files = []
     nx.session.DexManager = NS(

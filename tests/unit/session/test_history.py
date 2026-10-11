@@ -176,14 +176,14 @@ def test_expired_foreign_and_cross_part_checkpoints_are_refused(nx):
     services(nx).history[-1]["part_id"] = "part_other"
     crossed = run(nx, "nx_restore_checkpoint", checkpoint_id=checkpoint)
     assert crossed.error["code"] == "NX_CROSS_PART" and names(nx) == []
-    nx.part.Save()  # NX drops the marks
+    nx.part.Save()  # NX drops the marks outside any call: the kernel cannot tell why
     listed = run(nx, "nx_list_checkpoints").data
     assert listed["checkpoints"][0]["available"] is False and listed["undo_depth"] == 0
-    assert listed["checkpoints"][0]["expired_reason"] == "saved_or_closed"
+    assert listed["checkpoints"][0]["expired_reason"] == "mark_evicted"
     assert listed["last_operation"] is None
     expired = run(nx, "nx_restore_checkpoint", checkpoint_id=checkpoint)
     assert expired.error["code"] == "NX_STALE_CHECKPOINT"
-    assert "save" in expired.error["message"]
+    assert "oldest first" in expired.error["message"]  # a save in a call: test_undo_loads
     missing = run(nx, "nx_restore_checkpoint", checkpoint_id="no such checkpoint")
     assert missing.error["code"] == "NX_NOT_FOUND", missing
     assert missing.error["details"]["checkpoints"] == [

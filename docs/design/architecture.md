@@ -209,6 +209,7 @@ start, and `dev_reload.py` prints the error. The checks:
 | `errors.py` | Table of 22 categories and 70 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `target.py` | Gate 3t (pure): the call keys `part`/`expires_at` (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), part text resolution (`part_from_text`: `p:N`, workspace path, file name with or without `.prt`), top-level parts (`roots`, `Services.root_parts`), the solo/multi-agent mode (`mode_status`), `resolve` and the P0 binding `refuse_other_part` (3.1) |
+| `marks.py` | NX undo marks around a call (phase P1): `watch(services)` before a non-read call's mark, `settle(...)` after it, committed or not. A part a `file` or `session` call loaded becomes a barrier in the undo history (`{mark: None, load: [paths]}`, only while an undo or a restore could reach back); a call that dropped every tracked mark gives the dropped history entries and checkpoints its reason (`saved_or_closed`, `part_loaded`, `display_reset`), marks NX evicted are `mark_evicted` with an `NX_NOTE`. Never raises |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
 | `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint (tool, arguments and the target part's file key `part_file`; receipts written before targets match without it), idempotent replay, states, outcome, progress, `.cancel` flag. A receipt keeps the request's `arguments`, redacted (`redact`: file contents and long strings become size notes, lists keep 100 items, at most 8,000 characters), which `nx_get_operation` echoes, and a development failure's `traceback`. Running receipts from an earlier session become `unknown`. A committed call an undo or a checkpoint restore reverted (`reverted_by`) runs again under its id instead of replaying; the new receipt keeps the reverted run under `previous` (`previous_run`: start and finish, what reverted it, the refs it created, up to 5 earlier reverted runs). The undo history, checkpoints and redo list live in the services (`undo_history`, `undo_checkpoints`, `redo_steps`, 4) |
@@ -267,6 +268,24 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
   checkpoints (`expired_reason: engineer_change`).
 - Part close and host reload invalidate the refs in their scope; a closed part's
   checkpoints stay listed as expired (`part_closed`).
+- **Undo marks across loads (phase P1).** NX keeps one undo list for the whole session
+  (NX 2406, measured): a plain `SetDisplay` drops every mark when a live mark is older than
+  the first display of the shown or hidden part, and so do a load that displays the part
+  (`FileNew` with `MakeDisplayedPart`, `OpenBaseDisplay`), a save and a plain `Close`; NX
+  keeps about 180 marks and drops the oldest first. NX MCP therefore loads without display
+  (`FileNew` with `MakeDisplayedPart` false, `OpenBase`, `AddComponent`) and switches the
+  display only through `kit.parts.show` (`SetActiveDisplayRetainUndoMarks(ReplaceExisting,
+  SameAsDisplay)`, same cost; the sheet-metal scratch routine too, whose scratch part closes
+  with `CloseRetainUndoMarks`); a grep test forbids every other switch. Undoing to a mark
+  set before a load unloads that part again, so a load by a `file` or `session` call is a
+  barrier in the agent's undo history (`core/marks.py`): undo stops there
+  (`details.reason: part_loaded`) and a checkpoint before it is `part_loaded`. A `model`
+  call that loads a part (a component from a file, an import into a new part) needs no
+  barrier: undoing it unloads the part, which the session tools forget and name in an
+  `NX_NOTE`. A mark that went away says why: `saved_or_closed`, `part_loaded` (a load that
+  still displayed), `display_reset` (the engineer switched the display part, seen by the
+  panel's fingerprint), `mark_evicted`. Undoing across a `CloseRetainUndoMarks` re-loads
+  the closed part (live): phase P4 makes such closes barriers too.
 
 ### 1.4 `kit/`: shared NX know-how, never copied
 
@@ -292,7 +311,7 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `files` | Workspace files: `metadata(path, root)` (`{path, size, sha256}`), `write_new`, `temp_path`, `png_size` |
 | `measure` | `mass`, `volume`, `bounds`, `area`, `length`, `inertia` in work-part units |
 | `model` | `update(tx, mark=None)`: the NX model update inside the call's undo mark (errors → `NX_UPDATE_FAILED`) |
-| `parts` | Loaded parts: `loaded(tx, path)`, `check_new_name` (NX names a part by its file basename), `activate`, `components`, `load_components`, `dependents`. `with parts.saving(tx, part) as updated:` keeps a part's drawing preview data through a save (opens a sheet, restores sheet, display and work parts) and first updates the views NX flags out of date (`drawing.update_out_of_date`), yielding them for `updated_views` (`nx_save_part`; `nx_export_drawing` passes `update_views=False` and updates its own sheets) |
+| `parts` | Loaded parts: `loaded(tx, path)`, `check_new_name` (NX names a part by its file basename), `show(nx, parts, part)` (the one display switch, keeping NX's undo marks), `activate` (through `show`; a sheet-metal part from no display part through a scratch part, without NX's dialog), `components`, `load_components`, `dependents`. `with parts.saving(tx, part) as updated:` keeps a part's drawing preview data through a save (opens a sheet, restores sheet, display and work parts) and first updates the views NX flags out of date (`drawing.update_out_of_date`), yielding them for `updated_views` (`nx_save_part`; `nx_export_drawing` passes `update_views=False` and updates its own sheets) |
 | `pose` | Rigid poses `(t, R)`: `compose`, `inverse`, `relative`, `move_args` (NX component moves rotate about the assembly origin), `axis_rotation`, `interpolate` |
 | `positioning` | Assembly constraint state shared by assembly and inspection: `all_constraints(part)`, `solved`, `status_name`, `kind_name`, `components`, `uses(constraint, prototype)`, and `unsolved(tx, part)` → `[{constraint, type, status, severity, components}]` (CannotSolve, OverConstrained, Inconsistent, Conflicting are errors, other statuses warnings) for `nx_check_model` and the post-call constraint check (3.1 gate 13) |
 | `snapshots` | Retention of stored result snapshots (never receipts); a deleted snapshot leaves a tombstone, so `nx_get_result` tells expired from unknown |

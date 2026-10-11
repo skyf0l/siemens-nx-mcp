@@ -197,11 +197,14 @@ def _check_active(tx, part, *, work: bool, display: bool) -> None:
         readback.expect(parts.same_part(session_parts.Display, part), "display_part")
 
 
-def new_part(tx, target: Path, units: str):
-    """Create, load and activate a new part at ``target`` (NX writes it on first save).
+def new_part(tx, target: Path, units: str, *, display: bool = True):
+    """Create and load a new part at ``target`` (NX writes it on first save); with
+    ``display`` make it the work and display part, else leave both as they were.
 
-    The caller has checked the name (``parts.check_new_name``). A failed read-back
-    closes the new part again, so nothing is left loaded.
+    ``FileNew`` never displays the part itself (``MakeDisplayedPart`` false): a
+    displaying ``FileNew`` drops every NX undo mark, ``parts.activate`` keeps them. The
+    caller has checked the name (``parts.check_new_name``). A failed read-back closes
+    the new part again, so nothing is left loaded.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     before = {int(p.Tag) for p in tx.session.Parts}
@@ -215,6 +218,7 @@ def new_part(tx, target: Path, units: str):
                 tx.nx.Part.Units.Millimeters if units == "mm" else tx.nx.Part.Units.Inches
             )
             builder.NewFileName = str(target)
+            builder.MakeDisplayedPart = False
             builder.DisplayPartOption = tx.nx.DisplayPartOption.AllowAdditional
             created = builder.Commit()
     finally:
@@ -228,11 +232,11 @@ def new_part(tx, target: Path, units: str):
         readback.expect(
             parts.same_file(parts.file_of(part), target), "path", actual=parts.file_of(part)
         )
-        # NX 2406: FileNew without a display part leaves the display part empty.
-        parts.activate(tx, part)
+        if display:
+            parts.activate(tx, part)
         actual = kit_units.part_units(tx, part)
         readback.expect(actual == units, "units", actual=actual)
-        _check_active(tx, part, work=True, display=True)
+        _check_active(tx, part, work=display, display=display)
     except Exception:
         if part is not None:
             _discard(tx, part)
@@ -244,7 +248,10 @@ def new_part(tx, target: Path, units: str):
     target="creates",
     effect="file",
     label="Create part",
-    summary=lambda a, say: f"Create part {say('path')} in {a.get('units') or 'mm'}",
+    summary=lambda a, say: (
+        f"Create part {say('path')} in {a.get('units') or 'mm'}"
+        + ("" if a.get("display", True) else ", not displayed")
+    ),
     keywords=(
         "new part",
         "file new",
@@ -263,13 +270,15 @@ def nx_create_part(
     *,
     path: PartPath,
     units: Units = "mm",
+    display: Annotated[bool, Doc("false: only load it; work and display parts stay")] = True,
 ) -> PartData:
-    """Create a new workspace part, load it and make it the work and display part. Missing
-    folders are created; the file is written by the first save."""
+    """Create a new workspace part, load it and make it the work and display part (display
+    false: only load it). Missing folders are created; the file is written by the first
+    save."""
     target = Path(path)
     with tx.checks():
         parts.check_new_name(tx, target)
-    part = new_part(tx, target, units)
+    part = new_part(tx, target, units, display=display)
     _report_units(tx)
     return _state(tx, part)
 

@@ -11,7 +11,8 @@ Gate order: 1 schema, 2 workspace paths, 3 variant inference and evidence/versio
 5 engineer control hold (the host, before the kernel runs), 6 part ownership,
 7 receipt, 8 undo mark, 9 unit conversion, 10 handler, 11 read-back, 12 reference
 invalidation, 13 annotation refresh, 14 result projection, 15 error mapping.
-Nothing else applies gates.
+Nothing else applies gates. Around 8-15 a non-read call's loads become barriers in the
+undo history and dropped undo marks get their reason (``core/marks.py``).
 
 Batch placeholders: a Ref field of a child may be ``"$<i>.<path>"`` naming the
 result envelope of child ``i`` (0-based, earlier children only), e.g.
@@ -27,6 +28,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from nx_mcp.core import evidence
+from nx_mcp.core import marks as undo_marks
 from nx_mcp.core import target as targets
 from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
 from nx_mcp.core.receipts import ANY_PART, Receipts, new_operation_id
@@ -532,6 +534,7 @@ def run(spec, args, ctx: Context) -> dict:
     before: dict = {}
     floor: int | None = None
     observer = None
+    watched = None
     handler_started = handler_done = False
     args, keys = targets.split_call_keys(spec, args)  # part/expires_at in arguments
     part_text = keys.get("part", ctx.part)
@@ -585,6 +588,8 @@ def run(spec, args, ctx: Context) -> dict:
             )
             if replay is not None:
                 return replay
+        if spec.effect != "read":  # loads and dropped undo marks (core/marks.py)
+            watched = undo_marks.watch(services)
         if spec.effect == "model":  # 8
             before = services.snapshot(part) if part is not None else {}
             floor = _ref_floor(services)
@@ -632,6 +637,7 @@ def run(spec, args, ctx: Context) -> dict:
         elif tx.changed:  # a file or session tool reporting the objects it changed
             changes = {"created": [], "modified": list(tx.changed), "deleted": []}
             changes["references"] = "preserved"
+        undo_marks.settle(services, watched, spec, operation_id, tx)
         _work_part_units(services, part, tx)
         envelope.update(ok=True)  # 14
         envelope["mutation_outcome"] = tx.outcome or (
@@ -675,6 +681,7 @@ def run(spec, args, ctx: Context) -> dict:
         outcome, references, error = _settle(
             spec, services, tx, mark, part, before, error, touched, handler_started, floor
         )
+        undo_marks.settle(services, watched, spec, operation_id, tx)
         envelope.update(ok=False, mutation_outcome=outcome, error=error.error_dict())
         if spec.effect == "model":
             envelope["changes"] = {"references": references}

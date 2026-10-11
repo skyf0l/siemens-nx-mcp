@@ -243,24 +243,64 @@ class Collector:
         return self.rules
 
 
+MARK_CAP = 181  # NX 2406 keeps about this many undo marks for the session, oldest dropped
+
+
 class Session:
-    """Session seam with undo marks that snapshot every part's object lists."""
+    """Session seam with undo marks that snapshot every part's object lists.
+
+    Undo marks behave like NX 2406's (measured live): at most ``mark_cap`` (oldest
+    dropped first); a plain display switch (``Parts.SetDisplay``) drops every mark when
+    a live mark is older than the first display of the shown or hidden part, while
+    ``Parts.SetActiveDisplayRetainUndoMarks`` keeps them; ``Part.Save`` and a plain
+    ``Part.Close`` drop every mark, ``Part.CloseRetainUndoMarks`` keeps them;
+    ``UndoToMark`` unloads the parts loaded after the mark. ``shown`` counts the display switches (``("plain" | "retain", part)``)."""
 
     def __init__(self):
         self.Parts = Collection()
         self.Parts.Work = self.Parts.Display = None
+        self.Parts.SetDisplay = self._set_display
+        self.Parts.SetActiveDisplayRetainUndoMarks = self._set_display_retain
+        self.Parts.SetWork = lambda part: setattr(self.Parts, "Work", part)
         self.ActiveSketch = None
         self.IsBatch = False
         self.ApplicationName = "UG_APP_MODELING"
         self.marks = {}
         self.mark_ids = itertools.count(1)
+        self.last_mark = 0  # the newest mark id handed out
+        self.mark_cap = MARK_CAP
+        self.first_shown: dict[int, int] = {}  # id(part) -> last_mark at its first display
+        self.shown: list = []
         self.UpdateManager = NS(DoUpdate=Mock(return_value=0))
 
     def ApplicationSwitchImmediate(self, name):
         self.ApplicationName = name
 
+    def show(self, part, *, retain: bool) -> None:
+        """Display ``part`` and make it the work part, with NX's mark rule (class doc).
+        A part displayed before the fake tracked it (created displayed) counts as shown
+        before every mark."""
+        old = self.Parts.Display
+        if old is not None:
+            self.first_shown.setdefault(id(old), 0)
+        self.first_shown.setdefault(id(part), self.last_mark)
+        if not retain and old is not part and self.marks:
+            oldest = min(self.marks)
+            if any(self.first_shown[id(p)] >= oldest for p in (old, part) if p is not None):
+                self.marks.clear()
+        self.shown.append(("retain" if retain else "plain", part))
+        self.Parts.Display = self.Parts.Work = part
+
+    def _set_display(self, part, *_):
+        self.show(part, retain=False)
+        return None, NS(Dispose=Mock())
+
+    def _set_display_retain(self, part, *_):
+        self.show(part, retain=True)
+        return "Ok", NS(Dispose=Mock())
+
     def SetUndoMark(self, *_):
-        mark = next(self.mark_ids)
+        mark = self.last_mark = next(self.mark_ids)
         states = []
         for p in self.Parts:
             groups = [
@@ -275,11 +315,20 @@ class Session:
             objs = list(itertools.chain.from_iterable(groups))
             attrs = [(o, o.IsBlanked, o.Color, o.transparency) for o in objs]
             states.append((p, [list(g) for g in groups], attrs, p.IsModified))
-        self.marks[mark] = (states, self.ActiveSketch)
+        shown = (list(self.Parts), self.Parts.Display, self.Parts.Work)
+        self.marks[mark] = (states, self.ActiveSketch, shown)
+        while len(self.marks) > self.mark_cap:
+            del self.marks[min(self.marks)]  # NX evicts the oldest mark
         return mark
 
     def UndoToMark(self, mark, *_):
-        states, active = self.marks[mark]
+        """Restore every part's objects; like NX, unload the parts loaded after the mark
+        (the display and work parts at the mark come back when they were unloaded)."""
+        states, active, (loaded, display, work) = self.marks[mark]
+        for p in [p for p in self.Parts if p not in loaded]:
+            self.Parts.remove(p)
+            if self.Parts.Display is p or self.Parts.Work is p:
+                self.Parts.Display, self.Parts.Work = display, work
         for p, groups, attrs, modified in states:
             for dest, values in zip(
                 [p.Bodies, p.Features, p.Curves, p.Sketches, p.DynamicSections, p.Notes, p.Labels],
@@ -352,6 +401,14 @@ class Part(Object):
         return NS(Dispose=Mock(), NumberUnsavedParts=0, NumberUnsavedObjects=0)
 
     def Close(self, *_):
+        """Unload the part; NX drops every undo mark (``CloseRetainUndoMarks`` keeps them)."""
+        self._unload()
+        self.session.marks.clear()
+
+    def CloseRetainUndoMarks(self, *_):
+        self._unload()
+
+    def _unload(self):
         self.session.Parts.remove(self)
         if self.session.Parts.Work is self:
             self.session.Parts.Work = None

@@ -2,10 +2,10 @@
   "nx_activate_application": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-10T23:39:05Z",
+      "recorded": "2026-10-11T15:21:27Z",
       "scenario": "acceptance/sheet_metal/activate_application.json",
       "scenario_sha256": "b513cbd7c999e5f18090dad36e7a91d49d28ce4fc581273df491fbbb8b1efea4",
-      "source_sha256": "667f73935941b14a94e856765c6ad6f21a2bb403fa468f60a7f7480eae632c86",
+      "source_sha256": "e18492dab45b57be7f45068f9e94b274d02611a3b22a33521aeadf6a0ddd35fb",
       "variants": []
     }
   },
@@ -21,11 +21,11 @@
   },
   "nx_create_checkpoint": {
     "v2406": {
-      "checks": 99,
-      "recorded": "2026-10-11T14:11:15Z",
-      "scenario": "acceptance/session/history.json",
-      "scenario_sha256": "56bf39274833b8e0df6bf741cf0eb1f32e85318ed6b1e8f99bcff6763c416d2e",
-      "source_sha256": "6d211ff980562fa9821efb4bb23e19931c51c786eee457e3104912f3cc39cb37",
+      "checks": 40,
+      "recorded": "2026-10-11T15:14:58Z",
+      "scenario": "acceptance/session/undo_survives_load.json",
+      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
   },
@@ -94,11 +94,11 @@
   },
   "nx_list_checkpoints": {
     "v2406": {
-      "checks": 99,
-      "recorded": "2026-10-11T14:11:15Z",
-      "scenario": "acceptance/session/history.json",
-      "scenario_sha256": "56bf39274833b8e0df6bf741cf0eb1f32e85318ed6b1e8f99bcff6763c416d2e",
-      "source_sha256": "6d211ff980562fa9821efb4bb23e19931c51c786eee457e3104912f3cc39cb37",
+      "checks": 40,
+      "recorded": "2026-10-11T15:14:58Z",
+      "scenario": "acceptance/session/undo_survives_load.json",
+      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
   },
@@ -115,20 +115,20 @@
   "nx_redo_operation": {
     "v2406": {
       "checks": 71,
-      "recorded": "2026-10-11T14:11:25Z",
+      "recorded": "2026-10-11T15:15:20Z",
       "scenario": "acceptance/session/redo_replay.json",
       "scenario_sha256": "f4cf0171d042598a1bf29442a1be7aa9f4bb474475a1b552512d20946127e144",
-      "source_sha256": "6d211ff980562fa9821efb4bb23e19931c51c786eee457e3104912f3cc39cb37",
+      "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
   },
   "nx_restore_checkpoint": {
     "v2406": {
-      "checks": 18,
-      "recorded": "2026-10-11T14:11:27Z",
-      "scenario": "acceptance/session/refs_survive_undo_save.json",
-      "scenario_sha256": "09d8f8a554443ca6938e99c219386f94bd2e4097f89846614c2facc5663e27ac",
-      "source_sha256": "6d211ff980562fa9821efb4bb23e19931c51c786eee457e3104912f3cc39cb37",
+      "checks": 40,
+      "recorded": "2026-10-11T15:14:58Z",
+      "scenario": "acceptance/session/undo_survives_load.json",
+      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
   },
@@ -145,7 +145,7 @@
   "nx_set_name": {
     "v2406": {
       "checks": 99,
-      "recorded": "2026-10-11T14:11:15Z",
+      "recorded": "2026-10-11T15:07:33Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "56bf39274833b8e0df6bf741cf0eb1f32e85318ed6b1e8f99bcff6763c416d2e",
       "source_sha256": "97bf9834b62413c96339d3beec7e47598922aae1b21ce42cc15acf70c835b4f7",
@@ -154,11 +154,11 @@
   },
   "nx_undo_operation": {
     "v2406": {
-      "checks": 18,
-      "recorded": "2026-10-11T14:11:27Z",
-      "scenario": "acceptance/session/refs_survive_undo_save.json",
-      "scenario_sha256": "09d8f8a554443ca6938e99c219386f94bd2e4097f89846614c2facc5663e27ac",
-      "source_sha256": "6d211ff980562fa9821efb4bb23e19931c51c786eee457e3104912f3cc39cb37",
+      "checks": 40,
+      "recorded": "2026-10-11T15:14:58Z",
+      "scenario": "acceptance/session/undo_survives_load.json",
+      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
   }

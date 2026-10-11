@@ -1603,7 +1603,7 @@ No arguments.
 
 ### `nx_activate_part`
 
-**Activate part** · effect `session` · NX 2406: tested; 27 checks in `acceptance/parts_files/activate_part.json`
+**Activate part** · effect `session` · NX 2406: tested; 33 checks in `acceptance/parts_files/create_no_display.json`
 
 Make a loaded part the work and/or display part; nothing is closed. A new display part also becomes the work part.
 
@@ -1639,12 +1639,13 @@ Create a workspace folder and its missing parents. An existing folder succeeds w
 
 **Create part** · effect `file` · NX 2406: tested; 36 checks in `acceptance/parts_files/create_part.json`
 
-Create a new workspace part, load it and make it the work and display part. Missing folders are created; the file is written by the first save.
+Create a new workspace part, load it and make it the work and display part (display false: only load it). Missing folders are created; the file is written by the first save.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | New workspace .prt path |
 | `units` | `mm` \| `in` | `"mm"` |  |
+| `display` | boolean | `true` | false: only load it; work and display parts stay |
 
 ### `nx_download_file`
 
@@ -1830,9 +1831,9 @@ Ask a running call (nx_run_batch or another multi-step tool) to stop at its next
 
 ### `nx_create_checkpoint`
 
-**Create checkpoint** · effect `session` · NX 2406: tested; 99 checks in `acceptance/session/history.json`
+**Create checkpoint** · effect `session` · NX 2406: tested; 40 checks in `acceptance/session/undo_survives_load.json`
 
-Set an in-session undo checkpoint in the work part (restore by id or label). A save, part close or undo past it expires it; disk saves are never rolled back.
+Set an in-session undo checkpoint in the work part (restore by id or label). A save, part close, later part load or undo past it expires it; disk saves are never rolled back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1908,9 +1909,9 @@ NX build, bridge state, panel mode, work and display part, workspace root and ru
 
 ### `nx_list_checkpoints`
 
-**List checkpoints** · effect `read` · NX 2406: tested; 99 checks in `acceptance/session/history.json`
+**List checkpoints** · effect `read` · NX 2406: tested; 40 checks in `acceptance/session/undo_survives_load.json`
 
-List this session's checkpoints and the agent's undo depth. Expired ones show available=false and expired_reason (undone_past, saved_or_closed, engineer_change or part_closed).
+List this session's checkpoints and the agent's undo depth. Expired ones show available=false and expired_reason (undone_past, saved_or_closed, part_loaded, display_reset, mark_evicted, engineer_change or part_closed).
 
 No arguments.
 
@@ -1937,7 +1938,7 @@ Repeat the agent's calls an undo or checkpoint restore reverted, next first. Eac
 
 ### `nx_restore_checkpoint`
 
-**Restore checkpoint** · effect `model` · NX 2406: tested; 18 checks in `acceptance/session/refs_survive_undo_save.json`
+**Restore checkpoint** · effect `model` · NX 2406: tested; 40 checks in `acceptance/session/undo_survives_load.json`
 
 Roll the work part back to a checkpoint (id or label), undoing the agent's operations since; it stays restorable. Refused when expired or across parts. Refs of objects that remain stay valid; save to persist.
 
@@ -1968,9 +1969,9 @@ Rename an object of the work part (feature, body, sketch, component) by its ref.
 
 ### `nx_undo_operation`
 
-**Undo operation** · effect `model` · NX 2406: tested; 18 checks in `acceptance/session/refs_survive_undo_save.json`
+**Undo operation** · effect `model` · NX 2406: tested; 40 checks in `acceptance/session/undo_survives_load.json`
 
-Undo the agent's last steps operations (never the engineer's); nx_redo_operation repeats them. A save, part close or engineer edit ends the history. Remaining objects keep their refs.
+Undo the agent's last steps operations (never the engineer's); nx_redo_operation repeats them. A save, part close or load, or engineer edit ends the history. Remaining objects keep their refs.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
