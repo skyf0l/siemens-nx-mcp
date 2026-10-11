@@ -64,6 +64,44 @@ def test_concentric_takes_circular_edges_only(nx):
     assert ok.ok and ok.data["type"] == "concentric"
 
 
+def test_concentric_with_a_touch_hints_align_lock(nx):
+    """Concentric is coaxial AND coplanar: a touch on the same component over-constrains."""
+    edge = geometry(nx, nx.b, "edge", True)
+    target = geometry(nx, nx.a, "edge", True)
+    ok = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+             geometry=edge, target_component=nx.a.ref, target_geometry=target)  # fmt: skip
+    assert ok.ok and not ok.warnings, ok
+    nx.assembly.solver_status = STATUS.OverConstrained
+    bad = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+              geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+              target_geometry=geometry(nx, nx.a))  # fmt: skip
+    assert bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED", bad
+    assert "align_lock" in bad.error["hint"] and "coplanar" in bad.error["hint"]
+    assert bad.error["details"]["others"][0]["type"] == "concentric"
+    # The new constraint solves but leaves the earlier one over-constrained: a warning.
+    nx.assembly.solver_status = STATUS.Solved
+
+    def over(added):
+        for c in nx.assembly.positioner.Constraints:
+            if c not in added:
+                c.status = STATUS.OverConstrained
+
+    nx.assembly.on_solve = over
+    warned = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+                 geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+                 target_geometry=geometry(nx, nx.a))  # fmt: skip
+    assert warned.ok and "align_lock" in warned.warnings[0]["message"], warned
+    assert "concentric: OverConstrained" in warned.warnings[0]["message"]
+    # A failing concentric alone gets no bolt advice.
+    nx.assembly.on_solve = None
+    nx.assembly.positioner.Constraints.clear()
+    nx.assembly.solver_status = STATUS.NotSolved
+    alone = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+                geometry=edge, target_component=nx.a.ref, target_geometry=target)  # fmt: skip
+    assert alone.error["code"] == "NX_CONSTRAINT_UNSATISFIED"
+    assert "align_lock" not in alone.error["hint"]
+
+
 def test_unsolved_constraint_rolls_back_and_reports_status(nx):
     nx.assembly.solver_status = STATUS.OverConstrained
     bad = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
@@ -234,6 +272,30 @@ def test_circular_pattern_rotates_about_the_axis(nx):
     assert ok.ok, ok
     got = sorted(tuple(round(v, 6) for v in c["translation"]) for c in ok.data["components"])
     assert got == [(-60, 0, 0), (0, -60, 0), (0, 60, 0), (60, 0, 0)]
+
+
+@pytest.mark.parametrize(
+    ("span", "count", "step", "xs"),
+    [
+        (90, 4, 30, None),  # first to last: 3 steps of 30
+        (360, 4, 90, [(-60, 0), (0, -60), (0, 60), (60, 0)]),  # full circle: 360 / count
+    ],
+)
+def test_circular_pattern_angle_as_span(nx, span, count, step, xs):
+    ok = run(nx, "nx_create_component_pattern", component=nx.b.ref,
+             layout={"circular": {"axis": "z", "count": count, "angle": span, "span": True}})  # fmt: skip
+    assert ok.ok and ok.data["angle"] == pytest.approx(step), ok
+    builder = nx.assembly.pattern_builders[0].PatternService.CircularDefinition
+    assert builder.AngularSpacing.PitchAngle.Value == pytest.approx(step)
+    if xs:
+        got = sorted(
+            tuple(round(v, 6) for v in c["translation"][:2]) for c in ok.data["components"]
+        )
+        assert got == xs
+    for bad_span in (0, 400):
+        bad = run(nx, "nx_create_component_pattern", component=nx.b.ref,
+                  layout={"circular": {"axis": "z", "count": 3, "angle": bad_span, "span": True}})  # fmt: skip
+        assert bad.error["field"] == "/layout/circular/angle", bad
 
 
 def test_independent_copies_are_plain_components(nx):

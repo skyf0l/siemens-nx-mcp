@@ -11,6 +11,7 @@ A tabulated property reports the row nearest room temperature (20 degC).
 
 from __future__ import annotations
 
+import contextlib
 import difflib
 import ntpath
 import re
@@ -475,7 +476,7 @@ def nx_get_material(
 
 
 class Custom(TypedDict):
-    name: Annotated[str, Text(100, r"^\S.*$"), Doc("New material name")]
+    name: Annotated[str, Text(100, r"^\S.*$"), Doc("New name, or a custom one to update")]
     density: Annotated[
         Annotated[float, Range(gt=0, le=1e6)] | Annotated[str, Text(40)],
         Doc("kg/m^3, or '1.24 g/cm3', '0.045 lb/in3'"),
@@ -537,40 +538,78 @@ def _stored_density(tx, material) -> float | None:
         return None
 
 
-def _free_name(materials, name: str, density: float) -> str:
-    """An unused material name for ``name`` at ``density``: ``PLA_1300``, ``PLA_1300_2``."""
-    taken = {str(m.Name).casefold() for m in materials}
-    base = f"{name}_{density:.6g}".replace(".", "_").replace("+", "")
-    candidate, n = base, 1
-    while candidate.casefold() in taken:
-        n += 1
-        candidate = f"{base}_{n}"
-    return candidate
+def _users(tx, material, skip) -> list:
+    """Solid bodies of the work part that use ``material``, except ``skip``."""
+    tags = {int(b.Tag) for b in skip}
+    out = []
+    for body in tx.part.Bodies:
+        if int(body.Tag) in tags or not getattr(body, "IsSolidBody", True):
+            continue
+        with contextlib.suppress(Exception):  # a body NX cannot answer for keeps its own
+            used = _material_of(body)
+            if used is material or (used is not None and int(used.Tag) == int(material.Tag)):
+                out.append(body)
+    return out
 
 
-def _clash(tx, material, density, wanted):
-    name = str(material.Name)
-    free = _free_name(tx.part.MaterialManager.PhysicalMaterials, name, wanted)
-    fail(
-        "NX_ALREADY_EXISTS",
-        f"Material {name} exists with density {density:g} kg/m^3",
-        field="/material/custom/name",
-        hint=f"A material name keeps one density: send name {free!r} for {wanted:g} kg/m^3, "
-        f"or the bare name {name!r} to reuse {name} at {density:g} kg/m^3",
-        details={"existing_density": density, "free_name": free},
+def _set_density(tx, material, wanted) -> None:
+    """Set a custom material's MassDensity in place (NX applies it on the next assign)."""
+    kg = tx.part.UnitCollection.FindObject("KilogramPerCubicMeter")
+    try:
+        with native():
+            if hasattr(material, "GetMaterialEditable") and not material.GetMaterialEditable():
+                material.SetMaterialEditable(True)
+            table = material.GetPropTable()
+            table.SetBaseScalarWithDataPropertyValue("MassDensity", float(wanted), kg)
+    except NXError as error:
+        fail(
+            "NX_ALREADY_EXISTS",
+            f"Material {material.Name} exists and NX cannot change its density",
+            field="/material/custom/name",
+            hint="Send another name for a new custom material, or the bare name to reuse it",
+            nx_code=error.nx_code,
+        )
+
+
+def _update(tx, material, wanted, stored, targets) -> list:
+    """Give an existing custom material the density ``wanted`` in place and reassign it to
+    ``targets`` and its other users (NX applies a density on assign); returns the others."""
+    others = _users(tx, material, targets)
+    _set_density(tx, material, wanted)
+    with native():
+        material.AssignObjects([*targets, *others])
+    was = "" if stored is None else f" (was {stored:g})"
+    tx.warn(
+        "NX_NOTE",
+        f"Material {material.Name} now has density {wanted:g} kg/m^3{was}"
+        + (f"; {len(others)} other bodies use it and changed too" if others else ""),
     )
+    return others
 
 
 def _custom(tx, name, wanted, targets):
     part = tx.part
     materials = part.MaterialManager.PhysicalMaterials
-    with tx.checks():  # a clashing name is refused before anything is assigned
+    with tx.checks():  # a library material of that name is refused before any change
         existing = [m for m in materials if str(m.Name).casefold() == name.casefold()]
+        if existing and _library_of(existing[0]) is not None:
+            fail(
+                "NX_ALREADY_EXISTS",
+                f"{existing[0].Name} is a library material: its density is the library's",
+                field="/material/custom/name",
+                hint="Give the custom material another name, or assign the library material",
+            )
         stored = _stored_density(tx, existing[0]) if existing else None
-        if stored is not None and abs(stored - wanted) > DENSITY_REL * wanted:
-            _clash(tx, existing[0], stored, wanted)
+    others: list = []
     if existing:
         chosen = existing[0]
+        if stored is not None and abs(stored - wanted) > DENSITY_REL * wanted:
+            others = _update(tx, chosen, wanted, stored, targets)
+        else:
+            with native():
+                chosen.AssignObjects(targets)
+            if any(abs(_density(tx, b) - wanted) > DENSITY_REL * wanted for b in targets):
+                others = _update(tx, chosen, wanted, None, targets)  # density was unreadable
     else:
         kind = tx.nx.PhysicalMaterial.Type.Isotropic
         with builders.build(tx, materials.CreatePhysicalMaterialBuilder, kind) as b:
@@ -581,13 +620,16 @@ def _custom(tx, name, wanted, targets):
                 part.UnitCollection.FindObject("KilogramPerCubicMeter"),
             )
             chosen = b.commit()
-    with native():
-        chosen.AssignObjects(targets)
+        with native():
+            chosen.AssignObjects(targets)
+    for i, body in enumerate(others):
+        density = _density(tx, body)
+        readback.expect_close(
+            density, wanted, f"other_density[{i}]", tol=DENSITY_REL * wanted + 1e-9
+        )
     items, memo = [], {}
     for i, body in enumerate(targets):
         density = _density(tx, body)
-        if existing and abs(density - wanted) > DENSITY_REL * wanted:
-            _clash(tx, chosen, density, wanted)  # unreadable before: assigned, then rolled back
         readback.expect_close(density, wanted, f"density[{i}]", tol=DENSITY_REL * wanted + 1e-9)
         items.append(_row(tx, body, chosen, memo, density))
     return items
@@ -702,8 +744,8 @@ def nx_set_material(
     material: LibraryName | MaterialSpec,
 ) -> MaterialData:
     """Assign a library or custom density material to solid bodies, default all; reads it back.
-    'Steel' = {library: 'Steel'} (names from nx_list_materials). {custom: {name, density}}: a
-    custom name keeps one density; its bare name reuses it."""
+    'Steel' = {library: 'Steel'} (names from nx_list_materials). {custom: {name, density}} of an
+    existing custom name sets its density (every body using it); a bare name reuses it."""
     form, text, field = _form(material)
     density = None
     if form == "custom":

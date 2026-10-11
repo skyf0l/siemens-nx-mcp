@@ -29,11 +29,14 @@ def test_linear_values_follow_the_view_axes():
     assert dims.linear_value(a, b, side, "horizontal") == 40
 
 
-def test_default_text_positions_sit_beside_the_span():
-    assert dims.linear_origin([0, 0], [10, 0], "horizontal", 10) == [5, 10]
-    assert dims.linear_origin([0, 0], [0, 10], "vertical", 10) == [10, 5]
-    assert dims.linear_origin([0, 0], [10, 0], "aligned", 10) == pytest.approx([5, 10])
-    assert dims.linear_origin([10, 0], [0, 0], "aligned", 10) == pytest.approx([5, 10])
+def test_default_text_leaves_the_view_on_the_span_side():
+    box = [0.0, 0.0, 100.0, 50.0]
+    assert dims.linear_direction([0, 40], [10, 40], "horizontal", box) == ([5, 40], [0, 1])
+    assert dims.linear_direction([0, 5], [10, 5], "horizontal", box) == ([5, 5], [0, -1])
+    assert dims.linear_direction([90, 0], [90, 10], "vertical", box) == ([90, 5], [1, 0])
+    assert dims.linear_direction([10, 0], [10, 10], "vertical", box) == ([10, 5], [-1, 0])
+    mid, normal = dims.linear_direction([0, 40], [10, 50], "aligned", box)  # upper left
+    assert normal == pytest.approx([-(0.5**0.5), 0.5**0.5])
 
 
 def test_ordinate_snaps():

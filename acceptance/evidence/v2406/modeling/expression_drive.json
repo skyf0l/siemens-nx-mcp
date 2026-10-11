@@ -1,0 +1,322 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/expression_drive.json",
+  "scenario_sha256": "f5c8f3e634fb42f839210af0cf20e934ce9e5da23d0f1667badc70b0334f0f58",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_shell": [],
+    "nx_create_draft": [],
+    "nx_create_datum_plane": [
+      "offset"
+    ],
+    "nx_create_tube": [],
+    "nx_create_primitive": [
+      "block",
+      "cylinder"
+    ],
+    "nx_create_transform": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_shell": "499632c6157d210c6246daec7bcc71177eee30bd2dd63e4dc041798b91871e04",
+    "nx_create_draft": "499632c6157d210c6246daec7bcc71177eee30bd2dd63e4dc041798b91871e04",
+    "nx_create_datum_plane": "b787a7cd312d4bca162f9da76ee631b74e3631391d25f27a54e0982b1b2a7c16",
+    "nx_create_tube": "ea85b05c6b24e8d6a664e9d383634aaa64990d78476b8695c991d9d21043dbd7",
+    "nx_create_primitive": "20d6b21293ec13fc06eb0e2087a3033f30484c89fa8fd359d94970b3797566b8",
+    "nx_create_transform": "2d9513ae4b094271cd836e10e92bdfe224494e247252b451dadbf6a85d452aba"
+  },
+  "recorded": "2026-10-11T08:09:36Z",
+  "passed": true,
+  "checks": 27,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_shell",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_create_draft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_create_datum_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_get_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 23,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 24,
+      "call": "nx_get_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 25,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 26,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 27,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 28,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_create_tube",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 30,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 31,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 32,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 33,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 34,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 35,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 36,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 37,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 38,
+      "call": "nx_create_transform",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 39,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 40,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 41,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

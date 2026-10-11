@@ -123,7 +123,14 @@ def test_get_sketch_reads_geometry_constraints_and_status_without_leaving_it_act
     assert rows[1]["start_angle"] == pytest.approx(0) and rows[1]["end_angle"] == pytest.approx(90)
     (con,) = ok.data["constraints"]
     assert con["type"] == "horizontal" and con["curves"] == [rows[0]["curve"]["id"]]
-    assert ok.data["status"] == {"state": "under_constrained", "dof": 1}
+    # the model says two curves are free, the fake NX one: the DOF is withheld
+    assert ok.data["status"] == {
+        "state": "under_constrained",
+        "fully_constrained": False,
+        "dof": None,
+        "free_curves": 1,
+    }
+    assert all("dof" not in r for r in rows)
     assert nx.session.ActiveSketch is None and nx.undo_marks == []
     only = run(nx, "nx_get_sketch", sketch=sk.ref, include=["geometry"])
     assert "status" not in only.data and "constraints" not in only.data

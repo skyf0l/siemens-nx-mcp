@@ -30,6 +30,7 @@ from nx_mcp.core.types import (
 )
 from nx_mcp.domains.assembly import common, exploded, structure
 from nx_mcp.kit import display, drawing, readback, result, select
+from nx_mcp.kit import parts as kparts
 from nx_mcp.kit import pose as kpose
 
 
@@ -56,11 +57,16 @@ forbid_extra(Placement)
 LISTED = 50
 
 
-class ExplosionData(TypedDict):
+class _ExplosionRequired(TypedDict):
     explosion: result.Row
     component_count: int
     components: list[result.Row]
     views: list[result.Row]
+
+
+class ExplosionData(_ExplosionRequired, total=False):
+    placed: list[ExplodedRow]
+    moved_count: int
 
 
 def _targets(placements) -> list:
@@ -140,13 +146,20 @@ def _explode(tx, ex, tags, targets, resets):
     cost="light",
     invalidates="deleted",
     refresh_annotations=False,
-    example={"name": "EXPLODED"},
+    example={"name": "EXPLODED", "placements": [{"component": "o:4", "offset": [0, 0, 40]}]},
 )
-def nx_create_explosion(tx: Tx, *, name: Name) -> ExplosionData:
-    """Create a named explosion of the work assembly, every component at its assembled pose.
-    Then move them with nx_edit_explosion offsets; the assembly must be the display part."""
+def nx_create_explosion(
+    tx: Tx,
+    *,
+    name: Name,
+    placements: Annotated[list[Placement], Items(1, 1000)] | None = None,
+) -> ExplosionData:
+    """Create a named explosion of the displayed work assembly. placements (as in
+    nx_edit_explosion) move components at once; the others stay assembled."""
     if name != name.strip():
         fail("NX_INVALID_ARGUMENT", "The name has leading or trailing spaces", field="/name")
+    placements = placements or []
+    targets = _targets(placements)
     with tx.checks():
         part = common.explosion_context(tx)
         collection = part.ComponentAssembly.Explosions
@@ -156,6 +169,15 @@ def nx_create_explosion(tx: Tx, *, name: Name) -> ExplosionData:
                      hint="Edit it with nx_edit_explosion(explosion=details.existing.id) "
                      "or choose another name",
                      details={"existing": tx.ref(x, "explosion")})  # fmt: skip
+        # An explosion holds every occurrence of the assembly: check before creating it.
+        shown: dict = {}
+        for c, n in kparts.components(part):
+            up = getattr(c, "Parent", None)
+            parent = shown.get(int(up.Tag)) if up is not None else None
+            shown[int(c.Tag)] = (None, c, n, bool(c.IsSuppressed) or bool(parent and parent[3]))
+        seen: set[int] = set()
+        for i, p in enumerate(placements):
+            _pick(tx, shown, seen, p["component"], f"/placements/{i}/component")
     with native(default="NX_BUILD_FAILED"):
         created = collection.Create(name)
     entries = exploded.tree(created)
@@ -163,10 +185,7 @@ def nx_create_explosion(tx: Tx, *, name: Name) -> ExplosionData:
         structure.expect_pose(
             exploded.exploded_pose(child), structure.pose(component), f"pose[{i}]"
         )
-    tx.warn("NX_NO_EFFECT", "Nothing is exploded yet: every component is at its "
-            "assembled pose. Move them with nx_edit_explosion placements "
-            '[{"component": "o:N", "offset": [dx, dy, dz]}].')  # fmt: skip
-    return {
+    out: ExplosionData = {
         "explosion": tx.ref(created, "explosion"),
         "component_count": len(entries),
         "components": [
@@ -175,6 +194,18 @@ def nx_create_explosion(tx: Tx, *, name: Name) -> ExplosionData:
         ],
         "views": [],
     }
+    if not placements:
+        tx.warn("NX_NO_EFFECT", "Nothing is exploded yet: every component is at its "
+                "assembled pose. Move them with nx_edit_explosion placements "
+                '[{"component": "o:N", "offset": [dx, dy, dz]}].')  # fmt: skip
+        return out
+    seen = set()
+    tags = [_pick(tx, entries, seen, p["component"], f"/placements/{i}/component")
+            for i, p in enumerate(placements)]  # fmt: skip
+    after, moved, _views = _explode(tx, created, tags, targets, [])
+    out["placed"] = [after[t] for t in tags]
+    out["moved_count"] = moved
+    return out
 
 
 class EditExplosionData(TypedDict):

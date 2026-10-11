@@ -131,6 +131,26 @@ class ToolSpec:
     # Decorator, model tools: the `new` .prt path parameter that, when given, makes the
     # call work in a part it creates, so gate 6 does not check the current work part.
     new_part: str | None = None
+    # Decorator: {variant value: fields that variant needs}. Gate 1 refuses a call that
+    # leaves them out and the listed schemas name them per variant.
+    required_by: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    # Decorator ``variant_from=field`` or ``(field, resolver)``: when the call omits the
+    # variant field, gate 3 takes it from the object the ref ``field`` names:
+    # ``resolver(tx, obj) -> value or None``, else the ref's kind when that is a value.
+    variant_from: tuple[str, Callable | None] | None = None
+
+    def check(self, args, *, placeholders: bool = False, shown=None):
+        """Gate 1 for this tool (``core.validate.validate``) with its variant requirements;
+        ``shown``: the variant values an error lists (those this NX build offers)."""
+        variant = self.variants if isinstance(self.variants, str) else None
+        return validate(
+            self.params,
+            args,
+            placeholders=placeholders,
+            variant=variant,
+            required_by=self.required_by,
+            shown={variant: tuple(shown)} if variant and shown else None,
+        )
 
     @property
     def evidence(self) -> dict:
@@ -320,6 +340,8 @@ def make_spec(
     domain: str | None = None,
     restorable: bool = False,
     new_part: str | None = None,
+    required_by: Mapping[str, Any] | None = None,
+    variant_from: Any = None,
 ) -> ToolSpec:
     """Build and check a :class:`ToolSpec` without registering it."""
     name = fn.__name__
@@ -480,6 +502,15 @@ def make_spec(
         )
     ):
         problems.append("new_part must name a model tool's new .prt path parameter")
+    needs, inferred = _variant_rules(params, variants, variant_values, required_by, variant_from)
+    problems.extend(needs)
+    if inferred is not None:  # the variant may be left out (None): gate 3 infers it
+        params[variants] = Param(variants, params[variants].hint | None, None, False)
+    if required_by and not needs:
+        try:
+            validate(params, example, variant=variants, required_by=required_by)
+        except Exception as error:
+            problems.append(f"example does not meet required_by: {error}")
     if problems:
         raise CatalogueError(f"{name}: " + "; ".join(problems))
     if refresh_annotations is None:
@@ -508,7 +539,43 @@ def make_spec(
         sheet=any(_uses_sheet(p.hint) for p in params.values()),
         restorable=bool(restorable),
         new_part=new_part,
+        required_by=MappingProxyType({k: tuple(v) for k, v in (required_by or {}).items()}),
+        variant_from=inferred,
     )
+
+
+def _is_ref(hint) -> bool:
+    """A reference parameter, optional or not."""
+    base, markers = unwrap(hint)
+    if is_union(base):
+        return any(_is_ref(alt) for alt in typing.get_args(base) if alt is not type(None))
+    return RefKind in markers
+
+
+def _variant_rules(params, variants, values, required_by, variant_from) -> tuple[list, Any]:
+    """Problems with ``required_by`` and ``variant_from``, and ``(field, resolver)``."""
+    problems: list[str] = []
+    for value, fields in (required_by or {}).items():
+        if not values or value not in values:
+            problems.append(f"required_by: {value!r} is not a value of the variant field")
+        if isinstance(fields, str) or not all(isinstance(f, str) for f in fields):
+            problems.append(f"required_by[{value!r}] is a tuple of field names")
+            continue
+        for name in fields:
+            if name not in params or params[name].required:
+                problems.append(f"required_by[{value!r}]: {name!r} is no optional parameter")
+    if variant_from is None:
+        return problems, None
+    field_name, resolver = (
+        (variant_from, None) if isinstance(variant_from, str) else tuple(variant_from)
+    )
+    if not values or not isinstance(variants, str):
+        problems.append("variant_from needs variants naming a Literal field")
+    if field_name not in params or not _is_ref(params[field_name].hint):
+        problems.append(f"variant_from names a reference parameter (got {field_name!r})")
+    if resolver is not None and not callable(resolver):
+        problems.append("variant_from's resolver is a callable (tx, obj) -> value")
+    return problems, (field_name, resolver)
 
 
 def register(spec: ToolSpec) -> ToolSpec:

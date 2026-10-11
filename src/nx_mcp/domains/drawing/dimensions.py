@@ -12,7 +12,8 @@ NX 2406 findings encoded here:
   NX; a full circle has no end vertices, so ordinate start/end snaps are refused.
 - NX may dimension the acute angle between two edges, its supplement or the reflex
   equivalents; the angle is verified against all four.
-- Default text positions are defined in millimetres and converted to sheet units.
+- Default text positions lie outside the view border (TEXT_GAP_MM, in sheet units),
+  stepped outward past annotations already there; an explicit origin is kept as given.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ from nx_mcp.domains.drawing.common import (
     edge_facts,
     geometry,
     kind_of_geometry,
+    report_bounds,
     true_shape,
     uf_types,
     view_of,
@@ -50,8 +52,7 @@ from nx_mcp.kit import args, builders, drawing, facts, geom, readback, result, s
 
 MAX_ORDINATES = 50
 ANGLE_TOL_DEG = 1e-3
-TEXT_GAP_MM = 10.0  # Default linear/angular text offset from the measured geometry.
-RADIAL_GAP_MM = 12.0  # Default radial text distance outside the arc.
+TEXT_GAP_MM = 10.0  # Default text: clear space outside the view border (and past others).
 MARGIN_GAP_MM = 15.0  # Between the view border and a default ordinate margin.
 SETS = ("baseline", "chain")
 METHODS = {"aligned": "PointToPoint", "horizontal": "Horizontal", "vertical": "Vertical"}
@@ -88,6 +89,7 @@ class DimensionData(TypedDict, total=False):
     margin: float
     units: str
     callout: dict
+    bounds: list[float]
 
 
 # ---- pure helpers -----------------------------------------------------------------------
@@ -119,19 +121,51 @@ def linear_value(pa, pb, axes, orientation):
     return math.hypot(x, y)
 
 
-def linear_origin(a, b, orientation, gap):
-    """Default text position (sheet units): ``gap`` beside the measured span."""
+def linear_direction(a, b, orientation, box):
+    """``(anchor, direction)`` of a linear dimension's default text: from the span's middle
+    out of the view border ``box`` on the span's side (above/below for horizontal, right/
+    left for vertical, along the span's normal for aligned)."""
     mid = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]
+    centre = [(box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0]
     if orientation == "horizontal":
-        return [mid[0], max(a[1], b[1]) + gap]
+        return mid, [0.0, 1.0 if mid[1] >= centre[1] else -1.0]
     if orientation == "vertical":
-        return [max(a[0], b[0]) + gap, mid[1]]
+        return mid, [1.0 if mid[0] >= centre[0] else -1.0, 0.0]
     dx, dy = b[0] - a[0], b[1] - a[1]
     length = math.hypot(dx, dy) or 1.0
     normal = [-dy / length, dx / length]
-    if normal[1] < 0 or (normal[1] == 0 and normal[0] < 0):
-        normal = [-normal[0], -normal[1]]  # above (or right of) the span
-    return [mid[0] + gap * normal[0], mid[1] + gap * normal[1]]
+    side = (mid[0] - centre[0]) * normal[0] + (mid[1] - centre[1]) * normal[1]
+    if side < 0 or (side == 0 and (normal[1] < 0 or (normal[1] == 0 and normal[0] < 0))):
+        normal = [-normal[0], -normal[1]]  # away from the view centre (else up or right)
+    return mid, normal
+
+
+def placed(tx, sh, dimension, out):
+    """``out`` with the dimension's ``bounds``; warns when its text lies over a view or
+    off the sheet."""
+    return report_bounds(tx, out, dimension, sh, "dimension text")
+
+
+def text_spot(tx, sh, view, anchor, direction):
+    """Default dimension text (sheet units): TEXT_GAP_MM outside the view border along
+    ``direction`` from ``anchor``, stepped outward past annotations already there; the
+    other way when that lands off the sheet or in another view."""
+    box = drawing.borders(tx, view)
+    gap = drawing.from_mm(sh.units, TEXT_GAP_MM)[0]
+    sheet = [0.0, 0.0, *drawing.size(sh.sheet)]
+    taken = drawing.sheet_annotation_bounds(tx, sh.sheet)
+    others = [
+        drawing.borders(tx, v) for v in sh.sheet.GetDraftingViews() if int(v.Tag) != int(view.Tag)
+    ]
+    spots = []
+    for d in (direction, [-direction[0], -direction[1]]):
+        spot = drawing.free_spot(drawing.clear_of(box, anchor, d, gap), d, gap, taken)
+        if drawing.contains(sheet, spot) and not any(
+            drawing.contains(b, spot, gap / 4) for b in others
+        ):
+            return spot
+        spots.append(spot)
+    return spots[0]
 
 
 def ordinate_snap(info, snap, field):
@@ -190,9 +224,10 @@ def _summary(a, say):
         return f"{kind.title()} set of {len(a.get('objects') or [])} objects in {say('view')}"
     if kind in ("chamfer", "thickness", "arc_length"):
         return f"{kind.replace('_', ' ').capitalize()} dimension on {say('first')}"
+    what = f"{kind.title()} dimension" if kind in ("horizontal", "vertical") else "Dimension"
     if a.get("second"):
-        return f"Dimension {say('first')} to {say('second')}"
-    return f"Length dimension on {say('first')}"
+        return f"{what} {say('first')} to {say('second')}"
+    return f"{what if kind in ('horizontal', 'vertical') else 'Length dimension'} on {say('first')}"
 
 
 @tool(
@@ -211,10 +246,18 @@ def _summary(a, say):
     ),
     requires=("work_part", "no_active_sketch"),
     variants="kind",
+    required_by={  # first-only kinds left out: first is the field every edge kind takes
+        "angle": ("first", "second"),
+        "chamfer": ("first", "second"),
+        "thickness": ("first", "second"),
+        "ordinate": ("datum", "objects"),
+        "baseline": ("objects",),
+        "chain": ("objects",),
+    },
     cost="light",
     batchable=True,
     invalidates="deleted",
-    example={"view": "v:7", "kind": "linear", "first": "e:12", "orientation": "horizontal"},
+    example={"view": "v:7", "kind": "horizontal", "first": "e:12"},
 )
 def nx_create_drawing_dimension(
     tx: Tx,
@@ -222,6 +265,8 @@ def nx_create_drawing_dimension(
     view: ViewArg,
     kind: Literal[
         "linear",
+        "horizontal",
+        "vertical",
         "radius",
         "diameter",
         "angle",
@@ -246,9 +291,15 @@ def nx_create_drawing_dimension(
     hole: FeatureRef | None = None,
 ) -> DimensionData:
     """Create an associative dimension on edges in a drawing view, checked against the model.
-    Linear: one edge's length, or first to second; set orientation. Baseline/chain: datum
-    (optional) + objects, 3+ points. Ordinate: objects from datum. Chamfer: chamfer edge,
-    then reference edge."""
+    Linear: an edge's length or first to second, oriented (or kind horizontal/vertical).
+    Baseline/chain: datum + objects, 3+ points. Ordinate: objects from datum. Chamfer: edge,
+    then reference. Text: outside the view."""
+    if kind in ("horizontal", "vertical"):
+        if orientation not in ("aligned", kind):
+            fail("NX_INVALID_ARGUMENT", f"kind {kind} measures {kind}ly: drop orientation "
+                 f"{orientation!r} or use kind linear", field="/orientation")  # fmt: skip
+        orientation = "horizontal" if kind == "horizontal" else "vertical"
+        kind = "linear"
     if not re.match(REF_PATTERN, view):
         with tx.checks():
             shown, sheet = view_of(tx, view)
@@ -337,9 +388,9 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
             )
     with drawing.on_sheet(tx, sheet) as sh:
         if origin is None and existing is None:
-            gap = drawing.from_mm(sh.units, TEXT_GAP_MM)[0]
-            origin = linear_origin(
-                drawing.to_sheet(tx, view, pa), drawing.to_sheet(tx, view, pb), orientation, gap
+            a2, b2 = drawing.to_sheet(tx, view, pa), drawing.to_sheet(tx, view, pb)
+            origin = text_spot(
+                tx, sh, view, *linear_direction(a2, b2, orientation, drawing.borders(tx, view))
             )
         snap = tx.nx.InferSnapType.SnapType
         empty = tx.nx.Point3d(0.0, 0.0, 0.0)
@@ -358,11 +409,11 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
             dimension = builder.commit()
         actual = result.measured(dimension.ComputedSize)
         _check_value(actual, expected)
-        return {
+        return placed(tx, sh, dimension, {
             "dimension": _row(tx, dimension, actual, expected),
             "origin": sh.to_sheet(dimension.AnnotationOrigin),
             "units": units.part_units(tx),
-        }
+        })  # fmt: skip
 
 
 def _radial(tx, view_ref, first, kind, origin):
@@ -374,11 +425,9 @@ def _radial(tx, view_ref, first, kind, origin):
     center, radius = found["center"], found["radius"]
     on_arc = [c + radius * x for c, x in zip(center, found["x_axis"], strict=True)]
     with drawing.on_sheet(tx, sheet) as sh:
-        if origin is None:
+        if origin is None:  # out of the view on the side of the arc (up-right at its centre)
             c2 = drawing.to_sheet(tx, view, center)
-            reach = math.dist(c2, drawing.to_sheet(tx, view, on_arc))
-            reach = (reach + drawing.from_mm(sh.units, RADIAL_GAP_MM)[0]) * math.sqrt(0.5)
-            origin = [c2[0] + reach, c2[1] + reach]  # up-right at 45 degrees
+            origin = text_spot(tx, sh, view, c2, drawing.outward(drawing.borders(tx, view), c2))
         with builders.build(tx, tx.part.Dimensions.CreateRadialDimensionBuilder, None) as b:
             methods = b.Measurement.MeasurementMethod
             b.Measurement.Method = methods.Radial if kind == "radius" else methods.Diametral
@@ -396,11 +445,11 @@ def _radial(tx, view_ref, first, kind, origin):
         expected = radius if kind == "radius" else 2.0 * radius
         actual = result.measured(dimension.ComputedSize)
         _check_value(actual, expected)
-        return {
+        return placed(tx, sh, dimension, {
             "dimension": _row(tx, dimension, actual, expected),
             "origin": sh.to_sheet(dimension.AnnotationOrigin),
             "units": units.part_units(tx),
-        }
+        })  # fmt: skip
 
 
 def _angle(tx, view_ref, first, second, origin):
@@ -427,9 +476,9 @@ def _angle(tx, view_ref, first, second, origin):
     mids = [geom.scale(geom.add(f["start"], f["end"]), 0.5) for f in found]
     with drawing.on_sheet(tx, sheet) as sh:
         if origin is None:
-            gap = drawing.from_mm(sh.units, TEXT_GAP_MM)[0]
             m = [[(p[i] + q[i]) / 2.0 for i in range(2)] for p, q in flat]
-            origin = [(m[0][i] + m[1][i]) / 2.0 + gap for i in range(2)]
+            mid = [(m[0][i] + m[1][i]) / 2.0 for i in range(2)]
+            origin = text_spot(tx, sh, view, mid, drawing.outward(drawing.borders(tx, view), mid))
         snap = tx.nx.InferSnapType.SnapType.NotSet
         empty = tx.nx.Point3d(0.0, 0.0, 0.0)
         with builders.build(tx, tx.part.Dimensions.CreateAngularDimensionBuilder, None) as b:
@@ -449,11 +498,11 @@ def _angle(tx, view_ref, first, second, origin):
             computed=actual,
             view_angle=acute,
         )
-        return {
+        return placed(tx, sh, dimension, {
             "dimension": _row(tx, dimension, actual, acute),
             "origin": sh.to_sheet(dimension.AnnotationOrigin),
             "units": "deg",
-        }
+        })  # fmt: skip
 
 
 def _target(tx, ref, snap, field):
@@ -571,6 +620,7 @@ class DimensionInfo(TypedDict, total=False):
     sheet: result.Row
     units: str
     callout: dict
+    bounds: list[float]
 
 
 def _enum(value, enum, table=None):
@@ -635,8 +685,12 @@ def dimension_info(tx, d):
         out["callout"] = hole_callouts.callout_info(tx, d)
     sheet = drawing.sheet_of_annotation(tx, d)
     if sheet is not None:
+        sh = drawing.Sheet(tx, sheet)
         out["sheet"] = tx.ref(sheet, "drawing_sheet")
-        out["origin"] = drawing.Sheet(tx, sheet).to_sheet(d.AnnotationOrigin)
+        out["origin"] = sh.to_sheet(d.AnnotationOrigin)
+        bounds = drawing.annotation_box(tx, d, sh)[0]
+        if bounds is not None:
+            out["bounds"] = bounds
     return out
 
 

@@ -33,6 +33,7 @@ def evaluable(nx, paths):
             Initialize=lambda tag: table[int(tag)],
             AskLimits=lambda h: [0.0, 1.0],
             EvaluateUnitVectors=lambda h, t: h(t),
+            EvaluateClosestPoint=lambda h, p: (_closest(h, p), None),
             Free=lambda h: None,
         )
     out = []
@@ -43,6 +44,11 @@ def evaluable(nx, paths):
         table[int(c.Tag)] = path
         out.append(c)
     return out
+
+
+def _closest(path, p, n=720):
+    """The parameter of ``path`` nearest ``p`` (sampled)."""
+    return min((k / n for k in range(n + 1)), key=lambda t: math.dist(path(t)[0], p))
 
 
 def seg(a, b):

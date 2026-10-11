@@ -92,6 +92,7 @@ def nx_measure_distance(
 ) -> DistanceData:
     """Measure the minimum distance and the closest points between two objects; features and
     components measure their bodies. touching is true at distance 0."""
+    common.note_exploded(tx)
     a = _measurables(tx, first, "/first")
     b = _measurables(tx, second, "/second")
     best = None
@@ -167,6 +168,7 @@ def nx_measure_angle(
     """Measure the angle (0-180) between lines, straight edges, planar faces or datums. Lines and
     edges run start to end; faces use outward normals: perpendicular 90, opposite parallel 180,
     180 minus the interior angle at a convex edge."""
+    common.note_exploded(tx)
     directions = []
     for ref, field in ((first, "/first"), (second, "/second")):
         obj = tx.resolve(ref, *ANGLE_KINDS)
@@ -218,6 +220,7 @@ def nx_measure_mass(
     """Measure volume, area, mass, centre of gravity and inertia of solid bodies. Mass (kg) uses
     material densities (density: the kg/m^3 used; set with nx_set_material); inertia is
     kg*unit^2 about the centre of gravity."""
+    common.note_exploded(tx)
     found = kbodies.solids(common.target_bodies(tx, bodies, scope), field="/bodies")
     rows: list[BodyVolume] = []
     area: float | None = 0.0
@@ -281,6 +284,7 @@ def nx_measure_bounds(
 ) -> BoundsData:
     """Measure the absolute axis-aligned bounding box of bodies, the part or the assembly.
     Features and components count their whole bodies; conservative may exceed curves."""
+    common.note_exploded(tx)
     found = common.target_bodies(tx, bodies, scope)
     exact = precision == "exact"
     if exact and not measure.wcs_is_absolute(tx):
@@ -371,6 +375,7 @@ def nx_measure_wall_thickness(
     """Measure sampled wall thickness of a solid (default: the part's only one). Rays run along
     inward normals from its faces; not a guaranteed minimum. A plate's side faces give its
     width: see by_face."""
+    common.note_exploded(tx)
     target = _thickness_body(tx, body)
     own = {int(f.Tag): f for f in target.GetFaces()}
     if faces is None:

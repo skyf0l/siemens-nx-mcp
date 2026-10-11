@@ -247,6 +247,7 @@ def _chamfer(tx, sk, a, b, d1, d2):
     keywords=("sketch fillet", "sketch chamfer", "round corner", "corner", "trim corner"),
     requires=("work_part",),
     variants="kind",
+    required_by={"fillet": ("radius",), "chamfer": ("distance",)},
     cost="light",
     batchable=True,
     previewable=True,
@@ -260,8 +261,8 @@ def nx_create_sketch_corner(
     first: CurveRef,
     second: CurveRef,
     kind: Literal["fillet", "chamfer"],
-    radius: Annotated[Length | None, Doc("Required for fillet")] = None,
-    distance: Annotated[Length | None, Doc("Required for chamfer: cut along first")] = None,
+    radius: Length | None = None,
+    distance: Annotated[Length | None, Doc("Chamfer cut along first")] = None,
     distance2: Annotated[Length | None, Doc("Chamfer cut along second (default distance)")] = None,
 ) -> CornerData:
     """Fillet (radius) or chamfer (distance) the corner where two sketch curves meet; both are
@@ -478,6 +479,7 @@ def _mirror(tx, sk, inputs, mirror_line):
     keywords=("offset curve", "mirror curve", "sketch offset", "sketch mirror", "copy curves"),
     requires=("work_part",),
     variants="mode",
+    required_by={"offset": ("distance",), "mirror": ("mirror_line",)},
     cost="light",
     batchable=True,
     previewable=True,
@@ -490,14 +492,12 @@ def nx_create_sketch_copy(
     sketch: SketchRef,
     curves: Annotated[list[CurveRef], Items(1, 100)],
     mode: Literal["offset", "mirror"],
-    distance: Annotated[Length | None, Doc("Required for offset")] = None,
+    distance: Length | None = None,
     side: Annotated[
         Literal["auto", "left", "right", "inside", "outside"],
         Doc("left/right of the first curve, or inside/outside a closed loop"),
     ] = "auto",
-    mirror_line: Annotated[
-        str, RefTo("curve", "datum_axis", doc="Required for mirror: sketch line or datum axis")
-    ]
+    mirror_line: Annotated[str, RefTo("curve", "datum_axis", doc="Sketch line or datum axis")]
     | None = None,
 ) -> CopyData:
     """Copy sketch curves as an associative offset or mirror. Offsets of ellipses and splines

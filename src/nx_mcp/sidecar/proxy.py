@@ -19,6 +19,7 @@ import math
 import os
 import re
 import time
+import typing
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
@@ -29,7 +30,8 @@ from pydantic import AnyUrl, ValidationError
 from nx_mcp.core import errors, evidence
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
-from nx_mcp.core.validate import validate
+from nx_mcp.core.types import REF_PATTERN, RefKind
+from nx_mcp.core.validate import combine, is_union, unwrap
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
 
@@ -132,6 +134,17 @@ def _walk_paths(args: dict, pointer: str):
                 nxt.append((node, int(part), node[int(part)]))
         frontier = nxt
     return [(c, k) for c, k, v in frontier if c is not None and isinstance(v, str)]
+
+
+def _takes_refs(spec, pointer: str) -> bool:
+    """Whether the parameter at ``pointer`` is a union with a reference form (ref|path):
+    a ref-shaped value there is a ref (gate 1 matched it so), never a path."""
+    param = getattr(spec, "params", {}).get(pointer.strip("/").split("/")[0])
+    if param is None:
+        return False
+    base, _ = unwrap(param.hint)
+    forms = typing.get_args(base) if is_union(base) else ()
+    return any(RefKind in unwrap(form)[1] for form in forms)
 
 
 def _is_ref(value) -> bool:
@@ -404,30 +417,45 @@ class CatalogueProxy:
     def tested(self, spec) -> bool:
         return evidence.available(spec, self.listing()[0])
 
+    def _offered(self, spec) -> tuple | None:
+        try:
+            return self.variants(spec) if isinstance(spec.variants, str) else None
+        except Exception:
+            return None  # no build known yet: errors list every variant
+
     def _invalid(self, spec, args) -> NXError | None:
         """Gate 1. ``args`` becomes its canonical form (natural spellings resolved, as
         ``core.validate`` gives the handler), so the evidence gate and NX see the variant
         and values that run."""
         try:
-            canonical = validate(spec.params, args).args  # the precise messages
+            # The precise messages, every invalid field at once; a variant error lists
+            # only the variants this build offers.
+            canonical = spec.check(args, shown=self._offered(spec)).args
         except NXError as precise:
             return precise
         try:
             schema.adapter(spec).validate_python(args)  # same rules (parity test)
         except ValidationError as error:
-            first = error.errors()[0]
-            field = schema.error_pointer(args, first["loc"], first["type"]) or None
-            return NXError(
-                "NX_INVALID_ARGUMENT", f"{field or 'arguments'}: {first['msg']}", field=field
-            )
+            found = []
+            for row in error.errors():
+                field = schema.error_pointer(args, row["loc"], row["type"]) or None
+                found.append(
+                    NXError(
+                        "NX_INVALID_ARGUMENT", f"{field or 'arguments'}: {row['msg']}", field=field
+                    )
+                )
+            return combine(found)
         args.clear()
         args.update(canonical)
         return None
 
     def _resolve_paths(self, spec, args: dict) -> NXError | None:
         for pointer, _mode, _suffixes in spec.paths:
+            refs = _takes_refs(spec, pointer)
             for container, key in _walk_paths(args, pointer):
                 value = container[key]
+                if refs and re.match(REF_PATTERN, value):
+                    continue  # 'p:3' in a ref|path union names an object, not a file
                 try:
                     container[key] = str(self.workspace.resolve(value))
                 except WorkspaceViolation as error:

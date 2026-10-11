@@ -183,6 +183,7 @@ def test_sweep_combines_with_a_boolean_feature():
 
     def united(b):
         block.volume = 1040
+        nx.part.Bodies.remove(swept[0].bodies[0])  # NX consumes the tool body
         return feature(nx, "UNITE", [block])
 
     nx.on_commit("BooleanBuilder", united)

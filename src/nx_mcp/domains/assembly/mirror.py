@@ -48,14 +48,14 @@ def nx_create_component_mirror(
     tx: Tx,
     *,
     components: Annotated[list[ComponentRef], Items(1, 100)],
-    plane: Plane | common.PlaneName,
+    plane: Plane,
 ) -> MirrorData:
     """Mirror direct components of the work part across a plane into new components. Each new
     component's origin is its source's origin reflected across the plane."""
     args.distinct("/components", components, "components")
     with tx.checks():
         values = [common.component(tx, r, f"/components/{i}") for i, r in enumerate(components)]
-        _, origin, normal = select.plane(tx, common.principal(plane), "/plane", occurrences=True)
+        _, origin, normal = select.plane(tx, plane, "/plane", occurrences=True)
     part = tx.part
     nx = tx.nx
     before = {int(c.Tag) for c in structure.direct_children(part)}

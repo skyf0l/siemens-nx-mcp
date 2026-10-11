@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import bodies, facts, geom
+from nx_mcp.kit import bodies, explode, facts, geom
 
 # Principal radii at or beyond this many part units mean a straight (flat) direction.
 FLAT_RADIUS = 1e8
@@ -38,6 +38,13 @@ def target_bodies(tx, refs, scope="auto", field="/bodies"):
         if not found:
             bodies.require(found, field=f"{field}/{i}")
     return bodies.require(found, field=field)
+
+
+def note_exploded(tx) -> None:
+    """``NX_NOTE`` once per call while an explosion is shown: NX measures assembled poses."""
+    note = explode.assembled_note(tx)
+    if note is not None and all(w.get("message") != note for w in tx.warnings):
+        tx.warn("NX_NOTE", note)
 
 
 def kind_of(tx, obj):

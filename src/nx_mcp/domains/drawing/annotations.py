@@ -46,6 +46,7 @@ from nx_mcp.domains.drawing.common import (
     distance_to_line,
     geometry,
     leader_row,
+    report_bounds,
     set_origin,
     true_shape,
     update,
@@ -91,6 +92,7 @@ class AnnotationData(TypedDict, total=False):
     sheet: result.Row
     origin: list[float]
     origins: list[list[float]]
+    bounds: list[float]
     text: list[str]
     leader: dict
     symbol: dict
@@ -183,7 +185,7 @@ def nx_create_note(
             with builders.build(tx, part.Annotations.CreateDraftingNoteBuilder, note) as reader:
                 check_leader(reader, obj, shown)
             out["leader"] = leader_row(tx, obj, shown, anchor)
-        return out
+        return report_bounds(tx, out, note, sh, "note")
 
 
 # ---- center marks and centerlines ---------------------------------------------------------
@@ -398,6 +400,7 @@ def _centerline(tx, view_ref, kind, refs):
     keywords=("surface finish", "roughness", "weld symbol", "fillet weld", "Ra"),
     requires=("work_part", "no_active_sketch"),
     variants="symbol",
+    required_by={"surface_finish": ("roughness_ra",), "weld": ("weld", "size")},
     cost="light",
     batchable=True,
     invalidates="deleted",
@@ -486,7 +489,7 @@ def _finish(tx, view, sheet, obj, origin, spec):
             }
             check_leader(reader, obj, view)
         readback.expect(stored == {"finish": native, "text": text}, "symbol", **stored)
-        return {
+        out: AnnotationData = {
             "annotation": tx.ref(symbol, "annotation"),
             "sheet": tx.ref(sheet, "drawing_sheet"),
             "origin": verify_origin(sh, symbol, origin),
@@ -498,6 +501,7 @@ def _finish(tx, view, sheet, obj, origin, spec):
                 "removal": next(k for k, v in FINISHES.items() if v == stored["finish"]),
             },
         }
+        return report_bounds(tx, out, symbol, sh, "symbol")
 
 
 def _weld(tx, view, sheet, obj, origin, spec):
@@ -538,7 +542,7 @@ def _weld(tx, view, sheet, obj, origin, spec):
         }
         readback.expect(stored == wanted, "symbol", "NX stored another weld symbol",
                         actual=stored)  # fmt: skip
-        return {
+        out: AnnotationData = {
             "annotation": tx.ref(weld, "annotation"),
             "sheet": tx.ref(sheet, "drawing_sheet"),
             "origin": verify_origin(sh, weld, origin),
@@ -551,6 +555,7 @@ def _weld(tx, view, sheet, obj, origin, spec):
                 "side": spec["side"],
             },
         }
+        return report_bounds(tx, out, weld, sh, "symbol")
 
 
 # ---- edit and refresh -----------------------------------------------------------------------
@@ -569,6 +574,7 @@ class EditData(TypedDict, total=False):
     position: list[float]
     frame: str
     text: list[str]
+    bounds: list[float]
 
 
 @tool(
@@ -655,6 +661,8 @@ def nx_edit_annotation(
     else:
         update(tx)
     out["annotation"] = tx.ref(obj, annotation_kind(tx, obj))
+    if sheet is not None and (position is not None or lines is not None):
+        report_bounds(tx, out, obj, drawing.Sheet(tx, sheet), annotation_kind(tx, obj))
     return out
 
 

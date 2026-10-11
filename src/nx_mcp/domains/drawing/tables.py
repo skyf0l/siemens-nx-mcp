@@ -26,6 +26,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    Doc,
     DrawingSheetRef,
     DrawingTableRef,
     DrawingViewRef,
@@ -78,6 +79,7 @@ class TableInfo(TypedDict, total=False):
     cells: list[title_blocks.CellInfo]
     holes: list[dict]
     units: str
+    bounds: list[float]
 
 
 # ---- reading --------------------------------------------------------------------------------
@@ -173,6 +175,9 @@ def table_info(tx, obj, kind=None):
         scale = sh.scale
         out["sheet"] = tx.ref(sheet, "drawing_sheet")
         out["position"] = sh.to_sheet(drawing.anchor_of(tx, obj).AnnotationOrigin)
+        bounds = drawing.annotation_box(tx, obj, sh)[0]
+        if bounds is not None:
+            out["bounds"] = bounds
     if kind == "parts_list":
         out["columns"] = _parts_list_columns(tx, tag, scale)
         out["automatic"] = bool(tx.uf.Plist.AskPrefs(obj.Tag).AutoUpdate)
@@ -214,8 +219,20 @@ def _warn_wrapped(tx, tag, rows):
         )
 
 
+def _warn_views(tx, out, sheet):
+    """Warn (NX_VIEW_OVERLAP) when a table's bounds lie over a drawing view's border."""
+    if sheet is None or out.get("bounds") is None:
+        return
+    views = drawing.crowding(tx, sheet, out["bounds"])[0]
+    if views:
+        names = ", ".join(str(r.get("name") or r.get("id")) for r in views[:5])
+        tx.warn("NX_VIEW_OVERLAP", f"The table lies over view {names}: move it with "
+                "nx_edit_drawing_table position (see bounds)")  # fmt: skip
+
+
 def _warn_off_sheet(tx, out, sheet):
     """Warn when a grid table's origin is off the sheet or its columns run past the edge."""
+    _warn_views(tx, out, sheet)
     position, columns = out.get("position"), out.get("columns") or []
     if position is None or sheet is None:
         return
@@ -251,6 +268,13 @@ def _summary(a, say):
     keywords=("parts list", "bom", "bend table", "title block", "revision table", "hole table"),
     requires=("work_part", "no_active_sketch"),
     variants="kind",
+    required_by={
+        "hole": ("view", "origin"),
+        "bend": ("view",),
+        "parts_list": ("sheet",),
+        "title_block": ("sheet", "rows", "widths"),
+        "revision": ("sheet", "rows", "widths"),
+    },
     cost="heavy",
     invalidates="deleted",
     example={"kind": "parts_list", "sheet": "sh:3", "position": [300, 200]},
@@ -331,6 +355,7 @@ def _create_parts_list(tx, sheet_ref, position, scope):
         update(tx)
         out = table_info(tx, obj, "parts_list")
         readback.expect_close(out.get("position", position), list(position), "position", 1e-3)
+        _warn_views(tx, out, sheet)
         return out
 
 
@@ -491,6 +516,7 @@ forbid_extra(ColumnEdit)
         "hole": "Edit hole table {table}",
     },
     variants="kind",
+    variant_from=("table", table_kind),  # kind may be left out: the table's own
     keywords=(
         "edit parts list",
         "bom column",
@@ -814,7 +840,7 @@ def all_tables(tx):
 
 
 class BalloonData(TypedDict, total=False):
-    balloons: list[result.Row]
+    balloons: Annotated[list[result.Row], Doc("Each with its sheet bounds")]
     parts_list: result.Row
     note: str
 
@@ -850,12 +876,24 @@ def nx_create_balloons(
         shown, sheet = drawing.view(tx, view)
     part = tx.part
     before = {int(a.Tag) for a in part.Annotations.IdSymbols}
-    with drawing.on_sheet(tx, sheet, part):
+    with drawing.on_sheet(tx, sheet, part) as sh:
         obj.ShowBalloonsInView(shown)
         update(tx)
         created = [a for a in part.Annotations.IdSymbols if int(a.Tag) not in before]
+        rows, crowded = [], 0
+        for balloon in created:
+            row = tx.ref(balloon, "annotation")
+            bounds, text = drawing.annotation_box(tx, balloon, sh)
+            if bounds is not None:
+                row["bounds"] = bounds  # type: ignore[typeddict-unknown-key]  # extra row field
+                views, off = drawing.crowding(tx, sheet, text or bounds)
+                crowded += bool(views or off)
+            rows.append(row)
+    if crowded:
+        tx.warn("NX_VIEW_OVERLAP", f"{crowded} balloon(s) lie over a view or off the sheet: "
+                "move them with nx_edit_annotation position (see bounds)")  # fmt: skip
     out: BalloonData = {
-        "balloons": [tx.ref(a, "annotation") for a in created],
+        "balloons": rows,
         "parts_list": tx.ref(obj, "drawing_table"),
     }
     if not created:

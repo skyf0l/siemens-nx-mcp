@@ -197,10 +197,13 @@
     }
    },
    "expect": {
-    "error.code": "NX_ALREADY_EXISTS",
-    "mutation_outcome": "not_started",
-    "error.message": {
-     "matches": "density 2700 kg/m"
+    "mutation_outcome": "committed",
+    "data.items.0.density": {
+     "close": 1000,
+     "tol": 1e-06
+    },
+    "warnings.0.message": {
+     "matches": "was 2700"
     }
    }
   },
@@ -208,12 +211,17 @@
    "call": "nx_get_material",
    "args": {
     "bodies": [
+     "$blk.data.bodies.0.id",
      "$b2.data.bodies.0.id"
     ]
    },
    "expect": {
     "data.items.0.density": {
-     "close": 2700,
+     "close": 1000,
+     "tol": 1e-06
+    },
+    "data.items.1.density": {
+     "close": 1000,
      "tol": 1e-06
     }
    }

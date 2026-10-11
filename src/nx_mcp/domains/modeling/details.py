@@ -234,8 +234,7 @@ def nx_create_shell(
     remove_faces: Annotated[FaceList, Doc("Faces to open; omit for a closed hollow")] | None = None,
     outward: Annotated[bool, Doc("Grow the wall outside the original faces")] = False,
 ) -> common.FeatureData:
-    """Hollow a solid body to a wall thickness, opening the removed faces. To drive thickness
-    by an expression, edit it afterwards with nx_edit_feature."""
+    """Hollow a solid body to a wall thickness, opening the removed faces."""
     if float(thickness) <= 0:
         fail("NX_INVALID_ARGUMENT", "thickness must be positive", field="/thickness",
              hint="Send e.g. 'thickness': '2 mm'; outward grows the wall outside")  # fmt: skip
@@ -249,7 +248,7 @@ def nx_create_shell(
     with builders.build(tx, tx.part.Features.CreateShellBuilder, None) as b:
         b.Tolerance = units.part_tolerance(tx)
         b.Body = target
-        b.DefaultThickness.RightHandSide = repr(float(thickness))
+        expr.drive(b.DefaultThickness, thickness)  # an expression keeps the wall driven
         b.DefaultThicknessFlip = not outward
         if faces:
             b.RemovedFacesCollector = builders.collector(tx, faces, "Face")
@@ -274,7 +273,7 @@ def nx_create_draft(
     *,
     faces: FaceList,
     stationary_face: FaceRef,
-    direction: common.PrincipalName | Direction,
+    direction: Direction,
     angle: Angle,
 ) -> common.FeatureData:
     """Draft faces about a stationary face; a positive angle tapers them inward along the draw
@@ -308,7 +307,7 @@ def nx_create_draft(
         stationary = builders.collector(tx, [fixed], "Face")
         b.StationaryReference.ReplaceRules(stationary.GetRules(), False)
         group = part.CreateExpressionCollectorSet(
-            builders.collector(tx, selected, "Face"), repr(float(angle)), "Angle", 0
+            builders.collector(tx, selected, "Face"), expr.rhs(angle), "Angle", 0
         )
         b.FaceSetAngleExpressionList.Append(group)
         feature = b.commit()

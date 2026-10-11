@@ -1,0 +1,136 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "steps": [
+  {"call": "nx_open_part", "setup": true, "save": "part", "args": {"path": "$fixture"}},
+  {
+   "call": "nx_create_datum_plane",
+   "intent": "Acceptance: a bare plane name with its noun, a natural method spelling",
+   "args": {"method": "Offset", "reference": "XY plane", "distance": "5 mm"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin.2": {"close": 5, "tol": 1e-6},
+    "data.normal": {"close": [0, 0, 1], "tol": 1e-9}
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "intent": "Acceptance: points and vectors as JSON-array strings",
+   "args": {"method": "point_direction", "origin": "[0, 0, 0]", "direction": "[0, 1, 0]"},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.direction": {"close": [0, 1, 0], "tol": 1e-9}
+   }
+  },
+  {
+   "call": "nx_create_datum_axis",
+   "intent": "Acceptance: one error names every invalid field and the fields the variant needs",
+   "args": {"method": "point_direction", "name": "bad name!"},
+   "expect": {
+    "ok": false,
+    "mutation_outcome": "not_started",
+    "error.field": "/name",
+    "error.details.errors.1.field": "/origin",
+    "error.details.errors.1.message": {"matches": "required when method is 'point_direction'"},
+    "error.details.errors.2.field": "/direction"
+   }
+  },
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [100, 100], "corner2": [110, 120]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {
+   "call": "nx_create_extrude",
+   "save": "ex",
+   "intent": "Acceptance: extrude along a bare '-Z direction'",
+   "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": "10 mm"}, "direction": "-Z direction"},
+   "expect": {"mutation_outcome": "committed", "data.volume": {"close": 2000, "tol": 1e-6}}
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {"bodies": ["$ex.data.bodies.0.id"], "precision": "exact"},
+   "expect": {
+    "data.min": {"close": [100, 100, -10], "tol": 1e-4},
+    "data.max": {"close": [110, 120, 0], "tol": 1e-4}
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "save": "rv",
+   "intent": "Acceptance: revolve half a turn about '+X axis' (right hand: towards +Z)",
+   "args": {"sketch": "$sk.data.sketch.id", "axis": "+X axis", "end_angle": "180 deg"},
+   "expect": {"mutation_outcome": "committed"}
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {"bodies": ["$rv.data.bodies.0.id"], "precision": "exact"},
+   "expect": {
+    "data.min": {"close": [100, -120, 0], "tol": 1e-4},
+    "data.max": {"close": [110, 120, 120], "tol": 1e-4}
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "intent": "Acceptance: a factor given as '200%' about a JSON-array origin",
+   "args": {"bodies": ["$rv.data.bodies.0.id"], "factor": "200%", "origin": "[0, 0, 0]"},
+   "expect": {"mutation_outcome": "committed", "data.volume": {"close": 552920.307, "tol": 0.5}}
+  },
+  {
+   "call": "nx_create_transform",
+   "save": "mv",
+   "setup": true,
+   "args": {"bodies": ["$ex.data.bodies.0.id"], "transform": {"translation": [0, 0, 10]}}
+  },
+  {
+   "call": "nx_edit_feature",
+   "intent": "Acceptance: an axis-angle pose replaces the move (90 deg about Z through [100, 100, 0])",
+   "args": {
+    "feature": "$mv.data.feature.id",
+    "definition": {"transform": {"axis": "z", "angle": "90deg", "origin": [100, 100, 0]}}
+   },
+   "expect": {"mutation_outcome": "committed", "data.type": "MOVE_OBJECT"}
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {"bodies": ["$ex.data.bodies.0.id"], "precision": "exact"},
+   "expect": {
+    "data.min": {"close": [80, 100, -10], "tol": 1e-4},
+    "data.max": {"close": [100, 110, 0], "tol": 1e-4}
+   }
+  },
+  {"call": "nx_create_drawing_sheet", "setup": true, "save": "sh", "args": {"name": "SHT1", "size": "a3", "projection": "first_angle"}},
+  {
+   "call": "nx_create_drawing_table",
+   "intent": "Acceptance: the fields a revision table needs are named before NX",
+   "args": {"kind": "revision", "sheet": "$sh.data.sheet.id", "position": [250, 290]},
+   "expect": {
+    "ok": false,
+    "mutation_outcome": "not_started",
+    "error.field": "/rows",
+    "error.details.errors.1.field": "/widths"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "rev",
+   "intent": "Acceptance: rows as a JSON-array string",
+   "args": {"kind": "revision", "sheet": "$sh.data.sheet.id", "position": [250, 290], "rows": "[[\"A\", \"First\", \"TR\"]]", "widths": [10, 60, 15]},
+   "expect": {"mutation_outcome": "committed", "data.rows": [["A", "First", "TR"]]}
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "intent": "Acceptance: kind left out, taken from the revision table",
+   "args": {"table": "$rev.data.table.id", "rows": [["A", "First", "TR"], ["B", "Hole added", "TR"]]},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.rows": [["A", "First", "TR"], ["B", "Hole added", "TR"]]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "intent": "Acceptance: a given kind that does not match the table is still refused",
+   "args": {"table": "$rev.data.table.id", "kind": "title_block", "rows": [["A", "B"]]},
+   "expect": {"ok": false, "error.code": "NX_WRONG_KIND", "error.field": "/kind"}
+  }
+ ]
+}

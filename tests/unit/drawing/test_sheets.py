@@ -136,7 +136,7 @@ def test_natural_size_scale_and_projection_spellings_are_accepted():
         bad = run(nx, "nx_create_drawing_sheet", **args)
         assert bad.error["field"] == field and bad.mutation_outcome == "not_started", (args, bad)
     hint = run(nx, "nx_create_drawing_sheet", projection="frist").error
-    assert "did you mean 'first_angle'" in hint["message"] and "third_angle" in hint["hint"]
+    assert "did you mean 'first_angle'" in hint["message"] and "third_angle" in hint["message"]
 
 
 def test_activate_takes_a_sheet_name_and_lists_the_sheets_of_an_unknown_one():

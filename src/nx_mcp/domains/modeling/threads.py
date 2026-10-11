@@ -12,7 +12,10 @@ Standard, and Custom); without one, 0.75 (else Standard) is used.
 NX 2406 lessons kept here: a detailed internal thread on a bore at or above the major
 diameter fails with "Tool body completely outside target body" (670030) and a reversed
 direction with "Invalid thread axis direction" (671154); a symbolic one is accepted
-silently, so both are refused before NX builds anything.
+silently, so both are refused before NX builds anything. A bore cut by subtracting a
+cylinder threads only reversed from its top ("Thread depth must be greater than zero",
+674805): that build is repeated with the direction flipped. ``LimitOption.Full`` threads the
+whole face and follows it.
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from nx_mcp.core.types import (
     Angle,
     Doc,
     FaceRef,
+    Items,
     Length,
     Offset,
     PageLimit,
@@ -39,7 +43,7 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import builders, geom, measure, readback, result, select
+from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, select
 
 if TYPE_CHECKING:
     from typing_extensions import TypeIs
@@ -69,6 +73,10 @@ STANDARD_ALIASES = {
 # Radial engagements taken, in this order, when the call names none.
 ENGAGEMENTS = ("0.75", "Standard")
 # NX 2406 refusals of a thread build, with what to change.
+# NX 2406 "Thread depth must be greater than zero": the thread runs out of the face from
+# start_face. NX threads along the cylinder's own axis, which for a bore cut by a Boolean
+# subtract points away from the start face; the build is repeated reversed.
+THREAD_OUTWARD = 674805
 BUILD_HINTS = {
     670030: "A detailed thread found no material to cut: an internal thread needs a bore below "
     "the major diameter (the tap drill), an external one a shaft at the major diameter",
@@ -382,7 +390,13 @@ class ThreadReadback(TypedDict):
     size: str | None
 
 
-class ThreadData(TypedDict):
+class ThreadItem(TypedDict):
+    feature: result.Row
+    face: result.Row
+    length: float
+
+
+class ThreadData(TypedDict, total=False):
     feature: result.Row
     bodies: list[result.Row]
     volume: float
@@ -394,6 +408,7 @@ class ThreadData(TypedDict):
     size: str | None
     engagement: str | None
     length: float
+    threads: Annotated[list[ThreadItem], Doc("Several faces: one thread feature each")]
 
 
 def _table_row(spec: TableSpec) -> dict:
@@ -417,7 +432,7 @@ def _check_manual(spec: ManualSpec) -> None:
         fail("NX_INVALID_ARGUMENT", "angle must be between 0 and 180", field="/spec/angle")
 
 
-def _check_fit(internal, diameter, major, minor, tap) -> None:
+def _check_fit(internal, diameter, major, minor, tap, field="/face") -> None:
     """Refuse a thread with no material to thread: a bore at or above the major diameter,
     a shaft at or below the minor one."""
     tol = 1e-6 * max(1.0, diameter)
@@ -426,7 +441,7 @@ def _check_fit(internal, diameter, major, minor, tap) -> None:
             "NX_WRONG_GEOMETRY",
             f"This bore is {diameter:.6g} across; an internal thread of major diameter "
             f"{major:.6g} needs a smaller bore",
-            field="/face",
+            field=field,
             hint=(f"Drill the tap drill {tap:.6g} first, or " if tap else "")
             + "pick a larger size; nx_create_hole form 'threaded' drills and threads at once",
         )
@@ -435,7 +450,7 @@ def _check_fit(internal, diameter, major, minor, tap) -> None:
             "NX_WRONG_GEOMETRY",
             f"This shaft is {diameter:.6g} across; an external thread of minor diameter "
             f"{minor:.6g} needs a larger shaft (its major diameter)",
-            field="/face",
+            field=field,
             hint="Pick a smaller size or thread a larger shaft",
         )
 
@@ -453,13 +468,14 @@ def _end_faces(tx, target, axis) -> list:
     return list(found.values())
 
 
-def _start_face(tx, target, axis):
+def _start_face(tx, target, axis, field="/face"):
     ends = _end_faces(tx, target, axis)
     if len(ends) == 1:
         return ends[0]
+    which = "" if field == "/face" else f" {field[1:]}"
     fail(
         "NX_INVALID_ARGUMENT",
-        f"Give start_face: the cylinder has {len(ends) or 'no'} planar end face"
+        f"Give start_face: the cylinder{which} has {len(ends) or 'no'} planar end face"
         + ("s" if len(ends) != 1 else ""),
         field="/start_face",
         hint="Pass the planar face at the end the thread starts from"
@@ -481,75 +497,41 @@ def _full_length(tx, target, start, axis) -> float:
     return max(reach)
 
 
-@tool(
-    effect="model",
-    label="Create thread",
-    summary=lambda a, say: (
-        "Thread "
-        + (a["spec"].get("size") or f"pitch {a['spec'].get('pitch')}")
-        + f" on {say('face')}"
-    ),
-    keywords=("thread", "tap", "cosmetic thread", "symbolic thread", "detailed thread", "screw"),
-    requires=("work_part", "no_active_sketch"),
-    cost="heavy",
-    previewable=True,
-    example={"face": "fc:9", "spec": {"standard": "Metric Coarse", "size": "M6"}, "length": 10},
-)
-def nx_create_thread(
-    tx: Tx,
-    *,
-    face: Annotated[FaceRef, Doc("Cylindrical face: a bore or a shaft")],
-    spec: TableSpec | ManualSpec,
-    start_face: Annotated[FaceRef, Doc("Planar end it starts at; default the only one")]
-    | None = None,
-    length: Annotated[Length, Doc("Default: to the face's far end")] | None = None,
-    detailed: Annotated[bool, Doc("Helical geometry instead of a symbolic thread")] = False,
-    hand: Literal["right", "left"] = "right",
-    reverse: bool = False,
-) -> ThreadData:
-    """Thread a cylindrical face from a table size ('M6': Metric Coarse, engagement 0.75 by
-    default) or pitch and diameters. start_face defaults to its only planar end, length to the
-    far end. A bore must be below the major diameter (tap drill). Symbolic keeps the volume;
-    detailed cuts it."""
-    if length is not None and float(length) <= 0:
-        fail("NX_INVALID_ARGUMENT", "length must be positive", field="/length")
-    row: dict[str, str] | None = None
-    manual: ManualSpec | None = None
-    if _is_table(spec):
-        row = _table_row(spec)
-        major = common.float_or_none(row.get("MajorDiameter"))
-        minor = common.float_or_none(row.get("MinorDiameter"))
-        tap = common.float_or_none(row.get("TapDrillDia"))
-    else:
-        manual = spec
-        _check_manual(spec)
-        major, minor, tap = float(spec["major_diameter"]), float(spec["minor_diameter"]), None
-    target = select.one(tx, face, "face", field="/face")
+def _plan(tx, ref, field, start_face, length, fit) -> dict:
+    """What one face's thread needs: the face, its radius, start face and span."""
+    target = select.one(tx, ref, "face", field=field)
     data = tx.uf.Modeling.AskFaceData(target.Tag)
     if int(data[0]) != select.FACE_CYLINDER:
-        fail("NX_WRONG_GEOMETRY", "Select a cylindrical face", field="/face")
+        fail("NX_WRONG_GEOMETRY", "Select a cylindrical face", field=field)
     radius, axis = float(data[4]), geom.unit([float(v) for v in data[2]])
-    _check_fit(float(data[6]) < 0, 2 * radius, major, minor, tap)
+    major, minor, tap = fit
+    _check_fit(float(data[6]) < 0, 2 * radius, major, minor, tap, field=field)
     body = target.GetBody()
     if start_face is None:
-        start = _start_face(tx, target, axis)
+        start = _start_face(tx, target, axis, field)
     else:
         start = select.one(tx, start_face, "face", field="/start_face")
         if int(start.GetBody().Tag) != int(body.Tag):
             fail("NX_WRONG_OWNER", "start_face must be on the face's body", field="/start_face")
-    span = float(length) if length is not None else _full_length(tx, target, start, axis)
-    if row is not None:
-        check_units(tx, row, "/spec/standard")
-    before = measure.volume(tx, body)
+    full = length is None or length == "full"
+    span = _full_length(tx, target, start, axis) if full else float(length)
+    return {"face": target, "radius": radius, "body": body, "start": start, "span": span,
+            "full": full, "field": field}  # fmt: skip
+
+
+def _build(tx, plan, row, manual, length, options) -> tuple[Any, ThreadReadback]:
+    """Commit one thread feature; returns ``(feature, read-back)``."""
+    detailed, hand, reverse = options
     T = tx.nx.Features.ThreadBuilder
+    diameter = 2 * plan["radius"]
     try:
         with builders.build(tx, tx.part.Features.CreateThreadBuilder, None) as b:
             b.SmartThread = False
             b.ThreadType = T.Type.Detailed if detailed else T.Type.Symbolic
-            b.CylindricalFace.Value = target
-            b.StartObject.Value = start
-            b.ShaftDiameterExp.RightHandSide = repr(2 * radius)
-            b.TapDrillDiameterExp.RightHandSide = repr(2 * radius)
+            b.CylindricalFace.Value = plan["face"]
+            b.StartObject.Value = plan["start"]
+            b.ShaftDiameterExp.RightHandSide = repr(diameter)
+            b.TapDrillDiameterExp.RightHandSide = repr(diameter)
             if row is not None:
                 b.ThreadInput = T.Input.ThreadTable
                 b.ThreadStandard = row["Standard"]
@@ -560,12 +542,14 @@ def nx_create_thread(
             elif manual is not None:
                 b.ThreadInput = T.Input.Manual
                 b.NumStarts = int(manual.get("starts", 1))
-                b.PitchExp.RightHandSide = repr(float(manual["pitch"]))
-                b.MajorDiameterExp.RightHandSide = repr(float(manual["major_diameter"]))
-                b.MinorDiameterExp.RightHandSide = repr(float(manual["minor_diameter"]))
-                b.AngleExp.RightHandSide = repr(float(manual.get("angle", 60.0)))
+                expr.drive(b.PitchExp, manual["pitch"])
+                expr.drive(b.MajorDiameterExp, manual["major_diameter"])
+                expr.drive(b.MinorDiameterExp, manual["minor_diameter"])
+                expr.drive(b.AngleExp, manual.get("angle", 60.0))
             b.ThreadLimit = T.LimitOption.Value
-            b.ThreadLength.RightHandSide = repr(span)
+            expr.drive(b.ThreadLength, plan["span"] if plan["full"] else length)
+            if plan["full"]:
+                b.ThreadLimit = T.LimitOption.Full  # follows the face's length
             b.ThreadHandedness = T.Handedness.LeftHand if hand == "left" else T.Handedness.RightHand
             b.ReverseThreadDirection = bool(reverse)
             feature = b.commit(validate=True)
@@ -594,7 +578,93 @@ def nx_create_thread(
     elif manual is not None:
         for key in ("pitch", "major_diameter", "minor_diameter"):
             readback.expect_close(got[key], float(manual[key]), key)
-    out = common.result_of(tx, feature, [body])
-    common.changed(before, out["volume"], "less" if detailed else "same")
+    return feature, got
+
+
+@tool(
+    effect="model",
+    label="Create thread",
+    summary=lambda a, say: (
+        "Thread "
+        + (a["spec"].get("size") or f"pitch {a['spec'].get('pitch')}")
+        + f" on {say('faces') if a.get('faces') else say('face')}"
+    ),
+    keywords=("thread", "tap", "cosmetic thread", "symbolic thread", "detailed thread", "screw"),
+    requires=("work_part", "no_active_sketch"),
+    cost="heavy",
+    previewable=True,
+    example={"faces": ["fc:9", "fc:12"], "spec": {"size": "M6"}},
+)
+def nx_create_thread(
+    tx: Tx,
+    *,
+    face: Annotated[FaceRef, Doc("Cylindrical face: a bore or a shaft")] | None = None,
+    faces: Annotated[list[FaceRef], Items(1, 50), Doc("Several faces, one thread each")]
+    | None = None,
+    spec: TableSpec | ManualSpec,
+    start_face: Annotated[FaceRef, Doc("Planar end it starts at; default each face's only one")]
+    | None = None,
+    length: Annotated[Length | Literal["full"], Doc("Default 'full': the whole face")]
+    | None = None,
+    detailed: Annotated[bool, Doc("Helical geometry instead of a symbolic thread")] = False,
+    hand: Literal["right", "left"] = "right",
+    reverse: bool = False,
+) -> ThreadData:
+    """Thread a cylindrical face, or several (faces: one thread each). spec: a table size
+    ('M6': Metric Coarse, engagement 0.75) or pitch and diameters. A bore must be below the
+    major diameter (tap drill). Symbolic keeps the volume; detailed cuts it."""
+    args.exactly_one(face=face, faces=faces)
+    refs = [face] if face is not None else args.distinct("/faces", faces or [], "faces")
+    if length is not None and length != "full" and float(length) <= 0:
+        fail("NX_INVALID_ARGUMENT", "length must be positive", field="/length")
+    row: dict[str, str] | None = None
+    manual: ManualSpec | None = None
+    if _is_table(spec):
+        row = _table_row(spec)
+        major = common.float_or_none(row.get("MajorDiameter"))
+        minor = common.float_or_none(row.get("MinorDiameter"))
+        tap = common.float_or_none(row.get("TapDrillDia"))
+    else:
+        manual = spec
+        _check_manual(spec)
+        major, minor, tap = float(spec["major_diameter"]), float(spec["minor_diameter"]), None
+    plans = [
+        _plan(
+            tx,
+            ref,
+            "/face" if face is not None else f"/faces/{i}",
+            start_face,
+            length,
+            (major, minor, tap),
+        )  # fmt: skip
+        for i, ref in enumerate(refs)
+    ]
+    if row is not None:
+        check_units(tx, row, "/spec/standard")
+    bodies = list({int(p["body"].Tag): p["body"] for p in plans}.values())
+    before = [measure.volume(tx, body) for body in bodies]
+    made = []
+    for plan in plans:
+        try:
+            made.append(_build(tx, plan, row, manual, length, (detailed, hand, reverse)))
+        except NXError as error:
+            if error.nx_code != THREAD_OUTWARD:
+                raise
+            made.append(_build(tx, plan, row, manual, length, (detailed, hand, not reverse)))
+        tx.checkpoint()
+    out = common.result_of(tx, made[0][0], bodies)
+    for i, (body, volume) in enumerate(zip(bodies, before, strict=True)):
+        common.changed(volume, measure.volume(tx, body), "less" if detailed else "same",
+                       check="volume" if len(bodies) == 1 else f"volume[{i}]")  # fmt: skip
     engagement = row.get("RadialEngage") if row is not None else None
-    return {**out, **got, "engagement": engagement, "length": span}
+    data: ThreadData = {**out, **made[0][1], "engagement": engagement, "length": plans[0]["span"]}
+    if len(plans) > 1:
+        data["threads"] = [
+            {
+                "feature": tx.ref(f, kind="feature"),
+                "face": tx.ref(p["face"], kind="face"),
+                "length": p["span"],
+            }  # fmt: skip
+            for p, (f, _got) in zip(plans, made, strict=True)
+        ]
+    return data

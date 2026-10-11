@@ -5,6 +5,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+from nx_mcp.kit import geom
 from tests.kit import run
 from tests.kit.objects import Object
 from tests.unit.modeling.fakes import call, feature, modeling_nx, new_body
@@ -293,7 +294,14 @@ def test_materials_assign_verify_and_read():
             if self.Name == "OLD":  # an older material: no readable property table
                 raise RuntimeError("no property table")
             g_cc = NS(Tag=7)  # stored in g/cm^3: converted to kg/m^3
-            return NS(GetBaseScalarWithDataPropertyValue=lambda name: (self.density / 1000, g_cc))
+
+            def set_density(name, value, unit):
+                self.density = value
+
+            return NS(
+                GetBaseScalarWithDataPropertyValue=lambda name: (self.density / 1000, g_cc),
+                SetBaseScalarWithDataPropertyValue=set_density,
+            )
 
     library = type(
         "Materials", (list,), {
@@ -317,11 +325,10 @@ def test_materials_assign_verify_and_read():
     assert again.ok and len(library) == 1
     nx.part.UnitCollection = NS(FindObject=lambda name: NS(Tag=1),
                                 Convert=lambda src, dst, v: v * 1000)  # fmt: skip
-    assigns = dict(assigned)
-    clash = run(nx, "nx_set_material", bodies=[block.ref],
-                material={"custom": {"name": "al6061", "density": 1000}})  # fmt: skip
-    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.mutation_outcome == "not_started"
-    assert "2700" in clash.error["message"] and assigned == assigns  # refused before assigning
+    edited = run(nx, "nx_set_material", bodies=[block.ref],
+                 material={"custom": {"name": "al6061", "density": 1000}})  # fmt: skip
+    assert edited.ok and edited.data["items"][0]["density"] == 1000, edited
+    assert "was 2700" in edited.warnings[0]["message"] and len(library) == 1
     read = run(nx, "nx_get_material")
     assert (
         read.data["items"][0]["material"] == "AL6061" and read.mutation_outcome == "not_applicable"
@@ -401,11 +408,22 @@ def _rigid(nx, body):
     from nx_mcp.kit import geom
 
     def moved(b):
-        to, m = b.TransformMotion.ToCsys.args[:2]
+        motion = b.TransformMotion
         centre = getattr(body, "centroid", None) or [
             (body.box[i] + body.box[i + 3]) / 2 for i in range(3)
         ]
-        body.centroid = geom.add(geom.matvec(geom.rows(m), centre), [to.X, to.Y, to.Z])
+        if motion.Option is motion.Options.Angle:  # an angle about an axis
+            from nx_mcp.kit import pose
+
+            axis = motion.AngularAxis
+            origin = geom.xyz(axis.point.Coordinates)
+            direction = geom.xyz(axis.direction.Vector)
+            angle = float(motion.Angle.RightHandSide)
+            pivot, turn = pose.rotate_about(([0.0] * 3, pose.identity()), origin, direction, angle)
+            body.centroid = geom.add(geom.matvec(turn, centre), pivot)
+        else:
+            to, m = motion.ToCsys.args[:2]
+            body.centroid = geom.add(geom.matvec(geom.rows(m), centre), [to.X, to.Y, to.Z])
         return feature(nx, "MOVE_OBJECT", [body])
 
     nx.on_commit("MoveObjectBuilder", moved)
@@ -419,8 +437,9 @@ def test_transform_rotates_about_an_axis_through_a_point():
     spin = {"axis": [0, 0, 1], "angle": 90, "origin": [5, 5, 0]}
     ok = run(nx, "nx_create_transform", bodies=[block.ref], transform={"rotation": spin})
     assert ok.ok, ok
-    to = nx.last("MoveObjectBuilder").TransformMotion.ToCsys.args[0]
-    assert [round(v, 9) for v in (to.X, to.Y, to.Z)] == [10.0, 0.0, 0.0]
+    motion = nx.last("MoveObjectBuilder").TransformMotion
+    assert motion.Angle.RightHandSide == "90.0"  # one axis rotation: an angle motion
+    assert geom.xyz(motion.AngularAxis.point.Coordinates) == [5.0, 5.0, 0.0]
     assert [round(v, 9) for v in block.centroid] == [5.0, 5.0, 5.0]
     turn_z = {"rotation": {"axis": "z", "angle": "90 deg"}, "translation": [0, 0, 5]}
     turn = run(nx, "nx_create_transform", bodies=[nx.ref_of(block, "body")], transform=turn_z)

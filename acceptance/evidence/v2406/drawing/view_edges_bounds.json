@@ -1,0 +1,202 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/view_edges_bounds.json",
+  "scenario_sha256": "0629a92beb76aba49571d1b56f6d01e0903a430be851b47ff73a4e06cf60e66b",
+  "domain": "drawing",
+  "covers": {
+    "nx_list_view_edges": [],
+    "nx_create_drawing_dimension": [
+      "horizontal",
+      "vertical"
+    ],
+    "nx_edit_drawing_view": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_list_view_edges": "d6e358072188b01fb35a9847ed29172c15db63ec3855b88d92e9fd327f119883",
+    "nx_create_drawing_dimension": "4286544423cda3ef1a7781dfa37add9572da9e3b7a77103f78c30c1e265edc81",
+    "nx_edit_drawing_view": "860363cc0ba28d8862d28ae1f7f586980929e4b8c340110933b7c75297a05fff"
+  },
+  "recorded": "2026-10-11T08:06:52Z",
+  "passed": true,
+  "checks": 56,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 16
+    },
+    {
+      "index": 8,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_create_note",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_create_note",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_get_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 22,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 24,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 25,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

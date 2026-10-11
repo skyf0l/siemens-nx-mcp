@@ -13,8 +13,42 @@ from __future__ import annotations
 from types import SimpleNamespace as NS
 
 from tests.kit import fake_nx
-from tests.kit.fake import Node
+from tests.kit.fake import FakeSection, Node
 from tests.kit.objects import Feature, point
+
+
+class LoftSection(FakeSection):
+    """A section that records ``SetStartAndDirection`` (loft start alignment)."""
+
+    def __init__(self, *tolerances):
+        super().__init__(*tolerances)
+        self.start = None
+
+    def SetStartAndDirection(self, element, point, direction):
+        self.start = (element, point, direction)
+
+
+class Alignment:
+    """A loft's alignment builder: ``ComputeDefaultPoints`` gives four points per section
+    at 0, 25, 50 and 75 percent; ``GetAllPoints`` lists them section after section."""
+
+    def __init__(self):
+        self.sections = []
+        self.points = []
+        self.AlignType = None
+
+    def SetSections(self, sections):
+        self.sections = list(sections)
+
+    def ComputeDefaultPoints(self):
+        self.points = [
+            NS(IsPercentUsed=False, Expression=NS(Value=25.0 * k, RightHandSide=str(25.0 * k)))
+            for _ in self.sections
+            for k in range(4)
+        ]
+
+    def GetAllPoints(self):
+        return list(self.points), len(self.sections)
 
 
 class AutoNS:
@@ -71,6 +105,16 @@ def modeling_nx(units="mm"):
         return body
 
     nx.block = block
+    make_builder = nx.builder
+
+    def builder(kind, *args):
+        b = make_builder(kind, *args)
+        if kind in ("ThroughCurvesBuilder", "SweptBuilder"):
+            object.__setattr__(b, "Alignment", Alignment())
+            object.__setattr__(b, "AlignmentMethod", b.Alignment)
+        return b
+
+    nx.builder = builder
 
     def mass(_units, _accuracy, bodies):
         bodies = list(bodies)
@@ -84,6 +128,7 @@ def modeling_nx(units="mm"):
         return NS(Volume=volume, Area=0.0, Centroid=point(*centroid), Dispose=lambda: None)
 
     part.MeasureManager = NS(NewMassProperties=mass)
+    part.Sections = NS(CreateSection=LoftSection)
 
     def face_props(tag, uv):
         f = objects[tag]

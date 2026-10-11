@@ -399,6 +399,9 @@ class Tx:
         self.references: str | None = None  # "part_invalidated": overrides changes
         self.changed: list[Row] = []  # rows for changes.modified (``tx.modified``)
         self.stale_refs: list[str] = []  # refs an undo made stale (``tx.after_undo``)
+        # part_key -> (part, snapshot before the change): parts besides the work part the
+        # call changes (``tx.touch_part``).
+        self.extra_parts: dict[str, tuple[Any, dict]] = {}
         self.files = Files(self)
         self.display = Display(self)
         self.children: list[dict] = []
@@ -439,13 +442,19 @@ class Tx:
 
     # -- references -------------------------------------------------------------
     def resolve(self, ref: str, *kinds: str, work_part: bool = False):
-        """The live object for ``ref``: stale_reference, wrong_kind or wrong_owner."""
+        """The live object for ``ref``: stale_reference, wrong_kind or wrong_owner.
+
+        ``work_part`` also refuses objects of other parts and occurrences, except a
+        component of the work assembly (an occurrence the work part owns)."""
         obj = self._services.references.resolve(ref, kinds)
         if work_part:
             owner = self._services.owning_part(obj)
             work = self._services.work_part()
+            occurrence = bool(getattr(obj, "IsOccurrence", False))
+            if occurrence and self._services.infer_kind(obj) == "component":
+                occurrence = False  # the work assembly's own component
             if (
-                getattr(obj, "IsOccurrence", False)
+                occurrence
                 or owner is None
                 or work is None
                 or (self._services.part_key(owner) != self._services.part_key(work))
@@ -457,6 +466,19 @@ class Tx:
                     details={"ref": ref},
                 )
         return obj
+
+    def touch_part(self, part) -> None:
+        """Declare that the call changes ``part`` besides the work part (the prototype of
+        a component edited in context). Call it before the change: the kernel snapshots
+        the part now and, after the handler, lists what was created or deleted in it in
+        ``changes`` and fails the call on its new features that do not update (gate 11),
+        as for the work part. The work part itself and repeated calls are ignored."""
+        services = self._services
+        key = services.part_key(part)
+        work = services.work_part()
+        if key in self.extra_parts or (work is not None and services.part_key(work) == key):
+            return
+        self.extra_parts[key] = (part, services.snapshot(part))
 
     def require_owned(self, part, *, field: str | None = None) -> None:
         """Refuse to save, close or change ``part`` unless the agent owns it (gate 6).

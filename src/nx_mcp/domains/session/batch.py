@@ -27,7 +27,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, classify, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Arguments, Doc, Items, Text
-from nx_mcp.core.validate import pointer, validate
+from nx_mcp.core.validate import at_child, pointer
 
 MAX_STEPS = 100
 
@@ -67,11 +67,7 @@ def _at(index: int, error: NXError, tool_name: str | None) -> NXError:
     error.details.setdefault("child_index", index)
     if tool_name:
         error.details.setdefault("child_tool", tool_name)
-    if error.field == "/tool":
-        error.field = f"/operations/{index}/tool"
-    elif error.field and not error.field.startswith("/operations/"):
-        error.field = f"/operations/{index}/arguments{error.field}"
-    return error
+    return at_child(error, index)
 
 
 def _admitted(spec, mode: str) -> bool:
@@ -125,7 +121,7 @@ def _preflight(operations: list[Step], mode: str = "batch") -> list:
                 _unknown(name, registry, mode)
             if not _admitted(spec, mode):
                 _refuse(spec, registry, mode)
-            checked = validate(spec.params, step["arguments"], placeholders=True)
+            checked = spec.check(step["arguments"], placeholders=True)
             for path, text in checked.placeholders:
                 step_ref = re.match(r"^\$([0-9]+)", text)  # validate matched PLACEHOLDER_PATTERN
                 if step_ref is not None and int(step_ref.group(1)) >= index:

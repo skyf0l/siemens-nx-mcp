@@ -50,6 +50,42 @@ def test_create_explosion_starts_at_assembled_poses(nx):
     assert other.error["code"] == "NX_WRONG_PART_CONTEXT"
 
 
+def test_create_explosion_with_initial_placements(nx):
+    ok = run(nx, "nx_create_explosion", name="E1", placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 40]},
+        {"component": nx.n.ref, "pose": {"translation": [0, 0, 100], "rotation": RZ90}},
+    ])  # fmt: skip
+    assert ok.ok and not ok.warnings, ok
+    assert ok.data["moved_count"] == 2 and ok.data["component_count"] == 4
+    rows = {r["component"]["id"]: r for r in ok.data["placed"]}
+    assert rows[nx.b.ref]["translation"] == pytest.approx([30, 0, 40])
+    assert rows[nx.b.ref]["assembled_translation"] == [30, 0, 0] and nx.b.t == [30, 0, 0]
+    assert flat(rows[nx.n.ref]["rotation"]) == pytest.approx(flat(RZ90))
+    assert nx.assembly.explosions[0].pose(nx.n)[0] == pytest.approx([0, 0, 100])
+
+
+def test_create_explosion_refuses_bad_placements_before_creating(nx):
+    nx.b.IsSuppressed = True
+    cases = [
+        ([{"component": nx.b.ref, "offset": [0, 0, 1]}], "/placements/0/component"),
+        ([{"component": nx.a.ref, "offset": [0, 0, 1]}, {"component": nx.a.ref,
+          "offset": [1, 0, 0]}], "/placements/1/component"),
+        ([{"component": nx.a.ref}], "/placements/0"),
+    ]  # fmt: skip
+    for placements, field in cases:
+        bad = run(nx, "nx_create_explosion", name="E1", placements=placements)
+        assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
+    assert not nx.assembly.explosions
+    api = nx.uf.Assem
+    explode = api.ExplodeComponent
+    api.ExplodeComponent = lambda e, c, m: explode(
+        e, c, [r[:3] + [r[3] + 1] for r in m[:3]] + [m[3]]
+    )
+    drift = run(nx, "nx_create_explosion", name="E1",
+                placements=[{"component": nx.a.ref, "offset": [0, 0, 5]}])  # fmt: skip
+    assert drift.mutation_outcome == "rolled_back" and not nx.assembly.explosions
+
+
 def test_edit_explosion_sets_absolute_nested_poses_and_keeps_assembled_ones(nx):
     ex = explosion(nx)
     ok = run(nx, "nx_edit_explosion", explosion=ex, placements=[
@@ -292,6 +328,63 @@ def test_reference_set_keeps_only_requested_members_when_nx_seeds_components(nx)
     assert nested.ok  # a nested occurrence still belongs to the work part
     listed = hooks("lister")["reference_set"](nx.tx, None, None)
     assert [r[2]["details"]["member_count"] for r in listed] == [1, 1]
+
+
+def _body(nx, component):
+    """A body of ``component``'s part and its occurrence in the assembly."""
+    from tests.kit.objects import Body
+
+    proto = Body("BODY")
+    proto.OwningPart, proto.IsOccurrence = component.Prototype, False
+    component.Prototype.Bodies.append(proto)
+    occ = Body("BODY")
+    occ.OwningPart, occ.IsOccurrence = nx.asm, True
+    occ.OwningComponent, occ.Prototype = component, proto
+    component.occurrences[int(proto.Tag)] = occ
+    return nx.ref_of(proto, "body"), nx.ref_of(occ, "body"), proto
+
+
+def test_reference_set_in_a_component_part_restores_the_work_part(nx):
+    proto_ref, occ_ref, proto = _body(nx, nx.b)
+    proto2_ref, occ2_ref, proto2 = _body(nx, nx.a)  # a blk body shown by A (B's part too)
+    parts = nx.session.Parts
+    other = run(nx, "nx_create_reference_set", name="LIGHT", objects=[occ_ref, occ2_ref],
+                component=nx.b.ref)  # fmt: skip
+    assert other.error["code"] == "NX_WRONG_OWNER" and other.error["field"] == "/objects/1"
+    ok = run(nx, "nx_create_reference_set", name="LIGHT", objects=[occ_ref, proto2_ref],
+             component=nx.b.ref)  # fmt: skip
+    assert ok.ok, ok
+    rs = nx.blk.reference_sets[-1]
+    assert rs.Name == "LIGHT" and rs.members == [proto, proto2] and rs.created_in_work is nx.blk
+    assert [m["id"] for m in ok.data["members"]] == [proto_ref, proto2_ref]
+    assert parts.Work is nx.asm and parts.WorkComponent is None
+    assert parts.work_calls == [nx.b, None]
+    assert nx.asm.reference_sets == []
+    dup = run(nx, "nx_create_reference_set", name="solid", objects=[occ_ref], component=nx.b.ref)
+    assert dup.error["code"] == "NX_ALREADY_EXISTS" and dup.mutation_outcome == "not_started"
+    twice = run(nx, "nx_create_reference_set", name="X", objects=[occ_ref, proto_ref],
+                component=nx.b.ref)  # fmt: skip
+    assert twice.error["field"] == "/objects/1"
+    comp = run(nx, "nx_create_reference_set", name="X", objects=[nx.a.ref], component=nx.b.ref)
+    assert comp.error["code"] == "NX_UNSUPPORTED_OPTION"
+    plain = run(nx, "nx_create_reference_set", name="X", objects=[occ_ref])
+    assert plain.error["code"] == "NX_WRONG_OWNER" and "component=" in plain.error["hint"]
+
+
+def test_reference_set_in_a_component_rolls_back_and_restores_on_failure(nx):
+    _proto_ref, occ_ref, _proto = _body(nx, nx.b)
+    create = nx.blk.CreateReferenceSet
+
+    def lossy():
+        rs = create()
+        rs.AddObjectsToReferenceSet = lambda objs: rs.members.clear()
+        return rs
+
+    nx.blk.CreateReferenceSet = lossy
+    bad = run(nx, "nx_create_reference_set", name="LOSSY", objects=[occ_ref], component=nx.b.ref)
+    assert bad.error["details"]["check"] == "members" and bad.mutation_outcome == "rolled_back"
+    assert [r.Name for r in nx.blk.reference_sets] == ["SOLID"]
+    assert nx.session.Parts.Work is nx.asm and nx.session.Parts.WorkComponent is None
 
 
 def test_reference_set_membership_mismatch_rolls_back(nx):

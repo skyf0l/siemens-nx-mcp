@@ -6,7 +6,12 @@ NX 2406 findings encoded here:
   the change back as ``NX_CONSTRAINT_UNSATISFIED`` with the solver status.
 - Concentric needs circular edges (cylindrical faces leave it unsolved), and the
   solver may move either component unless one is fixed: ``moved`` lists every
-  direct component whose pose changed.
+  direct component whose pose changed. It makes the circle centres coincide AND the
+  circle planes coplanar (live: a pin's bottom edge concentric with another's top edge
+  stacks it). A touch that agrees with that plane solves (redundant); a touch on another
+  plane (shank end edge concentric with the hole's top edge, then head on the face)
+  leaves the solver OverConstrained. For a bolt in a hole use align_lock (axes) + touch
+  (head on the face): ``CONCENTRIC_HINT``.
 - Align is a Touch constraint with co-alignment (the classic mate "align").
 - Align/Lock aligns two axes and locks the rotation about them: a cylindrical face
   gives its axis (``usesAxis``), an edge its own line or circle axis.
@@ -78,6 +83,11 @@ _QUANTITY = re.compile(
     r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*(mm|in|deg|rad|\u00b0)?\s*$", re.IGNORECASE
 )
 VALUE_MAX = 1e6
+CONCENTRIC_HINT = (
+    "concentric makes the circular edges coaxial AND coplanar, so a touch on another plane "
+    "over-constrains; for a bolt or pin in a hole use align_lock on the axes + touch (head "
+    "on face) instead, or suppress one with nx_edit_assembly_constraint"
+)
 
 
 class ConstraintReference(TypedDict, total=False):
@@ -275,6 +285,7 @@ def _unsatisfied(tx, constraint, message, moving=None):
                 "alignment 'same' points the face normals the same way and 'opposite' makes "
                 "the faces look at each other; 'infer' lets NX choose"
             )
+    others: list = []
     with contextlib.suppress(Exception):
         others = _others(tx, constraint, moving)
         if others:
@@ -283,7 +294,33 @@ def _unsatisfied(tx, constraint, message, moving=None):
                 "other constraints on these components (details.others) may conflict: "
                 "suppress them with nx_edit_assembly_constraint(suppressed=true)"
             )
+    if _concentric_conflict(details.get("type"), others):
+        hints.append(CONCENTRIC_HINT)
     fail("NX_CONSTRAINT_UNSATISFIED", message, hint="; ".join(hints), details=details)
+
+
+def _concentric_conflict(kind, others) -> bool:
+    """A concentric among the failing constraint and the others on its component."""
+    return bool(others) and "concentric" in {kind, *(o.get("type") for o in others)}
+
+
+def _over_constrained(tx, constraint, moving):
+    """After a solved constraint next to a concentric on the component: warn when other
+    constraints there no longer solve (the new one solved, the network did not)."""
+    bad = []
+    with contextlib.suppress(Exception):
+        others = [
+            c for c in all_constraints(tx.part)
+            if int(c.Tag) != int(constraint.Tag) and not c.Suppressed
+            and int(moving.Tag) in _components(c)
+        ]  # fmt: skip
+        kinds = {kind_name(tx, constraint), *(kind_name(tx, c) for c in others)}
+        if "concentric" in kinds:
+            bad = [f"{tx.ref(c, 'assembly_constraint')['id']} ({kind_name(tx, c)}: "
+                   f"{status_name(tx, c)})" for c in others if not solved(tx, c)]  # fmt: skip
+    if bad:
+        tx.warn("NX_UPDATE_WARNING", "Constraints left unsolved: " + ", ".join(bad) + "; "
+                + CONCENTRIC_HINT)  # fmt: skip
 
 
 def _value(tx, type, value, field="/value"):
@@ -423,8 +460,9 @@ def nx_create_assembly_constraint(
     alignment: Alignment = "infer",
 ) -> ConstraintData:
     """Constrain a direct component to a sibling (touch is the mate) or fix it; it must solve.
-    Concentric takes circular edges, fit equal-radius faces, align_lock axes; center_1_2 centers
-    geometry between both target geometries."""
+    Concentric: circular edges made coaxial AND coplanar (a touch on another plane
+    over-constrains); bolt in hole: align_lock axes + touch. Fit: equal-radius faces; center_1_2: between two target
+    geometries."""
     given = {
         "geometry": geometry, "target_component": target_component,
         "target_geometry": target_geometry, "geometry2": geometry2,
@@ -479,6 +517,7 @@ def nx_create_assembly_constraint(
     if number is not None:
         readback.expect_close(out.get("value", float("nan")), number, "value")
     _check_overlap(tx, constraint)
+    _over_constrained(tx, constraint, moving)
     out["moved"] = moved(tx, before)
     return out
 

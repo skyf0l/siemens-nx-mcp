@@ -1,5 +1,6 @@
 """Drawing hooks: sheet locators (gate 9), refreshers (``nx_update_annotations``), listers
-(``nx_list_objects``) and deleters (``nx_delete_objects``) for drawing kinds.
+(``nx_list_objects``) and deleters (``nx_delete_objects``) for drawing kinds. Listed
+annotations, dimensions and tables carry their sheet ``bounds`` (None off a sheet: PMI).
 
 Hook signatures: ``@sheet_locator(kind)`` is ``fn(services, obj) -> sheet or None``;
 ``@refresher(kind)`` is ``fn(tx, objects or None) -> [rows refreshed]``; ``@lister(kind)``
@@ -109,6 +110,17 @@ def _sheet_scale(sheet):
         return None
 
 
+def _bounds(tx, obj, sheets):
+    """``bounds`` on its sheet (sheet units) of a drafting object, else None; ``sheets``
+    caches the opened :class:`drawing.Sheet` per sheet tag."""
+    with contextlib.suppress(Exception):  # objects NX cannot place on a sheet or box
+        sheet = drawing.sheet_of_annotation(tx, obj)
+        if sheet is not None:
+            sh = sheets.setdefault(int(sheet.Tag), drawing.Sheet(tx, sheet))
+            return drawing.annotation_box(tx, obj, sh)[0]
+    return None
+
+
 def _origin(obj):
     point = getattr(obj, "AnnotationOrigin", None)
     return None if point is None else [float(point.X), float(point.Y), float(point.Z)]
@@ -158,6 +170,7 @@ def list_views(tx, owner, owner_kind):
 @lister("dimension")
 def list_dimensions(tx, owner, owner_kind):
     _whole_part(owner)
+    sheets: dict = {}
     return [
         (
             d,
@@ -168,6 +181,7 @@ def list_dimensions(tx, owner, owner_kind):
                     "value": float(d.ComputedSize),
                     "valid": not bool(d.IsRetained),
                     "origin": _origin(d),
+                    "bounds": _bounds(tx, d, sheets),
                 },
             },
         )  # fmt: skip
@@ -199,9 +213,9 @@ def _annotations(part):
 @lister("annotation")
 def list_annotations(tx, owner, owner_kind):
     _whole_part(owner)
-    out = []
+    out, sheets = [], {}
     for a in _annotations(tx.part):
-        details = {"origin": _origin(a)}
+        details = {"origin": _origin(a), "bounds": _bounds(tx, a, sheets)}
         if hasattr(a, "GetText"):
             with contextlib.suppress(Exception):  # an annotation without readable text
                 details["text"] = [str(t) for t in a.GetText()]
@@ -214,7 +228,11 @@ def list_annotations(tx, owner, owner_kind):
 @lister("drawing_table")
 def list_tables(tx, owner, owner_kind):
     _whole_part(owner)
-    return [(obj, "drawing_table", {"type": kind}) for obj, kind in all_tables(tx)]
+    sheets: dict = {}
+    return [
+        (obj, "drawing_table", {"type": kind, "details": {"bounds": _bounds(tx, obj, sheets)}})
+        for obj, kind in all_tables(tx)
+    ]
 
 
 # ---- deleters ----------------------------------------------------------------------------------

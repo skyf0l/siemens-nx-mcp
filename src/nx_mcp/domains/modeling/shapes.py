@@ -29,6 +29,7 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
+    Axis,
     AxisByPoint,
     BodyRef,
     Combine,
@@ -41,7 +42,7 @@ from nx_mcp.core.types import (
     SketchRef,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, curve, geom, measure, readback, result, select, units
+from nx_mcp.kit import args, builders, curve, expr, geom, measure, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
 PathRef = Annotated[str, RefTo("sketch", "curve", "edge")]
@@ -104,7 +105,7 @@ def nx_create_rib(
     """Add a rib (wall, web or gusset) of a thickness from open sketch curves to a solid body.
     The curves extend to the body and must close a region with it (a parallel rib fills it).
     volume is the body's (the rib body's if not combined); added is the rib's."""
-    t = args.finite(thickness, "/thickness", positive=True)
+    args.finite(thickness, "/thickness", positive=True)
     if draft is not None:
         if orientation != "perpendicular":
             fail("NX_INVALID_ARGUMENT", "Only a perpendicular rib takes a draft", field="/draft")
@@ -124,7 +125,7 @@ def nx_create_rib(
                 if orientation == "perpendicular"
                 else rib.RibTypes.ParalleltoSectionPlane
             )
-            b.RibThickness.RightHandSide = repr(t)
+            expr.drive(b.RibThickness, thickness)
             offsets = rib.RibThicknessOffsetOptions
             b.RibThicknessOffsetOption = (
                 offsets.Symmetric if side == "symmetric" else offsets.Asymmetric
@@ -134,7 +135,7 @@ def nx_create_rib(
                 b.RibDraftOption = rib.RibDraftOptions.NotSet
             else:
                 b.RibDraftOption = rib.RibDraftOptions.FromCap
-                b.DraftAngle.RightHandSide = repr(float(draft))
+                expr.drive(b.DraftAngle, draft)
             b.CombineRibWithTarget = bool(combine)
             b.ReverseRibDirection = bool(flip)
             feature = b.commit()
@@ -227,8 +228,8 @@ def nx_create_tube(
         with builders.build(tx, tx.part.Features.CreateTubeBuilder, None) as b:
             b.Tolerance = units.part_tolerance(tx)
             fill(b.PathSection)
-            b.OuterDiameter.RightHandSide = repr(outer)
-            b.InnerDiameter.RightHandSide = repr(inner)
+            expr.drive(b.OuterDiameter, outer_diameter)  # expressions keep driving
+            expr.drive(b.InnerDiameter, inner_diameter)
             b.OutputOption = tx.nx.Features.TubeBuilder.Output.MultipleSegments
             builders.boolean(tx, b.BooleanOption, combine)
             feature = b.commit()
@@ -295,7 +296,7 @@ def _ends(tx, curves, first):
 
 def _constant_law(tx, law, value):
     law.LawType = tx.nx.GeometricUtilities.LawBuilder.Type.Constant
-    law.Value.RightHandSide = repr(float(value))
+    expr.drive(law.Value, value)
 
 
 @tool(
@@ -311,7 +312,7 @@ def _constant_law(tx, law, value):
 def nx_create_helix(
     tx: Tx,
     *,
-    axis: common.AxisArg = "z",
+    axis: Axis = "z",
     radius: Length,
     pitch: Length,
     turns: Annotated[float, Range(gt=0, le=1000), Doc("Number of turns")] | None = None,
@@ -350,8 +351,8 @@ def nx_create_helix(
         b.OrientationOption = helix.OrientationOptions.Specified
         b.CoordinateSystem = csys
         b.SizeOption = helix.SizeOptions.Radius
-        _constant_law(tx, b.SizeLaw, r)
-        _constant_law(tx, b.PitchLaw, p)
+        _constant_law(tx, b.SizeLaw, radius)
+        _constant_law(tx, b.PitchLaw, pitch)
         b.LengthMethod = helix.LengthMethods.Turns
         b.Turns.RightHandSide = repr(n)
         b.StartAngle.RightHandSide = "0.0"
@@ -436,9 +437,9 @@ def nx_create_emboss_body(
     with builders.build(tx, tx.part.Features.CreateEmbossBodyBuilder, None) as b:
         b.TargetBody = builders.collector(tx, [goal], "Body")
         b.ToolBody = builders.collector(tx, [tool_obj], "Body")
-        b.Clearance.RightHandSide = repr(gap)
+        expr.drive(b.Clearance, clearance)
         if thickness is not None:
-            b.Thickness.RightHandSide = repr(float(thickness))
+            expr.drive(b.Thickness, thickness)
         b.KeepTools = bool(keep_tool)
         b.KeepTargets = False
         b.TargetMaterialSide = bool(reverse)

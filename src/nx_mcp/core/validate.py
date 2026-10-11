@@ -12,15 +12,22 @@ a declared alias (``Aliases``), a plural of a singular option, ``"true"``/``"fal
 for a boolean, a numeric string for a number and one string where a list of strings
 is expected. A quantity may also be an NX expression name or formula (evaluated by
 gate 9). A union prefers an exact fit, then a natural spelling, then a formula, so
-``"through_all"`` stays the option rather than an expression of that name.
+``"through_all"`` stays the option rather than an expression of that name. Also natural:
+a bare option for a one-field form (``"-z"`` for ``{"principal": "-z"}``, ``"XY plane"``,
+``"+y"``; a ref-shaped string stays a ref), a JSON-array string for an array
+(``"[1, 2, 3]"``), ``"50%"`` for a percent, fraction or factor number and ``"2x"`` for a
+factor (:func:`ratio_of`).
 
 Errors say what to send: valid options with a did-you-mean, the accepted fields of an
-object, the accepted forms of a union and the shape of a reference.
+object, the accepted forms of a union and the shape of a reference. Every invalid field
+of a call is reported at once: the error names the first, ``details.errors`` lists all
+(``{field, message}``), outside union alternatives (whose errors pick the meant form).
 """
 
 from __future__ import annotations
 
 import difflib
+import json
 import math
 import re
 import types
@@ -32,7 +39,9 @@ from typing import Annotated, Any, Literal, Union
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.references import PREFIX
 from nx_mcp.core.types import (
+    CANONICAL,
     PLACEHOLDER_PATTERN,
+    REF_PATTERN,
     SHORTHANDS,
     Aliases,
     ByVariant,
@@ -42,6 +51,7 @@ from nx_mcp.core.types import (
     PathArg,
     Quantity,
     Range,
+    Ratio,
     RefKind,
     Text,
     check_json,
@@ -157,6 +167,9 @@ class Checked:
     paths: list = field(default_factory=list)  # [(path, PathArg)]
     refs: list = field(default_factory=list)  # [(path, kinds)]
     placeholders: list = field(default_factory=list)  # [(path, "$2.data.x")]
+    # [(path, fn)]: forms gate 9 replaces with their canonical value (types.CANONICAL),
+    # innermost first.
+    forms: list = field(default_factory=list)
 
 
 def _bad(path, message, **extra):
@@ -199,14 +212,31 @@ def match_option(value, options, aliases=()):
     for alias, target in _alias_pairs(aliases):
         if target in options:
             table.setdefault(option_key(alias), set()).add(target)
-    key = option_key(value)
-    for candidate in (key, key[:-3] + "y" if key.endswith("ies") else None, key[:-1]):
-        if candidate is None or (candidate == key[:-1] and not key.endswith("s")):
-            continue
+    for candidate in _candidates(option_key(value)):
         hits = table.get(candidate)
         if hits:
             return next(iter(hits)) if len(hits) == 1 else None
     return None
+
+
+_NOUNS = ("plane", "axis", "direction")
+
+
+def _candidates(key: str):
+    """Keys a natural spelling may stand for, in order: itself, its singular, without a
+    leading ``+`` (``"+y"``), without a trailing plane/axis/direction (``"XY plane"``,
+    ``"z axis"``, ``"+Z direction"``)."""
+    yield key
+    if key.endswith("ies"):
+        yield key[:-3] + "y"
+    if key.endswith("s"):
+        yield key[:-1]
+    if key.startswith("+"):
+        yield key[1:]
+    for noun in _NOUNS:
+        if key.endswith(noun) and len(key) > len(noun):
+            stem = key[: -len(noun)]
+            yield stem[1:] if stem.startswith("+") else stem
 
 
 def close_options(value, options, aliases=()) -> list:
@@ -259,6 +289,105 @@ def wraps_scalar(item_hint, value) -> bool:
     return isinstance(value, str) and "string" in hint_json_types(item_hint)
 
 
+def json_array(value):
+    """A JSON-array string (``"[1, 2, 3]"``) as its list, else ``value`` unchanged (both
+    gate-1 validators, for arrays and fixed-length tuples)."""
+    if isinstance(value, str) and value.lstrip().startswith("["):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return value
+        if isinstance(parsed, list):
+            return parsed
+    return value
+
+
+_NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
+_PERCENT = re.compile(r"^\s*(" + _NUMBER + r")\s*%\s*$")
+_TIMES = re.compile(r"^\s*(?:(" + _NUMBER + r")\s*[x×]|[x×]\s*(" + _NUMBER + r"))\s*$", re.I)
+_FACTOR_WORDS = frozenset({"factor", "scale", "zoom", "multiplier"})
+
+
+def ratio_of(name, markers) -> Ratio | None:
+    """How a number field reads ``'50%'`` (and ``'2x'``): its ``Ratio`` marker, else from
+    its name and ``Doc``: percent (or ``%``) -> percent, factor/scale/zoom -> factor,
+    fraction/ratio or a 0..1 range -> fraction; None for other numbers."""
+    if Ratio in markers:
+        return markers[Ratio]
+    doc = markers.get(Doc)
+    text = f"{name or ''} {doc.text if doc is not None else ''}".replace("_", " ").casefold()
+    words = set(re.findall(r"[a-z]+", text))
+    if "percent" in words or "%" in text:
+        return Ratio(100.0)
+    if words & _FACTOR_WORDS:
+        return Ratio(1.0, factor=True)
+    bounds = markers.get(Range)
+    unit_range = bounds is not None and bounds.le == 1 and (bounds.ge == 0 or bounds.gt == 0)
+    if words & {"fraction", "ratio"} or unit_range:
+        return Ratio(1.0)
+    return None
+
+
+def ratio_value(value, ratio: Ratio | None):
+    """The number a percent (``'50%'``) or factor (``'2x'``) string stands for under
+    ``ratio``, else ``value`` unchanged (both gate-1 validators)."""
+    if ratio is None or not isinstance(value, str):
+        return value
+    match = _PERCENT.match(value)
+    if match:
+        return float(match.group(1)) * ratio.per / 100.0
+    match = _TIMES.match(value) if ratio.factor else None
+    if match:
+        return float(match.group(1) or match.group(2))
+    return value
+
+
+def _one_option_field(hint):
+    """``(name, options, aliases)`` of a TypedDict with exactly one field, a Literal
+    (``{"principal": ...}``), else None."""
+    base, _ = unwrap(hint)
+    if not is_typeddict(base):
+        return None
+    fields = typeddict_fields(base)
+    if len(fields) != 1:
+        return None
+    ((name, field_hint),) = fields.items()
+    inner, markers = unwrap(field_hint)
+    if typing.get_origin(inner) is not Literal:
+        return None
+    aliases = markers[Aliases].pairs if Aliases in markers else ()
+    return name, typing.get_args(inner), aliases
+
+
+def bare_forms(alternatives) -> bool:
+    """Whether a union has a one-field option form a bare string can stand for."""
+    return any(_one_option_field(alt) is not None for alt in alternatives)
+
+
+def bare_object(value, alternatives):
+    """``(form, {field: value})`` when a bare string names an option of a one-field form
+    of the union (``"-z"`` -> ``{"principal": "-z"}``, ``"XY plane"``); None for anything
+    else, a ref-shaped string or one another string form takes (both gate-1 validators)."""
+    if not isinstance(value, str) or re.match(REF_PATTERN, value):
+        return None
+    if re.match(PLACEHOLDER_PATTERN, value):
+        return None
+    found = None
+    for alt in alternatives:
+        base, markers = unwrap(alt)
+        if base is str:
+            text = markers.get(Text)
+            if text is None or not text.pattern or re.match(text.pattern, value):
+                return None  # a free string form takes it as it is
+            continue
+        one = _one_option_field(alt) if found is None else None
+        if one is not None:
+            name, options, aliases = one
+            if value in options or match_option(value, options, aliases) is not None:
+                found = (alt, {name: value})
+    return found
+
+
 def suggest_field(name: str, fields) -> str | None:
     """The accepted field an unknown ``name`` most likely means: a known synonym, its
     singular or plural, then the closest spelling."""
@@ -299,6 +428,63 @@ def unknown_field(path, name: str, fields) -> NXError:
 def _missing(path, missing: list) -> NXError:
     more = f"; also missing: {', '.join(missing[1:])}" if len(missing) > 1 else ""
     return _bad([*path, missing[0]], "required field is missing" + more)
+
+
+MAX_ERRORS = 20
+
+
+def error_rows(error: NXError) -> list[dict]:
+    """``[{field, message}]`` of one error, or of every error a combined one lists."""
+    rows = (error.details or {}).get("errors")
+    if isinstance(rows, list) and rows:
+        return [dict(r) for r in rows]
+    field_ = error.field
+    message = str(error.message)
+    prefix = f"{field_ or 'arguments'}: "
+    if message.startswith(prefix):
+        message = message[len(prefix) :]
+    return [{"field": field_, "message": message}]
+
+
+def at_child(error: NXError, index: int) -> NXError:
+    """Point ``error`` (and every ``details.errors`` row) at batch step ``index``:
+    ``/x`` -> ``/operations/<index>/arguments/x``, ``/tool`` -> ``/operations/<index>/tool``."""
+
+    def moved(where):
+        if not where or where.startswith("/operations/"):
+            return where
+        if where == "/tool":
+            return f"/operations/{index}/tool"
+        return f"/operations/{index}/arguments{where}"
+
+    error.field = moved(error.field)
+    for row in (error.details or {}).get("errors") or []:
+        if isinstance(row, dict):
+            row["field"] = moved(row.get("field"))
+    return error
+
+
+def combine(errors: list) -> NXError:
+    """One error for every invalid field: the first one's field, message, code, hint and
+    details, plus ``details.errors`` listing all of them (at most MAX_ERRORS)."""
+    if len(errors) == 1:
+        return errors[0]
+    rows: list[dict] = []
+    for error in errors:
+        rows.extend(r for r in error_rows(error) if r not in rows)
+    first = errors[0]
+    if len(rows) == 1:
+        return first
+    rows = rows[:MAX_ERRORS]
+    head = rows[0]
+    others = ", ".join(str(r["field"] or "arguments") for r in rows[1:])
+    message = (
+        f"{head['field'] or 'arguments'}: {head['message']} "
+        f"({len(rows) - 1} more invalid: {others}; see details.errors)"
+    )
+    details = {k: v for k, v in (first.details or {}).items() if k != "errors"}
+    details["errors"] = rows
+    return NXError(first.code, message, field=head["field"], hint=first.hint, details=details)
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +581,9 @@ def form_text(hint) -> str | None:
         return f"an array of {len(items)}"
     if is_typeddict(base):
         keys = sorted(base.__required_keys__) or sorted(typeddict_fields(base))
+        one = _one_option_field(base)
+        if one is not None:  # a bare option stands for the form (bare_object)
+            return ", ".join(repr(o) for o in one[1]) + " or {" + one[0] + "}"
         return "{" + ", ".join(keys) + "}"
     if base is dict:
         return "an object"
@@ -492,10 +681,16 @@ def _no_form_claimed(value, same, path):
 
 
 class _Walker:
-    def __init__(self, placeholders: bool):
+    def __init__(self, placeholders: bool, shown: Mapping | None = None):
         self.placeholders = placeholders
         self.out = Checked(args={})
         self.level = FORMULA  # the leniency allowed now (unions narrow it per pass)
+        # Report every invalid field (False inside union alternatives, whose first error
+        # decides which form the value was meant to have).
+        self.collect = True
+        # {path: options}: the options an error lists for a Literal at ``path`` (the
+        # variants this NX build offers); the value is still matched against all.
+        self.shown = dict(shown or {})
 
     def check(self, value, hint, path):
         base, markers = unwrap(hint)
@@ -545,28 +740,32 @@ class _Walker:
 
     def _union(self, value, base, path):
         alternatives = typing.get_args(base)
-        top = self.level
+        top, collect = self.level, self.collect
         errors: list = []
-        for level in range(EXACT, top + 1):
-            self.level = level
-            errors = []
-            try:
+        bare = bare_object(value, alternatives)  # "-z" for {"principal": "-z"}
+        self.collect = False
+        try:
+            for level in range(EXACT, top + 1):
+                self.level = level
+                errors = []
                 for alt in alternatives:
                     saved = (
                         len(self.out.quantities),
                         len(self.out.paths),
                         len(self.out.refs),
                         len(self.out.placeholders),
+                        len(self.out.forms),
                     )
+                    meant = bare[1] if bare and level >= NATURAL and alt is bare[0] else value
                     try:
-                        return self.check(value, alt, path)
+                        return self.check(meant, alt, path)
                     except NXError as error:
-                        q, p, r, h = saved
+                        q, p, r, h, f = saved
                         del self.out.quantities[q:], self.out.paths[p:], self.out.refs[r:]
-                        del self.out.placeholders[h:]
+                        del self.out.placeholders[h:], self.out.forms[f:]
                         errors.append((alt, error))
-            finally:
-                self.level = top
+        finally:
+            self.level, self.collect = top, collect
         kind = _json_type(value)
         same = [(alt, e) for alt, e in errors if kind in hint_json_types(alt)]
         forms = _forms(alternatives)
@@ -615,7 +814,13 @@ class _Walker:
                 hit = match_option(value, options, aliases)
                 if hit is not None:
                     return hit
-            raise _bad(path, options_message(value, options, aliases))
+            listed = self.shown.get(tuple(path)) or options
+            raise _bad(path, options_message(value, listed, aliases))
+        if natural and base in (int, float) and isinstance(value, str):
+            name = path[-1] if path and isinstance(path[-1], str) else None
+            value = ratio_value(value, ratio_of(name, markers))  # '50%', '2x'
+            if base is int and isinstance(value, float) and value.is_integer():
+                value = int(value)
         if natural and base in (bool, int, float):
             value = natural_scalar(value, base)
         if base is bool:
@@ -645,13 +850,15 @@ class _Walker:
                 raise _bad(path, "expected a string")
             return value
         origin = typing.get_origin(base)
+        if natural and origin in (list, tuple):
+            value = json_array(value)  # "[1, 2, 3]"
         if origin is list:
             (item,) = typing.get_args(base)
             if natural and wraps_scalar(item, value):
                 value = [value]  # one ref where a list of refs is expected
             if not isinstance(value, (list, tuple)):
                 raise _bad(path, "expected an array")
-            return [self.check(v, item, [*path, i]) for i, v in enumerate(value)]
+            return self._items([(v, item) for v in value], path)
         if origin is tuple:
             items = typing.get_args(base)
             if not isinstance(value, (list, tuple)) or len(value) != len(items):
@@ -659,25 +866,54 @@ class _Walker:
                 if shape.endswith("numbers]"):
                     shape += ", e.g. [" + ", ".join("0" * len(items)) + "]"
                 raise _bad(path, f"expected {shape}")
-            return [
-                self.check(v, h, [*path, i])
-                for i, (v, h) in enumerate(zip(value, items, strict=True))
-            ]
+            return self._items(list(zip(value, items, strict=True)), path)
         if is_typeddict(base):
             return self.object(value, base, path)
         raise _bad(path, f"unsupported schema type {base!r}")
+
+    def _items(self, pairs, path) -> list:
+        """Checked array items; every invalid one is reported (outside unions)."""
+        out, errors = [], []
+        for i, (item, hint) in enumerate(pairs):
+            try:
+                out.append(self.check(item, hint, [*path, i]))
+            except NXError as error:
+                if not self.collect:
+                    raise
+                errors.append(error)
+        if errors:
+            raise combine(errors)
+        return out
 
     def object(self, value, td, path):
         if not isinstance(value, dict):
             raise _bad(path, "expected an object")
         fields = typeddict_fields(td)
-        extra = sorted(set(value) - set(fields))
-        if extra:
-            raise unknown_field(path, extra[0], fields)
+        errors = [unknown_field(path, name, fields) for name in sorted(set(value) - set(fields))]
         missing = sorted(set(td.__required_keys__) - set(value))
         if missing:
-            raise _missing(path, missing)
-        return {k: self.check(v, fields[k], [*path, k]) for k, v in value.items()}
+            if self.collect:
+                errors.extend(_bad([*path, name], "required field is missing") for name in missing)
+            else:
+                errors.append(_missing(path, missing))
+        if errors and not self.collect:
+            raise errors[0]
+        out = {}
+        for key, item in value.items():
+            if key not in fields:
+                continue
+            try:
+                out[key] = self.check(item, fields[key], [*path, key])
+            except NXError as error:
+                if not self.collect:
+                    raise
+                errors.append(error)
+        if errors:
+            raise combine(errors)
+        canonical = CANONICAL.get(td)
+        if canonical is not None:  # replaced by gate 9, after unit conversion
+            self.out.forms.append((tuple(path), canonical))
+        return out
 
     @staticmethod
     def _markers(value, markers, path):
@@ -740,17 +976,27 @@ def _variant_fields(params) -> list:
     return out
 
 
-def validate(params: Mapping[str, Any], args, *, placeholders: bool = False) -> Checked:
+def validate(
+    params: Mapping[str, Any],
+    args,
+    *,
+    placeholders: bool = False,
+    variant: str | None = None,
+    required_by: Mapping[str, tuple] | None = None,
+    shown: Mapping[str, tuple] | None = None,
+) -> Checked:
     """Validate ``args`` against ``params`` (``{name: Param}`` from the catalogue).
 
     ``Checked.args`` holds canonical values (natural spellings resolved) in the order of
-    ``params``; the handler receives them."""
+    ``params``; the handler receives them. Every invalid, unknown and missing field is
+    reported in one error (:func:`combine`). ``required_by`` maps a value of the
+    ``variant`` field to the fields that variant needs (``ToolSpec.required_by``);
+    ``shown`` maps a field to the options its error lists (the variants on offer).
+    """
     if not isinstance(args, dict):
         raise _bad([], "arguments must be an object")
-    walker = _Walker(placeholders)
-    unknown = sorted(set(args) - set(params))
-    if unknown:
-        raise unknown_field([], unknown[0], params)
+    walker = _Walker(placeholders, {(k,): tuple(v) for k, v in (shown or {}).items() if v})
+    errors = [unknown_field([], name, params) for name in sorted(set(args) - set(params))]
     first = _variant_fields(params)
     order = [*first, *(n for n in params if n not in first)]
     for name in order:
@@ -760,12 +1006,35 @@ def validate(params: Mapping[str, Any], args, *, placeholders: bool = False) -> 
                 walker.out.args[name] = None
                 continue
             hint = _form(param.hint, walker.out.args)
-            walker.out.args[name] = walker.check(args[name], hint, [name])
+            try:
+                walker.out.args[name] = walker.check(args[name], hint, [name])
+            except NXError as error:
+                errors.append(error)
         elif param.required:
-            missing = [n for n in order if params[n].required and n not in args]
-            raise _missing([], missing)
+            errors.append(_bad([name], "required field is missing"))
+    if (
+        variant is not None
+        and required_by
+        and not any(error_rows(e)[0]["field"] == "/" + variant for e in errors)
+    ):
+        errors.extend(variant_needs(params, walker.out.args, variant, required_by))
+    if errors:
+        raise combine(errors)
     walker.out.args = {n: walker.out.args[n] for n in params if n in walker.out.args}
     return walker.out
+
+
+def variant_needs(params, args: Mapping, variant: str, required_by: Mapping) -> list:
+    """Errors for the fields the call's variant needs that ``args`` leaves out (None)."""
+    value = args.get(variant)
+    if value is None and variant in params and not params[variant].required:
+        value = params[variant].default
+    needs = required_by.get(value, ()) if isinstance(value, str) else ()
+    return [
+        _bad([name], f"required when {variant} is {value!r}")
+        for name in needs
+        if args.get(name) is None
+    ]
 
 
 def _form(hint, args):

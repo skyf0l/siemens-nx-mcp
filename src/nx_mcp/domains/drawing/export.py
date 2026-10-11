@@ -18,8 +18,8 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Items, PathTo
-from nx_mcp.domains.drawing.common import Loose, SheetArg, choice, sheet_of
+from nx_mcp.core.types import Aliases, Items, PathTo
+from nx_mcp.domains.drawing.common import SheetArg, sheet_of
 from nx_mcp.kit import builders, drawing, files, parts, result
 
 HEADERS = {
@@ -77,18 +77,18 @@ def nx_export_drawing(
     tx: Tx,
     *,
     path: Annotated[str, PathTo("new", ".pdf", ".dxf", ".dwg")],
-    format: Literal["pdf", "dxf", "dwg"] | Loose | None = None,  # noqa: A002 - surface name
+    format: Annotated[Literal["pdf", "dxf", "dwg"], Aliases(acad="dwg", autocad="dwg")]  # noqa: A002
+    | None = None,
     sheets: Annotated[list[SheetArg], Items(1, 50)] | None = None,
 ) -> ExportData:
     """Export drawing sheets of the work part to a new PDF (all or the given sheets) or a
     DXF/DWG file (one sheet). format follows the path's extension. Unsaved changes are
     included; the part is not saved."""
     suffix = str(path).rsplit(".", 1)[-1].lower()
-    wanted = choice(format, HEADERS, "/format", {"acad": "dwg", "autocad": "dwg"})
-    format = wanted or suffix  # noqa: A001 - surface name
-    if suffix != format:
-        fail("NX_INVALID_ARGUMENT", f"The path ends in .{suffix} but format is {format}",
-             field="/path", hint=f"Use a .{format} path, or omit format to follow the path")  # fmt: skip
+    kind = format or suffix
+    if suffix != kind:
+        fail("NX_INVALID_ARGUMENT", f"The path ends in .{suffix} but format is {kind}",
+             field="/path", hint=f"Use a .{kind} path, or omit format to follow the path")  # fmt: skip
     with tx.checks():
         part = tx.part
         _check_loaded(part)
@@ -98,15 +98,15 @@ def nx_export_drawing(
         if not selected:
             fail("NX_WRONG_APPLICATION", "The work part has no drawing sheet",
                  hint="Create one with nx_create_drawing_sheet")  # fmt: skip
-        if format != "pdf":
+        if kind != "pdf":
             if len(selected) != 1:
                 which = "" if sheets else " (sheets omitted: every sheet of the work part)"
                 fail(
                     "NX_INVALID_ARGUMENT",
-                    f"A {format.upper()} file holds one sheet, not {len(selected)}{which}",
+                    f"A {kind.upper()} file holds one sheet, not {len(selected)}{which}",
                     field="/sheets",
                     hint="Pass sheets: [one sheet ref or name] and export each sheet to its "
-                    f"own .{format} file, or export all sheets to one .pdf",
+                    f"own .{kind} file, or export all sheets to one .pdf",
                     details={"sheets": [tx.ref(s, "drawing_sheet") for s in part.DrawingSheets]},
                 )  # fmt: skip
             if tx.session.Parts.Display != part:
@@ -120,19 +120,19 @@ def nx_export_drawing(
         for sheet in selected:  # refresh each sheet's presentation before plotting
             drawing.open_sheet(tx, sheet, part)
             tx.checkpoint()
-        if format == "pdf":
+        if kind == "pdf":
             _pdf(tx, part, selected, temp)
         else:
-            _dxf(tx, part, selected[0], temp, format)
+            _dxf(tx, part, selected[0], temp, kind)
     data = temp.read_bytes() if temp.is_file() else b""
-    if not data or not _valid(data, format):
-        fail("NX_EXPORT_FAILED", f"NX did not produce a {format.upper()} file",
+    if not data or not _valid(data, kind):
+        fail("NX_EXPORT_FAILED", f"NX did not produce a {kind.upper()} file",
              details={"size": len(data)})  # fmt: skip
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
     return {
         "path": meta["path"],
-        "format": format,
+        "format": kind,
         "size": meta["size"],
         "sha256": meta["sha256"],
         "sheets": [tx.ref(s, "drawing_sheet") for s in selected],

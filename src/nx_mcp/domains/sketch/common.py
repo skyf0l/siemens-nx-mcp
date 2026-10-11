@@ -17,6 +17,7 @@ from nx_mcp.core.catalogue import Param
 from nx_mcp.core.errors import NXError, classify, fail
 from nx_mcp.core.types import Doc, Point2, Point3, Range, Text, Vec3
 from nx_mcp.core.validate import typeddict_fields, validate
+from nx_mcp.domains.sketch import dof as kdof
 from nx_mcp.kit import expr, geom, result
 from nx_mcp.kit import sketch as ksketch
 from nx_mcp.kit.args import choice as choice  # natural option spellings
@@ -65,10 +66,17 @@ class ExpressionRow(TypedDict):
     units: str
 
 
+class GeometryUse(TypedDict):
+    curve: str
+    point: Annotated[str, Doc("start, end, center, mid or curve (the whole curve)")]
+
+
 class ConstraintRow(TypedDict, total=False):
     constraint: result.Row
     type: str
     curves: list[str]
+    geometry: list[GeometryUse]
+    reference: bool
     expression: ExpressionRow
 
 
@@ -82,7 +90,9 @@ class SketchRows(_SketchRowsRequired, total=False):
 
 class Status(TypedDict):
     state: str
-    dof: Annotated[int | None, Doc("NX indicator; 2406: curves not fully constrained")]
+    fully_constrained: bool
+    dof: Annotated[int | None, Doc("Remaining degrees of freedom; None: not computable")]
+    free_curves: Annotated[int | None, Doc("Curves not fully constrained (NX)")]
 
 
 def frame_row(f) -> Frame:
@@ -123,13 +133,36 @@ def expression_row(tx, exp) -> ExpressionRow:
     }
 
 
-def constraint_row(tx, constraint, curves=None) -> ConstraintRow:
+def _geometry_ref(tx, obj, sketch_tags) -> str | None:
+    if sketch_tags is not None and int(obj.Tag) in sketch_tags:
+        return tx.ref(obj, "curve")["id"]
+    try:
+        return tx.ref(obj)["id"]  # geometry outside the sketch (datum axis, edge...)
+    except Exception:
+        return None
+
+
+def constraint_row(tx, constraint, curves=None, sketch_tags=None) -> ConstraintRow:
+    """A constraint or dimension with the curves it uses, in NX order, and which point of
+    each (``geometry``; ``curves`` lists each once); ``curves`` is the fallback when NX
+    does not say. Reference dimensions say ``reference``."""
     row: ConstraintRow = {
         "constraint": tx.ref(constraint, "sketch_constraint"),
         "type": ksketch.constraint_type(tx, constraint),
     }
-    if curves is not None:
+    uses = kdof.geometry(tx, constraint) if sketch_tags is not None else None
+    if uses:
+        geometry: list[GeometryUse] = []
+        for obj, point in uses:
+            ref = _geometry_ref(tx, obj, sketch_tags)
+            if ref is not None:
+                geometry.append({"curve": ref, "point": point})
+        row["curves"] = list(dict.fromkeys(g["curve"] for g in geometry))
+        row["geometry"] = geometry
+    elif curves is not None:
         row["curves"] = curves
+    if kdof.is_dimension(constraint) and not kdof.driving(tx, constraint):
+        row["reference"] = True
     exp = getattr(constraint, "AssociatedExpression", None)
     if exp is not None:
         row["expression"] = expression_row(tx, exp)
@@ -233,10 +266,25 @@ def contains(row, p, tol):
 # ---- solver state ----------------------------------------------------------------
 
 
-def status(tx, sk) -> Status:
-    """``{"state": "under_constrained", "dof": n or None}`` for the whole sketch."""
-    state = ksketch.status(tx, sk)
-    return {"state": ksketch.snake(state["status"]), "dof": state["dof"]}
+def status_row(tx, sk, state, *, dof: bool = True) -> tuple[Status, dict | None]:
+    """The Status of a native ``ksketch.status`` result and the checked DOF analysis
+    (``dof.checked``: per curve and total, None when not computable or not asked)."""
+    name = ksketch.snake(state["status"])
+    count = state["dof"]  # NX 2406: curves not fully constrained (None unless solved)
+    found = kdof.checked(tx, sk, count) if dof else None
+    row: Status = {
+        "state": name,
+        "fully_constrained": name == "well_constrained",
+        "dof": found["dof"] if found else None,
+        "free_curves": count,
+    }
+    return row, found
+
+
+def status(tx, sk, *, dof: bool = True) -> Status:
+    """``{"state", "fully_constrained", "dof", "free_curves"}`` for the whole sketch;
+    ``dof=False`` skips the DOF analysis (``dof`` None)."""
+    return status_row(tx, sk, ksketch.status(tx, sk), dof=dof)[0]
 
 
 def explicit_conflicts(tx, sk) -> list[dict]:
@@ -291,7 +339,7 @@ def require_solved(tx, sk, before=None) -> Status:
             hint="Diagnose with nx_check_sketch and remove the conflicting constraint",
             details={"state": ksketch.snake(state["status"]), "explicit_conflicts": explicit},
         )
-    return {"state": ksketch.snake(state["status"]), "dof": state["dof"]}
+    return status_row(tx, sk, state)[0]
 
 
 # ---- fixed geometry guard ----------------------------------------------------------

@@ -10,7 +10,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Length, Name, Point3, RefTo, Vec3
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, geom, readback, result, select
+from nx_mcp.kit import args, builders, expr, geom, readback, result, select
 
 WORLD_Z = [0.0, 0.0, 1.0]
 
@@ -39,6 +39,11 @@ class DatumPlaneData(TypedDict):
     ),
     requires=("work_part", "no_active_sketch"),
     variants="method",
+    required_by={
+        "offset": ("reference", "distance"),
+        "point_normal": ("origin", "normal"),
+        "three_points": ("points",),
+    },
     cost="light",
     previewable=True,
     invalidates="deleted",
@@ -74,15 +79,12 @@ def nx_create_datum_plane(
     # 2. NX work; distance is already a float in part units.
     if method == "offset":
         # A ref is a planar face or datum plane of the work part; a world plane has no
-        # object, so it becomes a fixed plane through the offset point.
+        # object, so the offset is measured from a fixed datum plane on it (the distance
+        # stays a feature expression either way).
         target, ref_origin, want = select.plane(tx, common.principal_plane(reference), "/reference")
-        if target is not None:
-            geometry, nx_method = [target], "Distance"
-        else:
-            assert distance is not None  # checked by args.need
-            at = geom.add(ref_origin, geom.scale(want, float(distance)))
-            geometry = [builders.point(tx, at), builders.direction(tx, want, at)]
-            nx_method = "PointDir"
+        if target is None:
+            target = builders.fixed_plane(tx, ref_origin, want)
+        geometry, nx_method = [target], "Distance"
     elif method == "point_normal":
         geometry = [builders.point(tx, origin), builders.direction(tx, want, origin)]
         nx_method = "PointDir"
@@ -97,7 +99,7 @@ def nx_create_datum_plane(
         plane.SetMethod(getattr(tx.nx.PlaneTypes.MethodType, nx_method))
         plane.SetGeometry(geometry)
         if nx_method == "Distance":
-            plane.Expression.RightHandSide = repr(distance)
+            expr.drive(plane.Expression, distance)  # an expression keeps the offset driven
         plane.Evaluate()
         feature = b.commit()
     # 3. Read-back: a mismatch raises verification_failed; the kernel rolls back.
@@ -137,6 +139,7 @@ class DatumAxisData(TypedDict):
     keywords=("datum axis", "reference axis", "construction axis", "axis line", "rotation axis"),
     requires=("work_part", "no_active_sketch"),
     variants="method",
+    required_by={"point_direction": ("origin", "direction"), "two_points": ("start", "end")},
     cost="light",
     previewable=True,
     invalidates="deleted",

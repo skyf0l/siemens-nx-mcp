@@ -127,3 +127,19 @@ def test_resolve_names_the_field_of_a_bad_reference():
         select.resolve(nx.tx, "e:99999", "edge", field="/second")
     assert error.value.field == "/second"
     assert select.resolve(nx.tx, body.ref, "body") is body
+
+
+def test_text_spots_clear_the_view_border_and_other_annotations():
+    box = [100.0, 50.0, 200.0, 150.0]
+    assert drawing.clear_of(box, [150, 140], [0, 1], 10) == [150.0, 160.0]
+    assert drawing.clear_of(box, [150, 60], [0, -1], 10) == [150.0, 40.0]
+    assert drawing.clear_of(box, [150, 100], [1, 0], 5) == [205.0, 100.0]
+    diagonal = drawing.clear_of(box, [150, 100], [0.6, 0.8], 10)  # leaves through the top
+    assert diagonal == pytest.approx([150 + 62.5 * 0.6 + 6, 150 + 8])
+    assert drawing.clear_of(box, [250, 100], [1, 0], 10) == [260.0, 100.0]  # already outside
+    assert drawing.outward(box, [180, 100]) == [1.0, 0.0]
+    assert drawing.outward(box, [150, 100]) == pytest.approx([0.5**0.5, 0.5**0.5])
+    taken = [[140.0, 155.0, 170.0, 165.0]]
+    assert drawing.free_spot([150, 160], [0, 1], 10, taken) == [150.0, 170.0]
+    assert drawing.free_spot([150, 190], [0, 1], 10, taken) == [150.0, 190.0]
+    assert drawing.overlap(box, [190, 140, 300, 300]) and not drawing.overlap(box, [200, 0, 1, 1])

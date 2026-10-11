@@ -32,11 +32,11 @@
   "sources": {
     "nx_create_sketch_constraints": "3abf6048ce58b9ee233f48d4fa7257db61d6cb23707172b30891dc4e5056413c",
     "nx_create_sketch_dimensions": "3abf6048ce58b9ee233f48d4fa7257db61d6cb23707172b30891dc4e5056413c",
-    "nx_create_sketch_copy": "c9a96a673cdc9b88c21fd99cb3d056bd9c9982d4f53c1892180ddb480f79db9d",
-    "nx_create_sketch_corner": "c9a96a673cdc9b88c21fd99cb3d056bd9c9982d4f53c1892180ddb480f79db9d",
+    "nx_create_sketch_copy": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
+    "nx_create_sketch_corner": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
     "nx_edit_sketch_curves": "f51ab9269c4e4679243f21471a843f10afb11d200ca4d83325721bf683eb8e8f"
   },
-  "recorded": "2026-10-10T23:07:09Z",
+  "recorded": "2026-10-11T08:03:43Z",
   "passed": true,
   "checks": 52,
   "failed_checks": 0,

@@ -34,6 +34,7 @@ CT = NS(
     Midpoint=11,
     PointOnCurve=12,
     Mirror=13,
+    Collinear=14,
     ParallelDim=20,
     HorizontalDim=21,
     VerticalDim=22,
@@ -149,7 +150,11 @@ class Dimension(Constraint):
         super().__init__(kind, geometry, sketch)
         self.AssociatedExpression = expression
         self.reference = reference
+        self.DimensionState = 1 if reference else 0  # DimensionStateType Reference/Driving
         self.AssociatedDimension = NS()
+
+    def GetDimensionGeometry(self):  # noqa: N802 - NXOpen.SketchDimensionalConstraint
+        return [NS(Geometry=g, AssocType=p, AssocValue=0) for g, p in self.geometry]
 
     def measure(self):
         g = self.geometry
@@ -265,6 +270,9 @@ class Sketch(BaseSketch):
         return [c for c in self.constraints if any(g is curve for g in c.curves)]
 
     def CalculateStatus(self):
+        if self.fake.status is not None:  # a test's NX answer (status, curves not fully fixed)
+            self.status = self.fake.status
+            return
         free = sum(not self.GetConstraintsForGeometry(c) for c in self.geometry)
         self.status = (Sketch.Status.OverConstrained, 0) if self.over else (2, free)
 
@@ -403,6 +411,7 @@ class FakeSketchNX(FakeNX):
         ns.Line, ns.Arc, ns.Ellipse, ns.Curve, ns.Edge = Line, Arc, Ellipse, Curve, Edge
         ns.Spline = type("Spline", (Curve,), {})
         ns.Matrix3x3 = lambda: NS()
+        ns.SketchDimensionalConstraint = NS(DimensionStateType=NS(Driving=0, Reference=1))
         ns.SketchDragGeometryBuilder = NS(
             SolverStatus=NS(Unknown=0, Initializing=1, Configured=2, Updated=4, UpdateFailed=5)
         )

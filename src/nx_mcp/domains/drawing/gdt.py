@@ -49,6 +49,7 @@ from nx_mcp.domains.drawing.common import (
     default_origin,
     geometry,
     leader_row,
+    report_bounds,
     set_origin,
     update,
     verify_origin,
@@ -178,6 +179,7 @@ class GdtData(TypedDict, total=False):
     frame: dict
     letter: str
     target: dict
+    bounds: list[float]
 
 
 def _is(tx, obj, name):
@@ -602,4 +604,4 @@ def _in_view(tx, kind, view_ref, obj_ref, origin, letter, frame, target):
                 out["target"] = actual
         readback.expect(_same(actual, wanted), "definition", f"NX stored another {what}",
                         actual=actual, wanted=wanted)  # fmt: skip
-        return out
+        return report_bounds(tx, out, made, sh, what)

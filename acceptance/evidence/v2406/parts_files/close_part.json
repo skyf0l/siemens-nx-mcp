@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/close_part.json",
-  "scenario_sha256": "3115758de533380833cfdd9298bdf994e66562e73534ad0c943547a9ef295741",
+  "scenario_sha256": "e49fd90217a09c84d4c84971e8256c1cfa56e7cb2699ff51cbbfebf59dcf6776",
   "domain": "parts_files",
   "covers": {
     "nx_close_part": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_close_part": "31bcbf0307ff0f394b45034a45b0657d46618c5a94839d1e0e7e7788109db68d"
+    "nx_close_part": "dbaaba46fc3b943276ad798b77705a3ce89a568c332215321c3498643d28ceeb"
   },
-  "recorded": "2026-10-10T23:32:21Z",
+  "recorded": "2026-10-11T08:11:56Z",
   "passed": true,
-  "checks": 36,
+  "checks": 51,
   "failed_checks": 0,
   "steps": [
     {
@@ -200,6 +200,76 @@
     },
     {
       "index": 27,
+      "call": "nx_close_part",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 28,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_close_part",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 30,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 31,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 32,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 33,
+      "call": "nx_close_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 34,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 35,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 36,
+      "call": "nx_close_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 37,
       "call": "nx_close_part",
       "setup": false,
       "passed": true,

@@ -16,7 +16,6 @@ a face whose edit NX rolls back gets a new reference.
 from __future__ import annotations
 
 import math
-import typing
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import definition, tool
@@ -29,6 +28,7 @@ from nx_mcp.core.types import (
     Direction,
     Doc,
     FaceRef,
+    Formula,
     Items,
     Length,
     Mat3,
@@ -41,7 +41,7 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, geom, measure, readback, result, select
+from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, select
 from nx_mcp.kit import pose as kpose
 
 BodyList = Annotated[list[BodyRef], Items(1, 50)]
@@ -278,58 +278,120 @@ def nx_create_trim_body(
 # Scale and transform
 
 
+ScaleFactor = Annotated[float, Range(gt=0, le=1e6)]
+
+
+def _scale_summary(a, say) -> str:
+    how = f"x{say('factor')}" if a.get("factor") is not None else f"by {a.get('factors')}"
+    return f"Scale {common.bodies_text(a)} {how}"
+
+
+def _scale_frame(tx, csys, origin, targets):
+    """``(fixed point, axes as columns R, NX coordinate system)`` of a scale: the datum
+    CSYS (its origin unless ``origin`` is given) or world axes at ``origin``."""
+    axes = geom.IDENTITY
+    frame = None
+    if csys is not None:
+        frame = select.one(tx, csys, "datum_csys", field="/csys")
+        m = frame.Orientation.Element
+        axes = [[float(m.Xx), float(m.Yx), float(m.Zx)],
+                [float(m.Xy), float(m.Yy), float(m.Zy)],
+                [float(m.Xz), float(m.Yz), float(m.Zz)]]  # fmt: skip
+    if origin == "center":
+        o = measure.mass(tx, targets)["centroid"]
+        readback.expect(o is not None, "origin", "NX reported no centroid for the bodies")
+    elif origin is not None:
+        o = list(origin)
+    elif frame is not None:
+        return geom.xyz(frame.Origin), axes, frame
+    else:
+        o = [0.0, 0.0, 0.0]
+    made = tx.part.CoordinateSystems.CreateCoordinateSystem(
+        tx.nx.Point3d(*(float(v) for v in o)), builders.matrix(tx, axes), False
+    )
+    return o, axes, made
+
+
+def _scaled(p, o, axes, f):
+    """``p`` scaled about ``o`` by ``f[k]`` along the columns of ``axes``."""
+    local = geom.matvec(geom.transpose(axes), geom.sub(p, o))
+    return geom.add(o, geom.matvec(axes, [local[k] * f[k] for k in range(3)]))
+
+
 @tool(
     effect="model",
     label="Scale bodies",
-    summary=lambda a, say: f"Scale {common.bodies_text(a)} x{say('factor')}",
-    keywords=("scale", "resize", "uniform scale", "shrink", "enlarge"),
+    summary=_scale_summary,
+    keywords=("scale", "resize", "uniform scale", "non-uniform scale", "stretch", "shrink"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
-    example={"bodies": ["b:3"], "factor": 2, "origin": "center"},
+    example={"bodies": ["b:3"], "factors": [2, 1, 0.5], "origin": "center"},
 )
 def nx_create_scale(
     tx: Tx,
     *,
     bodies: BodyList,
-    factor: Annotated[float, Range(gt=0, le=1e6), Doc("Uniform factor, not 1")],
+    factor: Annotated[ScaleFactor, Doc("Uniform factor, not 1")] | None = None,
+    factors: Annotated[list[ScaleFactor], Items(3, 3), Doc("Per-axis [x, y, z] factors")]
+    | None = None,
     origin: Annotated[Literal["center"] | Point3, Doc("Fixed point")] | None = None,
+    csys: Annotated[str, RefTo("datum_csys"), Doc("factors along its axes; its origin fixed")]
+    | None = None,
 ) -> common.FeatureData:
-    """Scale solid bodies uniformly: p -> origin + factor * (p - origin). The default origin
-    [0, 0, 0] moves off-origin bodies too; 'center' (their centroid) scales in place."""
-    if abs(factor - 1.0) < 1e-12:
-        fail("NX_INVALID_ARGUMENT", "factor 1 would not change the bodies", field="/factor")
+    """Scale solid bodies uniformly (factor) or per axis (factors). p -> origin + f (p -
+    origin) along world axes or a datum CSYS's. Origin default [0, 0, 0] (with csys: its
+    origin); 'center' (the centroid) scales in place."""
+    args.exactly_one(factor=factor, factors=factors)
+    f = [float(factor)] * 3 if factor is not None else [float(v) for v in factors or []]
+    if all(abs(v - 1.0) < 1e-12 for v in f):
+        fail("NX_INVALID_ARGUMENT", "A factor of 1 would not change the bodies",
+             field="/factor" if factor is not None else "/factors")  # fmt: skip
+    if factor is None and csys is None and len(set(f)) == 1:
+        factor = f[0]  # equal factors: a uniform scale
     targets = common.solids(tx, bodies)
     before = [measure.mass(tx, [t]) for t in targets]
-    if origin == "center":
-        o = measure.mass(tx, targets)["centroid"]
-        readback.expect(o is not None, "origin", "NX reported no centroid for the bodies")
-    else:
-        o = list(origin) if origin is not None else [0.0, 0.0, 0.0]
+    types = tx.nx.Features.ScaleBuilder.Types
     with builders.build(tx, tx.part.Features.CreateScaleBuilder, None) as b:
-        b.Type = tx.nx.Features.ScaleBuilder.Types.Uniform
         b.BodyToScale.Add(targets)
-        b.Point = builders.point(tx, o)
-        b.UniformFactor.RightHandSide = repr(float(factor))
+        if factor is not None:
+            o, axes = (None, geom.IDENTITY)
+            if origin == "center":
+                o = measure.mass(tx, targets)["centroid"]
+                readback.expect(o is not None, "origin", "NX reported no centroid for the bodies")
+            elif origin is not None:
+                o = list(origin)
+            else:
+                o = [0.0, 0.0, 0.0]
+            b.Type = types.Uniform
+            b.Point = builders.point(tx, o)
+            expr.drive(b.UniformFactor, factor)
+        else:
+            o, axes, frame = _scale_frame(tx, csys, origin, targets)
+            b.Type = types.General
+            b.Csys = frame
+            for exp, value in zip(
+                (b.ScaleXdirection, b.ScaleYdirection, b.ScaleZdirection), f, strict=True
+            ):
+                expr.drive(exp, value)
         feature = b.commit()
+    gain = f[0] * f[1] * f[2]
     for i, (t, m) in enumerate(zip(targets, before, strict=True)):
         got = measure.mass(tx, [t])
-        readback.expect_close(
-            got["volume"],
-            m["volume"] * factor**3,
-            f"volume[{i}]",
-            tol=1e-6 * max(1.0, m["volume"] * factor**3),
-        )
+        want = m["volume"] * gain
+        readback.expect_close(got["volume"], want, f"volume[{i}]", tol=1e-6 * max(1.0, want))
         if m["centroid"] and got["centroid"]:
-            wanted = geom.add(o, geom.scale(geom.sub(m["centroid"], o), factor))
+            wanted = _scaled(m["centroid"], o, axes, f)
             readback.expect_close(
                 got["centroid"], wanted, f"centroid[{i}]", tol=1e-5 * max(1.0, *map(abs, wanted))
             )
     return common.result_of(tx, feature, targets)
 
 
-def _move(tx, existing, objects, translation, rotation):
-    """Commit a MoveObject feature (CSYS to CSYS); returns the feature."""
+def _move(tx, existing, objects, translation, rotation, spin=None):
+    """Commit a MoveObject feature (CSYS to CSYS, or by an angle about an axis for
+    ``spin`` = ``(origin, direction, angle)``: its angle is a feature expression that a
+    formula angle keeps driving); returns the feature."""
     part = tx.part
     nx = tx.nx
     before = {int(f.Tag) for f in part.Features}
@@ -340,13 +402,23 @@ def _move(tx, existing, objects, translation, rotation):
             b.ObjectToMoveObject.Add(objects)
             b.MoveObjectResult = b.MoveObjectResultOptions.MoveOriginal
         motion = b.TransformMotion
-        motion.Option = motion.Options.CsysToCsys
-        motion.FromCsys = part.CoordinateSystems.CreateCoordinateSystem(
-            nx.Point3d(0.0, 0.0, 0.0), builders.matrix(tx, geom.IDENTITY), False
-        )
-        motion.ToCsys = part.CoordinateSystems.CreateCoordinateSystem(
-            nx.Point3d(*translation), builders.matrix(tx, rotation), False
-        )
+        if spin is not None:
+            origin, direction, angle = spin
+            motion.Option = motion.Options.Angle
+            motion.AngularAxis = part.Axes.CreateAxis(
+                builders.point(tx, origin),
+                builders.direction(tx, direction, origin),
+                nx.SmartObject.UpdateOption.WithinModeling,
+            )
+            expr.drive(motion.Angle, angle)
+        else:
+            motion.Option = motion.Options.CsysToCsys
+            motion.FromCsys = part.CoordinateSystems.CreateCoordinateSystem(
+                nx.Point3d(0.0, 0.0, 0.0), builders.matrix(tx, geom.IDENTITY), False
+            )
+            motion.ToCsys = part.CoordinateSystems.CreateCoordinateSystem(
+                nx.Point3d(*translation), builders.matrix(tx, rotation), False
+            )
         made = b.commit()
     if made is None:
         created = [f for f in part.Features if int(f.Tag) not in before]
@@ -420,6 +492,20 @@ def _pose(tx, transform, field="/transform"):
     return geom.add(pivot, translation), turn
 
 
+def _spin(tx, transform):
+    """``(origin, direction, angle)`` of a motion that is one rotation about an axis (no
+    translation), else None: it becomes an angle motion whose angle stays driven."""
+    rotation = transform.get("rotation") if isinstance(transform, dict) else None
+    if not isinstance(rotation, dict) or any(float(v) for v in transform.get("translation") or []):
+        return None
+    direction = select.direction(tx, common.principal(rotation["axis"]), "/transform/rotation/axis")
+    origin = args.vec3(rotation.get("origin", [0.0, 0.0, 0.0]), "/transform/rotation/origin")
+    angle = rotation["angle"]
+    if not getattr(angle, "formula", None):
+        angle = _angle(angle, "/transform/rotation/angle")
+    return origin, direction, angle
+
+
 def _moves(translation, rotation) -> bool:
     return geom.norm(translation) > 0.0 or any(
         abs(rotation[i][j] - (1.0 if i == j else 0.0)) > 1e-12 for i in range(3) for j in range(3)
@@ -468,7 +554,7 @@ def nx_create_transform(
         readback.expect(len(moving) == len(targets), "copy", "NX copied a different body count")
         if not _moves(translation, rotation):  # a copy in place: no Move Object feature
             return common.result_of(tx, copied, moving)
-    feature = _move(tx, None, moving, translation, rotation)
+    feature = _move(tx, None, moving, translation, rotation, _spin(tx, transform))
     for i, (body, m) in enumerate(zip(moving, before, strict=True)):
         got = measure.mass(tx, [body])
         readback.expect_close(
@@ -553,9 +639,6 @@ EXAMPLES = {
     "mirror": "plane: 'yz' (or {origin: [40, 0, 0], normal: [1, 0, 0]}, a datum plane or face)",
     "delete_blend": "the blend faces only",
 }
-AxisWord = Literal["x", "y", "z", "-x", "-y", "-z"]
-PlaneWord = Literal["xy", "yz", "xz"]
-AXES, PLANES = typing.get_args(AxisWord), typing.get_args(PlaneWord)
 
 
 def _check_arguments(action, given):
@@ -630,7 +713,7 @@ def _pattern(tx, b, pattern, vector):
         b.Type = types.Rectangular
         b.XVector = builders.direction(tx, vector, field="/direction")
         b.XCount.RightHandSide = str(int(pattern["count"]))
-        b.XDistance.RightHandSide = repr(float(pattern["spacing"]))
+        expr.drive(b.XDistance, pattern["spacing"])
         b.YCount.RightHandSide = "1"
     else:
         origin = [float(v) for v in pattern["origin"]]
@@ -639,7 +722,7 @@ def _pattern(tx, b, pattern, vector):
         b.Type = types.Circular
         b.Axis = tx.part.Axes.CreateAxis(builders.point(tx, origin), smart, update)
         b.CircularCount.RightHandSide = str(int(pattern["count"]))
-        b.Angle.RightHandSide = repr(float(pattern["angle"]))
+        expr.drive(b.Angle, pattern["angle"])
 
 
 def _configure(tx, b, action, selected, a):
@@ -650,10 +733,10 @@ def _configure(tx, b, action, selected, a):
         b.FaceToMove.FaceCollector.ReplaceRules([rule], False)
         b.Motion.Option = tx.nx.GeometricUtilities.ModlMotion.Options.Distance
         b.Motion.DistanceVector = builders.direction(tx, a["vector"], field="/direction")
-        b.Motion.DistanceValue.RightHandSide = repr(float(a["distance"]))
+        expr.drive(b.Motion.DistanceValue, a["distance"])
     elif action == "offset":
         b.FaceCollector.ReplaceRules([rule], False)
-        b.Distance.RightHandSide = repr(abs(float(a["distance"])))
+        expr.drive(b.Distance, -a["distance"] if a["distance"] < 0 else a["distance"])
         b.Direction = a["distance"] < 0
     elif action == "replace":
         b.ReplaceFaces.ReplaceRules([rule], False)
@@ -671,21 +754,21 @@ def _configure(tx, b, action, selected, a):
     elif action == "resize":
         b.Face.Add(selected)
         if a["diameter"] is not None:
-            b.Diameter.RightHandSide = repr(float(a["diameter"]))
+            expr.drive(b.Diameter, a["diameter"])
         else:
-            b.Angle.RightHandSide = repr(float(a["angle"]))
+            expr.drive(b.Angle, a["angle"])
     elif action == "resize_blend":
         for i, ok in enumerate(list(b.IsBlendFace(selected))):
             if not ok:
                 fail("NX_WRONG_GEOMETRY", "NX does not recognize this face as a blend",
                      field=f"/faces/{i}")  # fmt: skip
         b.BlendFace.ReplaceRules([rule], False)
-        b.Radius.RightHandSide = repr(float(a["radius"]))
+        expr.drive(b.Radius, a["radius"])
     elif action == "resize_chamfer":
         b.Faces.ReplaceRules([rule], False)
         b.ChamferType = tx.nx.Features.ResizeChamferBuilder.SectionType.SymmetricOffset
         for offset in (b.Offset1, b.Offset2):
-            offset.RightHandSide = repr(float(a["distance"]))
+            expr.drive(offset, a["distance"])
         b.Angle.RightHandSide = "45"
     elif action == "pattern":
         b.Face.ReplaceRules([rule], False)
@@ -742,13 +825,13 @@ def nx_edit_faces(
         Doc("move/offset (> 0: outward)/resize_chamfer"),
     ]
     | None = None,
-    direction: Annotated[Direction | AxisWord, Doc("move/pattern direction or axis")] | None = None,
+    direction: Annotated[Direction, Doc("move/pattern direction or axis")] | None = None,
     replacement: FaceRef | None = None,
     diameter: Annotated[Length, Doc("resize: cylinder/sphere diameter")] | None = None,
     angle: Annotated[Angle, Doc("resize: cone half angle")] | None = None,
     radius: Annotated[Length, Doc("resize_blend radius; resize: diameter/2")] | None = None,
     pattern: FacePattern | None = None,
-    plane: Annotated[Plane | PlaneWord, Doc("mirror plane")] | None = None,
+    plane: Annotated[Plane, Doc("mirror plane")] | None = None,
 ) -> EditFacesData:
     """Edit faces of any solid, imported ones included (synchronous modeling). Move, offset,
     replace or delete and heal faces; resize a hole, boss, cone, blend or chamfer; pattern or
@@ -765,10 +848,10 @@ def nx_edit_faces(
     }
     _check_arguments(action, given)
     if action == "resize" and radius is not None:
-        diameter = given["diameter"] = 2.0 * float(radius)
-    # An axis or plane word ('z', 'yz') stands for its principal form.
-    vector = {"principal": direction} if direction in AXES else direction
-    mirror = {"principal": plane} if plane in PLANES else plane
+        twice = getattr(radius, "formula", None)  # a formula radius keeps driving the face
+        diameter = Formula(2.0 * float(radius), f"2*({twice})") if twice else 2.0 * float(radius)
+        given["diameter"] = diameter
+    vector, mirror = direction, plane
     if pattern is not None:
         _pattern_check(pattern)
     selected = select.faces(tx, faces, "/faces")

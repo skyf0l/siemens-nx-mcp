@@ -73,6 +73,7 @@ validators accept and reject the same generated samples.
 | `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir`, `save` or `replace` (new, or an existing file the tool replaces only when asked) | `string` |
 | `RefTo(*kinds, doc=None)` | shorthand for `Text(128, ref pattern)`, `RefKind(*kinds)`, `Doc` | as its parts |
 | `PathTo(mode, *suffixes)` | shorthand for `Text(260)`, `PathArg`, `Doc("Workspace path")` | as its parts |
+| `Ratio(per, factor)` | on a number: `"50%"` is `50 * per / 100` (`Percent`, `Fraction`); a `factor` (`Factor`) also takes `"2x"` | as the number |
 
 `core.validate.unwrap` expands the two shorthands in place, so every reader sees the plain
 markers. A reference or path is written `Annotated[str, RefTo("edge", "face")]`: type
@@ -81,7 +82,8 @@ checkers see `str`, so the aliases narrow (`x is not None`) and compare like str
 The aliases follow surface 1.4: `Ref`, `BodyRef`, `FaceRef`, `EdgeRef`, `CurveRef`,
 `FeatureRef`, `SketchRef`, `PartRef`, `ComponentRef`, `ExplosionRef`, `DimensionRef`,
 `DrawingSheetRef`, `DrawingViewRef`, `DrawingTableRef`, `Point2`, `SheetPoint`, `Point3`,
-`Vec3`, `Mat3`, `Pose`, `Length`, `SheetLength`, `Angle`, `Units = Literal["mm", "in"]`,
+`Vec3`, `Mat3`, `Pose`, `Length`, `SheetLength`, `Angle`, `Percent`, `Fraction`, `Factor`,
+`Units = Literal["mm", "in"]`,
 `Plane`, `Axis`, `Direction`, `SketchPoint`, `Limit`, `Combine`, `Page`, `Name`, `PathIn`.
 
 - Unions are written with `|`: `Plane = Annotated[str, RefTo("datum_plane", "face")] |
@@ -89,6 +91,9 @@ The aliases follow surface 1.4: `Ref`, `BodyRef`, `FaceRef`, `EdgeRef`, `CurveRe
 - A `TypedDict` argument calls `forbid_extra(...)`, which sets `__pydantic_config__ =
   {"extra": "forbid"}` as a plain dict, so no pydantic import is needed.
 - Fixed vectors are `tuple[float, float, float]`, which gives `minItems == maxItems`.
+- `Pose` is `{translation, rotation?}` (row-major matrix) or the axis-angle form
+  `{axis: 'z' | [x, y, z], angle, origin?, translation?}`; gate 9 turns the axis-angle
+  form into the matrix form (`types.CANONICAL`), so handlers see one form.
 
 **Unit rule.**
 
@@ -111,10 +116,18 @@ The aliases follow surface 1.4: `Ref`, `BodyRef`, `FaceRef`, `EdgeRef`, `CurveRe
 agents commonly send and passes the canonical value on: an enum option in any case and with
 spaces, `-` or `_` (`"Through All"` → `"through_all"`), a declared `Aliases` spelling or the
 plural of a singular option, `"true"`/`"false"` for a boolean, a numeric string for a number,
-and one string where a list of strings is expected. A union prefers an exact fit, then a
+and one string where a list of strings is expected. Also: a bare option for a one-field
+form (`"-z"`, `"+Y"`, `"z axis"` for `{"principal": ...}` of an `Axis`/`Direction`, `"xy"`,
+`"XY plane"`, `"top"` of a `Plane`; a ref-shaped string such as `"e:3"` stays a ref), a
+JSON-array string for an array or tuple (`"[1, 2, 3]"`), `"50%"` for a percent, fraction or
+factor number and `"2x"` for a factor (a `Ratio` marker, else the field's name or `Doc`:
+percent, factor/scale/zoom, fraction or a 0..1 range). A union prefers an exact fit, then a
 natural spelling, then a formula. Errors say what to send: the valid options with a
-did-you-mean, and for an unknown field the closest accepted field (`FIELD_SYNONYMS` such as
-`type` → `kind`, then singular/plural and close spellings) with `details.accepted`.
+did-you-mean (for the variant field only the variants the NX build offers), the accepted
+forms of a union, and for an unknown field the closest accepted field (`FIELD_SYNONYMS` such
+as `type` → `kind`, then singular/plural and close spellings) with `details.accepted`. Every
+invalid, unknown or missing field of a call is reported at once: `field`/`message` name the
+first, `details.errors` lists all as `{field, message}`.
 
 ### 1.2 `core/catalogue.py`: `@tool`, `ToolSpec`, registry
 
@@ -140,6 +153,8 @@ imports every package in `domains/`. A *derived* field is never written by hand.
 | `cost` | decorator | `light` (default), `heavy` or `long` (3.3) |
 | `runs` | decorator; default `"nx"` | `"sidecar"` for workspace and result tools that never reach NX |
 | `example` | decorator | one minimal argument set, returned by `nx_get_tool_schemas` |
+| `required_by` | decorator | `{variant: (fields...)}` a variant needs (keys are values of the variant field, fields optional parameters; checked at import): gate 1 refuses the call without them. `nx_get_tool_schemas` adds a compact `required_by` map next to `input_schema` (`sidecar/schema.required_by`): one key per group of offered variants needing the same fields, `|`-joined (`{"hole": ["view", "origin"], "title_block\|revision": ["sheet", "rows", "widths"]}`), variants needing nothing left out; a `tool#variant` schema lists the fields in `required` |
+| `variant_from` | decorator | `field` or `(field, resolver)`: the variant field may be omitted; gate 3 takes it from the object the ref `field` names (`resolver(tx, obj)`, else the ref's kind), e.g. `nx_edit_drawing_table` without `kind` |
 | `handler` | the decorated function | called as `handler(tx, **converted_args)` |
 | `evidence` | loaded from `evidence/<domain>.json` | tested variants per NX build |
 
@@ -242,7 +257,8 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `builders` | `with builders.build(tx, factory, *a) as b:` then `b.commit()` (`CommitFeature` or `Commit`). `Destroy()` always runs, and rejections pass through `native(default="NX_BUILD_FAILED")`. Also `point(tx, p)`, `direction(tx, v, origin)`, `collector(tx, refs, "Edge"/"Face"/"Body")` |
 | `select` | `planar(tx, ref)` → `(obj, origin, normal)` for a planar face or datum plane of the work part. `plane`, `axis`, `direction(tx, value)` resolve the union types. `bodies`, `faces`, `edges(tx, refs)`, `owned_by_work_part(tx, obj)` |
 | `sketch` | `with sketch.editing(tx, ref) as sk:` activates the sketch and restores the previous state, with `sk.frame`, `sk.to_part(p2)` and `sk.to_local(p3)`. `sketch.solve(tx, sk)` returns status and DOF, or raises `solver_failed`. `sketch.owns(tx, sk, curve)` is the one ownership check |
-| `drawing` | `with drawing.on_sheet(tx, sheet) as sh:` activates the sheet and restores the previous sheet and display afterwards (it does not switch or restore the NX application; open). `sh.units`, `sh.point(SheetPoint)`, `drawing.view(tx, ref)`, `drawing.refresh(tx, views)` |
+| `drawing` | `with drawing.on_sheet(tx, sheet) as sh:` activates the sheet and restores the previous sheet and display afterwards (it does not switch or restore the NX application; open). `sh.units`, `sh.point(SheetPoint)`, `drawing.view(tx, ref)`, `drawing.refresh(tx, views)`. `visible_edges(tx, view)` and `edge_in_view` give the model edges a view draws in sheet coordinates; `annotation_box` (an annotation's sheet bounds) and `crowding` (views it overlaps, off-sheet) |
+| `explode` | `shown(tx)`: the explosion shown in the work view of the displayed work assembly, else None; `assembled_note(tx)`: the note that NX measures assembled (unexploded) poses while one is shown |
 | `expr` | `create(tx, name, formula, units)`, `set_formula`, `value`, `alias(feature, "distance")` (semantic parameter names), `bind` |
 | `readback` | `expect(ok, check, **actual)`, `expect_close(actual, wanted, check, tol=None)` (scalar or vector, scaled tolerance), `expect_same_direction`, `expect_on_plane`. Each raises `verification_failed` with `details.check` |
 | `result` | `rows(tx, objs, kind)`, `page(rows, page)`, `measured(value, "length")`, `rename(tx, obj, name)` (returns the name as NX normalised it) |
@@ -426,7 +442,10 @@ count as checks. `covers` names the variants that are credited when every check 
 
 The `expect` operators are `equals`, `close` (with `tol`), `count`, `count_kind`, `contains` and
 `matches`. An `error.*` path asserts a failure. A `"setup": true` step prepares state and is
-not counted as a check.
+not counted as a check. `$label.path` (a saved step's result) and `$part`/`$fixture`/`$run`
+are substituted in `args` and in `expect` values (`{"equals": "$link.data.part"}`); in
+`expect` only `$name...` strings are, so other text starting with `$` (`$~C`) stays as
+written, and `$$` is a literal `$`.
 
 ---
 
@@ -440,17 +459,17 @@ always reports `not_started`.
 
 | # | Gate | Where | Rule |
 |---|---|---|---|
-| 1 | Schema validation | S (Pydantic), N (`validate.py`) · C | Rejects an unknown tool, extra fields (with a did-you-mean), out-of-bounds values and unit strings of the wrong dimension; natural spellings pass as their canonical value (1.1). The sidecar checks batch children against the child spec, which must be `batchable` or `previewable`. `"$2.data.feature"` placeholders are allowed only in Ref fields |
-| 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. A path without a suffix gets the marker's first one (`parts/plate` → `parts/plate.prt`). `.nx-mcp` is reserved; `new` must not exist, `read` must exist, `save` may write only the part's own file, and `replace` may be an existing file (never a directory) that the tool replaces atomically only when asked (`Files.stage(path, replace=True)`). An existing `new` or `save` path fails `NX_ALREADY_EXISTS` with `details.suggested_path` (the first free `<stem>-<n>`) |
-| 3 | Evidence/version | S (build from the descriptor), N · C | The tool and the value of its variant field must be tested on the connected build. On an unknown build only `read` and `view` tools run. A refusal is `unavailable/NX_VERSION_UNSUPPORTED`. Listings show only what runs: untested variants leave the schema enum, `tool#variant` schemas and `nx_find_tools`, and a tool with no variant left is hidden; before NX connects listings assume the default build (v2406) and say so, and a change sends `tools/list_changed`. `NX_MCP_DEV=1` still offers untested variants, marked. A tested tool/variant that failed with `NX_LICENSE_UNAVAILABLE` is remembered for the NX session: refused before NX ("remembered from <time>") and hidden via `nx_get_status` `bridge.license_unavailable` until NX restarts |
+| 1 | Schema validation | S (Pydantic), N (`validate.py`) · C | Rejects an unknown tool, extra fields (with a did-you-mean), out-of-bounds values and unit strings of the wrong dimension; natural spellings pass as their canonical value (1.1); every invalid field is reported at once (`details.errors`), and a variant's `required_by` fields are required. The sidecar checks batch children against the child spec, which must be `batchable` or `previewable`. `"$2.data.feature"` placeholders are allowed only in Ref fields |
+| 2 | Workspace paths | S (`Workspace.resolve`), N (`ensure_inside` + mode) · C | Checked from `spec.paths`. A path without a suffix gets the marker's first one (`parts/plate` → `parts/plate.prt`). `.nx-mcp` is reserved; `new` must not exist, `read` must exist, `save` may write only the part's own file, and `replace` may be an existing file (never a directory) that the tool replaces atomically only when asked (`Files.stage(path, replace=True)`). An existing `new` or `save` path fails `NX_ALREADY_EXISTS` with `details.suggested_path` (the first free `<stem>-<n>`). In a ref\|path union a ref-shaped value (`p:3`) is a ref and is not resolved as a path (`proxy._takes_refs`) |
+| 3 | Variant inference, evidence/version | S (build from the descriptor), N · C | N first fills an omitted variant of a `variant_from` tool from the referenced object and checks that variant's `required_by` fields. The tool and the value of its variant field must be tested on the connected build. On an unknown build only `read` and `view` tools run. A refusal is `unavailable/NX_VERSION_UNSUPPORTED` and names the variants available here. Listings show only what runs: untested variants leave the schema enum, `tool#variant` schemas and `nx_find_tools`, and a tool with no variant left is hidden; before NX connects listings assume the default build (v2406) and say so, and a change sends `tools/list_changed`. `NX_MCP_DEV=1` still offers untested variants, marked. A tested tool/variant that failed with `NX_LICENSE_UNAVAILABLE` is remembered for the NX session: refused before NX ("remembered from <time>") and hidden via `nx_get_status` `bridge.license_unavailable` until NX restarts |
 | 4 | `requires` | N · C | Read-only state checks (`NX_NO_WORK_PART`, `NX_SKETCH_ACTIVE`, `NX_WRONG_APPLICATION`, ...) whose hint names the tool to run. They run before the hold, so the engineer is never asked to approve a request that cannot succeed, and again after it |
 | 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`); **Run once** or **Run & switch to Auto** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. Only the engineer changes the mode; no tool does |
 | 6 | Part ownership | N · C | In production, `model` and `file` effects and `nx_close_part` may change only parts the agent created, opened when they were not already loaded, or was granted by the engineer on the panel. The work part is checked first. After the handler, any non-owned part whose `IsModified` flipped forces a rollback. Error: `engineer_control/NX_PART_NOT_GRANTED`. Off with `NX_MCP_DEV=1` |
 | 7 | Receipt | N | Every non-`read` effect gets a fingerprint of tool plus canonical arguments. The same id with the same arguments replays the committed result (`replayed: true`); different arguments give `NX_IDEMPOTENCY_CONFLICT`. Children write progress into the parent's receipt |
 | 8 | Undo mark | N | `model` only: a visible mark `NX MCP: <label>`. Children share the parent's mark; a preview's mark is always undone |
-| 9 | Unit conversion | N · C | `Quantity` fields become floats in the target part's or sheet's units. Gate 1 already rejected wrong dimensions, so this gate cannot fail on arguments |
+| 9 | Unit conversion | N · C | `Quantity` fields become floats in the target part's or sheet's units, then canonical forms replace their alternatives (an axis-angle `Pose` becomes `{translation, rotation}`). Gate 1 already rejected wrong dimensions, so this gate cannot fail on arguments |
 | 10 | Handler | N · C | `handler(tx, **args)` |
-| 11 | Read-back | N · C | The handler verifies with `kit.readback`. For `model` tools the kernel also turns a snapshot diff into `changes`, drops inherited NX 2406 feature errors, and treats a new feature in error as `geometry_failed/NX_UPDATE_FAILED` with rollback |
+| 11 | Read-back | N · C | The handler verifies with `kit.readback`. For `model` tools the kernel also turns a snapshot diff into `changes`, drops inherited NX 2406 feature errors, and treats a new feature in error as `geometry_failed/NX_UPDATE_FAILED` with rollback. The same applies to every other part the handler declared with `tx.touch_part` (`kernel._readback_parts`) |
 | 12 | Reference invalidation | N · C | After a commit: refs of objects NX no longer has. After a rollback: refs of objects the undo did not restore (1.3) |
 | 13 | Annotation refresh | N | If `refresh_annotations` is set, the `@refresher` hooks run inside the same undo mark, and what they refresh is added to `changes.modified` |
 | 14 | Result projection | N (envelope), S (compaction) | The surface 1.6 envelope with `units`, `frame`, `changes` and `warnings`. With `detail=compact`, arrays over 20 items go to the result store |
@@ -462,8 +481,15 @@ Members of `Tx`:
 
 - `tx.nx`, `tx.uf`: the NXOpen modules. `tx.session`, `tx.part` (work part): mark the
   transaction *touched* when accessed. `tx.units`: `{"length": "mm", "angle": "deg"}`.
-- `tx.resolve(ref, *kinds)`: the live object, or `stale_reference`, `wrong_kind` or
-  `wrong_owner`. `tx.ref(obj, kind=None)`: a result row with its anchor.
+- `tx.resolve(ref, *kinds, work_part=False)`: the live object, or `stale_reference`,
+  `wrong_kind` or `wrong_owner`; `work_part=True` refuses objects of other parts and
+  occurrences, except a component of the work assembly. `tx.ref(obj, kind=None)`: a result
+  row with its anchor.
+- `tx.touch_part(part)`: declares another part the call changes (a component's prototype
+  edited in context, e.g. assembly `component`/`target` arguments), before the change. The
+  kernel snapshots it, lists the objects created or deleted there in `changes` and fails the
+  call on its new features that do not update (gate 11); the work part and repeats are
+  ignored.
 - `tx.warn(code, msg)` (codes from `errors.WARNING_CODES`, else `NX_UPDATE_WARNING`) and
   `tx.checkpoint(done=None, total=None)` (3.3).
 - `tx.after_undo()`: for handlers that undo NX marks (undo, restore); keeps the refs of
@@ -547,7 +573,9 @@ other name lists are deleted. What holds today:
 - **Long operations.** `tx.checkpoint(done, total)` reports progress, honours cancellation and
   enforces the budget per cost class (light 30 s, heavy 300 s, long 1800 s).
 - **Compact schemas.** Listings omit reference and unit patterns (gate 1 checks them); repeated
-  subschemas move to `$defs`. Budgets are enforced by `tests/sidecar/test_budget.py`.
+  subschemas move to `$defs`. A variant's required fields reach `nx_get_tool_schemas` as the
+  compact `required_by` map (1.2), not as top-level `anyOf` branches. Budgets are enforced by
+  `tests/sidecar/test_budget.py`.
 - **No NX prompts.** `host/dispatch.execute` runs every call under `services.quiet()`
   (`host/quiet.py`): NX's default update-failure action is `Undo` (NX undoes a failed update,
   code 670024 -> `NX_UPDATE_FAILED`, the kernel rolls back; never "Error During Update") and
@@ -636,14 +664,14 @@ The **per-tool contract test** is parametrised over the registry. It checks:
    table.
 7. **Imports.** The domain module imports with NXOpen blocked and contains no `import NXOpen`.
 
-**Token budgets.** A catalogue test measures these at 3.8 characters per token and fails above
-the cap.
+**Token budgets.** `tests/sidecar/test_budget.py` measures these at 3.8 characters per token
+and fails above the cap (`-s` prints the measured values).
 
-| Item | Cap |
-|---|---|
-| Full listing, 152 tools | 110,000 chars (about 29K tokens) |
-| Median tool definition | 700 chars |
-| `agent` profile listing | 15,000 chars (about 4K tokens) |
-| `nx_find_tools` page of 10 rows | 1,400 chars |
-| `nx_get_tool_schemas` | 900 chars per tool on average |
-| Compact result before `result_id` paging | 4,000 chars |
+| Item | Cap | Measured |
+|---|---|---|
+| Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 166 tools (162 + 4 gateways), 159,006 chars, mean 957.9 |
+| Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 692.5, max 2,431 |
+| `agent` profile listing | 15,000 chars (about 4K tokens) | 14,906 chars |
+| `nx_find_tools` page of 10 rows | 1,400 chars | at most 1,371 |
+| `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,055 chars per tool |
+| Compact result before `result_id` paging | 4,000 chars | |

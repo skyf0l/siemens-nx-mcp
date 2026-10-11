@@ -346,3 +346,22 @@ def annotation_kind(tx, obj):
     if int(obj.Tag) in {int(d.Tag) for d in tx.part.Dimensions}:
         return "dimension"
     return "drawing_table" if table_kind(tx, obj) else "annotation"
+
+
+def report_bounds(tx, out, obj, sh, what="annotation"):
+    """Add ``bounds`` (the whole extent on the sheet, sheet units) to ``out`` and warn
+    NX_VIEW_OVERLAP when the text block (a table: the whole extent) lies over a view's
+    border or off the sheet."""
+    bounds, text = drawing.annotation_box(tx, obj, sh)
+    if bounds is None:
+        return out
+    out["bounds"] = bounds
+    views, off = drawing.crowding(tx, sh.sheet, text or bounds)
+    if views:
+        names = ", ".join(str(r.get("name") or r.get("id")) for r in views[:5])
+        tx.warn("NX_VIEW_OVERLAP", f"The {what} lies over view {names}: move it with "
+                "nx_edit_annotation position (see bounds and the views' bounds)")  # fmt: skip
+    if off:
+        tx.warn("NX_VIEW_OVERLAP", f"The {what} runs off the sheet (bounds {bounds}): move "
+                "it with nx_edit_annotation position")  # fmt: skip
+    return out

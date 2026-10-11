@@ -10,13 +10,14 @@ loaded part already uses is refused before NX acts (``NX_NAME_CONFLICT``).
 from __future__ import annotations
 
 import contextlib
+import re
 from pathlib import Path
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Offset, PageLimit, PathTo, RefTo, Text, Units
+from nx_mcp.core.types import REF_PATTERN, Doc, Offset, PageLimit, PathTo, RefTo, Text, Units
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import files, parts, readback, result
 from nx_mcp.kit import units as kit_units
@@ -25,6 +26,10 @@ TEMPLATES = {"mm": "model-plain-1-mm-template.prt", "in": "model-plain-1-inch-te
 # A Doc placed before PathTo/RefTo wins over their generic "Workspace path"/"Ref: part".
 PartPath = Annotated[str, Doc("New workspace .prt path"), PathTo("new", ".prt")]
 PartArg = Annotated[str, RefTo("part", doc="Ref 'p:N' from nx_list_parts")]
+# A ref, or a loaded part's file (matched against the loaded parts only; nothing is read).
+LoadedPart = Annotated[
+    str, Text(260), Doc("Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name")
+]
 # Save-as target. "replace" lets the part's own file through gate 2 (an in-place save);
 # any other existing file is refused in the handler: save-as never overwrites.
 SaveAsPath = Annotated[
@@ -124,6 +129,39 @@ def resolve_part(tx, ref: str, field: str = "/part"):
             with contextlib.suppress(Exception):
                 error.details.setdefault("loaded_parts", _loaded_rows(tx))
         raise
+
+
+def loaded_part(tx, text: str, field: str = "/part"):
+    """The loaded part a ref, workspace path or file name names. A path is matched against
+    the loaded parts' files; a bare file name (``plate`` or ``plate.prt``) against their
+    file names, which NX keeps unique."""
+    if re.match(REF_PATTERN, text):
+        return resolve_part(tx, text, field)
+    name = text if Path(text).suffix else text + ".prt"
+    try:
+        target = Path(tx.workspace.resolve(name))
+    except Exception as error:
+        reserved = any(p.casefold() == ".nx-mcp" for p in Path(name).parts)
+        fail(
+            "NX_PATH_RESERVED" if reserved else "NX_PATH_OUTSIDE_WORKSPACE",
+            f"{field}: {error}",
+            field=field,
+            details={"path": text},
+        )
+    part = parts.loaded(tx, target)
+    if part is None and len(Path(name).parts) == 1:
+        key = name.casefold()
+        named = [p for p in tx.session.Parts if Path(parts.file_of(p)).name.casefold() == key]
+        part = named[0] if len(named) == 1 else None
+    if part is None:
+        fail(
+            "NX_NOT_FOUND",
+            f"{field}: no loaded part has the file {text!r}",
+            field=field,
+            hint="nx_list_parts lists the loaded parts with their refs and paths",
+            details={"path": text, "loaded_parts": _loaded_rows(tx)},
+        )
+    return part
 
 
 def _discard(tx, part) -> None:
@@ -312,8 +350,8 @@ def nx_list_parts(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> PartsData:
-    """List the loaded parts with file, units, work/display state and modified flag. owned
-    says whether the agent may save or change the part."""
+    """List the loaded parts: file, units, work/display state, modified flag and owned (the
+    agent may save or change it)."""
     session_parts = tx.session.Parts
     work, display = session_parts.Work, session_parts.Display
     needle = (path_prefix or "").replace("\\", "/").casefold()
@@ -451,12 +489,16 @@ def nx_save_part(
     }
 
 
+def _close_summary(a, say) -> str:
+    what = str(a.get("part") or "")
+    what = say("part") if re.match(REF_PATTERN, what) else Path(what).name or what
+    return f"Close {what}" + (", saving it" if a.get("save") else " without saving")
+
+
 @tool(
     effect="session",
     label="Close part",
-    summary=lambda a, say: (
-        f"Close {say('part')}" + (", saving it" if a.get("save") else " without saving")
-    ),
+    summary=_close_summary,
     keywords=("close", "unload part", "close file", "discard part", "close without saving"),
     cost="heavy",
     example={"part": "p:1", "save": False},
@@ -464,15 +506,15 @@ def nx_save_part(
 def nx_close_part(
     tx: Tx,
     *,
-    part: PartArg,
+    part: LoadedPart,
     save: Annotated[bool, Doc("true saves first, false discards changes; required if modified")]
     | None = None,
 ) -> CloseData:
-    """Close one loaded part by its ref (never implicitly the work part). With unsaved
-    changes, save (true or false) is required. Refused while a loaded assembly uses it; NX
-    may also unload unused prototypes."""
+    """Close one loaded part by ref, workspace path or file name (never implicitly the work
+    part). With unsaved changes, save (true or false) is required. Refused while a loaded
+    assembly uses it; NX may also unload unused prototypes."""
     with tx.checks():
-        target = resolve_part(tx, part)
+        target = loaded_part(tx, part)
         field = "/part"
         parts.in_workspace(tx, target, field=field)
         tx.require_owned(target, field=field)

@@ -376,8 +376,9 @@
     "data.bodies": {
      "count": 1
     },
-    "warnings.0.message": {
-     "matches": "twists"
+    "data.volume": {
+     "close": 10757.46,
+     "tol": 0.5
     }
    }
   }

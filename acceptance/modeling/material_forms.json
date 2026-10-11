@@ -379,12 +379,14 @@
     }
    },
    "expect": {
-    "error.code": "NX_ALREADY_EXISTS",
-    "mutation_outcome": "not_started",
-    "error.details.free_name": "MDL_PLA_1300",
-    "error.details.existing_density": {
-     "close": 1240,
+    "mutation_outcome": "committed",
+    "data.items.0.material": "MDL_PLA",
+    "data.items.0.density": {
+     "close": 1300,
      "tol": 1e-06
+    },
+    "warnings.0.message": {
+     "matches": "was 1240.*1 other bodies"
     }
    }
   },
@@ -392,13 +394,14 @@
    "call": "nx_get_material",
    "args": {
     "bodies": [
-     "$blk.data.bodies.0.id"
+     "$blk.data.bodies.0.id",
+     "$b2.data.bodies.0.id"
     ]
    },
    "expect": {
-    "data.items.0.material": "Steel",
-    "data.items.0.density": {
-     "close": 7829,
+    "data.items.0.material": "MDL_PLA",
+    "data.items.1.density": {
+     "close": 1300,
      "tol": 1e-06
     }
    }
@@ -415,7 +418,7 @@
     "data.items.0.material": "MDL_PLA",
     "data.items.0.library": null,
     "data.items.0.density": {
-     "close": 1240,
+     "close": 1300,
      "tol": 1e-06
     }
    }
@@ -430,7 +433,7 @@
    },
    "expect": {
     "data.mass": {
-     "close": 0.01984,
+     "close": 0.0208,
      "tol": 1e-09
     }
    }

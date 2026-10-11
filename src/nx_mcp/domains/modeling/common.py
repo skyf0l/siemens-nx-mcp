@@ -6,7 +6,6 @@ import math
 from typing import Literal, TypedDict
 
 from nx_mcp.core.errors import fail
-from nx_mcp.core.types import Axis, Direction, Plane
 from nx_mcp.kit import builders, curve, geom, measure, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
@@ -14,17 +13,12 @@ from nx_mcp.kit import sketch as ksketch
 VOLUME_REL = 1e-9
 
 
-# A bare principal axis name, accepted where an Axis or Direction object is expected.
+# Bare principal names where a type has no principal form of its own (a rotation axis
+# vector, a datum plane reference); the core Axis, Direction and Plane take them already.
 PrincipalName = Literal["x", "y", "z", "-x", "-y", "-z"]
 PRINCIPALS = frozenset({"x", "y", "z", "-x", "-y", "-z"})
-# A bare principal plane name, accepted where a Plane object is expected.
 PlaneName = Literal["xy", "yz", "xz"]
 PLANE_NAMES = frozenset({"xy", "yz", "xz"})
-# Short forms first: a bare principal name where an Axis, Direction or Plane is expected
-# (turned into the object form with ``principal``/``principal_plane`` before use).
-AxisArg = PrincipalName | Axis
-DirectionArg = PrincipalName | Direction
-PlaneArg = PlaneName | Plane
 # A path joint turning by more than this many degrees is a corner that a sweep guide or a
 # tube path cannot follow (NX 2406: "Some curves in Guide sections not tangent continuous",
 # "Nonlinear guide objects must be smooth with a continuous tangent").
@@ -218,6 +212,46 @@ def combined(tx, feature, combine, targets, before: float, tags: set) -> Feature
     out = result_of(tx, feature, [*alive, *new])
     changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
     return out
+
+
+def combine_new(tx, feature, made, combine, target, before: float) -> FeatureData:
+    """Combine the bodies ``made`` by a feature without a Boolean option (sweep, loft)
+    with one ``target`` through a separate Boolean feature; the result names ``feature``."""
+    joined = boolean_feature(tx, combine["operation"], target, made)
+    kept = {int(b.Tag) for b in tx.part.Bodies}
+    left = [b for b in made if int(b.Tag) in kept]
+    if combine["operation"] == "unite" and left:
+        fail(
+            "NX_BUILD_FAILED",
+            "The new body does not touch the target body, so NX kept it separate",
+            hint="Move the sections so the body overlaps or touches the target, or omit "
+            "combine to make a new body",
+            details={"separate_bodies": len(left)},
+        )
+    bodies = feature_bodies(joined) or [target]
+    out = result_of(tx, joined, [b for b in bodies if int(b.Tag) in kept])
+    changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
+    out["feature"] = tx.ref(feature, kind="feature")
+    return out
+
+
+def one_target(tx, combine, what: str) -> list:
+    """The one target body of a ``Combine`` for a feature combined by a Boolean feature."""
+    check_one_target(combine, what)
+    if combine is None:
+        return []
+    return solids(tx, combine["targets"], "/combine/targets")
+
+
+def check_one_target(combine, what: str) -> None:
+    """Refuse, before NX, a ``Combine`` of a Boolean-combined feature with several targets."""
+    if combine is not None and len(combine["targets"]) != 1:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A {what} combines with one target",
+            field="/combine/targets",
+            hint="Combine with one body, then combine the result with the others",
+        )
 
 
 def principal(value):

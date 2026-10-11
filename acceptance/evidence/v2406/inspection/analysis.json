@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/analysis.json",
-  "scenario_sha256": "cf35aa7fd414eb5cd4414b65430e16c324da48467df94b859209eaf7c1c4aebd",
+  "scenario_sha256": "8047a489cf809850d39c8ff5ac6b47d70586e42441d10892f3e11b9041af058c",
   "domain": "inspection",
   "covers": {
     "nx_analyze_faces": [],
@@ -11,13 +11,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_analyze_faces": "a80f8d9cef6bb07e583dd8f210b04c890c69eb3e690fa33362ee63250df31258",
-    "nx_analyze_curve": "a80f8d9cef6bb07e583dd8f210b04c890c69eb3e690fa33362ee63250df31258",
-    "nx_check_continuity": "a80f8d9cef6bb07e583dd8f210b04c890c69eb3e690fa33362ee63250df31258"
+    "nx_analyze_faces": "0078669fc59742867c01ed242b68b909b09c0836cd27ed63d328d1ae7eba756d",
+    "nx_analyze_curve": "0078669fc59742867c01ed242b68b909b09c0836cd27ed63d328d1ae7eba756d",
+    "nx_check_continuity": "0078669fc59742867c01ed242b68b909b09c0836cd27ed63d328d1ae7eba756d"
   },
-  "recorded": "2026-10-10T23:25:58Z",
+  "recorded": "2026-10-11T06:47:12Z",
   "passed": true,
-  "checks": 73,
+  "checks": 113,
   "failed_checks": 0,
   "steps": [
     {
@@ -200,7 +200,7 @@
       "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
-      "checks": 9
+      "checks": 10
     },
     {
       "index": 27,
@@ -298,87 +298,150 @@
       "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 12
     },
     {
       "index": 41,
       "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 42,
-      "call": "nx_analyze_faces",
-      "setup": false,
-      "passed": true,
-      "checks": 9
-    },
-    {
-      "index": 43,
-      "call": "nx_analyze_faces",
-      "setup": false,
-      "passed": true,
-      "checks": 4
-    },
-    {
-      "index": 44,
-      "call": "nx_analyze_faces",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
-      "index": 45,
-      "call": "nx_analyze_faces",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 46,
-      "call": "nx_analyze_faces",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
-      "index": 47,
-      "call": "nx_analyze_faces",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 48,
-      "call": "nx_analyze_curve",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
-      "index": 49,
-      "call": "nx_analyze_curve",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 50,
-      "call": "nx_analyze_curve",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
-      "index": 51,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
+      "index": 43,
+      "call": "nx_check_continuity",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 44,
+      "call": "nx_check_continuity",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 45,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 46,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 47,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 48,
+      "call": "nx_check_continuity",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 49,
+      "call": "nx_check_continuity",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 50,
+      "call": "nx_check_continuity",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 51,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 13
+    },
+    {
       "index": 52,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 53,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 54,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 55,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 56,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 57,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 58,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 59,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 60,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 61,
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,

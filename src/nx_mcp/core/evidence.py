@@ -125,10 +125,15 @@ def check(spec, build: str | None, args: dict, *, dev: bool = False) -> NXError 
         if available(spec, build, variant):
             return None
         reason = f"variant {variant!r} is not tested" if variant else "the tool is not tested"
+    details = {"tool": spec.name, "build": build, "variant": spec.variant_of(args)}
+    offered = variants_for(spec, build) if details["variant"] else ()
+    if offered:  # only the variants this build offers
+        reason += f"; available here: {', '.join(repr(v) for v in offered)}"
+        details["available"] = list(offered)
     return NXError(
         "NX_VERSION_UNSUPPORTED",
         f"{spec.name} is not available on NX build {build or 'unknown'}: {reason}",
-        details={"tool": spec.name, "build": build, "variant": spec.variant_of(args)},
+        details=details,
     )
 
 

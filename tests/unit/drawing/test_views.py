@@ -240,15 +240,49 @@ def test_get_view_reports_type_bounds_and_hidden_line_warning():
     assert wrong.error["category"] == "wrong_kind" and wrong.error["field"] == "/view"
 
 
-def test_edit_takes_a_ratio_scale_and_warns_about_derived_views_and_style_spill():
+def test_edit_rescales_projected_children_keeping_gap_and_alignment():
     nx = views_nx()
     parent = make_view(nx, nx.sheet_obj, pos=(120, 200))
     made = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, direction="top")
     child = nx.views[max(nx.views)]
+    grand = run(nx, "nx_create_drawing_view", type="projected", parent=made.data["view"]["id"],
+                direction="right", spacing=10)  # fmt: skip
+    grandchild = nx.views[max(nx.views)]
+    borders = nx.uf.Draw.AskViewBorders
+    set_scale = nx.uf.Draw.SetViewScale
+    offsets = {int(child.Tag): (parent, 0, 30.0), int(grandchild.Tag): (child, 1, 0.0)}
+
+    def realigned(tag, s):  # NX keeps a projected view aligned to its parent's geometry
+        set_scale(tag, s)
+        if int(tag) in offsets:
+            above, axis, offset = offsets[int(tag)]
+            nx.views[int(tag)].pos[axis] = above.pos[axis] + offset * s
+
+    move = nx.uf.Draw.MoveView
+
+    def dragged(tag, p):  # and moves a view aligned to the moved one along with it
+        move(tag, p)
+        if int(tag) == int(child.Tag):
+            grandchild.pos[1] = child.pos[1]
+
+    nx.uf.Draw.SetViewScale, nx.uf.Draw.MoveView = realigned, dragged
     ok = run(nx, "nx_edit_drawing_view", view=parent.ref, scale="1:2")
-    assert ok.ok and ok.data["scale"] == 0.5 and child.scale == 1.0
-    assert any(made.data["view"]["id"] in w["message"] and "keep their scale" in w["message"]
-               for w in ok.warnings)  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["scale"] == 0.5 and child.scale == 0.5 and grandchild.scale == 0.5
+    ids = [r["id"] for r in ok.data["rescaled"]]
+    assert ids == [made.data["view"]["id"], grand.data["view"]["id"]]
+    assert {r["id"] for r in ok.changes["modified"]} >= set(ids)
+    assert borders(child.Tag)[1] - borders(parent.Tag)[3] == pytest.approx(20)  # gap kept
+    assert borders(grandchild.Tag)[0] - borders(child.Tag)[2] == pytest.approx(10)
+    assert child.pos[0] == parent.pos[0] + 15 and grandchild.pos[1] == child.pos[1]  # aligned
+    assert not any("keep their scale" in w["message"] for w in ok.warnings)
+
+
+def test_edit_reports_style_spill_to_derived_views():
+    nx = views_nx()
+    parent = make_view(nx, nx.sheet_obj, pos=(120, 200))
+    made = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, direction="top")
+    child = nx.views[max(nx.views)]
     make = nx.part.SettingsManager.CreateDrawingEditViewSettingsBuilder
 
     def spilling(views):

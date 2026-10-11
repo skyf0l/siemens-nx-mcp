@@ -11,12 +11,11 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Name, PathTo, Text, Units
+from nx_mcp.core.types import Aliases, Doc, Name, PathTo, Text, Units
 from nx_mcp.domains.drawing.common import (
     Loose,
     ScaleArg,
     SheetArg,
-    choice,
     scale_terms,
     scale_value,
     sheet_of,
@@ -133,7 +132,9 @@ def nx_create_drawing_sheet(
     | None = None,
     scale: ScaleArg = 1.0,
     units: Units = "mm",
-    projection: Literal["first_angle", "third_angle"] | Loose = "third_angle",
+    projection: Annotated[
+        Literal["first_angle", "third_angle"], Aliases(PROJECTION_ALIASES)
+    ] = "third_angle",
     template: TemplateName | None = None,
     template_path: Annotated[str, PathTo("read", ".prt")] | None = None,
 ) -> SheetData:
@@ -144,7 +145,6 @@ def nx_create_drawing_sheet(
     custom = standard if isinstance(standard, list) else None
     standard = standard if isinstance(standard, str) else None
     ratio = float(scale_value(scale) or 1.0)
-    projection = choice(projection, PROJECTIONS, "/projection", PROJECTION_ALIASES)
     if custom is not None and not (custom[0] > 0 and custom[1] > 0):
         fail("NX_INVALID_ARGUMENT", "width and height must be positive", field="/size")
     if template is not None and template_path is not None:

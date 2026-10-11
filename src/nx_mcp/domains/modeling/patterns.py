@@ -21,15 +21,18 @@ from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
+    Axis,
     BodyRef,
     ByVariant,
     CountValue,
+    Direction,
     Doc,
     FaceRef,
     FeatureRef,
     Items,
     Json,
     Length,
+    Plane,
     Point3,
     Range,
     RefTo,
@@ -40,8 +43,6 @@ from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, se
 
 BodyList = Annotated[list[BodyRef], Items(1, 50)]
 FeatureList = Annotated[list[FeatureRef], Items(1, 50), Doc("Feature ids f:.., not bodies b:..")]
-AxisArg = common.AxisArg
-DirectionArg = common.DirectionArg
 MAX_INSTANCES = 1000
 
 
@@ -261,7 +262,7 @@ def _mirror_features(tx, refs, plane, unite):
 def nx_create_mirror(
     tx: Tx,
     *,
-    plane: common.PlaneArg,
+    plane: Plane,
     target: Literal["bodies", "features"] = "bodies",
     bodies: BodyList | None = None,
     features: FeatureList | None = None,
@@ -308,19 +309,19 @@ Count = Annotated[CountValue, Range(ge=2, le=MAX_INSTANCES), Doc("Instances incl
 
 
 class _LinearRequired(TypedDict):
-    direction: DirectionArg
+    direction: Direction
     count: Count
     spacing: Length
 
 
 class LinearForm(_LinearRequired, total=False):
-    direction2: DirectionArg
+    direction2: Direction
     count2: Annotated[CountValue, Range(ge=1, le=MAX_INSTANCES)]
     spacing2: Length
 
 
 class CircularForm(TypedDict):
-    axis: AxisArg
+    axis: Axis
     count: Annotated[CountValue, Range(ge=2, le=360), Doc("Instances including the seed")]
     angle: Annotated[
         Angle,
@@ -338,7 +339,7 @@ class AlongCurveForm(TypedDict):
 
 
 class _PolygonRequired(TypedDict):
-    axis: AxisArg
+    axis: Axis
     sides: Annotated[int, Range(ge=3, le=100)]
     count_per_side: Annotated[int, Range(ge=2, le=100), Doc("Instances per side, corners included")]
 
@@ -350,8 +351,8 @@ class PolygonForm(_PolygonRequired, total=False):
 
 
 class _SpiralRequired(TypedDict):
-    normal: Annotated[DirectionArg, Doc("Spiral plane normal; the spiral starts at the seed")]
-    reference: Annotated[DirectionArg, Doc("In-plane start direction of the spiral")]
+    normal: Annotated[Direction, Doc("Spiral plane normal; the spiral starts at the seed")]
+    reference: Annotated[Direction, Doc("In-plane start direction of the spiral")]
     angle: Annotated[Angle, Doc("Total spiral angle (360 = one turn)")]
     pitch: Annotated[Length, Doc("Radial growth per turn")]
     spacing: Annotated[Length, Doc("Distance between instances along the spiral")]
@@ -363,7 +364,7 @@ class SpiralForm(_SpiralRequired, total=False):
 
 class _FillRequired(TypedDict):
     boundary: Annotated[FaceRef, Doc("Planar face the grid through the seed fills")]
-    direction: Annotated[DirectionArg, Doc("In-plane grid direction")]
+    direction: Annotated[Direction, Doc("In-plane grid direction")]
     spacing: Length
 
 

@@ -451,7 +451,8 @@ def nx_finish_sketch(
 
 class GeometryRow(CurveRow, total=False):
     part: Annotated[dict, Doc("start/end/center in work-part coordinates")]
-    constraints: Annotated[int, Doc("Constraints and dimensions on this curve (0: free)")]
+    constraints: Annotated[int, Doc("Constraints and dimensions on this curve")]
+    dof: Annotated[int, Doc("Remaining degrees of freedom (0: fully constrained)")]
 
 
 class SketchInfo(TypedDict, total=False):
@@ -468,18 +469,22 @@ class SketchInfo(TypedDict, total=False):
 INCLUDE = ("geometry", "constraints", "status")
 
 
-def _geometry(tx, sk, f):
+def _geometry(tx, sk, f, found):
+    """Curve rows with their constraint count and, when known, their remaining DOF."""
+    per_curve = found["curves"] if found else {}
     rows = []
     for c in ksketch.geometry(sk):
         count = len(ksketch.attached(tx, sk, c))
         if ksketch.curve_kind(tx, c) == "other":
-            rows.append({"curve": tx.ref(c, "curve"), "type": "other", "constraints": count})
-            continue
-        row = common.curve_row(tx, f, c)
-        row["part"] = {
-            k: ksketch.to_part(f, row[k]) for k in ("start", "end", "center") if k in row
-        }
-        row["constraints"] = count
+            row = {"curve": tx.ref(c, "curve"), "type": "other", "constraints": count}
+        else:
+            row = common.curve_row(tx, f, c)
+            row["part"] = {
+                k: ksketch.to_part(f, row[k]) for k in ("start", "end", "center") if k in row
+            }
+            row["constraints"] = count
+        if int(c.Tag) in per_curve:
+            row["dof"] = per_curve[int(c.Tag)]
         rows.append(row)
     return rows
 
@@ -489,23 +494,29 @@ def _constraints(tx, sk):
     for c in ksketch.geometry(sk):
         for con in ksketch.attached(tx, sk, c):
             by_constraint.setdefault(int(con.Tag), []).append(tx.ref(c, "curve")["id"])
+    tags = ksketch.tags(sk)
     return [
-        common.constraint_row(tx, con, by_constraint.get(int(con.Tag), []))
+        common.constraint_row(tx, con, by_constraint.get(int(con.Tag), []), tags)
         for con in ksketch.constraints(tx, sk)
     ]
 
 
-def _solver_status(tx, sk):
-    """Solver status of a sketch, activating it temporarily under a scratch mark."""
+def _other_active(tx, sk) -> bool:
     active = tx.session.ActiveSketch
-    if active is not None and int(active.Tag) != int(sk.Tag):
+    return active is not None and int(active.Tag) != int(sk.Tag)
+
+
+def _solver_status(tx, sk):
+    """Solver status and checked DOF analysis of a sketch, activating it temporarily
+    under a scratch mark."""
+    if _other_active(tx, sk):
         fail(
             "NX_SKETCH_ACTIVE",
             "Another sketch is active; its status can be read, this one's cannot",
             hint="Finish the active sketch first",
         )
     with tx.scratch(), ksketch.editing(tx, sk) as editing:
-        return common.status(tx, editing)
+        return common.status_row(tx, editing, ksketch.status(tx, editing))
 
 
 @tool(
@@ -528,9 +539,9 @@ def nx_get_sketch(
     ]
     | None = None,
 ) -> SketchInfo:
-    """Read a sketch: frame, curves, constraints with dimension expressions, and solver status.
-    Curves are in sketch-local and part coordinates, with constraint counts (0: free); dof is
-    NX's own indicator (NX 2406: curves not fully constrained)."""
+    """Read a sketch: frame, curves, constraints with dimension expressions, solver status.
+    Curves are in sketch-local and part coordinates with dof (remaining degrees of freedom,
+    0: fully constrained); constraints name the point of each curve they use."""
     wanted = set(include or INCLUDE)
     sk = ksketch.resolve(tx, sketch)
     f = ksketch.frame(sk)
@@ -540,15 +551,18 @@ def nx_get_sketch(
         "active": active is not None and int(active.Tag) == int(sk.Tag),
         "frame": common.frame_row(f),
     }
+    found = None
+    if "status" in wanted:
+        data["status"], found = _solver_status(tx, sk)
+    elif "geometry" in wanted and not _other_active(tx, sk):
+        found = _solver_status(tx, sk)[1]  # per-curve DOF needs NX's count to check
     if "geometry" in wanted:
-        data["curves"] = _geometry(tx, sk, f)
+        data["curves"] = _geometry(tx, sk, f, found)
         data["loops"] = ksketch.loops(
             [r for r in data["curves"] if r["type"] != "other" and not r.get("construction")]
         )
     if "constraints" in wanted:
         data["constraints"] = _constraints(tx, sk)
-    if "status" in wanted:
-        data["status"] = _solver_status(tx, sk)
     return data
 
 
@@ -608,7 +622,7 @@ def nx_check_sketch(
     session, nx = tx.session, tx.nx
     trials: list[Trial] = []
     with tx.scratch(), ksketch.editing(tx, sk) as editing:
-        baseline = common.status(tx, editing)
+        baseline = common.status(tx, editing, dof=False)
         explicit = common.explicit_conflicts(tx, editing)
         constraints = ksketch.constraints(tx, editing)
         bad = baseline["state"] in ("over_constrained", "inconsistently_constrained")
@@ -624,7 +638,7 @@ def nx_check_sketch(
                 errors = editing.sketch.DeleteObjects([con])
                 if errors is not None:
                     errors.Dispose()
-                state = common.status(tx, editing)["state"]
+                state = common.status(tx, editing, dof=False)["state"]
                 trial["state"] = state
                 trial["relieves_conflict"] = state in (
                     "under_constrained",

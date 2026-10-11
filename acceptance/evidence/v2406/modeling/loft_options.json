@@ -1,0 +1,160 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/loft_options.json",
+  "scenario_sha256": "fce524f0f1f205af3d61ec770d8bf9b5ad255b6cb9af00e085e2b88c8fbc82da",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_loft": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_loft": "ba3b1fb122c72a86b863ae5345f988bacccd0a0ec907d556bc960fe136743fbb"
+  },
+  "recorded": "2026-10-11T07:14:29Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 7,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 8,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 10,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 11,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/material_forms.json",
-  "scenario_sha256": "6fe8ba505764e32c5cb44dae69ef91b32eddb576900a1db6e35dfc0ddde8da74",
+  "scenario_sha256": "2376712f41984d3be9cf5ff758862a25dc47535558305395d95e162b82e19515",
   "domain": "modeling",
   "covers": {
     "nx_list_materials": [],
@@ -11,11 +11,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_materials": "99414101a141ad09b41dd25c33724218a9b5789ed76230522fef04dd0d5d3d62",
-    "nx_get_material": "99414101a141ad09b41dd25c33724218a9b5789ed76230522fef04dd0d5d3d62",
-    "nx_set_material": "99414101a141ad09b41dd25c33724218a9b5789ed76230522fef04dd0d5d3d62"
+    "nx_list_materials": "ea8637e280baf465eac43e266425efda832225b1229eeb7b4ddb9630440b0eb1",
+    "nx_get_material": "ea8637e280baf465eac43e266425efda832225b1229eeb7b4ddb9630440b0eb1",
+    "nx_set_material": "ea8637e280baf465eac43e266425efda832225b1229eeb7b4ddb9630440b0eb1"
   },
-  "recorded": "2026-10-10T22:51:31Z",
+  "recorded": "2026-10-11T07:16:22Z",
   "passed": true,
   "checks": 50,
   "failed_checks": 0,

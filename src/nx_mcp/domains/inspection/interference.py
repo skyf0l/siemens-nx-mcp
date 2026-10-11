@@ -265,6 +265,7 @@ def nx_check_interference(
     """Check interference and clearance between the solid bodies of objects. No objects: every
     solid of the work part and loaded components (sheets skipped). Pair points are closest
     points, equal when bodies touch or overlap (see overlap_box)."""
+    common.note_exploded(tx)
     clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")

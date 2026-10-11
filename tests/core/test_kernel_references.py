@@ -159,3 +159,19 @@ def test_generic_entity_names_become_kind_and_ref_and_anchors_follow_renumbering
     with pytest.raises(NXError) as wrong:
         svc.references.resolve(edge, ("face",))
     assert "is an edge" in wrong.value.message
+
+
+def test_work_part_resolution_takes_the_work_assemblys_components_only(svc, tmp_path):
+    from nx_mcp.core.tx import Tx
+
+    tx = Tx(svc, SPECS["nx_create_block"], operation_id="op_testtest")
+    component = svc.part.add("component", "BOLT")
+    component.IsOccurrence = True  # NX components are occurrences
+    occurrence = svc.part.add("body", "BOLT body")
+    occurrence.IsOccurrence = True
+    elsewhere = FakePart(tmp_path / "other.prt").add("feature", "THERE")
+    assert tx.resolve(svc.references.row(component, "component")["id"], work_part=True) is component
+    for obj, kind in ((occurrence, "body"), (elsewhere, "feature")):
+        with pytest.raises(NXError) as refused:
+            tx.resolve(svc.references.row(obj, kind)["id"], work_part=True)
+        assert refused.value.code == "NX_WRONG_OWNER"

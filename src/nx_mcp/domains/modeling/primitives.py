@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Combine, Doc, Length, Point3, Vec3
+from nx_mcp.core.types import Combine, Direction, Doc, Length, Point3, Vec3
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import builders, expr, geom, measure, readback, select
 
@@ -194,7 +194,7 @@ def nx_create_primitive(
     height: Annotated[Length, Doc("block, cylinder, cone")] | None = None,
     diameter: Annotated[Length, Doc("cylinder, sphere, cone base")] | None = None,
     top_diameter: Annotated[Length, Doc("cone; omit: apex")] | None = None,
-    direction: Annotated[common.DirectionArg, Doc("height axis; default z")] | None = None,
+    direction: Annotated[Direction, Doc("height axis; default z")] | None = None,
     x_direction: Annotated[Vec3, Doc("block length axis; default x")] | None = None,
     centered: Annotated[bool, Doc("origin is the centre")] = False,
     combine: Combine | None = None,

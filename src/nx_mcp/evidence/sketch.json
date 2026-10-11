@@ -2,20 +2,20 @@
   "nx_check_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-10T23:27:37Z",
+      "recorded": "2026-10-11T07:04:11Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "d32d88c3f692bfe34ef60a9a25540c4313f4408955970f69f6264a7e31b424f0",
+      "source_sha256": "7511661e6a7e2e53ff4992f3c9713359b23d69bda48e04e8412b31caa0546d93",
       "variants": []
     }
   },
   "nx_create_sketch": {
     "v2406": {
       "checks": 26,
-      "recorded": "2026-10-10T23:27:45Z",
+      "recorded": "2026-10-11T07:04:19Z",
       "scenario": "acceptance/sketch/sketch_one_call.json",
       "scenario_sha256": "28aec7087dac04c4c4c1a36938f9c6a2fcaf4dc91e16a02d186545bb865e1d9e",
-      "source_sha256": "d32d88c3f692bfe34ef60a9a25540c4313f4408955970f69f6264a7e31b424f0",
+      "source_sha256": "7511661e6a7e2e53ff4992f3c9713359b23d69bda48e04e8412b31caa0546d93",
       "variants": [
         "on",
         "path",
@@ -26,7 +26,7 @@
   "nx_create_sketch_constraints": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T23:07:09Z",
+      "recorded": "2026-10-11T08:03:43Z",
       "scenario": "acceptance/sketch/sketch_natural_ops.json",
       "scenario_sha256": "737595a16ab5f0a25534434f6041746cd1ced10a9c5cca16d819c1644e920657",
       "source_sha256": "3abf6048ce58b9ee233f48d4fa7257db61d6cb23707172b30891dc4e5056413c",
@@ -50,10 +50,10 @@
   "nx_create_sketch_copy": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T23:07:09Z",
+      "recorded": "2026-10-11T08:03:43Z",
       "scenario": "acceptance/sketch/sketch_natural_ops.json",
       "scenario_sha256": "737595a16ab5f0a25534434f6041746cd1ced10a9c5cca16d819c1644e920657",
-      "source_sha256": "c9a96a673cdc9b88c21fd99cb3d056bd9c9982d4f53c1892180ddb480f79db9d",
+      "source_sha256": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
       "variants": [
         "mirror",
         "offset"
@@ -63,10 +63,10 @@
   "nx_create_sketch_corner": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T23:07:09Z",
+      "recorded": "2026-10-11T08:03:43Z",
       "scenario": "acceptance/sketch/sketch_natural_ops.json",
       "scenario_sha256": "737595a16ab5f0a25534434f6041746cd1ced10a9c5cca16d819c1644e920657",
-      "source_sha256": "c9a96a673cdc9b88c21fd99cb3d056bd9c9982d4f53c1892180ddb480f79db9d",
+      "source_sha256": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
       "variants": [
         "chamfer",
         "fillet"
@@ -96,7 +96,7 @@
   "nx_create_sketch_dimensions": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T23:07:09Z",
+      "recorded": "2026-10-11T08:03:43Z",
       "scenario": "acceptance/sketch/sketch_natural_ops.json",
       "scenario_sha256": "737595a16ab5f0a25534434f6041746cd1ced10a9c5cca16d819c1644e920657",
       "source_sha256": "3abf6048ce58b9ee233f48d4fa7257db61d6cb23707172b30891dc4e5056413c",
@@ -116,10 +116,10 @@
   "nx_create_sketch_projection": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-10T22:20:48Z",
+      "recorded": "2026-10-11T08:03:52Z",
       "scenario": "acceptance/sketch/sketch_projection_default.json",
       "scenario_sha256": "e8a34918e3f85a9dcb0c6da0bc91054f4c84b70cb0e6fa3cba87b61cf1003725",
-      "source_sha256": "c9a96a673cdc9b88c21fd99cb3d056bd9c9982d4f53c1892180ddb480f79db9d",
+      "source_sha256": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
       "variants": [
         "intersect",
         "project"
@@ -129,7 +129,7 @@
   "nx_edit_sketch_curves": {
     "v2406": {
       "checks": 52,
-      "recorded": "2026-10-10T23:07:09Z",
+      "recorded": "2026-10-11T08:03:43Z",
       "scenario": "acceptance/sketch/sketch_natural_ops.json",
       "scenario_sha256": "737595a16ab5f0a25534434f6041746cd1ced10a9c5cca16d819c1644e920657",
       "source_sha256": "f51ab9269c4e4679243f21471a843f10afb11d200ca4d83325721bf683eb8e8f",
@@ -146,20 +146,20 @@
   "nx_finish_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-10T23:27:37Z",
+      "recorded": "2026-10-11T07:04:11Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "d32d88c3f692bfe34ef60a9a25540c4313f4408955970f69f6264a7e31b424f0",
+      "source_sha256": "7511661e6a7e2e53ff4992f3c9713359b23d69bda48e04e8412b31caa0546d93",
       "variants": []
     }
   },
   "nx_get_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-10T23:27:37Z",
+      "recorded": "2026-10-11T07:04:11Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "d32d88c3f692bfe34ef60a9a25540c4313f4408955970f69f6264a7e31b424f0",
+      "source_sha256": "7511661e6a7e2e53ff4992f3c9713359b23d69bda48e04e8412b31caa0546d93",
       "variants": []
     }
   }

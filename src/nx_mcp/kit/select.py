@@ -9,7 +9,11 @@ for planes and the axis for cylinders and cones.
 
 from __future__ import annotations
 
+import re
+
 from nx_mcp.core.errors import NXError, fail
+from nx_mcp.core.types import REF_PATTERN
+from nx_mcp.core.validate import match_option
 from nx_mcp.kit import geom
 
 # UF_MODL face types (AskFaceData[0]).
@@ -27,7 +31,24 @@ PRINCIPAL_AXES = {
     "-z": [0.0, 0.0, -1.0],
 }
 PRINCIPAL_PLANES = {"xy": [0.0, 0.0, 1.0], "yz": [1.0, 0.0, 0.0], "xz": [0.0, -1.0, 0.0]}
+# NX view names of the principal planes (as core.types.PrincipalPlane).
+PLANE_ALIASES = {"front": "xz", "top": "xy", "right": "yz"}
 ORIGIN = [0.0, 0.0, 0.0]
+AXIS_FORMS = "a ref, 'x'/'y'/'z'/'-x'/'-y'/'-z', {principal} or {origin, direction}"
+PLANE_FORMS = "a ref, 'xy'/'yz'/'xz' (or 'XY plane', 'top'), {principal} or {origin, normal}"
+
+
+def principal(value, options, aliases=None):
+    """The principal option a bare or ``{"principal": ...}`` value names in any natural
+    spelling ('-Z', '+y', 'z axis', 'XY plane', 'top'), else None; a ref-shaped string
+    ('e:3') is never one."""
+    if isinstance(value, dict):
+        value = value.get("principal")
+    if not isinstance(value, str) or re.match(REF_PATTERN, value):
+        return None
+    if value in options:
+        return value
+    return match_option(value, tuple(options), aliases or {})
 
 
 def resolve(tx, ref, *kinds, field=None, work_part=False):
@@ -141,26 +162,27 @@ def _plane_of(tx, obj, field):
 def plane(tx, value, field="/plane", occurrences=False):
     """``(obj or None, origin, unit normal)`` of the Plane union.
 
-    ``value`` is a ref (datum plane or planar face), ``{"principal": "xy"}``
-    or ``{"origin": Point3, "normal": Vec3}``; ``occurrences`` as in ``planar``.
+    ``value`` is a ref (datum plane or planar face), ``{"principal": "xy"}`` or a bare
+    ``"xy"`` (``"XY plane"``, ``"top"``), or ``{"origin": Point3, "normal": Vec3}``;
+    ``occurrences`` as in ``planar``.
     """
+    key = principal(value, PRINCIPAL_PLANES, PLANE_ALIASES)
+    if key is not None:
+        return None, list(ORIGIN), list(PRINCIPAL_PLANES[key])
     if isinstance(value, str):
         return planar(tx, value, field, occurrences)
     if isinstance(value, dict) and "principal" in value:
-        key = value["principal"]
-        if key not in PRINCIPAL_PLANES:
-            fail(
-                "NX_INVALID_ARGUMENT", "principal must be xy, yz or xz", field=field + "/principal"
-            )
-        return None, list(ORIGIN), list(PRINCIPAL_PLANES[key])
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"principal must be xy, yz or xz; a plane is {PLANE_FORMS}",
+            field=field + "/principal",
+        )
     if isinstance(value, dict) and {"origin", "normal"} <= set(value):
         from nx_mcp.kit.args import vec3
 
         origin = vec3(value["origin"], field + "/origin")
         return None, origin, geom.unit(value["normal"], field + "/normal")
-    fail(
-        "NX_INVALID_ARGUMENT", "plane must be a reference, principal or origin+normal", field=field
-    )
+    fail("NX_INVALID_ARGUMENT", f"a plane is {PLANE_FORMS}", field=field)
 
 
 def _edge_line(tx, edge, field):
@@ -176,8 +198,12 @@ def axis(tx, value, field="/axis"):
     """``(obj or None, origin, unit direction)`` of the Axis union.
 
     ``value`` is a ref (datum axis, linear edge, cylindrical or conical face),
-    ``{"principal": "x"..."-z"}`` or ``{"origin": Point3, "direction": Vec3}``.
+    ``{"principal": "x"..."-z"}`` or a bare ``"x"``..``"-z"`` (``"+Z"``, ``"z axis"``), or
+    ``{"origin": Point3, "direction": Vec3}``.
     """
+    key = principal(value, PRINCIPAL_AXES)
+    if key is not None:
+        return None, list(ORIGIN), list(PRINCIPAL_AXES[key])
     if isinstance(value, str):
         obj = one(tx, value, "datum_axis", "edge", "face", field=field)
         if _is_datum_axis(obj):
@@ -189,31 +215,29 @@ def axis(tx, value, field="/axis"):
             fail("NX_WRONG_GEOMETRY", "Select a cylindrical or conical face", field=field)
         return obj, point, geom.unit(direction, field)
     if isinstance(value, dict) and "principal" in value:
-        key = value["principal"]
-        if key not in PRINCIPAL_AXES:
-            fail("NX_INVALID_ARGUMENT", "principal must be x, y, z, -x, -y or -z", field=field)
-        return None, list(ORIGIN), list(PRINCIPAL_AXES[key])
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"principal must be x, y, z, -x, -y or -z; an axis is {AXIS_FORMS}",
+            field=field,
+        )
     if isinstance(value, dict) and {"origin", "direction"} <= set(value):
         from nx_mcp.kit.args import vec3
 
         origin = vec3(value["origin"], field + "/origin")
         return None, origin, geom.unit(value["direction"], field + "/direction")
-    fail(
-        "NX_INVALID_ARGUMENT",
-        "axis must be a reference, principal or origin+direction",
-        field=field,
-    )
+    fail("NX_INVALID_ARGUMENT", f"an axis is {AXIS_FORMS}", field=field)
 
 
 def direction(tx, value, field="/direction"):
-    """Unit vector of the Direction union: Vec3, ref or ``{"principal": ...}``.
+    """Unit vector of the Direction union: Vec3, ref, ``{"principal": ...}`` or a bare
+    principal name (``"-z"``, ``"+Y"``, ``"x axis"``).
 
     A ref is a linear edge (start to end), a datum axis or a planar face /
     datum plane (its normal).
     """
     if isinstance(value, (list, tuple)):
         return geom.unit(value, field)
-    if isinstance(value, dict) and "principal" in value:
+    if (isinstance(value, dict) and "principal" in value) or principal(value, PRINCIPAL_AXES):
         return axis(tx, value, field)[2]
     if isinstance(value, str):
         obj = one(tx, value, "edge", "datum_axis", "datum_plane", "face", field=field)
@@ -222,4 +246,8 @@ def direction(tx, value, field="/direction"):
         if _is_datum_axis(obj) and not _is_datum_plane(obj):
             return geom.unit(geom.xyz(obj.Direction), field)
         return _plane_of(tx, obj, field)[1]
-    fail("NX_INVALID_ARGUMENT", "direction must be a vector, reference or principal", field=field)
+    fail(
+        "NX_INVALID_ARGUMENT",
+        "a direction is [x, y, z], a ref, 'x'/'y'/'z'/'-x'/'-y'/'-z' or {principal}",
+        field=field,
+    )

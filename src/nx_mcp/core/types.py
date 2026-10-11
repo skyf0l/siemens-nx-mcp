@@ -73,6 +73,17 @@ class Quantity:
     dim: Literal["length", "sheet_length", "angle", "count"]
 
 
+@dataclass(frozen=True)
+class Ratio:
+    """On a number: it also takes a percent string, ``'50%'`` = ``50 * per / 100`` (a
+    percent field has ``per=100``, a fraction ``per=1``), and a ``factor`` also ``'2x'``.
+    Gate 1 applies the same rule, without the marker, to fields whose name or ``Doc``
+    says percent, fraction or factor/scale (see ``core.validate.ratio_of``)."""
+
+    per: float = 100.0
+    factor: bool = False
+
+
 @dataclass(frozen=True, init=False)
 class Aliases:
     """On a ``Literal``: other spellings of its options, ``Aliases(mate="touch")``. Gate 1
@@ -236,6 +247,10 @@ SheetLength = Annotated[float | str, Quantity("sheet_length"), Doc("Sheet units,
 Angle = Annotated[float | str, Quantity("angle"), Doc("Degrees, or '90 deg'")]
 # An integer count that may also be an NX expression name or formula (``"n_holes"``).
 CountValue = Annotated[int | str, Quantity("count")]
+# Numbers that also take '50%' (and a factor '2x'); add Range and Doc where used.
+Percent = Annotated[float, Ratio(100.0)]
+Fraction = Annotated[float, Ratio(1.0)]
+Factor = Annotated[float, Ratio(1.0, factor=True)]
 Units = Annotated[
     Literal["mm", "in"],
     Aliases(
@@ -310,9 +325,21 @@ class AxisByPoint(TypedDict):
     direction: Vec3
 
 
+# A bare principal name stands for its one-field form: 'x', '-Z', '+y', 'z axis' for
+# {"principal": ...} of an axis or direction, 'xy', 'XY plane', 'top' of a plane (gate 1,
+# ``core.validate.bare_object``); a string shaped like a ref ('e:3') stays a ref.
 Plane = Annotated[str, RefTo("datum_plane", "face")] | PrincipalPlane | PlaneByNormal
 Axis = Annotated[str, RefTo("datum_axis", "edge", "face")] | PrincipalAxis | AxisByPoint
 Direction = Vec3 | Annotated[str, RefTo("edge", "datum_axis", "face")] | PrincipalAxis
+AxisName = Literal["x", "y", "z", "-x", "-y", "-z"]
+PRINCIPAL_VECTORS = {
+    "x": (1.0, 0.0, 0.0),
+    "y": (0.0, 1.0, 0.0),
+    "z": (0.0, 0.0, 1.0),
+    "-x": (-1.0, 0.0, 0.0),
+    "-y": (0.0, -1.0, 0.0),
+    "-z": (0.0, 0.0, -1.0),
+}
 
 
 class SketchPoint(TypedDict):
@@ -357,7 +384,7 @@ class Combine(TypedDict):
     targets: Annotated[
         list[BodyRef],
         Items(1, 20),
-        Doc("Target bodies; unite takes exactly one (NX never merges several targets)"),
+        Doc("Target bodies; unite takes one"),
     ]
 
 
@@ -365,8 +392,63 @@ class _PoseRequired(TypedDict):
     translation: Point3
 
 
-class Pose(_PoseRequired, total=False):
+class PoseMatrix(_PoseRequired, total=False):
     rotation: Mat3
+
+
+# Undocumented vectors keep the listed Pose short: the matrix form documents them.
+_XYZ = tuple[float, float, float]
+
+
+class _AxisAngleRequired(TypedDict):
+    axis: AxisName | _XYZ
+    angle: Angle
+
+
+class PoseAxisAngle(_AxisAngleRequired, total=False):
+    """A rotation by ``angle`` (right hand) about ``axis`` through ``origin`` (default the
+    absolute origin), then ``translation``. Gate 9 turns it into the matrix form."""
+
+    origin: _XYZ
+    translation: _XYZ
+
+
+# A pose: {translation, rotation?} (row-major matrix, p_out = R p + t) or the axis-angle
+# form {axis, angle, origin?, translation?}; handlers always see the matrix form.
+Pose = PoseMatrix | PoseAxisAngle
+
+
+def axis_rotation(axis, angle_deg: float) -> list[list[float]]:
+    """Row-major rotation by ``angle_deg`` about ``axis`` (a principal name or a vector)."""
+    vector = PRINCIPAL_VECTORS[axis] if isinstance(axis, str) else axis
+    x, y, z = (float(v) for v in vector)
+    norm = math.sqrt(x * x + y * y + z * z)
+    if not norm > 1e-12:
+        raise ValueError("the rotation axis has zero length")
+    x, y, z = x / norm, y / norm, z / norm
+    a = math.radians(float(angle_deg))
+    c, s, k = math.cos(a), math.sin(a), 1.0 - math.cos(a)
+    return [
+        [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+        [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+        [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+    ]
+
+
+def pose_matrix(value: Mapping) -> dict:
+    """The matrix form ``{translation, rotation}`` of an axis-angle pose (gate 9, after
+    the angle is in degrees): rotate about the axis through ``origin``, then translate."""
+    rotation = axis_rotation(value["axis"], value["angle"])
+    origin = [float(v) for v in value.get("origin") or (0.0, 0.0, 0.0)]
+    shift = [float(v) for v in value.get("translation") or (0.0, 0.0, 0.0)]
+    turned = [sum(rotation[i][j] * origin[j] for j in range(3)) for i in range(3)]
+    translation = [shift[i] + origin[i] - turned[i] for i in range(3)]
+    return {"translation": translation, "rotation": rotation}
+
+
+# TypedDict forms gate 9 replaces with a canonical value (after unit conversion), so the
+# handler sees one form: ``{form: fn(value) -> canonical value}``.
+CANONICAL: dict[Any, Any] = {PoseAxisAngle: pose_matrix}
 
 
 def forbid_extra(*typeddicts: Any) -> None:
@@ -387,7 +469,8 @@ forbid_extra(
     LimitThroughAll,
     LimitUntilFace,
     Combine,
-    Pose,
+    PoseMatrix,
+    PoseAxisAngle,
 )
 
 # ---------------------------------------------------------------------------

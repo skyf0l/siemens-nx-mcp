@@ -98,20 +98,20 @@ def _assoc(tx, builder, edges, view, points):
 
 
 def _default_origin(tx, view, sh, points):
-    """Beside the dimensioned geometry: TEXT_GAP_MM up and right of its center."""
+    """Outside the view border, on the side of the dimensioned geometry's centre."""
     flat = [drawing.to_sheet(tx, view, p) for p in points]
-    gap = drawing.from_mm(sh.units, dims.TEXT_GAP_MM)[0]
-    return [sum(p[i] for p in flat) / len(flat) + gap for i in (0, 1)]
+    mid = [sum(p[i] for p in flat) / len(flat) for i in (0, 1)]
+    return dims.text_spot(tx, sh, view, mid, drawing.outward(drawing.borders(tx, view), mid))
 
 
 def _done(tx, sh, dimension, actual, expected, **extra):
     row = dims._row(tx, dimension, actual, expected)
     row.update(extra)
-    return {
+    return dims.placed(tx, sh, dimension, {
         "dimension": row,
         "origin": sh.to_sheet(dimension.AnnotationOrigin),
         "units": units.part_units(tx),
-    }
+    })  # fmt: skip
 
 
 def _lines(tx, view_ref, first, second):
@@ -228,12 +228,7 @@ def arc_length(tx, view_ref, first, origin):
     pick = found["samples"][0]
     with drawing.on_sheet(tx, sheet) as sh:
         if origin is None:
-            c2 = drawing.to_sheet(tx, view, found["center"])
-            p2 = drawing.to_sheet(tx, view, pick)
-            reach = math.dist(c2, p2) + drawing.from_mm(sh.units, dims.RADIAL_GAP_MM)[0]
-            d = [(p2[0] - c2[0]) or 1.0, p2[1] - c2[1]]
-            n = math.hypot(*d)
-            origin = [c2[0] + reach * d[0] / n, c2[1] + reach * d[1] / n]
+            origin = _default_origin(tx, view, sh, [pick])
         factory = tx.part.Dimensions.CreateCurveLengthDimensionBuilder
         with builders.build(tx, factory, None) as b:
             _assoc(tx, b, [edge], view, [pick])

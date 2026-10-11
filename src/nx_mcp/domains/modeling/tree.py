@@ -30,7 +30,7 @@ from nx_mcp.core.catalogue import hooks, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import MM_PER_IN, Doc, FeatureRef, Items, Pose, Text, forbid_extra
-from nx_mcp.kit import args, expr, readback, result
+from nx_mcp.kit import args, builders, expr, readback, result
 from nx_mcp.kit import features as kfeatures
 from nx_mcp.kit import sketch as ksketch
 
@@ -260,7 +260,7 @@ class Parameter(TypedDict):
     aliases: list[str]
 
 
-class FeatureInfo(TypedDict):
+class _FeatureInfo(TypedDict):
     feature: result.Row
     type: str
     timestamp: int | None
@@ -270,6 +270,33 @@ class FeatureInfo(TypedDict):
     children: list[result.Row]
     parameters: list[Parameter]
     errors: list[str]
+
+
+class FeatureInfo(_FeatureInfo, total=False):
+    edge_count: Annotated[int, Doc("Blend or chamfer: the edges it acts on")]
+    edges: list[result.Row]
+
+
+# Feature types whose edit builder lists the edges they act on.
+EDGE_FEATURES = {"BLEND": "CreateEdgeBlendBuilder", "CHAMFER": "CreateChamferBuilder"}
+
+
+def acted_edges(tx, f) -> list | None:
+    """The edges a blend or chamfer acts on (read from its edit builder, which is destroyed
+    uncommitted), or None for other features. Blended edges are consumed: their refs
+    name the edges as the feature selected them."""
+    factory = EDGE_FEATURES.get(str(getattr(f, "FeatureType", "")).upper())
+    if factory is None:
+        return None
+    edges: list = []
+    with builders.build(tx, getattr(tx.part.Features, factory), f) as b:
+        if factory == "CreateChamferBuilder":
+            edges = list(b.SmartCollector.GetObjects())
+        else:
+            for i in range(int(b.GetNumberOfValidChainsets())):
+                collector, _radius = b.GetChainset(i)
+                edges += list(collector.GetObjects())
+    return edges
 
 
 def aliases(f) -> dict:
@@ -308,7 +335,7 @@ def info(tx, f) -> FeatureInfo:
     stamp = getattr(f, "Timestamp", None)
     expressions = list(f.GetExpressions())
     named = aliases(f) if expressions else {}
-    return {
+    out: FeatureInfo = {
         "feature": tx.ref(f, kind="feature"),
         "type": str(getattr(f, "FeatureType", "")),
         "timestamp": None if stamp is None else int(stamp),
@@ -323,6 +350,11 @@ def info(tx, f) -> FeatureInfo:
         "parameters": [_parameter(tx, e, named) for e in expressions],
         "errors": feature_messages(f),
     }
+    edges = acted_edges(tx, f)
+    if edges is not None:
+        out["edge_count"] = len(edges)
+        out["edges"] = [tx.ref(e, kind="edge") for e in edges]
+    return out
 
 
 @tool(
@@ -342,7 +374,7 @@ def info(tx, f) -> FeatureInfo:
 )
 def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:
     """Read a feature: type, timeline position, state, parents and children. Parameters give
-    formula, value, units and nx_edit_feature aliases. feature: a ref like f:12 (from a create
+    formula, value, units and nx_edit_feature aliases; a blend or chamfer its edges. feature: a ref like f:12 (from a create
     result or nx_list_objects)."""
     return info(tx, _feature(tx, feature))
 

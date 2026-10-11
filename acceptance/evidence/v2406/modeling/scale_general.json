@@ -1,0 +1,132 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/scale_general.json",
+  "scenario_sha256": "c30314dbf57b74b7b4cf5a99fa6197824d50731a1974d97d33631974ccc85613",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_scale": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_scale": "2d9513ae4b094271cd836e10e92bdfe224494e247252b451dadbf6a85d452aba"
+  },
+  "recorded": "2026-10-11T08:10:55Z",
+  "passed": true,
+  "checks": 16,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_scale",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 4,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_scale",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 7,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_datum_csys",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_scale",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 11,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_scale",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_create_scale",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_create_scale",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

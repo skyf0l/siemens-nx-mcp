@@ -31,6 +31,10 @@ def datum_nx(units="mm"):
         return b
 
     nx.builder = builder
+    nx.nx.Matrix3x3 = lambda: NS()
+    nx.part.Datums.CreateFixedDatumPlane = lambda origin, matrix: nx.datum_plane(
+        origin=(origin.X, origin.Y, origin.Z), normal=(matrix.Zx, matrix.Zy, matrix.Zz)
+    )
     return nx
 
 
@@ -178,10 +182,14 @@ def test_offset_from_a_world_plane_builds_a_fixed_plane(reference, distance, ori
     )
     assert ok.ok, ok
     plane = nx.last("DatumPlaneBuilder").plane
-    # No object to follow: a point-and-normal plane at the offset point.
-    assert plane.method == "PointDir" and plane.Expression.RightHandSide is None
-    at = plane.geometry[0].Coordinates
-    assert pytest.approx(list(origin)) == [at.X, at.Y, at.Z]
+    # No object to follow: the distance is measured from a fixed datum plane on the world
+    # plane, so it stays a feature expression.
+    assert plane.method == "Distance" and plane.Expression.RightHandSide == repr(
+        float(str(distance).split()[0])
+    )
+    (fixed,) = plane.geometry
+    at, n = fixed.Origin, fixed.Normal
+    assert [at.X, at.Y, at.Z] == [0.0, 0.0, 0.0] and pytest.approx(normal) == [n.X, n.Y, n.Z]
     assert ok.data["origin"] == pytest.approx(list(origin))
     assert ok.data["normal"] == pytest.approx(list(normal))
     assert ok.data["datum_plane"]["name"] in ("TopPl", "TOPPL")

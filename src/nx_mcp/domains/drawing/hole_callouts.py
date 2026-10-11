@@ -32,10 +32,10 @@ import re
 from nx_mcp.core.catalogue import refresher
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing.common import geometry, update
+from nx_mcp.domains.drawing.dimensions import placed, text_spot
 from nx_mcp.kit import builders, drawing, facts, geom, readback, result, select, units
 from nx_mcp.kit.sketch import snake  # unknown parameter and feature names
 
-RADIAL_GAP_MM = 15.0  # Default callout text distance outside the hole.
 LINE_BREAK = "LineBreak"
 PARAMETERS = {
     "Diameter": "diameter",
@@ -298,12 +298,9 @@ def is_callout(dimension):
 
 
 def _default_origin(tx, view, sh, info):
-    center, radius = info["center"], info["radius"]
-    on_arc = [c + radius * x for c, x in zip(center, info["x_axis"], strict=True)]
-    c2 = drawing.to_sheet(tx, view, center)
-    reach = math.dist(c2, drawing.to_sheet(tx, view, on_arc))
-    reach = (reach + drawing.from_mm(sh.units, RADIAL_GAP_MM)[0]) * math.sqrt(0.5)
-    return [c2[0] + reach, c2[1] + reach]  # up-right at 45 degrees
+    """Outside the view border on the side of the hole (up-right at the view centre)."""
+    c2 = drawing.to_sheet(tx, view, info["center"])
+    return text_spot(tx, sh, view, c2, drawing.outward(drawing.borders(tx, view), c2))
 
 
 def create_callout(tx, view_ref, hole, first, origin):
@@ -366,12 +363,12 @@ def create_callout(tx, view_ref, hole, first, origin):
                             "The callout shows no thread size", **found["parameters"])  # fmt: skip
         row = tx.ref(dimension, "dimension")
         row["value"] = result.measured(dimension.ComputedSize)
-        return {
+        return placed(tx, sh, dimension, {
             "dimension": row,
             "callout": {**found, "hole": tx.ref(target, "feature")},
             "origin": sh.to_sheet(dimension.AnnotationOrigin),
             "units": units.part_units(tx),
-        }
+        })  # fmt: skip
 
 
 @refresher("dimension")

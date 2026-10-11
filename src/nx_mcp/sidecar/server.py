@@ -452,6 +452,9 @@ class Surface:
                 "effect": spec.effect,
                 "input_schema": input_schema,
             }
+            needs = schema.required_by(spec, offered) if not variant else {}
+            if needs:  # the fields a variant needs; tool#variant lists them in required
+                out["required_by"] = needs
             example = dict(spec.example)
             if spec.variant_of(example) not in (None, *offered):
                 example = {}  # the example uses a variant this build does not offer

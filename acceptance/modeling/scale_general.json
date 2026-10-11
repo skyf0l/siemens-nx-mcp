@@ -1,0 +1,325 @@
+{
+ "covers": {
+  "nx_create_scale": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "origin": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "factors": [
+     2,
+     3,
+     0.5
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 3000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.max": {
+     "close": [
+      20,
+      30,
+      5
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "shape": "block",
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "origin": [
+     50,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "factors": [
+     2,
+     1,
+     1
+    ],
+    "origin": "center"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 2000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      45,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.max": {
+     "close": [
+      65,
+      10,
+      10
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_datum_csys",
+   "setup": true,
+   "save": "frame",
+   "args": {
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "x_axis": [
+     0,
+     1,
+     0
+    ],
+    "y_axis": [
+     -1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "c",
+   "args": {
+    "shape": "block",
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "origin": [
+     100,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "args": {
+    "bodies": [
+     "$c.data.bodies.0.id"
+    ],
+    "factors": [
+     2,
+     1,
+     1
+    ],
+    "csys": "$frame.data.datum_csys.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 2000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$c.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      100,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.max": {
+     "close": [
+      110,
+      20,
+      10
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "d",
+   "args": {
+    "shape": "block",
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "origin": [
+     200,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "args": {
+    "bodies": [
+     "$d.data.bodies.0.id"
+    ],
+    "factor": "50%",
+    "origin": [
+     200,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 125,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$d.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      200,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.max": {
+     "close": [
+      205,
+      5,
+      5
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "args": {
+    "bodies": [
+     "$d.data.bodies.0.id"
+    ],
+    "factors": [
+     1,
+     1,
+     1
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_scale",
+   "args": {
+    "bodies": [
+     "$d.data.bodies.0.id"
+    ],
+    "factor": 2,
+    "factors": [
+     2,
+     1,
+     1
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

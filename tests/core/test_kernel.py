@@ -243,6 +243,25 @@ def test_new_feature_in_error_is_update_failed_and_rolled_back(svc):
     assert bad["mutation_outcome"] == "rolled_back" and svc.part.objects == []
 
 
+def test_a_touched_part_is_read_back_like_the_work_part(svc, tmp_path):
+    other = FakePart(tmp_path / "component.prt")
+    svc.extra_parts.append(other)
+
+    def in_component(tx, *, size, error_feature=False, **_):
+        tx.touch_part(other)
+        tx.touch_part(tx.part)  # the work part is read back anyway: ignored
+        feature = other.add("feature", "LINK")
+        if error_feature:
+            feature.errors.append("link broken")
+        return {"feature": tx.ref(feature), "size": size}
+
+    ok = _with_handler(svc, in_component, size=1)
+    assert ok["ok"] and [r["name"] for r in ok["changes"]["created"]] == ["LINK"], ok
+    bad = _with_handler(svc, in_component, size=1, error_feature=True)
+    assert bad["error"]["code"] == "NX_UPDATE_FAILED" and "link broken" in bad["error"]["message"]
+    assert bad["mutation_outcome"] == "rolled_back" and [o.Name for o in other.objects] == ["LINK"]
+
+
 def test_rollback_failure_is_partial(svc):
     svc.fail_undo = True
     bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED")

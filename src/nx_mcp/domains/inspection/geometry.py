@@ -48,12 +48,13 @@ from nx_mcp.core.types import (
     Text,
 )
 from nx_mcp.domains.inspection import common
-from nx_mcp.kit import args, bodies, curve, facts, geom, parts, result, select
+from nx_mcp.kit import args, bodies, curve, facts, geom, measure, parts, result, select
 
 FACE_TYPES = {22: "plane", 16: "cylinder", 17: "cone", 18: "sphere", 19: "torus"}
 FACE_CONE = 17
 EDGE_TYPES = {"Linear": "line", "Circular": "circle", "Elliptical": "ellipse"}
 FACE_ONLY, EDGE_ONLY = {"plane", "cylinder", "cone"}, {"circle", "line"}
+PLURAL = {"face": "faces", "edge": "edges", "body": "bodies"}
 MAX_CANDIDATES = 20000
 DEFAULT_TOLERANCE = 0.001
 AXES = "xyz"
@@ -94,6 +95,10 @@ OPTIONAL_SELECTOR_KEYS = {"owner", "owner_kind", "normal", "radius", "near", "ro
 
 class GeometryRow(result.Row, total=False):
     type: str
+    volume: float
+    min: list[float]
+    max: list[float]
+    owner: str
     center: list[float]
     distance: float
     point: list[float]
@@ -141,12 +146,15 @@ def resolve_owner(tx, owner, kinds, *, field="/owner", work_part=False):
     except NXError as error:
         if error.code != "NX_WRONG_KIND" or error.details.get("kind") not in DRAWING_KINDS:
             raise
+        model = "find edges with the model body, feature or component as owner"
         fail(
             "NX_WRONG_KIND",
             f"{owner} is a {error.details['kind']}; expected {'/'.join(kinds)}",
             field=field,
-            hint="A drawing view shows model geometry: find the edges with the model body, "
-            "feature or component as owner (or no owner), then pass them with the view",
+            hint=f"nx_list_view_edges lists the edges a drawing view shows, with sheet "
+            f"coordinates; or {model}"
+            if error.details["kind"] == "drawing_view"
+            else f"A drawing shows model geometry: {model} (or no owner)",
             details=error.details,
         )
 
@@ -185,6 +193,13 @@ def implied_type(kind, geometry_type, normal, radius, role):
 
 
 def _check_rule(kind, geometry_type, normal, radius, near, order, role=None):
+    if kind == "body" and (geometry_type, normal, radius, role) != ("any", None, None, None):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "geometry_type, normal, radius and role filter faces or edges, not bodies",
+            field="/kind",
+            hint="Rank bodies with near or order, or find their faces with the body as owner",
+        )
     if kind == "face" and geometry_type in EDGE_ONLY:
         fail("NX_INVALID_ARGUMENT", f"{geometry_type} applies to edges", field="/geometry_type")
     if kind == "edge" and geometry_type in FACE_ONLY:
@@ -218,7 +233,10 @@ def _owner(tx, owner):
 
 
 def _candidates(tx, kind, owner_obj):
-    """Faces or edges of the owner (a feature: only its own) or of every body in scope."""
+    """Faces or edges of the owner (a feature: only its own) or of every body in scope;
+    for ``body``, the owner's bodies (a component's occurrences) or every body in scope."""
+    if kind == "body":
+        return bodies.of(tx, owner_obj) if owner_obj is not None else bodies.scope(tx, "auto")
     if owner_obj is not None and tx.kind_of(owner_obj) == "feature":
         found = [owner_obj]  # Feature.GetFaces/GetEdges: the feature's faces, not its bodies'
     elif owner_obj is not None:
@@ -242,7 +260,9 @@ def _candidates(tx, kind, owner_obj):
 def _describe(tx, obj, kind):
     """Geometry facts of one face or edge (no reference is registered here)."""
     facts: dict[str, Any] = {}
-    if kind == "face":
+    if kind == "body":
+        facts["type"] = "solid" if getattr(obj, "IsSolidBody", False) else "sheet"
+    elif kind == "face":
         with native():
             data = tx.uf.Modeling.AskFaceData(obj.Tag)
         code, direction, sign = int(data[0]), data[2], data[6]
@@ -284,6 +304,8 @@ def search(
         with native():
             box = [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)]
         facts["center"] = [(box[i] + box[i + 3]) / 2 for i in range(3)]
+        if kind == "body":
+            facts.update(min=box[:3], max=box[3:6])
         if target is not None:
             distance, on_object = curve.point_distance(tx, obj, target)
             facts.update(distance=distance, point=on_object)
@@ -292,6 +314,15 @@ def search(
     sign = -1.0 if order == "highest" else 1.0
     ranked.sort(key=lambda item: (sign * item[0], int(item[1].Tag)))
     return ranked
+
+
+def _body_facts(tx, body, row):
+    """A page row's ``volume`` (solids) and ``owner`` (an occurrence's component id)."""
+    if row.get("type") == "solid":
+        row["volume"] = measure.volume(tx, body)
+    component = getattr(body, "OwningComponent", None) if getattr(body, "IsOccurrence", 0) else None
+    if component is not None:
+        row["owner"] = tx.ref(component, kind="component")["id"]
 
 
 def _anchor_of(tx, obj, kind):
@@ -307,7 +338,9 @@ def _part_path(tx):
 @tool(
     effect="read",
     label="Find geometry",
-    summary=lambda a, say: f"Find {a.get('kind') or 'face'}s: {a.get('geometry_type') or 'any'}",
+    summary=lambda a, say: (
+        f"Find {PLURAL[a.get('kind') or 'face']}: {a.get('geometry_type') or 'any'}"
+    ),
     keywords=(
         "select face",
         "find edge",
@@ -316,6 +349,7 @@ def _part_path(tx):
         "top face",
         "list edges",
         "edges in drawing view",
+        "find bodies",
     ),
     requires=("work_part",),
     cost="light",
@@ -325,7 +359,7 @@ def nx_find_geometry(
     tx: Tx,
     *,
     owner: OwnerRef | None = None,
-    kind: Literal["face", "edge"] = "face",
+    kind: Literal["face", "edge", "body"] = "face",
     geometry_type: GeometryType = "any",
     normal: Normal | None = None,
     radius: Annotated[float, Range(gt=0)] | None = None,
@@ -337,8 +371,9 @@ def nx_find_geometry(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> FindData:
-    """Find faces or edges by type, normal, radius or role. Ranked: nearest to near,
-    outermost along normal, else lowest; selector re-runs in nx_resolve_reference."""
+    """Find faces/edges/bodies by type, normal, radius, role. Ranked: nearest to near,
+    outermost along normal, else lowest; selector reruns in nx_resolve_reference."""
+    common.note_exploded(tx)
     want = direction(normal) if normal is not None else None
     # Without an axis: the normal's main axis, else z; without an order: nearest to near,
     # else the outermost faces along the normal first, else the lowest.
@@ -371,6 +406,9 @@ def nx_find_geometry(
         cast(GeometryRow, {**tx.ref(obj, kind=kind), **facts})  # a row plus _describe's facts
         for _rank, obj, facts in selected
     ]
+    if kind == "body":
+        for row, (_rank, obj, _facts) in zip(items, selected, strict=True):
+            _body_facts(tx, obj, row)
     rule: dict[str, Any] = {
         "part": _part_path(tx),
         "kind": kind,
@@ -542,6 +580,7 @@ def nx_find_holes(
 ) -> HolesData:
     """Find holes (bores grouped by axis) with diameters, form, length, through and ends
     (entry first). No thread inference."""
+    common.note_exploded(tx)
     if diameter is not None and float(diameter) <= 0:
         fail("NX_INVALID_ARGUMENT", "diameter must be > 0", field="/diameter")
     owner_obj, _ = _owner(tx, owner)
@@ -710,7 +749,7 @@ def _parse_selector(text):
     if (
         not isinstance(value, dict)
         or not required <= set(value) <= SELECTOR_KEYS
-        or value.get("kind") not in ("face", "edge")
+        or value.get("kind") not in ("face", "edge", "body")
         or value.get("order") not in ("nearest", "highest", "lowest")
         or value.get("axis") not in ("x", "y", "z")
         or value.get("role") not in (None, "bore", "boss")

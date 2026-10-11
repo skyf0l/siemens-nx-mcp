@@ -12,9 +12,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_table": "d0401e2c23ea16e6f9e49b657bc8ebb8a82069cfbae82d837f50dcc1a9cc8c99"
+    "nx_create_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7"
   },
-  "recorded": "2026-10-10T23:36:33Z",
+  "recorded": "2026-10-11T07:05:10Z",
   "passed": true,
   "checks": 24,
   "failed_checks": 0,

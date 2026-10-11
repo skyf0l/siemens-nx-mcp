@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 
+from nx_mcp.core.types import pose_matrix
 from nx_mcp.kit import geom
 
 
@@ -26,7 +27,11 @@ def identity():
 
 
 def as_pose(value, field="/pose"):
-    """``(t, R)`` floats of a ``Pose`` argument; rotation defaults to identity."""
+    """``(t, R)`` floats of a ``Pose`` argument; rotation defaults to identity. The
+    axis-angle form (``{axis, angle, origin?, translation?}``, angle in degrees) is
+    turned into the matrix form as gate 9 does."""
+    if "axis" in value and "angle" in value:
+        value = pose_matrix(value)
     t = [float(v) for v in value["translation"]]
     rotation = value.get("rotation")
     r = geom.rotation(rotation, field + "/rotation") if rotation is not None else identity()

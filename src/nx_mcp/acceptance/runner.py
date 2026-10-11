@@ -11,7 +11,9 @@ Argument strings ``$part`` (a fresh absolute path under ``smoke/<run-id>/``),
 ``$fixture`` (a copy of the fixture there), ``$run`` (the run directory) and
 ``$label.dotted.path`` (a value from an earlier saved result) are resolved
 before each call; ``$$`` escapes a literal ``$`` (``"$$0.data.sketch"`` reaches
-the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). Every call goes through the stdio MCP client of a fresh
+the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). ``expect``
+values take ``$name...`` strings the same way (other ``$`` text such as ``$~C`` stays).
+Every call goes through the stdio MCP client of a fresh
 ``python -m nx_mcp.server`` (agent profile): catalogue read tools through
 ``nx_invoke_read``, everything else through ``nx_invoke`` with an intent, both
 with ``detail=full`` (a step's ``"detail": "compact"`` asks for the compact
@@ -182,6 +184,24 @@ def resolve(value: Any, saved: dict, special: dict) -> Any:
     return value
 
 
+_LABEL = re.compile(r"^\$[A-Za-z_]\w*(?:[./]|$)")
+
+
+def resolve_expect(rules: Any, saved: dict, special: dict) -> Any:
+    """``expect`` values with the substitutions of :func:`resolve` (``{"equals":
+    "$link.data.part"}``). Only ``$name`` strings are substituted: other strings that
+    start with ``$`` (NX text codes such as ``$~C``) are kept as written."""
+    if isinstance(rules, str):
+        if rules.startswith("$$") or _LABEL.match(rules):
+            return resolve(rules, saved, special)
+        return rules
+    if isinstance(rules, dict):
+        return {k: resolve_expect(v, saved, special) for k, v in rules.items()}
+    if isinstance(rules, list):
+        return [resolve_expect(v, saved, special) for v in rules]
+    return rules
+
+
 @dataclass
 class StepResult:
     index: int
@@ -275,12 +295,15 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
         tool = step["call"]
         start = time.monotonic()
         rules = step.get("expect") or {}
+        where = "argument"
         try:
             args = resolve(step.get("args") or {}, saved, special)
+            where = "expect"
+            rules = resolve_expect(rules, saved, special)
         except KeyError as error:
             failed = StepResult(
                 index, tool, bool(step.get("setup")), False, len(rules), 0.0,
-                failures=[f"argument: {error.args[0]}"],
+                failures=[f"{where}: {error.args[0]}"],
             )  # fmt: skip
             results.append(failed)
             if echo:

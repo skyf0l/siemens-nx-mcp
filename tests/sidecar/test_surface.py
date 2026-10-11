@@ -1,6 +1,7 @@
 """Generated MCP surface: profiles, gateways and catalogue proxy."""
 
 import json
+from typing import Annotated, TypedDict
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,6 +9,7 @@ from mcp.shared.memory import create_connected_server_and_client_session
 
 from nx_mcp.core import catalogue, evidence
 from nx_mcp.core.errors import NXError
+from nx_mcp.core.types import PartRef, PathTo
 from nx_mcp.server import create_server
 from nx_mcp.sidecar import gateways
 from nx_mcp.sidecar.proxy import CatalogueProxy, _walk_paths
@@ -858,3 +860,31 @@ async def test_find_hints_only_at_several_tasks_and_notes_what_is_missing(tmp_pa
     assert redo["tools"][0]["name"] == "nx_undo_operation" and "no redo" in redo["note"]
     many = await find({"queries": [f"task {i}" for i in range(20)]})
     assert len(many["results"]) == 20
+
+
+class Closed(TypedDict):
+    closed: bool
+
+
+def nx_close_widget(tx, *, part: PartRef | Annotated[str, PathTo("read", ".prt")]) -> Closed:
+    """Close a widget part given by ref or path."""
+    return {"closed": True}
+
+
+def test_a_ref_in_a_ref_or_path_union_is_not_resolved_as_a_path(tmp_path):
+    from nx_mcp.core.catalogue import make_spec
+
+    spec = make_spec(
+        nx_close_widget,
+        effect="file",
+        label="Close widget",
+        keywords=("a", "b", "c"),
+        domain="parts_files",
+        example={"part": "p:1"},
+    )
+    proxy = CatalogueProxy(AsyncMock(), Workspace(tmp_path), store=None)
+    ref = {"part": "p:3"}
+    assert proxy._resolve_paths(spec, ref) is None and ref == {"part": "p:3"}
+    path = {"part": "parts/a.prt"}
+    assert proxy._resolve_paths(spec, path) is None
+    assert path["part"] == str(tmp_path / "parts" / "a.prt")

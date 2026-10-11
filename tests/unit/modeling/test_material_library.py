@@ -266,7 +266,7 @@ def test_unreadable_custom_density_is_refused_before_nx(density):
         assert "g/cm3" in bad.error["hint"] and "lb/in3" in bad.error["hint"]
 
 
-def test_custom_clash_suggests_a_free_name_and_bare_name_reuses_it():
+def test_custom_with_an_existing_name_updates_its_density_and_bare_name_reuses_it():
     nx = library_nx()
     one, two = nx.block(10, 10, 10), nx.block(5, 5, 5, origin=(50, 0, 0))
     kg = NS(Tag=1)
@@ -276,8 +276,16 @@ def test_custom_clash_suggests_a_free_name_and_bare_name_reuses_it():
         made = nx.Material(
             b.Name, b.PropertyTable.SetBaseScalarWithDataPropertyValue.calls[0][0][1]
         )
-        table = NS(GetBaseScalarWithDataPropertyValue=lambda name: (made.density, kg))
+
+        def set_density(name, value, unit):
+            made.density = value  # NX applies it to bodies on their next assign
+
+        table = NS(
+            GetBaseScalarWithDataPropertyValue=lambda name: (made.density, kg),
+            SetBaseScalarWithDataPropertyValue=set_density,
+        )
         made.GetPropTable = lambda: table
+        made.GetMaterialEditable = lambda: True
         nx.materials.append(made)
         return made
 
@@ -285,16 +293,25 @@ def test_custom_clash_suggests_a_free_name_and_bare_name_reuses_it():
     made = run(nx, "nx_set_material", bodies=[one.ref],
                material={"custom": {"name": "PLA", "density": 1240}})  # fmt: skip
     assert made.ok, made
-    clash = run(nx, "nx_set_material", bodies=[two.ref],
-                material={"custom": {"name": "pla", "density": 1300}})  # fmt: skip
-    assert clash.error["code"] == "NX_ALREADY_EXISTS", clash
-    assert clash.mutation_outcome == "not_started" and "density 1240" in clash.error["message"]
-    assert clash.error["details"]["free_name"] == "PLA_1300"
-    assert "'PLA_1300'" in clash.error["hint"] and "bare name 'PLA'" in clash.error["hint"]
+    # The same name with another density edits the material: both bodies follow.
+    edited = run(nx, "nx_set_material", bodies=[two.ref],
+                 material={"custom": {"name": "pla", "density": 1300}})  # fmt: skip
+    assert edited.ok, edited
+    assert edited.data["items"][0]["density"] == pytest.approx(1300.0)
+    assert nx.densities[int(one.Tag)] == pytest.approx(1300.0)  # the other user too
+    (note,) = edited.warnings
+    assert "was 1240" in note["message"] and "1 other bodies" in note["message"]
+    assert len([b for b in nx.builders if b.kind == "PhysicalMaterialBuilder"]) == 1
     reuse = run(nx, "nx_set_material", bodies=[two.ref], material="PLA")
     assert reuse.ok and reuse.data["items"][0]["material"] == "PLA", reuse
-    assert reuse.data["items"][0]["density"] == pytest.approx(1240.0)
+    assert reuse.data["items"][0]["density"] == pytest.approx(1300.0)
     assert reuse.data["items"][0]["library"] is None
+    # A library material's name is not a custom material to edit.
+    lib = run(nx, "nx_set_material", bodies=[one.ref], material="ABS")
+    assert lib.ok, lib
+    clash = run(nx, "nx_set_material", bodies=[two.ref],
+                material={"custom": {"name": "ABS", "density": 1000}})  # fmt: skip
+    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.mutation_outcome == "not_started"
 
 
 def test_list_query_ranks_names_and_ignores_spelling():

@@ -83,6 +83,15 @@ class World:
         self.asm.ComponentAssembly = NS(RootComponent=NS(GetChildren=lambda: self.children))
         parts = nx.session.Parts
         parts.Display, parts.Work, parts.WorkComponent = self.asm, self.b, self.B
+        parts.work_calls = []
+
+        def set_work_component(component, *_options):
+            parts.work_calls.append(component)
+            parts.WorkComponent = component
+            parts.Work = component.Prototype if component is not None else parts.Display
+
+        parts.SetWorkComponent = set_work_component
+        nx.nx.PartCollection = NS(RefsetOption=NS(Current=0), WorkComponentOption=NS(Given=1))
         nx.on_commit("WaveLinkBuilder", self._link)
         nx.on_commit("ExtractFaceBuilder", self._extract)
         self.drift = 0.0  # added to every copied volume, area and length
@@ -154,7 +163,7 @@ class World:
         occ = Object(obj.Name)
         occ.IsOccurrence, occ.OwningComponent, occ.Prototype = True, comp, obj
         occ.OwningPart = self.asm
-        for name in ("volume", "area", "GetLength", "SolidEdgeType", "GetAllGeometry"):
+        for name in ("volume", "area", "GetLength", "SolidEdgeType", "GetAllGeometry", "GetEdges"):
             if hasattr(obj, name):
                 setattr(occ, name, getattr(obj, name))
         if hasattr(obj, "faces"):
@@ -464,4 +473,54 @@ def test_extract_faces_must_form_one_connected_set(w):
     assert not any(b.kind == "ExtractFaceBuilder" for b in w.nx.builders)
     side = body.faces[1]
     ok = run(w.nx, "nx_create_extract", kind="face", objects=[top.ref, side.ref, bottom.ref])
+    assert ok.ok and ok.data["area"] == 1000, ok
+
+
+def test_target_links_into_that_component_and_restores_the_work_part(w):
+    body = w.body(w.a)
+    w.occurrence(body)
+    parts = w.nx.session.Parts
+    parts.Work, parts.WorkComponent = w.asm, None
+    ok = link(w, kind="body", sources=[w.A.ref], target=w.B.ref)
+    assert ok.ok and ok.data["volume"] == 6000, ok
+    assert len(w.b.Features) == 1 and w.b.Bodies[0].OwningPart is w.b
+    assert parts.Work is w.asm and parts.WorkComponent is None
+    assert parts.work_calls == [w.B, None]
+    # The target's part is read back like the work part (tx.touch_part): its new link
+    # feature and body are listed as created.
+    created = {r["kind"] for r in ok.changes["created"]}
+    assert {"feature", "body"} <= created, ok.changes
+    # A failed read-back rolls back and still restores the work part.
+    w.drift = 1.0
+    bad = link(w, kind="body", sources=[w.A.ref], target=w.B.ref)
+    assert bad.mutation_outcome == "rolled_back" and len(w.b.Features) == 1, bad
+    assert parts.Work is w.asm and parts.WorkComponent is None
+
+
+def test_target_refusals_change_nothing(w):
+    body = w.body(w.a)
+    w.occurrence(body)
+    parts = w.nx.session.Parts
+    parts.Work, parts.WorkComponent = w.asm, None
+    own = link(w, kind="body", sources=[w.A.ref], target=w.A.ref)
+    assert own.error["field"] == "/sources/0" and own.mutation_outcome == "not_started", own
+    w.B.IsSuppressed = True
+    hidden = link(w, kind="body", sources=[w.A.ref], target=w.B.ref)
+    assert hidden.error["field"] == "/target" and hidden.mutation_outcome == "not_started"
+    w.children.remove(w.B)
+    gone = link(w, kind="body", sources=[w.A.ref], target=w.B.ref)
+    assert gone.error["code"] == "NX_WRONG_OWNER" and gone.error["field"] == "/target"
+    assert parts.work_calls == [] and not any(b.kind == "WaveLinkBuilder" for b in w.nx.builders)
+
+
+def test_face_link_faces_must_form_one_connected_set(w):
+    body = w.body(w.a, faces=(200, 600, 600, 300, 300, 200))
+    top, side, bottom = (w.occurrence(body.faces[i]) for i in (0, 1, 5))
+    for f in (top, side, bottom):
+        f.ref = w.nx.ref_of(f, "face")
+    apart = link(w, kind="face", sources=[top.ref, bottom.ref])
+    assert apart.error["field"] == "/sources/1" and apart.mutation_outcome == "not_started", apart
+    assert "connected" in apart.error["message"] and "region" not in apart.error["hint"]
+    assert not any(b.kind == "WaveLinkBuilder" for b in w.nx.builders)
+    ok = link(w, kind="face", sources=[top.ref, side.ref, bottom.ref])
     assert ok.ok and ok.data["area"] == 1000, ok

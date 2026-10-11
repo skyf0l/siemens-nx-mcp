@@ -523,3 +523,46 @@ def test_unsaved_part_refusal_names_the_part(nx):
     details = refused.error["details"]
     assert details["part"]["id"] == ref and details["path"] == "d/dirty2.prt"
     assert details["modified"] is True
+
+
+def test_close_part_by_workspace_path_or_file_name(nx, root):
+    by_path = nx.new_part("cl/by_path.prt")  # created, never saved: no file yet
+    ok = call(nx, tools.nx_close_part, part="cl/by_path.prt", save=False)
+    assert ok.ok and ok.data["closed_count"] == 1 and by_path not in nx.session.Parts, ok
+    absolute = nx.new_part("cl/absolute.prt")
+    assert call(nx, tools.nx_close_part, part=str(root / "cl" / "absolute.prt")).ok
+    assert absolute not in nx.session.Parts
+    for name in ("By_Name.prt", "by_name"):  # a bare file name, with or without .prt
+        part = nx.new_part("cl/deep/by_name.prt")
+        closed = call(nx, tools.nx_close_part, part=name)
+        assert closed.ok and part not in nx.session.Parts, closed
+        assert closed.data["saved"] is False  # never saves by default
+
+
+def test_close_part_by_path_keeps_the_refusals(nx, root):
+    dirty = nx.new_part("cl/dirty.prt")
+    dirty.IsModified = True
+    refused = call(nx, tools.nx_close_part, part="cl/dirty.prt")
+    assert refused.error["code"] == "NX_UNSAVED_PART" and dirty in nx.session.Parts
+    missing = call(nx, tools.nx_close_part, part="cl/other.prt", save=False)
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/part"
+    assert missing.mutation_outcome == "not_started"
+    assert "nx_list_parts" in missing.error["hint"]
+    assert {r["path"] for r in missing.error["details"]["loaded_parts"]} >= {"cl/dirty.prt"}
+    deeper = call(nx, tools.nx_close_part, part="elsewhere/dirty.prt", save=False)
+    assert deeper.error["code"] == "NX_NOT_FOUND"  # a path names that file only
+    outside = call(nx, tools.nx_close_part, part="../dirty.prt", save=False)
+    assert outside.error["code"] == "NX_PATH_OUTSIDE_WORKSPACE"
+    svc = services(nx)
+    svc.dev = False
+    svc.owns = lambda part: False
+    granted = call(nx, tools.nx_close_part, part="dirty", save=False)
+    assert granted.error["code"] == "NX_PART_NOT_GRANTED" and dirty in nx.session.Parts
+
+
+def test_close_part_summary_names_the_file():
+    from nx_mcp.core import summary
+
+    spec = tools.nx_close_part.spec
+    text = summary.render(spec, {"part": "C:/ws/cl/plate.prt", "save": True}, strict=True)
+    assert text == "Close plate.prt, saving it"

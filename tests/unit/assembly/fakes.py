@@ -493,6 +493,11 @@ class AssemblyFake:
             "explosions": list(self.explosions),
             "deltas": {id(e): dict(e.deltas) for e in self.explosions},
             "views": dict(self.view_explosion),
+            "refsets": {
+                p: list(p.reference_sets)
+                for p in self.nx.session.Parts
+                if hasattr(p, "reference_sets")
+            },
         }
 
     def restore(self, state):
@@ -507,8 +512,34 @@ class AssemblyFake:
         for e in self.explosions:
             e.deltas = dict(state["deltas"].get(id(e), {}))
         self.view_explosion = dict(state["views"])
+        for p, sets in state["refsets"].items():
+            p.reference_sets[:] = sets
         if not self.root.children:
             self.asm.ComponentAssembly.RootComponent = None
+
+
+def reference_sets(fake, part, existing=()):
+    """``CreateReferenceSet``/``GetAllReferenceSets`` on ``part``; a new set of the assembly
+    is seeded with every component when ``fake.seed_reference_sets`` (NX 2406)."""
+    part.reference_sets = list(existing)
+
+    def create():
+        seeded = fake.seed_reference_sets and part is fake.asm
+        rs = Object("REFERENCE_SET")
+        rs.OwningPart = part
+        rs.created_in_work = fake.nx.session.Parts.Work
+        rs.members = list(fake.components()) if seeded else []
+        rs.AskAllDirectMembers = lambda: list(rs.members)
+        rs.SetAddComponentsAutomatically = lambda *a: None
+        rs.RemoveObjectsFromReferenceSet = lambda objs: [rs.members.remove(o) for o in objs]
+        rs.AddObjectsToReferenceSet = lambda objs: rs.members.extend(
+            o for o in objs if o not in rs.members
+        )
+        part.reference_sets.append(rs)
+        return rs
+
+    part.CreateReferenceSet = create
+    part.GetAllReferenceSets = lambda: list(part.reference_sets)
 
 
 def _wire(nx, fake):
@@ -688,25 +719,26 @@ def _wire(nx, fake):
         CreateNewComponentBuilder=NS(ComponentOriginType=NS(Absolute=0, Newcsys=1, Wcs=2))
     )
 
-    # reference sets
-    asm.reference_sets = []
+    reference_sets(fake, asm)
 
-    def create_reference_set():
-        members = list(fake.components()) if fake.seed_reference_sets else []
-        rs = Object("REFERENCE_SET")
-        rs.OwningPart = asm
-        rs.members = members
-        rs.AskAllDirectMembers = lambda: list(rs.members)
-        rs.SetAddComponentsAutomatically = lambda *a: None
-        rs.RemoveObjectsFromReferenceSet = lambda objs: [rs.members.remove(o) for o in objs]
-        rs.AddObjectsToReferenceSet = lambda objs: rs.members.extend(
-            o for o in objs if o not in rs.members
-        )
-        asm.reference_sets.append(rs)
-        return rs
+    # work component: the work part follows it (None: the display part)
+    parts = session.Parts
+    parts.WorkComponent = None
+    parts.work_calls = []
 
-    asm.CreateReferenceSet = create_reference_set
-    asm.GetAllReferenceSets = lambda: list(asm.reference_sets)
+    def set_work_component(component, *_options):
+        parts.work_calls.append(component)
+        parts.WorkComponent = component
+        parts.Work = component.Prototype if component is not None else parts.Display
+        return NS(Dispose=lambda: None)
+
+    def set_work(part):
+        parts.work_calls.append(part)
+        parts.Work = part
+        parts.WorkComponent = None
+
+    parts.SetWorkComponent, parts.SetWork = set_work_component, set_work
+    nx.nx.PartCollection = NS(RefsetOption=NS(Current=0), WorkComponentOption=NS(Given=1))
 
     # explosions, traces, points
     def ask_view_explosion(tag):
@@ -795,15 +827,14 @@ def assembly_nx():
     with_parts(nx, root)
     blk = nx.new_part("parts/blk.prt")
     blk.Save()
-    blk.ReferenceSets = [NS(Name="SOLID")]
-    blk.GetAllReferenceSets = lambda: list(blk.ReferenceSets)
     pin = nx.new_part("parts/pin.prt")
     pin.Save()
-    pin.GetAllReferenceSets = lambda: []
     for proto in (blk, pin):
         proto.SetMakeUniqueName = lambda path, proto=proto: setattr(proto, "unique_name", path)
     asm = nx.new_part("asm.prt")
     fake = AssemblyFake(nx, asm)
+    reference_sets(fake, blk, [NS(Name="SOLID")])
+    reference_sets(fake, pin)
     nx.assembly = fake
     nx.asm, nx.blk, nx.pin = asm, blk, pin
     nx.part = asm  # nx.tx (hooks called directly) works on the assembly

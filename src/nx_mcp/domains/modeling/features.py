@@ -1,4 +1,4 @@
-"""Sketch-based features: extrude, revolve, sweep, loft (tool-surface 3.6).
+"""Sketch-based features: extrude, revolve, sweep (tool-surface 3.6; loft in ``lofts``).
 
 Arguments take the short forms agents try first: an extrude ``end``/``start`` may be a
 plain distance (``10``, ``"10 mm"``) and an axis or direction a bare principal name
@@ -7,7 +7,6 @@ plain distance (``10``, ``"10 mm"``) and an axis or direction a bare principal n
 
 from __future__ import annotations
 
-import math
 from typing import Annotated, NoReturn, cast
 
 from nx_mcp.core.catalogue import tool
@@ -15,16 +14,17 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
+    Axis,
     Combine,
+    Direction,
     Doc,
-    Items,
     Length,
     Limit,
     LimitDistance,
     SketchRef,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, curve, expr, geom, measure, readback, select, units
+from nx_mcp.kit import builders, curve, expr, geom, measure, readback, select, units
 from nx_mcp.kit import sketch as ksketch
 
 ZERO: LimitDistance = {"type": "distance", "value": 0.0}
@@ -34,15 +34,9 @@ REVOLVE_CROSSES_AXIS = 671623
 # NX 2406 extrude refusal "Limit face not found in the limit direction": the extruded
 # profile misses the target body (through all) or the until-face limit.
 LIMIT_FACE_MISSED = 671473
-# A solid loft below this share of its sections' trapezoid volume estimate is twisted (an
-# untwisted ruled loft keeps at least 2/3 of it, a cone's share).
-LOFT_TWIST = 0.5
-LOFT_SAMPLES = 16  # points per section curve for the area estimate
 
 # Short forms first: a plain distance for a limit, a bare principal name for an axis.
 ExtrudeLimit = Limit | Length
-AxisArg = common.AxisArg
-DirectionArg = common.DirectionArg
 
 
 def _as_limit(value):
@@ -147,7 +141,7 @@ def nx_create_extrude(
     end: ExtrudeLimit,
     start: ExtrudeLimit | None = None,
     symmetric: Annotated[bool, Doc("end distance to both sides; omit start")] = False,
-    direction: DirectionArg | None = None,
+    direction: Direction | None = None,
     combine: Combine | None = None,
 ) -> ExtrudeData:
     """Extrude a sketch along its normal or a direction, as a new body or combined with bodies.
@@ -279,7 +273,7 @@ def nx_create_revolve(
     tx: Tx,
     *,
     sketch: SketchRef,
-    axis: AxisArg,
+    axis: Axis,
     start_angle: Angle = 0.0,
     end_angle: Angle = 360.0,
     combine: Combine | None = None,
@@ -339,17 +333,14 @@ def nx_create_sweep(
     bodies (a separate Boolean feature). The guide must be tangent-continuous (G1)."""
     if section == guide:
         fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
-    if combine is not None and len(combine["targets"]) != 1:
-        fail("NX_INVALID_ARGUMENT", "A sweep combines with one target", field="/combine/targets")
+    common.check_one_target(combine, "sweep")
     with tx.checks():
         a = ksketch.resolve(tx, section, "/section")
         g = ksketch.resolve(tx, guide, "/guide")
         if int(a.Tag) == int(g.Tag):
             fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
         common.refuse_corners(tx, common.sketch_curves(g), "/guide", "guide")
-    targets = (
-        common.solids(tx, combine["targets"], "/combine/targets") if combine is not None else []
-    )
+    targets = common.one_target(tx, combine, "sweep")
     before = measure.volume(tx, targets) if targets else 0.0
 
     try:
@@ -369,120 +360,4 @@ def nx_create_sweep(
         common.changed(0.0, out["volume"], "positive")
         return out
     # NX 2406 Swept has no boolean option: combine with a Boolean feature.
-    with builders.build(tx, tx.part.Features.CreateBooleanBuilder, None) as b:
-        b.Operation = getattr(
-            tx.nx.Features.FeatureBooleanType, builders.BOOLEAN_TYPES[combine["operation"]]
-        )
-        b.Target = targets[0]
-        b.Tools.Add(swept)
-        joined = b.commit()
-    out = common.result_of(tx, joined, [targets[0]])
-    common.changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
-    out["feature"] = tx.ref(feature, kind="feature")
-    return out
-
-
-@tool(
-    effect="model",
-    label="Loft through sections",
-    summary="Loft through {sections}",
-    keywords=("loft", "through curves", "blend sections", "transition", "ruled"),
-    requires=("work_part", "no_active_sketch"),
-    cost="heavy",
-    previewable=True,
-    example={"sections": ["s:3", "s:4"]},
-)
-def nx_create_loft(
-    tx: Tx,
-    *,
-    sections: Annotated[list[SketchRef], Items(2, 20)],
-    solid: bool = True,
-) -> common.FeatureData:
-    """Loft a body through 2-20 section sketches in order (NX Through Curves); solid=false
-    builds a sheet. Match the sections' start points and directions."""
-    args.distinct("/sections", sections, "sketches")
-    sketches = [ksketch.resolve(tx, s, f"/sections/{i}") for i, s in enumerate(sections)]
-    with builders.build(tx, tx.part.Features.CreateThroughCurvesBuilder, None) as b:
-        prefer = b.BodyPreferenceTypes
-        b.BodyPreference = prefer.Solid if solid else prefer.Sheet
-        for sk in sketches:
-            b.SectionsList.Append(builders.section(tx, sk))
-            tx.checkpoint()
-        feature = b.commit()
-    bodies = common.feature_bodies(feature)
-    readback.expect(bool(bodies), "bodies", "The loft built no body")
-    readback.expect(
-        all(bool(getattr(x, "IsSolidBody", solid)) == solid for x in bodies),
-        "body_type",
-        "NX built a different body type than requested",
-    )
-    out = common.result_of(tx, feature)
-    if solid:
-        common.changed(0.0, out["volume"], "positive")
-        estimate = _loft_estimate(tx, sketches)
-        if estimate is not None and out["volume"] < LOFT_TWIST * estimate:
-            tx.warn(
-                "NX_UPDATE_WARNING",
-                f"The loft volume {out['volume']:.6g} is under half of {estimate:.6g} estimated "
-                "from the section areas: the sections' start points or directions differ, so "
-                "the loft twists. Undo it (nx_undo_operation) and draw the sections with the "
-                "same number of curves, starting at matching points and running the same way",
-            )
-    return out
-
-
-def _section_area(tx, sk):
-    """Area enclosed by a sketch that is one closed loop (curves sampled and chained in
-    sketch coordinates); None for open or several loops or curves UF Eval refuses."""
-    f = ksketch.frame(sk)
-    chains = []
-    for c in common.sketch_curves(sk):
-        try:
-            with curve.evaluator(tx, c) as e:
-                chains.append(
-                    [
-                        ksketch.to_local(f, e.at(i / LOFT_SAMPLES)[0])
-                        for i in range(LOFT_SAMPLES + 1)
-                    ]
-                )
-        except Exception:  # a sketch point
-            continue
-    if not chains:
-        return None
-    tol = units.part_tolerance(tx)
-
-    def meets(p, q):
-        return geom.dist(p, q) <= max(tol, geom.tol(p, q))
-
-    loop = chains.pop(0)
-    while chains:
-        for k, pts in enumerate(chains):
-            if meets(pts[0], loop[-1]) or meets(pts[-1], loop[-1]):
-                loop += pts[1:] if meets(pts[0], loop[-1]) else pts[-2::-1]
-                chains.pop(k)
-                break
-        else:
-            return None  # several loops or a gap
-    if not meets(loop[0], loop[-1]):
-        return None
-    twice = sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(loop, loop[1:] + loop[:1], strict=True))
-    return abs(twice) / 2
-
-
-def _loft_estimate(tx, sketches):
-    """Trapezoid volume estimate of a loft through parallel one-loop sections, or None."""
-    try:
-        frames = [ksketch.frame(sk) for sk in sketches]
-        normal = geom.unit(frames[0]["normal"])
-        if not all(geom.parallel(geom.unit(f["normal"]), normal, 1e-6) for f in frames):
-            return None
-        areas = [_section_area(tx, sk) for sk in sketches]
-    except Exception:  # an estimate only: never fail a built loft over it
-        return None
-    if any(a is None or a <= 0 for a in areas):
-        return None
-    total = 0.0
-    for i in range(len(sketches) - 1):
-        h = abs(geom.dot(geom.sub(frames[i + 1]["origin"], frames[i]["origin"]), normal))
-        total += h * (areas[i] + areas[i + 1]) / 2
-    return total if total > 0 and math.isfinite(total) else None
+    return common.combine_new(tx, feature, swept, combine, targets[0], before)

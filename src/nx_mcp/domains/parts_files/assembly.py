@@ -28,8 +28,8 @@ from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import files, parts, readback, result
 
 MANIFEST = "nx-assembly-manifest.json"
-FORMAT_DOC = "Default: zip for a .zip path, clone when prefix is given"
-PREFIX_DOC = "Required for clone: copies are named <prefix><name>"
+FORMAT_DOC = "Default: clone when prefix is given, else zip"
+PREFIX_DOC = "Required for clone"
 CLONE_MANIFEST = "nx-project-manifest.json"
 CLONE_API = ("Initialise", "SetDefAction", "AddAssembly", "SetNaming", "PerformClone", "Terminate")
 
@@ -121,9 +121,8 @@ def nx_export_assembly(
     prefix: Annotated[str, Text(32, r"^[A-Za-z0-9_-]{1,32}$"), Doc(PREFIX_DOC)] | None = None,
     activate: Annotated[bool, Doc("clone: leave the copy open as work part")] = False,
 ) -> AssemblyExportData:
-    """Copy the saved work part with all its component files into a new .zip or a clone
-    folder. zip adds a SHA-256 manifest; clone renames every file <prefix><name>. Unsaved
-    or unloaded parts are refused."""
+    """Copy the saved work part and its component files to a new .zip or clone folder. zip
+    adds a SHA-256 manifest; clone names files <prefix><name>. Unsaved or unloaded parts are refused."""
     target = Path(path)
     if format is None:
         if target.suffix.lower() == ".zip":

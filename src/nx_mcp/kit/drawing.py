@@ -22,7 +22,7 @@ import contextlib
 import math
 
 from nx_mcp.core.errors import fail
-from nx_mcp.kit import select, units
+from nx_mcp.kit import facts, select, units
 
 MODELING_DISPLAY = 1  # UF_DRAW display state: 1 modeling, 2 drawing
 TRUE_SHAPE_TOL_DEG = 0.01  # Max tilt of a plane against the drawing plane.
@@ -302,3 +302,174 @@ def in_modeling(tx, part=None):
         if before is not None:
             with contextlib.suppress(Exception):
                 open_sheet(tx, before, owner)
+
+
+# ---- sheet rectangles: default text spots clear of views and annotations ---------------
+
+
+def overlap(a, b, eps=1e-9):
+    """True when rectangles ``[x0, y0, x1, y1]`` ``a`` and ``b`` share an area."""
+    return min(a[2], b[2]) - max(a[0], b[0]) > eps and min(a[3], b[3]) - max(a[1], b[1]) > eps
+
+
+def contains(box, point, margin=0.0):
+    """True when ``point`` lies in rectangle ``box`` grown by ``margin``."""
+    return (
+        box[0] - margin <= point[0] <= box[2] + margin
+        and box[1] - margin <= point[1] <= box[3] + margin
+    )
+
+
+def outward(box, point, fallback=(1.0, 1.0)):
+    """Unit sheet direction from the centre of ``box`` towards ``point`` (``fallback``,
+    normalised, when ``point`` is the centre)."""
+    d = [point[0] - (box[0] + box[2]) / 2, point[1] - (box[1] + box[3]) / 2]
+    length = math.hypot(*d)
+    if length <= 1e-9 * max(1.0, box[2] - box[0], box[3] - box[1]):
+        d, length = list(fallback), math.hypot(*fallback)
+    return [d[0] / length, d[1] / length]
+
+
+def clear_of(box, point, direction, gap):
+    """The point ``gap`` beyond where the ray from ``point`` along unit ``direction``
+    leaves rectangle ``box`` (``point`` itself plus ``gap`` when it is already outside)."""
+    exits = [
+        ((box[i + 2] if d > 0 else box[i]) - point[i]) / d
+        for i, d in enumerate(direction[:2])
+        if abs(d) > 1e-12
+    ]
+    t = max(0.0, min(exits)) if exits else 0.0
+    return [point[i] + (t + gap) * direction[i] for i in (0, 1)]
+
+
+def free_spot(point, direction, step, taken, tries=20):
+    """``point`` moved along ``direction`` by ``step`` until no rectangle in ``taken``
+    (annotation bounds) contains it, at most ``tries`` steps."""
+    spot = [float(point[0]), float(point[1])]
+    for _ in range(tries):
+        if not any(contains(box, spot, step / 4) for box in taken):
+            break
+        spot = [spot[0] + step * direction[0], spot[1] + step * direction[1]]
+    return spot
+
+
+# ---- annotation and table extents --------------------------------------------------------
+
+
+def annotation_box(tx, obj, sh):
+    """``(bounds, text)``: sheet rectangles ``[x0, y0, x1, y1]`` (sheet units) of a drafting
+    annotation, dimension or table on sheet ``sh`` (a :class:`Sheet`): its whole extent
+    (leaders, extension lines, all table cells) and its text block (None when NX reports no
+    text). Either is None when NX cannot box the object.
+
+    NX 2406: UF ``ModlGeneral.AskBoundingBox`` answers drafting objects in the sheet plane
+    (part units); ``Drf.AskAnnotationTextBox`` gives the text's upper-left corner, length
+    and height (zero for center marks; it raises for table sections).
+    """
+    bounds = text = None
+    try:
+        box = [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(anchor_of(tx, obj).Tag)]
+        lo, hi = sh.to_sheet(box[0:3]), sh.to_sheet(box[3:6])
+        bounds = [lo[0], lo[1], hi[0], hi[1]]
+    except Exception:  # an object NX cannot box
+        bounds = None
+    try:
+        corner, length, height = tx.uf.Drf.AskAnnotationTextBox(obj.Tag)
+        if float(length) > 0 and float(height) > 0:
+            x, y = sh.to_sheet(corner)
+            w, h = sh.to_sheet([float(length), float(height), 0.0])
+            text = [x, y - h, x + w, y]
+    except Exception:  # tables and objects without text
+        text = None
+    return bounds, text
+
+
+def sheet_annotation_bounds(tx, sheet):
+    """Whole extents (sheet units) of the annotations, dimensions and tables NX shows on
+    ``sheet`` (the objects visible in the sheet's own view, ``View.AskVisibleObjects``)."""
+    try:
+        shown = list(sheet.View.AskVisibleObjects())
+    except Exception:  # a sheet whose own view NX cannot list
+        return []
+    sh = Sheet(tx, sheet)
+    out = []
+    for obj in shown:
+        if hasattr(obj, "AnnotationOrigin") or type(obj).__name__ == "TableSection":
+            bounds, _text = annotation_box(tx, obj, sh)
+            if bounds is not None:
+                out.append(bounds)
+    return out
+
+
+def crowding(tx, sheet, box, own=()):
+    """``(views, off_sheet)`` for an annotation rectangle on ``sheet``: refs of the views
+    whose border it overlaps (``own`` view tags skipped) and whether it leaves the sheet."""
+    views = [
+        tx.ref(v, "drawing_view")
+        for v in sheet.GetDraftingViews()
+        if int(v.Tag) not in own and overlap(box, borders(tx, v))
+    ]
+    return views, not inside(box, sheet)
+
+
+# ---- model edges as drawn in a view --------------------------------------------------------
+
+
+def visible_edges(tx, view):
+    """``[(edge, drawn model length)]``: the model edges NX draws visible in ``view``.
+
+    NX 2406 keeps the visible curves of a drafting view as ``DraftingBody.DraftingCurves``
+    (the view's ``DraftingBodies``), each with its model edge as parent (UF
+    ``Draw.AskDraftingCurveParents``); hidden lines are not among them and face
+    silhouettes have no edge parent. Several curves of one edge (an edge partly hidden)
+    add up their lengths.
+    """
+    lookup = tx.nx.TaggedObjectManager.GetTaggedObject
+    found: dict[int, list] = {}
+    for body in getattr(view, "DraftingBodies", None) or []:
+        for drawn in body.DraftingCurves:
+            _count, parents = tx.uf.Draw.AskDraftingCurveParents(drawn.Tag)
+            for tag in parents or []:
+                edge = lookup(tag)
+                if facts.is_edge(edge):
+                    entry = found.setdefault(int(tag), [edge, 0.0])
+                    entry[1] += float(drawn.GetLength())
+    return [(edge, length) for edge, length in found.values()]
+
+
+def edge_in_view(tx, view, edge, drawn=None, part_per_sheet=1.0):
+    """Facts of a model edge as drawn in ``view`` (sheet units): ``type`` (line, circle,
+    other), ``start``, ``end``, ``center``; lines add ``length`` on the sheet,
+    ``model_length`` (the length seen, in part units: what an aligned dimension reads) and
+    ``orientation`` (horizontal, vertical, inclined; None seen end-on); circles seen true
+    shape add ``radius`` (part units). ``drawn``: the model length NX draws visible, to
+    flag a partly hidden edge (``partial``)."""
+    found = facts.edge(tx, edge)
+    start, end = to_sheet(tx, view, found["start"]), to_sheet(tx, view, found["end"])
+    out: dict = {"type": {"line": "line", "arc": "circle"}.get(found["kind"], "other")}
+    out.update(start=start, end=end, center=[(start[0] + end[0]) / 2, (start[1] + end[1]) / 2])
+    if found["kind"] == "line":
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        out["length"] = length
+        out["model_length"] = length / scale(tx, view) * part_per_sheet
+        tol = 1e-6 * max(1.0, length)
+        out["orientation"] = (
+            None
+            if length <= 1e-9
+            else "horizontal"
+            if abs(dy) <= tol
+            else "vertical"
+            if abs(dx) <= tol
+            else "inclined"
+        )
+        total = math.dist(found["start"], found["end"])
+    else:
+        total = float(edge.GetLength()) if hasattr(edge, "GetLength") else None
+    if found["kind"] == "arc":
+        out["center"] = to_sheet(tx, view, found["center"])
+        if found.get("normal") is not None and seen_true_shape(found["normal"], axes(view)[2]):
+            out["radius"] = float(found["radius"])
+    if drawn is not None and total and drawn < total * (1 - 1e-6):
+        out["partial"] = True
+    return out

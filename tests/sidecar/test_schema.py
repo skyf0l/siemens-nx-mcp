@@ -295,7 +295,8 @@ def test_unit_strings_refs_defaults_and_call_keys():
     generated = schema.input_schema(SAMPLE)
     props = generated["properties"]
     length = props["length"]
-    length = generated["$defs"][length["$ref"].split("/")[-1]] if "$ref" in length else length
+    if "$ref" in length:  # a shared definition; the field keeps its own description
+        length = {**generated["$defs"][length.pop("$ref").split("/")[-1]], **length}
     assert length["type"] == ["number", "string"] and length["maxLength"] == T_QUANTITY_MAX
     assert "mm" in length["description"] and "deg" in props["angle"]["description"]
     assert props["target"]["description"].startswith("Ref") and "pattern" not in props["target"]

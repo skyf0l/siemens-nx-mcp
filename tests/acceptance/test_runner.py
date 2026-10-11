@@ -653,3 +653,21 @@ def test_file_hashes_ignore_line_endings(tmp_path):
     lf.write_bytes(b'{\n  "steps": []\n}\n')
     crlf.write_bytes(b'{\r\n  "steps": []\r\n}\r\n')
     assert runner.file_sha256(lf) == runner.file_sha256(crlf)
+
+
+def test_expect_values_take_saved_values_and_keep_other_dollar_text():
+    saved = {"link": {"data": {"part": "p:4", "length": 12.5}}}
+    rules = {
+        "data.part": "$link.data.part",
+        "data.length": {"close": "$link.data.length", "tol": 1e-6},
+        "data.columns.0.field": "$~C",  # an NX text code, not a saved value
+        "data.note": "$$link",
+    }
+    assert runner.resolve_expect(rules, saved, {}) == {
+        "data.part": "p:4",
+        "data.length": {"close": 12.5, "tol": 1e-6},
+        "data.columns.0.field": "$~C",
+        "data.note": "$link",
+    }
+    with pytest.raises(KeyError):
+        runner.resolve_expect({"data.part": "$nope.data"}, saved, {})

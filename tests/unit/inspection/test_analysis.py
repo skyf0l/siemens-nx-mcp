@@ -21,8 +21,11 @@ def test_flat_radii_read_as_straight_and_draft_against_pull():
         pull_direction=[0, 0, 2], minimum_draft=3,
     )  # fmt: skip
     assert ok.ok, ok
-    samples = ok.data["samples"]
-    assert len(samples) == 8 and ok.data["pull_direction"] == [0, 0, 1]
+    groups = ok.data["faces"]
+    assert [g["face"]["id"] for g in groups] == [top.ref, side.ref]
+    assert [len(g["samples"]) for g in groups] == [4, 4] and ok.data["sample_count"] == 8
+    assert "face" not in groups[0]["samples"][0] and ok.data["pull_direction"] == [0, 0, 1]
+    samples = [row for g in groups for row in g["samples"]]
     first = samples[0]
     assert first["radii"] == [None, None] and first["curvatures"] == [0.0, 0.0]
     assert first["draft"] == pytest.approx(90) and first["verdict"] == "ok"
@@ -37,9 +40,10 @@ def test_cylinder_curvature_and_trim_skips():
     top.radii = [2.0, 3.937e8]
     nx.uf.Modeling.AskPointContainment = lambda p, tag: 2 if p[0] < 5 else 1
     ok = run(nx, "nx_analyze_faces", faces=[top.ref], samples_per_axis=2)
-    assert ok.data["skipped_outside_trim"] == 2 and len(ok.data["samples"]) == 2
-    assert ok.data["samples"][0]["curvatures"] == [0.5, 0.0]
-    assert "draft" not in ok.data["samples"][0]
+    rows = ok.data["faces"][0]["samples"]
+    assert ok.data["skipped_outside_trim"] == 2 and len(rows) == 2
+    assert ok.data["sample_count"] == 2 and rows[0]["curvatures"] == [0.5, 0.0]
+    assert "draft" not in rows[0]
 
 
 def test_face_analysis_argument_rules():
@@ -95,8 +99,9 @@ def test_continuity_of_two_boundary_edges(monkeypatch):
     data = ok.data
     assert (data["g0"], data["g1"], data["g2"]) == (True, True, False)
     assert data["gap"] == 0.0005 and data["curvature"] == 0.03 and data["samples"] == 8
+    assert data["mode"] == "surface" and "junction" not in data
     e2.GetFaces = lambda: [b.faces[0], b.faces[1]]
-    solid = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref)
+    solid = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref, mode="surface")
     assert solid.error["code"] == "NX_WRONG_GEOMETRY" and solid.error["field"] == "/second"
     assert e2.ref in solid.error["message"] and "2 faces" in solid.error["message"]
     assert "nx_create_extract" in solid.error["hint"] and "candidates" not in solid.error["hint"]
@@ -168,7 +173,7 @@ def test_pull_direction_takes_principal_names(value, expected, draft):
              pull_direction=value, minimum_draft="3deg")  # fmt: skip
     assert ok.ok, ok
     assert ok.data["pull_direction"] == expected
-    assert ok.data["samples"][0]["draft"] == pytest.approx(draft)
+    assert ok.data["faces"][0]["samples"][0]["draft"] == pytest.approx(draft)
 
 
 def test_pull_direction_rejects_unknown_names():
@@ -200,5 +205,83 @@ def test_edge_curvature_from_tangent_differences():
     assert len(default.data["samples"]) == 11
     straight = run(nx, "nx_analyze_curve", curve=line.ref, samples=2)
     assert straight.ok, straight
-    # the fake's line has no tangent: no curvature rather than a wrong one
-    assert straight.data["samples"][0]["curvature"] is None
+    assert straight.data["samples"][0]["curvature"] == 0
+    assert straight.data["samples"][0]["radius"] is None
+
+
+def _edges(nx, *specs):
+    body = nx.block(10, 10, 10)
+    for edge, spec in zip(body.edges, specs, strict=False):
+        nx.curve_specs[int(edge.Tag)] = spec
+    return body.edges[: len(specs)]
+
+
+def test_curve_continuity_at_the_nearest_ends():
+    from tests.unit.inspection.fakes import arc_spec
+
+    nx = inspection_nx()
+    # a line (-x) into a quarter arc (radius 4) tangent at (0, 4, 0): G1, not G2
+    line, arc, kink, far = _edges(
+        nx,
+        ("line", [10.0, 4.0, 0.0], [0.0, 4.0, 0.0]),
+        arc_spec((0, 0, 0), 4.0, math.pi / 2, math.pi),
+        ("line", [0.0, 4.0, 0.0], [0.0, 14.0, 0.0]),
+        ("line", [50.0, 0.0, 0.0], [60.0, 0.0, 0.0]),
+    )
+    ok = run(nx, "nx_check_continuity", first=line.ref, second=arc.ref)
+    assert ok.ok, ok
+    data = ok.data
+    assert data["mode"] == "curve" and data["samples"] == 2 and data["unresolved"] == 0
+    assert data["junction"]["first_end"] == "end" and data["junction"]["second_end"] == "start"
+    assert data["junction"]["point"] == pytest.approx([0, 4, 0], abs=1e-12)
+    assert data["gap"] == pytest.approx(0, abs=1e-12) and data["angle"] == pytest.approx(
+        0, abs=1e-6
+    )
+    assert data["curvature"] == pytest.approx(0.25, rel=1e-3)
+    assert (data["g0"], data["g1"], data["g2"]) == (True, True, False)
+    # the line turns 90 degrees at the shared start of kink (both start there)
+    corner = run(nx, "nx_check_continuity", first=kink.ref, second=line.ref)
+    assert corner.data["junction"]["first_end"] == "start"
+    assert corner.data["junction"]["second_end"] == "end"
+    assert corner.data["angle"] == pytest.approx(90) and corner.data["g1"] is False
+    # straight on: the same direction leaving the junction both ways is 180 degrees
+    back = run(nx, "nx_check_continuity", first=line.ref, second=line.ref)
+    assert back.error["field"] == "/second"
+    apart = run(nx, "nx_check_continuity", first=line.ref, second=far.ref)
+    assert apart.data["g0"] is False and apart.data["gap"] == pytest.approx(math.sqrt(1616))
+    assert apart.data["junction"]["first_end"] == "start"
+
+
+def test_curve_continuity_of_curves_and_mode_rules(monkeypatch):
+    from nx_mcp.kit import surface
+
+    nx = inspection_nx()
+    c1, c2 = curve(nx), curve(nx)
+    nx.curve_specs[int(c1.Tag)] = ("line", [0.0, 0.0, 0.0], [10.0, 0.0, 0.0])
+    nx.curve_specs[int(c2.Tag)] = ("line", [10.0, 0.0, 0.0], [20.0, 0.0, 0.0])
+    ok = run(nx, "nx_check_continuity", first=c1.ref, second=c2.ref)
+    assert ok.ok, ok
+    assert ok.data["mode"] == "curve" and (ok.data["g0"], ok.data["g1"], ok.data["g2"]) == (
+        True,
+        True,
+        True,
+    )
+    refused = run(nx, "nx_check_continuity", first=c1.ref, second=c2.ref, mode="surface")
+    assert refused.error["code"] == "NX_WRONG_GEOMETRY" and refused.error["field"] == "/first"
+    # two boundary edges of different sheet faces: auto is surface; mode curve overrides
+    a, b = nx.block(10, 10, 1), nx.block(10, 10, 1, origin=(10, 0, 0))
+    e1, e2 = a.edges[0], b.edges[0]
+    e1.GetFaces = lambda: [a.faces[0]]
+    e2.GetFaces = lambda: [b.faces[0]]
+    nx.curve_specs[int(e1.Tag)] = ("line", [10.0, 0.0, 0.0], [10.0, 10.0, 0.0])
+    nx.curve_specs[int(e2.Tag)] = ("line", [10.0, 10.0, 0.0], [10.0, 20.0, 0.0])
+    report = {"gap": 0.0, "angle": 0.0, "curvature": 0.0, "samples": 2, "unresolved": 0}
+    monkeypatch.setattr(surface, "edge_continuity", lambda *a, **k: report)
+    auto = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref)
+    assert auto.data["mode"] == "surface"
+    forced = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref, mode="curve")
+    assert forced.data["mode"] == "curve" and forced.data["junction"]["first_end"] == "end"
+    # two boundary edges of the same face meet at a corner: curve mode
+    e2.GetFaces = lambda: [a.faces[0]]
+    same_face = run(nx, "nx_check_continuity", first=e1.ref, second=e2.ref)
+    assert same_face.data["mode"] == "curve"

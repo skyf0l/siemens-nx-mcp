@@ -9,9 +9,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_measure_section": "90111268ce05069c412736ff3de36f923eaab41b9cacb5e6a1b8b2046fc58c50"
+    "nx_measure_section": "f366b0ac54cafc55b23e4340980ca3c3747216e2d53dfb7a35c90edd60de0fe0"
   },
-  "recorded": "2026-10-10T23:18:14Z",
+  "recorded": "2026-10-11T06:47:49Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

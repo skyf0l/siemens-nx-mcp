@@ -50,6 +50,24 @@
     {"call": "nx_list_parts", "args": {"path_prefix": "$run/cl/pf_close_mod"},
      "expect": {"page.total": 0}},
     {"call": "nx_close_part", "args": {"part": "p:999999999"},
-     "expect": {"error.code": {"matches": "^NX_(NOT_FOUND|STALE_REFERENCE)$"}, "mutation_outcome": "not_started"}}
+     "expect": {"error.code": {"matches": "^NX_(NOT_FOUND|STALE_REFERENCE)$"}, "mutation_outcome": "not_started"}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cl/pf_close_path.prt"}},
+    {"call": "nx_close_part", "args": {"part": "$run/cl/pf_close_path.prt", "save": false},
+     "expect": {"mutation_outcome": "committed", "data.closed_count": 1, "data.saved": false,
+                "data.closed.0.name": {"matches": "(?i)^pf_close_path$"}}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/cl/pf_close_path"},
+     "expect": {"page.total": 0}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cl/pf_close_name.prt"}},
+    {"call": "nx_save_part", "setup": true, "args": {}},
+    {"call": "nx_close_part", "args": {"part": "PF_Close_Name"},
+     "expect": {"mutation_outcome": "committed", "data.closed_count": 1, "data.saved": false}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/cl/pf_close_name"},
+     "expect": {"page.total": 0}},
+    {"call": "nx_list_files", "args": {"path": "$run/cl", "prefix": "pf_close_name"},
+     "expect": {"page.total": 1}},
+    {"call": "nx_close_part", "args": {"part": "$run/cl/pf_close_none.prt", "save": false},
+     "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/part", "mutation_outcome": "not_started"}},
+    {"call": "nx_close_part", "args": {"part": "../outside.prt", "save": false},
+     "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}}
   ]
 }

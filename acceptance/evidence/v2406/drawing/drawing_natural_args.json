@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/drawing_natural_args.json",
-  "scenario_sha256": "f3e45a4ae5cb69923fe258910cbb1039cd91a9a3ddcb57d8b5bd38969457f71f",
+  "scenario_sha256": "7fa4803e8c4bfdef4dde5cee52854bc875a47bf1f296e985c5528af6fedc7ed7",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_sheet": [],
@@ -18,16 +18,16 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_sheet": "8b0552edd59c874654837b20a627ce1bf05248c271c33e30b3e2fda1dda24770",
-    "nx_activate_drawing_sheet": "8b0552edd59c874654837b20a627ce1bf05248c271c33e30b3e2fda1dda24770",
-    "nx_create_drawing_view": "b1c8b2359529ff2f12fcf8718390f77532016947f6c00bce855ba7ed53fc7bbf",
-    "nx_edit_drawing_view": "b1c8b2359529ff2f12fcf8718390f77532016947f6c00bce855ba7ed53fc7bbf",
-    "nx_get_drawing_view": "b1c8b2359529ff2f12fcf8718390f77532016947f6c00bce855ba7ed53fc7bbf",
-    "nx_export_drawing": "5aa7cd01ed63b1b984e5914aabc96ce342c2301192a3d7fcb5f8537e9c205f2b"
+    "nx_create_drawing_sheet": "1c8ce774a4a652714c2ddcde02f5852b47062bcafe0a11ccbc73500a3b12f9a5",
+    "nx_activate_drawing_sheet": "1c8ce774a4a652714c2ddcde02f5852b47062bcafe0a11ccbc73500a3b12f9a5",
+    "nx_create_drawing_view": "860363cc0ba28d8862d28ae1f7f586980929e4b8c340110933b7c75297a05fff",
+    "nx_edit_drawing_view": "860363cc0ba28d8862d28ae1f7f586980929e4b8c340110933b7c75297a05fff",
+    "nx_get_drawing_view": "860363cc0ba28d8862d28ae1f7f586980929e4b8c340110933b7c75297a05fff",
+    "nx_export_drawing": "2595b7048204d06be83e07dabb7245624cc80dcaefba69be8fb785a5a7517b7d"
   },
-  "recorded": "2026-10-10T23:18:10Z",
+  "recorded": "2026-10-11T08:05:07Z",
   "passed": true,
-  "checks": 75,
+  "checks": 76,
   "failed_checks": 0,
   "steps": [
     {
@@ -140,7 +140,7 @@
       "call": "nx_edit_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 17,

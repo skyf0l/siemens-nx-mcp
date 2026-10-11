@@ -1,0 +1,111 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/thread_faces.json",
+  "scenario_sha256": "9273c3659d9b3d328822e748df505bf62112592ce96554efb85b6877e4c99ad1",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_thread": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_thread": "6356f61e6c309fcf3af818745663056a70fead7990d58b057ab561f66a8212bf"
+  },
+  "recorded": "2026-10-11T07:15:50Z",
+  "passed": true,
+  "checks": 9,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 10,
+      "call": "nx_get_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

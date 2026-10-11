@@ -377,4 +377,4 @@ def test_a_drawing_view_owner_explains_where_model_edges_come_from():
     ref = nx.ref_of(view, "drawing_view")
     bad = run(nx, "nx_find_geometry", owner=ref, kind="edge")
     assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/owner", bad
-    assert "model body" in bad.error["hint"]
+    assert "model body" in bad.error["hint"] and "nx_list_view_edges" in bad.error["hint"]

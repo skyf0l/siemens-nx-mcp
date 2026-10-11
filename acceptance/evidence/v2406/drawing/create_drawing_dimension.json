@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/create_drawing_dimension.json",
-  "scenario_sha256": "b69e24117fc6758d0ca86d3d410cda821ed1ca30fdf28972136c277d51a5a964",
+  "scenario_sha256": "64fc8616e80a49f6f6f2cb33f4d9806c524e6b2982230162c31ad10c55b31ce9",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_dimension": [
@@ -15,9 +15,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_dimension": "f8ff3e3c3a3920ca242da98db231fe41b1cdf48cac978daf3d2cb39f8615645c"
+    "nx_create_drawing_dimension": "4286544423cda3ef1a7781dfa37add9572da9e3b7a77103f78c30c1e265edc81"
   },
-  "recorded": "2026-10-10T22:56:24Z",
+  "recorded": "2026-10-11T08:04:09Z",
   "passed": true,
   "checks": 45,
   "failed_checks": 0,

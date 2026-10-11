@@ -313,7 +313,9 @@ class Evaluator:
         spec = self.nx.curve_specs[tag]
         if spec[0] == "line":
             a, b = spec[1], spec[2]
-            return ([a[i] + t * (b[i] - a[i]) for i in range(3)], [0.0, 0.0, 0.0])
+            d = [b[i] - a[i] for i in range(3)]
+            n = math.sqrt(sum(v * v for v in d)) or 1.0
+            return ([a[i] + t * d[i] for i in range(3)], [v / n for v in d])
         _, c, r, x, y, _a0, _a1 = spec
         p = [c[i] + r * (math.cos(t) * x[i] + math.sin(t) * y[i]) for i in range(3)]
         return (p, [-math.sin(t) * x[i] + math.cos(t) * y[i] for i in range(3)])

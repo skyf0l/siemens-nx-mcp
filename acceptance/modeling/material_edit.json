@@ -1,0 +1,168 @@
+{
+ "covers": {
+  "nx_set_material": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "origin": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "shape": "block",
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "origin": [
+     50,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "MDL_RESIN",
+      "density": 1200
+     }
+    }
+   },
+   "expect": {
+    "data.items.0.density": {
+     "close": 1200,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.mass": {
+     "close": 0.0012,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "mdl_resin",
+      "density": 1500
+     }
+    }
+   },
+   "expect": {
+    "data.items.0.density": {
+     "close": 1500,
+     "tol": 1e-06
+    },
+    "warnings.0.message": {
+     "matches": "was 1200"
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.mass": {
+     "close": 0.0015,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_get_material",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id",
+     "$b.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.items.0.material": "MDL_RESIN",
+    "data.items.0.density": {
+     "close": 1500,
+     "tol": 1e-06
+    },
+    "data.items.1.density": {
+     "close": 1500,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "material": "Aluminum_6061"
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "Aluminum_6061",
+      "density": 1000
+     }
+    }
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

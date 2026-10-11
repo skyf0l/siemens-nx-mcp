@@ -177,6 +177,7 @@ class Component(Object):
     def __init__(self, name, bodies=(), parent=None):
         super().__init__(name)
         self.Parent = parent
+        self.IsOccurrence = True  # NX components are occurrences of their parent assembly
         self.IsSuppressed = False
         self.ReferenceSet = "Entire Part"
         self.children = []

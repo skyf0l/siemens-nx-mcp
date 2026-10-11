@@ -55,11 +55,16 @@ from nx_mcp.core.types import (
     quantity_formula,
 )
 from nx_mcp.core.validate import (
+    bare_forms,
+    bare_object,
     is_typeddict,
     is_union,
+    json_array,
     match_option,
     natural_scalar,
     options_message,
+    ratio_of,
+    ratio_value,
     typeddict_fields,
     unwrap,
     wraps_scalar,
@@ -139,6 +144,27 @@ def _natural(base):
     return lambda value: natural_scalar(value, base)
 
 
+def _ratio(name, markers):
+    """``'50%'`` / ``'2x'`` of a percent, fraction or factor number (as ``core.validate``)."""
+    ratio = ratio_of(name, markers)
+
+    def convert(value):
+        value = ratio_value(value, ratio)
+        return int(value) if isinstance(value, float) and value.is_integer() else value
+
+    return convert
+
+
+def _bare(alternatives):
+    """A bare option for a one-field form of the union: ``"-z"`` -> ``{"principal": "-z"}``."""
+
+    def wrap(value):
+        found = bare_object(value, alternatives)
+        return found[1] if found else value
+
+    return wrap
+
+
 def _quantity_text(dim: str, bounds: Range | None):
     """A unit string, numeric string or expression formula of ``dim`` (as gate 1)."""
 
@@ -166,7 +192,8 @@ class _Converter:
         self.output = output
         self.typeddicts: dict = {}
 
-    def __call__(self, hint):
+    def __call__(self, hint, name=None):
+        """``name``: the field the hint is of (percent/factor spellings follow it)."""
         base, markers = unwrap(hint)
         meta: list = []
         doc = markers.get(Doc)
@@ -192,7 +219,10 @@ class _Converter:
             check = BeforeValidator(lambda v, m=marker: core_types.check_json(v, m))
             return _annotated(dict[str, Any], [*meta, bound, check])
         if is_union(base):
-            alternatives = tuple(self(alt) for alt in typing.get_args(base))
+            raw = typing.get_args(base)
+            alternatives = tuple(self(alt, name) for alt in raw)
+            if not self.output and bare_forms(raw):
+                meta.append(BeforeValidator(_bare(raw)))
             return _annotated(Union[alternatives], meta)  # noqa: UP007
         if base is type(None):
             return _annotated(type(None), meta)
@@ -212,6 +242,7 @@ class _Converter:
                     *self._range(markers),
                     BeforeValidator(_integral),
                     BeforeValidator(_natural(int)),
+                    BeforeValidator(_ratio(name, markers)),
                     Strict(),
                 ],
             )
@@ -222,6 +253,7 @@ class _Converter:
                     *meta,
                     *self._range(markers),
                     BeforeValidator(_natural(float)),
+                    BeforeValidator(_ratio(name, markers)),
                     Strict(),
                     Field(allow_inf_nan=False),
                 ],
@@ -238,10 +270,11 @@ class _Converter:
             items = markers.get(Items)
             bounds = [Field(min_length=items.min, max_length=items.max)] if items else []
             wrap = BeforeValidator(lambda v, h=item: [v] if wraps_scalar(h, v) else v)
-            return _annotated(list[self(item)], [*meta, *bounds, wrap])
+            parse = BeforeValidator(json_array)  # runs first: "[1, 2]" before wrapping
+            return _annotated(list[self(item)], [*meta, *bounds, wrap, parse])
         if origin is tuple:
             args = tuple(self(a) for a in typing.get_args(base))
-            return _annotated(tuple[args], meta)
+            return _annotated(tuple[args], [*meta, BeforeValidator(json_array)])
         if origin is dict:
             key, value = typing.get_args(base) or (str, Any)
             return _annotated(dict[key, self(value)], meta)
@@ -263,7 +296,7 @@ class _Converter:
             return self.typeddicts[td]
         required = td.__required_keys__
         fields = {
-            name: (te.Required if name in required else te.NotRequired)[self(sub)]
+            name: (te.Required if name in required else te.NotRequired)[self(sub, name)]
             for name, sub in typeddict_fields(td).items()
         }
         converted = te.TypedDict(td.__name__, fields)
@@ -276,7 +309,7 @@ class _Converter:
 def _arguments_type(spec):
     convert = _Converter()
     fields = {
-        name: (te.Required if p.required else te.NotRequired)[convert(p.hint)]
+        name: (te.Required if p.required else te.NotRequired)[convert(p.hint, name)]
         for name, p in spec.params.items()
     }
     model = te.TypedDict(f"{spec.name}_arguments", fields)
@@ -311,7 +344,7 @@ def _variant_union(spec, by: dict):
             name: (te.Required if p.required else te.NotRequired)[
                 Annotated[Literal[value], BeforeValidator(_literal_check(values, pairs))]
                 if name == spec.variants
-                else convert(by[name].forms[value] if name in by else p.hint)
+                else convert(by[name].forms[value] if name in by else p.hint, name)
             ]
             for name, p in spec.params.items()
         }
@@ -535,7 +568,7 @@ def share_definitions(schema: dict) -> dict:
             node = container[key]
             for keep in (True, False) if "description" in node else (True,):
                 body = _body(node, keep)
-                if not body or set(body) == {"$ref"}:
+                if not body or "$ref" in body:  # never a definition of a reference
                     continue
                 text = _key(body)
                 slot = found.setdefault(text, {"body": body, "sites": []})
@@ -584,6 +617,22 @@ def input_schema(spec, *, call_keys: bool = True) -> dict:
     return schema
 
 
+def required_by(spec, offered=None) -> dict[str, list]:
+    """The fields each variant needs (``ToolSpec.required_by``), as ``nx_get_tool_schemas``
+    lists them next to the schema: ``{"hole": ["view", "origin"], "a|b": [...]}``, one key
+    per group of offered variants needing the same fields (variants needing nothing are
+    left out). A compact map rather than top-level ``anyOf`` branches, which cost about
+    twice the characters; gate 1 names the missing fields of a call either way."""
+    if not spec.required_by or not isinstance(spec.variants, str):
+        return {}
+    groups: dict[tuple, list] = {}
+    for value in spec.variant_values():
+        needs = tuple(spec.required_by.get(value, ()))
+        if needs and (offered is None or value in offered):
+            groups.setdefault(needs, []).append(value)
+    return {"|".join(values): list(needs) for needs, values in groups.items()}
+
+
 def narrow_variants(schema: dict, spec, allowed) -> dict:
     """Keep only the ``allowed`` values in the variant field's enum (listings show only
     the variants usable on the connected NX build)."""
@@ -614,6 +663,11 @@ def variant_schema(spec, variant: str, *, call_keys: bool = True) -> dict:
         raise KeyError(variant)
     schema = input_schema(spec, call_keys=call_keys)
     if isinstance(spec.variants, str):
+        needs = [
+            n for n in spec.required_by.get(variant, ()) if n not in schema.get("required", [])
+        ]
+        if needs:  # the fields this variant needs
+            schema["required"] = [*schema.get("required", []), *needs]
         field = schema["properties"][spec.variants]
         description = field.get("description")
         schema["properties"][spec.variants] = {"const": variant}

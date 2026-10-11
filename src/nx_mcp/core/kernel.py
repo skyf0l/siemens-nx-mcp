@@ -6,7 +6,8 @@ for a tool failure. ``run_child(spec, args, parent_tx)`` applies the gates
 marked C to a child of ``nx_run_batch`` / ``nx_preview_changes`` and raises
 ``NXError`` so the parent rolls everything back under its one mark.
 
-Gate order: 1 schema, 2 workspace paths, 3 evidence/version, 4 ``requires``,
+Gate order: 1 schema, 2 workspace paths, 3 variant inference and evidence/version,
+4 ``requires``,
 5 engineer control hold (the host, before the kernel runs), 6 part ownership,
 7 receipt, 8 undo mark, 9 unit conversion, 10 handler, 11 read-back, 12 reference
 invalidation, 13 annotation refresh, 14 result projection, 15 error mapping.
@@ -31,7 +32,15 @@ from nx_mcp.core.receipts import Receipts, new_operation_id
 from nx_mcp.core.references import GENERIC_NAME as _GENERIC
 from nx_mcp.core.tx import Services, Tx, check_owned
 from nx_mcp.core.types import SHEET_KINDS, convert_quantity, expand_kinds
-from nx_mcp.core.validate import Checked, get_at, pointer, set_at, validate
+from nx_mcp.core.validate import (
+    Checked,
+    at_child,
+    combine,
+    get_at,
+    pointer,
+    set_at,
+    variant_needs,
+)
 
 REQUIRE_FAILURES = {
     "work_part": (
@@ -73,12 +82,63 @@ class Context:
 # Gates shared by top-level calls and children
 
 
-def _gate_schema(spec, args, *, placeholders=False, where="nx") -> Checked:  # gate 1
+def _gate_schema(  # gate 1
+    spec, args, *, placeholders=False, where="nx", services=None
+) -> Checked:
     # ``where`` is the process the services run in (``Services.runs``): NX, or the
     # sidecar for ``runs="sidecar"`` workspace tools (sidecar/local.py).
     if spec.runs != where:
         fail("NX_UNSUPPORTED_OPTION", f"{spec.name} runs in the {spec.runs}, not in {where}")
-    return validate(spec.params, args, placeholders=placeholders)
+    return spec.check(args, placeholders=placeholders, shown=offered_variants(spec, services))
+
+
+def offered_variants(spec, services) -> tuple | None:
+    """The variant values this NX build offers (tested, not refused for a license this
+    session), which a variant error lists; None for all (development mode, no variants)."""
+    if services is None or not isinstance(spec.variants, str) or getattr(services, "dev", False):
+        return None
+    with contextlib.suppress(Exception):
+        values = evidence.variants_for(spec, evidence.build_key(services.build))
+        remembered = {e.get("variant") for e in evidence.licenses() if e.get("tool") == spec.name}
+        return tuple(v for v in values if v not in remembered) or None
+    return None
+
+
+def _gate_variant(spec, checked: Checked, services: Services) -> None:  # gate 3 (first)
+    """An omitted variant of a ``variant_from`` tool, taken from the object its ref names
+    (``nx_edit_drawing_table`` without ``kind``: the table's kind); then the fields that
+    variant needs (``required_by``)."""
+    if spec.variant_from is None or checked.args.get(spec.variants) is not None:
+        return
+    name, resolver = spec.variant_from
+    ref = checked.args.get(name)
+    value = None
+    if isinstance(ref, str):
+        try:
+            obj = services.references.resolve(ref, ())  # the resolver tells kinds apart
+            if resolver is not None:
+                value = resolver(Tx(services, spec, operation_id=None), obj)
+            else:
+                value = getattr(services.references.entry(ref), "kind", None)
+        except NXError as error:  # a stale or unknown ref: say which field
+            error.field = error.field or "/" + name
+            raise
+        except Exception:
+            value = None  # the resolver cannot tell: the variant must be given
+    values = spec.variant_values()
+    if value not in values:
+        field = "/" + spec.variants
+        what = f"the {value} that {ref} names" if value else f"/{name}"
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{field}: required; it cannot be taken from {what} "
+            f"(one of {', '.join(repr(v) for v in values)})",
+            field=field,
+        )
+    checked.args[spec.variants] = value
+    errors = variant_needs(spec.params, checked.args, spec.variants, spec.required_by)
+    if errors:
+        raise combine(errors)
 
 
 def _application_first(spec, services: Services, error: NXError) -> None:
@@ -323,6 +383,11 @@ def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # 
         except ValueError as error:
             fail("NX_INVALID_ARGUMENT", f"{where}: {error}", field=where)
         set_at(checked.args, path, value)
+    for path, canonical in checked.forms:  # an axis-angle pose -> {translation, rotation}
+        try:
+            set_at(checked.args, path, canonical(get_at(checked.args, path)))
+        except (ValueError, KeyError, TypeError) as error:
+            fail("NX_INVALID_ARGUMENT", f"{pointer(path)}: {error}", field=pointer(path))
     return checked.args
 
 
@@ -411,6 +476,28 @@ def _readback(spec, services: Services, part, before: dict, mark) -> dict:  # ga
     return after
 
 
+def _readback_parts(spec, services: Services, tx: Tx, part, before: dict, mark) -> tuple:
+    """Gate 11 on the work part and on every part the handler declared with
+    ``tx.touch_part``: ``(before, after)`` snapshots merged over those parts (keys are
+    session-unique NX tags)."""
+    after = _readback(spec, services, part, before, mark)
+    if not tx.extra_parts:
+        return before, after
+    before, after = dict(before), dict(after)
+    for extra, extra_before in tx.extra_parts.values():
+        before.update(extra_before)
+        after.update(_readback(spec, services, extra, extra_before, mark))
+    return before, after
+
+
+def _extra_unchanged(services: Services, tx: Tx | None) -> bool:
+    """Whether every part declared with ``tx.touch_part`` has the objects it had."""
+    for extra, extra_before in tx.extra_parts.values() if tx is not None else ():
+        if set(services.snapshot(extra)) != set(extra_before):
+            return False
+    return True
+
+
 def _refresh(spec, services: Services, tx: Tx) -> list:  # gate 13
     """Managed annotations after a commit, inside the call's undo mark: every
     ``@refresher`` hook of every domain."""
@@ -441,7 +528,9 @@ def run(spec, args, ctx: Context) -> dict:
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
     try:
         try:
-            checked = _gate_schema(spec, args, where=getattr(services, "runs", "nx"))  # 1
+            checked = _gate_schema(
+                spec, args, where=getattr(services, "runs", "nx"), services=services
+            )  # 1
         except NXError as schema_error:
             _application_first(spec, services, schema_error)
             raise
@@ -452,6 +541,7 @@ def run(spec, args, ctx: Context) -> dict:
             if replay is not None:
                 return replay
         _gate_paths(spec, checked, services)  # 2
+        _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
         _gate_requires(spec, services)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
@@ -478,11 +568,11 @@ def run(spec, args, ctx: Context) -> dict:
         _check_ownership_after(services, flags)  # 6 (after)
         changes = None
         if spec.effect == "model":
-            after = _readback(spec, services, part, before, mark)  # 11
-            retired = services.invalidate(before, after, spec.invalidates == "topology")  # 12
+            seen, after = _readback_parts(spec, services, tx, part, before, mark)  # 11
+            retired = services.invalidate(seen, after, spec.invalidates == "topology")  # 12
             refreshed = _refresh(spec, services, tx) if spec.refresh_annotations else []  # 13
             changes = _changes(
-                services, before, after, spec, refreshed, retired=retired, floor=floor, tx=tx
+                services, seen, after, spec, refreshed, retired=retired, floor=floor, tx=tx
             )
             if tx.references == "part_invalidated":  # the handler invalidated the part
                 changes["references"] = tx.references
@@ -581,7 +671,7 @@ def _still_unchanged(spec, services, tx, part, before) -> bool:
         return False
     if spec.effect == "model" and part is not None:
         try:
-            return set(services.snapshot(part)) == set(before)
+            return set(services.snapshot(part)) == set(before) and _extra_unchanged(services, tx)
         except Exception:
             return False
     return True
@@ -666,6 +756,7 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
             try:
                 failed_snap = services.snapshot(part) if part is not None else None
                 unchanged = failed_snap is not None and set(failed_snap) == set(before)
+                unchanged = unchanged and _extra_unchanged(services, tx)
             except Exception:
                 unchanged = False
             gone = _mark_gone(services, mark)
@@ -739,11 +830,12 @@ def run_child(
         if parent.mark is None:
             fail("NX_ERROR", "A child call needs the parent's undo mark")
         parent.checkpoint(done=index)
-        checked = _gate_schema(spec, args, placeholders=True)  # 1
+        checked = _gate_schema(spec, args, placeholders=True, services=services)  # 1
         if checked.placeholders:
             _resolve_placeholders(checked, prior if prior is not None else parent.children)
-            checked = _gate_schema(spec, checked.args)
+            checked = _gate_schema(spec, checked.args, services=services)
         _gate_paths(spec, checked, services)  # 2
+        _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
         _gate_requires(spec, services)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
@@ -762,8 +854,10 @@ def run_child(
             if child.non_undoable_reason:
                 parent.non_undoable(child.non_undoable_reason)
         _check_ownership_after(services, flags)
-        after = _readback(spec, services, part, before, parent.mark)  # 11
+        before, after = _readback_parts(spec, services, child, part, before, parent.mark)  # 11
         retired = services.invalidate(before, after, spec.invalidates == "topology")  # 12
+        for key, extra in child.extra_parts.items():  # the parent rolls these back too
+            parent.extra_parts.setdefault(key, extra)
         result = {
             "tool": spec.name,
             "data": data,
@@ -779,8 +873,4 @@ def run_child(
         _remember_license(spec, args, services, error)
         error.details.setdefault("child_index", index)
         error.details.setdefault("child_tool", spec.name)
-        if error.field == "/tool":
-            error.field = f"/operations/{index}/tool"
-        elif error.field and not error.field.startswith("/operations/"):
-            error.field = f"/operations/{index}/arguments{error.field}"
-        raise error from exc
+        raise at_child(error, index) from exc

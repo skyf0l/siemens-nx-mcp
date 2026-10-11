@@ -178,13 +178,12 @@ def nx_list_components(
     name_contains: Annotated[str, Text(64), Doc("Case-insensitive name filter")] | None = None,
     suppressed: Annotated[bool, Doc("Only suppressed (true) or unsuppressed (false)")]
     | None = None,
-    include_poses: Annotated[bool, Doc("Add translation and rotation")] = False,
+    include_poses: bool = False,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> ComponentListData:
-    """List the work part's component occurrences depth first (siblings by name), one page at
-    a time. Rows carry id, path, load state, reference set, suppression and, on request,
-    absolute poses."""
+    """List the work part's component occurrences depth first, a page at a time. Rows: id,
+    path, load state, reference set, suppression and, with include_poses, absolute poses."""
     found = []
     for c, names in parts.components(tx.part):
         if name_contains and name_contains.casefold() not in str(c.Name).casefold():
@@ -248,6 +247,7 @@ def _create_summary(a, say):
     keywords=("add component", "insert part", "place part", "new component", "assemble"),
     requires=("work_part", "no_active_sketch"),
     variants="mode",
+    required_by={"from_file": ("path",), "new_in_context": ("new_path",)},
     cost="light",
     batchable=True,
     previewable=True,
