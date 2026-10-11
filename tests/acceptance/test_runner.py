@@ -707,3 +707,23 @@ async def test_an_engineer_step_runs_its_snippet_through_the_development_bridge(
     assert result.passed and result.call == "engineer", result.failures
     method, code = sent[1]
     assert method == "nx_dev_python" and "x = 1" in code and "_check_engineer_change" in code
+
+
+async def test_a_direct_step_calls_the_listed_core_tool_itself():
+    """``"direct": true``: the core tool as its own MCP tool, arguments as given."""
+    from types import SimpleNamespace
+
+    calls = []
+
+    class Session:
+        async def call_tool(self, name, args):
+            calls.append((name, args))
+            body = {"ok": True, "tool": name, "mutation_outcome": "not_applicable", "data": {}}
+            return SimpleNamespace(structuredContent=body, content=[])
+
+    out = await runner.call_tool(
+        Session(), "nx_check_model", {"part": "cover"}, intent="x", direct=True
+    )
+    assert calls == [("nx_check_model", {"part": "cover"})] and out["ok"]
+    await runner.call_tool(Session(), "nx_check_model", {}, intent=None)
+    assert calls[-1][0] == "nx_invoke_read"

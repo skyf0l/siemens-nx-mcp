@@ -305,7 +305,11 @@ Supply your own when you might need to retry after a transport failure.
 **Call keys inside `arguments`.** Besides `operation_id`, NX-side calls accept `part` (the
 target part: a loaded part's file name with or without `.prt`, its workspace path or `p:N`)
 and `expires_at` (epoch seconds or ISO 8601: a changing call that reaches NX later is
-refused with `NX_CALL_EXPIRED` and never runs). They are not schema properties; a tool's
+refused with `NX_CALL_EXPIRED` and never runs; the sidecar gives every changing call one,
+send time + 135 s, unless the agent passed its own). They are not schema properties, also
+not in the strict schemas of the listed core tools, which take them all the same (the
+server does not validate input against the listed schemas; Claude Code sends such a key);
+`nx_invoke`/`nx_invoke_read` arguments are the other route. A tool's
 own `part` parameter (`nx_activate_part`, `nx_close_part`, `nx_save_part`) stays its
 argument. The kernel makes the target current for the call and restores the engineer's
 state afterwards (phase P2, architecture.md 3.1 gate 4s): a model call on a part that is
@@ -378,7 +382,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_get_status` | Bridge, NX build, work/display part, top-level part count and the agent's loaded-part count (`parts.agent_loaded`: from two on, calls without refs take `part`, 3.1 of architecture.md), application, panel mode (`auto` or `ask`, with the panel's `mode_label` Auto or Ask me first; only the engineer changes it), workspace root and path rules | `include?: bridge/parts/control/workspace` | read |
+| `nx_get_status` | Bridge, NX build, work/display part, top-level part count and the agent's loaded-part count (`parts.agent_loaded`: from two on, calls without refs take `part`, 3.1 of architecture.md), application, panel mode (`auto` or `ask`, with the panel's `mode_label` Auto or Ask me first; only the engineer changes it), the agent calls queued for NX (`control.queue`: `waiting`, `oldest_seconds`), workspace root and path rules | `include?: bridge/parts/control/workspace` | read |
 | `nx_find_tools` | Search the catalogue (2.1) | `query \| queries, domain?, effect?, Page` | read |
 | `nx_get_tool_schemas` | Schemas, examples, evidence, sub-schemas such as sheet-metal operations, per-variant `required_by` fields | `names[1..10], include_output` | read |
 | `nx_invoke` | Gateway call | `tool, arguments, intent?, detail` | per tool |

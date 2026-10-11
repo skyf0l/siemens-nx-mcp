@@ -85,9 +85,9 @@ def test_the_parked_sketch_still_blocks_its_own_parts_model_tools_and_other_sket
     nx = sketch_nx()
     sk = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
     refused = run(nx, "nx_set_test_model")
-    assert refused.error["code"] == "NX_SKETCH_ACTIVE" and "nx_finish_sketch" in refused.error[
-        "hint"
-    ], refused
+    assert (
+        refused.error["code"] == "NX_SKETCH_ACTIVE" and "nx_finish_sketch" in refused.error["hint"]
+    ), refused
     second = run(nx, "nx_create_sketch", placement="xz")
     assert second.error["code"] == "NX_SKETCH_ACTIVE", second
     other = nx.sketch()  # a finished sketch of the same part

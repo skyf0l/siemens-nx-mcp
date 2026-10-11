@@ -577,7 +577,7 @@ always reports `not_started`.
 | 3t | Target part | N (pure, `core/target.py`) | The call keys inside `arguments` (`part`: a loaded part's file name with or without `.prt`, its workspace path or `p:N`; `expires_at`: epoch seconds or ISO 8601) are taken out before gate 1 unless they are the tool's own parameters, and validated (`NX_INVALID_ARGUMENT`, field `/part`). The ghost guard refuses a changing call whose `expires_at` passed (`NX_CALL_EXPIRED`, not started, no receipt; reads still answer). Then by `spec.target`: the tool's own part argument, a resolver, the references' part (an occurrence pins its prototype's owner; under `assembly` and for components the assembly), the `part` key (contradicting the refs: `NX_WRONG_PART_CONTEXT`, reads included; naming the assembly that holds an occurrence ref agrees; a path outside the workspace: `NX_PATH_OUTSIDE_WORKSPACE`; an unknown file: `NX_NOT_FOUND` listing the loaded files), a redo's parent part, then the work part. **One rule, no mode:** a call without refs and without `part` acts on the work part while at most one of the agent's parts is loaded (`agent_parts`: parts the agent created or opened, or the engineer granted, components included, the rows `nx_list_parts` marks `owned`; never a part the engineer opened); with two or more it is `NX_AMBIGUOUS_PART` (`details.loaded_parts` with the work part last, `details.count`; the hint lists the files with a neutral example `{"part": "<file name>"}`, for `nx_create_component` the assembly's file name). A call that passes refs is never ref-less (an unknown or stale ref goes to the work part and the tool reports it). Refs spanning parts with no deciding kind: reads take the first ref's part, changes the work part when it is one of them or fewer than two agent parts are loaded, else `NX_AMBIGUOUS_PART`. `envelope.part` = `{id, file, from}` when `part` was given or two or more parts are loaded; a changing call that brings the agent's loaded parts from fewer than two to two or more carries `NX_NOTE` "N parts are loaded: calls without refs now take part" (`census`/`load_note`); `nx_get_status` `parts.agent_loaded` gives the count |
 | 4s | Target switch | N | `core/switching.py` + `kit/switching.py` (phase P2): the kernel makes the target current itself, by `spec.switch_for(args)`. **No switch and no NX call** when the target is the work part (one part loaded, or the call targets the work part), when it is the display part and the call did not name it (`part`) or the mode is `display` (a call in the displayed assembly's context, a work component under it stays), or when it is not a loaded part (the tool reports it). Else: `none` (reads) binds the target (`Services.bound`: `tx.part`, `work_part()`, units, `requires`, sheets follow it; `tx.scratch` makes it the work part quietly for its block); `work` makes it the work part (`Parts.SetWork` for the display part or a component prototype under it, else `uf.Assem.SetWorkPartQuietly`: about 2 ms round trip, the display never moves); `display` displays it (`kit.parts.activate`, undo marks kept, about 140 ms each way) and enters the application the tool requires (Sheet Metal), restoring the previous one unless that would show NX's blocking Sheet Metal warning (then an `NX_UPDATE_WARNING` says so). `NX_MCP_SWITCH=display` switches the display for model tools too. A refused switch is `NX_WRONG_PART_CONTEXT`, not started. After the handler the work part must still be the target, else `NX_WRONG_PART_CONTEXT` and rollback (before commit). The restore runs at the end of the call, committed or not (after a failure's rollback): a restore NX refuses falls back to the home state (`SetWorkPartQuietly(display)` + `SetWork(display)`) and becomes an `NX_UPDATE_WARNING` on the envelope (a committed change stays committed, receipt and history written); a state NX still did not take back is retried at the next call's entry (`NX_NOTE`). Services without `switch` (unit-test fakes) refuse a named part that is not the work part, as phase P0 did |
 | 4 | `requires` | N · C | Read-only state checks (`NX_NO_WORK_PART`, `NX_SKETCH_ACTIVE`, `NX_WRONG_APPLICATION`, ...) whose hint names the tool to run. They run before the hold, so the engineer is never asked to approve a request that cannot succeed, and again after it |
-| 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`); **Run once** or **Run & switch to Auto** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. Only the engineer changes the mode; no tool does |
+| 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`). The card shows one call, the oldest waiting, and an answer applies to that call only (red team A29, phase P5): **Run once** runs it, **Run & switch to Auto** runs it and switches the mode (the calls still queued then run under Auto's rules), **Not now** returns `NX_CONTROL_DECLINED` for it; each call has its own 60 s clock from the moment the card shows it (ending 5 s before the bridge's queue wait), then `NX_CONTROL_PAUSED`. With more calls waiting the card says "Answer within N s for this step (M more waiting)". A call that needs no answer (the status read, an approved call) never waits behind the card. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. While two or more parts are loaded the card, the running line and every activity line (panel and `.nx-mcp/activity.log`) name the target part's file first, `[cover.prt] Extrude ...` (`dispatch.target_file` before the call, `envelope.part` after it; read groups never mix parts); with one part the lines are unchanged. Only the engineer changes the mode; no tool does |
 | 6 | Part ownership | N · C | In production, `model` and `file` effects and `nx_close_part` may change only parts the agent created, opened when they were not already loaded, or was granted by the engineer on the panel. The work part is checked first. After the handler, any non-owned part whose `IsModified` flipped forces a rollback. Error: `engineer_control/NX_PART_NOT_GRANTED`. Off with `NX_MCP_DEV=1` |
 | 7 | Receipt | N | Every non-`read` effect gets a fingerprint of tool plus canonical arguments plus the target part's file key (none without a target; a receipt written before targets matches tool and arguments alone). The replay runs right after gate 3t (a call whose target is no longer resolvable replays its receipt's own part); the same id with the same arguments in another part is `NX_IDEMPOTENCY_CONFLICT` naming that part. The same id with the same arguments replays the committed result (`replayed: true`); different arguments give `NX_IDEMPOTENCY_CONFLICT`. A committed call that `nx_undo_operation` or `nx_restore_checkpoint` reverted (`reverted_by`) runs again instead: its new receipt keeps the reverted run under `previous`, and a warning says so. Children write progress into the parent's receipt |
 | 8 | Undo mark | N | `model` only: a visible mark `NX MCP: <label>`. Children share the parent's mark; a preview's mark is always undone |
@@ -646,7 +646,7 @@ Handlers never set undo marks, write receipts or touch the panel.
 |---|---|---|
 | `light` | registry and state reads, sketch curves, datums, annotations | allowed in a batch (model tools); the panel says only "running" |
 | `heavy` | builders, model update | one call each; the panel says "NX may pause" |
-| `long` | translators, PDF, assembly-wide checks | may outlast the 120 s bridge wait. The sidecar then returns `unknown` with `retry: after_status_check`, and the agent polls `nx_get_operation` |
+| `long` | translators, PDF, assembly-wide checks | one call each; the bridge waits for its budget (below) |
 
 Handlers that loop call `tx.checkpoint()` between native calls, and the kernel calls it
 between batch children. Each checkpoint:
@@ -658,6 +658,26 @@ between batch children. Each checkpoint:
    budget raises `NX_CANCELLED` with `details.reason = "budget"`.
 
 A single native call cannot be interrupted, and the host never pumps NX's main loop.
+
+**Bridge timing (phase P5, red team A27/A28).** A queued call waits at most `QUEUE_TIMEOUT`
+(135 s) to start, then `not_started` ("safe to retry"); once started, its caller waits
+`bridge.run_timeout(method)`: `DISPATCHER_TIMEOUT` (120 s) for light calls, the cost budget
++ 30 s for heavy (330 s) and long (1830 s) calls, so a long call or a long read returns its
+result instead of `unknown` at 120 s. The sidecar's `DescriptorBridgeClient` waits
+`client_timeout(method)` = queue + run + 15 s (270 s for light calls, as before), so NX's
+own answer always arrives first. Past the run timeout the caller gets `unknown` ("may
+still be running"; query the receipt). The ghost guard: the sidecar gives every changing
+call `expires_at` = send time + `QUEUE_TIMEOUT` (`bridge.start_deadline`) unless the agent
+passed its own; the MCP client itself (Claude Code) has no short request timeout to copy,
+so the bridge's own start deadline is the bound. The host refuses a queued call whose
+`expires_at` passed before showing or running it, and so does the kernel (gate 3t), with
+`NX_CALL_EXPIRED` (not started): a call that sat in NX's listen backlog during a long call
+never runs late. A bridge worker keeps its client's socket on the queued call
+(`_PendingBridgeCall.peer`); a client that closed it (an MCP cancellation closes the
+sidecar's connection) gets no run either (`MainThreadDispatcher._execute`, the host's
+`_reject_gone`: `NX_CALL_EXPIRED`). Expired queue entries leave the queue (`waiting()`).
+`nx_get_status` `control.queue` = `{waiting, oldest_seconds}` counts the agent calls
+queued for NX.
 
 ---
 
@@ -700,9 +720,18 @@ other name lists are deleted. What holds today:
   without refs needs `part` (`NX_AMBIGUOUS_PART`), and the load that brings the second
   part says so (`NX_NOTE`). There is no mode, time window or switch: the count is the
   loaded parts the agent owns, components included, never the engineer's. The sidecar
-  forwards `part` and `expires_at` untouched (`proxy.call`); the agent instructions say
-  "When two or more parts are loaded, add the target part's file name to calls without
-  refs" (outside the listing budget); the listings do not mention `part` (P5). The
+  forwards `part` and `expires_at` untouched (`proxy.call`) and gives a changing call its
+  own `expires_at` (3.3); the agent instructions say "When two or more parts are loaded,
+  add the target part's file name to the arguments of every call without refs, the listed
+  core tools included (their schemas leave part out)" (outside the listing budget). The
+  seven ref-less core tools (`nx_list_components`, `nx_list_objects`,
+  `nx_get_model_summary`, `nx_find_geometry`, `nx_check_model`, `nx_capture_view`,
+  `nx_undo_operation`) take `part` directly although their strict listed schemas leave it
+  out: the server does not validate input against them (`validate_input=False`), and
+  Claude Code sends the key (checked live in P5: a direct `nx_check_model` call with an
+  extra `part` reached the sidecar). A listed `part` property would cost 175 characters on
+  the seven (bare) or 287 (with `maxLength`), and the agent listing has 9 left of 15,000
+  (14,991). The
   acceptance runner refuses to start a scenario beside loaded parts the agent left or
   parts outside `smoke/` (`blocking_parts`). `Tx.target` carries the resolved target; `tx.call`
   passes it to the calls a redo repeats.

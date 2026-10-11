@@ -12,6 +12,7 @@ Argument strings ``$part`` (a fresh absolute path under ``smoke/<run-id>/``),
 ``$label.dotted.path`` (a value from an earlier saved result) are resolved
 before each call; ``$$`` escapes a literal ``$`` (``"$$0.data.sketch"`` reaches
 the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). A step with
+``"direct": true`` calls a listed core tool as its own MCP tool (compact result). A step with
 ``"call": "engineer"`` and ``"args": {"code": ...}`` plays the engineer: it runs the
 Python snippet in NX through the bridge's development tool (``NX_MCP_DEV=1``; names as
 ``scripts/dev_python.py``) and then lets the interactive host check its mark
@@ -66,7 +67,7 @@ from nx_mcp.workspace import default_workspace
 ROOT = Path(os.environ.get("NX_MCP_SOURCE_ROOT") or Path(__file__).resolve().parents[3])
 SCENARIOS = ROOT / "acceptance"
 EVIDENCE = SCENARIOS / "evidence"
-STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail"}
+STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail", "direct"}
 ENGINEER = "engineer"  # a step that edits NX as the engineer would (development only)
 # Appended to an engineer step's snippet: the host's own check between agent calls.
 _NOTICE = """
@@ -279,11 +280,15 @@ class StepResult:
 
 
 async def call_tool(
-    session, tool: str, args: dict, *, intent: str | None, detail: str = "full"
+    session, tool: str, args: dict, *, intent: str | None, detail: str = "full", direct=False
 ) -> dict:
-    """One call through the gateways (``detail=full`` by default); returns the unwrapped result."""
+    """One call through the gateways (``detail=full`` by default); returns the unwrapped result.
+    ``direct``: call a listed core tool as its own MCP tool, with ``args`` as they are
+    (compact detail, no intent), as an agent calls it."""
     spec = catalogue.load().get(tool)
-    if spec is not None and spec.effect == "read":
+    if direct:
+        response = await session.call_tool(tool, args)
+    elif spec is not None and spec.effect == "read":
         request = {"tool": tool, "arguments": args, "detail": detail}
         response = await session.call_tool("nx_invoke_read", request)
     else:
@@ -353,7 +358,12 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
                 outcome = await engineer_edit(args)
             else:
                 outcome = await call_tool(
-                    session, tool, args, intent=intent, detail=step.get("detail") or "full"
+                    session,
+                    tool,
+                    args,
+                    intent=intent,
+                    detail=step.get("detail") or "full",
+                    direct=bool(step.get("direct")),
                 )
         except Exception as error:  # Transport failure: the scenario cannot continue.
             failed = StepResult(

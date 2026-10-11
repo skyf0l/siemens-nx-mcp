@@ -9,7 +9,9 @@ import json
 import os
 import secrets
 import select
+import socket
 import socketserver
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
@@ -76,6 +78,72 @@ _MAX_MESSAGE_BYTES = 1024 * 1024
 DISPATCHER_TIMEOUT = 120.0
 QUEUE_TIMEOUT = 135.0
 CLIENT_TIMEOUT = QUEUE_TIMEOUT + DISPATCHER_TIMEOUT + 15.0
+# A heavy or long call may run for its cost budget (core/tx.py COST_BUDGET_SECONDS: 300
+# and 1800 s, enforced at checkpoints) plus 30 s, so its caller gets the result instead
+# of an ``unknown`` outcome at DISPATCHER_TIMEOUT (red team A28). Light calls keep
+# DISPATCHER_TIMEOUT.
+COST_RUN_SECONDS = {"heavy": 330.0, "long": 1830.0}
+
+
+def _cost(method: str) -> str | None:
+    """The catalogue cost class of ``method`` (None: not a loaded catalogue tool)."""
+    try:
+        from nx_mcp.core import catalogue
+
+        spec = catalogue.get(method)
+    except Exception:
+        return None
+    return getattr(spec, "cost", None)
+
+
+def run_timeout(method: str, base: float = DISPATCHER_TIMEOUT) -> float:
+    """How long NX may run ``method`` once started before its caller stops waiting."""
+    return max(base, COST_RUN_SECONDS.get(_cost(method) or "", 0.0))
+
+
+def client_timeout(method: str) -> float:
+    """How long the sidecar waits for ``method``: the queue, the run and a margin, so
+    NX's own answer always arrives first."""
+    return QUEUE_TIMEOUT + run_timeout(method) + 15.0
+
+
+def start_deadline(now: float | None = None) -> float:
+    """``expires_at`` the sidecar gives a changing call (epoch seconds): it starts within
+    QUEUE_TIMEOUT of being sent or never (core/target.py ``check_expiry``), so a call
+    that sat in NX's listen backlog or queue after its client stopped waiting never runs."""
+    return (time.time() if now is None else now) + QUEUE_TIMEOUT
+
+
+# The socket of the request a bridge worker thread is handling (_BridgeRequestHandler):
+# MainThreadDispatcher.call keeps it on the queued call, so the NX thread sees that the
+# client went away (closed its socket: an MCP cancellation) before running the call.
+_peer = threading.local()
+
+
+def peer_closed(sock: Any) -> bool:
+    """Whether the client closed ``sock`` (readable with nothing to read, or reset).
+    Never blocks; an unknown socket (None) counts as open."""
+    if sock is None:
+        return False
+    try:
+        readable, _, _ = select.select([sock], [], [], 0)
+        if not readable:
+            return False
+        return sock.recv(1, socket.MSG_PEEK) == b""
+    except (OSError, ValueError):
+        return True
+
+
+def client_gone() -> NXError:
+    """The answer for a queued call whose client closed its socket before it started."""
+    return NXError(
+        "NX_CALL_EXPIRED",
+        "The client gave up on the call (closed its connection) before NX could run it, "
+        "so it did not run",
+        hint="Send the call again if it is still wanted",
+        retry="after_fix",
+        details={"mutation_outcome": "not_started"},
+    )
 
 
 @dataclass
@@ -194,7 +262,11 @@ class _BridgeRequestHandler(socketserver.StreamRequestHandler):
             params = request.get("params", {})
             if not isinstance(method, str) or not isinstance(params, dict):
                 raise NXError("NX_INVALID_ARGUMENT", "Bridge method and params are invalid")
-            result = self.server.executor(method, params)
+            _peer.socket = self.connection
+            try:
+                result = self.server.executor(method, params)
+            finally:
+                _peer.socket = None
             from nx_mcp.result_transport import bound_result
 
             result = bound_result(result, self.server.result_directory)
@@ -349,6 +421,10 @@ class _PendingBridgeCall:
     parked: bool = False
     # Answered early by ``MainThreadDispatcher.fail_running``; the late result is dropped.
     answered: bool = False
+    # The client's socket (None outside a bridge worker): closed = the client gave up.
+    peer: Any = None
+    # Monotonic time the request card first showed this call (Ask me first): its clock.
+    shown_at: float | None = None
 
 
 class MainThreadDispatcher:
@@ -361,12 +437,15 @@ class MainThreadDispatcher:
         timeout: float = DISPATCHER_TIMEOUT,
         queue_timeout: float | None = None,
         progress: Event | None = None,
+        run_timeout: Callable[[str], float] | None = None,
     ) -> None:
-        """``timeout`` bounds a call from its start, ``queue_timeout`` (default:
+        """``timeout`` bounds a call from its start (``run_timeout(method)`` instead when
+        given, e.g. :func:`run_timeout` per cost class), ``queue_timeout`` (default:
         ``timeout``) its wait in the queue. ``progress`` is set whenever a call is
         queued."""
         self._executor = executor
         self._timeout = timeout
+        self._run_timeout = run_timeout
         self._queue_timeout = timeout if queue_timeout is None else queue_timeout
         self._calls: Queue[_PendingBridgeCall] = Queue()
         self._lock = Lock()
@@ -396,7 +475,7 @@ class MainThreadDispatcher:
         pending.complete.set()
 
     def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        pending = _PendingBridgeCall(method, params)
+        pending = _PendingBridgeCall(method, params, peer=getattr(_peer, "socket", None))
         with self._lock:
             if self._stopped:
                 raise NXError(
@@ -422,20 +501,30 @@ class MainThreadDispatcher:
         """Wait up to the queue timeout for the call to start, then up to the
         dispatcher timeout from its start for it to finish."""
         deadline = pending.queued_at + self._queue_timeout
+        limit = self._run_timeout(pending.method) if self._run_timeout else self._timeout
         while not pending.complete.wait(max(0.0, deadline - time.monotonic())):
             with self._lock:
                 started = pending.started
                 if not started:
                     pending.cancelled = True
                 else:
-                    deadline = (pending.started_at or pending.queued_at) + self._timeout
+                    deadline = (pending.started_at or pending.queued_at) + limit
             if started and time.monotonic() < deadline:
                 continue
+            if started:
+                raise NXError(
+                    "NX_BRIDGE_UNAVAILABLE",
+                    f"NX did not finish the call within {limit:.0f} s of starting it and may "
+                    "still be running. Query the operation receipt before retrying.",
+                    retryable=False,
+                    details={"mutation_outcome": "unknown"},
+                )
             raise NXError(
                 "NX_BRIDGE_UNAVAILABLE",
-                "NX did not complete the bridge request before the timeout. Query the operation receipt before retrying a started mutation.",
-                retryable=not started,
-                details={"mutation_outcome": "unknown" if started else "not_started"},
+                f"The call waited {self._queue_timeout:.0f} s in NX's queue behind other work "
+                "and did not start; it is safe to retry.",
+                retryable=True,
+                details={"mutation_outcome": "not_started"},
             )
 
     def drain(self, timeout: float = 0.0, *, limit: int = 1) -> int:
@@ -459,9 +548,13 @@ class MainThreadDispatcher:
                 return processed
 
     def waiting(self) -> list[_PendingBridgeCall]:
-        """Queued calls that have not started or expired, oldest first."""
+        """Queued calls that have not started or expired, oldest first. Expired calls
+        (their caller already has its answer) leave the queue here."""
         with self._calls.mutex:
-            return [pending for pending in self._calls.queue if not pending.cancelled]
+            queue = self._calls.queue
+            for pending in [p for p in queue if p.cancelled]:
+                queue.remove(pending)
+            return list(queue)
 
     def drain_where(self, accept: Callable[[_PendingBridgeCall], bool]) -> int:
         """Execute the oldest queued call that ``accept`` allows; leave the rest queued."""
@@ -483,7 +576,9 @@ class MainThreadDispatcher:
             pending.error = NXError(
                 error.code,
                 error.message,
+                hint=error.hint,
                 retryable=error.retryable,
+                retry=error.retry,
                 details={**error.details, "mutation_outcome": "not_started"},
             )
             self._finish(pending)
@@ -514,6 +609,10 @@ class MainThreadDispatcher:
                     retryable=True,
                     details={"mutation_outcome": "not_started"},
                 )
+                self._finish(pending)
+                return
+            if peer_closed(pending.peer):  # the client gave up (MCP cancel): never a ghost
+                pending.error = client_gone()
                 self._finish(pending)
                 return
             pending.started = True
@@ -552,14 +651,26 @@ class MainThreadDispatcher:
 
 class BridgeClient:
     def __init__(
-        self, host: str, port: int, *, token: str, timeout: float = CLIENT_TIMEOUT
+        self,
+        host: str,
+        port: int,
+        *,
+        token: str,
+        timeout: float = CLIENT_TIMEOUT,
+        per_cost: bool = False,
     ) -> None:
+        """``timeout``: how long a call waits for NX; ``per_cost``: at least
+        :func:`client_timeout` of the method (heavy and long calls wait longer)."""
         if host != "127.0.0.1":
             raise ValueError("NX bridge must use the 127.0.0.1 loopback address")
         self.host = host
         self.port = port
         self.token = token
         self.timeout = timeout
+        self.per_cost = per_cost
+
+    def timeout_for(self, method: str) -> float:
+        return max(self.timeout, client_timeout(method)) if self.per_cost else self.timeout
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         request_id = uuid4().hex
@@ -573,6 +684,7 @@ class BridgeClient:
         }
         writer: asyncio.StreamWriter | None = None
         sent = False
+        timeout = self.timeout_for(method)
         try:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(
@@ -580,13 +692,13 @@ class BridgeClient:
                     self.port,
                     limit=_MAX_MESSAGE_BYTES + 1,
                 ),
-                timeout=self.timeout,
+                timeout=timeout,
             )
             assert writer is not None
             writer.write(json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n")
             await writer.drain()
             sent = True
-            raw = await asyncio.wait_for(reader.readline(), timeout=self.timeout)
+            raw = await asyncio.wait_for(reader.readline(), timeout=timeout)
         except ValueError as error:
             raise NXError(
                 "NX_RESPONSE_TOO_LARGE",
@@ -659,12 +771,17 @@ class DescriptorBridgeClient:
     """Reloads the bridge descriptor for every call so NX can restart independently."""
 
     def __init__(
-        self, descriptor_path: str | Path | None = None, *, timeout: float = CLIENT_TIMEOUT
+        self,
+        descriptor_path: str | Path | None = None,
+        *,
+        timeout: float = CLIENT_TIMEOUT,
+        per_cost: bool = True,
     ) -> None:
         self.descriptor_path = (
             Path(descriptor_path) if descriptor_path else default_descriptor_path()
         )
         self.timeout = timeout
+        self.per_cost = per_cost
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -686,6 +803,7 @@ class DescriptorBridgeClient:
             descriptor.port,
             token=descriptor.token,
             timeout=self.timeout,
+            per_cost=self.per_cost,
         ).call(method, params)
 
 

@@ -3,7 +3,8 @@
 Standard library only: the NX-side control panel imports this. Each entry says
 what ran (the request summary), what it created, and what happened to the
 model when it failed. Read-only steps are grouped so they do not push model
-changes out of the short panel history.
+changes out of the short panel history. While two or more parts are loaded, every
+step names the part file it acted on first (``[cover.prt] Extrude ...``).
 """
 
 from __future__ import annotations
@@ -65,6 +66,17 @@ class Entry:
     note: str | None = None  # an engineer or NX event, not an agent step
     label: str = "ENGINEER"  # the log column of a note
     mark: str = "✎"  # the panel mark of a note
+    part: str | None = None  # the target part's file (two or more parts loaded)
+
+    @property
+    def shown(self) -> str:
+        """The summary with the target part's file first, when known."""
+        return with_part(self.part, self.summary)
+
+
+def with_part(part: str | None, summary: str) -> str:
+    """``[cover.prt] Extrude ...``: a step's line names its part when it is known."""
+    return f"[{part}] {summary}" if part else summary
 
 
 def _clip(text: str, width: int = LINE_WIDTH) -> str:
@@ -124,6 +136,7 @@ class Activity:
         read_only: bool = False,
         result: dict[str, Any] | None = None,
         error: BaseException | None = None,
+        part: str | None = None,
     ) -> Entry:
         code = None
         if error is None and isinstance(result, dict) and result.get("status") == "error":
@@ -147,11 +160,12 @@ class Activity:
             reason=reason,
             code=code,
             created=created_name(result) if ok and isinstance(result, dict) else None,
+            part=part,
         )
         self._write(entry)
         last = self.entries[-1] if self.entries else None
         if read_only and ok:
-            if last is not None and last.inspections:
+            if last is not None and last.inspections and last.part == part:
                 last.inspections += 1
                 last.started = started
                 return last
@@ -195,20 +209,22 @@ class Activity:
             return _clip(f"{entry.mark}  {clock}  {entry.note}")
         if entry.inspections:
             steps = "step" if entry.inspections == 1 else "steps"
+            where = f"[{entry.part}] " if entry.part else ""
             return _clip(
-                f"·  {clock}  {entry.inspections} read-only or view {steps} (model unchanged)"
+                f"·  {clock}  {where}{entry.inspections} read-only or view {steps} "
+                "(model unchanged)"
             )
         # The summary gives way first: the result and the model state must stay visible.
         if entry.ok:
             made = f" → {_clip(entry.created, 24)}" if entry.created else ""
             tail = f"{made}  {entry.duration:.1f} s"
             head = f"✓  {clock}  "
-            return head + _clip(entry.summary, LINE_WIDTH - len(head) - len(tail)) + tail
+            return head + _clip(entry.shown, LINE_WIDTH - len(head) - len(tail)) + tail
         state = _MODEL_STATE.get(entry.outcome or "", "outcome unknown, check the model")
         mark = "✗" if entry.outcome in _UNCHANGED else "⚠"
         head = f"{mark}  {clock}  "
         room = max(20, LINE_WIDTH - len(head) - len(state) - 3)
-        line = f"{head}{_clip(entry.summary, room)} — {state}"
+        line = f"{head}{_clip(entry.shown, room)} — {state}"
         reason = _SHORT_REASON.get(entry.code or "", entry.reason)
         if reason and len(line) + 4 < LINE_WIDTH:
             line += " " + _clip(f"({reason})", LINE_WIDTH - len(line) - 1)
@@ -226,11 +242,11 @@ class Activity:
             text = f"{stamp}  {entry.label}  {entry.note}"
         elif entry.ok:
             made = f" → {entry.created}" if entry.created else ""
-            text = f"{stamp}  OK      {entry.summary}{made}  ({entry.duration:.1f} s)"
+            text = f"{stamp}  OK      {entry.shown}{made}  ({entry.duration:.1f} s)"
         else:
             state = _MODEL_STATE.get(entry.outcome or "", "outcome unknown, check the model")
             code = f"{entry.code}: " if entry.code else ""
-            text = f"{stamp}  FAILED  {entry.summary} — {state}: {code}{entry.reason}"
+            text = f"{stamp}  FAILED  {entry.shown} — {state}: {code}{entry.reason}"
         if entry.method:
             text += f"  [{entry.method}]"
         if entry.intent:

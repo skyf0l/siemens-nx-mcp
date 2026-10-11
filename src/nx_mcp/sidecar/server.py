@@ -69,9 +69,16 @@ AGENT_INSTRUCTIONS = (
     "'10 mm'/'90 deg' or an NX expression name or formula ('thickness', 'thickness/2'), which "
     "keeps extrude, revolve, hole, pattern, blend and chamfer values driven by the expression. "
     "Options match in any case or spacing ('Through All'). When two or more parts are loaded, "
-    'add the target part\'s file name to calls without refs: {"part": "housing", ...}; '
+    "add the target part's file name to the arguments of every call without refs, the listed "
+    'core tools included (their schemas leave part out): {"part": "housing", ...}; '
     "nx_list_parts lists them."
 )
+# The ref-less core tools (nx_list_components, nx_list_objects, nx_get_model_summary,
+# nx_find_geometry, nx_check_model, nx_capture_view, nx_undo_operation) take ``part``
+# directly although their strict listed schemas leave it out (the agent listing has no
+# room for it): the server does not validate input against them (install:
+# validate_input=False) and the proxy pops the call keys before gate 1. Claude Code sends
+# a key a schema leaves out (checked live in phase P5).
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
 # nx_find_tools: default rows for one query and per query of ``queries``; a query with more
 # words than this, or joining tasks (``,`` ``;`` ``+`` "and" "then"), earns a hint to split

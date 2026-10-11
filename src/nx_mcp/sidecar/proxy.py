@@ -27,6 +27,7 @@ from urllib.parse import quote
 from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
 from pydantic import AnyUrl, ValidationError
 
+from nx_mcp.bridge import start_deadline
 from nx_mcp.core import errors, evidence, target
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
@@ -473,7 +474,9 @@ class CatalogueProxy:
         self, spec, arguments: dict | None, *, intent: str | None = None, detail: str = "compact"
     ) -> CallToolResult:
         # The target keys (part, expires_at) go to NX untouched: the kernel
-        # validates and resolves them (core/target.py, gate 3t).
+        # validates and resolves them (core/target.py, gate 3t). Direct core tools take
+        # them too: their listed schemas leave them out, but the server does not
+        # validate input against them (install: validate_input=False).
         args, keys = target.split_call_keys(spec, dict(arguments or {}))
         operation_id = args.pop("operation_id", None)
         intent = args.pop("intent", None) or intent
@@ -513,6 +516,10 @@ class CatalogueProxy:
                 envelope = _project(envelope, self.store)
             return result(envelope, extra=self._attachments(envelope))
         params.update(keys)
+        if spec.effect != "read" and "expires_at" not in params:
+            # The ghost guard (A27): a changing call NX cannot start within the bridge's
+            # queue time of being sent never runs (bridge.start_deadline).
+            params["expires_at"] = round(start_deadline(), 3)
         if operation_id:
             params["operation_id"] = operation_id
         if intent:

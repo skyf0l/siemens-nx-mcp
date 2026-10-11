@@ -431,18 +431,24 @@ def test_ask_run_and_switch_to_auto(host):
     assert later.error is None and host.waiting_count == 0  # Auto: no card
 
 
-def test_not_now_declines_every_waiting_request(host):
+def test_not_now_declines_only_the_shown_request(host):
     queue = _queue(host, "ask")
     first = queue.submit("nx_set_camera")
     second = queue.submit("nx_list_objects", BODIES)
     host.tick()
-    assert host.waiting_count == 2 and "(+1 more)" in host.panel_text()
+    text = host.panel_text()
+    assert host.waiting_count == 2 and "for this step (1 more waiting)" in text
+    assert "Fit the view" in text and "List body objects" not in text  # one call per card
     host.answer_requested = "decline"
     host.tick()
-    for pending in (first, second):
-        assert pending.complete.is_set() and pending.error.code == "NX_CONTROL_DECLINED"
-        assert pending.error.details["mutation_outcome"] == "not_started"
-    assert host.mode == "ask" and "You declined" in host.panel_text()
+    assert first.complete.is_set() and first.error.code == "NX_CONTROL_DECLINED"
+    assert first.error.details["mutation_outcome"] == "not_started"
+    assert not second.complete.is_set() and host.waiting_count == 1  # now on the card
+    assert "List body objects" in host.panel_text() and host.mode == "ask"
+    host.answer_requested = "decline"
+    host.tick()
+    assert second.error.code == "NX_CONTROL_DECLINED" and host.waiting_count == 0
+    assert "You declined" in host.panel_text()
 
 
 def test_unanswered_request_expires_without_running(host):
@@ -688,6 +694,7 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
         "waiting": 0,
         "activity": "running",
         "running": "nx_test_busy",
+        "queue": {"waiting": 0, "oldest_seconds": None},
     }
     host.dispatcher.drain.assert_not_called()
     assert host.status()["activity"] == "idle"

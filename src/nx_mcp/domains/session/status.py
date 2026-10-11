@@ -53,6 +53,11 @@ RULES = {
 MODE_LABELS = {"auto": "Auto", "ask": "Ask me first"}
 
 
+class QueueData(TypedDict):
+    waiting: int  # agent calls queued for NX (any reason: running call, card, busy engineer)
+    oldest_seconds: float | None  # how long the oldest of them has waited
+
+
 class ControlData(TypedDict):
     mode: str  # the NX MCP panel mode: auto or ask
     mode_label: str  # the panel's name for the mode: Auto or Ask me first
@@ -60,6 +65,7 @@ class ControlData(TypedDict):
     waiting: int  # agent calls waiting for the engineer's answer (Ask me first)
     activity: str  # running, waiting_for_answer, waiting_for_engineer_command or idle
     running: str | None  # the agent call running now
+    queue: QueueData  # every agent call waiting for NX (status reads never wait)
 
 
 def control_data(status: dict) -> ControlData:
@@ -72,6 +78,16 @@ def control_data(status: dict) -> ControlData:
         "waiting": int(status.get("waiting_for_engineer") or 0),
         "activity": str(status.get("activity") or "idle"),
         "running": status.get("running_method") or None,
+        "queue": _queue(status.get("queue")),
+    }
+
+
+def _queue(raw) -> QueueData:
+    raw = raw if isinstance(raw, dict) else {}
+    oldest = raw.get("oldest_seconds")
+    return {
+        "waiting": int(raw.get("waiting") or 0),
+        "oldest_seconds": float(oldest) if isinstance(oldest, (int, float)) else None,
     }
 
 

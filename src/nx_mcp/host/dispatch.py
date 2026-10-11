@@ -258,6 +258,36 @@ def set_grant(services, allow: bool) -> str | None:
     return str(getattr(part, "Name", "") or services.part_path(part))
 
 
+def target_file(services, method: str, params: dict) -> str | None:
+    """The file name of the part a call acts on, for the panel and the activity log
+    (``[cover.prt] Extrude ...``): only while two or more parts are loaded (one part:
+    None, the lines stay as they were). Gate 3t without side effects on NX; a call whose
+    target cannot be resolved yet shows its ``part`` key, else nothing."""
+    try:
+        if len(list(services.parts() or [])) < 2:
+            return None
+    except Exception:
+        return None
+    spec = catalogue.get(method)
+    if spec is None:  # a development tool runs in the work part
+        with contextlib.suppress(Exception):
+            work = services.work_part()
+            return target.file_name(work) if work is not None else None
+        return None
+    args, keys = target.split_call_keys(spec, params)
+    text = keys.get("part")
+    try:
+        args = {k: v for k, v in args.items() if k not in CALL_KEYS}
+        checked = spec.check(args)
+        found = target.resolve(spec, checked, services, part=text)
+        return found.file if found is not None else None
+    except Exception:
+        if isinstance(text, str) and text.strip():
+            name = text.strip().replace("\\", "/").rsplit("/", 1)[-1]
+            return name if name.casefold().endswith(".prt") else name + ".prt"
+        return None
+
+
 def render_summary(services, method: str, params: dict, *, path_of=None) -> str | None:
     """The panel line of a catalogue call (None for other methods)."""
     spec = catalogue.get(method)
@@ -293,4 +323,5 @@ __all__ = [
     "run",
     "run_dev_tool",
     "set_grant",
+    "target_file",
 ]

@@ -62,6 +62,7 @@ def test_status_reads_the_panel_mode_and_filters_sections(monkeypatch):
         "waiting": 0,
         "activity": "idle",
         "running": None,
+        "queue": {"waiting": 0, "oldest_seconds": None},
     }
     assert ok.data["bridge"]["interactive"] is True
 

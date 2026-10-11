@@ -12,10 +12,10 @@
   "nx_cancel_operation": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T15:46:38Z",
+      "recorded": "2026-10-11T18:42:31Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
-      "source_sha256": "de072a26708b1ff7c297e5cc6b523ab7966adb3ea020351a2e16eeb66b26e6ae",
+      "source_sha256": "3d9070d16044940f6010857d240875423698d251e5a70ff3581639aa4cef8092",
       "variants": []
     }
   },
@@ -65,10 +65,10 @@
   "nx_get_operation": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T15:46:38Z",
+      "recorded": "2026-10-11T18:42:31Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
-      "source_sha256": "de072a26708b1ff7c297e5cc6b523ab7966adb3ea020351a2e16eeb66b26e6ae",
+      "source_sha256": "3d9070d16044940f6010857d240875423698d251e5a70ff3581639aa4cef8092",
       "variants": []
     }
   },
@@ -85,10 +85,10 @@
   "nx_get_status": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T15:46:38Z",
+      "recorded": "2026-10-11T18:42:31Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
-      "source_sha256": "de072a26708b1ff7c297e5cc6b523ab7966adb3ea020351a2e16eeb66b26e6ae",
+      "source_sha256": "3d9070d16044940f6010857d240875423698d251e5a70ff3581639aa4cef8092",
       "variants": []
     }
   },
@@ -115,7 +115,7 @@
   "nx_redo_operation": {
     "v2406": {
       "checks": 71,
-      "recorded": "2026-10-11T17:34:32Z",
+      "recorded": "2026-10-11T18:42:25Z",
       "scenario": "acceptance/session/redo_replay.json",
       "scenario_sha256": "f4cf0171d042598a1bf29442a1be7aa9f4bb474475a1b552512d20946127e144",
       "source_sha256": "1e841015286e141213bf6eb7f64abaaa96f5554de030ed905fbb2ba31ec2a15a",

@@ -1,12 +1,14 @@
 """Generated MCP surface: profiles, gateways and catalogue proxy."""
 
 import json
+import time
 from typing import Annotated, TypedDict
 from unittest.mock import AsyncMock
 
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
+from nx_mcp.bridge import QUEUE_TIMEOUT
 from nx_mcp.core import catalogue, evidence
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.types import PartRef, PathTo
@@ -224,6 +226,8 @@ async def test_invoke_forwards_validated_arguments_with_intent_and_operation_id(
     assert not result.isError and body(result)["data"]["feature"]["id"] == "f:2"
     method, params = bridge.call.call_args.args
     assert method == "nx_create_datum_plane"
+    expires = params.pop("expires_at")  # the ghost guard's start deadline (bridge.py)
+    assert abs(expires - (time.time() + QUEUE_TIMEOUT)) < 5
     assert params == {**OFFSET, "operation_id": "op_retry", "intent": "Add the mounting plane"}
     assert json.loads(result.content[0].text) == body(result)
 

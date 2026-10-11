@@ -18,6 +18,7 @@ from nx_mcp.bridge import (
     BridgeServer,
     MainThreadDispatcher,
     default_descriptor_path,
+    run_timeout,
 )
 from nx_mcp.workspace import Workspace
 
@@ -99,7 +100,8 @@ def start_bridge(
     services = NXServices(session, NXOpen, build, Workspace(workspace_root))
     token = secrets.token_hex(32)
     dispatcher = MainThreadDispatcher(
-        lambda method, params: dispatch.execute(services, method, params)
+        lambda method, params: dispatch.execute(services, method, params),
+        run_timeout=run_timeout,
     )
     server = BridgeServer(
         dispatcher.call,

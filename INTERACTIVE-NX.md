@@ -108,22 +108,30 @@ rollback. If you changed nothing, the agent continues where it was.
 **NX MCP — Agent is waiting**, the NX taskbar button flashes (focus is never
 taken), and the panel shows what the agent wants in plain words, built from the
 request's real arguments and the objects' NX names, for example
-`▶ Agent wants to: Extrude "profile" 10 mm (+2 more)`. If the agent added a note
+`▶ Agent wants to: Extrude "profile" 10 mm`. The card shows one step at a time,
+the oldest waiting one; when more wait it says so (`Answer within 42 s for this
+step (2 more waiting)`), and your answer applies to the step shown only. While
+two or more parts are loaded, the step names the part file it works in first:
+`▶ Agent wants to: [cover.prt] Extrude "profile" 10 mm`. If the agent added a note
 (`nx_invoke(..., intent="Add the 10 mm mounting boss")`), it is shown below,
 quoted and labelled as the agent's note. You then choose:
 
-- **Run once**: the waiting steps run in order; the panel stays in Ask me first,
-  so the next step asks again.
-- **Run & switch to Auto**: the waiting steps run and the panel switches to Auto.
-- **Not now**: they fail with `NX_CONTROL_DECLINED`; the agent is told to ask in chat.
-- No answer within 60 s: they fail with `NX_CONTROL_PAUSED` and nothing ran.
+- **Run once**: the step shown runs; the panel stays in Ask me first, so the next
+  step shows its own card.
+- **Run & switch to Auto**: the step shown runs and the panel switches to Auto; the
+  steps still waiting then run as in Auto.
+- **Not now**: the step shown fails with `NX_CONTROL_DECLINED`; the agent is told to
+  ask in chat. The next waiting step gets its own card.
+- No answer within 60 s of a step's card: that step fails with `NX_CONTROL_PAUSED`
+  and did not run. Each step has its own 60 s.
 
 Picking Ask me first while the agent works pauses after the current step.
 
 **What the agent sees.** Only the status read (`nx_get_status`) never waits. Its
 `control` section reports `mode` (`auto` or `ask`), `mode_label` (`Auto` or
-`Ask me first`), `busy` (you are in an NX command or dialog), `waiting` (steps on
-the request card), `activity` and the step `running` now. No tool changes the
+`Ask me first`), `busy` (you are in an NX command or dialog), `waiting` (steps
+waiting for your answer), `activity`, the step `running` now and `queue` (the steps
+waiting for NX, and how long the oldest has waited). No tool changes the
 mode: the agent asks you in chat when it needs another one.
 
 The mode you pick is kept when the bridge restarts in the same NX session
@@ -141,8 +149,15 @@ read 14 / 22 ms (124 / 188), `nx_list_parts` 16 / 23 ms (156 / 186), a datum
 plane 40 / 50 ms (181 / 227); through a fresh MCP sidecar `nx_invoke` of the read
 26 / 45 ms (145 / 180) and of the datum plane 58 / 88 ms (191 / 234). Auto costs
 the same. `NX_MCP_FAST_WAKE=0` (set for NX) falls back to the timer. A request
-may wait in NX's queue up to 135 s (busy engineer, unanswered card) and then has
-up to 120 s to run; the sidecar waits 270 s in all.
+may wait in NX's queue up to 135 s (busy engineer, unanswered card, another
+step running) and then has up to 120 s to run (a heavy step 330 s, a long one
+such as an import or export 1830 s); the sidecar waits for that plus 15 s. A
+step that could not start within 135 s of being sent, or whose agent gave up
+(cancelled the call), never runs later: it fails with `NX_CALL_EXPIRED`.
+
+While two or more parts are loaded, every line of the panel history and of
+`.nx-mcp/activity.log` names the part file the step worked in first, e.g.
+`✓  14:32:40  [cover.prt] Extrude "profile" 10 mm → EXTRUDE(3)  0.4 s`.
 
 ## Your parts and the agent's parts
 

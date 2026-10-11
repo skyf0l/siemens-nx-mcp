@@ -23,7 +23,16 @@ them):
   open (``NX_MODAL_DIALOG_OPEN``). No request card: long steps simply run.
 - ``ask`` ("Ask me first", alias ``manual``): every call but the status read waits
   for the engineer's answer on the request card (Run once, Run & switch to Auto,
-  Not now).
+  Not now). The card shows one call at a time, the oldest waiting one, and an answer
+  applies to that call only; each call has its own HOLD_SECONDS clock from the moment
+  the card shows it. "Run & switch to Auto" runs the shown call and switches the mode:
+  the calls still queued then run under Auto's rules. A call that needs no answer (the
+  status read, an approved call) never waits behind the card.
+
+While two or more parts are loaded, the running line, the card and every activity
+line name the target part's file first (``[cover.prt] Extrude ...``); with one part
+the lines are as they were. A queued call whose client gave up (closed its socket, or
+its ``expires_at`` passed) is answered NX_CALL_EXPIRED and never shown or run.
 
 Requests wake the host at once: the listening socket posts FD_ACCEPT to the
 panel window (``WSAAsyncSelect``), which runs a tick right away. NX holds
@@ -471,6 +480,7 @@ class InteractiveHost:
     open_log_requested = False
     grant_toggle_requested = False
     current_summary = None
+    current_part = None  # the running call's target file (two or more parts loaded)
     current_intent = None
     current_started_at = None
     window_disabled = False
@@ -494,6 +504,7 @@ class InteractiveHost:
             BridgeDescriptor,
             BridgeServer,
             MainThreadDispatcher,
+            run_timeout,
         )
         from nx_mcp.host.services import NXServices
         from nx_mcp.workspace import Workspace, default_workspace
@@ -542,7 +553,7 @@ class InteractiveHost:
         token = secrets.token_hex(32)
         progress = threading.Event()  # Set by bridge workers: a call queued or answered.
         self.dispatcher = MainThreadDispatcher(
-            self.execute, queue_timeout=QUEUE_TIMEOUT, progress=progress
+            self.execute, queue_timeout=QUEUE_TIMEOUT, progress=progress, run_timeout=run_timeout
         )
         self.server = BridgeServer(
             self.dispatch,
@@ -772,9 +783,43 @@ class InteractiveHost:
         return "\n".join(lines + self.history_lines(self.panel_rows - len(lines)))
 
     def _summary_of(self, pending):
+        """The call's panel line: its target part's file first while two or more parts
+        are loaded (``[cover.prt] Extrude ...``), computed once."""
         if pending.summary is None:
-            pending.summary = self._summarize(pending.method, pending.params)
+            from nx_mcp.activity import with_part
+
+            pending.summary = with_part(
+                self._target_file(pending.method, pending.params),
+                self._summarize(pending.method, pending.params),
+            )
         return pending.summary
+
+    def _target_file(self, method, params):
+        """The target part's file of a call while two or more parts are loaded, else
+        None; a courtesy that never fails a call (``dispatch.target_file``)."""
+        try:
+            from nx_mcp.host.dispatch import target_file
+
+            return target_file(self.services, method, params)
+        except Exception:
+            return None
+
+    def _ran_in(self, result, error):
+        """After a call: the file its envelope names (``envelope.part``) while two or
+        more parts are loaded, else the target found before it ran."""
+        envelope = result if isinstance(result, dict) else None
+        details = getattr(error, "details", None)
+        if envelope is None and isinstance(details, dict):
+            envelope = details.get("envelope")
+        row = envelope.get("part") if isinstance(envelope, dict) else None
+        file = row.get("file") if isinstance(row, dict) else None
+        if isinstance(file, str) and file:
+            try:
+                if len(list(self.services.parts() or [])) >= 2:
+                    return file
+            except Exception:
+                pass
+        return self.current_part
 
     def panel_text(self):
         from nx_mcp.activity import LINE_WIDTH, _clip
@@ -784,19 +829,23 @@ class InteractiveHost:
             # time rather than a counter that would appear frozen.
             started = time.strftime("%H:%M:%S", time.localtime(self.current_started_at))
             head, tail = f"▶  {started}  ", _running_tail(self.running_method)
-            summary = self.current_summary or self.running_method
+            from nx_mcp.activity import with_part
+
+            summary = with_part(self.current_part, self.current_summary or self.running_method)
             lines = [head + _clip(summary, LINE_WIDTH - len(head) - len(tail)) + tail]
             if self.current_intent:
                 indent = " " * (len(head) + 2)
                 lines.append(indent + _clip(f"“{self.current_intent}”", LINE_WIDTH - len(indent)))
             return self._with_history(lines)
         if self.waiting_count:
-            more = f"  (+{self.waiting_count - 1} more)" if self.waiting_count > 1 else ""
-            lines = [f"▶ Agent wants to: {self.waiting_summary}{more}"]
+            # The card shows one call; an answer applies to that call only.
+            lines = [f"▶ Agent wants to: {self.waiting_summary}"]
             if self.waiting_intent:
                 lines.append(f"   “{self.waiting_intent}”  (agent's note)")
-            left = max(0, int(HOLD_SECONDS - (time.monotonic() - self.waiting_since)))
-            lines.append(f"Answer within {left} s. Finish your current NX command first.")
+            left = max(0, int(self._hold_left()))
+            more = self.waiting_count - 1
+            scope = f" for this step ({more} more waiting)" if more else ""
+            lines.append(f"Answer within {left} s{scope}. Finish your current NX command first.")
             return "\n".join(lines)
         if self.busy_wait is not None:
             pending = self.busy_wait
@@ -876,6 +925,7 @@ class InteractiveHost:
             "waiting_seconds": (
                 time.monotonic() - self.waiting_since if self.waiting_since is not None else None
             ),
+            "queue": self._queue_state(),
             "uptime_seconds": time.time() - self.started,
             "request_wake": "fd_accept" if self._fast_accept else "timer",
             "scheduler": {
@@ -884,6 +934,18 @@ class InteractiveHost:
             }.get(self.driver, "Win32 UI-thread timer; one queued call per tick"),
             "driver": self.driver,
         }
+
+    def _queue_state(self):
+        """``{waiting, oldest_seconds}``: agent calls queued for NX (not the status
+        read) and how long the oldest has waited."""
+        try:
+            held = [p for p in self.dispatcher.waiting() if not self._never_waits(p)]
+        except Exception:
+            return {"waiting": 0, "oldest_seconds": None}
+        if not held:
+            return {"waiting": 0, "oldest_seconds": None}
+        oldest = min(p.queued_at for p in held)
+        return {"waiting": len(held), "oldest_seconds": round(time.monotonic() - oldest, 1)}
 
     # -- panel mode ------------------------------------------------------------
 
@@ -1105,6 +1167,7 @@ class InteractiveHost:
         self.operation_started = time.monotonic()
         # Summarize before running: a delete removes the names it would show.
         self.current_summary = self._summarize(method, params)
+        self.current_part = self._target_file(method, params)
         self.current_intent = params.get("intent")
         self.current_operation_id = params.get("operation_id")
         self.current_started_at = time.time()
@@ -1163,12 +1226,14 @@ class InteractiveHost:
                     read_only=_model_unchanged(method),
                     result=result,
                     error=error,
+                    part=self._ran_in(result, error),
                 )
             except Exception as exc:
                 self.last_error = "Activity history: " + str(exc)
             self.running_method = None
             self.operation_started = None
             self.current_summary = self.current_intent = self.current_started_at = None
+            self.current_part = None
             self._remember_model()
             try:
                 self.publish()
@@ -1346,6 +1411,7 @@ class InteractiveHost:
         """Run at most one agent call; True when one ran."""
         if self.dispatcher.drain_where(self._never_waits):
             return True
+        self._reject_gone()
         held = [p for p in self.dispatcher.waiting() if not self._never_waits(p)]
         if not held:
             self._clear_waiting()
@@ -1357,7 +1423,7 @@ class InteractiveHost:
                 pending.seen_at = now
         card = [p for p in held if self._needs_answer(p)]
         if card:
-            self._show_card(card)  # May expire the card: those calls are answered.
+            self._show_card(card)  # May expire the shown call: it is answered.
         else:
             self._clear_waiting()
         if self.mode == "auto":
@@ -1368,14 +1434,42 @@ class InteractiveHost:
             if read is not None:
                 self.busy_wait = None
                 return self._run_light(read, take=not self.engineer_busy())
-        first = held[0]
-        if self._needs_answer(first) or first.complete.is_set():
+        # Calls run in order, except that a call needing no answer (approved on the
+        # card) never waits behind one that does.
+        first = next(
+            (p for p in held if not self._needs_answer(p) and not p.complete.is_set()), None
+        )
+        if first is None:
             self.busy_wait = None
-            return False  # Calls run in order: the rest waits behind the card.
+            return False
         if not _read_only(first.method) and self.engineer_busy():
             return self._wait_for_engineer([first])
         self.busy_wait = None
         return self._run_light(first)
+
+    def _gone(self, pending):
+        """Whether a queued call's client gave up: it closed its socket (an MCP
+        cancellation), or the call changes something and its ``expires_at`` passed."""
+        from nx_mcp.bridge import peer_closed
+        from nx_mcp.core import target
+
+        if peer_closed(getattr(pending, "peer", None)):
+            return True
+        if _read_only(pending.method):
+            return False
+        try:
+            expires = target.check_call_keys(None, pending.params.get("expires_at"))
+        except Exception:
+            return False  # malformed: the kernel answers it with the field
+        return expires is not None and time.time() > expires
+
+    def _reject_gone(self):
+        """Answer queued calls whose client gave up before they are shown or run."""
+        from nx_mcp.bridge import client_gone
+
+        gone = {id(p) for p in self.dispatcher.waiting() if self._gone(p)}
+        if gone:
+            self.dispatcher.reject_where(lambda p: id(p) in gone, client_gone())
 
     def _unasked_read(self, pending):
         return (
@@ -1420,12 +1514,19 @@ class InteractiveHost:
         return False
 
     def _show_card(self, waiting):
+        """Show the oldest call waiting for an answer, on its own clock: the clock
+        (``waiting_since``) starts when the card shows that call."""
+        now = time.monotonic()
+        shown = waiting[0]
         if self.waiting_since is None:
-            self.waiting_since = time.monotonic()
             self.notice = None
             self._flash_nx()
-        self.card = tuple(waiting)
-        if time.monotonic() - self.waiting_since >= HOLD_SECONDS:
+        if not self.card or self.card[0] is not shown:
+            if shown.shown_at is None:
+                shown.shown_at = now
+            self.waiting_since = shown.shown_at
+        self.card = (shown,)
+        if self._hold_left(now) <= 0:
             self._reject_card(
                 NXError(
                     "NX_CONTROL_PAUSED",
@@ -1436,12 +1537,27 @@ class InteractiveHost:
                 f"The agent's request expired after {HOLD_SECONDS} s without an answer.",
             )
             return
-        first = waiting[0]
         self.waiting_count = len(waiting)
-        self.waiting_summary = self._summary_of(first)
-        self.waiting_intent = first.params.get("intent")
+        self.waiting_summary = self._summary_of(shown)
+        self.waiting_intent = shown.params.get("intent")
+
+    def _hold_left(self, now=None):
+        """Seconds the shown call may still wait for an answer: its own HOLD_SECONDS,
+        ending a little before the bridge stops waiting for it (QUEUE_TIMEOUT)."""
+        from nx_mcp.bridge import QUEUE_TIMEOUT
+
+        now = time.monotonic() if now is None else now
+        if self.waiting_since is None:
+            return HOLD_SECONDS
+        left = HOLD_SECONDS - (now - self.waiting_since)
+        if self.card:
+            queued = getattr(self.card[0], "queued_at", None)
+            if isinstance(queued, (int, float)):
+                left = min(left, QUEUE_TIMEOUT - 5 - (now - queued))
+        return left
 
     def _reject_card(self, error, notice):
+        """Answer the call the card shows (only that one) with ``error``."""
         shown = {id(p) for p in self.card}
         self.dispatcher.reject_where(lambda p: id(p) in shown, error)
         self._clear_waiting()
@@ -1462,11 +1578,11 @@ class InteractiveHost:
                 "You declined the agent's request.",
             )
             return
-        for pending in self.card:
+        for pending in self.card:  # the shown call only
             pending.approved = True
         self._clear_waiting()
         if answer == "run_auto":
-            self.set_mode("auto")
+            self.set_mode("auto")  # the calls still queued run under Auto's rules
 
     def _clear_waiting(self):
         self.card = ()
