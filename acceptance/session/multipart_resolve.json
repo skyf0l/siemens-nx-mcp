@@ -29,8 +29,8 @@
    "expect": {"mutation_outcome": "committed", "data.volume": {"close": 4500, "tol": 1e-06},
               "part.file": "mp_plate_p0.prt", "part.from": "part", "part.id": "$plate.data.part.id"}},
   {"call": "nx_get_feature", "args": {"feature": "$blkc.data.feature.id"},
-   "intent": "Acceptance: a ref of the other part needs no part and behaves as before (the tool's own refusal)",
-   "expect": {"ok": false, "error.code": "NX_WRONG_OWNER", "part.file": "mp_cover_p0.prt", "part.from": "refs"}},
+   "intent": "Acceptance: a ref of the other part needs no part: the read runs in that part (gate 4s)",
+   "expect": {"ok": true, "data.feature.id": "$blkc.data.feature.id", "part.file": "mp_cover_p0.prt", "part.from": "refs"}},
   {"call": "nx_get_feature", "args": {"feature": "$blkp.data.feature.id"},
    "intent": "Acceptance: refs of the work part pin it",
    "expect": {"ok": true, "part.file": "mp_plate_p0.prt", "part.from": "refs"}},
@@ -53,11 +53,11 @@
    "intent": "Acceptance: the same call in the same part replays",
    "expect": {"mutation_outcome": "committed", "replayed": true}},
   {"call": "nx_set_attributes", "args": {"attributes": {"MP_P0": "cover"}, "part": "MP_COVER_P0"},
-   "intent": "Acceptance: part names a part that is not the work part: refused, nothing switched",
-   "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/part",
-              "mutation_outcome": "not_started", "part.file": "mp_cover_p0.prt",
-              "error.message": {"matches": "work part is mp_plate_p0\\.prt"},
-              "error.hint": {"matches": "nx_activate_part"}}},
+   "intent": "Acceptance: part names a part that is not the work part: the call runs there (gate 4s)",
+   "expect": {"mutation_outcome": "committed", "part.file": "mp_cover_p0.prt", "part.from": "part"}},
+  {"call": "nx_list_parts", "args": {},
+   "intent": "Acceptance: and the plate is the display and work part again",
+   "expect": {"data.items": {"contains": {"part": {"id": "$plate.data.part.id"}, "display": true, "work": true}}}},
   {"call": "nx_get_feature", "args": {"feature": "$blkp.data.feature.id", "part": "mp_cover_p0"},
    "intent": "Acceptance: a read whose part contradicts its refs is refused",
    "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/part",
@@ -91,7 +91,7 @@
    "args": {"attributes": {"MP_P0": "ghost"}, "part": "mp_cover_p0", "expires_at": "2000-01-01T00:00:00Z"},
    "expect": {"ok": false, "error.code": "NX_CALL_EXPIRED", "mutation_outcome": "not_started"}},
   {"call": "nx_get_attributes", "args": {"names": ["MP_P0"], "part": "mp_cover_p0", "expires_at": 1},
-   "intent": "Acceptance: an expired read still answers; the ghost calls changed nothing",
-   "expect": {"ok": true, "data.items.0.attributes": {"count": 0}, "part.file": "mp_cover_p0.prt"}}
+   "intent": "Acceptance: an expired read still answers; the ghost calls changed nothing (cover, not ghost)",
+   "expect": {"ok": true, "data.items.0.attributes": {"count": 1}, "data.items.0.attributes.0.value": "cover", "part.file": "mp_cover_p0.prt"}}
  ]
 }

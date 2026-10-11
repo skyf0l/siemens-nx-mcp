@@ -65,10 +65,27 @@ class Services:
     store: Any = None  # OperationStore-like: get, put, path
     references: Any = None  # core.references.References over this object
     runs = "nx"  # the process these services run in: "nx", or "sidecar" (gate 1)
+    # The part a read targets when it is not NX's work part (gate 4s, core/switching.py):
+    # ``work_part`` returns it while the call runs. None: NX's work part.
+    bound: Any = None
 
     # parts and units
-    def work_part(self): ...
+    def work_part(self): ...  # the bound part, else NX's work part
     def parts(self) -> list: ...
+
+    # gate 4s (core/switching.py)
+    def switch(self, part, mode: str, *, application: str | None = None):
+        """Make ``part`` current in NX for one call: ``mode`` ``work`` (the work part) or
+        ``display`` (displayed and work part; ``application`` entered). Returns the
+        entered switch (``restore() -> warning text or None``, ``clean``, ``retry()``,
+        ``primitive``, ``timings``; ``kit.switching.Switch``), or None when these services
+        cannot switch (gate 4s then refuses a call that names another part)."""
+        return None
+
+    def switch_log(self) -> list:
+        """The recent switches (gate 4s): ``{tool, part, mode, primitive, switch_ms,
+        restore_ms, call_ms, restored}``, oldest first."""
+        return self.__dict__.setdefault("_switch_log", [])
 
     def root_parts(self) -> list:
         """The top-level loaded parts: those no loaded assembly uses as a component
@@ -437,7 +454,8 @@ class Tx:
         self.files = Files(self)
         self.display = Display(self)
         self.children: list[dict] = []
-        # The part gate 3t resolved (core.target.Target) or None; P0 binds nothing to it.
+        # The part gate 3t resolved (core.target.Target) or None; gate 4s made it current
+        # (``tx.part`` is it: the work part after a switch, the bound part of a read).
         self.target: Any = None
 
     # -- NX access ------------------------------------------------------------
@@ -615,11 +633,18 @@ class Tx:
     # -- temporary geometry ---------------------------------------------------------
     @contextlib.contextmanager
     def scratch(self):
-        """Temporary geometry under a hidden mark that is always undone."""
+        """Temporary geometry under a hidden mark that is always undone. A read bound to a
+        part that is not the work part (gate 4s) makes it the work part for the block, so
+        the temporary geometry is built there."""
         services = self._services
         part = services.work_part()
         before = services.snapshot(part) if part is not None else {}
         self.touched = True
+        switch = None
+        if services.bound is not None:
+            work = getattr(getattr(services.session, "Parts", None), "Work", None)
+            if work is None or int(work.Tag) != int(services.bound.Tag):
+                switch = services.switch(services.bound, "work")
         mark = services.set_mark("NX MCP: scratch", visible=False)
         try:
             yield mark  # the scratch mark, e.g. for model.update(tx, mark)
@@ -632,6 +657,10 @@ class Tx:
                 raise NXError(
                     "NX_ROLLBACK_FAILED", f"Temporary geometry was not removed: {error}"
                 ) from error
+            finally:
+                failure = switch.restore() if switch is not None else None
+                if failure:
+                    self.warn("NX_UPDATE_WARNING", f"After temporary geometry: {failure}")
             if set(after) != set(before):
                 raise NXError(
                     "NX_ROLLBACK_FAILED",

@@ -64,19 +64,20 @@ def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, call):
     assert error.value.code == "NX_NOT_FOUND"
 
 
-def test_cross_part_undo_and_checkpoint_refuse_unrelated_changes(rig, call, tmp_path):
+def test_cross_part_undo_refuses_and_a_checkpoint_restores_in_its_own_part(rig, call, tmp_path):
     add = mutation(rig)
     cp = call("nx_create_checkpoint")
     add()
-    other = Part(rig.session, tmp_path / "other.prt")
+    other = Part(rig.session, tmp_path / "other.prt")  # now the display and work part
     rig.e.own(other)  # the agent's own part: refused for crossing parts
     with pytest.raises(NXError) as error:
         call("nx_undo_operation", part="other")
     assert error.value.code == "NX_CROSS_PART"
-    with pytest.raises(NXError) as error:
-        call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
-    assert error.value.code == "NX_CROSS_PART"
     assert len(rig.part.Bodies) == 1 and not other.Bodies
+    # Gate 4s: the checkpoint's part becomes the work part for the call, then other again.
+    restored = call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
+    assert restored["reverted"] and not rig.part.Bodies and not other.Bodies
+    assert rig.session.Parts.Work is other and rig.session.Parts.Display is other
 
 
 def test_set_name_renames_by_reference_and_refreshes_references(rig, call):

@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/multipart_resolve.json",
-  "scenario_sha256": "d716d9376b23f5058e7f1a46f086e7fa04caaa543a70b4de1a9e82b30668ff43",
+  "scenario_sha256": "c970a56975a9945ed54d45399a7a20749ecab5be9368faf2d3c708200b1c5508",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-11T15:46:07Z",
+  "recorded": "2026-10-11T16:35:53Z",
   "passed": true,
-  "checks": 86,
+  "checks": 84,
   "failed_checks": 0,
   "steps": [
     {
@@ -122,35 +122,35 @@
       "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 3
     },
     {
       "index": 17,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
       "call": "nx_get_feature",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_set_feature_suppression",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 19,
-      "call": "nx_get_model_summary",
-      "setup": false,
-      "passed": true,
-      "checks": 4
-    },
-    {
       "index": 20,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 21,
@@ -168,17 +168,17 @@
     },
     {
       "index": 23,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
       "call": "nx_activate_part",
       "setup": true,
       "passed": true,
       "checks": 0
-    },
-    {
-      "index": 24,
-      "call": "nx_set_attributes",
-      "setup": false,
-      "passed": true,
-      "checks": 3
     },
     {
       "index": 25,
@@ -196,10 +196,17 @@
     },
     {
       "index": 27,
-      "call": "nx_get_attributes",
+      "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 28,
+      "call": "nx_get_attributes",
+      "setup": false,
+      "passed": true,
+      "checks": 4
     }
   ]
 }

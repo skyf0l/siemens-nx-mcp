@@ -70,6 +70,7 @@ def _component_member(tx, component, obj, field):
 
 
 @tool(
+    display_bound=("/component",),  # working_in: SetWorkComponent under the displayed assembly
     effect="model",
     label="Create reference set",
     summary="Reference set {name} with {objects}",

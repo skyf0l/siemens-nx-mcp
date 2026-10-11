@@ -125,7 +125,17 @@ class KitServices(Services):
     session = property(lambda self: self.fake.session)
 
     def work_part(self):
+        if self.bound is not None:  # gate 4s: a read bound to a part that is not work
+            return self.bound
         return self.fake.session.Parts.Work
+
+    def switch(self, part, mode, *, application=None):
+        """Gate 4s through the real ``kit.switching`` on the fake session."""
+        from nx_mcp.kit import switching
+
+        fake = self.fake
+        tx = NS(session=fake.session, nx=fake.nx, uf=fake.uf, workspace=self.workspace)
+        return switching.Switch(tx, part, mode, application=application).enter()
 
     def parts(self):
         return list(self.fake.session.Parts)
@@ -224,7 +234,9 @@ class KitServices(Services):
             "assembly": getattr(getattr(part, "ComponentAssembly", None), "RootComponent", None)
             is not None,
             "interactive": True,
-            "application": "modeling",
+            "application": {"UG_APP_SBSM": "sheet_metal"}.get(
+                str(getattr(self.fake.session, "ApplicationName", "") or ""), "modeling"
+            ),
         }
 
     def owns(self, part):

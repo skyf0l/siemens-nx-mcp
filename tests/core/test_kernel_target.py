@@ -20,6 +20,7 @@ from nx_mcp.core.catalogue import CatalogueError, make_spec
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.tx import Tx
 from tests.kit import fake_nx, run
+from tests.kit.fake import Factories
 from tests.kit.kernel import services
 from tests.kit.objects import Part
 from tests.kit.parts import with_parts
@@ -39,19 +40,34 @@ def _block_nx():
         box = [corner.X, corner.Y, corner.Z] + [
             getattr(corner, a) + float(sizes[i]) for i, a in enumerate("XYZ")
         ]
-        return feature(nx, "BLOCK", [new_body(nx, box)])
+        home, nx.part = nx.part, nx.session.Parts.Work  # NX builds in the work part
+        try:
+            return feature(nx, "BLOCK", [new_body(nx, box)])
+        finally:
+            nx.part = home
 
     nx.on_commit("BlockFeatureBuilder", make)
     return nx
 
 
 def _second(nx, rel="kitB/plate.prt"):
-    """Another loaded top-level part; the work and display part stay as they were."""
+    """Another loaded top-level part, buildable like the fake's own part (its builders
+    and factories); the work and display part stay as they were."""
     parts = nx.session.Parts
     work, display = parts.Work, parts.Display
     other = Part(nx.session, Path(services(nx).root) / rel)
+    other.Features = Factories(nx)
+    for name in BUILD_MEMBERS:
+        if hasattr(nx.part, name):
+            setattr(other, name, getattr(nx.part, name))
     parts.Work, parts.Display = work, display
     return other
+
+
+BUILD_MEMBERS = (
+    "BaseFeatures", "Points", "Directions", "ScRuleFactory", "ScCollectors", "Sections",
+    "UnitCollection", "MeasureManager", "Axes", "Scalars", "Planes", "Xforms",
+)  # fmt: skip
 
 
 def _show(nx, part):
@@ -216,15 +232,15 @@ def test_part_key_as_p_ref_and_absolute_workspace_path():
     assert _count(nx) == 2
 
 
-def test_part_naming_another_part_is_refused_naming_both_parts():
+def test_part_naming_another_part_runs_there_and_comes_back():
     nx = _block_nx()
     plate = _second(nx)
     r = run(nx, "nx_create_primitive", part="plate", **BLOCK)
-    assert not r.ok and r.error["code"] == "NX_WRONG_PART_CONTEXT", r
-    assert r.mutation_outcome == "not_started" and _count(nx) == 0
-    assert "plate.prt" in r.error["message"] and "work.prt" in r.error["message"]
-    assert r.error["field"] == "/part" and _ref(nx, plate) in r.error["hint"]
-    assert r.part["file"] == "plate.prt"
+    assert r.ok and r.mutation_outcome == "committed", r
+    assert _count(nx) == 0 and len(plate.Features) == 1  # built in plate, not work.prt
+    assert r.part == {"id": _ref(nx, plate), "file": "plate.prt", "from": "part"}
+    parts = nx.session.Parts
+    assert parts.Work is nx.part and parts.Display is nx.part
 
 
 def test_dotted_stem_is_its_own_file_never_the_shorter_one():
@@ -237,7 +253,7 @@ def test_dotted_stem_is_its_own_file_never_the_shorter_one():
     assert r.part["file"] == "bracket.v2.prt", r
     _show(nx, nx.part)
     r = run(nx, "nx_create_primitive", part="bracket.v2", **BLOCK)
-    assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.part["file"] == "bracket.v2.prt"
+    assert r.ok and r.part["file"] == "bracket.v2.prt" and len(v2.Features) == 2, r
 
 
 def test_dotted_stem_alone_is_found():
@@ -311,16 +327,15 @@ def test_refs_of_the_work_part_pin_it_without_part():
     assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "refs"}
 
 
-def test_part_naming_the_refs_part_that_is_not_the_work_part_is_refused():
+def test_a_read_naming_the_refs_part_that_is_not_the_work_part_runs_there():
     nx = _block_nx()
     plate = _second(nx)
-    body = nx.block(10, 10, 10)
+    made = run(nx, "nx_create_primitive", part="work", **BLOCK)
     _show(nx, plate)
-    r = run(nx, "nx_measure_mass", bodies=[body.ref], part="work")
-    assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.error["field"] == "/part", r
-    assert r.mutation_outcome == "not_applicable"
+    r = run(nx, "nx_get_feature", feature=made.data["feature"]["id"], part="work")
+    assert r.ok and r.data["feature"]["id"] == made.data["feature"]["id"], r
     assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "part"}
-    assert "plate.prt" in r.error["message"] and _ref(nx, nx.part) in r.error["hint"]
+    assert nx.session.Parts.Work is plate and not nx.session.calls  # a read never switches
 
 
 def test_part_contradicting_the_refs_is_wrong_part_context():

@@ -139,8 +139,13 @@ def length(tx, curves):
 
 
 def wcs(tx):
-    """``(origin, R)`` of the work part's WCS: ``p_abs = origin + R p_wcs`` (part units)."""
-    system = tx.part.WCS.CoordinateSystem
+    """``(origin, R)`` of the WCS: ``p_abs = origin + R p_wcs`` (part units).
+
+    The WCS is the displayed part's: UF reports in it, and NX 2406 refuses ``WCS`` of a
+    part that is not displayed ("only be performed on a displayed part"), as for a read
+    of a background part (gate 4s)."""
+    shown = getattr(getattr(tx.session, "Parts", None), "Display", None)
+    system = (shown if shown is not None else tx.part).WCS.CoordinateSystem
     return geom.xyz(system.Origin), geom.rows(system.Orientation.Element)
 
 

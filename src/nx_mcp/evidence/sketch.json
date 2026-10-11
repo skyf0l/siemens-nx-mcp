@@ -2,20 +2,20 @@
   "nx_check_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-11T15:20:57Z",
+      "recorded": "2026-10-11T16:41:08Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "4e78ae3c9ac24e4416dbf694eae25865d8b153812be2b4089413520d48cbd945",
+      "source_sha256": "41779c8282f20f2c2fb8e1a6463f507044de25b073ee430f8e8ca87fc56aa42a",
       "variants": []
     }
   },
   "nx_create_sketch": {
     "v2406": {
       "checks": 26,
-      "recorded": "2026-10-11T15:21:04Z",
+      "recorded": "2026-10-11T16:41:16Z",
       "scenario": "acceptance/sketch/sketch_one_call.json",
       "scenario_sha256": "28aec7087dac04c4c4c1a36938f9c6a2fcaf4dc91e16a02d186545bb865e1d9e",
-      "source_sha256": "4e78ae3c9ac24e4416dbf694eae25865d8b153812be2b4089413520d48cbd945",
+      "source_sha256": "41779c8282f20f2c2fb8e1a6463f507044de25b073ee430f8e8ca87fc56aa42a",
       "variants": [
         "on",
         "path",
@@ -146,20 +146,20 @@
   "nx_finish_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-11T15:20:57Z",
+      "recorded": "2026-10-11T16:41:08Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "4e78ae3c9ac24e4416dbf694eae25865d8b153812be2b4089413520d48cbd945",
+      "source_sha256": "41779c8282f20f2c2fb8e1a6463f507044de25b073ee430f8e8ca87fc56aa42a",
       "variants": []
     }
   },
   "nx_get_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-11T15:20:57Z",
+      "recorded": "2026-10-11T16:41:08Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "4e78ae3c9ac24e4416dbf694eae25865d8b153812be2b4089413520d48cbd945",
+      "source_sha256": "41779c8282f20f2c2fb8e1a6463f507044de25b073ee430f8e8ca87fc56aa42a",
       "variants": []
     }
   }

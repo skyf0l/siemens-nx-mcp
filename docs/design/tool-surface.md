@@ -307,8 +307,14 @@ target part: a loaded part's file name with or without `.prt`, its workspace pat
 and `expires_at` (epoch seconds or ISO 8601: a changing call that reaches NX later is
 refused with `NX_CALL_EXPIRED` and never runs). They are not schema properties; a tool's
 own `part` parameter (`nx_activate_part`, `nx_close_part`, `nx_save_part`) stays its
-argument. Phase P0 resolves and reports the target but does not switch parts: a `part`
-that is not the work part is refused (`NX_WRONG_PART_CONTEXT`, activate it first).
+argument. The kernel makes the target current for the call and restores the engineer's
+state afterwards (phase P2, architecture.md 3.1 gate 4s): a model call on a part that is
+not the work part runs there while the display stays (a quiet work part), drawing,
+capture, camera, explosion and Sheet Metal calls show it for the call (Sheet Metal
+entered there, the previous application restored), reads run on it without any switch, and
+a ref of another part runs in that part. Nothing switches while the target is the work
+part. A restore NX refused is an `NX_UPDATE_WARNING` on the result; drawing views of a
+part that is not displayed are refreshed later (`NX_NOTE`).
 Loading or displaying a part never drops NX's undo marks (phase P1): parallel agents create
 their parts with `nx_create_part(display: false)`, and a load only ends the undo history
 before it (architecture.md 1.3).

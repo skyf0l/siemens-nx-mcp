@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from nx_mcp.core import evidence
+from nx_mcp.core import evidence, switching
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core import target as targets
 from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
@@ -181,9 +181,10 @@ def _free_name(resolved: Path) -> Path:
     return resolved
 
 
-def _gate_paths(spec, checked: Checked, services: Services) -> None:  # gate 2
+def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None:  # gate 2
     """Workspace checks of every path argument. A path without a suffix gets the
-    marker's first one (``parts/plate`` -> ``parts/plate.prt``)."""
+    marker's first one (``parts/plate`` -> ``parts/plate.prt``). ``save`` paths compare
+    against the call's target part (gate 3t), else the work part."""
     for path, marker in checked.paths:
         field = pointer(path)
         value = get_at(checked.args, path)
@@ -243,7 +244,7 @@ def _gate_paths(spec, checked: Checked, services: Services) -> None:  # gate 2
                 details={"path": _relative(services, resolved)},
             )
         if marker.mode == "save" and resolved.exists():
-            part = services.work_part()
+            part = target.part if target is not None else services.work_part()
             own = str(getattr(part, "FullPath", "") or "") if part is not None else ""
             if not own or Path(own).resolve() != resolved:
                 free = _relative(services, _free_name(resolved))
@@ -506,13 +507,33 @@ def _extra_unchanged(services: Services, tx: Tx | None) -> bool:
     return True
 
 
-def _refresh(spec, services: Services, tx: Tx) -> list:  # gate 13
+def _refresh(spec, services: Services, tx: Tx, bound=None) -> list:  # gate 13
     """Managed annotations after a commit, inside the call's undo mark: every
-    ``@refresher`` hook of every domain."""
+    ``@refresher`` hook of every domain. On a switched target that is not displayed the
+    display-bound ones wait (gate 4s, ``Bound.defers``) and an ``NX_NOTE`` says so; a
+    displayed part they waited for gets them on its next model call, drawing calls too."""
+    key = tx.target.key if tx.target is not None else None
+    waiting = switching.deferred(services)
+    if not spec.refresh_annotations and (
+        key not in waiting or not switching.displayed(services, tx.target.part)
+    ):
+        return []
     rows: list = []
-    for _kind, refresh in sorted(services.refreshers().items()):
+    skipped = False
+    for kind, refresh in sorted(services.refreshers().items()):
+        if bound is not None and bound.defers(kind):
+            skipped = True
+            continue
+        if not spec.refresh_annotations and kind not in switching.DISPLAY_REFRESHERS:
+            continue
         tx.checkpoint()
         rows.extend(refresh(tx, None) or [])
+    if skipped:
+        part = tx.target.part if tx.target is not None else None
+        if part is not None and switching.has_drafting(part):
+            tx.warn("NX_NOTE", switching.DEFERRED_NOTE.format(file=tx.target.file))
+    elif key is not None:
+        waiting.discard(key)
     return rows
 
 
@@ -535,6 +556,7 @@ def run(spec, args, ctx: Context) -> dict:
     floor: int | None = None
     observer = None
     watched = None
+    bound: switching.Bound | None = None
     handler_started = handler_done = False
     args, keys = targets.split_call_keys(spec, args)  # part/expires_at in arguments
     part_text = keys.get("part", ctx.part)
@@ -564,11 +586,11 @@ def run(spec, args, ctx: Context) -> dict:
             replay = receipts.replay(spec.name, raw_args, operation_id, file_key)
             if replay is not None:
                 return replay
-        _gate_paths(spec, checked, services)  # 2
+        _gate_paths(spec, checked, services, target)  # 2
         _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
-        targets.refuse_other_part(  # 4s (P0: refuse; P2 switches)
-            spec, target, services, explicit=part_text is not None
+        bound = switching.enter(  # 4s: the target becomes current (core/switching.py)
+            spec, checked.args, target, services, explicit=part_text is not None
         )
         _gate_requires(spec, services)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
@@ -600,6 +622,8 @@ def run(spec, args, ctx: Context) -> dict:
         )
         tx.mark = mark
         tx.target = target
+        for code, message in bound.notes:
+            tx.warn(code, message)
         if record is not None and record.get("previous"):
             tx.warn(
                 "NX_UPDATE_WARNING",
@@ -613,12 +637,13 @@ def run(spec, args, ctx: Context) -> dict:
         handler_done = True  # Later failures roll back whatever the handler did.
         if not isinstance(data, dict):
             fail("NX_ERROR", f"{spec.name} returned {type(data).__name__}, not an object")
+        bound.check()  # 4s (after): the switched target is still the work part
         _check_ownership_after(services, flags)  # 6 (after)
         changes = None
         if spec.effect == "model":
             seen, after = _readback_parts(spec, services, tx, part, before, mark)  # 11
             retired = services.invalidate(seen, after, spec.invalidates == "topology")  # 12
-            refreshed = _refresh(spec, services, tx) if spec.refresh_annotations else []  # 13
+            refreshed = _refresh(spec, services, tx, bound)  # 13
             changes = _changes(
                 services, seen, after, spec, refreshed, retired=retired, floor=floor, tx=tx
             )
@@ -637,7 +662,8 @@ def run(spec, args, ctx: Context) -> dict:
         note = targets.load_note(services, census)
         if note is not None:  # the call brought the agent's loaded parts to two
             tx.warn("NX_NOTE", note)
-        _work_part_units(services, part, tx)
+        if not bound.switched:  # a switched call's work part comes back: not a change
+            _work_part_units(services, part, tx)
         envelope.update(ok=True)  # 14
         envelope["mutation_outcome"] = tx.outcome or (
             "not_applicable" if spec.effect == "read" else "committed"
@@ -657,6 +683,7 @@ def run(spec, args, ctx: Context) -> dict:
             restore_id = tx.display.snapshot()
             if restore_id is not None:
                 envelope["restore_id"] = restore_id
+        _leave(bound, envelope)  # 4s: the engineer's display and work parts come back
         services.after_commit(spec)
         receipts.finish(record, envelope)
         return envelope
@@ -689,6 +716,9 @@ def run(spec, args, ctx: Context) -> dict:
                 envelope["changes"]["stale_references"] = stale
         if tx is not None and tx.warnings:
             envelope["warnings"] = tx.warnings
+        elif bound is not None and bound.notes:
+            envelope["warnings"] = [{"code": c, "message": m} for c, m in bound.notes]
+        _leave(bound, envelope)  # 4s (after the rollback)
         _report_part(envelope, target, services, part_text)
         _after_failure(services, spec, outcome)
         trace = getattr(error, "trace", None)
@@ -697,9 +727,23 @@ def run(spec, args, ctx: Context) -> dict:
             receipts.log_trace(spec.name, operation_id, trace)
         return envelope
     finally:
+        if bound is not None and not bound.left:  # a replay after the switch, or a crash
+            with contextlib.suppress(Exception):
+                bound.leave()
         if tx is not None:  # this call's staging folder, committed or not (Files)
             with contextlib.suppress(Exception):
                 tx.files.discard()
+
+
+def _leave(bound, envelope: dict) -> None:
+    """Gate 4s, at the end of the call: restore what the switch changed; a restore that
+    failed is a warning on the envelope (a committed change stays committed)."""
+    if bound is None:
+        return
+    warning = bound.leave()
+    if warning:
+        warnings = envelope.setdefault("warnings", [])
+        warnings.append({"code": "NX_UPDATE_WARNING", "message": warning})
 
 
 def _report_part(envelope: dict, target, services, part_text) -> None:

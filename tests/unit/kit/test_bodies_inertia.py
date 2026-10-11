@@ -65,3 +65,17 @@ def test_inertia_uses_centroidal_values_product_signs_and_part_units():
     assert measure.wcs_is_absolute(nx.tx)
     nx.part.WCS.CoordinateSystem.Orientation.Element = matrix((0, 1, 0), (-1, 0, 0), (0, 0, 1))
     assert not measure.wcs_is_absolute(nx.tx)
+
+
+def test_the_wcs_is_the_displayed_parts():
+    """NX refuses WCS of a part that is not displayed (a read bound to a background part,
+    gate 4s); UF reports in the displayed part's WCS anyway."""
+    nx = fake_nx()
+    shown = NS(WCS=NS(CoordinateSystem=NS(Origin=point(7, 8, 9), Orientation=NS(Element=matrix()))))
+    nx.session.Parts.Display = shown
+    nx.part.WCS = None  # what a background part gives
+    origin, _r = measure.wcs(nx.tx)
+    assert origin == [7, 8, 9]
+    nx.session.Parts.Display = None  # nothing displayed: the part's own
+    nx.part.WCS = shown.WCS
+    assert measure.wcs(nx.tx)[0] == [7, 8, 9]

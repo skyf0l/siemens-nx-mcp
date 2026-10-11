@@ -42,6 +42,7 @@ def _retained(tx, part) -> list:
 
 
 @tool(
+    switch="display",  # traces, explosions and sheets refresh on the displayed assembly
     effect="model",
     label="Update assembly",
     summary="Update assembly and documentation",

@@ -20,8 +20,9 @@ included: the rows ``nx_list_parts`` marks ``owned``); with two or more it is
 ``part`` was given or two or more parts are loaded; the call that brings the agent's
 count to two carries a note (:func:`load_note`).
 
-Phase P0 does not switch parts: :func:`refuse_other_part` refuses a call whose target is
-not the work part when ``part`` named it; a ref of another part behaves as before.
+Gate 4s (``core/switching.py``, phase P2) makes the target current. Services that cannot
+switch keep phase P0's rule (:func:`refuse_other_part`): a call whose ``part`` names a part
+that is not the work part is refused.
 """
 
 from __future__ import annotations
@@ -534,10 +535,9 @@ def _fallback(spec, services, loaded: list, parent) -> Target | None:
 
 
 def refuse_other_part(spec, target: Target | None, services, *, explicit: bool) -> None:
-    """Phase P0 binding: a call whose ``part`` names a part that is not the work part is
-    refused, so it never acts on the wrong part (P2 switches instead). A call that names
-    no part behaves as before (a ref of a component part while the assembly is the work
-    part: the tool's own NX_WRONG_OWNER)."""
+    """For services that cannot switch (gate 4s): a call whose ``part`` names a part that
+    is not the work part is refused, so it never acts on the wrong part. A call that names
+    no part behaves as before (a ref of another part: the tool's own NX_WRONG_OWNER)."""
     if target is None or target.source in ("arg", "any") or not explicit:
         return
     work = services.work_part()

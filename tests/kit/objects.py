@@ -254,14 +254,24 @@ class Session:
     a live mark is older than the first display of the shown or hidden part, while
     ``Parts.SetActiveDisplayRetainUndoMarks`` keeps them; ``Part.Save`` and a plain
     ``Part.Close`` drop every mark, ``Part.CloseRetainUndoMarks`` keeps them;
-    ``UndoToMark`` unloads the parts loaded after the mark. ``shown`` counts the display switches (``("plain" | "retain", part)``)."""
+    ``UndoToMark`` unloads the parts loaded after the mark. ``shown`` counts the display switches (``("plain" | "retain", part)``).
+
+    Work and display (gate 4s): ``calls`` records every part or application switch
+    (``("SetWork" | "SetWorkPartQuietly" | "show" | "ApplicationSwitchImmediate", x)``);
+    with ``strict_work`` ``Parts.SetWork`` refuses, like NX, a part that is neither the
+    display part nor a component prototype under it; ``set_work_quietly(tag)`` is
+    ``uf.Assem.SetWorkPartQuietly`` (any loaded part); ``fail_set_work`` (a count) makes
+    the next ``SetWork`` calls raise."""
 
     def __init__(self):
         self.Parts = Collection()
         self.Parts.Work = self.Parts.Display = None
         self.Parts.SetDisplay = self._set_display
         self.Parts.SetActiveDisplayRetainUndoMarks = self._set_display_retain
-        self.Parts.SetWork = lambda part: setattr(self.Parts, "Work", part)
+        self.Parts.SetWork = self._set_work
+        self.calls: list = []
+        self.strict_work = False
+        self.fail_set_work = 0
         self.ActiveSketch = None
         self.IsBatch = False
         self.ApplicationName = "UG_APP_MODELING"
@@ -274,7 +284,38 @@ class Session:
         self.UpdateManager = NS(DoUpdate=Mock(return_value=0))
 
     def ApplicationSwitchImmediate(self, name):
+        self.calls.append(("ApplicationSwitchImmediate", name))
         self.ApplicationName = name
+
+    def _under_display(self, part) -> bool:
+        display = self.Parts.Display
+        if display is None or display is part:
+            return True
+        stack = [getattr(display.ComponentAssembly, "RootComponent", None)]
+        while stack:
+            node = stack.pop()
+            if node is None:
+                continue
+            for child in node.GetChildren():
+                if getattr(child, "Prototype", None) is part:
+                    return True
+                stack.append(child)
+        return False
+
+    def _set_work(self, part):
+        self.calls.append(("SetWork", part))
+        if self.fail_set_work:
+            self.fail_set_work -= 1
+            raise NXException(3, "SetWork refused (test)")
+        if self.strict_work and not self._under_display(part):
+            raise NXException(3, "Part or occurrence is not a descendant of the root part.")
+        self.Parts.Work = part
+
+    def set_work_quietly(self, tag):
+        """``uf.Assem.SetWorkPartQuietly``: any loaded part becomes the work part."""
+        self.calls.append(("SetWorkPartQuietly", tag))
+        part = next(p for p in self.Parts if int(p.Tag) == int(tag))
+        self.Parts.Work = part
 
     def show(self, part, *, retain: bool) -> None:
         """Display ``part`` and make it the work part, with NX's mark rule (class doc).
@@ -289,6 +330,7 @@ class Session:
             if any(self.first_shown[id(p)] >= oldest for p in (old, part) if p is not None):
                 self.marks.clear()
         self.shown.append(("retain" if retain else "plain", part))
+        self.calls.append(("show", part))
         self.Parts.Display = self.Parts.Work = part
 
     def _set_display(self, part, *_):

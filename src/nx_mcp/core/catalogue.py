@@ -154,15 +154,22 @@ class ToolSpec:
     # ``none`` (reads: never), ``work`` (quiet work-part switch), ``display`` (shown).
     switch: str = "none"
     # Decorator ``display_bound``: the call needs its target displayed: True (always,
-    # implies switch ``display``) or the variant values that do (``working_in`` variants).
+    # implies switch ``display``) or the variant values that do, and ``/<param>[/<key>]``
+    # pointers to arguments that do when given (``working_in`` handlers: a reference
+    # set's ``/component``; a path sketch's ``/placement/path``).
     display_bound: bool | tuple[str, ...] = False
 
     def switch_for(self, args: Mapping) -> str:
-        """The switch mode of a call: ``display`` for a display-bound variant."""
+        """The switch mode of a call: ``display`` for a display-bound variant or given
+        display-bound argument."""
         if self.display_bound is True:
             return "display"
-        if self.display_bound and self.variant_of(args) in self.display_bound:
-            return "display"
+        if self.display_bound:
+            if self.variants is not None and self.variant_of(args) in self.display_bound:
+                return "display"
+            for item in self.display_bound:
+                if item.startswith("/") and _pointed(args, item) is not None:
+                    return "display"
         return self.switch
 
     def check(self, args, *, placeholders: bool = False, shown=None):
@@ -206,6 +213,16 @@ class ToolSpec:
         if isinstance(self.variants, Mapping):
             return tuple(self.variants)
         return ()
+
+
+def _pointed(args: Mapping, pointer: str):
+    """The value at ``/a/b`` in ``args`` (objects only), else None."""
+    value: Any = args
+    for key in pointer.strip("/").split("/"):
+        if not isinstance(value, Mapping):
+            return None
+        value = value.get(key)
+    return value
 
 
 _REGISTRY: dict[str, ToolSpec] = {}
@@ -635,9 +652,16 @@ def _target_rules(
         display_bound = switch == "display"
     if isinstance(display_bound, (list, tuple)):
         display_bound = tuple(display_bound)
-        unknown = [v for v in display_bound if v not in variant_values]
+        unknown = [
+            v
+            for v in display_bound
+            if v not in variant_values
+            and not (v.startswith("/") and v.strip("/").split("/")[0] in params)
+        ]
         if not display_bound or unknown:
-            problems.append(f"display_bound names variant values (unknown {unknown})")
+            problems.append(
+                f"display_bound names variant values or /<parameter> (unknown {unknown})"
+            )
     elif not isinstance(display_bound, bool):
         problems.append("display_bound is a bool or a tuple of variant values")
     if display_bound is True and switch != "display":

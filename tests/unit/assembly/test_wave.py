@@ -391,7 +391,6 @@ def test_extract_body_face_and_region(w):
         ({"kind": "region", "objects": ["$top"], "boundary": ["$top"]}, "/boundary/0"),
         ({"kind": "face", "objects": ["$top"], "boundary": ["$bottom"]}, "/boundary"),
         ({"kind": "body", "objects": ["$top"]}, "/objects/0"),
-        ({"kind": "face", "objects": ["$other"]}, "/objects/0"),
     ],
 )
 def test_extract_refusals(w, args, field):
@@ -402,6 +401,17 @@ def test_extract_refusals(w, args, field):
     out = run(w.nx, "nx_create_extract", **args)
     assert out.error["field"] == field and out.mutation_outcome == "not_started", out
     assert not any(b.kind == "ExtractFaceBuilder" for b in w.nx.builders)
+
+
+def test_an_extract_of_another_components_part_runs_in_that_part(w):
+    """Gate 4s: the faces pin their part (a component prototype under the displayed
+    assembly): it becomes the work part for the call (SetWork), then the work part
+    comes back."""
+    other = w.body(w.a, faces=(200, 600, 600, 300, 300, 200))
+    out = run(w.nx, "nx_create_extract", kind="face", objects=[other.faces[0].ref])
+    assert out.ok and out.part["file"] == "a.prt" and out.part["from"] == "refs", out
+    assert w.nx.session.Parts.Work is w.b and w.nx.session.Parts.Display is w.asm
+    assert w.nx.session.calls[0] == ("SetWork", w.a)  # back through the work component
 
 
 def test_a_part_object_finds_the_one_component_that_shows_it(w):
@@ -524,3 +534,16 @@ def test_face_link_faces_must_form_one_connected_set(w):
     assert not any(b.kind == "WaveLinkBuilder" for b in w.nx.builders)
     ok = link(w, kind="face", sources=[top.ref, side.ref, bottom.ref])
     assert ok.ok and ok.data["area"] == 1000, ok
+
+
+def test_a_link_targets_the_assembly_that_holds_its_components(w):
+    """Gate 3t: sources are other parts' objects; the link works in the assembly."""
+    from nx_mcp.domains.assembly import wave
+    from tests.kit.kernel import services
+
+    body = w.body(w.a)
+    s = services(w.nx)
+    assert wave._link_part(s, {"sources": [body.ref], "target": w.B.ref}) is w.asm
+    assert wave._link_part(s, {"sources": [w.occurrence(body) and body.ref]}) is w.asm  # shown
+    w.nx.session.Parts.Display = None
+    assert wave._link_part(s, {"sources": [body.ref]}) is None  # the usual rules

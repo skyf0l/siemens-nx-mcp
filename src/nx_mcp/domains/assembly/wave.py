@@ -445,7 +445,24 @@ def _sketch_curves(sketches):
     return out
 
 
+def _link_part(services, args):
+    """Gate 3t: the assembly a WAVE link works in (its sources are other parts' objects):
+    the one holding ``target``, ``component`` or an occurrence source, else the displayed
+    assembly that shows the part-object sources (None: the usual rules)."""
+    for ref in [args.get("target"), args.get("component"), *(args.get("sources") or [])]:
+        if not isinstance(ref, str) or ref.startswith("$"):
+            continue
+        try:
+            obj = services.references.resolve(ref, ())
+        except Exception:
+            continue
+        if getattr(obj, "IsOccurrence", False):  # a component or an occurrence
+            return services.owning_part(obj)
+    return getattr(getattr(services.session, "Parts", None), "Display", None)
+
+
 @tool(
+    target=_link_part,
     switch="display",
     effect="model",
     label="Create WAVE link",

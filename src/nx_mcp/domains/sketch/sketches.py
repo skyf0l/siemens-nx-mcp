@@ -327,6 +327,7 @@ def _verify_path(tx, got, edges):
     ),
     requires=("work_part", "no_active_sketch"),
     variants={"principal": PrincipalPlacement, "on": OnPlacement, "path": PathPlacement},
+    display_bound=("/placement/path",),  # a path sketch needs its part displayed
     cost="light",
     batchable=True,
     previewable=True,

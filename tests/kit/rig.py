@@ -62,6 +62,7 @@ def rig(tmp_path, monkeypatch):
         return next(entry.value for entry in e.objects._objects.values() if entry.value.Tag == tag)
 
     uf = NS(
+        Assem=NS(SetWorkPartQuietly=session.set_work_quietly),
         Obj=NS(AskTranslucency=lambda tag: object_for(tag).transparency),
         Disp=NS(
             ColorName=NS(RED_NAME=3, MEDIUM_GRAY_NAME=5), AskClosestColorInDisplayedPart=lambda x: x

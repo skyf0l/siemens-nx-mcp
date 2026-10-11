@@ -14,6 +14,7 @@ import importlib
 import os
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 from nx_mcp import side_effects
@@ -175,7 +176,18 @@ class NXServices(Services):
 
     # -- parts and units -----------------------------------------------------------
     def work_part(self):
+        """The part a read is bound to (gate 4s), else NX's work part."""
+        if self.bound is not None:
+            return self.bound
         return getattr(self.session.Parts, "Work", None)
+
+    def switch(self, part, mode: str, *, application: str | None = None):
+        """Gate 4s: make ``part`` the work part (``work``) or the displayed part
+        (``display``) for one call (``kit.switching``); the entered switch."""
+        from nx_mcp.kit import switching
+
+        tx = SimpleNamespace(session=self.session, nx=self.nx, uf=self.uf, workspace=self.workspace)
+        return switching.Switch(tx, part, mode, application=application).enter()
 
     def parts(self) -> list:
         return list(self.session.Parts)

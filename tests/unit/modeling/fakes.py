@@ -155,6 +155,7 @@ def modeling_nx(units="mm"):
         ),
         ModlGeneral=NS(AskBoundingBox=lambda tag: list(objects[tag].box)),
         Draw=nx.uf.Draw,
+        Assem=nx.uf.Assem,  # SetWorkPartQuietly (gate 4s)
     )
     part.Axes = NS(CreateAxis=lambda p, d, _o: NS(kind="axis", point=p, direction=d))
     part.Scalars = NS(CreateScalar=lambda v, *_: NS(kind="scalar", value=v))

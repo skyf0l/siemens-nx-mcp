@@ -296,6 +296,7 @@ class FakeNX:
         return NS(
             Modeling=NS(AskFaceData=ask_face_data),
             Draw=NS(OpenDrawing=open_drawing, SetDisplayState=set_display_state),
+            Assem=NS(SetWorkPartQuietly=self.session.set_work_quietly),
         )
 
     def _wire_part(self):
