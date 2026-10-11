@@ -152,7 +152,7 @@
   "nx_save_part": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-11T15:14:50Z",
+      "recorded": "2026-10-11T17:34:34Z",
       "scenario": "acceptance/session/refs_survive_undo_save.json",
       "scenario_sha256": "09d8f8a554443ca6938e99c219386f94bd2e4097f89846614c2facc5663e27ac",
       "source_sha256": "a4113b83d3f27b261537905cac060239e59be777961531ad45165f074fbb1e1b",

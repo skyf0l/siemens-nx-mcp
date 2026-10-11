@@ -106,6 +106,7 @@ class Feature(Object):
         # face or edge of its bodies, as for a feature that made the whole body.
         self.own_faces = None
         self.own_edges = None
+        self.children = []  # features that use this one (NX Feature.GetChildren)
 
     def GetBodies(self):
         return self.bodies
@@ -127,7 +128,7 @@ class Feature(Object):
         return []
 
     def GetChildren(self):
-        return []
+        return list(self.children)
 
 
 class Sketch(Object):
@@ -281,7 +282,7 @@ class Session:
         self.mark_cap = MARK_CAP
         self.first_shown: dict[int, int] = {}  # id(part) -> last_mark at its first display
         self.shown: list = []
-        self.UpdateManager = NS(DoUpdate=Mock(return_value=0))
+        self.UpdateManager = NS(DoUpdate=Mock(return_value=0), AddToDeleteList=self._delete)
 
     def ApplicationSwitchImmediate(self, name):
         self.calls.append(("ApplicationSwitchImmediate", name))
@@ -382,6 +383,25 @@ class Session:
                 obj.IsBlanked, obj.Color, obj.transparency = blank, color, transparency
             p.IsModified = modified
         self.ActiveSketch = active
+
+    def _delete(self, objects):
+        """``UpdateManager.AddToDeleteList`` (+ ``DoUpdate``): like NX's Delete, a feature
+        goes with its bodies, its expressions and the features that use it (``children``)."""
+        stack = list(objects)
+        while stack:
+            obj = stack.pop()
+            stack.extend(getattr(obj, "children", []) if isinstance(obj, Feature) else [])
+            gone = [obj, *getattr(obj, "bodies", [])] if isinstance(obj, Feature) else [obj]
+            for part in self.Parts:
+                for name in ("Bodies", "Features", "Sketches", "Curves"):
+                    values = getattr(part, name, [])
+                    for value in gone:
+                        if value in values:
+                            values.remove(value)
+                expressions = getattr(part, "Expressions", None)
+                for exp in getattr(obj, "expressions", []) if isinstance(obj, Feature) else []:
+                    if expressions is not None and exp in expressions:
+                        expressions.remove(exp)
 
     def DeleteUndoMark(self, mark, *_):
         self.marks.pop(mark, None)

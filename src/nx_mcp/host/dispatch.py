@@ -157,6 +157,9 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     mark = services.set_mark("NX MCP: " + method)
     services.epoch += 1
     loaded = services.loaded()
+    depth = None
+    with contextlib.suppress(Exception):
+        depth = len(services.undo_history())
     try:
         result = dict(handler(**params) or {})
     except BaseException as error:  # a snippet's SystemExit is a failed call, not a host exit
@@ -174,8 +177,19 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
         services.invalidate_parts(services.parts())
         return _dev_result(services, result, operation_id)
     services.invalidate(before, after, True)
-    services.record_history(mark, part, operation_id, method)
+    if not _engineer_edit(services, depth):  # a snippet the host took as the engineer's
+        services.record_history(mark, part, operation_id, method)
     return _dev_result(services, result, operation_id)
+
+
+def _engineer_edit(services, depth: int | None) -> bool:
+    """Whether the call appended an engineer barrier to the undo history (the acceptance
+    runner's ``engineer`` steps): its change is the engineer's, never an agent operation."""
+    with contextlib.suppress(Exception):
+        history = services.undo_history()
+        grew = depth is not None and len(history) > depth
+        return grew and bool(history[-1].get("engineer"))
+    return False
 
 
 def _dev_result(services, result: dict, operation_id: str) -> dict:

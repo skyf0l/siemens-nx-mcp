@@ -187,9 +187,9 @@ class Services:
 
     # the agent's undo history and checkpoints (nx_undo_operation, nx_*_checkpoint)
     def undo_history(self) -> list:
-        """The live list of the agent's committed model calls, oldest first:
-        ``{mark, part_id, operation_id, method}``. The host empties it when the
-        engineer changes the model, so an undo never reaches across their edits."""
+        """The live list of the agent's committed model calls of every part, oldest first:
+        ``{mark, part_id, operation_id, method}``, with barriers (loads, retained closes,
+        the engineer's edits: ``core/marks.py``) where no undo may cross."""
         return self.__dict__.setdefault("_undo_history", [])
 
     def undo_checkpoints(self) -> dict:
@@ -199,8 +199,9 @@ class Services:
 
     def redo_steps(self) -> list:
         """The live list of agent calls an undo or a restore reverted, next to repeat
-        first: ``{operation_id, method, part_id}`` (``nx_redo_operation``). A new
-        committed model call empties it, and so does an engineer edit (the host)."""
+        first: ``{operation_id, method, part_id}`` (``nx_redo_operation``, read per
+        part). A new committed model call in a part ends that part's items; an engineer
+        edit ends them all."""
         return self.__dict__.setdefault("_redo_steps", [])
 
     def mark_exists(self, mark) -> bool:
@@ -214,9 +215,21 @@ class Services:
     def revision(self) -> int:
         """Counter of changes to the session: every non-read call (``after_commit``, and
         ``after_failure`` unless its outcome is ``not_started``) and every engineer
-        change between agent calls bump it.
-        ``nx_finish_preview`` re-applies a preview only when nothing else happened."""
+        change between agent calls bump it (the review epoch; previews compare the
+        per-part :meth:`part_revision`)."""
         return 0
+
+    def part_revision(self, key) -> int:
+        """Counter of changes to one part (``part_key``): committed or rolled-back calls
+        that targeted it (never reads or view changes), and every engineer change.
+        ``nx_finish_preview`` compares it: another part's work does not age a preview."""
+        revisions = self.__dict__.setdefault("_part_revisions", {})
+        return int(revisions.get(None, 0)) + int(revisions.get(key, 0))
+
+    def bump_part_revision(self, key=None) -> None:
+        """Move one part's revision (``key``), or every part's (None)."""
+        revisions = self.__dict__.setdefault("_part_revisions", {})
+        revisions[key] = int(revisions.get(key, 0)) + 1
 
     def control_status(self) -> dict | None:
         """The NX MCP panel's state (mode, activity, ...), None without the panel."""
@@ -457,6 +470,9 @@ class Tx:
         # The part gate 3t resolved (core.target.Target) or None; gate 4s made it current
         # (``tx.part`` is it: the work part after a switch, the bound part of a read).
         self.target: Any = None
+        # Keys the kernel adds to this call's undo-history entry (``compensation``: an
+        # undo by deletion, never undone itself; core/marks.py).
+        self.history_note: dict | None = None
 
     # -- NX access ------------------------------------------------------------
     @property

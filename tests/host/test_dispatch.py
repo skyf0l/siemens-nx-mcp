@@ -80,6 +80,24 @@ def test_development_tools_keep_their_shape_and_record_ownership(rig, monkeypatc
     assert services.owns(new) and services.created(new) and not services.owns(rig.part)
 
 
+def test_a_snippet_the_host_takes_as_the_engineers_edit_is_no_agent_operation(rig):
+    """The acceptance runner's engineer steps: a snippet that makes the host register an
+    engineer change ends the history with the barrier, not with an agent entry."""
+    rig.e.dev_tools["nx_test_agent"] = lambda: {}
+    rig.run("nx_test_agent", {})
+    assert [h["method"] for h in rig.e.history] == ["nx_test_agent"]
+
+    def engineer():
+        rig.e.engineer_changed()
+        return {}
+
+    rig.e.dev_tools["nx_test_engineer"] = engineer
+    rig.run("nx_test_engineer", {})
+    assert [h["method"] for h in rig.e.history] == ["nx_test_agent", "engineer"]
+    rig.run("nx_test_agent", {})  # later snippets are recorded as before
+    assert rig.e.history[-1]["method"] == "nx_test_agent"
+
+
 def test_a_development_snippets_system_exit_is_a_rolled_back_error(rig):
     from nx_mcp.core.errors import NXError
 

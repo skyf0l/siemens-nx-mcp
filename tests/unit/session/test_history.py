@@ -102,8 +102,9 @@ def test_undo_refuses_after_save_and_across_parts(nx):
     a, b = features(nx, "A(1)", "B(2)")
     delete(nx, a, "op_delete_a")
     services(nx).history[-1]["part_id"] = "part_other"
-    refused = run(nx, "nx_undo_operation")
-    assert refused.error["code"] == "NX_CROSS_PART", refused
+    refused = run(nx, "nx_undo_operation")  # per part: the work part has nothing to undo
+    assert refused.error["code"] == "NX_NOT_FOUND", refused
+    assert "no operation of work.prt" in refused.error["message"]
     services(nx).history[-1]["part_id"] = services(nx).part_key(nx.part)
     nx.session.marks.clear()  # an NX save drops every undo mark
     refused = run(nx, "nx_undo_operation")
@@ -174,8 +175,9 @@ def test_expired_foreign_and_cross_part_checkpoints_are_refused(nx):
     assert unknown.mutation_outcome == "not_started"
     delete(nx, a, "op_delete_a")
     services(nx).history[-1]["part_id"] = "part_other"
+    # Only another part worked since: nothing of the work part to undo, nothing undone.
     crossed = run(nx, "nx_restore_checkpoint", checkpoint_id=checkpoint)
-    assert crossed.error["code"] == "NX_CROSS_PART" and names(nx) == []
+    assert crossed.ok and crossed.data["reverted"] == [] and names(nx) == [], crossed
     nx.part.Save()  # NX drops the marks outside any call: the kernel cannot tell why
     listed = run(nx, "nx_list_checkpoints").data
     assert listed["checkpoints"][0]["available"] is False and listed["undo_depth"] == 0
@@ -210,8 +212,8 @@ def test_host_history_is_the_list_the_panel_clears(tmp_path):
     host.record_history(2, object(), "op_dead", "nx_undo_operation")
     host.record_history(1, object(), "op_live", "nx_delete_objects")
     assert [h.get("operation_id") for h in history] == [None, "op_live"]
-    host.engineer_changed()
-    assert host.undo_history() is history and not history
+    host.engineer_changed()  # the same list, ended by the engineer's barrier
+    assert host.undo_history() is history and history[-1]["engineer"] is True
 
 
 def test_undo_takes_several_steps_and_bounds_them(nx):

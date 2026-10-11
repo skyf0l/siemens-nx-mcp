@@ -651,10 +651,7 @@ def run(spec, args, ctx: Context) -> dict:
                 changes["references"] = tx.references
                 changes.pop("stale_kinds", None)
             if tx.outcome != "not_applicable":  # a discarded preview: no mark to undo
-                depth = len(services.undo_history())
-                services.record_history(mark, part, operation_id, spec.name)
-                if len(services.undo_history()) > depth:  # new work (not an undo, restore)
-                    services.redo_steps().clear()  # ends what nx_redo_operation repeats
+                _record(services, tx, mark, part, operation_id, spec.name)
         elif tx.changed:  # a file or session tool reporting the objects it changed
             changes = {"created": [], "modified": list(tx.changed), "deleted": []}
             changes["references"] = "preserved"
@@ -685,6 +682,7 @@ def run(spec, args, ctx: Context) -> dict:
                 envelope["restore_id"] = restore_id
         _leave(bound, envelope)  # 4s: the engineer's display and work parts come back
         services.after_commit(spec)
+        _bump_parts(services, spec, tx, target, envelope["mutation_outcome"])
         receipts.finish(record, envelope)
         return envelope
     except BaseException as exc:  # 15 (SystemExit/KeyboardInterrupt from a handler too)
@@ -721,6 +719,7 @@ def run(spec, args, ctx: Context) -> dict:
         _leave(bound, envelope)  # 4s (after the rollback)
         _report_part(envelope, target, services, part_text)
         _after_failure(services, spec, outcome)
+        _bump_parts(services, spec, tx, target, outcome)
         trace = getattr(error, "trace", None)
         receipts.finish(record, envelope, trace=trace)
         if trace:  # development only (NX_MCP_DEV=1); reads have no receipt
@@ -752,6 +751,44 @@ def _report_part(envelope: dict, target, services, part_text) -> None:
     if target is not None and target.reported(part_text is not None):
         with contextlib.suppress(Exception):
             envelope["part"] = target.row(services)
+
+
+def _record(services, tx: Tx, mark, part, operation_id: str, tool: str) -> None:
+    """Gate 14: the committed model call's undo-history entry (none when an undo or
+    restore went back past its mark), with the handler's ``tx.history_note``. New work
+    in a part ends that part's redo list; an undo by deletion (``compensation``) does not."""
+    history = services.undo_history()
+    depth = len(history)
+    services.record_history(mark, part, operation_id, tool)
+    if len(history) <= depth:
+        return
+    entry = history[-1]
+    if tx.history_note:
+        entry.update(tx.history_note)
+    if entry.get("compensation"):
+        return
+    redo = services.redo_steps()
+    key = entry.get("part_id")
+    redo[:] = [item for item in redo if item.get("part_id") != key]
+
+
+def _bump_parts(services, spec, tx: Tx | None, target, outcome) -> None:
+    """The revision of the parts a call may have changed (``Services.part_revision``):
+    its target and the parts it touched; a model call without a target moves them all.
+    Reads, view changes, refusals and discarded previews move none."""
+    if spec.effect in ("read", "view") or outcome in ("not_started", "not_applicable", None):
+        return
+    bump = getattr(services, "bump_part_revision", None)
+    if bump is None:
+        return
+    keys: set = set(tx.extra_parts) if tx is not None else set()
+    if target is not None:
+        keys.add(target.key)
+    if not keys and spec.effect == "model":
+        keys.add(None)
+    with contextlib.suppress(Exception):
+        for key in keys:
+            bump(key)
 
 
 def _after_failure(services, spec, outcome: str) -> None:

@@ -683,3 +683,27 @@ def test_blocking_parts_are_left_agent_parts_and_parts_outside_smoke(tmp_path):
     assert runner.blocking_parts(rows, tmp_path) == ["smoke/run-1/a.prt", "projects/housing.prt"]
     assert runner.blocking_parts([], tmp_path) == []
     assert runner.blocking_parts(None, tmp_path) == []
+
+
+async def test_an_engineer_step_runs_its_snippet_through_the_development_bridge(monkeypatch):
+    """``{"call": "engineer", "args": {"code": ...}}`` edits NX as the engineer would: the
+    snippet runs through ``nx_dev_python`` with the host's engineer-change check after it."""
+    sent: list = []
+
+    class Client:
+        def __init__(self, path):
+            sent.append(path)
+
+        async def call(self, method, params):
+            sent.append((method, params["code"]))
+            return {"status": "success", "stdout": "", "result": "{'noticed': True, 'value': None}"}
+
+    import nx_mcp.bridge
+
+    monkeypatch.setattr(nx_mcp.bridge, "DescriptorBridgeClient", Client)
+    monkeypatch.setenv("NX_MCP_BRIDGE_DESCRIPTOR", "bridge.json")
+    steps = [{"call": "engineer", "args": {"code": "x = 1"}, "expect": {"data.noticed": True}}]
+    (result,) = await runner.run_steps(None, steps, {}, label="t")
+    assert result.passed and result.call == "engineer", result.failures
+    method, code = sent[1]
+    assert method == "nx_dev_python" and "x = 1" in code and "_check_engineer_change" in code

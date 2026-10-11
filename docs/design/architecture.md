@@ -156,7 +156,7 @@ imports every package in `domains/`. A *derived* field is never written by hand.
 | `example` | decorator | one minimal argument set, returned by `nx_get_tool_schemas` |
 | `required_by` | decorator | `{variant: (fields...)}` a variant needs (keys are values of the variant field, fields optional parameters; checked at import): gate 1 refuses the call without them. `nx_get_tool_schemas` adds a compact `required_by` map next to `input_schema` (`sidecar/schema.required_by`): one key per group of offered variants needing the same fields, `|`-joined (`{"hole": ["view", "origin"], "title_block\|revision": ["sheet", "rows", "widths"]}`), variants needing nothing left out; a `tool#variant` schema lists the fields in `required` |
 | `variant_from` | decorator | `field` or `(field, resolver)`: the variant field may be omitted; gate 3 takes it from the object the ref `field` names (`resolver(tx, obj)`, else the ref's kind), e.g. `nx_edit_drawing_table` without `kind` |
-| `target` | decorator; default from `runs`/`requires`/`effect`/`domain` (`catalogue.default_target`) | gate 3t policy: `refs` (the references' part; default), `assembly` (components, constraints, patterns, explosions and trace lines decide; occurrences pin the assembly), `sheet` (sheets, views, dimensions, annotations, tables decide), `display`, `any` (an NX-global read), `creates`, `none` (no part: sidecar tools and tools that do not require `work_part`), `arg:<param>` (the tool's own part argument: `nx_activate_part`, `nx_close_part`, `nx_save_part`) or a resolver callable `(services, args) -> part or None` (stored as `resolver` + `target_resolver`: `nx_finish_preview`, `nx_restore_checkpoint`, `nx_redo_operation`). Explicit rows only where the default is wrong (inspection measurements, attributes, exports, ...) |
+| `target` | decorator; default from `runs`/`requires`/`effect`/`domain` (`catalogue.default_target`) | gate 3t policy: `refs` (the references' part; default), `assembly` (components, constraints, patterns, explosions and trace lines decide; occurrences pin the assembly), `sheet` (sheets, views, dimensions, annotations, tables decide), `display`, `any` (an NX-global read), `creates`, `none` (no part: sidecar tools and tools that do not require `work_part`), `arg:<param>` (the tool's own part argument: `nx_activate_part`, `nx_close_part`, `nx_save_part`) or a resolver callable `(services, args) -> part or None` (stored as `resolver` + `target_resolver`: `nx_finish_preview`, `nx_restore_checkpoint`, `nx_redo_operation`, `nx_undo_operation`; a resolver returns `target.ANY` when its object is gone, so the handler says what happened instead of `NX_AMBIGUOUS_PART`). Explicit rows only where the default is wrong (inspection measurements, attributes, exports, ...) |
 | `switch` | decorator; default from `target`/`effect`/`requires`/`domain` (`catalogue.default_switch`) | how gate 4s makes the target current: `none` (reads, `none`/`creates`/`arg:`/`any` targets: bound, never switched), `work` (the target becomes the work part; `nx_get_sketch`/`nx_check_sketch` activate a sketch), `display` (`view` effects, the `display` and `drawing` domains, `interactive`, `application:sheet_metal`, explosions, WAVE links, model exports, `nx_update_assembly`) |
 | `display_bound` | decorator; default `switch == "display"` | `True` (implies `switch="display"`), or the variant values and `/<param>[/<key>]` argument pointers that need the target displayed when given (`nx_create_reference_set` `/component`: `working_in`; `nx_create_sketch` `/placement/path`); `spec.switch_for(args)` |
 | `handler` | the decorated function | called as `handler(tx, **converted_args)` |
@@ -210,7 +210,7 @@ start, and `dev_reload.py` prints the error. The checks:
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `target.py` | Gate 3t (pure): the call keys `part`/`expires_at` (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), part text resolution (`part_from_text`: `p:N`, workspace path, file name with or without `.prt`), the agent's loaded parts (`agent_parts`: owned parts, components included, never the engineer's), the two-parts note (`census`, `load_note`), top-level parts (`roots`, `Services.root_parts`, status only), `resolve`, and `refuse_other_part` (the refusal of a named part by services that cannot switch) (3.1) |
 | `switching.py` | Gate 4s (phase P2): `enter(spec, args, target, services, explicit=)` returns the call's `Bound`: nothing when the target is the work part (or the display part a call did not name), a read bound to its part (`Services.bound`), or the entered `Services.switch` (`kit.switching.Switch`, mode `spec.switch_for(args)`, `NX_MCP_SWITCH=display` for the visible fallback). `Bound.check()` after the handler (the work part is still the target), `Bound.defers(kind)` (gate 13: display-bound refreshers wait on a target that is not displayed, `deferred(services)`), `Bound.leave()` (restore; a failure is a warning, a state NX did not take back is retried by `repair` at the next call's entry). `Services.switch_log()` keeps the last 500 switches with their timings |
-| `marks.py` | NX undo marks around a call (phase P1): `watch(services)` before a non-read call's mark, `settle(...)` after it, committed or not. A part a `file` or `session` call loaded becomes a barrier in the undo history (`{mark: None, load: [paths]}`, only while an undo or a restore could reach back); a call that dropped every tracked mark gives the dropped history entries and checkpoints its reason (`saved_or_closed`, `part_loaded`, `display_reset`), marks NX evicted are `mark_evicted` with an `NX_NOTE`. Never raises |
+| `marks.py` | NX undo marks around a call (phase P1): `watch(services)` before a non-read call's mark, `settle(...)` after it, committed or not. A part a `file` or `session` call loaded becomes a barrier in the undo history (`{mark: None, load: [paths]}`, only while an undo or a restore could reach back); a call that dropped every tracked mark gives the dropped history entries and checkpoints its reason (`saved_or_closed`, `part_loaded`, `display_reset`), marks NX evicted are `mark_evicted` with an `NX_NOTE`. Phase P3: `barrier(entry)` (`load`, `close`, `engineer`), `engineer_change(services, display_changed)` (the engineer barrier, checkpoints expired, redo ended, every part's revision moved), `close_barrier(...)` (for P4's retained closes), `remove_entries` (keeps checkpoint indexes). Never raises |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
 | `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint (tool, arguments and the target part's file key `part_file`; receipts written before targets match without it), idempotent replay, states, outcome, progress, `.cancel` flag. A receipt keeps the request's `arguments`, redacted (`redact`: file contents and long strings become size notes, lists keep 100 items, at most 8,000 characters), which `nx_get_operation` echoes, and a development failure's `traceback`. Running receipts from an earlier session become `unknown`. A committed call an undo or a checkpoint restore reverted (`reverted_by`) runs again under its id instead of replaying; the new receipt keeps the reverted run under `previous` (`previous_run`: start and finish, what reverted it, the refs it created, up to 5 earlier reverted runs). The undo history, checkpoints and redo list live in the services (`undo_history`, `undo_checkpoints`, `redo_steps`, 4) |
@@ -265,8 +265,8 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
   `details.stale_refs`; `nx_undo_operation` and `nx_restore_checkpoint` call
   `tx.after_undo()` and report `preserved` or `listed`.
 - An edit the agent did not make (the engineer's) re-validates refs the same way
-  (`NXServices.revalidate`) instead of dropping them, and expires the undo history and
-  checkpoints (`expired_reason: engineer_change`).
+  (`NXServices.revalidate`) instead of dropping them, appends an `engineer` barrier to the
+  undo history (phase P3) and expires the checkpoints (`expired_reason: engineer_change`).
 - Part close and host reload invalidate the refs in their scope; a closed part's
   checkpoints stay listed as expired (`part_closed`).
 - **Undo marks across loads (phase P1).** NX keeps one undo list for the whole session
@@ -286,7 +286,38 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
   `NX_NOTE`. A mark that went away says why: `saved_or_closed`, `part_loaded` (a load that
   still displayed), `display_reset` (the engineer switched the display part, seen by the
   panel's fingerprint), `mark_evicted`. Undoing across a `CloseRetainUndoMarks` re-loads
-  the closed part (live): phase P4 makes such closes barriers too.
+  the closed part (live): phase P4 makes such closes barriers too
+  (`marks.close_barrier`, reason `part_closed`; the history tools already honour it).
+- **Undo per part (phase P3).** The history stays one session-wide list
+  (`Services.undo_history`) read per part (`domains/session/history.py`): undo, redo,
+  checkpoints and their depths act on the call's target part (the `part` key, the
+  operation's or checkpoint's part, else the work part; with two or more of the agent's
+  parts a call without either is `NX_AMBIGUOUS_PART`; `nx_list_checkpoints` is an `any`
+  read: without `part` it lists every checkpoint and the work part's depth). NX's undo is
+  linear, so the undo of part A uses `UndoToMark` only while nothing else lies between A's
+  undone operations and the top of NX's list. Barriers end every part's history: loads,
+  retained closes and the engineer's edits (`engineer_change`; the interactive host appends
+  the barrier when its mark fingerprint changed between agent calls, `marks.engineer_change`,
+  so no agent undo or restore ever reverts the engineer's work). Other parts' operations in
+  between do not end A's history: the undo then deletes what A's create-only operations made
+  instead (`domains/session/compensate.py`: committed receipts that created only features
+  with their bodies and expressions, every created object found by its live ref, no feature
+  outside the set among their `GetChildren`, no sketch; verified on snapshots, the kernel
+  rolls the deletion back otherwise; created expressions NX keeps are reported, anchors are
+  re-checked with `References.recheck_anchors`), or it refuses with `NX_CROSS_PART` naming
+  the operations and parts in the way (`details.in_the_way`) and why deletion does not
+  qualify. The undo by deletion enters the history as a `compensation` entry
+  (`Tx.history_note`): never undone itself, it blocks NX's undo of every older entry, of
+  every part, so no later undo brings the deleted objects back. `nx_undo_operation(mode=
+  "delete_created")` always undoes by deletion (also across loads, never across the
+  engineer's edits); `operation=` undoes one own operation (its part from the history, so
+  no `part` is needed; `NX_DEPENDENCY_ORDER` while later operations of the part follow it,
+  unless by deletion). A restore undoes the checkpoint's part's operations since it by the
+  same rules (nothing of the part since: nothing to undo). The redo list is read per part
+  too: new work in a part ends that part's items only (`kernel._record`); an engineer change
+  ends them all. Previews compare `Services.part_revision` (the kernel bumps the target and
+  touched parts of every non-read, non-view call that may have changed something): another
+  part's work, reads and view changes do not age a preview.
 
 ### 1.4 `kit/`: shared NX know-how, never copied
 
@@ -655,9 +686,9 @@ other name lists are deleted. What holds today:
   running one `NX_OUTCOME_UNKNOWN`. A call an undo or restore reverted runs again (receipt
   `previous` links the reverted run); `nx_redo_operation` repeats such calls through
   `tx.call`, each a top-level operation with its own mark and history entry. The redo list
-  (`services.redo_steps`) gets the calls an undo or restore reverted; the kernel empties it
-  when a new model call enters the undo history, `engineer_changed` empties it, and a part
-  close drops that part's entries.
+  (`services.redo_steps`) gets the calls an undo or restore reverted; the kernel drops a
+  part's items when a new model call of that part enters the undo history,
+  `engineer_changed` empties it, and a part close drops that part's entries.
 - **Sheet units (gate 9)** come from the referenced sheet or view, a new sheet's `units`, the
   current sheet, else part units; handlers get `tx.sheet` and `tx.units`.
 - **View rollback.** `view` handlers record what they change with `tx.display.keep*`; a failure

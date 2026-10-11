@@ -107,3 +107,44 @@ def test_settle_never_raises():
     s.parts = None  # type: ignore[assignment]
     marks.settle(s, seen, spec("file"), "op")
     marks.settle(s, None, spec("file"), "op")
+
+
+def test_barriers_are_loads_retained_closes_and_engineer_edits():
+    assert marks.barrier({"mark": 1, "part_id": "part_1"}) is None
+    assert marks.barrier({"mark": None, "load": ["b.prt"]}) == "load"
+    assert marks.barrier({"mark": None, "close": ["b.prt"]}) == "close"
+    assert marks.barrier({"mark": None, "engineer": True}) == "engineer"
+    s = Marks()
+    marks.close_barrier(s, ["b.prt"], "part_2", "op_close", "nx_close_part")
+    assert s.undo_history() == []  # nothing to protect
+    s.entry(10)
+    marks.close_barrier(s, ["b.prt"], "part_2", "op_close", "nx_close_part")
+    assert marks.barrier(s.undo_history()[-1]) == "close"
+
+
+def test_an_engineer_change_ends_the_history_once_and_moves_every_part():
+    s = Marks()
+    s.entry(10)
+    s.undo_checkpoints()["cp"] = {"mark": 10, "part_id": "part_1", "index": 1}
+    s.redo_steps().append({"operation_id": "op9", "part_id": "part_1"})
+    marks.engineer_change(s)
+    marks.engineer_change(s)  # a second edit before the next agent call: one barrier
+    assert [marks.barrier(h) for h in s.undo_history()] == [None, "engineer"]
+    assert s.undo_checkpoints()["cp"]["expired"] == "engineer_change" and not s.redo_steps()
+    assert s.part_revision("part_1") == 2 and s.part_revision("part_9") == 2
+    s.live.clear()  # the engineer's display switch dropped the marks
+    marks.engineer_change(s, display_changed=True)
+    assert s.undo_history()[0]["expired"] == "display_reset"
+
+
+def test_removing_entries_keeps_checkpoints_at_their_place():
+    s = Marks()
+    for mark in (1, 2, 3):
+        s.entry(mark)
+    history = s.undo_history()
+    s.undo_checkpoints().update({"early": {"index": 1}, "late": {"index": 3}})
+    marks.remove_entries(s, [history[0], history[2]])
+    assert [h["mark"] for h in history] == [2]
+    assert (
+        s.undo_checkpoints()["early"]["index"] == 0 and s.undo_checkpoints()["late"]["index"] == 1
+    )

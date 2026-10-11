@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/preview_changes.json",
-  "scenario_sha256": "eb22d08d36a2dfa2e90c424976327cc5922b784675b88c00bb1d5ca90c03e5fc",
+  "scenario_sha256": "fc89db252710b7ffe35fd230757fa2d5d34a0cc68c5d1ae8f7eb6f28ef5c50cb",
   "domain": "session",
   "covers": {
     "nx_preview_changes": [],
@@ -13,12 +13,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_preview_changes": "dd5162ddfc947440a1caf5ad83262ff1f2d33fbc293feb292531b2d9dac74ab7",
-    "nx_finish_preview": "dd5162ddfc947440a1caf5ad83262ff1f2d33fbc293feb292531b2d9dac74ab7"
+    "nx_preview_changes": "a98ca0fb191f49e743e611cbb36b32e8782e26ce7a7be27f87b04331e86669e5",
+    "nx_finish_preview": "a98ca0fb191f49e743e611cbb36b32e8782e26ce7a7be27f87b04331e86669e5"
   },
-  "recorded": "2026-10-11T14:11:21Z",
+  "recorded": "2026-10-11T17:26:30Z",
   "passed": true,
-  "checks": 69,
+  "checks": 72,
   "failed_checks": 0,
   "steps": [
     {
@@ -142,42 +142,42 @@
     },
     {
       "index": 18,
-      "call": "nx_measure_mass",
+      "call": "nx_finish_preview",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 19,
-      "call": "nx_list_objects",
+      "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
       "index": 20,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
       "call": "nx_preview_changes",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 22,
-      "call": "nx_preview_changes",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
       "index": 23,
-      "call": "nx_finish_preview",
+      "call": "nx_preview_changes",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -187,17 +187,24 @@
       "call": "nx_finish_preview",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 3
     },
     {
       "index": 25,
+      "call": "nx_finish_preview",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 26,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 26,
+      "index": 27,
       "call": "nx_finish_preview",
       "setup": false,
       "passed": true,

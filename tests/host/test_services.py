@@ -114,13 +114,17 @@ def test_new_feature_inheriting_a_rolled_back_error_is_updated_once(tmp_path):
     assert old.errors == ["old error"] and inherited.errors == []
 
 
-def test_engineer_change_clears_undo_history_and_bumps_the_revision(tmp_path):
+def test_engineer_change_ends_the_undo_history_with_a_barrier_and_bumps_the_revision(tmp_path):
     s = services(tmp_path)
     s.history.append({"mark": 1})
     s.checkpoints["cp"] = {"mark": 1}
+    s.redo_steps().append({"operation_id": "op_undone", "part_id": "part_1"})
     s.engineer_changed()
-    assert not s.history and s.revision() == 1
+    assert s.history[0] == {"mark": 1} and s.history[1]["engineer"] is True
+    assert s.revision() == 1 and s.part_revision("part_1") == 1 and not s.redo_steps()
     assert s.checkpoints["cp"]["expired"] == "engineer_change"  # listed, not dropped
+    s.engineer_changed()  # a second edit before the next agent operation: one barrier
+    assert len(s.history) == 2
 
 
 class _Tagged:

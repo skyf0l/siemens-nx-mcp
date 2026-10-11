@@ -69,10 +69,10 @@ def test_cross_part_undo_refuses_and_a_checkpoint_restores_in_its_own_part(rig, 
     cp = call("nx_create_checkpoint")
     add()
     other = Part(rig.session, tmp_path / "other.prt")  # now the display and work part
-    rig.e.own(other)  # the agent's own part: refused for crossing parts
-    with pytest.raises(NXError) as error:
+    rig.e.own(other)  # the agent's own part: per part, it has nothing to undo
+    with pytest.raises(NXError, match="no operation of other.prt") as error:
         call("nx_undo_operation", part="other")
-    assert error.value.code == "NX_CROSS_PART"
+    assert error.value.code == "NX_NOT_FOUND"
     assert len(rig.part.Bodies) == 1 and not other.Bodies
     # Gate 4s: the checkpoint's part becomes the work part for the call, then other again.
     restored = call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])

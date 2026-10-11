@@ -509,6 +509,33 @@ class References:
                 stale.append(entry.id)
         return {"rebound": rebound, "stale": stale}
 
+    def recheck_anchors(self, part_key: str, gone=()) -> list[dict]:
+        """After features of ``part_key`` were deleted (an undo by deletion): NX may give
+        later objects new journal identifiers, so an anchor could name another object.
+        The anchors of deleted objects (``gone``: their tags, or a dead wrapper) are
+        dropped, so no later re-bind takes a renumbered object for them; a live object
+        whose identifier changed gets its new anchor. Returns ``[{ref, anchor, was}]``
+        of the anchors that moved."""
+        gone = {str(t) for t in gone}
+        moved: list[dict] = []
+        for entry in self._entries.values():
+            if entry.part_key != part_key or entry.anchor is None:
+                continue
+            obj = None
+            with contextlib.suppress(Exception):
+                if self.backend.handle_live(entry.handle):
+                    obj = self.backend.resolve_handle(entry.handle)
+            if obj is None or deleted(obj) or _tag(obj) in gone:
+                entry.anchor = None
+                continue
+            if self._moved(entry.anchor, obj):
+                was = entry.anchor
+                with contextlib.suppress(Exception):
+                    entry.anchor = self._anchor(obj, entry.kind, self.backend.owning_part(obj))
+                if entry.anchor != was:
+                    moved.append({"ref": entry.id, "anchor": entry.anchor, "was": was})
+        return moved
+
     def stale(self, retired, floor: int | None = None) -> list[str]:
         """Short refs whose registry handle is in ``retired``; refs numbered at or
         above ``floor`` were issued inside the call and are left out."""

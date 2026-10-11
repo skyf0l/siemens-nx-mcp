@@ -1911,7 +1911,7 @@ NX build, bridge state, panel mode, work and display part, workspace root and ru
 
 **List checkpoints** · effect `read` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
 
-List this session's checkpoints and the agent's undo depth. Expired ones show available=false and expired_reason (undone_past, saved_or_closed, part_loaded, display_reset, mark_evicted, engineer_change or part_closed).
+List this session's checkpoints (with part: that part's) and the part's undo depth. Expired ones show available=false and expired_reason (undone_past, saved_or_closed, part_loaded, display_reset, mark_evicted, engineer_change or part_closed).
 
 No arguments.
 
@@ -1930,7 +1930,7 @@ Apply 1-25 previewable calls temporarily, report what changed, then roll them ba
 
 **Redo operation** · effect `session` · NX 2406: tested; 71 checks in `acceptance/session/redo_replay.json`
 
-Repeat the agent's calls an undo or checkpoint restore reverted, next first. Each runs as its own operation (same operation_id, new refs). New work ends the redo list; a failing step undoes the steps redone.
+Repeat the part's agent calls an undo or checkpoint restore reverted, next first. Each runs as its own operation (same operation_id, new refs). New work in the part ends the redo list; a failing step undoes the steps redone.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1940,7 +1940,7 @@ Repeat the agent's calls an undo or checkpoint restore reverted, next first. Eac
 
 **Restore checkpoint** · effect `model` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
 
-Roll the work part back to a checkpoint (id or label), undoing the agent's operations since; it stays restorable. Refused when expired or across parts. Refs of objects that remain stay valid; save to persist.
+Roll the checkpoint's part back to it (id or label), undoing its agent operations since; it stays restorable. Refused when expired, or when other parts' later work is in the way. Refs of objects that remain stay valid; save to persist.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1971,11 +1971,13 @@ Rename an object of the work part (feature, body, sketch, component) by its ref.
 
 **Undo operation** · effect `model` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
 
-Undo the agent's last steps operations (never the engineer's); nx_redo_operation repeats them. A save, part close or load, or engineer edit ends the history. Remaining objects keep their refs.
+Undo the part's last steps operations, or one own operation; never others' work. nx_redo_operation repeats them.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `steps` | integer | `1` | Operations to undo |
+| `operation` | string | optional | Own operation_id to undo |
+| `mode` | `delete_created` | optional | Delete what they made, no NX undo |
 
 ## sheet_metal
 

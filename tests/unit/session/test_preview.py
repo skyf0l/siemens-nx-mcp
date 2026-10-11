@@ -159,10 +159,13 @@ def test_a_stale_preview_can_be_discarded_and_names_what_changed():
     stale = run(nx, "nx_finish_preview", preview_id=pid, action="accept")
     assert stale.error["code"] == "NX_STALE_PREVIEW"
     assert "expressions" in stale.error["details"]["changed"]
+    assert stale.mutation_outcome == "not_started"  # a refusal keeps the preview
     gone = run(nx, "nx_finish_preview", preview_id=pid, action="discard")
-    assert gone.ok and gone.data["state"] == "already_finished"
+    assert gone.ok and gone.data["state"] == "discarded"
+    twice = run(nx, "nx_finish_preview", preview_id=pid, action="discard")
+    assert twice.ok and twice.data["state"] == "already_finished"
     again = run(nx, "nx_finish_preview", preview_id=pid, action="accept")
-    assert "expired" in again.error["message"] and list(nx.part.Bodies) == []
+    assert "already discarded" in again.error["message"] and list(nx.part.Bodies) == []
 
 
 def test_refused_calls_and_renames_in_between_do_not_expire_the_preview():

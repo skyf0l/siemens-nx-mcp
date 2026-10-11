@@ -318,7 +318,11 @@ class KitServices(Services):
         return retired
 
     def forget_parts(self, keys):
-        """Closed parts: their refs go stale (``nx.forgotten`` records the keys)."""
+        """Closed parts: their refs go stale (``nx.forgotten`` records the keys); like the
+        host, their undo history and redo items go (barriers stay) and their checkpoints
+        stay listed as ``part_closed``."""
+        from nx_mcp.core import marks
+
         keys = set(keys)
         forgotten = self.fake.__dict__.setdefault("forgotten", [])
         forgotten.extend(sorted(keys))
@@ -326,6 +330,22 @@ class KitServices(Services):
             owner = getattr(obj, "OwningPart", obj if hasattr(obj, "PartUnits") else None)
             if owner is not None and self.part_key(owner) in keys:
                 del self.fake.refs[ref]
+        marks.remove_entries(
+            self, [h for h in self.history if marks.barrier(h) is None and h.get("part_id") in keys]
+        )
+        redo = self.redo_steps()
+        redo[:] = [h for h in redo if h.get("part_id") not in keys]
+        for cp in self.checkpoints.values():
+            if cp.get("part_id") in keys and cp.get("expired") in (None, "mark_evicted"):
+                cp["expired"] = "part_closed"
+
+    def engineer_changed(self, display_changed=False):
+        """What the interactive host does when the engineer changed the model between
+        agent calls (``NXServices.engineer_changed``): an engineer barrier."""
+        from nx_mcp.core import marks
+
+        marks.engineer_change(self, display_changed)
+        self.revisions += 1
 
     def record_history(self, mark, part, operation_id, tool):
         if not self.mark_exists(mark):  # like the host: an undo went back past its mark

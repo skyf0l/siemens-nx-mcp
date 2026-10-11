@@ -20,6 +20,7 @@ from typing import Any, cast
 from nx_mcp import side_effects
 from nx_mcp.bridge import ObjectKind, ObjectRegistry
 from nx_mcp.core import catalogue
+from nx_mcp.core import marks as undo_marks
 from nx_mcp.core.errors import fail
 from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import PREFIX, Counter, References, Row
@@ -730,10 +731,11 @@ class NXServices(Services):
         for tag, generation in list(self._generations.items()):
             if any(key.endswith("_" + generation) for key in keys):
                 self._generations.pop(tag, None)
-        # A load barrier stays: undo across the load still crosses the part's lifetime.
-        self.history[:] = [
-            h for h in self.history if h.get("load") is not None or h.get("part_id") not in keys
-        ]
+        # A barrier stays: undo across the load still crosses the part's lifetime.
+        undo_marks.remove_entries(
+            self,
+            [h for h in self.history if undo_marks.barrier(h) is None and h.get("part_id") in keys],
+        )
         redo = self.redo_steps()
         redo[:] = [h for h in redo if h.get("part_id") not in keys]
         for cp in self.checkpoints.values():  # listed as expired, never dropped silently
@@ -741,20 +743,17 @@ class NXServices(Services):
                 cp["expired"] = "part_closed"  # what matters more than an evicted mark
 
     def engineer_changed(self, display_changed: bool = False) -> None:
-        """The engineer edited the model between agent calls: no undo or checkpoint
-        reaches back over the edit (checkpoints stay listed, expired). References are
-        re-validated by the host (:meth:`revalidate`), not dropped. Nothing is left
-        to redo either: the undone calls were made for the model before the edit.
+        """The engineer edited the model between agent calls: an ``engineer`` barrier in
+        the undo history (``core/marks.engineer_change``) keeps every agent undo and
+        restore of every part from reaching back over the edit, so none reverts it; the
+        history before it stays listed and checkpoints stay listed, expired. References
+        are re-validated by the host (:meth:`revalidate`), not dropped. Nothing is left to
+        redo either: the undone calls were made for the model before the edit.
 
         ``display_changed``: the engineer also switched the display part, which drops
-        NX's undo marks (a plain display switch): checkpoints whose mark went say
-        ``display_reset``."""
-        self.history.clear()
-        self.redo_steps().clear()
-        for cp in self.checkpoints.values():
-            if display_changed and not cp.get("expired") and not self.mark_exists(cp["mark"]):
-                cp["expired"] = "display_reset"
-            cp.setdefault("expired", "engineer_change")
+        NX's undo marks (a plain display switch): entries and checkpoints whose mark went
+        say ``display_reset``."""
+        undo_marks.engineer_change(self, display_changed)
         self.epoch += 1
 
     def revalidate(self) -> dict:

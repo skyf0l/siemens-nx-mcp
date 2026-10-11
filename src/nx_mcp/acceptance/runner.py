@@ -11,7 +11,12 @@ Argument strings ``$part`` (a fresh absolute path under ``smoke/<run-id>/``),
 ``$fixture`` (a copy of the fixture there), ``$run`` (the run directory) and
 ``$label.dotted.path`` (a value from an earlier saved result) are resolved
 before each call; ``$$`` escapes a literal ``$`` (``"$$0.data.sketch"`` reaches
-the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). ``expect``
+the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). A step with
+``"call": "engineer"`` and ``"args": {"code": ...}`` plays the engineer: it runs the
+Python snippet in NX through the bridge's development tool (``NX_MCP_DEV=1``; names as
+``scripts/dev_python.py``) and then lets the interactive host check its mark
+fingerprint as it does before every agent call, so the edit becomes an engineer change
+(an undo-history barrier) and never an agent operation. ``expect``
 values take ``$name...`` strings the same way (other ``$`` text such as ``$~C`` stays).
 Every call goes through the stdio MCP client of a fresh
 ``python -m nx_mcp.server`` (agent profile): catalogue read tools through
@@ -62,6 +67,19 @@ ROOT = Path(os.environ.get("NX_MCP_SOURCE_ROOT") or Path(__file__).resolve().par
 SCENARIOS = ROOT / "acceptance"
 EVIDENCE = SCENARIOS / "evidence"
 STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail"}
+ENGINEER = "engineer"  # a step that edits NX as the engineer would (development only)
+# Appended to an engineer step's snippet: the host's own check between agent calls.
+_NOTICE = """
+_host = services.host
+if _host is not None:
+    _host._engineer_had_nx = True
+    _noticed = bool(_host._check_engineer_change())
+else:
+    services.revalidate()
+    services.engineer_changed()
+    _noticed = True
+result = {"noticed": _noticed, "value": result}
+"""
 CLEANUP = ("close", "save", "keep")
 EVIDENCE_FORMAT = 2  # 2: deterministic proof only; run details go to the run log
 RUN_LOG = Path(".nx-mcp") / "acceptance-runs"  # under the workspace, never committed
@@ -283,6 +301,26 @@ async def call_tool(
     return unwrap(body)
 
 
+async def engineer_edit(args: dict) -> dict:
+    """An ``engineer`` step: ``args["code"]`` runs in NX (``nx_dev_python``), then the host
+    notices the change (``data.noticed``); an error envelope when NX refused."""
+    from nx_mcp.bridge import DescriptorBridgeClient
+
+    path = descriptor_path()
+    code = args.get("code") if isinstance(args, dict) else None
+    if path is None or not isinstance(code, str):
+        return unwrap("an engineer step needs args.code and the bridge descriptor")
+    client = DescriptorBridgeClient(str(path))
+    try:
+        snippet = "result = None\n" + code + _NOTICE
+        result = await client.call("nx_dev_python", {"code": snippet})
+    except Exception as error:
+        problem = {"code": getattr(error, "code", "NX_ERROR"), "message": str(error)}
+        return {"ok": False, "error": problem}
+    noticed = "'noticed': True" in str(result.get("result"))
+    return {"ok": True, "data": {"noticed": noticed, "stdout": result.get("stdout", "")}}
+
+
 def _digest(result: Any) -> str:
     return sha256(json.dumps(result, sort_keys=True, ensure_ascii=False, default=str).encode())
 
@@ -311,9 +349,12 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
             break
         intent = step.get("intent") or f"Acceptance {label}, step {index}"
         try:
-            outcome = await call_tool(
-                session, tool, args, intent=intent, detail=step.get("detail") or "full"
-            )
+            if tool == ENGINEER:
+                outcome = await engineer_edit(args)
+            else:
+                outcome = await call_tool(
+                    session, tool, args, intent=intent, detail=step.get("detail") or "full"
+                )
         except Exception as error:  # Transport failure: the scenario cannot continue.
             failed = StepResult(
                 index, tool, bool(step.get("setup")), False, len(rules),

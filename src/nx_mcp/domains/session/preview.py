@@ -12,16 +12,20 @@ Refs in the step results are stale; the input refs the steps named are re-issued
 (``references``: old -> new) because the rollback invalidates the part's refs.
 
 ``nx_finish_preview`` with ``accept`` re-applies exactly the previewed calls under one
-undo mark, only on the same work part and while nothing changed the model since the
-preview: either nothing changed the session (the services' ``revision`` counter, bumped
-once by the preview call's own commit), or the work part still has the same objects,
-expressions, volume, bounds and counts as before the preview (a refused call, a rename
-or another discarded preview in between bump the counter but change no geometry; the
-result then warns). Otherwise ``NX_STALE_PREVIEW`` names what changed. ``discard``
-drops the preview and changes nothing (``mutation_outcome`` ``not_applicable``);
-discarding an expired preview is a no-op. ``preview_id`` takes the bare 32 hex digits
-too. Previews live in the NX host process (the 20 newest); a host reload forgets them;
-the last 200 finished ids are remembered so a repeated finish says what happened.
+undo mark in the part the preview was made in (gate 3t takes it from the stored preview
+and gate 4s makes it current), while nothing changed that part since the preview:
+either no call targeted it (its ``Services.part_revision``, bumped once by the preview
+call's own commit; other parts' work, reads and view changes leave it alone), or it still
+has the same objects, expressions, volume, bounds and counts as before the preview (a
+refused call, a rename or another discarded preview in between change no geometry; the
+result then warns). Otherwise ``NX_STALE_PREVIEW`` names what changed; the preview is
+kept (an undo of the change makes it acceptable again). Only a finished accept or
+discard consumes a preview. ``discard`` drops the preview and changes nothing
+(``mutation_outcome`` ``not_applicable``); discarding a finished, expired or closed-part
+preview is a no-op, accepting one says what happened to it. ``preview_id`` takes the
+bare 32 hex digits too. Previews live in the NX host process (the 20 newest); a host
+reload forgets them; the last 200 finished ids are remembered so a repeated finish says
+what happened.
 """
 
 from __future__ import annotations
@@ -38,7 +42,7 @@ from typing import Annotated, Any, Literal, TypedDict
 from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
-from nx_mcp.core.target import part_by_key
+from nx_mcp.core.target import ANY, part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Text
 from nx_mcp.domains.session.batch import Step, StepResult, _preflight
@@ -65,6 +69,7 @@ _FATE = {
     "stale": "expired: the model changed after it, so accept was refused",
     "evicted": f"expired: only the {KEEP} newest previews are kept",
     "failed": "was consumed by an accept that failed and was rolled back",
+    "closed": "expired: its part was closed",
 }
 
 
@@ -363,8 +368,8 @@ def nx_preview_changes(
         "operations": copy.deepcopy(operations),
         "objects": objects,
         "part": part_key,
-        # This call's own commit (Services.after_commit) bumps the counter once.
-        "revision": services.revision() + 1,
+        # This call's own commit (the kernel's part revision) bumps the counter once.
+        "revision": services.part_revision(part_key) + 1,
         "fingerprint": fingerprint,
     }
     while len(store) > KEEP:
@@ -388,12 +393,14 @@ def nx_preview_changes(
 
 
 def _preview_part(services, args) -> Any:
-    """Gate 3t: the part a preview was made in (None: unknown, the usual rules apply)."""
+    """Gate 3t: the part a preview was made in; ANY for a finished, unknown or closed-part
+    preview (the handler says what happened to it, never NX_AMBIGUOUS_PART)."""
     preview_id = args.get("preview_id")
     if not isinstance(preview_id, str):
         return None
     preview = _store(services).get(_canonical(preview_id))
-    return part_by_key(services, preview["part"]) if preview else None
+    found = part_by_key(services, preview["part"]) if preview else None
+    return found if found is not None else ANY
 
 
 @tool(
@@ -421,17 +428,20 @@ def nx_finish_preview(
     preview_id = _canonical(preview_id)
     with tx.checks():
         preview = store.get(preview_id)
+        if preview is not None and part_by_key(services, preview["part"]) is None:
+            del store[preview_id]  # its part was closed: it can never be accepted
+            _finish(services, preview_id, "closed")
+            preview = None
         if preview is None:
             return _gone(tx, preview_id, action)
-        del store[preview_id]  # finishing consumes the preview, applied or refused
         if action == "discard":
+            del store[preview_id]
             _finish(services, preview_id, "discarded")
             tx.outcome = "not_applicable"  # nothing in NX changed
             return {"preview_id": preview_id, "action": "discard", "state": "discarded",
                     "results": [], "count": 0}  # fmt: skip
-        _fresh(tx, preview_id, preview)
+        _fresh(tx, preview_id, preview)  # a refusal keeps the preview
         mapping = _reissue(tx, preview["objects"])
-    _finish(services, preview_id, "failed")  # until every step ran
     total = len(preview["operations"])
     tx.checkpoint(done=0, total=total)
     results: list[StepResult] = []
@@ -439,6 +449,7 @@ def nx_finish_preview(
         child = tx.run(step["tool"], _translate(step["arguments"], mapping), mode="preview")
         results.append({"index": index, **child})
     tx.checkpoint(done=total)
+    store.pop(preview_id, None)  # applied: consumed
     _finish(services, preview_id, "accepted")
     return {
         "preview_id": preview_id,
@@ -453,7 +464,7 @@ def _gone(tx, preview_id: str, action: str) -> FinishData:
     """A preview no longer in the store: discarding an expired or discarded one is a
     no-op; anything else says what happened to it."""
     fate = _FINISHED.get(tx.services, {}).get(preview_id)
-    if action == "discard" and fate in ("discarded", "stale", "evicted", "failed"):
+    if action == "discard" and fate in ("discarded", "stale", "evicted", "failed", "closed"):
         tx.outcome = "not_applicable"
         return {"preview_id": preview_id, "action": "discard", "state": "already_finished",
                 "results": [], "count": 0}  # fmt: skip
@@ -472,23 +483,23 @@ def _gone(tx, preview_id: str, action: str) -> FinishData:
 
 
 def _fresh(tx, preview_id: str, preview: dict) -> None:
-    """Refuse the accept unless the model is as previewed (see the module docstring)."""
+    """Refuse the accept unless the part is as previewed (see the module docstring); a
+    refusal keeps the preview."""
     services = tx.services
     if services.part_key(tx.part) != preview["part"]:
-        _finish(services, preview_id, "stale")
-        fail("NX_STALE_PREVIEW", "The work part changed since the preview",
+        fail("NX_STALE_PREVIEW", "The preview was made in another part",
              field="/preview_id", details={"preview_id": preview_id, "changed": ["work_part"]},
-             hint="Make the previewed part the work part and preview again")  # fmt: skip
-    if services.revision() == preview["revision"]:
+             hint="Drop part: the preview names its own part")  # fmt: skip
+    if services.part_revision(preview["part"]) == preview["revision"]:
         return
     changed = _changed(preview["fingerprint"], _fingerprint(tx, _state(tx), _expressions(tx)))
     if changed:
-        _finish(services, preview_id, "stale")
         fail("NX_STALE_PREVIEW", "The model changed since the preview: " + ", ".join(changed),
-             field="/preview_id", hint="Create a fresh preview with nx_preview_changes",
+             field="/preview_id",
+             hint="Create a fresh preview with nx_preview_changes, or undo the change",
              details={"preview_id": preview_id, "changed": changed})  # fmt: skip
     tx.warn(
         "NX_UPDATE_WARNING",
-        "Other calls ran since the preview, but the work part's objects, expressions, "
+        "Other calls ran in the part since the preview, but its objects, expressions, "
         "volume and bounds are as previewed: the previewed steps were applied",
     )

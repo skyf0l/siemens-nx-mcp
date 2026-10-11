@@ -181,7 +181,9 @@ def test_engineer_change_between_calls_invalidates_references_once(host, rig, mo
     host.execute("nx_list_objects", BODIES)
     # References are re-validated, not dropped: the body still exists, so its ref works.
     assert rig.e.objects.resolve(ref) is body
-    assert rig.e.checkpoints[checkpoint]["expired"] == "engineer_change" and not rig.e.history
+    assert rig.e.checkpoints[checkpoint]["expired"] == "engineer_change"
+    # The history stays, ended by an engineer barrier that no undo or restore crosses.
+    assert [h.get("engineer") for h in rig.e.history] == [None, True]
     line = host.history_lines(8)[1]
     assert line.startswith("✎  ") and "You changed the model — agent will re-read" in line
     log = (host.state_dir / "activity.log").read_text(encoding="utf-8")

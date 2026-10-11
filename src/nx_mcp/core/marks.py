@@ -21,9 +21,22 @@ closed, or none loaded), ``part_loaded`` (a part loaded) or ``display_reset`` (t
 display part changed). Marks NX evicted are ``mark_evicted``, with a note in the
 result. Both never raise.
 
-History entries are ``{mark, part_id, operation_id, method}``; a barrier has
-``mark`` None and ``load`` (the loaded parts' paths); an entry or checkpoint whose
-mark is gone gets ``expired`` (the reason).
+History entries are ``{mark, part_id, operation_id, method}``; an entry or checkpoint
+whose mark is gone gets ``expired`` (the reason). The history is one list for the whole
+session, read per part (``domains/session/history.py``). Barriers (:func:`barrier`) have
+``mark`` None and end every part's undo, because NX's undo is linear:
+
+- ``load`` (the loaded parts' paths): a part load by a file or session call;
+- ``close`` (the closed parts' paths): a part closed with its undo marks kept (an undo
+  across it would load the part again; :func:`close_barrier`);
+- ``engineer``: the engineer changed the model between agent calls (the host's mark
+  fingerprint, :func:`engineer_change`). No agent undo or restore crosses it, so none
+  reverts the engineer's work; their edits stay.
+
+An entry with ``compensation`` is a committed undo that deleted what create-only calls
+made instead of using NX's undo (other parts' work came after them). It is never undone
+itself (NX's undo would bring the deleted objects back) and blocks the NX undo of every
+older entry, of every part.
 """
 
 from __future__ import annotations
@@ -34,6 +47,7 @@ from typing import Any
 
 LOAD_EFFECTS = ("file", "session")  # model calls undo their own loads
 LOADS_LISTED = 10
+BARRIERS = ("load", "close", "engineer")
 MARK_CAP_TEXT = "NX keeps about 180 undo marks for the whole session and drops the oldest first"
 
 
@@ -57,6 +71,74 @@ def _display(services) -> int:
         return _tag(services.session.Parts.Display)
     except Exception:
         return 0
+
+
+def barrier(entry: dict) -> str | None:
+    """The barrier kind of a history entry (``load``, ``close``, ``engineer``), else None."""
+    if entry.get("engineer"):
+        return "engineer"
+    if entry.get("close") is not None:
+        return "close"
+    if entry.get("load") is not None:
+        return "load"
+    return None
+
+
+def remove_entries(services, entries) -> None:
+    """Take ``entries`` (by identity) out of the history; checkpoints keep pointing at the
+    same place (their ``index`` counts the entries before them)."""
+    history = services.undo_history()
+    gone = {id(e) for e in entries}
+    positions = [i for i, h in enumerate(history) if id(h) in gone]
+    if not positions:
+        return
+    for cp in services.undo_checkpoints().values():
+        index = int(cp.get("index", 0))
+        cp["index"] = index - sum(1 for i in positions if i < index)
+    history[:] = [h for h in history if id(h) not in gone]
+
+
+def engineer_change(services, display_changed: bool = False) -> None:
+    """The engineer changed the model between agent calls (the host's mark fingerprint):
+    a global ``engineer`` barrier ends every part's undo there (the history before it
+    stays listed), every checkpoint expires (``engineer_change``; ``display_reset`` for
+    marks a display switch dropped), nothing is left to redo and every part's revision
+    moves. Never raises."""
+    with contextlib.suppress(Exception):
+        history = services.undo_history()
+        for item in history:
+            if (
+                display_changed
+                and item.get("mark") is not None
+                and not item.get("expired")
+                and not _alive(services, item)
+            ):
+                item["expired"] = "display_reset"
+        for cp in services.undo_checkpoints().values():
+            if display_changed and not cp.get("expired") and not _alive(services, cp):
+                cp["expired"] = "display_reset"
+            cp.setdefault("expired", "engineer_change")
+        if history and barrier(history[-1]) != "engineer":
+            history.append(
+                {"mark": None, "part_id": None, "operation_id": None, "method": "engineer",
+                 "engineer": True}
+            )  # fmt: skip
+        services.redo_steps().clear()
+    bump = getattr(services, "bump_part_revision", None)
+    if bump is not None:
+        with contextlib.suppress(Exception):
+            bump(None)
+
+
+def close_barrier(services, paths: list, part_id, operation_id: str, method: str) -> None:
+    """After a part close that kept NX's undo marks (``CloseRetainUndoMarks``): undoing
+    across it would load the part again, so it ends every part's undo."""
+    with contextlib.suppress(Exception):
+        if has_undo_state(services):
+            services.undo_history().append(
+                {"mark": None, "part_id": part_id, "operation_id": operation_id,
+                 "method": method, "close": list(paths)[:LOADS_LISTED]}
+            )  # fmt: skip
 
 
 def _tracked(services) -> tuple[list, list]:

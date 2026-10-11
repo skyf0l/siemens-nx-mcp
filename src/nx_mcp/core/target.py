@@ -6,7 +6,8 @@ issue a ``p:N`` ref for a part it reports). The call keys ``part`` and
 (:func:`split_call_keys`); :func:`check_call_keys` validates them.
 
 Order (:func:`resolve`): the tool's own part argument (``target="arg:<param>"``), a
-``resolver`` hook, then the references' part (an occurrence pins its prototype's
+``resolver`` hook (it may return :data:`ANY`: the call's own object is gone, any part will
+do because the handler only reports it), then the references' part (an occurrence pins its prototype's
 owner, except under ``target="assembly"`` and for components, which pin the assembly)
 and the ``part`` key (a loaded part's file name with or without ``.prt``, its workspace
 path or ``p:N``; a ``part`` that contradicts the references is ``NX_WRONG_PART_CONTEXT``,
@@ -54,6 +55,10 @@ DECIDERS = {
 EXAMPLE = '{"part": "<file name>"}'  # a neutral example: never a real loaded part
 PART_HINT = "a loaded part's file name (with or without .prt), its workspace path or p:N"
 LOAD_NOTE = "{count} parts are loaded: calls without refs now take part"
+# A resolver's answer when the call's own object (a preview, a checkpoint, an operation)
+# is gone or unknown: the call takes ``part`` or the work part, never NX_AMBIGUOUS_PART,
+# and its handler says what happened to the object.
+ANY = object()
 
 
 @dataclass
@@ -418,12 +423,16 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
     if policy == "any":  # an NX-global read: any loaded part will do, never ambiguous
         work = services.work_part()
         chosen = part_from_text(services, part) if part is not None else work or loaded[0]
-        return _target(services, chosen, "any", count)
+        return _target(services, chosen, "any", count, "/part" if part is not None else None)
     explicit = part_from_text(services, part) if part is not None else None
     if policy == "resolver" and spec.target_resolver is not None:
         found = None
         with contextlib.suppress(Exception):
             found = spec.target_resolver(services, args)
+        if found is ANY:
+            if explicit is not None:
+                return _target(services, explicit, "part", count, "/part")
+            return _target(services, services.work_part() or loaded[0], "any", count)
         if found is not None:
             if explicit is not None and not same(services, explicit, found):
                 fail(

@@ -117,7 +117,13 @@
   },
   {
    "call": "nx_finish_preview",
-   "intent": "Acceptance: discarding the expired preview is a no-op",
+   "intent": "Acceptance: the refused accept kept the stale preview; discarding it drops it",
+   "args": {"preview_id": "$p3.data.preview_id", "action": "discard"},
+   "expect": {"mutation_outcome": "not_applicable", "data.state": "discarded", "data.count": 0}
+  },
+  {
+   "call": "nx_finish_preview",
+   "intent": "Acceptance: discarding it again is a no-op",
    "args": {"preview_id": "$p3.data.preview_id", "action": "discard"},
    "expect": {"mutation_outcome": "not_applicable", "data.state": "already_finished", "data.count": 0}
   },
