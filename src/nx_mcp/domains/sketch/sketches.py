@@ -13,6 +13,11 @@ NX 2406 findings kept here:
   model update before it can be activated.
 - Committing a feature ends sketch mode silently on NX 2406, so every modeling
   tool requires that no sketch is active (``nx_finish_sketch`` first).
+- NX has one active sketch per session: an unfinished sketch is parked at the end of
+  ``nx_create_sketch`` (deactivated with a model update, ``kit.sketch.park``), so calls
+  in other parts run. It stays its part's open sketch (``active`` and ``parked`` true):
+  the sketch tools activate it by ref for each call, its part's model tools refuse as
+  before, and ``nx_finish_sketch`` finishes it.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ import difflib
 import re
 from typing import Annotated, Literal, TypedDict
 
+from nx_mcp.core import parking
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
@@ -143,7 +149,8 @@ class SketchData(TypedDict, total=False):
     sketch: result.Row
     feature: result.Row
     frame: Frame
-    active: bool
+    active: Annotated[bool, Doc("Open (not finished): sketch tools edit it by ref")]
+    parked: Annotated[bool, Doc("Open but deactivated between calls; finish it to model")]
     curves: Annotated[list[result.Row], Doc("The created curves, in order (with curves)")]
     loops: Annotated[list[sketch_curves.Loop], Doc("Connected curve chains (with curves)")]
 
@@ -348,9 +355,9 @@ def nx_create_sketch(
     finish: Annotated[bool, Doc("Finish the sketch after the curves, ready for modeling")] = False,
 ) -> SketchData:
     """Create a sketch on a principal plane, a planar face or datum plane, or normal to an edge
-    path, and make it active. curves and finish make a profile in one call (loops reports
-    closure): each closed loop is a region, a loop inside another makes a hollow profile.
-    Finish before modeling."""
+    path. It stays open for the sketch tools; curves and finish make a profile in one call
+    (loops reports closure): each closed loop is a region, a loop inside another makes a
+    hollow profile. Finish before modeling."""
     where = normal_placement(placement)
     plans = sketch_curves.check_curves(curves) if curves else []
     want = _principal_frame(where) if "principal" in where else None
@@ -388,6 +395,11 @@ def nx_create_sketch(
     if finish:
         _deactivate(tx, sketch)
         data["active"] = False
+    else:  # open, but not active in NX between calls: other parts' calls run
+        with native(default="NX_UPDATE_FAILED"):
+            ksketch.park(tx, sketch)
+        readback.expect(tx.session.ActiveSketch is None, "parked")
+        data["parked"] = True
     return data
 
 
@@ -411,7 +423,7 @@ def _leave(tx, sk):
 class FinishData(TypedDict, total=False):
     sketch: result.Row
     feature: result.Row
-    was_active: bool
+    was_active: Annotated[bool, Doc("It was open (active or parked)")]
     curve_count: int
 
 
@@ -436,10 +448,10 @@ def nx_finish_sketch(
     *,
     sketch: SketchRef | None = None,
 ) -> FinishData:
-    """Finish a sketch (default: the active one) and update the model so features can use it.
-    An inactive sketch is left as it is."""
+    """Finish a sketch (default: the part's open one) and update the model so features can use
+    it. A finished sketch is left as it is."""
     with tx.checks():
-        active = tx.session.ActiveSketch
+        active = ksketch.open_sketch(tx)
         if sketch is None:
             if active is None:
                 return {"was_active": False}
@@ -454,7 +466,11 @@ def nx_finish_sketch(
                 field="/sketch",
             )
     if active is not None:
+        if tx.session.ActiveSketch is None:  # parked: open it again to finish it
+            with native(default="NX_UPDATE_FAILED"):
+                sk.Activate(tx.nx.Sketch.ViewReorient.FalseValue)
         _deactivate(tx, sk)
+        parking.unpark(tx.services, tx.part)
     return {
         **common.sketch_rows(tx, sk),
         "was_active": active is not None,
@@ -475,7 +491,8 @@ class GeometryRow(CurveRow, total=False):
 class SketchInfo(TypedDict, total=False):
     sketch: result.Row
     feature: result.Row
-    active: bool
+    active: Annotated[bool, Doc("Open (not finished)")]
+    parked: Annotated[bool, Doc("Open but deactivated between calls")]
     frame: Frame
     curves: list[GeometryRow]
     loops: Annotated[list[dict], Doc("Connected curve chains (construction out): closed, curves")]
@@ -519,7 +536,7 @@ def _constraints(tx, sk):
 
 
 def _other_active(tx, sk) -> bool:
-    active = tx.session.ActiveSketch
+    active = ksketch.open_sketch(tx)
     return active is not None and int(active.Tag) != int(sk.Tag)
 
 
@@ -563,12 +580,14 @@ def nx_get_sketch(
     wanted = set(include or INCLUDE)
     sk = ksketch.resolve(tx, sketch)
     f = ksketch.frame(sk)
-    active = tx.session.ActiveSketch
+    active = ksketch.open_sketch(tx)
     data: SketchInfo = {
         **common.sketch_rows(tx, sk),
         "active": active is not None and int(active.Tag) == int(sk.Tag),
         "frame": common.frame_row(f),
     }
+    if data["active"] and tx.session.ActiveSketch is None:
+        data["parked"] = True
     found = None
     if "status" in wanted:
         data["status"], found = _solver_status(tx, sk)
@@ -635,8 +654,7 @@ def nx_check_sketch(
     on trial (always undone) and the solver re-run; relieving lists those whose removal alone
     solves it."""
     sk = ksketch.resolve(tx, sketch)
-    active = tx.session.ActiveSketch
-    if active is not None and int(active.Tag) != int(sk.Tag):
+    if _other_active(tx, sk):
         fail("NX_SKETCH_ACTIVE", "Another sketch is active", hint="Finish the active sketch first")
     session, nx = tx.session, tx.nx
     trials: list[Trial] = []

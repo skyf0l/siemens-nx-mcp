@@ -210,7 +210,9 @@ start, and `dev_reload.py` prints the error. The checks:
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `target.py` | Gate 3t (pure): the call keys `part`/`expires_at` (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), part text resolution (`part_from_text`: `p:N`, workspace path, file name with or without `.prt`), the agent's loaded parts (`agent_parts`: owned parts, components included, never the engineer's), the two-parts note (`census`, `load_note`), top-level parts (`roots`, `Services.root_parts`, status only), `resolve`, and `refuse_other_part` (the refusal of a named part by services that cannot switch) (3.1) |
 | `switching.py` | Gate 4s (phase P2): `enter(spec, args, target, services, explicit=)` returns the call's `Bound`: nothing when the target is the work part (or the display part a call did not name), a read bound to its part (`Services.bound`), or the entered `Services.switch` (`kit.switching.Switch`, mode `spec.switch_for(args)`, `NX_MCP_SWITCH=display` for the visible fallback). `Bound.check()` after the handler (the work part is still the target), `Bound.defers(kind)` (gate 13: display-bound refreshers wait on a target that is not displayed, `deferred(services)`), `Bound.leave()` (restore; a failure is a warning, a state NX did not take back is retried by `repair` at the next call's entry). `Services.switch_log()` keeps the last 500 switches with their timings |
-| `marks.py` | NX undo marks around a call (phase P1): `watch(services)` before a non-read call's mark, `settle(...)` after it, committed or not. A part a `file` or `session` call loaded becomes a barrier in the undo history (`{mark: None, load: [paths]}`, only while an undo or a restore could reach back); a call that dropped every tracked mark gives the dropped history entries and checkpoints its reason (`saved_or_closed`, `part_loaded`, `display_reset`), marks NX evicted are `mark_evicted` with an `NX_NOTE`. Phase P3: `barrier(entry)` (`load`, `close`, `engineer`), `engineer_change(services, display_changed)` (the engineer barrier, checkpoints expired, redo ended, every part's revision moved), `close_barrier(...)` (for P4's retained closes), `remove_entries` (keeps checkpoint indexes). Never raises |
+| `marks.py` | NX undo marks around a call (phase P1): `watch(services)` before a non-read call's mark, `settle(...)` after it, committed or not. A part a `file` or `session` call loaded becomes a barrier in the undo history (`{mark: None, load: [paths]}`, only while an undo or a restore could reach back); a call that dropped every tracked mark gives the dropped history entries and checkpoints its reason (`saved_or_closed`, `part_loaded`, `display_reset`), marks NX evicted are `mark_evicted` with an `NX_NOTE`. Phase P3: `barrier(entry)` (`load`, `close`, `engineer`), `engineer_change(services, display_changed)` (the engineer barrier, checkpoints expired, redo ended, every part's revision moved), `close_barrier(...)` (phase P4: a close that kept NX's marks), `remove_entries` (keeps checkpoint indexes). Never raises |
+| `busy.py` | Busy parts (phase P4), no caller identity: `record(services, spec, target, tx, loaded_before)` after a committed `model`/`file`/`session` call stamps the part it worked in (its target, `tx.worked_in` of create/open, else the first part it loaded; loads also stamp `loaded_at`) and moves the *stream* (the part the last changing call worked in); reads and `view` effects stamp nothing. `facts`/`refuse(services, part)`: `NX_PART_BUSY` while two or more agent parts are loaded, the part was worked in within `BUSY_SECONDS` (300) and the stream is another loaded part; `note` (the save warning), `loaded_at`, `component_reason` (an assembly close keeps a component worked in after the assembly's load). Table: `Services.part_activity()` |
+| `parking.py` | Parked sketches (phase P4, D5): `park`/`unpark`/`parked(services, part)`/`open_in`; `{part_key: sketch}` in `Services.parked_sketches()`, an entry whose sketch NX no longer has is dropped when read. Gate 4 `no_active_sketch` also refuses in a part with a parked sketch |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
 | `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint (tool, arguments and the target part's file key `part_file`; receipts written before targets match without it), idempotent replay, states, outcome, progress, `.cancel` flag. A receipt keeps the request's `arguments`, redacted (`redact`: file contents and long strings become size notes, lists keep 100 items, at most 8,000 characters), which `nx_get_operation` echoes, and a development failure's `traceback`. Running receipts from an earlier session become `unknown`. A committed call an undo or a checkpoint restore reverted (`reverted_by`) runs again under its id instead of replaying; the new receipt keeps the reverted run under `previous` (`previous_run`: start and finish, what reverted it, the refs it created, up to 5 earlier reverted runs). The undo history, checkpoints and redo list live in the services (`undo_history`, `undo_checkpoints`, `redo_steps`, 4) |
@@ -286,8 +288,8 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
   `NX_NOTE`. A mark that went away says why: `saved_or_closed`, `part_loaded` (a load that
   still displayed), `display_reset` (the engineer switched the display part, seen by the
   panel's fingerprint), `mark_evicted`. Undoing across a `CloseRetainUndoMarks` re-loads
-  the closed part (live): phase P4 makes such closes barriers too
-  (`marks.close_barrier`, reason `part_closed`; the history tools already honour it).
+  the closed part (live, seen again in phase P4 before the barrier was recorded): such closes
+  are barriers too (`marks.close_barrier`, reason `part_closed`).
 - **Undo per part (phase P3).** The history stays one session-wide list
   (`Services.undo_history`) read per part (`domains/session/history.py`): undo, redo,
   checkpoints and their depths act on the call's target part (the `part` key, the
@@ -318,6 +320,29 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
   ends them all. Previews compare `Services.part_revision` (the kernel bumps the target and
   touched parts of every non-read, non-view call that may have changed something): another
   part's work, reads and view changes do not age a preview.
+- **Closes, busy parts and parked sketches (phase P4).** `nx_close_part` keeps NX's undo
+  marks (`_saving.close_part`: `CloseRetainUndoMarks`, which NX allows only for a part that
+  is not displayed, so a displayed part is first replaced on the display by another agent
+  part with `kit.parts.activate`: parts without sheet metal first, then the part worked in
+  last; a sheet-metal replacement is shown in Sheet Metal so the close does not re-enter
+  Modeling on it). Without another agent part the plain `Close` drops every mark and says so
+  (`data.undo_marks: dropped`, an `NX_NOTE` when there was undo history). A kept-marks close
+  appends a `close` barrier (`marks.close_barrier`): undo and restore stop there
+  (`part_closed`), because undoing across it loads the part again (live). In-call cleanups
+  (a failed create or import, a clone) keep the plain close. Busy parts (`core/busy.py`):
+  with two or more agent parts loaded, a close of a part a changing call worked in within
+  300 s is refused (`NX_PART_BUSY`, `details.last_call_part`) while the last changing call
+  worked in another loaded part; `force: true` closes anyway; a close right after working in
+  the part and a run of closes need no force; a save only warns; an assembly close keeps a
+  component a call worked in after the assembly's load (`kept_components`, reason `in use`).
+  Without identity, when agents call at the same time an agent's own close right after
+  another agent's call is refused too (force closes it), and a close right after the owner's
+  own call passes. Parked sketches (`core/parking.py`): `nx_create_sketch` without `finish`
+  deactivates its sketch at the end of the call (model update, no view change) and parks it
+  as its part's open sketch (`active` and `parked` true); the sketch tools activate it by
+  ref per call (`kit.sketch.editing`), its part's `no_active_sketch` tools refuse as before,
+  and `nx_finish_sketch` finishes it (the ref, or the target part's open sketch). No sketch
+  is active between calls, so another part's calls never wait for it.
 
 ### 1.4 `kit/`: shared NX know-how, never copied
 

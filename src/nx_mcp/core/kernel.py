@@ -12,7 +12,9 @@ Gate order: 1 schema, 2 workspace paths, 3 variant inference and evidence/versio
 7 receipt, 8 undo mark, 9 unit conversion, 10 handler, 11 read-back, 12 reference
 invalidation, 13 annotation refresh, 14 result projection, 15 error mapping.
 Nothing else applies gates. Around 8-15 a non-read call's loads become barriers in the
-undo history and dropped undo marks get their reason (``core/marks.py``).
+undo history and dropped undo marks get their reason (``core/marks.py``); a committed
+changing call stamps the parts it worked in (``core/busy.py``). Gate 4's
+``no_active_sketch`` also refuses in a part whose sketch is parked (``core/parking.py``).
 
 Batch placeholders: a Ref field of a child may be ``"$<i>.<path>"`` naming the
 result envelope of child ``i`` (0-based, earlier children only), e.g.
@@ -27,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from nx_mcp.core import evidence, switching
+from nx_mcp.core import busy, evidence, parking, switching
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core import target as targets
 from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
@@ -290,7 +292,12 @@ def _gate_requires(spec, services: Services) -> None:  # gate 4
                     details={"application": state.get("application")},
                 )
             continue
-        ok = not state.get("active_sketch") if item == "no_active_sketch" else state.get(item)
+        if item == "no_active_sketch":  # NX's active sketch, or the target's parked one
+            ok = not state.get("active_sketch") and not parking.open_in(
+                services, services.work_part()
+            )
+        else:
+            ok = bool(state.get(item))
         if not ok:
             code, message, hint = REQUIRE_FAILURES[item]
             fail(code, message, hint=hint)
@@ -676,6 +683,8 @@ def run(spec, args, ctx: Context) -> dict:
         if page is not None:
             envelope["page"] = page
         _report_part(envelope, target, services, part_text)
+        if envelope["mutation_outcome"] == "committed":  # the parts it worked in are busy
+            busy.record(services, spec, target, tx, census[0] if census else None)
         if spec.restorable:
             restore_id = tx.display.snapshot()
             if restore_id is not None:

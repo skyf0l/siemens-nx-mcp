@@ -328,4 +328,4 @@ def _close_new(tx, originals: set, destination: Path) -> None:
         ]
         if not pending:
             return
-        _saving.close_part(tx, pending[0], save=False)
+        _saving.close_part(tx, pending[0], save=False, retain=False, barrier=False)

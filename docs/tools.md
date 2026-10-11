@@ -1603,27 +1603,28 @@ No arguments.
 
 ### `nx_activate_part`
 
-**Activate part** · effect `session` · NX 2406: tested; 34 checks in `acceptance/parts_files/create_no_display.json`
+**Activate part** · effect `session` · NX 2406: tested; 79 checks in `acceptance/parts_files/multipart_close.json`
 
-Make a loaded part the work and/or display part; nothing is closed. A new display part also becomes the work part.
+Show a loaded part on screen: make it the display and/or work part. Only for display: calls target their part by refs or the part key, never by activation.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `part` | string | required | Ref 'p:N' from nx_list_parts |
+| `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `work` | boolean | `true` |  |
 | `display` | boolean | `true` |  |
 
 ### `nx_close_part`
 
-**Close part** · effect `session` · NX 2406: tested; 51 checks in `acceptance/parts_files/close_part.json`
+**Close part** · effect `session` · NX 2406: tested; 79 checks in `acceptance/parts_files/multipart_close.json`
 
-Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Refused while a loaded assembly uses it; its unused component parts the agent loaded close too.
+Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Refused while a loaded assembly uses it, or while another agent may be working in it (force); its unused component parts the agent loaded close too.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `save` | boolean | optional | true saves first, false discards changes; required if modified |
 | `unload_components` | boolean | `true` | Also close the unused, unmodified component parts the agent loaded |
+| `force` | boolean | `false` | Close even if another agent may be working in it |
 
 ### `nx_create_directory`
 
@@ -1776,7 +1777,7 @@ Save a loaded part (default the work part) in place, or as a new .prt (path). Sa
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `part` | string | optional | Ref 'p:N' from nx_list_parts |
+| `part` | string | optional | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `path` | string | optional | New .prt to save as; omit to save in place |
 
 ### `nx_set_attributes`
@@ -2117,7 +2118,7 @@ Find the constraints behind an over- or inconsistently constrained sketch. Each 
 
 **Create sketch** · effect `model` · NX 2406: tested (all variants); 26 checks in `acceptance/sketch/sketch_one_call.json`
 
-Create a sketch on a principal plane, a planar face or datum plane, or normal to an edge path, and make it active. curves and finish make a profile in one call (loops reports closure): each closed loop is a region, a loop inside another makes a hollow profile. Finish before modeling.
+Create a sketch on a principal plane, a planar face or datum plane, or normal to an edge path. It stays open for the sketch tools; curves and finish make a profile in one call (loops reports closure): each closed loop is a region, a loop inside another makes a hollow profile. Finish before modeling.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2218,7 +2219,7 @@ Apply 1-100 edits to sketch curves in order. Reshape a line or arc, trim or exte
 
 **Finish sketch** · effect `model` · NX 2406: tested; 54 checks in `acceptance/sketch/sketch_natural_args.json`
 
-Finish a sketch (default: the active one) and update the model so features can use it. An inactive sketch is left as it is.
+Finish a sketch (default: the part's open one) and update the model so features can use it. A finished sketch is left as it is.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |

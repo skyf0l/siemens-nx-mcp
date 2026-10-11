@@ -21,8 +21,9 @@ def test_principal_xz_sketch_with_origin_and_axis_is_active_and_verified():
     assert ok.data["frame"]["y_axis"] == pytest.approx([-1, 0, 0])
     assert ok.data["frame"]["origin"] == pytest.approx([0, 5, 0])
     assert ok.data["active"] is True and ok.data["sketch"]["kind"] == "sketch"
+    assert ok.data["parked"] is True  # open, but not active in NX between calls
     sketch = nx.part.Sketches[-1]
-    assert nx.session.ActiveSketch is sketch and sketch.Name == "SIDE"
+    assert nx.session.ActiveSketch is None and sketch.Name == "SIDE"
     assert nx.live_builders == 0 and ok.mutation_outcome == "committed"
     assert [r["kind"] for r in ok.changes["created"]] == ["sketch"]
 
@@ -89,7 +90,7 @@ def test_path_sketch_checks_the_origin_on_the_path():
     assert ok.ok, ok
     b = nx.last("SketchAlongPathBuilder")
     assert b.PlaneLocation.Expression.RightHandSide == "50.0"
-    nx.session.ActiveSketch.Deactivate()
+    assert run(nx, "nx_finish_sketch").ok  # the parked sketch
     nx.next_sketch = ((5, 3, 0), (0, 1, 0), (0, 0, 1))  # off the path
     bad = run(nx, "nx_create_sketch", placement={"path": [edge.ref], "help_point": [0, 0, 0]})
     assert bad.error["details"]["check"] == "origin_on_path"
@@ -187,7 +188,8 @@ def test_one_call_sketch_without_finish_stays_active():
     ok = run(nx, "nx_create_sketch", placement={"principal": "xy"},
              curves=[{"type": "line", "start": [0, 0], "end": [10, 0]}])  # fmt: skip
     assert ok.ok, ok
-    assert ok.data["active"] is True and nx.session.ActiveSketch is nx.part.Sketches[-1]
+    assert ok.data["active"] is True and ok.data["parked"] is True
+    assert nx.session.ActiveSketch is None  # parked: reopened by the sketch tools
     assert ok.data["loops"] == [{"closed": False, "curves": 1, "open_ends": 2}]
 
 

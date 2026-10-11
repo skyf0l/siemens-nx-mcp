@@ -12,7 +12,20 @@ the assembly loaded itself, but keeps parts loaded on their own (a cover and a b
 agent created before assembling them stayed loaded after the kit closed, round 2). A
 component part is kept (``kept_components`` with the reason) when the agent did not
 create or open it, another loaded assembly uses it, it was the work or display part
-before the call, or it has unsaved changes (never saved or discarded implicitly).
+before the call, it has unsaved changes (never saved or discarded implicitly), or a call
+worked in it after the assembly was loaded, within the busy time (``core/busy.py``).
+
+Parallel agents (phase P4, ``core/busy.py``): with two or more of the agent's parts
+loaded, ``nx_close_part`` refuses (``NX_PART_BUSY``) a part a call changed within 300 s
+while the last call worked in another loaded part; ``force`` closes anyway, and a close
+right after working in the part never needs it. A save of such a part only warns. A
+close keeps NX's undo marks (``_saving.close_part``: another agent part is displayed
+first when the part is shown); undo does not cross it.
+
+Parts are named by ref, workspace path or file name (``LoadedPart``) wherever a loaded
+part is meant: close, save, activate. ``nx_activate_part`` only shows a part: calls
+target their part by refs or the ``part`` key, never by activation. A new file name a
+loaded part uses (another agent's too) is refused with a unique name suggested.
 """
 
 from __future__ import annotations
@@ -22,10 +35,12 @@ import re
 from pathlib import Path
 from typing import Annotated, TypedDict
 
+from nx_mcp.core import busy
+from nx_mcp.core import marks as undo_marks
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import REF_PATTERN, Doc, Offset, PageLimit, PathTo, RefTo, Text, Units
+from nx_mcp.core.types import REF_PATTERN, Doc, Offset, PageLimit, PathTo, Text, Units
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import files, parts, readback, result
 from nx_mcp.kit import units as kit_units
@@ -33,11 +48,11 @@ from nx_mcp.kit import units as kit_units
 TEMPLATES = {"mm": "model-plain-1-mm-template.prt", "in": "model-plain-1-inch-template.prt"}
 # A Doc placed before PathTo/RefTo wins over their generic "Workspace path"/"Ref: part".
 PartPath = Annotated[str, Doc("New workspace .prt path"), PathTo("new", ".prt")]
-PartArg = Annotated[str, RefTo("part", doc="Ref 'p:N' from nx_list_parts")]
 # A ref, or a loaded part's file (matched against the loaded parts only; nothing is read).
 LoadedPart = Annotated[
     str, Text(260), Doc("Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name")
 ]
+Force = Annotated[bool, Doc("Close even if another agent may be working in it")]
 # Save-as target. "replace" lets the part's own file through gate 2 (an in-place save);
 # any other existing file is refused in the handler: save-as never overwrites.
 SaveAsPath = Annotated[
@@ -98,6 +113,8 @@ class CloseData(TypedDict, total=False):
     saved: bool
     unloaded_components: list[result.Row]
     kept_components: list[KeptPart]
+    undo_marks: Annotated[str, Doc("kept, or dropped (NX's plain close)")]
+    displayed: Annotated[result.Row, Doc("The part shown in place of the closed one")]
 
 
 def _row(tx, part) -> result.Row:
@@ -184,7 +201,7 @@ def loaded_part(tx, text: str, field: str = "/part"):
 def _discard(tx, part) -> None:
     """Close a part this call created after a later step failed (cleanup)."""
     try:
-        _saving.close_part(tx, part, save=False)
+        _saving.close_part(tx, part, save=False, retain=False, barrier=False)
     except Exception as error:
         tx.non_undoable(f"the new part could not be closed again: {error}")
 
@@ -279,6 +296,7 @@ def nx_create_part(
     with tx.checks():
         parts.check_new_name(tx, target)
     part = new_part(tx, target, units, display=display)
+    tx.worked_in = part
     _report_units(tx)
     return _state(tx, part)
 
@@ -316,6 +334,7 @@ def nx_open_part(
         if status is not None and hasattr(status, "Dispose"):
             with contextlib.suppress(Exception):
                 status.Dispose()
+    tx.worked_in = part
     parts.activate(tx, part, work=work, display=display)
     loaded_count = parts.load_components(tx, part) if load_components else None
     _check_active(tx, part, work=work, display=display)
@@ -330,24 +349,31 @@ def nx_open_part(
     target="arg:part",
     effect="session",
     label="Activate part",
-    summary="Activate part {part}",
-    keywords=("switch part", "work part", "display part", "make work", "change part"),
+    summary="Show part {part}",
+    keywords=(
+        "switch part",
+        "work part",
+        "display part",
+        "make work",
+        "change part",
+        "show part",
+    ),
     cost="light",
-    example={"part": "p:1"},
+    example={"part": "housing"},
 )
 def nx_activate_part(
     tx: Tx,
     *,
-    part: PartArg,
+    part: LoadedPart,
     work: bool = True,
     display: bool = True,
 ) -> PartData:
-    """Make a loaded part the work and/or display part; nothing is closed. A new display
-    part also becomes the work part."""
+    """Show a loaded part on screen: make it the display and/or work part. Only for display:
+    calls target their part by refs or the part key, never by activation."""
     if not (work or display):
         fail("NX_INVALID_ARGUMENT", "Set work or display (or both)", field="/work")
     with tx.checks():
-        target = resolve_part(tx, part)
+        target = loaded_part(tx, part)
         if work and not display:
             parts.check_work_only(tx, target)
     parts.activate(tx, target, work=work, display=display)
@@ -479,14 +505,14 @@ def _save_as(tx, target, destination: Path) -> list:
 def nx_save_part(
     tx: Tx,
     *,
-    part: PartArg | None = None,
+    part: LoadedPart | None = None,
     path: SaveAsPath | None = None,
 ) -> SaveData:
     """Save a loaded part (default the work part) in place, or as a new .prt (path).
     Save-as moves the loaded part and its ref to the new file; the old file stays. Never
     overwrites; expires NX undo marks; updates out-of-date drawing views first."""
     with tx.checks():
-        target = resolve_part(tx, part) if part else tx.part
+        target = loaded_part(tx, part) if part else tx.part
         field = "/part" if part else None
         if path is not None and parts.same_file(parts.file_of(target), path):
             path = None  # the part's own file: save it in place
@@ -503,6 +529,9 @@ def nx_save_part(
                 )
             parts.check_new_name(tx, path, ignore=target)
     tx.warn("NX_NOTE", "Saving expires NX undo marks and checkpoints")
+    busy_note = busy.note(tx.services, target)  # parallel agents: saves only warn
+    if busy_note:
+        tx.warn("NX_NOTE", busy_note)
     if path is None:
         audit = _saving.verified_save(tx, target)
         return {"part": _row(tx, target), "path": _rel(tx, parts.file_of(target)), **audit}
@@ -530,7 +559,11 @@ def nx_save_part(
 def _close_summary(a, say) -> str:
     what = str(a.get("part") or "")
     what = say("part") if re.match(REF_PATTERN, what) else Path(what).name or what
-    return f"Close {what}" + (", saving it" if a.get("save") else " without saving")
+    return (
+        f"Close {what}"
+        + (", saving it" if a.get("save") else " without saving")
+        + (" (forced)" if a.get("force") else "")
+    )
 
 
 @tool(
@@ -551,10 +584,12 @@ def nx_close_part(
     unload_components: Annotated[
         bool, Doc("Also close the unused, unmodified component parts the agent loaded")
     ] = True,
+    force: Force = False,
 ) -> CloseData:
     """Close one loaded part by ref, workspace path or file name (never implicitly the work
     part). With unsaved changes, save (true or false) is required. Refused while a loaded
-    assembly uses it; its unused component parts the agent loaded close too."""
+    assembly uses it, or while another agent may be working in it (force); its unused
+    component parts the agent loaded close too."""
     with tx.checks():
         target = loaded_part(tx, part)
         field = "/part"
@@ -582,15 +617,27 @@ def nx_close_part(
                     "modified": True,
                 },
             )
+        if not force:
+            busy.refuse(tx.services, target, field=field)
     save = bool(save)
+    since = busy.loaded_at(tx.services, target)  # components a call worked in since stay
     session_parts = tx.session.Parts
     active = {int(p.Tag) for p in (session_parts.Work, session_parts.Display) if p is not None}
     prototypes = _prototypes(target) if unload_components else []
+    had_undo = undo_marks.has_undo_state(tx.services)
     closed = _saving.close_part(tx, target, save=save)
     rows = list(closed["closed"])
-    out: CloseData = {"saved": bool(save)}
+    out: CloseData = {"saved": bool(save), "undo_marks": closed["undo_marks"]}
+    if closed.get("displayed"):
+        out["displayed"] = closed["displayed"]
+    if closed["undo_marks"] == "dropped" and had_undo:
+        tx.warn(
+            "NX_NOTE",
+            "NX's plain close dropped every undo mark (no other agent part to display in its "
+            "place): earlier operations can no longer be undone",
+        )
     if prototypes:
-        unloaded, kept = _unload_unused(tx, prototypes, active)
+        unloaded, kept = _unload_unused(tx, prototypes, active, since)
         rows += unloaded
         if unloaded:
             out["unloaded_components"] = unloaded
@@ -619,9 +666,11 @@ def _created(tx, part) -> bool:
     return bool(created(part) if created is not None else tx.services.owns(part))
 
 
-def _unload_unused(tx, prototypes, active) -> tuple[list, list]:
+def _unload_unused(tx, prototypes, active, since: float = 0.0) -> tuple[list, list]:
     """Close the component parts a closed assembly left unused that the agent loaded;
-    ``(closed rows, kept rows with the reason)``. Sub-assemblies go before their parts."""
+    ``(closed rows, kept rows with the reason)``. Sub-assemblies go before their parts.
+    A part a call worked in after ``since`` (the assembly's load) within the busy time is
+    kept (``core/busy.py``)."""
     loaded = {int(p.Tag) for p in tx.session.Parts}
     pending = [p for p in prototypes if int(p.Tag) in loaded]
     unloaded: list = []
@@ -644,6 +693,8 @@ def _unload_unused(tx, prototypes, active) -> tuple[list, list]:
                 continue  # a parent may close later in this loop
             elif bool(getattr(part, "IsModified", False)):
                 reason = "unsaved changes: close it with save=true or save=false"
+            else:
+                reason = busy.component_reason(tx.services, part, since)
             if reason is None:
                 known = {int(p.Tag) for p in prototypes}
                 for nested in _prototypes(part):  # a sub-assembly's parts come next

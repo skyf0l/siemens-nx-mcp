@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `a0f30556dede7743bce50d694c03d81f0b83ece2b00b9455c6b7f904c6e315f4`.
+Canonical SHA-256 (catalogue evidence): `5f0ff28511fb3fbdced0946d9d0ed56ea260cfdc69a65ac23050c0e7f6e56148`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -18,7 +18,7 @@ These labels report recorded evidence, not certification or independent verifica
 | --- | --- | --- | --- | --- |
 | nx_activate_application | Native-tested | session | session | v2406: tested; 19 checks in acceptance/sheet_metal/activate_application.json |
 | nx_activate_drawing_sheet | Native-tested | drawing | session | v2406: tested; 19 checks in acceptance/drawing/out_of_date_views.json |
-| nx_activate_part | Native-tested | parts_files | session | v2406: tested; 34 checks in acceptance/parts_files/create_no_display.json |
+| nx_activate_part | Native-tested | parts_files | session | v2406: tested; 79 checks in acceptance/parts_files/multipart_close.json |
 | nx_analyze_curve | Native-tested | inspection | read | v2406: tested; 113 checks in acceptance/inspection/analysis.json |
 | nx_analyze_faces | Native-tested | inspection | read | v2406: tested; 113 checks in acceptance/inspection/analysis.json |
 | nx_cancel_operation | Native-tested | session | session | v2406: tested; 48 checks in acceptance/session/status_operations.json |
@@ -27,7 +27,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_check_interference | Native-tested | inspection | read | v2406: tested; 23 checks in acceptance/inspection/interference_sheets.json |
 | nx_check_model | Native-tested | inspection | read | v2406: tested; 19 checks in acceptance/inspection/sealed_void.json |
 | nx_check_sketch | Native-tested | sketch | read | v2406: tested; 54 checks in acceptance/sketch/sketch_natural_args.json |
-| nx_close_part | Native-tested | parts_files | session | v2406: tested; 51 checks in acceptance/parts_files/close_part.json |
+| nx_close_part | Native-tested | parts_files | session | v2406: tested; 79 checks in acceptance/parts_files/multipart_close.json |
 | nx_create_anchor | Native-tested | inspection | read | v2406: tested; 78 checks in acceptance/inspection/holes_and_words.json |
 | nx_create_assembly_constraint | Native-tested | assembly | model | v2406: all variants; 82 checks in acceptance/assembly/constraints.json |
 | nx_create_balloons | Native-tested | drawing | model | v2406: tested; 36 checks in acceptance/drawing/create_balloons.json |

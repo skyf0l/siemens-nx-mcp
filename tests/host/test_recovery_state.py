@@ -110,6 +110,7 @@ def test_session_lifecycle_and_generation_reject_closed_references(rig, tmp_path
     assert rig.e.checkpoints[key]["expired"] == "part_closed"  # listed, never dropped
     with pytest.raises(NXError):
         rig.e.objects.resolve(old)
+    part.Tag = 10**6  # loaded again: NX hands out a live tag (a closed wrapper reports 0)
     rig.session.Parts.append(part)
     rig.session.Parts.Work = rig.session.Parts.Display = part
     assert rig.ref(body) != old

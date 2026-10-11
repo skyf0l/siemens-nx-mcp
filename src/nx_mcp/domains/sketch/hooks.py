@@ -10,17 +10,22 @@ from __future__ import annotations
 from nx_mcp.core.catalogue import deleter, lister
 from nx_mcp.core.errors import fail, native
 from nx_mcp.kit import model
+from nx_mcp.kit import sketch as ksketch
 
 
 @lister("sketch")
 def sketches(tx, owner, owner_kind):
     if owner is not None:
         fail("NX_UNSUPPORTED_OPTION", "sketches are listed for the whole part", field="/owner")
-    active = tx.session.ActiveSketch
-    return [
-        (s, "sketch", {"details": {"active": active is not None and s.Tag == active.Tag}})
-        for s in tx.part.Sketches
-    ]
+    active = ksketch.open_sketch(tx)  # NX's active sketch, else the part's parked one
+    parked = active is not None and tx.session.ActiveSketch is None
+    out = []
+    for s in tx.part.Sketches:
+        details = {"active": active is not None and s.Tag == active.Tag}
+        if details["active"] and parked:
+            details["parked"] = True
+        out.append((s, "sketch", {"details": details}))
+    return out
 
 
 def no_active_sketch(tx):

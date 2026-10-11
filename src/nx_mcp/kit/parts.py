@@ -87,8 +87,29 @@ def loaded(tx, path):
     return next((p for p in tx.session.Parts if same_file(file_of(p), path)), None)
 
 
+def _taken(tx, ignore=None) -> set[str]:
+    """Casefolded file stems of the loaded parts (other than ``ignore``)."""
+    return {Path(file_of(p)).stem.casefold() for p in tx.session.Parts if not same_part(p, ignore)}
+
+
+def unique_name(tx, path, *, ignore=None) -> Path:
+    """``path`` with ``_2``, ``_3``, ... added to its stem: the first name no loaded part
+    uses and no file in its folder has."""
+    path = Path(path)
+    taken = _taken(tx, ignore)
+    for n in range(2, 1000):
+        candidate = path.with_name(f"{path.stem}_{n}{path.suffix or '.prt'}")
+        if candidate.stem.casefold() not in taken and not candidate.exists():
+            return candidate
+    return path.with_name(f"{path.stem}_{uuid.uuid4().hex[:8]}{path.suffix or '.prt'}")
+
+
 def check_new_name(tx, path, *, field: str | None = "/path", ignore=None) -> None:
-    """Refuse a new part file whose basename a loaded part (other than ``ignore``) uses."""
+    """Refuse a new part file whose basename a loaded part (other than ``ignore``) uses.
+
+    NX names a loaded part by its file name, so the name is taken whoever loaded the
+    part (another agent's part too): the error suggests a unique name
+    (``details.suggested_path``) and never offers the loaded part."""
     stem = Path(path).stem.casefold()
     clash = next(
         (
@@ -101,15 +122,24 @@ def check_new_name(tx, path, *, field: str | None = "/path", ignore=None) -> Non
     if clash is None:
         return
     same = same_file(file_of(clash), path)
+    name = Path(file_of(clash)).name
+    suggested = unique_name(tx, path, ignore=ignore)
+    try:
+        shown = str(Path(suggested).resolve().relative_to(Path(tx.workspace.root).resolve()))
+    except Exception:
+        shown = str(suggested)
+    shown = shown.replace("\\", "/")
     fail(
         "NX_ALREADY_EXISTS" if same else "NX_NAME_CONFLICT",
         (
-            "This part is already loaded; activate it with nx_activate_part"
+            f"The file name {name} is taken: that file is already loaded as a part"
             if same
-            else "A loaded part already uses this file name; choose another name"
+            else f"The file name {name} is taken: a loaded part in another folder uses it "
+            "(NX names parts by file name)"
         ),
         field=field,
-        details={"path": str(path), "loaded_part_path": file_of(clash)},
+        hint=f"Choose a unique file name, e.g. {shown}",
+        details={"path": str(path), "loaded_part_path": file_of(clash), "suggested_path": shown},
     )
 
 

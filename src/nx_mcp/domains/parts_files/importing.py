@@ -736,7 +736,7 @@ def _undo_import(tx, loaded_before: set | None, previous: tuple, folder: Path) -
         for p in reversed(list(tx.session.Parts)):
             if int(p.Tag) not in loaded_before:
                 try:
-                    _saving.close_part(tx, p, save=False)
+                    _saving.close_part(tx, p, save=False, retain=False, barrier=False)
                 except Exception as error:
                     problems.append(f"close {parts.file_of(p)}: {error}")
         work, display = previous

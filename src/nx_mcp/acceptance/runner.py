@@ -712,7 +712,8 @@ async def close_new_parts(
             closed = await call_tool(
                 session,
                 "nx_close_part",
-                {"part": part["part"]["id"], "save": mode == "save"},
+                # force: the scenario's own parts, never busy for its cleanup (core/busy.py)
+                {"part": part["part"]["id"], "save": mode == "save", "force": True},
                 intent="Acceptance cleanup: close a scenario part",
             )
             if closed.get("ok"):

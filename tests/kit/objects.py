@@ -476,3 +476,4 @@ class Part(Object):
             self.session.Parts.Work = None
         if self.session.Parts.Display is self:
             self.session.Parts.Display = None
+        self.Tag = 0  # NX 2406: a closed part's wrapper reports tag 0 (NULL_TAG)

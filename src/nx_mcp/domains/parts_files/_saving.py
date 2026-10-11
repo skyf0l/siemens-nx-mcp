@@ -15,6 +15,8 @@ import contextlib
 from pathlib import Path
 from typing import TypedDict
 
+from nx_mcp.core import marks as undo_marks
+from nx_mcp.core import target as targets
 from nx_mcp.core.errors import classify, fail
 from nx_mcp.kit import files, parts, result
 
@@ -172,8 +174,74 @@ def note_updated(tx, updated) -> None:
     )
 
 
-def close_part(tx, target, *, save: bool) -> dict:
+def replacement(tx, target):
+    """The loaded part to display instead of ``target`` before it closes: another
+    top-level part of the agent's (``Services.owns``), not one of ``target``'s
+    components; parts without sheet metal first, then the one a call worked in last
+    (``core/busy.py``). None when there is none."""
+    services = tx.services
+    nested = {int(p.Tag) for p in _component_parts(target)}
+    entries = (
+        services.part_activity().get("parts", {}) if hasattr(services, "part_activity") else {}
+    )
+
+    def recent(part) -> float:
+        with contextlib.suppress(Exception):
+            return float((entries.get(services.part_key(part)) or {}).get("at") or 0.0)
+        return 0.0
+
+    candidates = []
+    for part in targets.roots(services):
+        with contextlib.suppress(Exception):
+            if parts.same_part(part, target) or int(part.Tag) in nested:
+                continue
+            if services.owns(part) and parts.file_of(part):
+                candidates.append(part)
+    candidates.sort(key=lambda p: (parts.has_sheet_metal(p), -recent(p)))
+    return candidates[0] if candidates else None
+
+
+def _component_parts(part) -> list:
+    out = []
+    for component, _names in parts.components(part):
+        prototype = getattr(component, "Prototype", None)
+        if prototype is not None and hasattr(prototype, "Tag"):
+            out.append(prototype)
+    return out
+
+
+def _display_instead(tx, target):
+    """Display another agent part in place of the displayed ``target`` (undo marks kept,
+    ``parts.activate``); the part shown, or None when there is no other part. A
+    sheet-metal part is shown in Sheet Metal (recorded there), so the close does not
+    re-enter Modeling on it and open NX's Sheet Metal warning."""
+    other = replacement(tx, target)
+    if other is None:
+        return None
+    parts.activate(tx, other)
+    session = tx.session
+    if str(session.ApplicationName or "") != parts.SHEET_METAL_APP and parts.has_sheet_metal(other):
+        session.ApplicationSwitchImmediate(parts.SHEET_METAL_APP)
+    return other
+
+
+def _path(services, part) -> str:
+    try:
+        return str(services.part_path(part))
+    except Exception:
+        return parts.file_of(part)
+
+
+def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = True) -> dict:
     """Close ``target`` (saving it first when asked); returns closed rows and counts.
+
+    With ``retain`` (default) NX keeps every undo mark (``CloseRetainUndoMarks``): NX
+    allows it for a part that is not displayed, so a displayed target is first replaced
+    on the display by another agent part (:func:`replacement`). Without one, or without
+    ``retain`` (a cleanup inside a call that fails), the plain ``Close`` drops every NX
+    undo mark. ``undo_marks`` in the result says which (``kept``/``dropped``). With
+    ``barrier`` a kept-marks close ends every part's agent undo there
+    (``core/marks.close_barrier``): undoing across it would load the part again.
 
     NX may unload unused prototypes with it: every part that disappeared is
     reported and its references, undo history and ownership are forgotten.
@@ -181,27 +249,50 @@ def close_part(tx, target, *, save: bool) -> dict:
     sheet-metal part is recorded in Sheet Metal first (``parts.keep_sheet_metal``),
     or NX would open its blocking Sheet Metal warning.
     """
+    services = tx.services
     before = {}
     for p in tx.session.Parts:
-        before[int(p.Tag)] = (tx.ref(p, "part"), tx.services.part_key(p))
+        before[int(p.Tag)] = (tx.ref(p, "part"), services.part_key(p), _path(services, p))
+    target_key = services.part_key(target)  # NX's wrapper reports tag 0 once closed
     audit = verified_save(tx, target) if save else None
-    if not parts.same_part(tx.session.Parts.Display, target):
+    keep_marks = getattr(target, "CloseRetainUndoMarks", None) if retain else None
+    shown = None
+    if parts.same_part(tx.session.Parts.Display, target):
+        if keep_marks is not None:
+            shown = _display_instead(tx, target)
+            if shown is None:
+                keep_marks = None  # the last part on display: NX's plain close
+    else:
         parts.keep_sheet_metal(tx)
+    whole = tx.nx.BasePart.CloseWholeTree.FalseValue
+    modified = tx.nx.BasePart.CloseModified.CloseModified
     try:
-        target.Close(
-            tx.nx.BasePart.CloseWholeTree.FalseValue,
-            tx.nx.BasePart.CloseModified.CloseModified,
-            None,
-        )
+        if keep_marks is not None:
+            keep_marks(whole, modified, None)
+        else:
+            target.Close(whole, modified, None)
     except Exception as error:
         raise classify(error) from error
     finally:
         remaining = {int(p.Tag) for p in tx.session.Parts}
-        gone = [key for tag, (_row, key) in before.items() if tag not in remaining]
+        gone = [key for tag, (_row, key, _path) in before.items() if tag not in remaining]
         with contextlib.suppress(Exception):
-            tx.services.forget_parts(gone)
-    closed = [row for tag, (row, _key) in before.items() if tag not in remaining]
-    out = {"closed": closed, "remaining_count": len(remaining), "saved": bool(save)}
+            services.forget_parts(gone)
+    closed = [row for tag, (row, _key, _path) in before.items() if tag not in remaining]
+    if keep_marks is not None and barrier:
+        paths = [path for tag, (_row, _key, path) in before.items() if tag not in remaining]
+        method = getattr(getattr(tx, "spec", None), "name", None) or "nx_close_part"
+        undo_marks.close_barrier(
+            services, paths, target_key, getattr(tx, "operation_id", None), method
+        )
+    out = {
+        "closed": closed,
+        "remaining_count": len(remaining),
+        "saved": bool(save),
+        "undo_marks": "kept" if keep_marks is not None else "dropped",
+    }
+    if shown is not None:
+        out["displayed"] = tx.ref(shown, "part")
     if audit is not None:
         out["audit"] = audit
     return out

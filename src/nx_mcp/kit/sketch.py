@@ -13,6 +13,11 @@ NX 2406 findings encoded here:
   the number of curves that are not fully constrained, not scalar DOF.
 - Solver status needs the work region set to the entire sketch; that change is
   made under an invisible undo mark and undone.
+- NX has one active sketch per session and refuses model calls in every part while it
+  is active. No sketch stays active between calls: an unfinished sketch is *parked*
+  (deactivated with a model update, ``core/parking.py``) and ``editing`` activates it
+  for each call. ``open_sketch`` is the part's open sketch: NX's active one, else the
+  parked one.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ import contextlib
 import math
 import re
 
+from nx_mcp.core import parking
 from nx_mcp.core.errors import fail
 from nx_mcp.kit import geom
 from nx_mcp.kit.result import enum_name
@@ -85,18 +91,46 @@ def resolve(tx, ref, field="/sketch"):
     return sk
 
 
+def _parked(tx):
+    """The work part's parked sketch (``core/parking.py``), or None."""
+    services = getattr(tx, "services", None)
+    return None if services is None else parking.parked(services, tx.part)
+
+
+def open_sketch(tx):
+    """The open sketch of the work part: NX's active sketch, else the parked one."""
+    active = tx.session.ActiveSketch
+    return active if active is not None else _parked(tx)
+
+
+def same(a, b) -> bool:
+    """Same NX object (by tag: NXOpen may hand out different wrappers)."""
+    return a is not None and b is not None and int(a.Tag) == int(b.Tag)
+
+
+def park(tx, sk) -> None:
+    """Leave the active sketch ``sk`` open but deactivated between calls (model update,
+    no view change) and record it as its part's open sketch (``core/parking.py``)."""
+    nx = tx.nx
+    sk.Deactivate(nx.Sketch.ViewReorient.FalseValue, nx.Sketch.UpdateLevel.Model)
+    services = getattr(tx, "services", None)
+    if services is not None:
+        parking.park(services, getattr(sk, "OwningPart", None) or tx.part, sk)
+
+
 @contextlib.contextmanager
 def editing(tx, ref, field="/sketch"):
     """Activate a sketch for editing and restore the previous state afterwards.
 
-    A different active sketch is ``NX_SKETCH_ACTIVE``. A sketch that was
-    already active stays active; one activated here is deactivated with a
-    model update level, even when the block fails.
+    A different open sketch of the part (active, or parked) is ``NX_SKETCH_ACTIVE``. A
+    sketch that was already active stays active; one activated here (a parked one too)
+    is deactivated with a model update level, even when the block fails.
     """
     sk = resolve(tx, ref, field)
     session, nx = tx.session, tx.nx
     active = session.ActiveSketch
-    if active and active != sk:
+    other = active if active is not None else _parked(tx)
+    if other is not None and not same(other, sk):
         fail(
             "NX_SKETCH_ACTIVE",
             "Finish the other active sketch first",

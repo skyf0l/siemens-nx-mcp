@@ -208,6 +208,16 @@ class Services:
         """False once NX dropped the undo mark (a save, a part close)."""
         return bool(self.session.DoesUndoMarkExist(mark, None))
 
+    def parked_sketches(self) -> dict:
+        """The live ``{part_key: sketch}`` of sketches left open (unfinished) and
+        deactivated between calls (``core/parking.py``)."""
+        return self.__dict__.setdefault("_parked_sketches", {})
+
+    def part_activity(self) -> dict:
+        """The live busy-part table (``core/busy.py``): ``{"parts": {part_key: {at,
+        tool, operation_id, loaded_at}}, "stream": part_key}``."""
+        return self.__dict__.setdefault("_part_activity", {})
+
     def after_commit(self, spec) -> None: ...
     def after_failure(self, spec) -> None: ...  # NX host: also (spec, mutation_outcome)
 
@@ -473,6 +483,9 @@ class Tx:
         # Keys the kernel adds to this call's undo-history entry (``compensation``: an
         # undo by deletion, never undone itself; core/marks.py).
         self.history_note: dict | None = None
+        # The part a call without a target worked in (the part nx_create_part or
+        # nx_open_part made or reused): the busy-part table's stream (core/busy.py).
+        self.worked_in: Any = None
 
     # -- NX access ------------------------------------------------------------
     @property

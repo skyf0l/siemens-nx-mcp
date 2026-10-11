@@ -218,10 +218,11 @@ def test_close_part_without_saving_forgets_its_references(nx):
     body = nx.block(1, 1, 1)
     body.OwningPart = part
     body_ref = nx.ref_of(body, "body")
+    key = f"part_{part.Tag}"
     ok = call(nx, tools.nx_close_part, part=nx.ref_of(part, "part"), save=False)
     assert ok.ok and ok.data["closed_count"] == 1 and ok.data["saved"] is False
     assert part not in nx.session.Parts and body_ref not in nx.refs
-    assert nx.forgotten == [f"part_{part.Tag}"]
+    assert nx.forgotten == [key] and part.Tag == 0  # NX: a closed part reports tag 0
 
 
 def test_close_part_never_saves_by_default_and_refuses_unsaved_changes(nx):
@@ -631,6 +632,7 @@ def _keeps_prototypes(nx, part):
     from tests.kit.objects import Part
 
     part.Close = lambda *_a: Part.Close(part)
+    part.CloseRetainUndoMarks = lambda *_a: Part.CloseRetainUndoMarks(part)
 
 
 def test_close_assembly_unloads_unused_agent_component_parts(nx):

@@ -141,7 +141,13 @@ class KitServices(Services):
         return list(self.fake.session.Parts)
 
     def part_key(self, part):
-        return f"part_{part.Tag}"
+        """``part_<tag>``, kept by the part: NX's wrapper of a closed part reports tag 0."""
+        key = getattr(part, "_kit_part_key", None)
+        if key is None:
+            key = f"part_{part.Tag}"
+            with contextlib.suppress(AttributeError):
+                part._kit_part_key = key
+        return key
 
     def part_path(self, part):
         return Path(part.FullPath).name

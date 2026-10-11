@@ -130,7 +130,7 @@ def engineer_change(services, display_changed: bool = False) -> None:
             bump(None)
 
 
-def close_barrier(services, paths: list, part_id, operation_id: str, method: str) -> None:
+def close_barrier(services, paths: list, part_id, operation_id: str | None, method: str) -> None:
     """After a part close that kept NX's undo marks (``CloseRetainUndoMarks``): undoing
     across it would load the part again, so it ends every part's undo."""
     with contextlib.suppress(Exception):
