@@ -19,9 +19,9 @@
     "nx_edit_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
     "nx_get_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
     "nx_create_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
-    "nx_update_annotations": "eb439bed426e202d38bf500e3a89989153ac18aeb9249025dba6f1e048abed7a"
+    "nx_update_annotations": "1a66948978b69ed36b75bd905deac252f32ea881ec3a87e0439dedb6977daab3"
   },
-  "recorded": "2026-10-11T10:11:21Z",
+  "recorded": "2026-10-11T14:16:03Z",
   "passed": true,
   "checks": 53,
   "failed_checks": 0,

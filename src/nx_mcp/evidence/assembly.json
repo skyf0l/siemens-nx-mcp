@@ -59,20 +59,20 @@
   "nx_create_explosion": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
-      "source_sha256": "a4efd0ae4c309ddffb799b3a6c30c06f50ceea562497f2d7b6b8b0a0738de1db",
+      "source_sha256": "5745ff1262ff6ad370cf5eaa0cbc76d6baaa16bbcc3f3d13bfb76a189e444d77",
       "variants": []
     }
   },
   "nx_create_explosion_trace": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
-      "source_sha256": "13f36c5cdbff08be67618bb91c1701b8a116fc3b1b59cf7fececf63f0da917bd",
+      "source_sha256": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
       "variants": []
     }
   },
@@ -103,10 +103,10 @@
   "nx_create_wave_link": {
     "v2406": {
       "checks": 71,
-      "recorded": "2026-10-11T08:07:57Z",
+      "recorded": "2026-10-11T14:15:18Z",
       "scenario": "acceptance/assembly/wave_links.json",
       "scenario_sha256": "78c471370e02974dc1aaad40952b3c99ce78f6e1c9ea6086e4ab8a08055c5c9b",
-      "source_sha256": "98f3f840ff6ca996be3bc8aa8dd11091b6ab3b60e4827eacb46f9a075368e649",
+      "source_sha256": "9d62c299207d15668be429fcae1a84135eac12db61583c722a71359387f4696a",
       "variants": [
         "body",
         "curve",
@@ -149,27 +149,27 @@
   "nx_edit_explosion": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
-      "source_sha256": "a4efd0ae4c309ddffb799b3a6c30c06f50ceea562497f2d7b6b8b0a0738de1db",
+      "source_sha256": "5745ff1262ff6ad370cf5eaa0cbc76d6baaa16bbcc3f3d13bfb76a189e444d77",
       "variants": []
     }
   },
   "nx_edit_explosion_trace": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
-      "source_sha256": "13f36c5cdbff08be67618bb91c1701b8a116fc3b1b59cf7fececf63f0da917bd",
+      "source_sha256": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
       "variants": []
     }
   },
   "nx_export_explosion_animation": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
       "source_sha256": "102a46a10cb1e8a28cd9040658d5c60d410c480b40a885db3fe56e3a6a16f74e",
@@ -179,10 +179,10 @@
   "nx_get_explosion": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
-      "source_sha256": "a4efd0ae4c309ddffb799b3a6c30c06f50ceea562497f2d7b6b8b0a0738de1db",
+      "source_sha256": "5745ff1262ff6ad370cf5eaa0cbc76d6baaa16bbcc3f3d13bfb76a189e444d77",
       "variants": []
     }
   },
@@ -212,10 +212,10 @@
   "nx_set_explosion_display": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-11T10:25:58Z",
+      "recorded": "2026-10-11T14:15:28Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
-      "source_sha256": "a4efd0ae4c309ddffb799b3a6c30c06f50ceea562497f2d7b6b8b0a0738de1db",
+      "source_sha256": "5745ff1262ff6ad370cf5eaa0cbc76d6baaa16bbcc3f3d13bfb76a189e444d77",
       "variants": []
     }
   },

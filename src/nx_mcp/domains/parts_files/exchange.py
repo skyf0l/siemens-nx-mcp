@@ -159,6 +159,8 @@ def _format_of(a: dict) -> str:
 
 
 @tool(
+    target="assembly",
+    switch="display",
     effect="file",
     label="Export model",
     summary=lambda a, say: f"Export {_format_of(a).upper()} {say('path')}",

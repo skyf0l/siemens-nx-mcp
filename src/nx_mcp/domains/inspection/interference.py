@@ -241,6 +241,7 @@ def _groups(tx, objects):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Check interference",
     summary=lambda a, say: (
@@ -404,6 +405,8 @@ def _write_zip(tx, path, folder, report, images):
 
 
 @tool(
+    target="assembly",
+    switch="display",
     effect="file",
     label="Export inspection report (ZIP)",
     summary="Inspection report {path}",

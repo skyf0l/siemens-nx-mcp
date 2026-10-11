@@ -65,6 +65,7 @@ class CameraData(TypedDict, total=False):
 
 
 @tool(
+    target="display",
     effect="read",
     label="Get camera",
     summary="Read the camera",

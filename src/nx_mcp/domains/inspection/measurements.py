@@ -76,6 +76,7 @@ def _measurables(tx, ref, field):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Measure distance",
     summary="Distance {first} to {second}",
@@ -150,6 +151,7 @@ def _direction(tx, obj, kind, field):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Measure angle",
     summary="Angle {first} to {second}",
@@ -203,6 +205,7 @@ class MassData(TypedDict):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Measure mass properties",
     summary=lambda a, say: "Mass of " + _targets_text(a),
@@ -265,6 +268,7 @@ class BoundsData(TypedDict):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Measure bounding box",
     summary=lambda a, say: "Bounds of " + _targets_text(a),

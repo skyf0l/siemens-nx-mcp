@@ -7,7 +7,7 @@ results, errors, profiles) of the catalogue-based re-architecture. Names and
 arguments change freely: no aliases, no backwards compatibility.
 
 **Summary.** The catalogue has **163 catalogue tools** in 10 domains (3.13), reached in the
-agent profile through 4 gateway tools (2.1). Errors use 22 categories and 67 codes (1.8).
+agent profile through 4 gateway tools (2.1). Errors use 22 categories and 70 codes (1.8).
 Code layout and the kernel are specified in [architecture.md](architecture.md). The
 recommended agent profile costs about 4K tokens.
 
@@ -204,6 +204,7 @@ Every tool returns the same envelope. Tool-specific data lives in `data`.
 | `warnings` | `{code, message}`; never dropped by compaction. Warning codes (`NX_UPDATE_WARNING`, `NX_APPROXIMATED`, `NX_PARTIAL_PAGE`, `NX_MODAL_DIALOG` = NX showed a modal dialog during the call, `NX_VIEW_OVERLAP` = drawing views overlap, `NX_NO_EFFECT` = the call succeeded but changed nothing visible yet, `NX_NOTE` = an informational note) are a separate short list |
 | `page` | Inventories: `{offset, limit, returned, total, next_offset}` |
 | `result_id`, `omitted` | Compact projection: arrays over 20 items are cut and floats rounded to 12 significant digits. No object is listed twice: `changes` drop the rows `data` already shows; of the rest, `created`/`modified` keep none when `data` names the tool's main objects at its top level (feature, body, sketch...), else the rows that are not NX helpers (auto `pNN` expressions, sketch `ENTITY` geometry), and `deleted` keeps its rows. A kept list of more than 3 rows, and a committed mutation's top-level list of more than 3 body references in `data` (seed or target body first), show their first and last row (`omitted` says `shown: first_last`); `changes.counts` gives every row of a cut list by kind. `nx_get_result` expands what was cut; one snapshot store for bridge and sidecar results |
+| `part` | `{id, file, from}`: the part the call acted on (`from`: `work`, `only`, `refs`, `part`, `arg`, `resolver`, `parent`, `any`), when the call named its part or two or more top-level parts are loaded (gate 3t) |
 | `restore_id` | `view` tools that change display state |
 | `marks_part_modified` | When a non-model call nevertheless marks a part modified |
 
@@ -257,10 +258,10 @@ All codes start with `NX_`.
 | 4 | `stale_reference` | `NX_STALE_REFERENCE`, `NX_STALE_CHECKPOINT`, `NX_STALE_PREVIEW`, `NX_STALE_SOURCE` | after_reacquire | Reacquire references (`nx_list_objects`, `nx_find_geometry`, `nx_resolve_reference`) and retry | `NX_OBJECT_STALE`, `NX_STALE_REFERENCE`, `NX_SAVED_REFERENCE_STALE`, `NX_STALE_TRACE_ANCHOR`, `NX_STALE_ANNOTATION_SOURCE`, `NX_DISPLAY_SNAPSHOT_STALE`, `NX_CHECKPOINT_STALE`, `NX_PREVIEW_STALE`, `NX_SOURCE_CHANGED`, `NX_ARTIFACT_CHANGED`, `NX_EXPLOSION_ASSEMBLY_CHANGED` |
 | 5 | `wrong_kind` | `NX_WRONG_KIND`, `NX_WRONG_GEOMETRY` | after_fix | Pass a reference of the kind or geometry the field names | `NX_OBJECT_TYPE_MISMATCH`, `NX_NOT_SOLID`, `NX_NOT_SHEET`, `NX_NON_PLANAR`, `NX_NOT_SHEET_METAL`, `NX_NOT_DIRECTORY`, `NX_INVALID_GEOMETRY` (input side) |
 | 6 | `wrong_owner` | `NX_WRONG_OWNER`, `NX_WRONG_PART_CONTEXT` | after_fix | Use geometry of the right body/part, or activate the owning part | `NX_OBJECT_OWNER_MISMATCH`, `NX_DISPLAY_PART_MISMATCH`, `NX_PART_CONTEXT`, `NX_EXPLOSION_VIEW_MISMATCH` |
-| 7 | `ambiguous` | `NX_AMBIGUOUS_REFERENCE`, `NX_TARGET_REQUIRED` | after_fix | Pass the explicit reference; `details.candidates` lists choices | `NX_AMBIGUOUS_REFERENCE`, `NX_AMBIGUOUS_GEOMETRY`, `NX_AMBIGUOUS_TARGET`, `NX_AMBIGUOUS_THREAD`, `NX_OBJECT_OWNER_AMBIGUOUS`, `NX_NO_TARGET_BODY` |
+| 7 | `ambiguous` | `NX_AMBIGUOUS_REFERENCE`, `NX_TARGET_REQUIRED`, `NX_AMBIGUOUS_PART` (multi-agent mode: two or more top-level parts and nothing names the call's part; the hint lists the files, `details.loaded_parts`) | after_fix | Pass the explicit reference; `details.candidates` lists choices; for a part add `part` (a file name) to the arguments | `NX_AMBIGUOUS_REFERENCE`, `NX_AMBIGUOUS_GEOMETRY`, `NX_AMBIGUOUS_TARGET`, `NX_AMBIGUOUS_THREAD`, `NX_OBJECT_OWNER_AMBIGUOUS`, `NX_NO_TARGET_BODY` |
 | 8 | `precondition` | `NX_SKETCH_ACTIVE`, `NX_SKETCH_NOT_ACTIVE`, `NX_NO_WORK_PART`, `NX_WRONG_APPLICATION`, `NX_NOT_LOADED`, `NX_UNSAVED_PART`, `NX_PART_IN_USE` | after_fix | Run the tool named in `hint` (finish sketch, activate part, save, load components), then retry | `NX_SKETCH_ACTIVE`, `NX_SKETCH_NOT_ACTIVE`, `NX_NO_ACTIVE_SKETCH`, `NX_NO_PART_OPEN`, `NX_NO_WORK_PART`, `NX_NO_DISPLAY_PART`, `NX_DRAWING_CONTEXT`, `NX_DRAWING_ACTIVE`, `NX_NO_DRAWING`, `NX_NO_COMPONENTS`, `NX_UNLOADED_COMPONENT`, `NX_ASSEMBLY_NOT_LOADED`, `NX_UNSAVED_PART`, `NX_PART_IN_USE`, `NX_APPLICATION_UNAVAILABLE` |
 | 9 | `already_exists` | `NX_ALREADY_EXISTS`, `NX_NAME_CONFLICT` | after_fix | Choose another name or path, or use the existing object in `details` | `NX_FILE_EXISTS`, `NX_ALREADY_EXISTS`, `NX_NAME_EXISTS`, `NX_NAME_CONFLICT`, `NX_IMPORT_NAME_CONFLICT`, `NX_MATERIAL_EXISTS`, `NX_SECTION_EXISTS`, `NX_PARTS_LIST_EXISTS` |
-| 10 | `blocked` | `NX_DEPENDENCY_ORDER`, `NX_IN_USE`, `NX_READ_ONLY`, `NX_CROSS_PART` | after_fix | Resolve the blocker listed in `details` (dependent views, parent order, locked expression); ask the engineer when it is their data | `NX_REORDER_DEPENDENCY`, `NX_REORDER_REJECTED`, `NX_EXPLOSION_IN_USE`, `NX_EXPRESSION_READ_ONLY`, `NX_CROSS_PART_ROLLBACK`, `NX_RESTORE_ORDER`, `NX_NOT_CANCELLABLE` |
+| 10 | `blocked` | `NX_DEPENDENCY_ORDER`, `NX_IN_USE`, `NX_READ_ONLY`, `NX_CROSS_PART`, `NX_PART_BUSY` (reserved for the multi-agent close rule, phase P4) | after_fix | Resolve the blocker listed in `details` (dependent views, parent order, locked expression); ask the engineer when it is their data | `NX_REORDER_DEPENDENCY`, `NX_REORDER_REJECTED`, `NX_EXPLOSION_IN_USE`, `NX_EXPRESSION_READ_ONLY`, `NX_CROSS_PART_ROLLBACK`, `NX_RESTORE_ORDER`, `NX_NOT_CANCELLABLE` |
 | 11 | `geometry_failed` | `NX_BUILD_FAILED`, `NX_UPDATE_FAILED`, `NX_INCOMPLETE_RESULT` | after_fix | Model rolled back; change dimensions or inputs (smaller radius, other face). Do not repeat unchanged | `NX_OPERATION_FAILED`, `NX_UPDATE_FAILED`, `NX_FACE_EDIT_FAILED`, `NX_INCOMPLETE_SEW`, `NX_SINGULAR_SURFACE`, `NX_SHEET_METAL_INVALID`, `NX_SKETCH_INVALID`, `NX_DRAWING_INVALID`, `NX_ANNOTATION_INVALID`, `NX_INTERFERENCE_UNRESOLVED`, `NX_IMPORT_NO_OUTPUT`, `NX_EXPORT_NO_SOLIDS`, `NX_MOTION_RESULT_MISSING`, `NX_MOTION_NOT_ASSOCIATIVE` |
 | 12 | `solver_failed` | `NX_CONSTRAINT_UNSATISFIED`, `NX_SKETCH_OVERCONSTRAINED` | after_fix | Diagnose with `nx_check_sketch` or `nx_list_objects(kind=assembly_constraint)`; remove the conflicting constraint | `NX_CONSTRAINT_UNSATISFIED`, `NX_RELATION_UNSATISFIED`, `NX_SKETCH_CONFLICT`, `NX_CONSTRAINT_REMOVED` |
 | 13 | `verification_failed` | `NX_VERIFICATION_FAILED` (`details.check` names the failed read-back) | ask_engineer | NX built something that differs from the request; it was rolled back. Report, do not loop | `NX_VERIFICATION_FAILED`, `NX_PATTERN_VERIFICATION_FAILED`, `NX_SAVE_VERIFICATION_FAILED`, `NX_MATERIAL_VERIFICATION_FAILED`, `NX_PLACEMENT_MISMATCH`, `NX_PLACEMENT_CHANGED`, `NX_EXPLOSION_POSITION_MISMATCH`, `NX_FRAME_MISMATCH`, `NX_CAPTURE_RESOLUTION_MISMATCH`, `NX_CLONE_REFERENCE_MISMATCH` |
@@ -270,12 +271,12 @@ All codes start with `NX_`.
 | 17 | `unavailable` | `NX_LICENSE_UNAVAILABLE`, `NX_VERSION_UNSUPPORTED`, `NX_VIEWPORT_UNAVAILABLE`, `NX_CATALOG_UNAVAILABLE` | never | Tell the engineer which license or build is missing; use an alternative if one exists | `NX_LICENSE_UNAVAILABLE`, `NX_UNAVAILABLE_ON_VERSION`, `NX_API_UNAVAILABLE`, `NX_VIEWPORT_UNAVAILABLE`, `NX_CATALOG_UNAVAILABLE`, `NX_UNDO_UNAVAILABLE` |
 | 18 | `engineer_control` | `NX_CONTROL_DECLINED`, `NX_CONTROL_PAUSED`, `NX_UI_BUSY`, `NX_PART_NOT_GRANTED`, `NX_MODAL_DIALOG_OPEN` | ask_engineer | The engineer has NX. Ask in chat before retrying; `NX_UI_BUSY` = wait and retry; `NX_PART_NOT_GRANTED` = the part is the engineer's: ask them to grant it on the panel or work on a copy; `NX_MODAL_DIALOG_OPEN` = a modal NX dialog is open as a non-read step starts, so it did not run (`details.dialogs`; reads still answer; an engineer's command or dialog first delays the step as for `NX_UI_BUSY`): ask the engineer to answer it, the agent never clicks it | `NX_UI_DECLINED`, `NX_UI_PAUSED`, `NX_UI_BUSY` (the ownership gate is new) |
 | 19 | `bridge` | `NX_BRIDGE_UNAVAILABLE`, `NX_PROTOCOL_MISMATCH`, `NX_AUTH_FAILED` | after_wait | NX or the bridge is not running or was restarted; for mutations check `nx_get_operation` first; ask the engineer if it persists | `NX_BRIDGE_UNAVAILABLE`, `NX_PROTOCOL_ERROR`, `NX_PROTOCOL_VERSION_MISMATCH`, `NX_AUTH_FAILED`, `NX_MAIN_THREAD_UNAVAILABLE`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
-| 20 | `interrupted` | `NX_CANCELLED`, `NX_OUTCOME_UNKNOWN`, `NX_IDEMPOTENCY_CONFLICT` | after_status_check | Query `nx_get_operation(operation_id)`; never retry a mutation blindly; reuse an `operation_id` only with identical arguments | `NX_CANCELLED`, `NX_IDEMPOTENCY_CONFLICT`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
+| 20 | `interrupted` | `NX_CANCELLED`, `NX_OUTCOME_UNKNOWN`, `NX_IDEMPOTENCY_CONFLICT` (also: the same id and arguments in another part), `NX_CALL_EXPIRED` (the call's `expires_at` passed before NX ran it: not started, no receipt; `retry: after_fix`) | after_status_check | Query `nx_get_operation(operation_id)`; never retry a mutation blindly; reuse an `operation_id` only with identical arguments in the same part | `NX_CANCELLED`, `NX_IDEMPOTENCY_CONFLICT`, `NX_BRIDGE_OUTCOME_UNKNOWN` |
 | 21 | `rollback_failed` | `NX_ROLLBACK_FAILED`, `NX_RESTORE_FAILED` | ask_engineer | The model or view may be partly changed. Stop mutating, capture a screenshot, tell the engineer | `NX_ROLLBACK_FAILED`, `NX_SAVE_VIEW_RESTORE_FAILED`, `NX_RENDER_RESTORE_FAILED` |
 | 22 | `nx_error` | `NX_ERROR` | ask_engineer | Unclassified native exception; `nx_code` and message preserved. Retry once only after changing inputs | `NX_API_ERROR`, `NX_INTERNAL_ERROR` |
 
 `NX_MCP_*` strings in the code are environment variables and marker names, not
-error codes. The code list has 67 entries (the "Codes" column); a
+error codes. The code list has 70 entries (the "Codes" column); a
 catalogue test fails when a handler raises a code that is not in the list.
 A handler may override `retry` for one error (`fail(..., retry="never")`) when no fix
 of the same call can succeed, e.g. `nx_undo_operation` with an empty history.
@@ -300,6 +301,14 @@ Present in every result, success or error.
 
 `operation_id` is optional; the kernel generates one when absent and returns it. A caller's own id is 8-128 characters from `A-Z a-z 0-9 _ -` (listed schemas carry `minLength` and `pattern`); a bad one is refused before NX with what is wrong ("too short: 7 of at least 8 characters").
 Supply your own when you might need to retry after a transport failure.
+
+**Call keys inside `arguments`.** Besides `operation_id`, NX-side calls accept `part` (the
+target part: a loaded part's file name with or without `.prt`, its workspace path or `p:N`)
+and `expires_at` (epoch seconds or ISO 8601: a changing call that reaches NX later is
+refused with `NX_CALL_EXPIRED` and never runs). They are not schema properties; a tool's
+own `part` parameter (`nx_activate_part`, `nx_close_part`, `nx_save_part`) stays its
+argument. Phase P0 resolves and reports the target but does not switch parts: a `part`
+that is not the work part is refused (`NX_WRONG_PART_CONTEXT`, activate it first).
 
 ---
 
@@ -351,7 +360,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_get_status` | Bridge, NX build, work/display part, application, panel mode (`auto` or `ask`, with the panel's `mode_label` Auto or Ask me first; only the engineer changes it), workspace root and path rules | `include?: bridge/parts/control/workspace` | read |
+| `nx_get_status` | Bridge, NX build, work/display part, top-level part count and targeting mode (`parts.targeting`: `solo` or `multi`, 3.1 of architecture.md), application, panel mode (`auto` or `ask`, with the panel's `mode_label` Auto or Ask me first; only the engineer changes it), workspace root and path rules | `include?: bridge/parts/control/workspace` | read |
 | `nx_find_tools` | Search the catalogue (2.1) | `query \| queries, domain?, effect?, Page` | read |
 | `nx_get_tool_schemas` | Schemas, examples, evidence, sub-schemas such as sheet-metal operations, per-variant `required_by` fields | `names[1..10], include_output` | read |
 | `nx_invoke` | Gateway call | `tool, arguments, intent?, detail` | per tool |

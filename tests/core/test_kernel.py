@@ -932,7 +932,7 @@ def test_a_failing_redo_step_undoes_the_steps_redone(svc, registered):
     record = svc.store.get("op_block_two")
     record["arguments"] = {"size": 3, "fail_with": "NX_UPDATE_FAILED"}  # fails when repeated
     record["fingerprint"] = __import__("nx_mcp.core.receipts").core.receipts.fingerprint(
-        "nx_create_block", record["arguments"]
+        "nx_create_block", record["arguments"], record["part_file"]
     )
     svc.store.put(record)
     failed = call(svc, "nx_redo_operation", "op_redo_both", steps=2)

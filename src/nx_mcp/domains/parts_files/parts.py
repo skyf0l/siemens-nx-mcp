@@ -241,6 +241,7 @@ def new_part(tx, target: Path, units: str):
 
 
 @tool(
+    target="creates",
     effect="file",
     label="Create part",
     summary=lambda a, say: f"Create part {say('path')} in {a.get('units') or 'mm'}",
@@ -274,6 +275,7 @@ def nx_create_part(
 
 
 @tool(
+    target="creates",
     effect="session",
     label="Open part",
     summary="Open part {path}",
@@ -316,6 +318,7 @@ def nx_open_part(
 
 
 @tool(
+    target="arg:part",
     effect="session",
     label="Activate part",
     summary="Activate part {part}",
@@ -456,6 +459,7 @@ def _save_as(tx, target, destination: Path) -> list:
 
 
 @tool(
+    target="arg:part",
     effect="file",
     label="Save part",
     summary=_save_summary,
@@ -521,6 +525,7 @@ def _close_summary(a, say) -> str:
 
 
 @tool(
+    target="arg:part",
     effect="session",
     label="Close part",
     summary=_close_summary,

@@ -374,6 +374,7 @@ def _summary(a, say):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Measure section",
     summary=_summary,

@@ -84,6 +84,7 @@ def _edge(tx, ref, entries, field):
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Create explosion trace",
     summary="Trace line in {explosion}",
@@ -161,6 +162,7 @@ def nx_create_explosion_trace(
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Edit explosion trace",
     summary="Edit trace {trace}",

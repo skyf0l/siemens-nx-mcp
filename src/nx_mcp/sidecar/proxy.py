@@ -27,7 +27,7 @@ from urllib.parse import quote
 from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
 from pydantic import AnyUrl, ValidationError
 
-from nx_mcp.core import errors, evidence
+from nx_mcp.core import errors, evidence, target
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
 from nx_mcp.core.types import REF_PATTERN, RefKind
@@ -472,7 +472,9 @@ class CatalogueProxy:
     async def call(
         self, spec, arguments: dict | None, *, intent: str | None = None, detail: str = "compact"
     ) -> CallToolResult:
-        args = dict(arguments or {})
+        # The target keys (part, expires_at) go to NX untouched: the kernel
+        # validates and resolves them (core/target.py, gate 3t).
+        args, keys = target.split_call_keys(spec, dict(arguments or {}))
         operation_id = args.pop("operation_id", None)
         intent = args.pop("intent", None) or intent
         detail = args.pop("detail", None) or detail
@@ -510,6 +512,7 @@ class CatalogueProxy:
             if detail == "compact":
                 envelope = _project(envelope, self.store)
             return result(envelope, extra=self._attachments(envelope))
+        params.update(keys)
         if operation_id:
             params["operation_id"] = operation_id
         if intent:

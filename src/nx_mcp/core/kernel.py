@@ -27,8 +27,9 @@ from pathlib import Path
 from typing import Any, cast
 
 from nx_mcp.core import evidence
+from nx_mcp.core import target as targets
 from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
-from nx_mcp.core.receipts import Receipts, new_operation_id
+from nx_mcp.core.receipts import ANY_PART, Receipts, new_operation_id
 from nx_mcp.core.references import GENERIC_NAME as _GENERIC
 from nx_mcp.core.tx import Services, Tx, check_owned
 from nx_mcp.core.types import SHEET_KINDS, convert_quantity, expand_kinds
@@ -76,6 +77,11 @@ class Context:
     services: Services
     operation_id: str | None = None
     intent: str | None = None
+    # Call keys inside ``arguments`` (core/target.py): the target part (file name, path
+    # or p:N) and when the client gives up (epoch seconds or ISO 8601).
+    part: str | None = None
+    expires_at: Any = None
+    parent: Any = None  # the calling Tx's target (nx_redo_operation's own calls)
 
 
 # ---------------------------------------------------------------------------
@@ -519,14 +525,21 @@ def run(spec, args, ctx: Context) -> dict:
     envelope: dict = {"tool": spec.name, "operation_id": operation_id}
     tx: Tx | None = None
     record: dict | None = None
+    target = None
+    multi = False
     mark = None
     part = None
     before: dict = {}
     floor: int | None = None
     observer = None
     handler_started = handler_done = False
+    args, keys = targets.split_call_keys(spec, args)  # part/expires_at in arguments
+    part_text = keys.get("part", ctx.part)
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
     try:
+        expires = targets.check_call_keys(part_text, keys.get("expires_at", ctx.expires_at))
+        targets.check_expiry(spec, expires)  # the ghost guard: no receipt, not_started
+        multi = targets.multi_agent(services)
         try:
             checked = _gate_schema(
                 spec, args, where=getattr(services, "runs", "nx"), services=services
@@ -534,21 +547,41 @@ def run(spec, args, ctx: Context) -> dict:
         except NXError as schema_error:
             _application_first(spec, services, schema_error)
             raise
+        try:
+            target = targets.resolve(
+                spec, checked, services, part=part_text, parent=ctx.parent, multi=multi
+            )
+        except NXError:  # 3t: a repeat of a finished call still replays (its own part)
+            if spec.effect != "read" and ctx.operation_id:
+                replay = receipts.replay(spec.name, raw_args, operation_id, ANY_PART)
+                if replay is not None:
+                    return replay
+            raise
+        if target is not None and target.source == "part":
+            targets.note_part(services, target.key)
+        file_key = target.file_key if target is not None else None
         if spec.effect != "read" and ctx.operation_id:
             # Gate 7's replay goes first: repeating a committed call must not fail on
             # what it created (a `new` path that now exists, a part it loaded).
-            replay = receipts.replay(spec.name, raw_args, operation_id)
+            replay = receipts.replay(spec.name, raw_args, operation_id, file_key)
             if replay is not None:
                 return replay
         _gate_paths(spec, checked, services)  # 2
         _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
+        targets.refuse_other_part(  # 4s (P0: refuse; P2 switches)
+            spec, target, services, explicit=part_text is not None, multi=multi
+        )
         _gate_requires(spec, services)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
         if spec.effect != "read":  # 7
             record, replay = receipts.begin(
-                spec.name, raw_args, operation_id, services.part_key(part) if part else None
+                spec.name,
+                raw_args,
+                operation_id,
+                services.part_key(part) if part else None,
+                part_file=file_key,
             )
             if replay is not None:
                 return replay
@@ -565,6 +598,7 @@ def run(spec, args, ctx: Context) -> dict:
             arguments=raw_args,
         )
         tx.mark = mark
+        tx.target = target
         if record is not None and record.get("previous"):
             tx.warn(
                 "NX_UPDATE_WARNING",
@@ -613,6 +647,7 @@ def run(spec, args, ctx: Context) -> dict:
         envelope["warnings"] = tx.warnings
         if page is not None:
             envelope["page"] = page
+        _report_part(envelope, target, services, part_text)
         if spec.restorable:
             restore_id = tx.display.snapshot()
             if restore_id is not None:
@@ -648,6 +683,7 @@ def run(spec, args, ctx: Context) -> dict:
                 envelope["changes"]["stale_references"] = stale
         if tx is not None and tx.warnings:
             envelope["warnings"] = tx.warnings
+        _report_part(envelope, target, services, part_text)
         _after_failure(services, spec, outcome)
         trace = getattr(error, "trace", None)
         receipts.finish(record, envelope, trace=trace)
@@ -658,6 +694,14 @@ def run(spec, args, ctx: Context) -> dict:
         if tx is not None:  # this call's staging folder, committed or not (Files)
             with contextlib.suppress(Exception):
                 tx.files.discard()
+
+
+def _report_part(envelope: dict, target, services, part_text) -> None:
+    """Gate 14: ``part`` {id, file, from} when the call named its part or two or
+    more top-level parts are loaded."""
+    if target is not None and target.reported(part_text is not None):
+        with contextlib.suppress(Exception):
+            envelope["part"] = target.row(services)
 
 
 def _after_failure(services, spec, outcome: str) -> None:

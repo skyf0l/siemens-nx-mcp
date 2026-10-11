@@ -171,6 +171,7 @@ def _expand(tx, obj, kind: str) -> dict:
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="List objects",
     summary="List {kind} objects",

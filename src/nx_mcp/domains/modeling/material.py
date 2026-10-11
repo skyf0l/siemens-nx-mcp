@@ -255,6 +255,7 @@ class LibraryData(TypedDict):
 
 
 @tool(
+    target="any",
     effect="read",
     label="List library materials",
     summary=lambda a, say: (
@@ -412,6 +413,7 @@ def _assembly_bodies(tx):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Get materials",
     summary=lambda a, say: (

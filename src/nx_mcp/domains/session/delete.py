@@ -85,6 +85,7 @@ def _refuse_kind(tx, i: int, ref: str, obj, kind: str, deletable: list[str]) -> 
 
 
 @tool(
+    target="assembly",
     effect="model",
     label="Delete objects",
     summary="Delete {objects}",

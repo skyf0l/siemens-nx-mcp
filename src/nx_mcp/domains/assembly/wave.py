@@ -446,6 +446,7 @@ def _sketch_curves(sketches):
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Create WAVE link",
     summary=lambda a, say: f"WAVE link {a.get('kind', 'body')} into the work part",

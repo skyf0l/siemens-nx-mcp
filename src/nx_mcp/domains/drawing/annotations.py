@@ -578,6 +578,7 @@ class EditData(TypedDict, total=False):
 
 
 @tool(
+    switch="work",
     effect="model",
     label="Edit annotation",
     summary=lambda a, say: f"Edit {say('annotation')}",

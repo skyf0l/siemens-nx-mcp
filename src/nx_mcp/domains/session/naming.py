@@ -65,6 +65,7 @@ def _forget_anchor(tx: Tx, ref: str) -> None:
 
 
 @tool(
+    target="assembly",
     effect="model",
     label="Set name",
     summary='Rename {object} to "{name}"',

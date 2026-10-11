@@ -104,6 +104,7 @@ def _summary(a: dict, say) -> str:
 
 
 @tool(
+    target="assembly",
     effect="file",
     label="Export assembly",
     summary=_summary,

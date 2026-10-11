@@ -18,11 +18,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_model": "38bf38baf7ae2d7b4c1865d869b5e99bd055b4b9eefafaae2244922e3830cb1f",
-    "nx_import_model": "06baf048a1afba972015b82b1a67286bdd0036b6147bca4fc3cf24110d5199cb",
+    "nx_export_model": "b0b8441b6478a000b23f59db10ed09f718b50e0b482f62a601bc7815c10e1bef",
+    "nx_import_model": "b7b2af9303c3f8cbf6da041541b0c5e604e2dad1d6dcb45147ab98ea203b35d9",
     "nx_export_profile": "c80d32dd720134f67d7157ca34183789c34766615ea86eab9fb711a1d75547cd"
   },
-  "recorded": "2026-10-11T10:41:03Z",
+  "recorded": "2026-10-11T14:12:06Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

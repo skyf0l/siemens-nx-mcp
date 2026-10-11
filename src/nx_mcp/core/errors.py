@@ -1,4 +1,4 @@
-"""Error taxonomy (tool-surface.md 1.8): 22 categories, 67 codes, ``native()``.
+"""Error taxonomy (tool-surface.md 1.8): 22 categories, 70 codes, ``native()``.
 
 Handlers raise only through :func:`fail` or :func:`native`. The kernel turns any
 :class:`NXError` into ``{category, code, message, hint, field, retry, nx_code,
@@ -52,7 +52,7 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "ambiguous": (
         "after_fix",
-        ("NX_AMBIGUOUS_REFERENCE", "NX_TARGET_REQUIRED"),
+        ("NX_AMBIGUOUS_REFERENCE", "NX_TARGET_REQUIRED", "NX_AMBIGUOUS_PART"),
         "Pass the explicit reference; details.candidates lists the choices",
     ),
     "precondition": (
@@ -75,7 +75,7 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "blocked": (
         "after_fix",
-        ("NX_DEPENDENCY_ORDER", "NX_IN_USE", "NX_READ_ONLY", "NX_CROSS_PART"),
+        ("NX_DEPENDENCY_ORDER", "NX_IN_USE", "NX_READ_ONLY", "NX_CROSS_PART", "NX_PART_BUSY"),
         "Resolve the blocker listed in details; ask the engineer when it is their data",
     ),
     "geometry_failed": (
@@ -143,7 +143,7 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "interrupted": (
         "after_status_check",
-        ("NX_CANCELLED", "NX_OUTCOME_UNKNOWN", "NX_IDEMPOTENCY_CONFLICT"),
+        ("NX_CANCELLED", "NX_OUTCOME_UNKNOWN", "NX_IDEMPOTENCY_CONFLICT", "NX_CALL_EXPIRED"),
         "Query nx_get_operation(operation_id); never retry a mutation blindly",
     ),
     "rollback_failed": (

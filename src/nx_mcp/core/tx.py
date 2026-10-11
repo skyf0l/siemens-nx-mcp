@@ -69,6 +69,29 @@ class Services:
     # parts and units
     def work_part(self): ...
     def parts(self) -> list: ...
+
+    def root_parts(self) -> list:
+        """The top-level loaded parts: those no loaded assembly uses as a component
+        (gate 3t). Walks each assembly's component tree (``Prototype`` of every child)."""
+        parts = list(self.parts() or [])
+        if len(parts) < 2:
+            return parts
+        used: set[int] = set()
+        for part in parts:
+            root = None
+            with contextlib.suppress(Exception):
+                root = part.ComponentAssembly.RootComponent
+            stack = [root] if root is not None else []
+            while stack:
+                node = stack.pop()
+                with contextlib.suppress(Exception):
+                    for child in node.GetChildren():
+                        prototype: Any = getattr(child, "Prototype", None)
+                        with contextlib.suppress(Exception):
+                            used.add(int(prototype.Tag))
+                        stack.append(child)
+        return [p for p in parts if int(p.Tag) not in used]
+
     def part_key(self, part) -> str: ...
     def part_path(self, part) -> str: ...
     def owning_part(self, obj): ...
@@ -414,6 +437,8 @@ class Tx:
         self.files = Files(self)
         self.display = Display(self)
         self.children: list[dict] = []
+        # The part gate 3t resolved (core.target.Target) or None; P0 binds nothing to it.
+        self.target: Any = None
 
     # -- NX access ------------------------------------------------------------
     @property
@@ -698,7 +723,8 @@ class Tx:
         with contextlib.suppress(Exception):
             loaded = services.loaded()
         try:
-            return kernel.run(spec, args, kernel.Context(services, operation_id=operation_id))
+            context = kernel.Context(services, operation_id=operation_id, parent=self.target)
+            return kernel.run(spec, args, context)
         finally:
             if loaded is not None:  # parts the call loaded count as the agent's (host)
                 with contextlib.suppress(Exception):

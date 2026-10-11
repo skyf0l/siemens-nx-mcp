@@ -456,6 +456,7 @@ def _format_of(a: dict) -> str:
 
 
 @tool(
+    target="refs",
     effect="model",
     label="Import model",
     summary=lambda a, say: f"Import {_format_of(a).upper()} {say('path')}",

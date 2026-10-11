@@ -24,7 +24,7 @@ from __future__ import annotations
 import contextlib
 import inspect
 
-from nx_mcp.core import catalogue, kernel, summary
+from nx_mcp.core import catalogue, kernel, summary, target
 from nx_mcp.core.errors import NXError, classify
 from nx_mcp.core.receipts import new_operation_id
 from nx_mcp.core.tx import NOT_GRANTED_HINT
@@ -33,8 +33,10 @@ from nx_mcp.host.quiet import Calm
 
 catalogue.load()
 
-# Arguments that belong to the call, not to the handler.
+# Arguments that belong to the call, not to the handler. The kernel takes the target
+# keys (part, expires_at: core/target.py) itself, unless they are the tool's own.
 CALL_KEYS = ("intent", "operation_id", "detail")
+TARGET_KEYS = target.CALL_KEYS
 
 
 class KernelError(NXError):
@@ -144,7 +146,7 @@ def run(services, spec, params: dict) -> dict:
 def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     """A development tool under one visible undo mark; a failure is rolled back."""
     operation_id = params.get("operation_id") or new_operation_id()
-    params = {k: v for k, v in params.items() if k not in CALL_KEYS}
+    params = {k: v for k, v in params.items() if k not in CALL_KEYS + TARGET_KEYS}
     try:
         inspect.signature(handler).bind(**params)
     except TypeError as error:
@@ -247,7 +249,8 @@ def render_summary(services, method: str, params: dict, *, path_of=None) -> str 
     spec = catalogue.get(method)
     if spec is None:
         return None
-    args = {k: v for k, v in params.items() if k not in CALL_KEYS}
+    args, _keys = target.split_call_keys(spec, params)
+    args = {k: v for k, v in args.items() if k not in CALL_KEYS}
     units = None
     try:
         part = services.work_part()

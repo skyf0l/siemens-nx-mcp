@@ -88,6 +88,8 @@ Domain = Literal[
 ]
 DOMAINS = frozenset(typing.get_args(Domain))
 HOOKS = ("lister", "deleter", "definition", "refresher", "sheet")
+TARGETS = ("refs", "assembly", "sheet", "display", "any", "creates", "none", "resolver")
+SWITCHES = ("none", "work", "display")
 _DOMAIN_PACKAGE = "nx_mcp.domains."
 
 
@@ -139,6 +141,29 @@ class ToolSpec:
     # variant field, gate 3 takes it from the object the ref ``field`` names:
     # ``resolver(tx, obj) -> value or None``, else the ref's kind when that is a value.
     variant_from: tuple[str, Callable | None] | None = None
+    # Decorator ``target`` (gate 3t, core/target.py): which loaded part the call acts on.
+    # ``refs`` (the part of its references), ``assembly`` / ``sheet`` (assembly or drawing
+    # references decide; occurrences pin the assembly under ``assembly``), ``display``,
+    # ``any`` (any loaded part will do: an NX-global read), ``creates`` (the call loads or
+    # creates its part), ``none``, ``arg:<param>`` (the tool's own part argument) or
+    # ``resolver`` (``target_resolver(services, args) -> part or None``, then as ``refs``).
+    # Default from runs/requires/effect/domain (:func:`default_target`).
+    target: str = "refs"
+    target_resolver: Callable | None = field(default=None, repr=False)
+    # Decorator ``switch``: how the kernel makes the target current (gate 4s, phase P2):
+    # ``none`` (reads: never), ``work`` (quiet work-part switch), ``display`` (shown).
+    switch: str = "none"
+    # Decorator ``display_bound``: the call needs its target displayed: True (always,
+    # implies switch ``display``) or the variant values that do (``working_in`` variants).
+    display_bound: bool | tuple[str, ...] = False
+
+    def switch_for(self, args: Mapping) -> str:
+        """The switch mode of a call: ``display`` for a display-bound variant."""
+        if self.display_bound is True:
+            return "display"
+        if self.display_bound and self.variant_of(args) in self.display_bound:
+            return "display"
+        return self.switch
 
     def check(self, args, *, placeholders: bool = False, shown=None):
         """Gate 1 for this tool (``core.validate.validate``) with its variant requirements;
@@ -343,6 +368,9 @@ def make_spec(
     new_part: str | None = None,
     required_by: Mapping[str, Any] | None = None,
     variant_from: Any = None,
+    target: Any = None,
+    switch: str | None = None,
+    display_bound: Any = None,
 ) -> ToolSpec:
     """Build and check a :class:`ToolSpec` without registering it."""
     name = fn.__name__
@@ -512,6 +540,10 @@ def make_spec(
             validate(params, example, variant=variants, required_by=required_by)
         except Exception as error:
             problems.append(f"example does not meet required_by: {error}")
+    policy = _target_rules(
+        params, variant_values, target, switch, display_bound,
+        effect=effect, domain=domain, requires=tuple(requires), runs=runs, problems=problems,
+    )  # fmt: skip
     if problems:
         raise CatalogueError(f"{name}: " + "; ".join(problems))
     if refresh_annotations is None:
@@ -542,7 +574,84 @@ def make_spec(
         new_part=new_part,
         required_by=MappingProxyType({k: tuple(v) for k, v in (required_by or {}).items()}),
         variant_from=inferred,
+        **policy,
     )
+
+
+def default_target(*, effect: str, domain: str, requires: tuple, runs: str) -> str:
+    """The target policy of a tool whose decorator names none (gate 3t)."""
+    if runs != "nx" or "work_part" not in requires:
+        return "none"  # workspace tools, status, part lists: no part
+    if effect == "view" or domain == "display":
+        return "display"
+    if domain == "assembly":
+        return "assembly"
+    if domain == "drawing":
+        return "sheet"
+    return "refs"
+
+
+def default_switch(*, target: str, effect: str, domain: str, requires: tuple) -> str:
+    """The switch mode of a tool whose decorator names none (gate 4s)."""
+    if target in ("none", "creates", "any") or target.startswith("arg:") or effect == "read":
+        return "none"
+    if (
+        effect == "view"
+        or domain == "display"
+        or "interactive" in requires
+        or "application:sheet_metal" in requires
+        or domain == "drawing"
+    ):
+        return "display"  # cameras, drafting and the sheet-metal application are shown
+    return "work"
+
+
+def _target_rules(
+    params, variant_values, target, switch, display_bound, *, effect, domain, requires, runs,
+    problems,
+) -> dict:  # fmt: skip
+    """``target``/``target_resolver``/``switch``/``display_bound`` of a spec, checked."""
+    resolver = None
+    if callable(target):
+        target, resolver = "resolver", target
+    elif target is None:
+        target = default_target(effect=effect, domain=domain, requires=requires, runs=runs)
+    if not isinstance(target, str) or not (
+        target in TARGETS or (target.startswith("arg:") and target[4:] in params)
+    ):
+        problems.append(f"target is one of {TARGETS}, 'arg:<parameter>' or a resolver")
+        target = "none"
+    if target == "resolver" and resolver is None:
+        problems.append("target 'resolver' is given as the resolver callable itself")
+    if runs != "nx" and target != "none":
+        problems.append("a sidecar tool has no target part (target 'none')")
+    if display_bound is True and switch is None:
+        switch = "display"
+    if switch is None:
+        switch = default_switch(target=target, effect=effect, domain=domain, requires=requires)
+    if switch not in SWITCHES:
+        problems.append(f"switch is one of {SWITCHES}")
+    if display_bound is None:
+        display_bound = switch == "display"
+    if isinstance(display_bound, (list, tuple)):
+        display_bound = tuple(display_bound)
+        unknown = [v for v in display_bound if v not in variant_values]
+        if not display_bound or unknown:
+            problems.append(f"display_bound names variant values (unknown {unknown})")
+    elif not isinstance(display_bound, bool):
+        problems.append("display_bound is a bool or a tuple of variant values")
+    if display_bound is True and switch != "display":
+        problems.append("display_bound=True needs switch 'display'")
+    if (target in ("none", "creates") or target.startswith("arg:")) and (
+        switch != "none" or display_bound
+    ):
+        problems.append(f"target {target!r} has nothing to switch to (switch 'none')")
+    return {
+        "target": target,
+        "target_resolver": resolver,
+        "switch": switch,
+        "display_bound": display_bound,
+    }
 
 
 def _is_ref(hint) -> bool:

@@ -38,6 +38,7 @@ from typing import Annotated, Any, Literal, TypedDict
 from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.target import part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Text
 from nx_mcp.domains.session.batch import Step, StepResult, _preflight
@@ -386,7 +387,17 @@ def nx_preview_changes(
     }
 
 
+def _preview_part(services, args) -> Any:
+    """Gate 3t: the part a preview was made in (None: unknown, the usual rules apply)."""
+    preview_id = args.get("preview_id")
+    if not isinstance(preview_id, str):
+        return None
+    preview = _store(services).get(_canonical(preview_id))
+    return part_by_key(services, preview["part"]) if preview else None
+
+
 @tool(
+    target=_preview_part,
     effect="model",
     label="Finish preview",
     summary={"accept": "Apply the previewed changes", "discard": "Discard the preview"},

@@ -143,6 +143,7 @@ def _explode(tx, ex, tags, targets, resets):
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Create explosion",
     summary="Create explosion {name}",
@@ -252,6 +253,7 @@ def _edit_summary(a, say):
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Edit explosion",
     summary=_edit_summary,
@@ -361,6 +363,7 @@ def _display_summary(a, say):
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Show explosion",
     summary=_display_summary,

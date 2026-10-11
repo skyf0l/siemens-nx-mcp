@@ -22,7 +22,7 @@ import contextlib
 import time
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core import catalogue
+from nx_mcp.core import catalogue, target
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
@@ -101,6 +101,10 @@ class PartsInfo(TypedDict, total=False):
     # the component the work part is edited through in the displayed assembly (WAVE:
     # display = assembly, work = that component's part), else None
     work_component: dict | None
+    top_level: int  # loaded parts no loaded assembly uses as a component
+    # gate 3t: {mode: solo|multi, forced, parts, window_seconds}; multi refuses a
+    # call that names no part while two or more top-level parts are loaded
+    targeting: dict
 
 
 class WorkspaceInfo(TypedDict):
@@ -330,6 +334,8 @@ def nx_get_status(
             "display": row(session_parts.Display),
             "loaded": len(services.parts()),
             "work_component": _work_component(tx, session_parts),
+            "top_level": len(target.roots(services)),
+            "targeting": target.mode_status(services),
         },
         "control": control_data(status) if status is not None else None,
         "workspace": workspace_info(root),

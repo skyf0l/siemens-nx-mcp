@@ -385,6 +385,7 @@ def _part_path(tx):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Find geometry",
     summary=lambda a, say: (
@@ -615,6 +616,7 @@ def _hole_shape(tx, group, tol):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Find holes",
     summary=lambda a, say: "Find holes in " + (say("owner") if a.get("owner") else "the part"),
@@ -692,6 +694,7 @@ class AnchorData(TypedDict):
 
 
 @tool(
+    target="assembly",
     effect="read",
     label="Create anchor",
     summary="Anchor {object}",

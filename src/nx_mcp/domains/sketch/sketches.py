@@ -536,6 +536,7 @@ def _solver_status(tx, sk):
 
 
 @tool(
+    switch="work",
     effect="read",
     label="Get sketch",
     summary="Read sketch {sketch}",
@@ -606,6 +607,7 @@ class ConflictData(TypedDict, total=False):
 
 
 @tool(
+    switch="work",
     effect="read",
     label="Check sketch conflicts",
     summary="Find conflicts in sketch {sketch}",

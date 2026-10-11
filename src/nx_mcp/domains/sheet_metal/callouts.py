@@ -84,6 +84,7 @@ def _commit(tx, existing, kind, body, faces, text, position):
 
 
 @tool(
+    switch="display",
     effect="model",
     label="Create sheet-metal callout",
     summary={"body": "Thickness callout on {body}", "bend": "Bend callout on {faces}"},

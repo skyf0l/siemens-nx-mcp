@@ -322,6 +322,7 @@ def _row_of(tx, obj) -> result.Row:
 
 # ---- tools ---------------------------------------------------------------------------
 @tool(
+    target="assembly",
     effect="read",
     label="Get attributes",
     summary=lambda a, say: (
@@ -430,6 +431,7 @@ def _plan(tx, wants: list[_Want], existing: dict, dropping: set, label: str) -> 
 
 
 @tool(
+    target="assembly",
     effect="model",
     label="Set attributes",
     summary=_summary,

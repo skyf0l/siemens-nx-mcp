@@ -24,6 +24,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NoReturn
 
 from nx_mcp.core.errors import NXError, fail
 
@@ -69,10 +70,13 @@ OPERATION_ID_HINT = (
 )
 
 
-def fingerprint(tool: str, args: dict) -> str:
-    """SHA-256 of the tool name and canonical JSON arguments."""
+def fingerprint(tool: str, args: dict, part: str | None = None) -> str:
+    """SHA-256 of the tool name and canonical JSON arguments, and of the target part's
+    file key (gate 3t) when the call has one: the same arguments in another part are
+    another call. Without a part it is the fingerprint receipts had before targets."""
+    body: list = [tool, args] if part is None else [tool, args, part]
     try:
-        text = json.dumps([tool, args], sort_keys=True, separators=(",", ":"), allow_nan=False)
+        text = json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False)
     except (TypeError, ValueError) as error:
         raise NXError(
             "NX_INVALID_ARGUMENT",
@@ -80,6 +84,39 @@ def fingerprint(tool: str, args: dict) -> str:
             details={"error": str(error)},
         ) from error
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+ANY_PART = object()  # Receipts.replay: the target is unknown; match the receipt's own part
+
+
+def same_call(existing: dict, tool: str, args: dict, part) -> bool:
+    """Whether a receipt records this call: the same tool and arguments in the same
+    target part. A receipt written before targets (no ``part_file``) matches the tool
+    and arguments alone, so a repeat replays it as before (receipts written before target parts)."""
+    stored = existing.get("fingerprint")
+    if part is ANY_PART:
+        return stored == fingerprint(tool, args, existing.get("part_file"))
+    if stored == fingerprint(tool, args, part):
+        return True
+    return "part_file" not in existing and stored == fingerprint(tool, args)
+
+
+def _conflict(existing: dict, tool: str, args: dict, operation_id: str, part) -> NoReturn:
+    other = existing.get("part_file")
+    if other is not None and other != part and same_call(existing, tool, args, ANY_PART):
+        name = str(other).replace("\\", "/").rsplit("/", 1)[-1]
+        fail(
+            "NX_IDEMPOTENCY_CONFLICT",
+            f"operation_id {operation_id} was already used for the same call in another "
+            f"part ({name})",
+            hint="Use a new operation_id for each part, e.g. prefix it with the part's name",
+            details={"operation_id": operation_id, "part": name, "part_path": other},
+        )
+    fail(
+        "NX_IDEMPOTENCY_CONFLICT",
+        "operation_id was already used with different arguments",
+        details={"operation_id": operation_id},
+    )
 
 
 # Arguments that carry file contents: never stored in a receipt.
@@ -201,27 +238,26 @@ class Receipts:
                 "NX_INVALID_ARGUMENT", problem, field="/operation_id", hint=OPERATION_ID_HINT
             )
 
-    def replay(self, tool: str, args: dict, operation_id: str) -> dict | None:
+    def replay(
+        self, tool: str, args: dict, operation_id: str, part: str | None | object = None
+    ) -> dict | None:
         """The replayed envelope of a finished operation with this id, else None: also
         None for a committed operation that an undo or a restore reverted (its receipt has
         ``reverted_by``), so repeating it recreates the work instead of replaying a result
         that no longer exists.
 
-        Raises ``NX_IDEMPOTENCY_CONFLICT`` for the same id with other arguments and
-        ``NX_OUTCOME_UNKNOWN`` while it is running or unknown. The kernel asks before
-        the workspace-path gate, so repeating a committed ``nx_create_part`` replays its
-        result instead of failing on the file it created.
+        ``part``: the target part's file key (gate 3t), None without a target, or
+        :data:`ANY_PART` when the target could not be resolved (a replay then matches the
+        receipt's own part). Raises ``NX_IDEMPOTENCY_CONFLICT`` for the same id with other
+        arguments or in another part and ``NX_OUTCOME_UNKNOWN`` while it is running or
+        unknown. The kernel asks before the workspace-path gate, so repeating a committed
+        ``nx_create_part`` replays its result instead of failing on the file it created.
         """
         self.check_id(operation_id)
-        digest = fingerprint(tool, args)
         existing = self.store.get(operation_id)
         if "fingerprint" in existing:
-            if existing["fingerprint"] != digest:
-                fail(
-                    "NX_IDEMPOTENCY_CONFLICT",
-                    "operation_id was already used with different arguments",
-                    details={"operation_id": operation_id},
-                )
+            if not same_call(existing, tool, args, part):
+                _conflict(existing, tool, args, operation_id, part)
             state = existing.get("state")
             stored = existing.get("envelope")
             if existing.get("reverted_by") and state == "committed":
@@ -246,16 +282,23 @@ class Receipts:
         return None
 
     def begin(
-        self, tool: str, args: dict, operation_id: str, part_key: str | None
+        self,
+        tool: str,
+        args: dict,
+        operation_id: str,
+        part_key: str | None,
+        *,
+        part_file: str | None = None,
     ) -> tuple[dict | None, dict | None]:
         """``(record, None)`` for a new operation or ``(None, replayed_envelope)``.
 
-        An operation an undo or a checkpoint restore reverted runs again under its id:
-        the new receipt keeps the reverted run under ``previous`` (:func:`previous_run`)."""
-        replayed = self.replay(tool, args, operation_id)
+        ``part_file``: the target part's file key (in the fingerprint and the receipt).
+        An operation an undo or a checkpoint restore reverted runs again under its id: the
+        new receipt keeps the reverted run under ``previous`` (:func:`previous_run`)."""
+        replayed = self.replay(tool, args, operation_id, part_file)
         if replayed is not None:
             return None, replayed
-        digest = fingerprint(tool, args)
+        digest = fingerprint(tool, args, part_file)
         earlier = previous_run(self.store.get(operation_id))
         record = {
             "operation_id": operation_id,
@@ -264,6 +307,7 @@ class Receipts:
             "fingerprint": digest,
             "session_id": self.session_id,
             "part_id": part_key,
+            "part_file": part_file,
             "arguments": redact(args),
             "state": "running",
             "mutation_outcome": "unknown",

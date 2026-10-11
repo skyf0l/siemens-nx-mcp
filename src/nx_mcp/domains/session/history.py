@@ -34,6 +34,7 @@ from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
+from nx_mcp.core.target import part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Range, Text
 
@@ -385,7 +386,21 @@ def nx_list_checkpoints(tx: Tx) -> CheckpointsData:
     }
 
 
+def _checkpoint_part(services, args) -> Any:
+    """Gate 3t: the part a checkpoint belongs to (None: unknown, the usual rules apply)."""
+    text = args.get("checkpoint_id")
+    if not isinstance(text, str):
+        return None
+    checkpoints = services.undo_checkpoints()
+    try:
+        key = _lookup(services, checkpoints, text)
+    except NXError:
+        return None  # the handler reports it
+    return part_by_key(services, checkpoints[key].get("part_id"))
+
+
 @tool(
+    target=_checkpoint_part,
     effect="model",
     label="Restore checkpoint",
     summary="Roll back to an earlier checkpoint",
@@ -493,7 +508,14 @@ def _undo_redone(tx: Tx, start: int) -> None:
     tx.after_undo()
 
 
+def _redo_part(services, args) -> Any:
+    """Gate 3t: the part of the next call to redo (None: nothing to redo)."""
+    pending = services.redo_steps()
+    return part_by_key(services, pending[0].get("part_id")) if pending else None
+
+
 @tool(
+    target=_redo_part,
     effect="session",
     label="Redo operation",
     summary="Redo the agent's undone operation",

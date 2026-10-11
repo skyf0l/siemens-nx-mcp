@@ -49,6 +49,7 @@ def name_of(native_name) -> str:
 
 
 @tool(
+    target="display",
     effect="session",
     label="Activate application",
     summary="Switch NX to {application}",

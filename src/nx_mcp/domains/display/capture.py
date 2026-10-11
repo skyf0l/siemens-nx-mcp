@@ -133,6 +133,7 @@ def _summary(a, say):
 
 
 @tool(
+    target="display",
     effect="view",
     label="Capture view",
     summary=_summary,
