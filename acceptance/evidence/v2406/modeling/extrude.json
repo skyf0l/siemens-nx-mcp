@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/extrude.json",
-  "scenario_sha256": "ce1ceffb6e3e686988a6b12a964656c7ee61b4a697b582fb29605933ed0a9aad",
+  "scenario_sha256": "a524ce45d6ca29e51700798ce4fbadf9a5f0fc8660dc1e8d7531e96b1be496a1",
   "domain": "modeling",
   "covers": {
     "nx_create_extrude": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_create_extrude": "85e73e3cc1b9054683663494c9dcff6e8f14b6d701158f47b547271c582c5da6"
   },
-  "recorded": "2026-10-11T08:09:51Z",
+  "recorded": "2026-10-11T16:04:45Z",
   "passed": true,
   "checks": 55,
   "failed_checks": 0,

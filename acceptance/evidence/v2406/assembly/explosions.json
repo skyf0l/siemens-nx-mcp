@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/explosions.json",
-  "scenario_sha256": "537935886b8a7c35d1e2cf95ccc65ad31c9c3d82d42b97a42f684170b585ecac",
+  "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
   "domain": "assembly",
   "covers": {
     "nx_create_explosion": [],
@@ -23,7 +23,7 @@
     "nx_edit_explosion_trace": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
     "nx_export_explosion_animation": "102a46a10cb1e8a28cd9040658d5c60d410c480b40a885db3fe56e3a6a16f74e"
   },
-  "recorded": "2026-10-11T14:15:28Z",
+  "recorded": "2026-10-11T15:51:53Z",
   "passed": true,
   "checks": 139,
   "failed_checks": 0,

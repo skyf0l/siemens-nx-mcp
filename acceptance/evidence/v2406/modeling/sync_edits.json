@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/sync_edits.json",
-  "scenario_sha256": "2da6302fc570b900076b18696eaa05b0b7d8e7700ca14eb1b2638791599a397f",
+  "scenario_sha256": "1c7daad19b9ae9a3855b2197461c04527840a70bc23bcf7169567ea8ef2b0e7a",
   "domain": "modeling",
   "covers": {
     "nx_edit_faces": [
@@ -18,7 +18,7 @@
   "sources": {
     "nx_edit_faces": "2d9513ae4b094271cd836e10e92bdfe224494e247252b451dadbf6a85d452aba"
   },
-  "recorded": "2026-10-11T08:11:18Z",
+  "recorded": "2026-10-11T16:04:29Z",
   "passed": true,
   "checks": 33,
   "failed_checks": 0,

@@ -429,7 +429,7 @@
   {
    "call": "nx_create_drawing_sheet",
    "save": "shin",
-   "args": {
+   "args": {"part": "title_block_in",
     "name": "SHT1",
     "template": "Drawing-B-Size2D-template",
     "units": "in"
@@ -442,7 +442,7 @@
   {
    "call": "nx_set_attributes",
    "setup": true,
-   "args": {
+   "args": {"part": "title_block_in",
     "values": [
      {
       "name": "DB_PART_NO",
@@ -507,7 +507,7 @@
   {
    "call": "nx_set_attributes",
    "setup": true,
-   "args": {
+   "args": {"part": "title_block_in",
     "values": [
      {
       "name": "DB_MATERIAL",
@@ -519,7 +519,7 @@
   },
   {
    "call": "nx_update_annotations",
-   "args": {},
+   "args": {"part": "title_block_in"},
    "expect": {
     "ok": true
    }

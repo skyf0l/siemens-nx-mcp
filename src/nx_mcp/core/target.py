@@ -9,25 +9,24 @@ Order (:func:`resolve`): the tool's own part argument (``target="arg:<param>"``)
 ``resolver`` hook, then the references' part (an occurrence pins its prototype's
 owner, except under ``target="assembly"`` and for components, which pin the assembly)
 and the ``part`` key (a loaded part's file name with or without ``.prt``, its workspace
-path or ``p:N``; a ``part`` that contradicts the references is ``NX_WRONG_PART_CONTEXT``),
-then the parent call's part (a redo's own calls), then the work part.
+path or ``p:N``; a ``part`` that contradicts the references is ``NX_WRONG_PART_CONTEXT``,
+reads included), then the parent call's part (a redo's own calls), then the work part.
 
-Two modes (:func:`mode`). **Solo** (default): a call that names nothing acts on the work
-part as before targets, with any number of top-level parts loaded. **Multi-agent**
-(``NX_MCP_MULTI_AGENT=1``, or calls naming two or more distinct parts with ``part``
-within the last 10 minutes): with two or more top-level parts such a call is
-``NX_AMBIGUOUS_PART`` listing the top-level parts by file name. ``envelope.part`` names
-the target (its file) when ``part`` was given or two or more top-level parts are loaded.
+One rule, no mode and no hidden state: a call without refs and without ``part`` acts on
+the work part while at most one of the agent's parts is loaded (:func:`agent_parts`:
+the loaded parts the agent created or opened, or the engineer granted, components
+included: the rows ``nx_list_parts`` marks ``owned``); with two or more it is
+``NX_AMBIGUOUS_PART`` listing them. ``envelope.part`` names the target (its file) when
+``part`` was given or two or more parts are loaded; the call that brings the agent's
+count to two carries a note (:func:`load_note`).
 
 Phase P0 does not switch parts: :func:`refuse_other_part` refuses a call whose target is
-not the work part when ``part`` named it, or (multi-agent mode, two or more top-level
-parts) when its references pin it; solo calls behave as before.
+not the work part when ``part`` named it; a ref of another part behaves as before.
 """
 
 from __future__ import annotations
 
 import contextlib
-import os
 import re
 import time
 from dataclasses import dataclass
@@ -40,8 +39,6 @@ from nx_mcp.core.types import REF_PATTERN, expand_kinds
 from nx_mcp.core.validate import get_at, pointer
 
 CALL_KEYS = ("part", "expires_at")
-MULTI_ENV = "NX_MCP_MULTI_AGENT"  # "1": multi-agent mode from the start
-WINDOW = 600.0  # seconds the part keys of earlier calls count for the mode
 PART_TEXT_MAX = 260
 LISTED = 10  # parts a hint or details list
 # Reference kinds that decide the target when references span parts.
@@ -53,22 +50,22 @@ DECIDERS = {
         {"drawing_sheet", "drawing_view", "dimension", "annotation", "drawing_table"}
     ),
 }
-PART_HINT = (
-    'a loaded part\'s file name (e.g. "cover"), its workspace path or p:N from nx_list_parts'
-)
+EXAMPLE = '{"part": "<file name>"}'  # a neutral example: never a real loaded part
+PART_HINT = "a loaded part's file name (with or without .prt), its workspace path or p:N"
+LOAD_NOTE = "{count} parts are loaded: calls without refs now take part"
 
 
 @dataclass
 class Target:
     """The part a call acts on and why (``source``: ``refs``, ``part``, ``arg``,
-    ``resolver``, ``parent``, ``only``, ``any``)."""
+    ``resolver``, ``parent``, ``only``, ``work``, ``any``)."""
 
     part: Any
     key: str
     file: str  # the file name, e.g. "cover.prt"
     file_key: str  # the identity receipts fingerprint (workspace path, case folded)
     source: str
-    roots: int  # top-level parts loaded when it was resolved
+    loaded: int  # parts loaded when it was resolved (the engineer's too)
     field: str | None = None  # the argument that named it ("/part", "/edges/0")
 
     def row(self, services) -> dict:
@@ -76,9 +73,9 @@ class Target:
         return {"id": part_id(services, self.part), "file": self.file, "from": self.source}
 
     def reported(self, explicit: bool) -> bool:
-        """Whether the envelope names the part: ``part`` given, or two or more top-level
-        parts loaded (the agent sees which one the call used)."""
-        return explicit or self.roots >= 2
+        """Whether the envelope names the part: ``part`` given, or two or more parts
+        loaded (the agent sees which one the call used)."""
+        return explicit or self.loaded >= 2
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +103,7 @@ def check_call_keys(part=None, expires_at=None) -> float | None:
             "NX_INVALID_ARGUMENT",
             f"/part: {PART_HINT} (at most {PART_TEXT_MAX} characters)",
             field="/part",
-            hint='Pass part as a string, e.g. "part": "cover"',
+            hint=f"Pass part as a string, e.g. {EXAMPLE}",
         )
     if expires_at is None:
         return None
@@ -123,39 +120,6 @@ def check_call_keys(part=None, expires_at=None) -> float | None:
         "/expires_at: seconds since 1970 (UTC) or an ISO 8601 time such as 2026-10-11T12:00:00Z",
         field="/expires_at",
     )
-
-
-def note_part(services, key: str, now=None) -> None:
-    """Remember the part (``part_key``) a call named with ``part`` (for :func:`mode_status`)."""
-    now = time.time() if now is None else now
-    seen = [s for s in getattr(services, "named_parts", None) or [] if now - s[0] <= WINDOW]
-    seen.append((now, key))
-    services.named_parts = seen[-200:]
-
-
-def mode_status(services, now=None) -> dict:
-    """``{mode, forced, parts, window_seconds}``: ``multi`` when forced by
-    ``NX_MCP_MULTI_AGENT=1`` or when calls named two or more distinct parts with ``part``
-    in the last 10 minutes, else ``solo``."""
-    now = time.time() if now is None else now
-    seen = [s for s in getattr(services, "named_parts", None) or [] if now - s[0] <= WINDOW]
-    parts = len({key for _t, key in seen})
-    forced = os.environ.get(MULTI_ENV) == "1"
-    return {
-        "mode": "multi" if forced or parts >= 2 else "solo",
-        "forced": forced,
-        "parts": parts,
-        "window_seconds": int(WINDOW),
-    }
-
-
-def multi_agent(services, now=None) -> bool:
-    """Whether this call runs in multi-agent mode. An NX without loaded parts ends the
-    window: the parts named before are gone, nobody is working in them."""
-    with contextlib.suppress(Exception):
-        if not list(services.parts() or []):
-            services.named_parts = []
-    return mode_status(services, now)["mode"] == "multi"
 
 
 def check_expiry(spec, expires_at: float | None, now: float | None = None) -> None:
@@ -231,6 +195,53 @@ def roots(services) -> list:
     return list(services.parts() or [])
 
 
+def counts(services, part) -> bool:
+    """Whether ``part`` is one of the agent's parts: created or opened by the agent, or
+    granted by the engineer (``nx_list_parts`` ``owned``); never a part the engineer
+    opened. Unknown counts."""
+    try:
+        return bool(services.owns(part))
+    except Exception:
+        return True
+
+
+def agent_parts(services, loaded=None) -> list:
+    """The agent's loaded parts (:func:`counts`), components included, in load order."""
+    loaded = list(services.parts() or []) if loaded is None else list(loaded)
+    return [p for p in loaded if counts(services, p)]
+
+
+def _tag(part) -> int | None:
+    try:
+        return int(part.Tag)
+    except Exception:
+        return None
+
+
+def census(services) -> tuple[frozenset, int]:
+    """Before a changing call: ``(tags of the loaded parts, the agent's count)``."""
+    try:
+        loaded = list(services.parts() or [])
+    except Exception:
+        return frozenset(), 2  # unknown: no note
+    return frozenset(_tag(p) for p in loaded), len(agent_parts(services, loaded))
+
+
+def load_note(services, before: tuple[frozenset, int] | None) -> str | None:
+    """After a committed call: the note when it brought the agent's loaded parts from
+    fewer than two to two or more. A part the call loaded is the agent's (the host owns
+    it right after the call, ``Services.track``)."""
+    if before is None or before[1] >= 2:
+        return None
+    tags = before[0]
+    try:
+        loaded = list(services.parts() or [])
+    except Exception:
+        return None
+    count = sum(1 for p in loaded if _tag(p) not in tags or counts(services, p))
+    return LOAD_NOTE.format(count=count) if count >= 2 else None
+
+
 def rows(services, parts) -> list[dict]:
     """``[{id, file, work?, display?}]`` of ``parts`` (at most ``LISTED``)."""
     work = services.work_part()
@@ -250,12 +261,6 @@ def _names(parts) -> str:
     return ", ".join(file_name(p) for p in list(parts)[:LISTED])
 
 
-def _example(parts) -> str:
-    first = next(iter(parts), None)
-    stem = Path(file_name(first)).stem if first is not None else "cover"
-    return f'part: "{stem}"'
-
-
 def part_from_text(services, text: str, field: str = "/part"):
     """The loaded part ``text`` names: ``p:N``, a workspace path, or a file name with or
     without ``.prt`` (``bracket.v2`` is ``bracket.v2.prt``, never ``bracket.prt``)."""
@@ -270,7 +275,7 @@ def part_from_text(services, text: str, field: str = "/part"):
             if error.category == "stale_reference":
                 error.hint = (
                     f"That part is closed; use a loaded file name: {_names(loaded)} "
-                    f"(e.g. {_example(loaded)}) or p:N from nx_list_parts"
+                    f"(e.g. {EXAMPLE}) or p:N from nx_list_parts"
                 )
             raise
     name = text if text.casefold().endswith(".prt") else text + ".prt"
@@ -282,7 +287,7 @@ def part_from_text(services, text: str, field: str = "/part"):
                 "NX_PATH_OUTSIDE_WORKSPACE",
                 f"{field}: {error}",
                 field=field,
-                hint=f"Name the part by its file name: {_names(loaded)} (e.g. {_example(loaded)})",
+                hint=f"Name the part by its file name: {_names(loaded)} (e.g. {EXAMPLE})",
                 details={"part": text, "loaded_parts": rows(services, loaded)},
             )
         found = [p for p in loaded if _same_file(p, wanted)]
@@ -303,7 +308,7 @@ def part_from_text(services, text: str, field: str = "/part"):
         f"{field}: no loaded part has the file {name}",
         field=field,
         hint=f"Use a loaded file name: {_names(loaded) or 'none is loaded'}"
-        + (f" (e.g. {_example(loaded)})" if loaded else ""),
+        + (f" (e.g. {EXAMPLE})" if loaded else ""),
         details={"part": text, "loaded_parts": rows(services, loaded)},
     )
 
@@ -349,8 +354,10 @@ def owner_of(services, obj, kind: str | None, policy: str):
 
 
 def pinned_parts(services, checked, policy: str) -> dict:
-    """``{part_key: (part, [fields], {kinds})}`` for every resolvable reference
-    argument, in argument order (an unknown or stale ref is the handler's to report)."""
+    """``{part_key: (part, [fields], {kinds}, {holder keys})}`` for every resolvable
+    reference argument, in argument order (an unknown or stale ref is the handler's to
+    report). The holder keys are the assemblies that hold an occurrence a ref names: a
+    ``part`` may name them as well."""
     pinned: dict = {}
     for path, kinds in checked.refs:
         value = get_at(checked.args, path)
@@ -363,9 +370,14 @@ def pinned_parts(services, checked, policy: str) -> dict:
             key = services.part_key(owner)
         except Exception:
             continue
-        entry = pinned.setdefault(key, (owner, [], set()))
+        entry = pinned.setdefault(key, (owner, [], set(), set()))
         entry[1].append(pointer(path))
         entry[2].add(kind)
+        if getattr(obj, "IsOccurrence", False):
+            with contextlib.suppress(Exception):
+                holder = services.owning_part(obj)
+                if holder is not None:
+                    entry[3].add(services.part_key(holder))
     return pinned
 
 
@@ -373,19 +385,18 @@ def pinned_parts(services, checked, policy: str) -> dict:
 # The gate
 
 
-def _target(services, part, source: str, count: int, field=None) -> Target:
+def _target(services, part, source: str, loaded: int, field=None) -> Target:
     return Target(
         part, services.part_key(part), file_name(part), file_key(services, part), source,
-        count, field,
+        loaded, field,
     )  # fmt: skip
 
 
-def resolve(
-    spec, checked, services, *, part: str | None = None, parent=None, multi: bool = False
-) -> Target | None:
+def resolve(spec, checked, services, *, part: str | None = None, parent=None) -> Target | None:
     """Gate 3t: the call's :class:`Target`, or None for a call without one (``none``,
-    ``creates``, a ``new_part`` call, an unnamed part argument, nothing loaded).
-    Solo (``multi`` False): what would be ambiguous is the work part (source ``work``)."""
+    ``creates``, a ``new_part`` call, an unnamed part argument, nothing loaded). A call
+    that names nothing is ``NX_AMBIGUOUS_PART`` when two or more of the agent's parts
+    are loaded, else it acts on the work part (source ``only``/``work``)."""
     policy = spec.target
     args = checked.args
     if spec.runs != "nx" or policy in ("none", "creates"):
@@ -395,15 +406,14 @@ def resolve(
     loaded = list(services.parts() or [])
     if not loaded:
         return None  # gate 4: no work part
-    tops = roots(services)
-    count = len(tops)
+    count = len(loaded)
     if policy.startswith("arg:"):
         own = args.get(policy[4:])
         if isinstance(own, str) and own.strip():
             with contextlib.suppress(NXError):  # the handler reports a bad part argument
                 return _target(services, part_from_text(services, own), "arg", count)
             return None
-        return _fallback(spec, services, tops, parent, multi)
+        return _fallback(spec, services, loaded, parent)
     if policy == "any":  # an NX-global read: any loaded part will do, never ambiguous
         work = services.work_part()
         chosen = part_from_text(services, part) if part is not None else work or loaded[0]
@@ -427,8 +437,8 @@ def resolve(
     pinned = pinned_parts(services, checked, policy)
     if explicit is not None:
         key = services.part_key(explicit)
-        if pinned and key not in pinned and spec.effect != "read":
-            other, fields, _kinds = next(iter(pinned.values()))
+        if pinned and not any(key == k or key in v[3] for k, v in pinned.items()):
+            other, fields, _kinds, _holders = next(iter(pinned.values()))
             fail(
                 "NX_WRONG_PART_CONTEXT",
                 f"/part names {file_name(explicit)} but {fields[0]} names objects of "
@@ -440,7 +450,7 @@ def resolve(
             )  # fmt: skip
         return _target(services, explicit, "part", count, "/part")
     if len(pinned) == 1:
-        owner, fields, _kinds = next(iter(pinned.values()))
+        owner, fields, _kinds, _holders = next(iter(pinned.values()))
         return _target(services, owner, "refs", count, fields[0])
     if len(pinned) > 1:
         deciders = DECIDERS.get(policy, frozenset())
@@ -448,56 +458,90 @@ def resolve(
         if len(decided) == 1:
             return _target(services, decided[0][0], "refs", count, decided[0][1][0])
         if spec.effect == "read":  # a measurement across parts: the first ref's part
-            owner, fields, _kinds = next(iter(pinned.values()))
+            owner, fields, _kinds, _holders = next(iter(pinned.values()))
             return _target(services, owner, "refs", count, fields[0])
         work = services.work_part()
-        if not multi and work is not None:
-            return _target(services, work, "work", count)
-        listed = [{**rows(services, [p])[0], "fields": f} for p, f, _k in pinned.values()]
+        if work is not None and (
+            services.part_key(work) in pinned or len(agent_parts(services, loaded)) < 2
+        ):
+            return _target(services, work, "work", count)  # as before
+        listed = [{**rows(services, [v[0]])[0], "fields": v[1]} for v in pinned.values()]
         fail(
             "NX_AMBIGUOUS_PART",
             "The references name objects of several parts: "
             + ", ".join(f"{r['fields'][0]} in {r['file']}" for r in listed[:LISTED]),
             field=listed[0]["fields"][0],
-            hint=f"Add part to the arguments to say which part the call changes, e.g. "
-            f'part: "{Path(listed[0]["file"]).stem}"',
+            hint="Add part to the arguments to say which part the call changes, e.g. "
+            f"{EXAMPLE}: one of {', '.join(r['file'] for r in listed[:LISTED])}",
             details={"parts": listed[:LISTED]},
         )
-    return _fallback(spec, services, tops, parent, multi)
+    if parent is None and _named_refs(checked):  # unknown or stale refs: the handler says so
+        work = services.work_part()
+        if work is not None:
+            return _target(services, work, "work", count)
+    return _fallback(spec, services, loaded, parent)
 
 
-def _fallback(spec, services, tops: list, parent, multi: bool) -> Target | None:
-    count = len(tops)
+def _named_refs(checked) -> bool:
+    """Whether the call passes any reference (resolvable or not): it is not ref-less."""
+    for path, _kinds in checked.refs:
+        value = get_at(checked.args, path)
+        if isinstance(value, str) and not value.startswith("$"):
+            return True
+    return False
+
+
+def _into_assembly(spec) -> bool:
+    """An assembly call that reads another part file (``nx_create_component``): its
+    ``part`` is the assembly that receives the component, never the component."""
+    paths = getattr(spec, "paths", None) or ()
+    return spec.target == "assembly" and any(
+        mode == "read" and ".prt" in suffixes for _where, mode, suffixes in paths
+    )
+
+
+def _fallback(spec, services, loaded: list, parent) -> Target | None:
+    count = len(loaded)
     if parent is not None and parent.part is not None:
         return Target(
             parent.part, parent.key, parent.file, parent.file_key, "parent", count, parent.field
         )
+    mine = agent_parts(services, loaded)
     work = services.work_part()
-    if count <= 1 or not multi:  # one tree (or solo): the work part, as before
-        chosen = work if work is not None else (tops[0] if tops else None)
+    if len(mine) <= 1:  # at most one of the agent's parts: the work part, as before
+        chosen = work if work is not None else next(iter(roots(services)), None)
         source = "only" if count <= 1 else "work"
         return _target(services, chosen, source, count) if chosen is not None else None
+    ordered = sorted(mine, key=lambda p: same(services, p, work))  # the work part last
+    names = _names(ordered)
+    if _into_assembly(spec):
+        hint = (
+            "Add the assembly's file name to the arguments (the part that receives the "
+            f'component, not the component\'s file), e.g. {{"part": "<assembly file name>"}}; '
+            f"loaded: {names}"
+        )
+    else:
+        hint = (
+            f"Add the target part's file name to the arguments, e.g. {EXAMPLE}; loaded: "
+            f"{names} (nx_list_parts lists them)"
+        )
     fail(
         "NX_AMBIGUOUS_PART",
-        f"{count} parts are open and nothing says which one {spec.name} targets",
-        hint=f"Add part to the arguments: one of {_names(tops)}, e.g. {_example(tops)}",
-        details={"loaded_parts": rows(services, tops), "top_level": count},
+        f"{len(mine)} parts are loaded and {spec.name} has no refs that pick one",
+        hint=hint,
+        details={"loaded_parts": rows(services, ordered), "count": len(mine)},
     )
 
 
-def refuse_other_part(
-    spec, target: Target | None, services, *, explicit: bool, multi: bool = False
-) -> None:
-    """Phase P0 binding: a call whose target is not the work part is refused, so it never
-    acts on the wrong part (P2 switches instead). Only with ``part`` given or in
-    multi-agent mode with two or more top-level parts: else today's behaviour (a ref of a
-    component part while the assembly is the work part, NX_WRONG_OWNER from the tool)."""
-    if target is None or target.source in ("arg", "any"):
+def refuse_other_part(spec, target: Target | None, services, *, explicit: bool) -> None:
+    """Phase P0 binding: a call whose ``part`` names a part that is not the work part is
+    refused, so it never acts on the wrong part (P2 switches instead). A call that names
+    no part behaves as before (a ref of a component part while the assembly is the work
+    part: the tool's own NX_WRONG_OWNER)."""
+    if target is None or target.source in ("arg", "any") or not explicit:
         return
     work = services.work_part()
     if work is None or same(services, work, target.part):
-        return
-    if not explicit and not (multi and target.roots >= 2):
         return
     here = file_name(work)
     fail(

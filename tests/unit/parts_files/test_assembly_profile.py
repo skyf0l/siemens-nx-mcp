@@ -26,7 +26,7 @@ def saved_assembly(nx):
 
 def test_zip_package_has_every_file_and_a_checksum_manifest(nx, root):
     asm, _blk, _plate = saved_assembly(nx)
-    ok = call(nx, assembly.nx_export_assembly, path="pkg/asm.zip", format="zip")
+    ok = call(nx, assembly.nx_export_assembly, part="asm", path="pkg/asm.zip", format="zip")
     assert ok.ok and ok.mutation_outcome == "committed", ok
     assert ok.data["file_count"] == 3 and ok.data["component_count"] == 3
     with zipfile.ZipFile(root / "pkg" / "asm.zip") as archive:
@@ -43,19 +43,21 @@ def test_zip_package_has_every_file_and_a_checksum_manifest(nx, root):
 def test_zip_package_rejections(nx, root):
     asm, blk, _plate = saved_assembly(nx)
     (root / "pkg.zip").write_bytes(b"x")
-    exists = call(nx, assembly.nx_export_assembly, path="pkg.zip", format="zip")
+    exists = call(nx, assembly.nx_export_assembly, part="asm", path="pkg.zip", format="zip")
     assert exists.error["code"] == "NX_ALREADY_EXISTS" and exists.mutation_outcome == "not_started"
-    suffix = call(nx, assembly.nx_export_assembly, path="pkg.tar", format="zip")
+    suffix = call(nx, assembly.nx_export_assembly, part="asm", path="pkg.tar", format="zip")
     assert suffix.error["code"] == "NX_UNSUPPORTED_FILE_TYPE"
-    prefix = call(nx, assembly.nx_export_assembly, path="p.zip", format="zip", prefix="X_")
+    prefix = call(
+        nx, assembly.nx_export_assembly, part="asm", path="p.zip", format="zip", prefix="X_"
+    )
     assert prefix.error["field"] == "/prefix"
     blk.IsModified = True
-    unsaved = call(nx, assembly.nx_export_assembly, path="p.zip", format="zip")
+    unsaved = call(nx, assembly.nx_export_assembly, part="asm", path="p.zip", format="zip")
     assert unsaved.error["code"] == "NX_UNSAVED_PART" and unsaved.mutation_outcome == "not_started"
     assert unsaved.error["details"]["part"] == "proj/parts/blk.prt"
     blk.IsModified = False
     asm.ComponentAssembly.RootComponent.children[0].Prototype = None
-    unloaded = call(nx, assembly.nx_export_assembly, path="p.zip", format="zip")
+    unloaded = call(nx, assembly.nx_export_assembly, part="asm", path="p.zip", format="zip")
     assert unloaded.error["code"] == "NX_NOT_LOADED"
     assert not (root / "p.zip").exists()
 
@@ -66,7 +68,7 @@ def test_clone_renames_every_file_loads_as_saved_and_verifies_references(nx, roo
         str(root / "proj/parts/blk.prt"), str(root / "proj/parts/plate.prt")
     ]  # fmt: skip
     loaded = len(nx.session.Parts)
-    ok = call(nx, assembly.nx_export_assembly, path="copy", format="clone", prefix="C_")
+    ok = call(nx, assembly.nx_export_assembly, part="asm", path="copy", format="clone", prefix="C_")
     assert ok.ok and ok.mutation_outcome == "committed", ok
     for rel in ("copy/C_asm.prt", "copy/parts/C_blk.prt", "copy/parts/C_plate.prt"):
         assert (root / rel).is_file()
@@ -76,7 +78,7 @@ def test_clone_renames_every_file_loads_as_saved_and_verifies_references(nx, roo
     assert adds[0][2] == "as_saved"  # components load as saved during the clone
     assert nx.session.Parts.LoadOptions.ComponentLoadMethod == "search"  # restored
     assert len(nx.session.Parts) == loaded and nx.session.Parts.Work is asm  # copy closed
-    kept = call(nx, assembly.nx_export_assembly, path="copy2", format="clone", prefix="D_",
+    kept = call(nx, assembly.nx_export_assembly, part="asm", path="copy2", format="clone", prefix="D_",
                 activate=True)  # fmt: skip
     assert kept.ok and Path(nx.session.Parts.Work.FullPath) == root / "copy2" / "D_asm.prt"
     assert kept.data["part"]["kind"] == "part"
@@ -84,20 +86,20 @@ def test_clone_renames_every_file_loads_as_saved_and_verifies_references(nx, roo
 
 def test_clone_rejections(nx, root):
     asm, _blk, _plate = saved_assembly(nx)
-    missing = call(nx, assembly.nx_export_assembly, path="c", format="clone")
+    missing = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone")
     assert missing.error["field"] == "/prefix"
-    bad = call(nx, assembly.nx_export_assembly, path="c", format="clone", prefix="a b")
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="a b")
     assert bad.error["code"] == "NX_INVALID_ARGUMENT"
     nx.new_part("other/X_blk.prt")
     nx.session.Parts.Work = nx.session.Parts.Display = asm
-    clash = call(nx, assembly.nx_export_assembly, path="c", format="clone", prefix="X_")
+    clash = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="X_")
     assert clash.error["code"] == "NX_NAME_CONFLICT" and clash.mutation_outcome == "not_started"
     assert not (root / "c").exists()
 
 
 def test_clone_failure_removes_the_copy(nx, root):
     saved_assembly(nx)  # no structure: the reopened copy has no components
-    bad = call(nx, assembly.nx_export_assembly, path="c", format="clone", prefix="Z_")
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="Z_")
     assert bad.error["code"] == "NX_VERIFICATION_FAILED"
     assert bad.error["details"]["check"] == "clone_references"
     assert bad.mutation_outcome == "rolled_back" and not (root / "c").exists()
@@ -217,7 +219,7 @@ def test_clone_failure_in_nx_keeps_sources_and_removes_only_the_copy(nx, root):
         raise NXException(720103, "clone stopped")
 
     nx.uf.Clone.PerformClone = broken
-    bad = call(nx, assembly.nx_export_assembly, path="c", format="clone", prefix="Q_")
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="Q_")
     assert bad.error["code"] == "NX_EXPORT_FAILED" and bad.mutation_outcome == "rolled_back"
     assert not (root / "c").exists() and (root / "proj/parts/blk.prt").read_bytes() == before
     assert nx.uf.Clone.calls[-1] == "Terminate"
@@ -235,7 +237,7 @@ def test_clone_preflight_refuses_before_nx_clones(nx, root, failure):
         asm.ComponentAssembly.RootComponent.children[0].Prototype = None
     else:
         blk.FullPath = str(root.parent / "engineer" / "blk.prt")
-    bad = call(nx, assembly.nx_export_assembly, path="c", format="clone", prefix="R_")
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="R_")
     codes = {"unsaved": "NX_UNSAVED_PART", "missing": "NX_FILE_NOT_FOUND",
              "unloaded": "NX_NOT_LOADED", "outside": "NX_PATH_OUTSIDE_WORKSPACE"}  # fmt: skip
     assert bad.error["code"] == codes[failure] and bad.mutation_outcome == "not_started"
@@ -247,7 +249,7 @@ def test_clone_refuses_an_assembly_nx_cannot_load(nx, root):
 
     saved_assembly(nx)
     nx.uf.Clone.AddAssembly = lambda path: (NS(Failed=True, FileNames=["blk.prt"], Statuses=[7]),)
-    bad = call(nx, assembly.nx_export_assembly, path="c", format="clone", prefix="S_")
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="S_")
     assert bad.error["code"] == "NX_NOT_LOADED" and bad.error["details"]["files"] == ["blk.prt"]
     assert (
         not (root / "c").exists() and nx.session.Parts.LoadOptions.ComponentLoadMethod == "search"
@@ -259,15 +261,15 @@ def test_assembly_format_follows_the_path_and_prefix(nx, root):
     nx.structure[str((root / "proj/asm.prt").resolve()).casefold()] = [
         str(root / "proj/parts/blk.prt"), str(root / "proj/parts/plate.prt")
     ]  # fmt: skip
-    zipped = call(nx, assembly.nx_export_assembly, path="pkg/asm.zip")
+    zipped = call(nx, assembly.nx_export_assembly, part="asm", path="pkg/asm.zip")
     assert zipped.ok and zipped.data["format"] == "zip", zipped
-    cloned = call(nx, assembly.nx_export_assembly, path="copy", prefix="C_")
+    cloned = call(nx, assembly.nx_export_assembly, part="asm", path="copy", prefix="C_")
     assert cloned.ok and cloned.data["format"] == "clone", cloned
-    vague = call(nx, assembly.nx_export_assembly, path="copy3")
+    vague = call(nx, assembly.nx_export_assembly, part="asm", path="copy3")
     assert vague.error["field"] == "/format" and vague.mutation_outcome == "not_started"
     assert ".zip" in vague.error["message"] and "prefix" in vague.error["message"]
     blk.IsModified = plate.IsModified = True
-    unsaved = call(nx, assembly.nx_export_assembly, path="p.zip")
+    unsaved = call(nx, assembly.nx_export_assembly, part="asm", path="p.zip")
     assert unsaved.error["code"] == "NX_UNSAVED_PART"
     assert unsaved.error["details"]["part"] == "proj/parts/blk.prt"
     assert [r["kind"] for r in unsaved.error["details"]["parts"]] == ["part", "part"]

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/new_component.json",
-  "scenario_sha256": "d04b8fcfe15ca4cad14b5b89d326a89561e544fea71544996f0f645be64cb10b",
+  "scenario_sha256": "f51c082a37631dc100378919ab1358a4618dbc03ba934758d38f9ac6beedfa8c",
   "domain": "assembly",
   "covers": {
     "nx_create_component": [
@@ -16,7 +16,7 @@
     "nx_create_component": "819211439b25600bfbdfff21899b2eb5c002d9100c14436a1d29e278b35c373f",
     "nx_edit_component": "819211439b25600bfbdfff21899b2eb5c002d9100c14436a1d29e278b35c373f"
   },
-  "recorded": "2026-10-11T10:26:48Z",
+  "recorded": "2026-10-11T15:51:58Z",
   "passed": true,
   "checks": 38,
   "failed_checks": 0,

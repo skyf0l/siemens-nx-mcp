@@ -43,7 +43,7 @@
   {
    "call": "nx_create_component",
    "setup": true,
-   "args": {
+   "args": {"part": "$part",
     "path": "$fixture",
     "pose": {
      "translation": [
@@ -58,7 +58,7 @@
    "call": "nx_create_explosion",
    "setup": true,
    "save": "ex",
-   "args": {
+   "args": {"part": "$part",
     "name": "EXPLODED"
    }
   },
@@ -66,7 +66,7 @@
    "call": "nx_create_drawing_sheet",
    "setup": true,
    "save": "sh",
-   "args": {
+   "args": {"part": "$part",
     "name": "SHT1",
     "size": "a3",
     "projection": "third_angle"

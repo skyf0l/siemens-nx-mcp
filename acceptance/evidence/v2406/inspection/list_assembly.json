@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/list_assembly.json",
-  "scenario_sha256": "e597322f7e9e25d0c1fe5d2b43a012f086103f993163cab0b953daa512e70bbb",
+  "scenario_sha256": "6ba3a9fdd1d55c24c7ed0bd1ee0280a4af36d15af640430de3add6356a32edd8",
   "domain": "inspection",
   "covers": {
     "nx_list_objects": []
@@ -9,9 +9,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_objects": "c459b7841e077d866a4871dcf503d64e693957bdd85dd9acba58b1eb3d3f7dc8"
+    "nx_list_objects": "d314cb2ff9eafcf6a25313ac7b841aa2bf3694f72db2ae1b51548a717194e4fa"
   },
-  "recorded": "2026-10-11T08:08:33Z",
+  "recorded": "2026-10-11T15:52:52Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,

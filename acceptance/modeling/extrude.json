@@ -769,7 +769,7 @@
    "call": "nx_create_sketch",
    "setup": true,
    "save": "si",
-   "args": {
+   "args": {"part": "modeling_extrude_inch",
     "placement": {
      "principal": "xy"
     }
@@ -820,7 +820,7 @@
     "units.length": "in"
    }
   },
-  {"call": "nx_create_sketch", "setup": true, "save": "open", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "open", "args": {"part": "modeling_extrude_inch", "placement": {"principal": "xy"}}},
   {"call": "nx_create_sketch_curves", "setup": true,
    "args": {"sketch": "$open.data.sketch.id",
             "curves": [{"type": "line", "start": [0, 3], "end": [3, 3]}, {"type": "line", "start": [3, 3], "end": [3, 4]}]}},
@@ -829,7 +829,7 @@
    "intent": "Acceptance: an open profile extrudes to a sheet body (4 in x 1.5 in)",
    "expect": {"mutation_outcome": "committed", "data.sheet": true, "data.area": {"close": 6.0, "tol": 1e-06},
               "data.volume": 0, "data.bodies": {"count": 1}}},
-  {"call": "nx_create_sketch", "setup": true, "save": "far", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "far", "args": {"part": "modeling_extrude_inch", "placement": {"principal": "xy"}}},
   {"call": "nx_create_sketch_curves", "setup": true,
    "args": {"sketch": "$far.data.sketch.id", "curves": [{"type": "circle", "center": [50, 0], "radius": 0.25}]}},
   {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$far.data.sketch.id"}},

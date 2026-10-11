@@ -27,13 +27,13 @@ def nx():
 
 
 def explosion(nx, name="E1", **options):
-    ok = run(nx, "nx_create_explosion", name=name, **options)
+    ok = run(nx, "nx_create_explosion", part="asm", name=name, **options)
     assert ok.ok, ok
     return ok.data["explosion"]["id"]
 
 
 def test_create_explosion_starts_at_assembled_poses(nx):
-    ok = run(nx, "nx_create_explosion", name="E1")
+    ok = run(nx, "nx_create_explosion", part="asm", name="E1")
     view = nx.asm.ModelingViews.WorkView
     assert ok.ok and ok.data["component_count"] == 4
     assert [v["id"] for v in ok.data["views"]] == [nx.ref_of(view, "modeling_view")]
@@ -41,14 +41,14 @@ def test_create_explosion_starts_at_assembled_poses(nx):
     assert set(rows) == {nx.a.ref, nx.b.ref, nx.sub.ref, nx.n.ref}
     assert rows[nx.n.ref]["path"] == "SUB/N"
     assert "nx_edit_explosion" in ok.warnings[0]["message"]  # nothing is exploded yet
-    dup = run(nx, "nx_create_explosion", name="e1")
+    dup = run(nx, "nx_create_explosion", part="asm", name="e1")
     assert dup.error["code"] == "NX_NAME_CONFLICT" and dup.mutation_outcome == "not_started"
     assert dup.error["details"]["existing"]["id"] == ok.data["explosion"]["id"]
     assert "nx_edit_explosion" in dup.error["hint"]
-    spaced = run(nx, "nx_create_explosion", name="E2 ")
+    spaced = run(nx, "nx_create_explosion", part="asm", name="E2 ")
     assert spaced.error["field"] == "/name"
     nx.session.Parts.Display = nx.blk
-    other = run(nx, "nx_create_explosion", name="E3")
+    other = run(nx, "nx_create_explosion", part="asm", name="E3")
     assert other.error["code"] == "NX_WRONG_PART_CONTEXT"
 
 
@@ -180,9 +180,9 @@ def test_display_attaches_and_detaches_an_explosion(nx):
     assert ok.data["view_kind"] == "modeling_view" and nx.fitted
     listed = hooks("lister")["explosion"](nx.tx, None, None)
     assert listed[0][2]["details"]["views"] == [ok.data["view"]["id"]]
-    assembled = run(nx, "nx_set_explosion_display")
+    assembled = run(nx, "nx_set_explosion_display", part="asm")
     assert assembled.ok and nx.assembly.view_explosion[int(view.Tag)] == 0
-    both = run(nx, "nx_set_explosion_display", drawing_view="v:1", model_view="mv:2")
+    both = run(nx, "nx_set_explosion_display", part="asm", drawing_view="v:1", model_view="mv:2")
     assert both.error["field"] == "/model_view"
 
 
@@ -193,7 +193,7 @@ def test_create_and_edit_show_the_explosion_in_the_work_view_unless_display_fals
     first = nx.assembly.explosions[0]
     assert shown.ok and nx.assembly.view_explosion[int(view.Tag)] == int(first.Tag), shown
     assert shown.data["views"][0]["kind"] == "modeling_view" and nx.fitted
-    kept = run(nx, "nx_create_explosion", name="E2", display=False)
+    kept = run(nx, "nx_create_explosion", part="asm", name="E2", display=False)
     assert kept.ok and kept.data["views"] == []
     assert nx.assembly.view_explosion[int(view.Tag)] == int(first.Tag)  # still E1
     second = kept.data["explosion"]["id"]
@@ -215,7 +215,7 @@ def test_explosion_is_not_shown_while_a_drawing_sheet_is_open(nx):
     from types import SimpleNamespace as NS
 
     nx.asm.DrawingSheets = NS(CurrentDrawingSheet=object())
-    ok = run(nx, "nx_create_explosion", name="E1")
+    ok = run(nx, "nx_create_explosion", part="asm", name="E1")
     assert ok.ok and ok.data["views"] == [] and not nx.assembly.view_explosion
     assert any("nx_set_explosion_display" in w["message"] for w in ok.warnings
                if w["code"] == "NX_NOTE")  # fmt: skip
@@ -228,7 +228,7 @@ def test_delete_refuses_an_explosion_in_use(nx):
     with pytest.raises(Exception) as error:
         hooks("deleter")["explosion"](nx.tx, [obj])
     assert error.value.code == "NX_IN_USE"
-    run(nx, "nx_set_explosion_display")
+    run(nx, "nx_set_explosion_display", part="asm")
     hooks("deleter")["explosion"](nx.tx, [obj])
     assert not nx.assembly.explosions
 
@@ -285,7 +285,7 @@ def test_trace_rules(nx):
     nx.b.IsSuppressed = True
     hidden = trace(nx, ex)
     assert hidden.error["field"] == "/end_edge" and hidden.mutation_outcome == "not_started"
-    nothing = run(nx, "nx_edit_explosion_trace", trace="tl:999")
+    nothing = run(nx, "nx_edit_explosion_trace", part="asm", trace="tl:999")
     assert nothing.error["code"] == "NX_INVALID_ARGUMENT"
 
 
@@ -339,12 +339,12 @@ def test_update_assembly_solves_and_refreshes(nx):
     ok = run(nx, "nx_create_assembly_constraint", type="fix", component=nx.a.ref)
     ex = explosion(nx)
     trace(nx, ex)
-    done = run(nx, "nx_update_assembly")
+    done = run(nx, "nx_update_assembly", part="asm")
     assert done.ok, done
     assert [c["status"] for c in done.data["constraints"]] == ["Solved"]
     assert len(done.data["traces"]) == 1 and done.data["documentation_complete"]
     nx.assembly.solver_status = STATUS.NotSolved
-    bad = run(nx, "nx_update_assembly")
+    bad = run(nx, "nx_update_assembly", part="asm")
     assert (
         bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED" and bad.mutation_outcome == "rolled_back"
     )

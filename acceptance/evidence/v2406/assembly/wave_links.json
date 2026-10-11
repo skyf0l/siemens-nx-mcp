@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/wave_links.json",
-  "scenario_sha256": "78c471370e02974dc1aaad40952b3c99ce78f6e1c9ea6086e4ab8a08055c5c9b",
+  "scenario_sha256": "682ee0563d95d9a577299b01fcbc4d0b07532031c376d5be4f4530dcece0b9ef",
   "domain": "assembly",
   "covers": {
     "nx_create_wave_link": [
@@ -17,7 +17,7 @@
   "sources": {
     "nx_create_wave_link": "9d62c299207d15668be429fcae1a84135eac12db61583c722a71359387f4696a"
   },
-  "recorded": "2026-10-11T14:15:18Z",
+  "recorded": "2026-10-11T15:52:10Z",
   "passed": true,
   "checks": 71,
   "failed_checks": 0,

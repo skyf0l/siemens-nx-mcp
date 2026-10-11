@@ -222,7 +222,7 @@
    "call": "nx_import_model",
    "setup": true,
    "save": "imp",
-   "args": {
+   "args": {"part": "$part",
     "path": "$run/sync/src.step",
     "format": "step"
    }
@@ -761,7 +761,7 @@
    "call": "nx_find_geometry",
    "setup": true,
    "save": "hole",
-   "args": {
+   "args": {"part": "$part",
     "kind": "face",
     "geometry_type": "cylinder",
     "limit": 1,
@@ -801,7 +801,7 @@
   },
   {
    "call": "nx_measure_mass",
-   "args": {},
+   "args": {"part": "$part"},
    "expect": {
     "data.volume": {
      "close": 106123.579789,
@@ -811,7 +811,7 @@
   },
   {
    "call": "nx_check_model",
-   "args": {},
+   "args": {"part": "$part"},
    "expect": {
     "data.healthy": true
    }

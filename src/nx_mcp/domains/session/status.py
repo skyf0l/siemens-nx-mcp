@@ -102,9 +102,9 @@ class PartsInfo(TypedDict, total=False):
     # display = assembly, work = that component's part), else None
     work_component: dict | None
     top_level: int  # loaded parts no loaded assembly uses as a component
-    # gate 3t: {mode: solo|multi, forced, parts, window_seconds}; multi refuses a
-    # call that names no part while two or more top-level parts are loaded
-    targeting: dict
+    # gate 3t: the agent's loaded parts (created, opened or granted; components
+    # included, never the engineer's own); from two on, a call without refs takes part
+    agent_loaded: int
 
 
 class WorkspaceInfo(TypedDict):
@@ -335,7 +335,7 @@ def nx_get_status(
             "loaded": len(services.parts()),
             "work_component": _work_component(tx, session_parts),
             "top_level": len(target.roots(services)),
-            "targeting": target.mode_status(services),
+            "agent_loaded": len(target.agent_parts(services)),
         },
         "control": control_data(status) if status is not None else None,
         "workspace": workspace_info(root),

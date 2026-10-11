@@ -590,6 +590,18 @@ async def loaded_parts(session) -> list[dict] | None:
     return rows
 
 
+def blocking_parts(rows: list[dict] | None, workspace: Path) -> list[str]:
+    """Paths of loaded parts a scenario must not start beside: the agent's own parts left
+    loaded (gate 3t counts them, so steps without refs would need ``part``) and any part
+    outside ``<workspace>/smoke/`` (the engineer's). Unknown (``None``): none."""
+    smoke = Path(workspace) / "smoke"
+    return [
+        str(row.get("path"))
+        for row in rows or []
+        if row.get("owned") or not _inside(row.get("path"), smoke, workspace)
+    ]
+
+
 CLOSE_PASSES = 4  # close passes: assemblies, then the prototypes they released
 
 
@@ -802,6 +814,14 @@ async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDE
             for path in paths:
                 lock.refresh()
                 print(f"{relative(path)}")
+                blocking = blocking_parts(await loaded_parts(session), workspace)
+                if blocking:
+                    print(
+                        "  REFUSED: close these loaded parts before running scenarios "
+                        f"(the agent's or the engineer's): {', '.join(blocking[:10])}"
+                    )
+                    failed += 1
+                    break
                 record, details = await run_scenario(
                     session, path, workspace=workspace, run_id=run_id, build=build
                 )

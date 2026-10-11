@@ -98,7 +98,7 @@
    "call": "nx_create_sketch",
    "setup": true,
    "save": "blk_sk",
-   "args": {
+   "args": {"part": "$part",
     "placement": {
      "principal": "xy"
     }
@@ -145,7 +145,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "DB_PART_NO",
@@ -242,7 +242,7 @@
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      "DB_MATERIAL",
      "DB_PART_DESC",
@@ -312,7 +312,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "DB_PART_REV",
@@ -356,7 +356,7 @@
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      "DB_PART_REV",
      "QTY",
@@ -375,7 +375,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "QTY",
@@ -392,7 +392,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "delete": [
      "QTY"
     ],
@@ -415,7 +415,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "delete": [
      "DUE_DATE",
      "NEVER_SET"
@@ -430,7 +430,7 @@
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      "DUE_DATE",
      "NEVER_SET"
@@ -444,7 +444,7 @@
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      "NX_MaterialMissingAssignments"
     ]
@@ -458,7 +458,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "NX_MaterialMissingAssignments",
@@ -475,7 +475,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "delete": [
      "NX_MaterialMissingAssignments"
     ]
@@ -487,7 +487,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "MATERIAL",
@@ -504,7 +504,7 @@
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      "MATERIAL",
      "DB_MATERIAL"
@@ -520,7 +520,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "db_part_rev",
@@ -538,7 +538,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "attributes": {
      "MAP_TEXT": "steel plate",
      "MAP_QTY": 4,
@@ -584,7 +584,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": " MAP_QTY ",
@@ -624,7 +624,7 @@
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      " map_qty",
      "MAP_NOPE"
@@ -642,7 +642,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "attributes": {
      "MAP_QTY": "five"
     }
@@ -655,7 +655,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "attributes": {
      "MAP_X": [
       1
@@ -670,7 +670,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "delete": [
      "MAP_TEXT",
      "MAP_QTY",
@@ -692,7 +692,7 @@
    "call": "nx_list_objects",
    "setup": true,
    "save": "faces",
-   "args": {
+   "args": {"part": "$part",
     "kind": "face",
     "limit": 1
    }
@@ -786,7 +786,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "BAD",
@@ -802,7 +802,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "BAD",
@@ -820,7 +820,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "cmp",
-   "args": {
+   "args": {"part": "$part",
     "path": "$run/attr_pin.prt",
     "name": "PIN_A"
    }
@@ -896,7 +896,7 @@
   },
   {
    "call": "nx_set_attributes",
-   "args": {
+   "args": {"part": "$part",
     "values": [
      {
       "name": "UNDO_ME",
@@ -916,14 +916,14 @@
   },
   {
    "call": "nx_undo_operation",
-   "args": {},
+   "args": {"part": "$part"},
    "expect": {
     "mutation_outcome": "committed"
    }
   },
   {
    "call": "nx_get_attributes",
-   "args": {
+   "args": {"part": "$part",
     "names": [
      "UNDO_ME",
      "DB_PART_REV"

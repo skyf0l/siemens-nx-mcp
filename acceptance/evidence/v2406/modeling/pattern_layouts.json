@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/pattern_layouts.json",
-  "scenario_sha256": "c7f1d280684969033564d741bbb3ad9519b2b34aa1e5204c96f39ab176f70336",
+  "scenario_sha256": "21ffaf8626f840b22d491f42c94055f9b34e468575e2b9ccb26825e27e83889b",
   "domain": "modeling",
   "covers": {
     "nx_create_pattern": [
@@ -18,7 +18,7 @@
   "sources": {
     "nx_create_pattern": "4e4b06135ac992ecda5e47f1982741a9a9c80439b4bc0fcf283f53e7216bfa5b"
   },
-  "recorded": "2026-10-11T08:10:38Z",
+  "recorded": "2026-10-11T16:04:41Z",
   "passed": true,
   "checks": 68,
   "failed_checks": 0,

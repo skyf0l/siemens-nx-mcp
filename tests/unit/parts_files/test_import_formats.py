@@ -183,7 +183,12 @@ def put(root, name, data: bytes) -> str:
 def test_iges_sews_into_one_solid_and_reads_back_against_the_file(fx, root, ugii):
     put(root, "a.igs", neutral_files.iges([BOX]))
     ok = call(
-        fx, importing.nx_import_model, path="a.igs", format="iges", operation_id="op_import_i1"
+        fx,
+        importing.nx_import_model,
+        part="w",
+        path="a.igs",
+        format="iges",
+        operation_id="op_import_i1",
     )
     assert ok.ok and ok.mutation_outcome == "committed", ok
     b = fx.importers[-1]
@@ -194,7 +199,7 @@ def test_iges_sews_into_one_solid_and_reads_back_against_the_file(fx, root, ugii
     d = ok.data
     assert (d["solids"], d["sheets"], d["body_count"], d["volume"]) == (1, 0, 1, 8000)
     assert d["bounds"] == {"min": BOX[:3], "max": BOX[3:]} and d["file_units"] == "mm"
-    sheets = call(fx, importing.nx_import_model, path="a.igs", format="iges",
+    sheets = call(fx, importing.nx_import_model, part="w", path="a.igs", format="iges",
                   options={"sew": False})  # fmt: skip
     assert sheets.ok and (sheets.data["sheets"], sheets.data["volume"]) == (6, None), sheets
 
@@ -203,7 +208,12 @@ def test_iges_bodies_outside_the_file_extent_roll_back(fx, root, ugii):
     put(root, "a.igs", neutral_files.iges([BOX]))
     fx.iges_box = [0, 0, 0, 80, 20, 10]
     bad = call(
-        fx, importing.nx_import_model, path="a.igs", format="iges", operation_id="op_import_i2"
+        fx,
+        importing.nx_import_model,
+        part="w",
+        path="a.igs",
+        format="iges",
+        operation_id="op_import_i2",
     )
     assert (
         bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.error["details"]["check"] == "extent"
@@ -221,6 +231,7 @@ def test_parasolid_text_and_binary_and_encoding_mismatch(fx, root):
         ok = call(
             fx,
             importing.nx_import_model,
+            part="w",
             path=name,
             format="parasolid",
             operation_id=f"op_import_{name[-1]}",
@@ -229,7 +240,7 @@ def test_parasolid_text_and_binary_and_encoding_mismatch(fx, root):
         assert fx.importers[-1].FileName.endswith("input" + name[-4:])
         assert ok.data["file_units"] == "m"
     count = len(fx.importers)
-    bad = call(fx, importing.nx_import_model, path="wrong.x_b", format="parasolid")
+    bad = call(fx, importing.nx_import_model, part="w", path="wrong.x_b", format="parasolid")
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/path"
     assert bad.mutation_outcome == "not_started" and len(fx.importers) == count
 
@@ -237,12 +248,14 @@ def test_parasolid_text_and_binary_and_encoding_mismatch(fx, root):
 def test_stl_makes_facet_bodies_in_the_file_units(fx, root):
     put(root, "a.stl", neutral_files.stl([BOX]))
     put(root, "t.stl", neutral_files.stl([BOX], binary=False))
-    ok = call(fx, importing.nx_import_model, path="a.stl", format="stl")
+    ok = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl")
     assert ok.ok and ok.data["facet_bodies"] == 1 and ok.data["body_count"] == 0, ok
     b = fx.importers[-1]
     assert b.FileFormat == 1 and b.FileUnits == 2 and b.DisplayInformation is False
     assert ok.data["volume"] is None and ok.data["bounds"]["max"] == BOX[3:]
-    text = call(fx, importing.nx_import_model, path="t.stl", format="stl", options={"units": "in"})
+    text = call(
+        fx, importing.nx_import_model, part="w", path="t.stl", format="stl", options={"units": "in"}
+    )
     assert text.ok and fx.importers[-1].FileFormat == 0 and fx.importers[-1].FileUnits == 0
     assert text.data["bounds"]["max"] == pytest.approx([v * 25.4 for v in BOX[3:]])
     assert text.data["file_units"] == "in"
@@ -251,13 +264,13 @@ def test_stl_makes_facet_bodies_in_the_file_units(fx, root):
 def test_stl_extent_mismatch_is_caught(fx, root):
     put(root, "a.stl", neutral_files.stl([BOX]))
     fx.stl_scale = 2.0  # NX read the numbers in other units than asked
-    bad = call(fx, importing.nx_import_model, path="a.stl", format="stl")
+    bad = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl")
     assert bad.error["details"]["check"] == "extent" and bad.mutation_outcome == "rolled_back"
 
 
 def test_dxf_curves_into_the_work_part(fx, root, ugii):
     put(root, "p.dxf", r12())
-    ok = call(fx, importing.nx_import_model, path="p.dxf", format="dxf_dwg")
+    ok = call(fx, importing.nx_import_model, part="w", path="p.dxf", format="dxf_dwg")
     assert ok.ok and ok.data["curve_count"] == 4 and len(ok.data["curves"]) == 4, ok
     b = fx.importers[-1]
     assert b.Units == fx.nx.DxfdwgImporter.UnitsEnum.Metric and b.ConvModelData is True
@@ -284,7 +297,9 @@ def test_sketch_target_rules(fx, root, ugii):
     put(root, "a.stl", neutral_files.stl([BOX]))
     sk = fx.sketch()
     sk.OwningPart = fx.session.Parts.Work
-    missing = call(fx, importing.nx_import_model, path="p.dxf", format="dxf_dwg", target="sketch")
+    missing = call(
+        fx, importing.nx_import_model, part="w", path="p.dxf", format="dxf_dwg", target="sketch"
+    )
     assert missing.error["field"] == "/sketch" and missing.mutation_outcome == "not_started"
     wrong = call(fx, importing.nx_import_model, path="a.stl", format="stl", target="sketch",
                  sketch=sk.ref)  # fmt: skip
@@ -309,7 +324,7 @@ def test_sketch_target_rules(fx, root, ugii):
 )
 def test_unreadable_drawings_are_refused_before_nx(fx, root, ugii, name, data, message):
     put(root, name, data)
-    bad = call(fx, importing.nx_import_model, path=name, format="dxf_dwg")
+    bad = call(fx, importing.nx_import_model, part="w", path=name, format="dxf_dwg")
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/path"
     assert message in bad.error["message"] and bad.mutation_outcome == "not_started"
     assert not fx.importers
@@ -349,7 +364,7 @@ def test_dwg_facts_find_truncated_files():
 
 def test_dwg_is_imported_after_its_header_check(fx, root, ugii):
     put(root, "p.dwg", _dwg2004(4096, 4096, 3000))
-    ok = call(fx, importing.nx_import_model, path="p.dwg", format="dxf_dwg",
+    ok = call(fx, importing.nx_import_model, part="w", path="p.dwg", format="dxf_dwg",
               options={"units": "in"})  # fmt: skip
     assert ok.ok and ok.data["curve_count"] == 4 and ok.data["file_units"] == "in", ok
     assert fx.importers[-1].Units == fx.nx.DxfdwgImporter.UnitsEnum.English
@@ -380,12 +395,12 @@ def test_catia_v5_license_and_header(fx, root, ugii, monkeypatch):
     put(root, "fake.CATPart", b"not catia")
     fx.catia_error = NXException(3755014, "There are no licenses available for the NX_CATIAV5 "
                                  "translator.")  # fmt: skip
-    bad = call(fx, importing.nx_import_model, path="a.CATPart", format="catia_v5")
+    bad = call(fx, importing.nx_import_model, part="w", path="a.CATPart", format="catia_v5")
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 3755014
     assert bad.error["details"]["translator"] == "Catiav5Importer"
     assert fx.importers[-1].SettingsFile.endswith("catiav5.def") and fx.importers[-1].destroyed
     count = len(fx.importers)
-    again = call(fx, importing.nx_import_model, path="a.CATPart", format="catia_v5")
+    again = call(fx, importing.nx_import_model, part="w", path="a.CATPart", format="catia_v5")
     assert again.error["code"] == "NX_LICENSE_UNAVAILABLE" and len(fx.importers) == count
     assert again.error["details"]["remembered_from"]  # refused before NX for this session
 
@@ -393,28 +408,30 @@ def test_catia_v5_license_and_header(fx, root, ugii, monkeypatch):
 def test_catia_v5_imports_a_v5_document_and_refuses_others(fx, root, ugii):
     put(root, "a.CATPart", b"V5_CFV2" + b"\x00" * 64)
     put(root, "fake.CATPart", b"not catia")
-    ok = call(fx, importing.nx_import_model, path="a.CATPart", format="catia_v5")
+    ok = call(fx, importing.nx_import_model, part="w", path="a.CATPart", format="catia_v5")
     assert ok.ok and ok.data["solids"] == 1, ok
     assert fx.importers[-1].ImportTo == fx.nx.Catiav5Importer.ImportToOption.WorkPart
-    fake = call(fx, importing.nx_import_model, path="fake.CATPart", format="catia_v5")
+    fake = call(fx, importing.nx_import_model, part="w", path="fake.CATPart", format="catia_v5")
     assert fake.error["field"] == "/path" and fake.mutation_outcome == "not_started"
 
 
 def test_argument_rules(fx, root, ugii):
     put(root, "a.igs", neutral_files.iges([BOX]))
     put(root, "a.stl", neutral_files.stl([BOX]))
-    flat = call(fx, importing.nx_import_model, path="a.igs", format="iges", flatten=False)
+    flat = call(fx, importing.nx_import_model, part="w", path="a.igs", format="iges", flatten=False)
     assert flat.error["field"] == "/flatten" and flat.mutation_outcome == "not_started"
-    suffix = call(fx, importing.nx_import_model, path="a.igs", format="stl")
+    suffix = call(fx, importing.nx_import_model, part="w", path="a.igs", format="stl")
     assert suffix.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and suffix.error["field"] == "/path"
-    opts = call(fx, importing.nx_import_model, path="a.stl", format="stl", options={"sew": True})
+    opts = call(
+        fx, importing.nx_import_model, part="w", path="a.stl", format="stl", options={"sew": True}
+    )
     assert opts.error["field"] == "/options/sew"
     assert not fx.importers
 
 
 def test_stl_into_a_new_part(fx, root, ugii):
     put(root, "a.stl", neutral_files.stl([BOX]))
-    ok = call(fx, importing.nx_import_model, path="a.stl", format="stl", target="new_part",
+    ok = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl", target="new_part",
               new_part_path="imp/mesh.prt")  # fmt: skip
     assert ok.ok and ok.data["target"] == "new_part" and ok.data["facet_bodies"] == 1, ok
     assert Path(fx.session.Parts.Work.FullPath) == root / "imp" / "mesh.prt"
@@ -429,13 +446,13 @@ def test_import_sources_can_be_uploaded():
 def test_format_defaults_to_the_path_suffix(fx, root, ugii):
     put(root, "a.igs", neutral_files.iges([BOX]))
     put(root, "p.dxf", r12())
-    ok = call(fx, importing.nx_import_model, path="a.igs")
+    ok = call(fx, importing.nx_import_model, part="w", path="a.igs")
     assert ok.ok and ok.data["format"] == "iges" and fx.importers[-1].kind == "iges", ok
-    dxf = call(fx, importing.nx_import_model, path="p.dxf", options={"units": "mm"})
+    dxf = call(fx, importing.nx_import_model, part="w", path="p.dxf", options={"units": "mm"})
     assert dxf.ok and dxf.data["format"] == "dxf_dwg" and dxf.data["curve_count"] == 4, dxf
     put(root, "a.CATPart", b"V5_CFV2" + bytes(64))
     count = len(fx.importers)
-    catia = call(fx, importing.nx_import_model, path="a.CATPart")
+    catia = call(fx, importing.nx_import_model, part="w", path="a.CATPart")
     assert catia.error["field"] == "/format" and "catia_v5" in catia.error["message"]
     assert catia.mutation_outcome == "not_started" and len(fx.importers) == count
 
@@ -449,9 +466,9 @@ def test_options_name_the_formats_they_apply_to(fx, root, ugii):
     schema.adapter(spec).validate_python({"path": "a.stl"})  # format may be omitted
     put(root, "a.igs", neutral_files.iges([BOX]))
     put(root, "p.dxf", r12())
-    units = call(fx, importing.nx_import_model, path="a.igs", options={"units": "mm"})
+    units = call(fx, importing.nx_import_model, part="w", path="a.igs", options={"units": "mm"})
     assert units.error["field"] == "/options/units" and "stl, dxf_dwg" in units.error["message"]
-    metres = call(fx, importing.nx_import_model, path="p.dxf", options={"units": "m"})
+    metres = call(fx, importing.nx_import_model, part="w", path="p.dxf", options={"units": "m"})
     assert metres.error["field"] == "/options/units" and metres.mutation_outcome == "not_started"
     assert not fx.importers
 
@@ -466,6 +483,6 @@ def test_iges_solid_bounds_are_exact_although_the_quick_box_is_padded(fx, root, 
         return [v - 0.125 for v in box[:3]] + [v + 0.125 for v in box[3:]]
 
     fx.uf.ModlGeneral.AskBoundingBox = padded
-    ok = call(fx, importing.nx_import_model, path="a.igs")
+    ok = call(fx, importing.nx_import_model, part="w", path="a.igs")
     assert ok.ok and ok.data["solids"] == 1, ok
     assert ok.data["bounds"] == {"min": BOX[:3], "max": BOX[3:]}

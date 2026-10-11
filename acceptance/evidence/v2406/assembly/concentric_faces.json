@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/concentric_faces.json",
-  "scenario_sha256": "8f6b503fead8c9cb34c8cd838c6d7060d19f4dcf61208081e3ac0be09ef52e0a",
+  "scenario_sha256": "188f2d59c1fd5d5c438d5e401a249a197939161da0b48db2ab6a4ceb2c7e07bc",
   "domain": "assembly",
   "covers": {
     "nx_create_assembly_constraint": [
@@ -13,7 +13,7 @@
   "sources": {
     "nx_create_assembly_constraint": "06e2e416e1e4ca970a6a35f3aee427ef8b0c078e4583bc58d1596706bbedf899"
   },
-  "recorded": "2026-10-11T10:25:29Z",
+  "recorded": "2026-10-11T15:51:34Z",
   "passed": true,
   "checks": 23,
   "failed_checks": 0,

@@ -144,7 +144,7 @@ def test_list_parts_filters_and_pages(nx, root):
 def test_save_in_place_is_audited(nx, root):
     part = nx.new_part("s.prt")
     part.IsModified = True
-    ok = call(nx, tools.nx_save_part)
+    ok = call(nx, tools.nx_save_part, part=nx.ref_of(part, "part"))
     assert ok.ok and ok.mutation_outcome == "committed", ok
     assert ok.data["saved_files"] == ["s.prt"] and (root / "s.prt").is_file()
     assert ok.warnings[0]["message"].startswith("Saving expires")
@@ -189,9 +189,9 @@ def test_save_refuses_parts_outside_the_workspace_and_not_owned(nx, monkeypatch)
 
 
 def test_failed_native_save_is_partial(nx):
-    nx.new_part("f.prt")
+    part = nx.new_part("f.prt")
     nx.save_error = NXException(3515001, "Disk full")
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(part, "part"))
     assert bad.error["code"] == "NX_SAVE_FAILED" and bad.error["nx_code"] == 3515001
     assert bad.mutation_outcome == "partial"
 
@@ -207,7 +207,7 @@ def test_save_verification_catches_other_files_changing(nx, root):
         return real(self, *args)
 
     part.Save = save_both.__get__(part)
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(part, "part"))
     assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.error["details"]["check"] == "save"
     assert bad.error["details"]["unexpected_changes"] == ["o.prt"]
     assert bad.mutation_outcome == "partial"
@@ -298,24 +298,27 @@ def test_save_shows_the_sheet_for_cgm_data_and_returns_to_modeling(nx, drawing_p
 
     drawing_part.Save = save.__get__(drawing_part)
     drawing_part.IsModified = True
-    ok = call(nx, tools.nx_save_part)
+    ok = call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part"))
     assert ok.ok and seen == [drawing_part.sheet]
     assert drawing_part.DrawingSheets.CurrentDrawingSheet is None and not drawing_part.IsModified
 
 
 def test_save_keeps_an_open_drawing_and_a_disabled_preference(nx, drawing_part):
     drawing_part.DrawingSheets.CurrentDrawingSheet = drawing_part.sheet
-    assert call(nx, tools.nx_save_part).ok
+    assert call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part")).ok
     assert drawing_part.DrawingSheets.CurrentDrawingSheet is drawing_part.sheet
     drawing_part.DrawingSheets.CurrentDrawingSheet = None
     drawing_part.SaveOptions.DrawingCgmData = False
     opened = drawing_part.sheet.opened
-    assert call(nx, tools.nx_save_part).ok and drawing_part.sheet.opened == opened
+    assert (
+        call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part")).ok
+        and drawing_part.sheet.opened == opened
+    )
 
 
 def test_save_error_still_restores_the_display(nx, drawing_part):
     nx.save_error = NXException(1, "disk error")
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part"))
     assert bad.error["code"] == "NX_SAVE_FAILED" and bad.mutation_outcome == "partial"
     assert drawing_part.DrawingSheets.CurrentDrawingSheet is None
 
@@ -327,13 +330,13 @@ def test_a_failed_display_restore_is_partial(nx, drawing_part):
         raise RuntimeError("restore failure")
 
     drawing_part.Drafting = NS(ExitDraftingApplication=broken)
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part"))
     assert bad.error["code"] == "NX_RESTORE_FAILED" and bad.mutation_outcome == "partial"
 
 
 def test_an_active_sketch_is_refused_before_the_sheet_opens(nx, drawing_part):
     nx.session.ActiveSketch = object()
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part"))
     assert bad.error["code"] == "NX_SKETCH_ACTIVE" and drawing_part.sheet.opened == 0
 
 
@@ -366,13 +369,18 @@ def test_save_updates_out_of_date_views_first_and_reports_them(nx, drawing_part,
     drawing_part.Save = lambda *a: (saved.append(stale.IsOutOfDate), real(drawing_part, *a))[1]
     drawing_part.DraftingViews = NS(UpdateViews=update)
     drawing_part.SaveOptions.DrawingCgmData = False  # out-of-date views alone open the sheet
-    ok = call(nx, tools.nx_save_part, **({"path": path} if path else {}))
+    ok = call(
+        nx,
+        tools.nx_save_part,
+        part=nx.ref_of(drawing_part, "part"),
+        **({"path": path} if path else {}),
+    )
     assert ok.ok and seen == [["ORTHO@1"]], ok
     assert [r["id"] for r in ok.data["updated_views"]] == [nx.ref_of(stale, "drawing_view")]
     assert "Updated 1 out-of-date drawing view(s)" in ok.warnings[-1]["message"]
     assert saved in ([False], [])  # updated before the native save (save-as: SaveAs)
     assert drawing_part.DrawingSheets.CurrentDrawingSheet is None
-    again = call(nx, tools.nx_save_part)
+    again = call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part"))
     assert again.ok and "updated_views" not in again.data and len(seen) == 1
 
 
@@ -386,7 +394,7 @@ def test_saving_the_work_part_never_saves_its_components(nx):
         return real(self, components, close)
 
     part.Save = save.__get__(part)
-    assert call(nx, tools.nx_save_part).ok
+    assert call(nx, tools.nx_save_part, part=nx.ref_of(part, "part")).ok
     assert calls == [(False, False)]  # SaveComponents.FalseValue, CloseAfterSave.FalseValue
 
 
@@ -401,11 +409,11 @@ def modified_child(nx, rel="child.prt"):
 
 
 def test_save_leaves_other_modified_parts_alone(nx, root):
-    nx.new_part("top.prt")
+    top = nx.new_part("top.prt")
     child = modified_child(nx)
     before = (root / "child.prt").read_bytes()
     nx.session.Parts.Work = nx.session.Parts.Display = nx.session.Parts[-2]
-    ok = call(nx, tools.nx_save_part)
+    ok = call(nx, tools.nx_save_part, part=nx.ref_of(top, "part"))
     assert ok.data["saved_files"] == ["top.prt"]
     others = ok.data["other_modified_parts"]
     assert [(r["id"], r["kind"], r["name"]) for r in others] == [
@@ -413,7 +421,7 @@ def test_save_leaves_other_modified_parts_alone(nx, root):
     ]
     assert child.IsModified and (root / "child.prt").read_bytes() == before
     child.IsModified = False
-    clean = call(nx, tools.nx_save_part)
+    clean = call(nx, tools.nx_save_part, part=nx.ref_of(top, "part"))
     assert clean.ok and clean.data["other_modified_parts"] == []
 
 
@@ -428,7 +436,7 @@ def test_a_flag_flipped_on_another_part_is_partial(nx):
         return real(self, *args)
 
     top.Save = faulty.__get__(top)
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(top, "part"))
     assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.mutation_outcome == "partial"
     assert bad.error["details"]["unexpected_changes"] == ["child.prt"]
     assert bad.error["details"]["saved_files"] == ["top.prt"]
@@ -443,7 +451,7 @@ def test_native_unsaved_objects_are_not_a_success(nx):
     status = NS(NumberUnsavedParts=1, NumberUnsavedObjects=0, GetPart=lambda i: part,
                 GetStatus=lambda i: 123, Dispose=lambda: disposed.append(1))  # fmt: skip
     part.Save = lambda *a: status
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(part, "part"))
     assert bad.error["code"] == "NX_VERIFICATION_FAILED"
     assert bad.error["details"]["native_save_errors"] == [{"path": part.FullPath, "nx_code": 123}]
     assert not bad.error["details"]["saved_files"] and disposed == [1]
@@ -460,7 +468,7 @@ def test_an_unreadable_loaded_file_stops_the_save_before_nx(nx, monkeypatch):
         raise PermissionError("denied")
 
     monkeypatch.setattr(_saving, "fingerprint", denied)
-    bad = call(nx, tools.nx_save_part)
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(part, "part"))
     assert bad.error["code"] == "NX_SAVE_FAILED" and bad.mutation_outcome == "not_started"
     assert saves == []
 
@@ -527,7 +535,9 @@ def test_save_to_the_parts_own_file_saves_in_place(nx, root):
     assert "saved_as" not in first.data and first.data["saved_files"] == ["own/plate1.prt"]
     assert (root / "own" / "plate1.prt").is_file() and not part.IsModified
     part.IsModified = True
-    again = call(nx, tools.nx_save_part, path="OWN/Plate1.prt")  # the work part's file exists
+    again = call(
+        nx, tools.nx_save_part, part=ref, path="OWN/Plate1.prt"
+    )  # the work part's file exists
     assert again.ok and again.data["saved_files"] == ["own/plate1.prt"], again
     assert again.data["part"]["id"] == ref
 
@@ -556,7 +566,7 @@ def test_a_save_as_failure_after_writing_is_partial(nx, root):
         raise NXException(7, "Disk full")
 
     part.SaveAs = half
-    bad = call(nx, tools.nx_save_part, path="half_v2.prt")
+    bad = call(nx, tools.nx_save_part, part=nx.ref_of(part, "part"), path="half_v2.prt")
     assert bad.error["code"] == "NX_SAVE_FAILED" and bad.mutation_outcome == "partial"
 
 

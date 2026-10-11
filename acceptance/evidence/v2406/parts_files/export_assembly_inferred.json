@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/export_assembly_inferred.json",
-  "scenario_sha256": "5ca490d424939c6fd787b4207319dae886019db7410a90dda5bd30db40b37990",
+  "scenario_sha256": "014470cdcec05fe0b98ebb07d83342fc32145698738e3b377a136e103115162b",
   "domain": "parts_files",
   "covers": {
     "nx_export_assembly": [
@@ -14,7 +14,7 @@
   "sources": {
     "nx_export_assembly": "ca568e477688af4681d40e8f438cd40a9b11aae1297355f8f231a8585c4e95c4"
   },
-  "recorded": "2026-10-11T14:12:30Z",
+  "recorded": "2026-10-11T15:48:07Z",
   "passed": true,
   "checks": 17,
   "failed_checks": 0,

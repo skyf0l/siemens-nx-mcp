@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/create_balloons.json",
-  "scenario_sha256": "c2e420afe184a37ac829d7e736987b73b5021cadeac0774ba36436c4c0ab328c",
+  "scenario_sha256": "c1613ec9aa544802ac43f944ab2c8b2cfe9fc0a44592f220c0fd5fdbf50fe19f",
   "domain": "drawing",
   "covers": {
     "nx_create_balloons": [],
@@ -26,9 +26,9 @@
     "nx_create_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
     "nx_edit_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
     "nx_get_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
-    "nx_update_annotations": "eb439bed426e202d38bf500e3a89989153ac18aeb9249025dba6f1e048abed7a"
+    "nx_update_annotations": "1a66948978b69ed36b75bd905deac252f32ea881ec3a87e0439dedb6977daab3"
   },
-  "recorded": "2026-10-11T10:08:35Z",
+  "recorded": "2026-10-11T16:04:49Z",
   "passed": true,
   "checks": 36,
   "failed_checks": 0,

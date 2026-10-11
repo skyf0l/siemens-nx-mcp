@@ -117,6 +117,7 @@ class KitServices(Services):
         self.history: list[dict] = []
         self.checkpoints: dict[str, dict] = {}
         self.owned: set[str] = set()
+        self.foreign: set[str] = set()  # part keys of parts the engineer opened
         self.revisions = 0  # Services.revision(): bumped by every non-read call
 
     nx = property(lambda self: self.fake.nx)
@@ -227,7 +228,9 @@ class KitServices(Services):
         }
 
     def owns(self, part):
-        return True
+        """Every part is the agent's, except those a test put in ``foreign`` (the
+        engineer's own parts: never counted by gate 3t)."""
+        return self.part_key(part) not in self.foreign
 
     def own(self, part):
         self.owned.add(self.part_key(part))

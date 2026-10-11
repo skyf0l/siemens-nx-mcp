@@ -645,7 +645,7 @@ def test_update_assembly_lists_suppressed_constraints(nx):
     off = run(nx, "nx_edit_assembly_constraint", constraint=touch.data["constraint"]["id"],
               suppressed=True)  # fmt: skip
     assert fix.ok and off.ok
-    done = run(nx, "nx_update_assembly")
+    done = run(nx, "nx_update_assembly", part="asm")
     assert done.ok, done
     rows = {c["constraint"]["id"]: c for c in done.data["constraints"]}
     assert rows[fix.data["constraint"]["id"]]["status"] == "Solved"

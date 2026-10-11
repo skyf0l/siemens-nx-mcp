@@ -78,7 +78,7 @@ def test_a_shown_new_part_keeps_the_marks_but_undo_stops_at_its_load(nx):
     assert history[-1]["load"] == ["b.prt"] and history[-1]["method"] == "nx_create_part"
     row = checkpoints(nx)["before b"]
     assert row["available"] is False and row["expired_reason"] == "part_loaded"
-    refused = run(nx, "nx_undo_operation")
+    refused = run(nx, "nx_undo_operation", part="b")
     assert refused.error["code"] == "NX_NOT_FOUND" and refused.mutation_outcome == "not_started"
     assert refused.error["details"] == {"undo_depth": 0, "reason": "part_loaded"}
     assert "b.prt was loaded after it (nx_create_part)" in refused.error["message"]
@@ -105,10 +105,10 @@ def test_undo_in_a_part_still_works_after_other_parts_load_and_display_switches(
     for target in (b, nx.ref_of(a, "part")):  # B shown for the first time, then A again
         assert run(nx, "nx_activate_part", part=target).ok
     assert run(nx, "nx_list_checkpoints").data["undo_depth"] == 2
-    ok = run(nx, "nx_undo_operation", steps=2)
+    ok = run(nx, "nx_undo_operation", part="work", steps=2)
     assert ok.ok and ok.data["undone"] == ["op_delete_a2", "op_delete_a3"], ok
     assert names(nx) == ["A(2)"] and ok.data["undo_depth"] == 0  # A(3) came after the mark
-    more = run(nx, "nx_undo_operation")
+    more = run(nx, "nx_undo_operation", part="work")
     assert more.error["code"] == "NX_NOT_FOUND" and "c.prt" in more.error["message"]
     assert len(nx.session.Parts) == 3  # a, b and c: nothing was unloaded
     assert checkpoints(nx)["a only"]["expired_reason"] == "part_loaded"
@@ -123,7 +123,7 @@ def test_an_undo_that_unloads_a_part_forgets_it_and_says_so(nx):
     delete(nx, "A(1)", "op_delete_a1")
     loaded = nx.new_part("comp.prt")  # as if op_delete_a1 had loaded it
     nx.session.Parts.Display = nx.session.Parts.Work = nx.part
-    ok = run(nx, "nx_undo_operation")
+    ok = run(nx, "nx_undo_operation", part="work")
     assert ok.ok and loaded not in nx.session.Parts, ok
     assert [w["message"] for w in ok.warnings] == [
         "The undo also unloaded comp.prt (loaded by the undone operations); its refs are stale"
@@ -135,7 +135,7 @@ def test_steps_past_a_load_say_where_the_history_ends(nx):
     delete(nx, "A(1)", "op_delete_a1")
     assert run(nx, "nx_create_part", path="b.prt", display=False).ok
     delete(nx, "A(2)", "op_delete_a2")
-    too_far = run(nx, "nx_undo_operation", steps=2)
+    too_far = run(nx, "nx_undo_operation", part="work", steps=2)
     assert too_far.error["code"] == "NX_INVALID_ARGUMENT"
     assert too_far.error["details"] == {"undo_depth": 1, "reason": "part_loaded"}
     assert "b.prt was loaded after it" in too_far.error["message"]
@@ -159,11 +159,11 @@ def test_a_save_in_a_call_expires_marks_as_saved_or_closed(nx):
     ]
     first = owned.Features[0]
     assert run(nx, "nx_delete_objects", objects=[nx.ref_of(first, "feature")]).ok
-    run(nx, "nx_create_checkpoint", label="s")
-    saved = run(nx, "nx_save_part")
+    run(nx, "nx_create_checkpoint", part="s", label="s")
+    saved = run(nx, "nx_save_part", part=nx.ref_of(owned, "part"))
     assert saved.ok and not any(w["message"].startswith("NX dropped every") for w in saved.warnings)
     assert checkpoints(nx)["s"]["expired_reason"] == "saved_or_closed"
-    refused = run(nx, "nx_undo_operation")
+    refused = run(nx, "nx_undo_operation", part="s")
     assert refused.error["details"]["reason"] == "saved_or_closed"
     assert "a save or a part close" in refused.error["message"]
 

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/interference.json",
-  "scenario_sha256": "80b2b8563c1086f993ae551d6ed27b678f8692557ee980cab735357a40209bc5",
+  "scenario_sha256": "21c86d9ad23364174e68db0a1083467c4f0d590c9647c5adaabd544be90793d0",
   "domain": "inspection",
   "covers": {
     "nx_check_interference": [],
@@ -10,10 +10,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_interference": "080e6be4ac9a4e938c8bb3f47873f40ce92025ba0ef67349a1fd1c2ab2b36012",
-    "nx_export_inspection_report": "080e6be4ac9a4e938c8bb3f47873f40ce92025ba0ef67349a1fd1c2ab2b36012"
+    "nx_check_interference": "81ef7bec0a13ce652bab9f2edfed86cfcf96a550240273eeb90a678b912d3b41",
+    "nx_export_inspection_report": "81ef7bec0a13ce652bab9f2edfed86cfcf96a550240273eeb90a678b912d3b41"
   },
-  "recorded": "2026-10-11T06:47:46Z",
+  "recorded": "2026-10-11T15:52:47Z",
   "passed": true,
   "checks": 54,
   "failed_checks": 0,

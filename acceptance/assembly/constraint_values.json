@@ -5,8 +5,8 @@
  "steps": [
   {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
   {"call": "nx_create_component", "setup": true, "save": "A", "args": {"path": "$fixture", "name": "A"}},
-  {"call": "nx_create_component", "setup": true, "save": "B", "args": {"path": "$fixture", "name": "B", "pose": {"translation": [100, 0, 0]}}},
-  {"call": "nx_create_component", "setup": true, "save": "C", "args": {"path": "$fixture", "name": "C", "pose": {"translation": [0, 60, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "B", "args": {"part": "$part", "path": "$fixture", "name": "B", "pose": {"translation": [100, 0, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "C", "args": {"part": "$part", "path": "$fixture", "name": "C", "pose": {"translation": [0, 60, 0]}}},
   {"call": "nx_find_geometry", "setup": true, "save": "Apx", "args": {"owner": "$A.data.component.id", "kind": "face", "geometry_type": "plane", "normal": [1, 0, 0], "order": "highest", "axis": "x", "limit": 1}},
   {"call": "nx_find_geometry", "setup": true, "save": "Amy", "args": {"owner": "$A.data.component.id", "kind": "face", "geometry_type": "plane", "normal": [0, -1, 0], "order": "lowest", "axis": "y", "limit": 1}},
   {"call": "nx_find_geometry", "setup": true, "save": "Bmx", "args": {"owner": "$B.data.component.id", "kind": "face", "geometry_type": "plane", "normal": [-1, 0, 0], "order": "lowest", "axis": "x", "limit": 1}},

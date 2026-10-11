@@ -1,7 +1,9 @@
 """Gate 3t (core/target.py) through the real kernel on the fake kit: the ``part``,
-``expires_at`` call keys, the target resolver and its P0 binding (a call
-whose target is not the work part is refused), ``envelope.part``, the ghost guard and
-the per-part operation_id fingerprint with receipts written before target parts."""
+``expires_at`` call keys, the target rule (a call without refs and without ``part``
+is ``NX_AMBIGUOUS_PART`` while two or more of the agent's parts are loaded), its P0
+binding (a ``part`` that is not the work part is refused), ``envelope.part``, the
+two-parts note, the ghost guard and the per-part operation_id fingerprint with receipts
+written before target parts."""
 
 from __future__ import annotations
 
@@ -17,7 +19,7 @@ from nx_mcp.core import catalogue, kernel, receipts, target
 from nx_mcp.core.catalogue import CatalogueError, make_spec
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.tx import Tx
-from tests.kit import run
+from tests.kit import fake_nx, run
 from tests.kit.kernel import services
 from tests.kit.objects import Part
 from tests.kit.parts import with_parts
@@ -75,13 +77,16 @@ def test_one_part_without_keys_runs_as_before_and_reports_no_part():
     assert "part" not in r.envelope and _count(nx) == 1
 
 
-def test_a_component_part_is_not_a_second_top_level_part():
+def test_a_loaded_component_part_counts():
     nx = _block_nx()
     component = _second(nx, "kitA/pin.prt")
     nx.attach(nx.part, component)
-    assert target.roots(services(nx)) == [nx.part]
+    assert target.roots(services(nx)) == [nx.part]  # one top-level part, two loaded
     r = run(nx, "nx_create_primitive", **BLOCK)
-    assert r.ok and "part" not in r.envelope, r
+    assert r.error["code"] == "NX_AMBIGUOUS_PART" and _count(nx) == 0, r
+    assert {row["file"] for row in r.error["details"]["loaded_parts"]} == {"work.prt", "pin.prt"}
+    r = run(nx, "nx_create_primitive", part="work", **BLOCK)
+    assert r.ok and r.part["from"] == "part" and _count(nx) == 1, r
 
 
 def test_part_naming_the_work_part_runs_and_reports_it():
@@ -92,93 +97,100 @@ def test_part_naming_the_work_part_runs_and_reports_it():
 
 
 # ---------------------------------------------------------------------------
-# Two top-level parts
+# Two or more loaded parts
 
 
-def _multi(nx):
-    """Two distinct parts named with part within the window: multi-agent mode."""
-    run(nx, "nx_get_model_summary", part="work")
-    run(nx, "nx_get_model_summary", part="plate")  # named (then refused: not the work part)
-    assert target.multi_agent(services(nx))
-
-
-def test_solo_with_three_parts_works_in_the_work_part_as_before():
+def test_two_or_more_parts_make_ref_less_calls_ambiguous():
     nx = _block_nx()
     plate = _second(nx)
     _second(nx, "kitC/bolt.prt")
-    assert len(target.roots(services(nx))) == 3
-    r = run(nx, "nx_create_primitive", **BLOCK)  # no part key, no refs: the work part
-    assert r.ok and _count(nx) == 1, r
-    assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "work"}
-    assert not target.multi_agent(services(nx))
+    r = run(nx, "nx_create_primitive", **BLOCK)  # no part key, no refs
+    assert r.error["code"] == "NX_AMBIGUOUS_PART" and r.mutation_outcome == "not_started", r
+    assert _count(nx) == 0 and r.error["details"]["count"] == 3
+    message = "3 parts are loaded and nx_create_primitive has no refs that pick one"
+    assert r.error["message"] == message
+    files = [row["file"] for row in r.error["details"]["loaded_parts"]]
+    assert files == ["plate.prt", "bolt.prt", "work.prt"]  # the work part last
+    assert run(nx, "nx_get_model_summary").error["code"] == "NX_AMBIGUOUS_PART"  # reads too
+    # A ref of a part that is not the work part needs no part and runs as before.
     body = nx.block(10, 10, 10)
-    _show(nx, plate)  # a ref of a part that is not the work part runs as before
+    _show(nx, plate)
     r = run(nx, "nx_measure_mass", bodies=[body.ref])
-    assert (r.error or {}).get("code") != "NX_WRONG_PART_CONTEXT", r
-    # One named part, however often, keeps the session solo.
+    assert (r.error or {}).get("code") not in ("NX_WRONG_PART_CONTEXT", "NX_AMBIGUOUS_PART"), r
+    assert r.part["file"] == "work.prt" and r.part["from"] == "refs"
     _show(nx, nx.part)
     assert run(nx, "nx_create_primitive", part="work", **BLOCK).ok
     assert run(nx, "nx_create_primitive", part="work.prt", **BLOCK).ok
-    assert not target.multi_agent(services(nx))
+    assert _count(nx) == 2
 
 
-def test_two_named_parts_make_ref_less_calls_ambiguous():
+def test_the_ambiguity_hint_uses_a_neutral_example():
     nx = _block_nx()
     _second(nx)
-    _multi(nx)
-    r = run(nx, "nx_create_primitive", **BLOCK)
-    assert r.error["code"] == "NX_AMBIGUOUS_PART" and _count(nx) == 0, r
+    hint = run(nx, "nx_create_primitive", **BLOCK).error["hint"]
+    assert 'e.g. {"part": "<file name>"}' in hint and "nx_list_parts" in hint
+    assert "work.prt" in hint and "plate.prt" in hint
+    assert '"part": "work' not in hint and '"part": "plate' not in hint  # never a real part
 
 
-def test_two_named_parts_turn_on_multi_agent_mode():
-    nx = _block_nx()
-    plate = _second(nx)
-    assert run(nx, "nx_get_model_summary", part="work").ok
-    assert not target.multi_agent(services(nx))
-    _show(nx, plate)
-    assert run(nx, "nx_get_model_summary", part="plate.prt").part["from"] == "part"
-    status = target.mode_status(services(nx))
-    assert status["mode"] == "multi" and status["parts"] == 2 and not status["forced"]
-    # The same part named another way is still one part.
-    nx2 = _block_nx()
-    _second(nx2)
-    assert run(nx2, "nx_get_model_summary", part="work").ok
-    assert run(nx2, "nx_get_model_summary", part=_ref(nx2, nx2.part)).ok
-    assert not target.multi_agent(services(nx2))
-
-
-def test_multi_agent_mode_ends_ten_minutes_after_the_last_keyed_call():
+def test_the_create_component_hint_names_the_assembly():
     nx = _block_nx()
     _second(nx)
+    r = run(nx, "nx_create_component", path="kitB/plate.prt")
+    assert r.error["code"] == "NX_AMBIGUOUS_PART", r
+    assert "assembly's file name" in r.error["hint"] and "<assembly file name>" in r.error["hint"]
+    assert "plate.prt" in r.error["hint"] and "work.prt" in r.error["hint"]
+
+
+def test_engineer_parts_are_not_counted():
+    nx = _block_nx()
     s = services(nx)
-    start = 1_000_000.0
-    target.note_part(s, "part_a", now=start)
-    target.note_part(s, "part_b", now=start + 1)
-    assert target.multi_agent(s, now=start + 2)
-    assert target.multi_agent(s, now=start + target.WINDOW)
-    assert not target.multi_agent(s, now=start + target.WINDOW + 2)
-    assert target.mode_status(s, now=start + target.WINDOW + 2)["parts"] == 0
+    theirs = _second(nx, "theirs/housing.prt")
+    s.foreign.add(s.part_key(theirs))
+    r = run(nx, "nx_create_primitive", **BLOCK)  # one agent part: the work part as before
+    assert r.ok and _count(nx) == 1, r
+    assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "work"}  # 2 loaded
+    status = run(nx, "nx_get_status", include=["parts"]).data["parts"]
+    assert status["loaded"] == 2 and status["agent_loaded"] == 1
+    _second(nx)  # a second agent part
+    r = run(nx, "nx_create_primitive", **BLOCK)
+    assert r.error["code"] == "NX_AMBIGUOUS_PART" and r.error["details"]["count"] == 2, r
+    files = {row["file"] for row in r.error["details"]["loaded_parts"]}
+    assert files == {"work.prt", "plate.prt"} and "housing.prt" not in r.error["hint"]
 
 
-def test_the_environment_turns_on_multi_agent_mode(monkeypatch):
-    monkeypatch.setenv(target.MULTI_ENV, "1")
-    nx = _block_nx()
-    _second(nx)
-    assert target.mode_status(services(nx))["forced"]
-    assert run(nx, "nx_create_primitive", **BLOCK).error["code"] == "NX_AMBIGUOUS_PART"
-    one = _block_nx()  # one top-level part: never ambiguous
-    assert run(one, "nx_create_primitive", **BLOCK).ok
+def _parts_nx():
+    nx = fake_nx()
+    with_parts(nx, services(nx).root)
+    return nx
+
+
+def _notes(result) -> list:
+    return [w for w in result.warnings or [] if w["code"] == "NX_NOTE"]
+
+
+def test_the_load_that_brings_two_parts_carries_a_note():
+    nx = _parts_nx()
+    note = {"code": "NX_NOTE", "message": "2 parts are loaded: calls without refs now take part"}
+    second = run(nx, "nx_create_part", path="b.prt", display=False)
+    assert second.ok and _notes(second) == [note], second
+    third = run(nx, "nx_create_part", path="c.prt", display=False)
+    assert third.ok and not _notes(third), third
+    # An engineer's part does not count towards the note.
+    engineer = _parts_nx()
+    services(engineer).foreign.add(services(engineer).part_key(engineer.part))
+    mine = run(engineer, "nx_create_part", path="mine.prt", display=False)
+    assert mine.ok and not _notes(mine), mine
 
 
 def test_two_parts_and_no_hint_is_ambiguous_listing_the_files():
     nx = _block_nx()
     _second(nx)
-    _multi(nx)
     r = run(nx, "nx_create_primitive", operation_id="amb_block_01", **BLOCK)
     assert not r.ok and r.error["code"] == "NX_AMBIGUOUS_PART", r
     assert r.mutation_outcome == "not_started" and _count(nx) == 0
     assert "work.prt" in r.error["hint"] and "plate.prt" in r.error["hint"]
-    assert 'part: "' in r.error["hint"]
+    assert '"part": "' in r.error["hint"]
     files = {row["file"] for row in r.error["details"]["loaded_parts"]}
     assert files == {"work.prt", "plate.prt"}
     # A refusal before gate 7 writes no receipt: the same id runs later.
@@ -299,16 +311,15 @@ def test_refs_of_the_work_part_pin_it_without_part():
     assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "refs"}
 
 
-def test_refs_of_another_part_are_refused_naming_the_field():
+def test_part_naming_the_refs_part_that_is_not_the_work_part_is_refused():
     nx = _block_nx()
     plate = _second(nx)
-    _multi(nx)
     body = nx.block(10, 10, 10)
     _show(nx, plate)
-    r = run(nx, "nx_measure_mass", bodies=[body.ref])
-    assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.error["field"] == "/bodies/0", r
+    r = run(nx, "nx_measure_mass", bodies=[body.ref], part="work")
+    assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.error["field"] == "/part", r
     assert r.mutation_outcome == "not_applicable"
-    assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "refs"}
+    assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "part"}
     assert "plate.prt" in r.error["message"] and _ref(nx, nx.part) in r.error["hint"]
 
 
@@ -320,6 +331,39 @@ def test_part_contradicting_the_refs_is_wrong_part_context():
     r = run(nx, "nx_create_blend", part="plate", edges=[nx.ref_of(edge, "edge")], radius=1)
     assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.error["field"] == "/part", r
     assert "Drop part (the refs pick work.prt)" in r.error["hint"]
+
+
+def test_a_read_whose_part_contradicts_its_refs_is_refused():
+    nx = _block_nx()
+    _second(nx)
+    body = nx.block(10, 10, 10)
+    r = run(nx, "nx_measure_mass", bodies=[body.ref], part="plate")
+    assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.error["field"] == "/part", r
+    assert r.mutation_outcome == "not_applicable"
+    assert "Drop part (the refs pick work.prt)" in r.error["hint"]
+    made = run(nx, "nx_create_primitive", part="work", **BLOCK)
+    r = run(nx, "nx_get_feature", feature=made.data["feature"]["id"], part="plate.prt")
+    assert r.error["code"] == "NX_WRONG_PART_CONTEXT" and r.error["field"] == "/part", r
+    r = run(nx, "nx_get_feature", feature=made.data["feature"]["id"], part="work")
+    assert r.ok and r.part["from"] == "part", r
+
+
+def test_part_may_name_the_assembly_that_holds_an_occurrence_ref():
+    nx = _block_nx()
+    pin = _second(nx, "kitA/pin.prt")
+    _second(nx)
+    edge = NS(Tag=9101, IsOccurrence=True, Prototype=NS(OwningPart=pin), OwningPart=nx.part)
+    edge.Name = "EDGE"
+    ref = nx.ref_of(edge, "edge")
+    spec = catalogue.load()["nx_create_blend"]
+    checked = spec.check({"edges": [ref], "radius": 1})
+    s = services(nx)
+    assert target.resolve(spec, checked, s).part is pin  # the refs: the prototype's part
+    assert target.resolve(spec, checked, s, part="pin").part is pin
+    assert target.resolve(spec, checked, s, part="work").part is nx.part  # its assembly
+    with pytest.raises(NXError) as caught:
+        target.resolve(spec, checked, s, part="plate")
+    assert caught.value.code == "NX_WRONG_PART_CONTEXT"
 
 
 def test_an_occurrence_pins_its_prototype_unless_the_assembly_decides():
@@ -369,7 +413,7 @@ def test_a_finished_call_replays_although_its_part_is_now_ambiguous():
     nx = _block_nx()
     assert run(nx, "nx_create_primitive", operation_id="replay_ambig1", **BLOCK).ok
     _second(nx)
-    _multi(nx)
+    assert run(nx, "nx_create_primitive", **BLOCK).error["code"] == "NX_AMBIGUOUS_PART"
     again = run(nx, "nx_create_primitive", operation_id="replay_ambig1", **BLOCK)
     assert again.ok and again.replayed and _count(nx) == 1, again
 
@@ -529,20 +573,26 @@ def test_kernel_context_carries_the_keys():
     assert str(services(nx).root) not in record_free  # no absolute path in the envelope
 
 
-def test_status_reports_the_targeting_mode():
+def test_status_reports_the_agent_loaded_count():
     nx = _block_nx()
-    _second(nx)
     parts = run(nx, "nx_get_status", include=["parts"]).data["parts"]
-    assert parts["top_level"] == 2 and parts["targeting"]["mode"] == "solo"
-    _multi(nx)
+    assert parts["agent_loaded"] == 1 and "targeting" not in parts
+    component = _second(nx, "kitA/pin.prt")
+    nx.attach(nx.part, component)
     parts = run(nx, "nx_get_status", include=["parts"]).data["parts"]
-    assert parts["targeting"]["mode"] == "multi" and parts["targeting"]["parts"] == 2
+    assert parts["agent_loaded"] == 2 and parts["top_level"] == 1 and parts["loaded"] == 2
 
 
-def test_an_empty_nx_ends_multi_agent_mode():
+def test_no_mode_window_or_environment_switch(monkeypatch):
+    monkeypatch.setenv("NX_MCP_MULTI_AGENT", "1")  # no longer read
+    assert run(_block_nx(), "nx_create_primitive", **BLOCK).ok
+    for name in ("MULTI_ENV", "WINDOW", "note_part", "mode_status", "multi_agent"):
+        assert not hasattr(target, name), name
+
+
+def test_a_call_with_an_unknown_ref_is_not_ref_less():
     nx = _block_nx()
     _second(nx)
-    _multi(nx)
-    for part in list(nx.session.Parts):
-        nx.session.Parts.remove(part)
-    assert not target.multi_agent(services(nx))
+    r = run(nx, "nx_get_feature", feature="f:999")  # the handler reports the ref
+    assert r.error["code"] not in ("NX_AMBIGUOUS_PART", "NX_WRONG_PART_CONTEXT"), r
+    assert r.error["code"] == "NX_STALE_REFERENCE" and r.part["from"] == "work", r

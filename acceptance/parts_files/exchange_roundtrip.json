@@ -43,7 +43,7 @@
                 "data.volume": {"close": 7717.2567, "tol": 0.01},
                 "data.bounds.min": {"close": [0, 0, 0], "tol": 0.0001},
                 "data.bounds.max": {"close": [40, 20, 10], "tol": 0.0001}}},
-    {"call": "nx_import_model", "args": {"path": "$run/rt/plate.igs", "options": {"units": "mm"}},
+    {"call": "nx_import_model", "args": {"part": "pf_rt_stp", "path": "$run/rt/plate.igs", "options": {"units": "mm"}},
      "expect": {"error.field": "/options/units", "mutation_outcome": "not_started"}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$run/rt"},
      "expect": {"page.total": 3}}

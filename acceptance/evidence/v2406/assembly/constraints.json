@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/constraints.json",
-  "scenario_sha256": "6065085aede06f4e8e3d0cf9447a4a850b697a5def2edec89382db151c7d150c",
+  "scenario_sha256": "6bc84b93ef6816351aecdc535e830bea9567a0c5c063b95c2f94f17d7a4b8089",
   "domain": "assembly",
   "covers": {
     "nx_create_assembly_constraint": [
@@ -22,7 +22,7 @@
     "nx_create_assembly_constraint": "06e2e416e1e4ca970a6a35f3aee427ef8b0c078e4583bc58d1596706bbedf899",
     "nx_edit_assembly_constraint": "06e2e416e1e4ca970a6a35f3aee427ef8b0c078e4583bc58d1596706bbedf899"
   },
-  "recorded": "2026-10-11T10:26:33Z",
+  "recorded": "2026-10-11T16:04:53Z",
   "passed": true,
   "checks": 82,
   "failed_checks": 0,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/constraint_health.json",
-  "scenario_sha256": "e0b08446eca5162e4d74bfe81e575db29ac2ab44f2007d2957573c789fdd08a1",
+  "scenario_sha256": "500f165600973c162ac74b75df4b19542777522a4360234f8a359d843a836b34",
   "domain": "inspection",
   "covers": {
     "nx_check_model": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_check_model": "d86402c093ff9bfd6bd58119edc7b445bb197240d9b913ea782aefb08e81fd95"
   },
-  "recorded": "2026-10-11T10:25:37Z",
+  "recorded": "2026-10-11T15:52:30Z",
   "passed": true,
   "checks": 32,
   "failed_checks": 0,

@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `47704f40a37998671042cbe0e923d04598ae393eda179ed8b52929ed4beee8cb`.
+Canonical SHA-256 (catalogue evidence): `1a7dd582bee3fe4dcbb7c24c715e1a71bc49fe4e1c951daec532b763c739a670`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -18,7 +18,7 @@ These labels report recorded evidence, not certification or independent verifica
 | --- | --- | --- | --- | --- |
 | nx_activate_application | Native-tested | session | session | v2406: tested; 19 checks in acceptance/sheet_metal/activate_application.json |
 | nx_activate_drawing_sheet | Native-tested | drawing | session | v2406: tested; 19 checks in acceptance/drawing/out_of_date_views.json |
-| nx_activate_part | Native-tested | parts_files | session | v2406: tested; 33 checks in acceptance/parts_files/create_no_display.json |
+| nx_activate_part | Native-tested | parts_files | session | v2406: tested; 34 checks in acceptance/parts_files/create_no_display.json |
 | nx_analyze_curve | Native-tested | inspection | read | v2406: tested; 113 checks in acceptance/inspection/analysis.json |
 | nx_analyze_faces | Native-tested | inspection | read | v2406: tested; 113 checks in acceptance/inspection/analysis.json |
 | nx_cancel_operation | Native-tested | session | session | v2406: tested; 48 checks in acceptance/session/status_operations.json |
@@ -36,7 +36,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_bridge_surface | Native-tested | freeform | model | v2406: all variants; 21 checks in acceptance/freeform/bridge_surface.json |
 | nx_create_centerline | Native-tested | drawing | model | v2406: all variants; 23 checks in acceptance/drawing/create_centerline.json |
 | nx_create_chamfer | Native-tested | modeling | model | v2406: all variants; 8 checks in acceptance/modeling/tangent_chain.json |
-| nx_create_checkpoint | Native-tested | session | session | v2406: tested; 40 checks in acceptance/session/undo_survives_load.json |
+| nx_create_checkpoint | Native-tested | session | session | v2406: tested; 42 checks in acceptance/session/undo_survives_load.json |
 | nx_create_component | Native-tested | assembly | model | v2406: all variants; 38 checks in acceptance/assembly/new_component.json |
 | nx_create_component_mirror | Native-tested | assembly | model | v2406: tested; 20 checks in acceptance/assembly/component_mirror.json |
 | nx_create_component_pattern | Native-tested | assembly | model | v2406: tested; 85 checks in acceptance/assembly/patterns.json |
@@ -137,7 +137,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_get_status | Native-tested | session | read | v2406: tested; 48 checks in acceptance/session/status_operations.json |
 | nx_import_expressions | Native-tested | modeling | model | v2406: all variants; 70 checks in acceptance/modeling/expression_files.json |
 | nx_import_model | Native-tested | parts_files | model | v2406: dxf_dwg, iges, parasolid, step, stl (untested: catia_v5); 37 checks in acceptance/parts_files/import_model.json |
-| nx_list_checkpoints | Native-tested | session | read | v2406: tested; 40 checks in acceptance/session/undo_survives_load.json |
+| nx_list_checkpoints | Native-tested | session | read | v2406: tested; 42 checks in acceptance/session/undo_survives_load.json |
 | nx_list_components | Native-tested | assembly | read | v2406: tested; 145 checks in acceptance/assembly/components.json |
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 23 checks in acceptance/parts_files/list_files.json |
 | nx_list_materials | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
@@ -155,7 +155,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_preview_changes | Native-tested | session | session | v2406: tested; 23 checks in acceptance/session/preview_sketch_extrude.json |
 | nx_redo_operation | Native-tested | session | session | v2406: tested; 71 checks in acceptance/session/redo_replay.json |
 | nx_resolve_reference | Native-tested | inspection | read | v2406: tested; 78 checks in acceptance/inspection/holes_and_words.json |
-| nx_restore_checkpoint | Native-tested | session | model | v2406: tested; 40 checks in acceptance/session/undo_survives_load.json |
+| nx_restore_checkpoint | Native-tested | session | model | v2406: tested; 42 checks in acceptance/session/undo_survives_load.json |
 | nx_restore_display | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
 | nx_run_batch | Native-tested | session | model | v2406: tested; 43 checks in acceptance/session/run_batch.json |
 | nx_save_part | Native-tested | parts_files | file | v2406: tested; 18 checks in acceptance/session/refs_survive_undo_save.json |
@@ -174,7 +174,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_name | Native-tested | session | model | v2406: tested; 99 checks in acceptance/session/history.json |
 | nx_set_sheet_metal_defaults | Native-tested | sheet_metal | model | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_set_visibility | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
-| nx_undo_operation | Native-tested | session | model | v2406: tested; 40 checks in acceptance/session/undo_survives_load.json |
+| nx_undo_operation | Native-tested | session | model | v2406: tested; 42 checks in acceptance/session/undo_survives_load.json |
 | nx_update_annotations | Native-tested | drawing | model | v2406: tested; 8 checks in acceptance/drawing/update_annotations.json |
 | nx_update_assembly | Native-tested | assembly | model | v2406: tested; 21 checks in acceptance/assembly/update_assembly.json |
 | nx_update_model | Native-tested | modeling | model | v2406: tested; 18 checks in acceptance/modeling/update_model.json |

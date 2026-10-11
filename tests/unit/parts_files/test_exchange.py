@@ -24,7 +24,7 @@ def modified_part(nx, rel="m.prt", bodies=2):
 def test_export_writes_memory_state_and_never_saves(nx, root, ugii):
     part = modified_part(nx)
     saved = (root / "m.prt").read_bytes()
-    ok = call(nx, exchange.nx_export_model, path="out/m.step", format="step")
+    ok = call(nx, exchange.nx_export_model, part="m", path="out/m.step", format="step")
     assert ok.ok and ok.mutation_outcome == "committed", ok
     creator = nx.step_creators[-1]
     assert creator.ExportFrom == nx.nx.StepCreator.ExportFromOption.DisplayPart
@@ -54,29 +54,29 @@ def test_export_rejections(nx, root, ugii, monkeypatch):
     other = nx.new_part("o.prt")
     nx.session.Parts.Display = other
     nx.session.Parts.Work = part
-    wrong = call(nx, exchange.nx_export_model, path="a.step", format="step")
+    wrong = call(nx, exchange.nx_export_model, part="m", path="a.step", format="step")
     assert (
         wrong.error["code"] == "NX_WRONG_PART_CONTEXT" and wrong.mutation_outcome == "not_started"
     )
     nx.session.Parts.Display = part
     (root / "e.step").write_text("x")
-    exists = call(nx, exchange.nx_export_model, path="e.step", format="step")
+    exists = call(nx, exchange.nx_export_model, part="m", path="e.step", format="step")
     assert exists.error["code"] == "NX_ALREADY_EXISTS"
-    assert call(nx, exchange.nx_export_model, path="a.igs", format="step").error["code"] == (
-        "NX_UNSUPPORTED_FILE_TYPE"
-    )
+    assert call(nx, exchange.nx_export_model, part="m", path="a.igs", format="step").error[
+        "code"
+    ] == ("NX_UNSUPPORTED_FILE_TYPE")
     nx.export_writes = False
-    empty = call(nx, exchange.nx_export_model, path="a.step", format="step")
+    empty = call(nx, exchange.nx_export_model, part="m", path="a.step", format="step")
     assert empty.error["code"] == "NX_EXPORT_FAILED" and empty.mutation_outcome == "rolled_back"
     assert empty.error["details"]["translator_log"] == "translator log\n"
     assert not (root / "a.step").exists()
     nx.export_writes = True
     nx.export_error = NXException(1, "Translator crashed")
-    crashed = call(nx, exchange.nx_export_model, path="a.step", format="step")
+    crashed = call(nx, exchange.nx_export_model, part="m", path="a.step", format="step")
     assert crashed.error["code"] == "NX_EXPORT_FAILED" and crashed.error["nx_code"] == 1
     monkeypatch.delenv("UGII_BASE_DIR")
     nx.export_error = None
-    unset = call(nx, exchange.nx_export_model, path="a.step", format="step")
+    unset = call(nx, exchange.nx_export_model, part="m", path="a.step", format="step")
     assert unset.error["code"] == "NX_EXPORT_FAILED" and unset.mutation_outcome == "not_started"
 
 
@@ -91,7 +91,7 @@ def test_export_detects_a_part_saved_by_the_translator(nx, ugii, monkeypatch):
 
     monkeypatch.setattr(fake_parts.StepCreator, "Commit", saving_commit)
     modified_part(nx)
-    bad = call(nx, exchange.nx_export_model, path="a.step", format="step")
+    bad = call(nx, exchange.nx_export_model, part="m", path="a.step", format="step")
     assert bad.error["code"] == "NX_VERIFICATION_FAILED"
     assert bad.error["details"]["check"] == "part_modified"
 
@@ -100,7 +100,12 @@ def test_import_into_the_work_part(nx, root, ugii):
     part = nx.new_part("w.prt")
     (root / "in.step").write_text(STEP)
     ok = call(
-        nx, importing.nx_import_model, path="in.step", format="step", operation_id="op_import_1"
+        nx,
+        importing.nx_import_model,
+        part="w",
+        path="in.step",
+        format="step",
+        operation_id="op_import_1",
     )
     assert ok.ok and ok.mutation_outcome == "committed", ok
     importer = nx.step_importers[-1]
@@ -126,14 +131,16 @@ def test_import_rejections_and_rollback(nx, root, ugii):
     nx.new_part("w.prt")
     (root / "in.step").write_text(STEP)
     (root / "cut.step").write_text(STEP[:-20])
-    truncated = call(nx, importing.nx_import_model, path="cut.step", format="step")
+    truncated = call(nx, importing.nx_import_model, part="w", path="cut.step", format="step")
     assert truncated.error["code"] == "NX_INVALID_ARGUMENT" and truncated.error["field"] == "/path"
     assert truncated.mutation_outcome == "not_started"
-    both = call(nx, importing.nx_import_model, path="in.step", format="step", target="new_part")
+    both = call(
+        nx, importing.nx_import_model, part="w", path="in.step", format="step", target="new_part"
+    )
     assert both.error["field"] == "/new_part_path"
     nx.import_bodies = 0
     loaded = len(nx.session.Parts)
-    empty = call(nx, importing.nx_import_model, path="in.step", format="step",
+    empty = call(nx, importing.nx_import_model, part="w", path="in.step", format="step",
                  target="new_part", new_part_path="imp/n2.prt", operation_id="op_import_2")  # fmt: skip
     assert empty.error["code"] == "NX_INCOMPLETE_RESULT" and empty.mutation_outcome == "rolled_back"
     assert len(nx.session.Parts) == loaded and not (root / "imports" / "op_import_2").exists()
@@ -146,7 +153,9 @@ def test_import_refuses_loaded_product_names_without_flatten(nx, root, ugii):
         "DATA;\n", "DATA;\n#9=NEXT_ASSEMBLY_USAGE_OCCURRENCE('1','','',#1,#1,$);\n"
     )
     (root / "asm.step").write_text(asm_step)
-    bad = call(nx, importing.nx_import_model, path="asm.step", format="step", flatten=False)
+    bad = call(
+        nx, importing.nx_import_model, part="blk", path="asm.step", format="step", flatten=False
+    )
     assert bad.error["code"] == "NX_NAME_CONFLICT" and bad.mutation_outcome == "not_started"
     assert bad.error["details"]["loaded_parts"] == ["blk.prt"]
     assert not nx.step_importers
@@ -157,17 +166,22 @@ def test_import_refuses_loaded_product_names_without_flatten(nx, root, ugii):
 )
 def test_export_suffix_must_match_the_format(nx, root, fmt, path):
     nx.new_part("w.prt")
-    bad = call(nx, exchange.nx_export_model, path=path, format=fmt)
+    bad = call(nx, exchange.nx_export_model, part="w", path=path, format=fmt)
     assert bad.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and bad.error["field"] == "/path"
     assert bad.mutation_outcome == "not_started" and not nx.exporters
 
 
 def test_unknown_format_and_foreign_options_are_refused(nx):
     nx.new_part("w.prt")
-    bad = call(nx, exchange.nx_export_model, path="a.dxf", format="dxf")
+    bad = call(nx, exchange.nx_export_model, part="w", path="a.dxf", format="dxf")
     assert bad.error["category"] == "invalid_argument"
     opts = call(
-        nx, exchange.nx_export_model, path="a.step", format="step", options={"binary": True}
+        nx,
+        exchange.nx_export_model,
+        part="w",
+        path="a.step",
+        format="step",
+        options={"binary": True},
     )
     assert opts.error["code"] == "NX_INVALID_ARGUMENT" and opts.error["field"] == "/options/binary"
 
@@ -178,7 +192,7 @@ def test_unknown_format_and_foreign_options_are_refused(nx):
 )
 def test_export_format_defaults_to_the_path_suffix(nx, root, ugii, path, fmt, made):
     modified_part(nx)
-    ok = call(nx, exchange.nx_export_model, path=path)
+    ok = call(nx, exchange.nx_export_model, part="m", path=path)
     assert ok.ok and ok.data["format"] == fmt and (root / path).is_file(), ok
     assert getattr(nx, made)
 
@@ -192,10 +206,12 @@ def test_export_options_are_listed_and_checked_per_format(nx, ugii):
     assert all(key in text for key in ("binary", "chordal_tolerance", "angular_tolerance"))
     schema.adapter(spec).validate_python({"path": "a.step"})  # format may be omitted
     modified_part(nx)
-    bad = call(nx, exchange.nx_export_model, path="a.igs", options={"chordal_tolerance": 0.1})
+    bad = call(
+        nx, exchange.nx_export_model, part="m", path="a.igs", options={"chordal_tolerance": 0.1}
+    )
     assert bad.error["field"] == "/options/chordal_tolerance" and "stl only" in bad.error["message"]
     assert bad.mutation_outcome == "not_started" and not nx.exporters
-    wrong = call(nx, exchange.nx_export_model, path="a.step", format="stl")
+    wrong = call(nx, exchange.nx_export_model, part="m", path="a.step", format="stl")
     assert (
         wrong.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and "omit format" in wrong.error["hint"]
     )

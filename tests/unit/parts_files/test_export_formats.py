@@ -36,7 +36,7 @@ def assert_not_saved(ok, root, saved, part):
 def test_stl_binary_from_memory(nx, root):
     part = modified_part(nx)
     saved = (root / "m.prt").read_bytes()
-    ok = export(nx, path="out/m.stl", format="stl")
+    ok = export(nx, part="m", path="out/m.stl", format="stl")
     assert_not_saved(ok, root, saved, part)
     stl = nx.exporters[-1]
     assert stl.OutputType == nx.nx.STLCreator.OutputTypeEnum.Binary and stl.destroyed
@@ -74,7 +74,9 @@ def test_stl_ascii_tolerances_and_selection(nx, root):
 
 def test_stl_in_an_inch_part_reports_inches(nx, root):
     modified_part(nx, units="in", boxes=([0, 0, 0, 2, 1, 0.5],))
-    ok = export(nx, path="i.stl", format="stl", options={"chordal_tolerance": "0.0254 mm"})
+    ok = export(
+        nx, part="m", path="i.stl", format="stl", options={"chordal_tolerance": "0.0254 mm"}
+    )
     assert ok.ok, ok
     assert ok.data["units"] == "in" and ok.data["bounds"]["max"] == [2, 1, 0.5]
     assert nx.exporters[-1].ChordalTol == pytest.approx(0.001)
@@ -83,7 +85,7 @@ def test_stl_in_an_inch_part_reports_inches(nx, root):
 def test_iges_from_display_part_without_saving(nx, root, ugii):
     part = modified_part(nx)
     saved = (root / "m.prt").read_bytes()
-    ok = export(nx, path="m.igs", format="iges")
+    ok = export(nx, part="m", path="m.igs", format="iges")
     assert_not_saved(ok, root, saved, part)
     iges = nx.exporters[-1]
     assert iges.ExportFrom == nx.nx.IgesCreator.ExportFromOption.DisplayPart
@@ -110,11 +112,11 @@ def test_parasolid_text_and_binary(nx, root, suffix, encoding):
 
 def test_jt_monolithic_from_a_saved_part(nx, root):
     part = modified_part(nx)
-    unsaved = export(nx, path="m.jt", format="jt")
+    unsaved = export(nx, part="m", path="m.jt", format="jt")
     assert unsaved.error["code"] == "NX_UNSAVED_PART" and unsaved.mutation_outcome == "not_started"
     assert not nx.exporters and part.IsModified
     part.IsModified = False  # saved: NX 2406 JT writes edited bodies as last saved
-    ok = export(nx, path="m.jt", format="jt")
+    ok = export(nx, part="m", path="m.jt", format="jt")
     assert ok.ok and ok.data["part_modified"] is False, ok
     jt = nx.exporters[-1]
     assert jt.JtfileStructure == nx.nx.JtCreatorFileStructure.Monolithic and jt.destroyed
@@ -128,16 +130,16 @@ def test_jt_monolithic_from_a_saved_part(nx, root):
 
 def test_step_ap242_needs_its_license(nx, root, ugii):
     part = modified_part(nx)
-    bad = export(nx, path="a.step", format="step_ap242")
+    bad = export(nx, part="m", path="a.step", format="step_ap242")
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 2
     assert nx.step_creators[-1].ExportAs == nx.nx.StepCreator.ExportAsOption.Ap242
     assert not (root / "a.step").exists() and part.IsModified
     nx.ap242_licensed = True
-    ok = export(nx, path="b.step", format="step_ap242")
+    ok = export(nx, part="m", path="b.step", format="step_ap242")
     assert ok.ok and ok.data["schema"] == "AP242" and ok.data["solids"] == 2, ok
     # AP214 sets its own schema even when the session's last export was AP242.
     nx.step_export_as = nx.nx.StepCreator.ExportAsOption.Ap242
-    plain = export(nx, path="c.step", format="step")
+    plain = export(nx, part="m", path="c.step", format="step")
     assert plain.data["schema"] == "AP214" and plain.data["file_units"] == "mm"
     assert nx.step_creators[-1].ExportAs == nx.nx.StepCreator.ExportAsOption.Ap214
 
@@ -149,7 +151,7 @@ def test_extent_mismatch_fails_and_publishes_nothing(nx, root):
         [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
         [500, 20, 30],
     )
-    bad = export(nx, path="x.stl", format="stl")
+    bad = export(nx, part="m", path="x.stl", format="stl")
     assert (
         bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.error["details"]["check"] == "extent"
     )
@@ -161,7 +163,7 @@ def test_rotated_wcs_checks_containment_only(nx, root):
     part.WCS.CoordinateSystem.Orientation.Element = fake_parts.NS(
         Xx=0, Xy=1, Xz=0, Yx=-1, Yy=0, Yz=0, Zx=0, Zy=0, Zz=1
     )
-    ok = export(nx, path="r.stl", format="stl")
+    ok = export(nx, part="m", path="r.stl", format="stl")
     assert ok.ok, ok
 
 
@@ -173,27 +175,27 @@ def test_wrong_file_units_and_unreadable_files_fail(nx, root, monkeypatch):
         "_file",
         lambda self, out, boxes, units: real(self, out, boxes, "in"),
     )
-    bad = export(nx, path="u.jt", format="jt")
+    bad = export(nx, part="m", path="u.jt", format="jt")
     assert bad.error["details"]["check"] == "file_units" and not (root / "u.jt").exists()
     monkeypatch.setattr(fake_parts.JtCreator, "_file", lambda self, out, b, u: (out, b"junk"))
-    junk = export(nx, path="v.jt", format="jt")
+    junk = export(nx, part="m", path="v.jt", format="jt")
     assert junk.error["code"] == "NX_VERIFICATION_FAILED"
     assert junk.error["details"]["check"] == "file_content"
 
 
 def test_no_file_no_bodies_and_native_errors(nx, root, ugii):
     nx.new_part("e.prt")
-    empty = export(nx, path="e.stl", format="stl")
+    empty = export(nx, part="e", path="e.stl", format="stl")
     assert empty.error["code"] == "NX_INVALID_ARGUMENT" and empty.error["field"] == "/bodies"
     assert empty.mutation_outcome == "not_started"
     modified_part(nx)
     nx.export_writes = False
-    none = export(nx, path="n.igs", format="iges")
+    none = export(nx, part="m", path="n.igs", format="iges")
     assert none.error["code"] == "NX_EXPORT_FAILED" and none.mutation_outcome == "rolled_back"
     assert none.error["details"]["translator_log"] == "translator log\n"
     nx.export_writes = True
     nx.export_error = NXException(3, "Translator crashed")
-    crash = export(nx, path="n.x_t", format="parasolid")
+    crash = export(nx, part="m", path="n.x_t", format="parasolid")
     assert crash.error["code"] == "NX_EXPORT_FAILED" and crash.error["nx_code"] == 3
 
 
@@ -206,7 +208,7 @@ def test_a_translator_that_saves_is_caught(nx, root, ugii, monkeypatch):
         return real(self)
 
     monkeypatch.setattr(fake_parts.IgesCreator, "Commit", saving)
-    bad = export(nx, path="s.igs", format="iges")
+    bad = export(nx, part="m", path="s.igs", format="iges")
     assert bad.error["code"] == "NX_VERIFICATION_FAILED"
     assert bad.error["details"]["check"] == "part_modified"
 
@@ -227,7 +229,7 @@ def test_a_builder_is_destroyed_when_configuring_fails(nx, root, monkeypatch):
         self._refuse()
 
     monkeypatch.setattr(fake_parts.StlCreator, "__init__", init)
-    bad = export(nx, path="f.stl", format="stl")
+    bad = export(nx, part="m", path="f.stl", format="stl")
     assert bad.error["code"] == "NX_EXPORT_FAILED" and bad.error["nx_code"] == 5
     assert nx.exporters[-1].destroyed
 
@@ -235,7 +237,7 @@ def test_a_builder_is_destroyed_when_configuring_fails(nx, root, monkeypatch):
 def test_step_ap242_without_a_file_hints_at_the_license(nx, root, ugii):
     modified_part(nx).IsModified = False  # NX runs the external step242 job
     nx.ap242_licensed, nx.export_writes = True, False
-    bad = export(nx, path="a.step", format="step_ap242")
+    bad = export(nx, part="m", path="a.step", format="step_ap242")
     assert bad.error["code"] == "NX_EXPORT_FAILED" and "license" in bad.error["hint"]
 
 
@@ -245,11 +247,11 @@ def test_an_ap242_interrupt_without_a_license_message_is_an_export_failure(nx, r
     modified_part(nx)
     nx.ap242_licensed = True
     nx.export_error = NXException(2, "Interrupt")  # e.g. the engineer pressed Esc
-    bad = export(nx, path="a.step", format="step_ap242")
+    bad = export(nx, part="m", path="a.step", format="step_ap242")
     assert bad.error["code"] == "NX_EXPORT_FAILED" and bad.error["nx_code"] == 2, bad
     assert evidence.licenses() == []
     nx.ap242_licensed, nx.export_error = False, None  # the syslog says the license is missing
-    refused = export(nx, path="a.step", format="step_ap242")
+    refused = export(nx, part="m", path="a.step", format="step_ap242")
     assert refused.error["code"] == "NX_LICENSE_UNAVAILABLE", refused
     assert "STEP AP242 License not found" in refused.error["message"]
     evidence.forget_licenses()
@@ -262,7 +264,7 @@ def test_a_failure_after_the_export_is_published_is_partial(nx, root, monkeypatc
         raise OSError("disk went away")
 
     monkeypatch.setattr(exchange.files, "metadata", broken)
-    bad = export(nx, path="out/m.stl", format="stl")
+    bad = export(nx, part="m", path="out/m.stl", format="stl")
     assert bad.mutation_outcome == "partial", bad  # not rolled_back: the file stays
     assert (root / "out" / "m.stl").is_file()
     assert not (root / ".nx-mcp" / "staging").exists()
@@ -270,6 +272,6 @@ def test_a_failure_after_the_export_is_published_is_partial(nx, root, monkeypatc
 
 def test_an_ascii_stl_written_with_an_extra_suffix_is_published(nx, root):
     modified_part(nx)
-    ok = export(nx, path="t.stl", format="stl", options={"binary": False})
+    ok = export(nx, part="m", path="t.stl", format="stl", options={"binary": False})
     assert ok.ok, ok
     assert (root / "t.stl").is_file() and not list(root.glob("t.stl.*"))

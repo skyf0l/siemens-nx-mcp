@@ -68,7 +68,9 @@ AGENT_INSTRUCTIONS = (
     "into the conversation. Lengths are in part units and angles in degrees; they also take "
     "'10 mm'/'90 deg' or an NX expression name or formula ('thickness', 'thickness/2'), which "
     "keeps extrude, revolve, hole, pattern, blend and chamfer values driven by the expression. "
-    "Options match in any case or spacing ('Through All')."
+    "Options match in any case or spacing ('Through All'). When two or more parts are loaded, "
+    'add the target part\'s file name to calls without refs: {"part": "housing", ...}; '
+    "nx_list_parts lists them."
 )
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
 # nx_find_tools: default rows for one query and per query of ``queries``; a query with more

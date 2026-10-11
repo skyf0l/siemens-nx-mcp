@@ -31,7 +31,7 @@
    "expect": {"error.field": "/parallel"}},
   {"call": "nx_save_part", "setup": true, "args": {}},
   {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
-  {"call": "nx_create_component", "setup": true, "save": "R", "args": {"path": "$run/ed/ed_blk.prt", "name": "R", "pose": {"translation": [100, 0, 0], "rotation": [[1, 0, 0], [0, 0, -1], [0, 1, 0]]}}},
+  {"call": "nx_create_component", "setup": true, "save": "R", "args": {"part": "$part", "path": "$run/ed/ed_blk.prt", "name": "R", "pose": {"translation": [100, 0, 0], "rotation": [[1, 0, 0], [0, 0, -1], [0, 1, 0]]}}},
   {"call": "nx_find_geometry", "args": {"owner": "$R.data.component.id", "kind": "edge", "parallel": "y", "order": "lowest", "axis": "x"},
    "expect": {"page.total": 4, "data.items.0.center.1": {"close": -5, "tol": 1e-6}, "data.items.0.center.0": {"close": 100, "tol": 1e-6}}},
   {"call": "nx_find_geometry", "args": {"owner": "$R.data.component.id", "kind": "edge", "parallel": "z", "order": "highest", "axis": "x"},

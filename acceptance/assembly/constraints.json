@@ -85,7 +85,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "A",
-   "args": {
+   "args": {"part": "$part",
     "path": "$fixture",
     "name": "A"
    }
@@ -94,7 +94,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "B",
-   "args": {
+   "args": {"part": "$part",
     "path": "$fixture",
     "name": "B",
     "pose": {
@@ -110,7 +110,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "C",
-   "args": {
+   "args": {"part": "$part",
     "path": "$fixture",
     "name": "C",
     "pose": {
@@ -126,7 +126,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "D",
-   "args": {
+   "args": {"part": "$part",
     "path": "$fixture",
     "name": "D",
     "pose": {
@@ -142,7 +142,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "P1",
-   "args": {
+   "args": {"part": "$part",
     "path": "$run/con/asm_con_pin.prt",
     "name": "P1",
     "pose": {
@@ -158,7 +158,7 @@
    "call": "nx_create_component",
    "setup": true,
    "save": "P2",
-   "args": {
+   "args": {"part": "$part",
     "path": "$run/con/asm_con_pin.prt",
     "name": "P2",
     "pose": {
@@ -651,7 +651,7 @@
   },
   {
    "call": "nx_list_components",
-   "args": {
+   "args": {"part": "$part",
     "name_contains": "B",
     "include_poses": true
    },

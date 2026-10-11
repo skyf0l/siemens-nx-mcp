@@ -671,3 +671,15 @@ def test_expect_values_take_saved_values_and_keep_other_dollar_text():
     }
     with pytest.raises(KeyError):
         runner.resolve_expect({"data.part": "$nope.data"}, saved, {})
+
+
+def test_blocking_parts_are_left_agent_parts_and_parts_outside_smoke(tmp_path):
+    rows = [
+        {"path": "smoke/run-1/a.prt", "owned": True},  # an agent part left loaded
+        {"path": "smoke/run-1/b.prt", "owned": False},  # a smoke part of an earlier session
+        {"path": "projects/housing.prt", "owned": False},  # the engineer's
+        {"path": str(tmp_path / "smoke" / "x" / "c.prt"), "owned": False},
+    ]
+    assert runner.blocking_parts(rows, tmp_path) == ["smoke/run-1/a.prt", "projects/housing.prt"]
+    assert runner.blocking_parts([], tmp_path) == []
+    assert runner.blocking_parts(None, tmp_path) == []

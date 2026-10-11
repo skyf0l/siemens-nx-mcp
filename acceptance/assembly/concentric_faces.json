@@ -12,9 +12,9 @@
   {"call": "nx_create_extrude", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 20}}},
   {"call": "nx_save_part", "setup": true, "args": {}},
   {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
-  {"call": "nx_create_component", "setup": true, "save": "P1", "args": {"path": "$run/cf/cf_pin.prt", "name": "P1"}},
-  {"call": "nx_create_component", "setup": true, "save": "P2", "args": {"path": "$run/cf/cf_pin.prt", "name": "P2", "pose": {"translation": [30, 0, 0]}}},
-  {"call": "nx_create_component", "setup": true, "save": "P3", "args": {"path": "$run/cf/cf_pin.prt", "name": "P3", "pose": {"translation": [0, 40, 8]}}},
+  {"call": "nx_create_component", "setup": true, "save": "P1", "args": {"part": "$part", "path": "$run/cf/cf_pin.prt", "name": "P1"}},
+  {"call": "nx_create_component", "setup": true, "save": "P2", "args": {"part": "$part", "path": "$run/cf/cf_pin.prt", "name": "P2", "pose": {"translation": [30, 0, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "P3", "args": {"part": "$part", "path": "$run/cf/cf_pin.prt", "name": "P3", "pose": {"translation": [0, 40, 8]}}},
   {"call": "nx_create_assembly_constraint", "setup": true, "args": {"type": "fix", "component": "$P2.data.component.id"}},
   {"call": "nx_find_geometry", "setup": true, "save": "c1", "args": {"owner": "$P1.data.component.id", "kind": "face", "geometry_type": "cylinder", "limit": 1}},
   {"call": "nx_find_geometry", "setup": true, "save": "c2", "args": {"owner": "$P2.data.component.id", "kind": "face", "geometry_type": "cylinder", "limit": 1}},
@@ -37,7 +37,7 @@
               "warnings": {"contains": {"code": "NX_NOTE"}}}},
   {"call": "nx_find_geometry", "args": {"owner": "$P1.data.component.id", "kind": "edge", "geometry_type": "circle", "order": "highest", "axis": "z", "limit": 1},
    "expect": {"data.items.0.center": {"close": [30, 0, 20], "tol": 1e-6}}},
-  {"call": "nx_check_model", "args": {"scope": "assembly"},
+  {"call": "nx_check_model", "args": {"part": "$part", "scope": "assembly"},
    "expect": {"data.healthy": true, "data.errors": 0}}
  ]
 }

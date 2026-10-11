@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/import_formats.json",
-  "scenario_sha256": "bd951d2967580ebab90fe089f21e6b1ac84d0eadb0198a0f3bb9867fe0792473",
+  "scenario_sha256": "eeaaf3921c44e302ee0597b9052adcbd719a3dadac9412d8c9486e04997f2b6c",
   "domain": "parts_files",
   "covers": {
     "nx_import_model": [
@@ -16,7 +16,7 @@
   "sources": {
     "nx_import_model": "b7b2af9303c3f8cbf6da041541b0c5e604e2dad1d6dcb45147ab98ea203b35d9"
   },
-  "recorded": "2026-10-11T14:13:53Z",
+  "recorded": "2026-10-11T15:49:29Z",
   "passed": true,
   "checks": 78,
   "failed_checks": 0,

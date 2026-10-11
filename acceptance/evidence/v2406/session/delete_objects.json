@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/delete_objects.json",
-  "scenario_sha256": "d9d88e37ae396594f7fd5aa31f2331a08a904a557f3ad58535010acb939231d2",
+  "scenario_sha256": "96f34bff27ca225ddc6d714bf0ce3a8250bb32fc3c137e7f95874e31e8164fbb",
   "domain": "session",
   "covers": {
     "nx_delete_objects": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_delete_objects": "3a0babfa9dc304aa1c1c22cc5607f6e8b461f88acaab2fe32151376c47f86307"
   },
-  "recorded": "2026-10-11T14:11:12Z",
+  "recorded": "2026-10-11T15:46:19Z",
   "passed": true,
   "checks": 33,
   "failed_checks": 0,

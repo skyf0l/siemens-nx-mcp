@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/close_assembly_components.json",
-  "scenario_sha256": "e5eaabeca6619fdd9b732cc13ea9c6d383c8b33e3fbc8388b783b3a245f26769",
+  "scenario_sha256": "3d394cd20e680b71ea82efec14f89eb9fdc1572d0d68c9755c306a9529f1a9e7",
   "domain": "parts_files",
   "covers": {
     "nx_close_part": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_close_part": "a4113b83d3f27b261537905cac060239e59be777961531ad45165f074fbb1e1b"
   },
-  "recorded": "2026-10-11T15:15:39Z",
+  "recorded": "2026-10-11T15:47:17Z",
   "passed": true,
   "checks": 18,
   "failed_checks": 0,

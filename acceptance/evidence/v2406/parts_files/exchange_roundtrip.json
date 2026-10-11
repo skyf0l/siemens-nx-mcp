@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/exchange_roundtrip.json",
-  "scenario_sha256": "416547367fc97b8d56aefd31209489f32febd9c05c8d2cdd42509e340f6303b4",
+  "scenario_sha256": "dadc5d113dc0d2af895264520a1b2da6df17758bae7cf2406d9cd7c65a092f61",
   "domain": "parts_files",
   "covers": {
     "nx_export_model": [
@@ -22,7 +22,7 @@
     "nx_import_model": "b7b2af9303c3f8cbf6da041541b0c5e604e2dad1d6dcb45147ab98ea203b35d9",
     "nx_export_profile": "c80d32dd720134f67d7157ca34183789c34766615ea86eab9fb711a1d75547cd"
   },
-  "recorded": "2026-10-11T14:12:06Z",
+  "recorded": "2026-10-11T15:47:44Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

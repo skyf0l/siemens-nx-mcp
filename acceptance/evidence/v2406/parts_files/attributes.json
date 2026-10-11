@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/attributes.json",
-  "scenario_sha256": "6f0b4c9c6f9db873f998d94323ae6308ad36a6a195248a4ef9ae7c6466e7c1b9",
+  "scenario_sha256": "d218a549384ac0d821b8183661876b95b3b7027c68300ed6773a43f413b0480c",
   "domain": "parts_files",
   "covers": {
     "nx_get_attributes": [],
@@ -13,7 +13,7 @@
     "nx_get_attributes": "7434d32bd592747b5c50ef8827c506cba832eb1f145961731c4da78df0aad3ac",
     "nx_set_attributes": "7434d32bd592747b5c50ef8827c506cba832eb1f145961731c4da78df0aad3ac"
   },
-  "recorded": "2026-10-11T14:11:37Z",
+  "recorded": "2026-10-11T16:04:57Z",
   "passed": true,
   "checks": 181,
   "failed_checks": 0,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/assembly_occurrences.json",
-  "scenario_sha256": "6fe414e2d0c307eb1efa3201d6972a555d13b3940b95198b30ba982474b0733b",
+  "scenario_sha256": "258daba102fb4d6778d6f66fd37c0d1ce08f56119bec43a038e39cf8e30bf91b",
   "domain": "inspection",
   "covers": {
     "nx_list_objects": [],
@@ -21,7 +21,7 @@
     "nx_check_interference": "81ef7bec0a13ce652bab9f2edfed86cfcf96a550240273eeb90a678b912d3b41",
     "nx_resolve_reference": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971"
   },
-  "recorded": "2026-10-11T14:15:33Z",
+  "recorded": "2026-10-11T15:52:26Z",
   "passed": true,
   "checks": 55,
   "failed_checks": 0,

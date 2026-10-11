@@ -12,19 +12,19 @@
   "nx_cancel_operation": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T14:11:31Z",
+      "recorded": "2026-10-11T15:46:38Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
-      "source_sha256": "1936966e13459d937a84e4c6f6ac2a44ce0268c100c29abbf164366d7768e045",
+      "source_sha256": "de072a26708b1ff7c297e5cc6b523ab7966adb3ea020351a2e16eeb66b26e6ae",
       "variants": []
     }
   },
   "nx_create_checkpoint": {
     "v2406": {
-      "checks": 40,
-      "recorded": "2026-10-11T15:14:58Z",
+      "checks": 42,
+      "recorded": "2026-10-11T15:47:06Z",
       "scenario": "acceptance/session/undo_survives_load.json",
-      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "scenario_sha256": "e89cbafc9b1edd6e64160458ff3b38687b2f9b2d336d301bb6b405bc7ef3cf86",
       "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
@@ -32,9 +32,9 @@
   "nx_delete_objects": {
     "v2406": {
       "checks": 33,
-      "recorded": "2026-10-11T14:11:12Z",
+      "recorded": "2026-10-11T15:46:19Z",
       "scenario": "acceptance/session/delete_objects.json",
-      "scenario_sha256": "d9d88e37ae396594f7fd5aa31f2331a08a904a557f3ad58535010acb939231d2",
+      "scenario_sha256": "96f34bff27ca225ddc6d714bf0ce3a8250bb32fc3c137e7f95874e31e8164fbb",
       "source_sha256": "3a0babfa9dc304aa1c1c22cc5607f6e8b461f88acaab2fe32151376c47f86307",
       "variants": []
     }
@@ -65,10 +65,10 @@
   "nx_get_operation": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T14:11:31Z",
+      "recorded": "2026-10-11T15:46:38Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
-      "source_sha256": "1936966e13459d937a84e4c6f6ac2a44ce0268c100c29abbf164366d7768e045",
+      "source_sha256": "de072a26708b1ff7c297e5cc6b523ab7966adb3ea020351a2e16eeb66b26e6ae",
       "variants": []
     }
   },
@@ -85,19 +85,19 @@
   "nx_get_status": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T14:11:31Z",
+      "recorded": "2026-10-11T15:46:38Z",
       "scenario": "acceptance/session/status_operations.json",
       "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
-      "source_sha256": "1936966e13459d937a84e4c6f6ac2a44ce0268c100c29abbf164366d7768e045",
+      "source_sha256": "de072a26708b1ff7c297e5cc6b523ab7966adb3ea020351a2e16eeb66b26e6ae",
       "variants": []
     }
   },
   "nx_list_checkpoints": {
     "v2406": {
-      "checks": 40,
-      "recorded": "2026-10-11T15:14:58Z",
+      "checks": 42,
+      "recorded": "2026-10-11T15:47:06Z",
       "scenario": "acceptance/session/undo_survives_load.json",
-      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "scenario_sha256": "e89cbafc9b1edd6e64160458ff3b38687b2f9b2d336d301bb6b405bc7ef3cf86",
       "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
@@ -115,7 +115,7 @@
   "nx_redo_operation": {
     "v2406": {
       "checks": 71,
-      "recorded": "2026-10-11T15:15:20Z",
+      "recorded": "2026-10-11T15:46:32Z",
       "scenario": "acceptance/session/redo_replay.json",
       "scenario_sha256": "f4cf0171d042598a1bf29442a1be7aa9f4bb474475a1b552512d20946127e144",
       "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
@@ -124,10 +124,10 @@
   },
   "nx_restore_checkpoint": {
     "v2406": {
-      "checks": 40,
-      "recorded": "2026-10-11T15:14:58Z",
+      "checks": 42,
+      "recorded": "2026-10-11T15:47:06Z",
       "scenario": "acceptance/session/undo_survives_load.json",
-      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "scenario_sha256": "e89cbafc9b1edd6e64160458ff3b38687b2f9b2d336d301bb6b405bc7ef3cf86",
       "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }
@@ -154,10 +154,10 @@
   },
   "nx_undo_operation": {
     "v2406": {
-      "checks": 40,
-      "recorded": "2026-10-11T15:14:58Z",
+      "checks": 42,
+      "recorded": "2026-10-11T15:47:06Z",
       "scenario": "acceptance/session/undo_survives_load.json",
-      "scenario_sha256": "919feb83d6a94d008833ffb799d87c2aa8e0e979d300c72aa981773ab90f9250",
+      "scenario_sha256": "e89cbafc9b1edd6e64160458ff3b38687b2f9b2d336d301bb6b405bc7ef3cf86",
       "source_sha256": "a625185129407b2f9a6697e76703769cac3c4c8947fcda22db139704b22aa2f5",
       "variants": []
     }

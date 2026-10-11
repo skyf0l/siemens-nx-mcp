@@ -1484,7 +1484,7 @@
    "call": "nx_create_sketch",
    "setup": true,
    "save": "in_s",
-   "args": {
+   "args": {"part": "modeling_pattern_layouts_inch",
     "placement": {
      "principal": "xy",
      "origin": [
@@ -1538,7 +1538,7 @@
    "call": "nx_create_sketch",
    "setup": true,
    "save": "in_h_s",
-   "args": {
+   "args": {"part": "modeling_pattern_layouts_inch",
     "placement": {
      "principal": "xy",
      "origin": [
@@ -1597,7 +1597,7 @@
    "call": "nx_create_sketch",
    "setup": true,
    "save": "in_path",
-   "args": {
+   "args": {"part": "modeling_pattern_layouts_inch",
     "placement": {
      "principal": "xy",
      "origin": [

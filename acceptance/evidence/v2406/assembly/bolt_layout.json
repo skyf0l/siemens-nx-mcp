@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/bolt_layout.json",
-  "scenario_sha256": "2300ddc4277107712627d23cf619dbcf4656872bf063591dd8f431c0a54c70d6",
+  "scenario_sha256": "e77fe22bc6b262111bdf0fa8c8e545d14d514b87af37ad71a101ef1b10ecf274",
   "domain": "assembly",
   "covers": {
     "nx_create_assembly_constraint": [
@@ -20,7 +20,7 @@
     "nx_create_explosion": "5745ff1262ff6ad370cf5eaa0cbc76d6baaa16bbcc3f3d13bfb76a189e444d77",
     "nx_create_component_pattern": "87249c6bce0cf8346746b47feb74ef9fb9bbf03a2278f885fe53157c821be7e2"
   },
-  "recorded": "2026-10-11T15:19:27Z",
+  "recorded": "2026-10-11T15:51:22Z",
   "passed": true,
   "checks": 50,
   "failed_checks": 0,

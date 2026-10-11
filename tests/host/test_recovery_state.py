@@ -71,7 +71,7 @@ def test_cross_part_undo_and_checkpoint_refuse_unrelated_changes(rig, call, tmp_
     other = Part(rig.session, tmp_path / "other.prt")
     rig.e.own(other)  # the agent's own part: refused for crossing parts
     with pytest.raises(NXError) as error:
-        call("nx_undo_operation")
+        call("nx_undo_operation", part="other")
     assert error.value.code == "NX_CROSS_PART"
     with pytest.raises(NXError) as error:
         call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])

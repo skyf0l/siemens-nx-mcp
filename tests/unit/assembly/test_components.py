@@ -24,7 +24,7 @@ def pose_of(row):
 
 
 def test_create_component_places_the_saved_part_at_the_pose(nx):
-    ok = run(nx, "nx_create_component", path="parts/blk.prt", name="a",
+    ok = run(nx, "nx_create_component", part="asm", path="parts/blk.prt", name="a",
              pose={"translation": [10, 0, 5], "rotation": RZ90})  # fmt: skip
     assert ok.ok and ok.mutation_outcome == "committed", ok
     c = nx.assembly.components()[0]
@@ -36,14 +36,14 @@ def test_create_component_places_the_saved_part_at_the_pose(nx):
 
 def test_create_component_refuses_itself_missing_files_and_basename_clashes(nx):
     nx.asm.Save()
-    itself = run(nx, "nx_create_component", path="asm.prt")
+    itself = run(nx, "nx_create_component", part="asm", path="asm.prt")
     assert itself.error["field"] == "/path" and itself.mutation_outcome == "not_started"
-    missing = run(nx, "nx_create_component", path="parts/none.prt")
+    missing = run(nx, "nx_create_component", part="asm", path="parts/none.prt")
     assert missing.error["code"] == "NX_FILE_NOT_FOUND"
     other = nx.root / "other" / "blk.prt"
     other.parent.mkdir()
     other.write_bytes(b"x")
-    clash = run(nx, "nx_create_component", path="other/blk.prt")
+    clash = run(nx, "nx_create_component", part="asm", path="other/blk.prt")
     assert clash.error["code"] == "NX_NAME_CONFLICT" and clash.mutation_outcome == "not_started"
     assert not nx.assembly.components()
 
@@ -57,7 +57,7 @@ def test_create_component_read_back_failure_rolls_back(nx, monkeypatch):
         return c, status
 
     nx.asm.ComponentAssembly.AddComponent = shifted
-    bad = run(nx, "nx_create_component", path="parts/blk.prt")
+    bad = run(nx, "nx_create_component", part="asm", path="parts/blk.prt")
     assert bad.error["category"] == "verification_failed"
     assert bad.error["details"]["check"] == "pose.translation"
     assert bad.mutation_outcome == "rolled_back" and not nx.assembly.components()
@@ -70,19 +70,19 @@ def test_list_components_pages_filters_and_reports_load_state(nx):
     nested = nx.assembly.add(nx.pin, "N", ([0, 0, 1], RZ90), parent=sub)
     nested.Prototype = None
     b.IsSuppressed = True
-    ok = run(nx, "nx_list_components", include_poses=True, limit=2)
+    ok = run(nx, "nx_list_components", part="asm", include_poses=True, limit=2)
     assert ok.page["total"] == 4 and ok.page["next_offset"] == 2
     first, second = ok.data["items"]
     assert first["id"] == a.ref and first["depth"] == 0 and first["load_state"] == "fully_loaded"
     assert first["part_path"] == "parts/blk.prt" and first["reference_set"] == "Entire Part"
     assert second["suppressed"] and pose_of(second) == ([60, 0, 0], RZ90)
-    rest = run(nx, "nx_list_components", offset=2)
+    rest = run(nx, "nx_list_components", part="asm", offset=2)
     assert rest.data["items"][1]["path"] == "SUB/N" and rest.data["items"][1]["depth"] == 1
     assert rest.data["items"][1]["load_state"] == "unloaded"
     assert rest.data["items"][1]["part_path"] == "D:/missing/part.prt"
     assert "translation" not in rest.data["items"][0]
-    assert run(nx, "nx_list_components", suppressed=True).page["total"] == 1
-    assert run(nx, "nx_list_components", name_contains="su").page["total"] == 1
+    assert run(nx, "nx_list_components", part="asm", suppressed=True).page["total"] == 1
+    assert run(nx, "nx_list_components", part="asm", name_contains="su").page["total"] == 1
 
 
 def test_absolute_pose_compensates_the_assembly_origin_pivot(nx):
@@ -179,7 +179,7 @@ def test_edit_component_refuses_moves_and_bad_requests(nx):
 
 def test_component_tools_need_an_assembly(nx):
     nx.asm.ComponentAssembly.RootComponent = None
-    ok = run(nx, "nx_edit_component", components=["o:1"], suppressed=True)
+    ok = run(nx, "nx_edit_component", part="asm", components=["o:1"], suppressed=True)
     assert ok.error["code"] == "NX_WRONG_PART_CONTEXT" and ok.mutation_outcome == "not_started"
     assert math.isfinite(1.0)
 
@@ -210,16 +210,20 @@ def test_new_in_context_creates_the_part_at_the_pose_and_moves_bodies(nx):
 
 
 def test_new_in_context_argument_rules(nx):
-    both = run(nx, "nx_create_component", mode="new_in_context", path="parts/blk.prt",
+    both = run(nx, "nx_create_component", part="asm", mode="new_in_context", path="parts/blk.prt",
                new_path="parts/n.prt")  # fmt: skip
     assert both.error["field"] == "/path" and both.mutation_outcome == "not_started"
-    none = run(nx, "nx_create_component", mode="new_in_context")
+    none = run(nx, "nx_create_component", part="asm", mode="new_in_context")
     assert none.error["field"] == "/new_path"
-    plain = run(nx, "nx_create_component", path="parts/blk.prt", units="mm")
+    plain = run(nx, "nx_create_component", part="asm", path="parts/blk.prt", units="mm")
     assert plain.error["field"] == "/units"
-    taken = run(nx, "nx_create_component", mode="new_in_context", new_path="other/blk.prt")
+    taken = run(
+        nx, "nx_create_component", part="asm", mode="new_in_context", new_path="other/blk.prt"
+    )
     assert taken.error["code"] == "NX_NAME_CONFLICT" and taken.error["field"] == "/new_path"
-    exists = run(nx, "nx_create_component", mode="new_in_context", new_path="parts/blk.prt")
+    exists = run(
+        nx, "nx_create_component", part="asm", mode="new_in_context", new_path="parts/blk.prt"
+    )
     assert exists.error["code"] == "NX_ALREADY_EXISTS"
     assert not nx.assembly.components()
 
@@ -245,7 +249,7 @@ def test_make_unique_points_one_component_at_a_new_part(nx):
 
 
 def test_create_component_reports_the_part_ref_name_and_reference_set(nx):
-    ok = run(nx, "nx_create_component", path="parts/blk.prt", name="plate_a")
+    ok = run(nx, "nx_create_component", part="asm", path="parts/blk.prt", name="plate_a")
     assert ok.ok, ok
     row = ok.data["component"]
     assert row["name"] == "PLATE_A" and row["reference_set"] == "Entire Part"
@@ -253,11 +257,13 @@ def test_create_component_reports_the_part_ref_name_and_reference_set(nx):
 
 
 def test_create_component_takes_a_reference_set_in_any_case(nx):
-    ok = run(nx, "nx_create_component", path="parts/blk.prt", reference_set="solid")
+    ok = run(nx, "nx_create_component", part="asm", path="parts/blk.prt", reference_set="solid")
     assert ok.ok, ok
     assert ok.data["component"]["reference_set"] == "SOLID"
     assert nx.assembly.components()[0].ReferenceSet == "SOLID"
-    missing = run(nx, "nx_create_component", path="parts/pin.prt", reference_set="LIGHT")
+    missing = run(
+        nx, "nx_create_component", part="asm", path="parts/pin.prt", reference_set="LIGHT"
+    )
     assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/reference_set"
     assert missing.error["details"]["available"] == ["Entire Part", "Empty"]
     assert "nx_activate_part" in missing.error["hint"]
@@ -265,7 +271,7 @@ def test_create_component_takes_a_reference_set_in_any_case(nx):
 
 
 def test_create_component_pose_takes_unit_strings_and_axis_angle(nx):
-    ok = run(nx, "nx_create_component", path="parts/blk.prt",
+    ok = run(nx, "nx_create_component", part="asm", path="parts/blk.prt",
              pose={"translation": ["1 in", 0, "5 mm"], "rotation": {"axis": "z", "angle": 90}})  # fmt: skip
     assert ok.ok, ok
     t, r = pose_of(ok.data["component"])
@@ -335,7 +341,7 @@ def test_list_components_orders_siblings_by_name(nx):
     nested = nx.assembly.add(nx.pin, "B", ([0, 0, 0], RZ90), parent=z)
     nested.ref = nx.ref_of(nested, "component")
     m = place(nx, nx.pin, "M")
-    ok = run(nx, "nx_list_components")
+    ok = run(nx, "nx_list_components", part="asm")
     assert [r["id"] for r in ok.data["items"]] == [a.ref, m.ref, z.ref, nested.ref]
     assert ok.data["items"][3]["path"] == "Z/B"
 

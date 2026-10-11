@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/create_no_display.json",
-  "scenario_sha256": "4b4ed932551992e7e0e136e3db65533f36b0c802c74fff10e6133585ae0e4220",
+  "scenario_sha256": "164117b4bcd37ee441bf72431d2febeb3ff8d08b65fa3058108c533d8b125624",
   "domain": "parts_files",
   "covers": {
     "nx_create_part": [],
@@ -13,9 +13,9 @@
     "nx_create_part": "a4113b83d3f27b261537905cac060239e59be777961531ad45165f074fbb1e1b",
     "nx_activate_part": "a4113b83d3f27b261537905cac060239e59be777961531ad45165f074fbb1e1b"
   },
-  "recorded": "2026-10-11T15:15:47Z",
+  "recorded": "2026-10-11T15:50:55Z",
   "passed": true,
-  "checks": 33,
+  "checks": 34,
   "failed_checks": 0,
   "steps": [
     {
@@ -44,7 +44,7 @@
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 8
     },
     {
       "index": 5,

@@ -528,7 +528,7 @@ def run(spec, args, ctx: Context) -> dict:
     tx: Tx | None = None
     record: dict | None = None
     target = None
-    multi = False
+    census = None
     mark = None
     part = None
     before: dict = {}
@@ -542,7 +542,6 @@ def run(spec, args, ctx: Context) -> dict:
     try:
         expires = targets.check_call_keys(part_text, keys.get("expires_at", ctx.expires_at))
         targets.check_expiry(spec, expires)  # the ghost guard: no receipt, not_started
-        multi = targets.multi_agent(services)
         try:
             checked = _gate_schema(
                 spec, args, where=getattr(services, "runs", "nx"), services=services
@@ -551,17 +550,13 @@ def run(spec, args, ctx: Context) -> dict:
             _application_first(spec, services, schema_error)
             raise
         try:
-            target = targets.resolve(
-                spec, checked, services, part=part_text, parent=ctx.parent, multi=multi
-            )
+            target = targets.resolve(spec, checked, services, part=part_text, parent=ctx.parent)
         except NXError:  # 3t: a repeat of a finished call still replays (its own part)
             if spec.effect != "read" and ctx.operation_id:
                 replay = receipts.replay(spec.name, raw_args, operation_id, ANY_PART)
                 if replay is not None:
                     return replay
             raise
-        if target is not None and target.source == "part":
-            targets.note_part(services, target.key)
         file_key = target.file_key if target is not None else None
         if spec.effect != "read" and ctx.operation_id:
             # Gate 7's replay goes first: repeating a committed call must not fail on
@@ -573,7 +568,7 @@ def run(spec, args, ctx: Context) -> dict:
         _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
         targets.refuse_other_part(  # 4s (P0: refuse; P2 switches)
-            spec, target, services, explicit=part_text is not None, multi=multi
+            spec, target, services, explicit=part_text is not None
         )
         _gate_requires(spec, services)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
@@ -590,6 +585,7 @@ def run(spec, args, ctx: Context) -> dict:
                 return replay
         if spec.effect != "read":  # loads and dropped undo marks (core/marks.py)
             watched = undo_marks.watch(services)
+            census = targets.census(services)  # the agent's loaded parts (gate 14 note)
         if spec.effect == "model":  # 8
             before = services.snapshot(part) if part is not None else {}
             floor = _ref_floor(services)
@@ -638,6 +634,9 @@ def run(spec, args, ctx: Context) -> dict:
             changes = {"created": [], "modified": list(tx.changed), "deleted": []}
             changes["references"] = "preserved"
         undo_marks.settle(services, watched, spec, operation_id, tx)
+        note = targets.load_note(services, census)
+        if note is not None:  # the call brought the agent's loaded parts to two
+            tx.warn("NX_NOTE", note)
         _work_part_units(services, part, tx)
         envelope.update(ok=True)  # 14
         envelope["mutation_outcome"] = tx.outcome or (
@@ -705,7 +704,7 @@ def run(spec, args, ctx: Context) -> dict:
 
 def _report_part(envelope: dict, target, services, part_text) -> None:
     """Gate 14: ``part`` {id, file, from} when the call named its part or two or
-    more top-level parts are loaded."""
+    more parts are loaded."""
     if target is not None and target.reported(part_text is not None):
         with contextlib.suppress(Exception):
             envelope["part"] = target.row(services)
