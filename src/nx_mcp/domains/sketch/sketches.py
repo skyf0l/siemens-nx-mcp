@@ -471,11 +471,25 @@ def nx_finish_sketch(
                 sk.Activate(tx.nx.Sketch.ViewReorient.FalseValue)
         _deactivate(tx, sk)
         parking.unpark(tx.services, tx.part)
+        _reopen_on_undo(tx, sk)
     return {
         **common.sketch_rows(tx, sk),
         "was_active": active is not None,
         "curve_count": len(ksketch.geometry(sk)),
     }
+
+
+def _reopen_on_undo(tx, sk) -> None:
+    """Mark the call's undo-history entry (``parked_sketch``): NX's undo of this finish
+    leaves the sketch deactivated, as it was while parked, and the undo parks it again
+    (``domains/session/history.py``). In a batch the batch's entry carries it; the
+    first finish of the call wins (the state before the call)."""
+    root = tx
+    while getattr(root, "parent", None) is not None:
+        root = root.parent
+    note = dict(root.history_note or {})
+    note.setdefault("parked_sketch", tx.ref(sk, "sketch")["id"])
+    root.history_note = note
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,8 @@ NX 2406 findings encoded here:
   face data, mass properties, interference) answer at the assembled (unexploded) pose.
 - ``part.ModelingViews.WorkView`` raises while a drawing sheet is shown: no model view
   then, so nothing exploded is on screen in the model.
+- A call on a part that is not displayed (gate 4s: a quiet work part, or a read bound
+  to it) measures that part, never the exploded assembly on screen: no note.
 """
 
 from __future__ import annotations
@@ -27,11 +29,12 @@ NOTE = (
 
 
 def shown(tx):
-    """The explosion shown in the model work view when the work part is the displayed
-    assembly; None otherwise (no explosion, a drawing sheet shown, or any NX refusal)."""
+    """The explosion shown in the model work view when the call's part (``tx.part``: the
+    work part, or the part a read is bound to) is the displayed assembly; None otherwise
+    (no explosion, a drawing sheet shown, a part in the background, or any NX refusal)."""
     with contextlib.suppress(Exception):
         part = tx.session.Parts.Display
-        if part is None or int(part.Tag) != int(tx.session.Parts.Work.Tag):
+        if part is None or int(part.Tag) != int(tx.part.Tag):
             return None
         if drawing.current(part) is not None or drawing.work_view_is_drawing(part):
             return None

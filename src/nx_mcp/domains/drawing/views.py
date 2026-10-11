@@ -203,7 +203,7 @@ def _overlap(a, b):
 
 def view_data(tx, view, sheet):
     bounds = drawing.borders(tx, view)
-    toward = [float(v) for v in drawing.axes(view)[2]]  # view z axis, part coords
+    toward = [float(v) for v in drawing.axes(view, tx)[2]]  # view z axis, part coords
     parent = parent_of(tx, view, sheet)
     others = [v for v in sheet.GetDraftingViews() if int(v.Tag) != int(view.Tag)]
     return {

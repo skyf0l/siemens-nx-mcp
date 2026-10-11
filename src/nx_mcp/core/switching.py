@@ -203,22 +203,29 @@ def repair(services) -> str | None:
     return LEAK_NOTE
 
 
-def enter(spec, args, target, services, *, explicit: bool) -> Bound:
-    """Gate 4s. ``explicit``: the call named its part (``part``). Raises
+def enter(spec, args, target, services, *, explicit: bool, nested: bool = False) -> Bound:
+    """Gate 4s. ``explicit``: the call named its part (``part``). ``nested``: a batch or
+    preview child of a call that switched NX to its own part: the child switches whenever
+    its target is not the work part, or not displayed for a display-bound child. Raises
     ``NX_WRONG_PART_CONTEXT`` when NX refuses the switch (nothing ran)."""
     bound = Bound(services, target, spec.name)
-    note = repair(services)
+    note = None if nested else repair(services)
     if note:
         bound.notes.append(("NX_NOTE", note))
     if target is None or target.source == "arg":
         return bound  # no target, or the tool's own part argument: the handler's part
     display, work = shown(services)
-    if same(services, target.part, work):
-        return bound  # the work part: as before, no NX call
-    mode = spec.switch_for(args)
+    mode = spec.switch_for(args, getattr(target, "kinds", ()))
     if mode == "work" and configured_mode() == "display":
         mode = "display"
-    if same(services, target.part, display) and (mode == "display" or not explicit):
+    if nested:
+        if same(services, target.part, work) and (
+            mode != "display" or same(services, target.part, display)
+        ):
+            return bound  # the parent's part, or shown already: no NX call
+    elif same(services, target.part, work):
+        return bound  # the work part: as before, no NX call
+    elif same(services, target.part, display) and (mode == "display" or not explicit):
         return bound  # displayed already (a work component under it stays): as before
     if not _loaded(services, target.part):
         return bound  # an object of a part NX does not list: the handler reports it

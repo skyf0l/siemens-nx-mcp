@@ -144,3 +144,75 @@ def test_a_failed_create_leaves_nothing_parked():
     bad = run(nx, "nx_create_sketch", placement="xy")
     assert bad.mutation_outcome == "rolled_back"
     assert not parking.open_in(services(nx), nx.part) and nx.session.ActiveSketch is None
+
+
+def test_undoing_the_finish_of_a_parked_sketch_parks_it_again():
+    nx = sketch_nx()
+    sk = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
+    assert run(nx, "nx_create_sketch_curves", sketch=sk, curves=RECT).ok
+    done = run(nx, "nx_finish_sketch", sketch=sk)
+    assert done.ok and not parking.open_in(services(nx), nx.part), done
+    assert services(nx).history[-1]["parked_sketch"] == sk
+    undo = run(nx, "nx_undo_operation")
+    assert undo.ok and undo.data["tool"] == "nx_finish_sketch", undo
+    sketch = nx.part.Sketches[-1]
+    assert parking.parked(services(nx), nx.part) is sketch and nx.session.ActiveSketch is None
+    notes = [w["message"] for w in undo.warnings if w["code"] == "NX_NOTE"]
+    assert any(sk in n and "parked" in n for n in notes), undo.warnings
+    read = run(nx, "nx_get_sketch", sketch=sk, include=["geometry"])
+    assert read.data["active"] is True and read.data["parked"] is True, read
+    assert len(read.data["curves"]) == 4
+    assert run(nx, "nx_set_test_model").error["code"] == "NX_SKETCH_ACTIVE"
+    again = run(nx, "nx_finish_sketch")  # the part's open sketch: finished again
+    assert again.ok and again.data["was_active"] is True and again.data["curve_count"] == 4
+    assert not parking.open_in(services(nx), nx.part) and run(nx, "nx_set_test_model").ok
+
+
+def test_undoing_a_sketch_with_its_finish_parks_nothing():
+    nx = sketch_nx()
+    sk = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
+    assert run(nx, "nx_finish_sketch", sketch=sk).ok
+    undo = run(nx, "nx_undo_operation", steps=2)
+    assert undo.ok and list(nx.part.Sketches) == [], undo
+    assert not parking.open_in(services(nx), nx.part)
+    assert not [w for w in undo.warnings or [] if "Sketch" in w["message"]], undo.warnings
+    assert run(nx, "nx_set_test_model").ok
+
+
+def test_restoring_a_checkpoint_before_a_finish_parks_the_sketch_again():
+    nx = sketch_nx()
+    sk = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
+    checkpoint = run(nx, "nx_create_checkpoint", label="open sketch")
+    assert checkpoint.ok, checkpoint
+    assert run(nx, "nx_finish_sketch").ok and run(nx, "nx_set_test_model").ok
+    restored = run(nx, "nx_restore_checkpoint", checkpoint_id="open sketch")
+    assert restored.ok, restored
+    assert parking.parked(services(nx), nx.part) is nx.part.Sketches[-1]
+    assert run(nx, "nx_get_sketch", sketch=sk, include=["geometry"]).data["parked"] is True
+
+
+def test_a_finish_undone_after_another_sketch_was_opened_parks_the_first():
+    nx = sketch_nx()
+    first = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
+    assert run(nx, "nx_finish_sketch").ok
+    second = run(nx, "nx_create_sketch", placement="xz")
+    assert second.ok and second.data["parked"] is True
+    assert run(nx, "nx_finish_sketch").ok
+    undo = run(nx, "nx_undo_operation", steps=3)  # both finishes and the second sketch
+    assert undo.ok, undo
+    (sketch,) = list(nx.part.Sketches)
+    assert parking.parked(services(nx), nx.part) is sketch
+    assert run(nx, "nx_get_sketch", sketch=first, include=["geometry"]).data["parked"] is True
+
+
+def test_undoing_a_batch_that_finished_the_parked_sketch_parks_it_again():
+    nx = sketch_nx()
+    sk = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
+    steps = [
+        {"tool": "nx_create_sketch_curves", "arguments": {"sketch": sk, "curves": RECT}},
+        {"tool": "nx_finish_sketch", "arguments": {"sketch": sk}},
+    ]
+    batch = run(nx, "nx_run_batch", operations=steps)
+    assert batch.ok and not parking.open_in(services(nx), nx.part), batch
+    assert run(nx, "nx_undo_operation").ok
+    assert parking.parked(services(nx), nx.part) is nx.part.Sketches[-1]

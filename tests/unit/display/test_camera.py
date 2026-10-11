@@ -1,11 +1,14 @@
 """nx_get_camera / nx_set_camera on the shared fake kernel."""
 
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 import pytest
 
 from nx_mcp.kit import display
 from tests.kit import run
+from tests.kit.kernel import services
+from tests.kit.objects import Part
 from tests.unit.display.fakes import display_nx, show_sheet
 
 
@@ -31,6 +34,23 @@ def test_get_camera_reads_the_model_view():
     assert flat(data["rotation"]) == pytest.approx(flat(display.ORIENTATION_ROTATIONS["trimetric"]))
     assert data["origin"] == [-1.0, -2.0, -3.0] and data["scale"] == 1.5
     assert data["interactive"] is True and "sheet" not in data
+
+
+def test_get_camera_is_a_plain_read_of_the_display_with_parts_in_the_background():
+    """Two of the agent's parts loaded: the camera read needs no part (never
+    NX_AMBIGUOUS_PART), switches nothing and reads the displayed part's view, also when
+    the call names a part in the background."""
+    nx = display_nx()
+    parts = nx.session.Parts
+    shown = parts.Display
+    Part(nx.session, Path(services(nx).root) / "plate.prt")
+    parts.Work = parts.Display = shown
+    nx.session.strict_work = True
+    for args in ({}, {"part": "plate"}):
+        ok = run(nx, "nx_get_camera", **args)
+        assert ok.ok, (args, ok)
+        assert ok.data["view"] == "trimetric" and ok.data["part"]["name"] == shown.Name
+    assert nx.session.calls == [] and parts.Display is shown and parts.Work is shown
 
 
 def test_get_camera_reports_the_shown_sheet():

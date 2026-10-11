@@ -45,7 +45,7 @@ from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.target import ANY, part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Text
-from nx_mcp.domains.session.batch import Step, StepResult, _preflight
+from nx_mcp.domains.session.batch import Step, StepResult, _preflight, steps_part
 from nx_mcp.kit import capture as kcapture
 from nx_mcp.kit import display, files, measure
 
@@ -306,6 +306,8 @@ def _capture(tx) -> dict:
 
 
 @tool(
+    target=steps_part,
+    display_bound=("/capture",),  # the image shows the target part: it is displayed
     effect="session",
     label="Preview changes",
     summary=_summary,
@@ -339,7 +341,7 @@ def nx_preview_changes(
     Keep it with nx_finish_preview(accept) while nothing else changed; step refs are stale."""
     services = tx.services
     with tx.checks():  # a refused step changes nothing
-        _preflight(operations, mode="preview")
+        _preflight(operations, mode="preview", services=services)
         if capture and not services.state().get("interactive"):
             fail("NX_UNSUPPORTED_OPTION", "capture needs the interactive NX session",
                  field="/capture", hint="Preview without capture")  # fmt: skip

@@ -14,6 +14,18 @@ from tests.kit.kernel import services
 from tests.unit.parts_files.support import side
 
 
+def second_part(nx):
+    """A second loaded part the agent owns (the work and display parts stay)."""
+    from pathlib import Path
+
+    from tests.kit.objects import Part
+
+    parts = nx.session.Parts
+    work, display = parts.Work, parts.Display
+    Part(nx.session, Path(services(nx).root) / "second.prt")
+    parts.Work, parts.Display = work, display
+
+
 def panel_status(running=None, operation_id=None):
     return {
         "mode": "auto",
@@ -92,7 +104,7 @@ def test_snapshot_envelope_reports_the_running_step_and_its_progress(tmp_path):
     assert data["bridge"]["nx_build"] == "v2406.1700"
     assert data["control"]["activity"] == "running" and data["control"]["running"] == "nx_run_batch"
     assert data["operation"]["tool"] == "nx_run_batch"
-    assert data["operation"]["operation_id"] == "op_running_1"
+    assert data["operation"]["operation_id"] == "op_running_1"  # solo: shown as before
     assert data["operation"]["progress"]["completed"] == 3
     assert data["operation"]["progress"]["total"] == 10
     assert data["parts"]["work"]["part"] is None and data["parts"]["loaded"] == 1
@@ -237,3 +249,29 @@ def test_operation_ids_are_trimmed(tmp_path, store):
     receipts.finish(record, {"ok": True, "mutation_outcome": "committed", "data": {}})
     ok = side(tmp_path, st.nx_get_operation, operation=" op_trimmed_1\n")
     assert ok.data["state"] == "committed" and ok.data["operation_id"] == "op_trimmed_1"
+
+
+def test_the_running_operation_id_shows_only_to_its_own_caller(tmp_path):
+    """With two or more parts loaded a reader never sees another agent's running id;
+    solo it shows as before."""
+    nx = fake_nx()
+    snapshot = {**panel_status("nx_run_batch", "op_running_7"), "parts": {"loaded": 2}}
+    solo = {**snapshot, "parts": {"loaded": 1}}
+    shown = st.envelope_from_snapshot(solo, {}, root=tmp_path, build="v2406")
+    assert shown["data"]["operation"]["operation_id"] == "op_running_7"
+    second_part(nx)
+
+    def operation(params):
+        envelope = st.envelope_from_snapshot(snapshot, params, root=tmp_path, build="v2406")
+        return envelope["data"]["operation"]
+
+    other = operation({"include": ["operation"], "operation_id": "op_other_caller"})
+    assert other["operation_id"] is None and other["tool"] == "nx_run_batch"
+    assert other["elapsed_seconds"] == 2.5
+    assert operation({"operation_id": "op_running_7"})["operation_id"] == "op_running_7"
+    services(nx).control_status = lambda: snapshot  # the panel's live status (NX side)
+    read = run(nx, "nx_get_status", include=["operation"])
+    assert read.data["operation"]["operation_id"] is None, read
+    assert read.data["operation"]["tool"] == "nx_run_batch"
+    own = run(nx, "nx_get_status", include=["operation"], operation_id="op_running_7")
+    assert own.data["operation"]["operation_id"] == "op_running_7", own

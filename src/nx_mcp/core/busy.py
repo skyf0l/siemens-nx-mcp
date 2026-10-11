@@ -80,6 +80,8 @@ def _record(services, spec, target, tx, loaded_before, now) -> None:
     if target is not None:
         stamp(target.key, worked=True)
         stream = target.key
+    for key in getattr(tx, "extra_parts", None) or ():  # batch children in other parts
+        stamp(key, worked=True)
     worked_in = getattr(tx, "worked_in", None)
     if worked_in is not None:
         key = services.part_key(worked_in)

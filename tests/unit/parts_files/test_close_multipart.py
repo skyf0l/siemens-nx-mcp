@@ -301,3 +301,20 @@ def test_the_replacement_display_prefers_a_part_without_sheet_metal(nx, monkeypa
                                         workspace=services(nx).workspace), only)  # fmt: skip
     assert shown.Name == "bent" and nx.session.Parts.Display is shown
     assert ("ApplicationSwitchImmediate", "UG_APP_SBSM") in nx.session.calls
+
+
+# ---------------------------------------------------------------------------
+# envelope.part of a close
+
+
+def test_a_close_reports_the_closed_part_with_the_ref_it_had(nx):
+    create(nx, "mc/a.prt")
+    b = create(nx, "mc/b.prt", display=False)
+    closed = call(nx, tools.nx_close_part, part="b.prt", save=False, force=True)
+    assert closed.ok, closed
+    # its ref before the close, never a fresh ref of a part that is gone
+    assert closed.part == {"id": b.data["part"]["id"], "file": "b.prt", "from": "arg"}
+    by_ref = create(nx, "mc/c.prt", display=False)
+    gone = call(nx, tools.nx_close_part, part=by_ref.data["part"]["id"], save=False, force=True)
+    assert gone.ok and gone.part["id"] == by_ref.data["part"]["id"], gone
+    assert gone.part["file"] == "c.prt"

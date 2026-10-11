@@ -2,10 +2,12 @@
 and the note that positions are assembled while an explosion is shown."""
 
 import json
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 from tests.kit import run
-from tests.kit.objects import Object
+from tests.kit.kernel import services
+from tests.kit.objects import Object, Part
 from tests.unit.inspection.fakes import assembly, inspection_nx
 
 
@@ -127,3 +129,23 @@ def test_measurements_note_assembled_positions_while_an_explosion_is_shown():
     shown["tag"] = 0
     plain = run(nx, "nx_measure_distance", **refs)
     assert plain.ok and not plain.warnings, plain
+
+
+def test_a_read_of_a_background_part_gets_no_explosion_note():
+    """Gate 4s: a measurement bound to a part that is not displayed measures that part,
+    not the exploded assembly on screen (NX's work and display part): no note."""
+    nx = inspection_nx()
+    _assembly(nx)
+    _explode(nx, "EX1")
+    parts = nx.session.Parts
+    shown = parts.Display
+    plate = Part(nx.session, Path(services(nx).root) / "plate.prt")
+    parts.Work = parts.Display = shown
+    body = nx.block(10, 10, 10)
+    nx.part.Bodies.remove(body)
+    plate.Bodies.append(body)
+    body.OwningPart = plate
+    ok = run(nx, "nx_measure_bounds", bodies=[nx.ref_of(body, "body")])
+    assert ok.ok, ok
+    assert not [w for w in ok.warnings if "EX1" in w["message"]], ok.warnings
+    assert parts.Work is shown and parts.Display is shown and nx.session.calls == []

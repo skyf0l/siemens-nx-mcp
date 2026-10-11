@@ -12,12 +12,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_undo_operation": "1e841015286e141213bf6eb7f64abaaa96f5554de030ed905fbb2ba31ec2a15a",
-    "nx_create_checkpoint": "1e841015286e141213bf6eb7f64abaaa96f5554de030ed905fbb2ba31ec2a15a",
-    "nx_list_checkpoints": "1e841015286e141213bf6eb7f64abaaa96f5554de030ed905fbb2ba31ec2a15a",
-    "nx_restore_checkpoint": "1e841015286e141213bf6eb7f64abaaa96f5554de030ed905fbb2ba31ec2a15a"
+    "nx_undo_operation": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863",
+    "nx_create_checkpoint": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863",
+    "nx_list_checkpoints": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863",
+    "nx_restore_checkpoint": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863"
   },
-  "recorded": "2026-10-11T17:34:43Z",
+  "recorded": "2026-10-11T19:35:15Z",
   "passed": true,
   "checks": 42,
   "failed_checks": 0,

@@ -139,7 +139,7 @@ class Switch:
             raise NXError(
                 "NX_WRONG_PART_CONTEXT",
                 f"NX could not make {file_name(part)} current: {error}",
-                hint="Activate the part with nx_activate_part, then repeat the call",
+                hint="Close any open NX dialog, then repeat the call (nx_list_parts shows the parts)",
                 details={"restore": failure} if failure else {},
             ) from error
         finally:
@@ -218,7 +218,10 @@ class Switch:
                 set_work_component(self.tx, component)
                 if same(parts.Work, self.work):
                     return
-        parts.SetWork(self.work)
+        if same(parts.Display, self.work) or kparts.can_be_work(self.tx, self.work):
+            parts.SetWork(self.work)
+        else:  # a quiet work part (a batch child's parent): quiet again
+            quiet_work(self.tx, self.work)
 
     def _home(self, problems: list) -> None:
         """The fallback: the previous display part as display and work part, then its

@@ -3,7 +3,7 @@
 import json
 
 from nx_mcp.core import catalogue
-from tests.kit import run
+from tests.kit import fake_nx, run
 from tests.kit.kernel import services
 from tests.unit.sketch.fakes import sketch_nx
 
@@ -149,3 +149,21 @@ def test_refusals_say_what_runs_in_a_batch_and_what_to_do_instead():
     preview = run(nx, "nx_preview_changes", operations=[{"tool": "nx_save_part", "arguments": {}}])
     assert preview.error["code"] == "NX_UNSUPPORTED_OPTION"
     assert "nx_create_extrude" in preview.error["details"]["previewable"]
+
+
+def test_a_child_refused_in_its_checks_rolls_back_the_earlier_children():
+    """Risk 10 (judge S1 5b): a later child that fails inside ``tx.checks()`` (marked
+    ``unchanged``) must not make the batch ``not_started``: the earlier children ran, so
+    the whole batch rolls back (a rename changes no object count)."""
+    from tests.unit.session.test_naming import feature
+
+    nx = fake_nx()
+    f = feature(nx, "EXTRUDE(1)")
+    rename = {"tool": "nx_set_name", "arguments": {"object": f.ref, "name": "Boss"}}
+    stale = {"tool": "nx_set_name", "arguments": {"object": "f:999", "name": "Other"}}
+    bad = run(nx, "nx_run_batch", operations=[rename, stale])
+    assert not bad.ok and bad.error["details"]["child_index"] == 1, bad
+    assert bad.mutation_outcome == "rolled_back", bad
+    assert f.Name == "EXTRUDE(1)"  # the first child's rename was undone
+    first = run(nx, "nx_run_batch", operations=[stale, rename])  # nothing ran: not_started
+    assert first.mutation_outcome == "not_started" and f.Name == "EXTRUDE(1)", first

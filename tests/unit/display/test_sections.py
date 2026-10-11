@@ -1,10 +1,12 @@
 """Dynamic section views: create, edit, rollback, nx_list_objects rows and the deleter."""
 
+from types import SimpleNamespace as NS
+
 import pytest
 
 from nx_mcp.core import catalogue
 from tests.kit import NXException, run
-from tests.unit.display.fakes import display_nx, show_sheet
+from tests.unit.display.fakes import View, display_nx, show_sheet
 
 PLANE = {"origin": [10, 5, 0], "normal": [2, 0, 0]}
 
@@ -214,3 +216,28 @@ def test_disabled_section_reports_enabled_false():
     assert off.ok and off.data["enabled"] is False and off.data["sectioning"] is False
     on = run(nx, "nx_edit_section_view", section=ref, enabled=True)
     assert on.data["enabled"] is True
+
+
+class BackgroundViews(list):
+    """A part that is not displayed: NX 2406 refuses its WorkView, its views iterate."""
+
+    @property
+    def WorkView(self):
+        raise RuntimeError("This operation can only be performed on a displayed part")
+
+
+def test_listed_in_a_background_part_through_its_section_view():
+    """A read bound to a part in the background (gate 4s): no WorkView; the view holding
+    the active section reads the plane, and the sectioning toggle is unknown (None)."""
+    nx = display_nx()
+    run(nx, "nx_create_section_view", plane=PLANE)
+    view = nx.work_view
+    view.DisplaySectioningToggle = False  # NX reads it off while the part is not displayed
+    nx.part.ModelingViews = BackgroundViews([View("Top"), view])
+    nx.session.Parts.Display = NS(Tag=-1)  # another part is displayed
+    rows = catalogue.hooks("lister")["section_view"](nx.tx, None, None)
+    assert len(rows) == 1 and rows[0][1] == "section_view"
+    assert rows[0][2]["details"] == {
+        "origin": [10, 5, 0], "normal": [1, 0, 0], "cap": True, "active": True,
+        "sectioning": None,
+    }  # fmt: skip

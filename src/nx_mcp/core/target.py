@@ -7,8 +7,9 @@ issue a ``p:N`` ref for a part it reports). The call keys ``part`` and
 
 Order (:func:`resolve`): the tool's own part argument (``target="arg:<param>"``), a
 ``resolver`` hook (it may return :data:`ANY`: the call's own object is gone, any part will
-do because the handler only reports it), then the references' part (an occurrence pins its prototype's
-owner, except under ``target="assembly"`` and for components, which pin the assembly)
+do because the handler only reports it; a resolver marked ``yields_to_part``, the steps of
+a batch or preview, gives way to a ``part`` key), then the references' part (an
+occurrence pins its prototype's owner, except under ``target="assembly"`` and for components, which pin the assembly)
 and the ``part`` key (a loaded part's file name with or without ``.prt``, its workspace
 path or ``p:N``; a ``part`` that contradicts the references is ``NX_WRONG_PART_CONTEXT``,
 reads included), then the parent call's part (a redo's own calls), then the work part.
@@ -73,9 +74,14 @@ class Target:
     source: str
     loaded: int  # parts loaded when it was resolved (the engineer's too)
     field: str | None = None  # the argument that named it ("/part", "/edges/0")
+    kinds: frozenset = frozenset()  # the kinds the call's refs name (``display_bound``)
+    # ``{id, file}`` of a part the call closed (nx_close_part): NX no longer lists it.
+    closed: dict | None = None
 
     def row(self, services) -> dict:
         """``envelope.part``: ``{id, file, from}``."""
+        if self.closed is not None:
+            return {**self.closed, "from": self.source}
         return {"id": part_id(services, self.part), "file": self.file, "from": self.source}
 
     def reported(self, explicit: bool) -> bool:
@@ -333,7 +339,25 @@ def _same_file(part, wanted: Path) -> bool:
 # References
 
 
-def _kind_of(services, obj, kinds) -> str | None:
+def _registered(services, ref) -> str | None:
+    """The kind ``ref`` was registered with (NX classes such as Explosion or
+    DynamicSection are not inferred from the object), else None."""
+    if not isinstance(ref, str):
+        return None
+    with contextlib.suppress(Exception):
+        if ref.startswith("obj_"):
+            kind = services.handle_kind(ref)
+            return "section_view" if kind == "section" else kind or None
+        known = services.references.entry(ref)
+        if known is not None and known.kind:
+            return str(known.kind)
+    return None
+
+
+def _kind_of(services, obj, kinds, ref=None) -> str | None:
+    registered = _registered(services, ref)
+    if registered:
+        return registered
     kind_of = getattr(services.references, "kind_of", None)
     with contextlib.suppress(Exception):
         kind = kind_of(obj) if kind_of is not None else None
@@ -371,7 +395,7 @@ def pinned_parts(services, checked, policy: str) -> dict:
             continue
         try:
             obj = services.references.resolve(value, kinds)
-            kind = _kind_of(services, obj, kinds)
+            kind = _kind_of(services, obj, kinds, value)
             owner = owner_of(services, obj, kind, policy)
             key = services.part_key(owner)
         except Exception:
@@ -425,6 +449,8 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
         chosen = part_from_text(services, part) if part is not None else work or loaded[0]
         return _target(services, chosen, "any", count, "/part" if part is not None else None)
     explicit = part_from_text(services, part) if part is not None else None
+    if explicit is not None and getattr(spec.target_resolver, "yields_to_part", False):
+        return _target(services, explicit, "part", count, "/part")  # batch: part wins
     if policy == "resolver" and spec.target_resolver is not None:
         found = None
         with contextlib.suppress(Exception):
@@ -445,6 +471,17 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
                 )  # fmt: skip
             return _target(services, found, "resolver", count)
     pinned = pinned_parts(services, checked, policy)
+    found = _by_refs(spec, services, loaded, pinned, explicit, checked, parent)
+    if found is not None:
+        found.kinds = frozenset().union(*(v[2] for v in pinned.values())) - {None}
+    return found
+
+
+def _by_refs(spec, services, loaded, pinned, explicit, checked, parent) -> Target | None:
+    """:func:`resolve` after the tool's own argument and resolver: refs, ``part``,
+    the parent call's part, the work part."""
+    policy = spec.target
+    count = len(loaded)
     if explicit is not None:
         key = services.part_key(explicit)
         if pinned and not any(key == k or key in v[3] for k, v in pinned.items()):

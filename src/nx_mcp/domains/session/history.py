@@ -51,6 +51,7 @@ import uuid
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core import marks as undo_marks
+from nx_mcp.core import parking
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.marks import MARK_CAP_TEXT
@@ -58,6 +59,7 @@ from nx_mcp.core.target import ANY, file_name, part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Range, Text
 from nx_mcp.domains.session import compensate
+from nx_mcp.kit import sketch as ksketch
 
 CHECKPOINT_ID = r"^cp_[0-9a-f]{32}$"
 CheckpointKey = Annotated[
@@ -397,9 +399,57 @@ def _nx_undo(tx: Tx, mark, start: int, undone: list, by: str) -> tuple[list[Redo
     _mark_reverted(services, undone, by)
     del history[start:]
     references = tx.after_undo()
+    _repark(tx, undone)
     _expire(services, checkpoints, len(history), alive)
     _push_redo(services, undone)
     return redo, references
+
+
+def _repark(tx: Tx, undone: list) -> None:
+    """Undone finishes of open sketches (``parked_sketch``, ``nx_finish_sketch``):
+    NX's undo leaves the sketch deactivated, as it was while parked, so it is parked
+    again (``core/parking.py``): its part's open sketch again, ``parked`` in
+    ``nx_get_sketch``, and ``nx_finish_sketch`` finishes it. The oldest undone finish
+    of a part wins (the part's state before the undone operations); a sketch the undo
+    removed stays gone. When it cannot be parked (another sketch is open), a warning
+    says it stays finished."""
+    services = tx.services
+    seen: set = set()
+    for item in undone:  # oldest first
+        ref = item.get("parked_sketch")
+        if not isinstance(ref, str) or item.get("part_id") in seen:
+            continue
+        seen.add(item.get("part_id"))
+        try:
+            sketch = services.references.resolve(ref, ("sketch",))
+        except Exception:
+            continue  # the undo removed it (its nx_create_sketch was undone too)
+        part = getattr(sketch, "OwningPart", None) or tx.part
+        active = tx.session.ActiveSketch
+        other = parking.parked(services, part)
+        if (active is not None and int(active.Tag) != int(sketch.Tag)) or (
+            other is not None and int(other.Tag) != int(sketch.Tag)
+        ):
+            tx.warn(
+                "NX_UPDATE_WARNING",
+                f"Sketch {ref} stays finished after the undo: another sketch is open; "
+                "edit it again only after finishing that one",
+            )
+            continue
+        try:
+            if active is not None:  # NX left it active: deactivate it as a park does
+                ksketch.park(tx, sketch)
+            else:
+                parking.park(services, part, sketch)
+        except Exception as error:
+            tx.warn("NX_UPDATE_WARNING", f"Sketch {ref} stays finished after the undo: {error}")
+            continue
+        if parking.is_parked(services, part, sketch):
+            tx.warn(
+                "NX_NOTE",
+                f"Sketch {ref} is open again (parked), as before its nx_finish_sketch: "
+                f"finish it before modeling in {file_name(part)}",
+            )
 
 
 def _delete_created(
@@ -966,6 +1016,7 @@ def _undo_redone(tx: Tx, start: int) -> None:
     _mark_reverted(services, done, tx.operation_id or "")
     del history[start:]
     tx.after_undo()
+    _repark(tx, done)
 
 
 def _redo_part(services, args) -> Any:

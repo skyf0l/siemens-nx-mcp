@@ -8,6 +8,11 @@ NX 2406 lesson: the session load options may search folders without the
 workspace, so components load *as saved* during the clone and the reopen (the
 option is restored). The copy is reopened and its component references are
 verified against the new files; ``nx-project-manifest.json`` records them.
+
+A clone puts back the display and work part it found: an assembly that is not displayed
+(gate 4s: the quiet work part) is never displayed by it. ``activate`` leaves the copy
+as the work part, which a call on a switched part cannot (the kernel gives the engineer's
+display and work part back after it): refused there before anything is copied.
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, PathTo, Text
 from nx_mcp.domains.parts_files import _saving
-from nx_mcp.kit import files, parts, readback, result
+from nx_mcp.kit import files, parts, readback, result, switching
 
 MANIFEST = "nx-assembly-manifest.json"
 FORMAT_DOC = "Default: clone when prefix is given, else zip"
@@ -149,6 +154,16 @@ def nx_export_assembly(
              "<prefix><name>", field="/prefix", hint="e.g. prefix 'v2_'")  # fmt: skip
     with tx.checks():
         part = tx.part
+        if activate and _switched(tx):
+            fail(
+                "NX_WRONG_PART_CONTEXT",
+                f"activate leaves the copy as the work part, but {parts.file_of(part)} is not "
+                "the part NX shows: NX MCP gives the engineer's display and work part back "
+                "after this call",
+                field="/activate",
+                hint="Clone without activate, then open the copy with nx_open_part (or "
+                "activate this assembly with nx_activate_part first)",
+            )
         sources, occurrences = _sources(tx, part)
     if format == "zip":
         return _package(tx, part, sources, occurrences, target)
@@ -212,6 +227,7 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
             fail("NX_VERSION_UNSUPPORTED", f"This NX lacks the clone API: {missing}")
     hashes = {p: files.sha256(p) for p in sources}
     originals = {int(p.Tag) for p in tx.session.Parts}
+    shown = (tx.session.Parts.Display, tx.session.Parts.Work)  # put back after the clone
     options = tx.session.Parts.LoadOptions
     load_method = getattr(options, "ComponentLoadMethod", None)
     as_saved = getattr(getattr(tx.nx, "LoadOptions", None), "LoadMethod", None)
@@ -291,13 +307,13 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
             out["part"] = tx.ref(copy, "part")
         else:
             _close_new(tx, originals, destination)
-            parts.activate(tx, part)
+            _back(tx, shown)
         return out
     except BaseException:
         problems = []
         try:
             _close_new(tx, originals, destination)
-            parts.activate(tx, part)
+            _back(tx, shown)
         except Exception as error:
             problems.append(str(error))
         if created:
@@ -312,6 +328,26 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
         if load_method is not None and as_saved is not None:
             with contextlib.suppress(Exception):
                 options.ComponentLoadMethod = load_method
+
+
+def _switched(tx) -> bool:
+    """Whether gate 4s made this call's part current (it restores NX's state after)."""
+    return bool(getattr(getattr(tx, "bound", None), "switched", False))
+
+
+def _back(tx, shown: tuple) -> None:
+    """Put back the display and work part the clone found: the work part may be a
+    quiet work part outside the display part (gate 4s), never displayed here."""
+    display, work = shown
+    session_parts = tx.session.Parts
+    if display is not None and not parts.same_part(session_parts.Display, display):
+        parts.activate(tx, display, work=False)
+    if work is None or parts.same_part(session_parts.Work, work):
+        return
+    if parts.can_be_work(tx, work):
+        session_parts.SetWork(work)
+    else:
+        switching.quiet_work(tx, work)
 
 
 def _close_new(tx, originals: set, destination: Path) -> None:

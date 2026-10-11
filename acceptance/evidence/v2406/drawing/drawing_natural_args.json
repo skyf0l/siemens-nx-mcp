@@ -20,12 +20,12 @@
   "sources": {
     "nx_create_drawing_sheet": "b2d9b086f65b4c4152d8a310f77d7867794241ee61707e9bd6810b0e158a579e",
     "nx_activate_drawing_sheet": "b2d9b086f65b4c4152d8a310f77d7867794241ee61707e9bd6810b0e158a579e",
-    "nx_create_drawing_view": "3fcc9c1c977be861e2ec273885dc06c2679efb0023db61a2d81650d32790581f",
-    "nx_edit_drawing_view": "3fcc9c1c977be861e2ec273885dc06c2679efb0023db61a2d81650d32790581f",
-    "nx_get_drawing_view": "3fcc9c1c977be861e2ec273885dc06c2679efb0023db61a2d81650d32790581f",
+    "nx_create_drawing_view": "7188339071cb5de6d3f373d7962259cea674405afcb334d5e65afebb745d0f20",
+    "nx_edit_drawing_view": "7188339071cb5de6d3f373d7962259cea674405afcb334d5e65afebb745d0f20",
+    "nx_get_drawing_view": "7188339071cb5de6d3f373d7962259cea674405afcb334d5e65afebb745d0f20",
     "nx_export_drawing": "457c07bd8c84511e5676c9ebc84fd489367cb934685cf4fee64c4ab0962f8f61"
   },
-  "recorded": "2026-10-11T11:00:31Z",
+  "recorded": "2026-10-11T19:46:37Z",
   "passed": true,
   "checks": 76,
   "failed_checks": 0,

@@ -8,6 +8,10 @@ each group goes to its deleter. An object NX already removed with an earlier gro
 feature that depended on a deleted sketch) is skipped. The handler reads back that every
 requested object is gone and reports the other objects NX deleted with them
 (``dependents``). One undo mark covers the call; any failure rolls everything back.
+
+In a part that is not displayed (gate 4s), features, sketches, curves, components and
+tracelines are deleted in the quiet work part; a call that names an object of a
+``DISPLAYED_KINDS`` kind displays its part for the call (``display_bound`` ``kind:``).
 """
 
 from __future__ import annotations
@@ -24,6 +28,19 @@ from nx_mcp.kit.result import Row
 
 MAX_DEPENDENTS = 100
 QUIET = frozenset({"expression"})  # parameters NX deletes with their feature
+# Kinds deleted in the displayed part (gate 4s switches the display for them, else the
+# target is only the quiet work part): explosions (``explosion_context`` and the views
+# that show them), section views (the model work view's sectioning) and drafting objects
+# (drawing tools are display-bound; their views and sheets update on the displayed part).
+DISPLAYED_KINDS = (
+    "explosion",
+    "section_view",
+    "drawing_sheet",
+    "drawing_view",
+    "annotation",
+    "dimension",
+    "drawing_table",
+)
 KIND_HINTS = {
     "body": "Delete the feature that made the body (nx_list_objects kind feature)",
     "expression": "An expression goes with its feature; change it with nx_set_expression",
@@ -86,6 +103,7 @@ def _refuse_kind(tx, i: int, ref: str, obj, kind: str, deletable: list[str]) -> 
 
 @tool(
     target="assembly",
+    display_bound=tuple(f"kind:{kind}" for kind in DISPLAYED_KINDS),
     effect="model",
     label="Delete objects",
     summary="Delete {objects}",

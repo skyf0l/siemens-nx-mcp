@@ -397,3 +397,9 @@ def test_display_bound_arguments_pick_display_mode():
     assert specs["nx_create_wave_link"].switch_for({}) == "display"
     assert specs["nx_update_assembly"].switch_for({}) == "display"
     assert specs["nx_get_sketch"].switch_for({}) == "work"  # sketch-activating read
+    delete = specs["nx_delete_objects"]  # explosions, sections and drafting are displayed
+    assert delete.switch_for({}, {"feature"}) == "work"
+    assert delete.switch_for({}, {"feature", "explosion"}) == "display"
+    for kind in ("section_view", "drawing_sheet", "dimension"):
+        assert delete.switch_for({}, {kind}) == "display", kind
+    assert specs["nx_get_camera"].switch_for({"part": "plate"}) == "none"  # a plain read

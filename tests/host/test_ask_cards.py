@@ -232,3 +232,36 @@ def test_status_reports_the_queue(host):  # noqa: F811
     host.tick()
     state = host.status()["queue"]
     assert state["waiting"] == 2 and 11 < state["oldest_seconds"] < 30
+
+
+def test_a_refused_queued_call_leaves_one_activity_line(host, rig):  # noqa: F811
+    _second(rig)
+    queue = _queue(host, "ask")
+    ghost = queue.submit("nx_set_camera", {"part": "b", "expires_at": time.time() - 1})
+    host.tick()
+    assert ghost.error.code == "NX_CALL_EXPIRED"
+    lines = host.activity.recent(10)
+    skipped = [line for line in lines if "Skipped" in line]
+    assert len(skipped) == 1 and "[b.prt]" in skipped[0], lines
+    assert "the agent stopped waiting" in skipped[0]
+    logged = host.activity.log_path.read_text(encoding="utf-8")
+    assert "SKIPPED  Skipped [b.prt]" in logged and "[nx_set_camera]" in logged, logged
+    host.tick()
+    assert len([line for line in host.activity.recent(10) if "Skipped" in line]) == 1
+
+
+def test_a_call_whose_socket_closed_at_its_start_leaves_one_activity_line(host, rig):  # noqa: F811
+    ours, theirs = socket.socketpair()
+    try:
+        queue = _queue(host, "auto")
+        rig.e.dev_tools["nx_test_edit"] = lambda: {"ran": True}
+        pending = queue.submit("nx_test_edit")
+        host._gone = lambda _pending: False  # the socket closes after the host's check
+        pending.peer = ours
+        theirs.close()
+        _ticks(host)
+        assert pending.error.code == "NX_CALL_EXPIRED" and pending.result is None
+        skipped = [line for line in host.activity.recent(10) if "Skipped" in line]
+        assert len(skipped) == 1 and "stopped waiting" in skipped[0], skipped
+    finally:
+        ours.close()

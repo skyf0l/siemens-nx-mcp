@@ -44,7 +44,8 @@ listing, discovery, panel, evidence gating and bridge dispatch from that entry.
 
 The kernel runs every call, including each batch and preview child, through
 fixed gates in this order: schema validation → workspace path validation →
-evidence/version gate → `requires` preconditions → engineer control hold →
+evidence/version gate → target part and target switch (1.10) → `requires`
+preconditions → engineer control hold →
 part ownership → receipt → undo mark (for `model`) → unit conversion →
 handler → read-back verification → reference invalidation → annotation refresh →
 result projection → error mapping (architecture.md 3.1). Handlers never repeat
@@ -257,7 +258,7 @@ All codes start with `NX_`.
 | 3 | `not_found` | `NX_NOT_FOUND`, `NX_FILE_NOT_FOUND`, `NX_RESULT_EXPIRED`, `NX_UNKNOWN_TOOL` | after_fix | Re-list; for expired results re-read (never repeat a mutation) | `NX_NOT_FOUND`, `NX_OBJECT_NOT_FOUND`, `NX_FILE_NOT_FOUND`, `NX_DIRECTORY_NOT_FOUND`, `NX_RESULT_EXPIRED`, `NX_TOOL_NOT_FOUND`, `NX_NO_TABLE_HEADER` |
 | 4 | `stale_reference` | `NX_STALE_REFERENCE`, `NX_STALE_CHECKPOINT`, `NX_STALE_PREVIEW`, `NX_STALE_SOURCE` | after_reacquire | Reacquire references (`nx_list_objects`, `nx_find_geometry`, `nx_resolve_reference`) and retry | `NX_OBJECT_STALE`, `NX_STALE_REFERENCE`, `NX_SAVED_REFERENCE_STALE`, `NX_STALE_TRACE_ANCHOR`, `NX_STALE_ANNOTATION_SOURCE`, `NX_DISPLAY_SNAPSHOT_STALE`, `NX_CHECKPOINT_STALE`, `NX_PREVIEW_STALE`, `NX_SOURCE_CHANGED`, `NX_ARTIFACT_CHANGED`, `NX_EXPLOSION_ASSEMBLY_CHANGED` |
 | 5 | `wrong_kind` | `NX_WRONG_KIND`, `NX_WRONG_GEOMETRY` | after_fix | Pass a reference of the kind or geometry the field names | `NX_OBJECT_TYPE_MISMATCH`, `NX_NOT_SOLID`, `NX_NOT_SHEET`, `NX_NON_PLANAR`, `NX_NOT_SHEET_METAL`, `NX_NOT_DIRECTORY`, `NX_INVALID_GEOMETRY` (input side) |
-| 6 | `wrong_owner` | `NX_WRONG_OWNER`, `NX_WRONG_PART_CONTEXT` | after_fix | Use geometry of the right body/part, or activate the owning part | `NX_OBJECT_OWNER_MISMATCH`, `NX_DISPLAY_PART_MISMATCH`, `NX_PART_CONTEXT`, `NX_EXPLOSION_VIEW_MISMATCH` |
+| 6 | `wrong_owner` | `NX_WRONG_OWNER`, `NX_WRONG_PART_CONTEXT` | after_fix | Use geometry of the right body/part; with `part`, name the part the refs belong to, or drop it (1.10) | `NX_OBJECT_OWNER_MISMATCH`, `NX_DISPLAY_PART_MISMATCH`, `NX_PART_CONTEXT`, `NX_EXPLOSION_VIEW_MISMATCH` |
 | 7 | `ambiguous` | `NX_AMBIGUOUS_REFERENCE`, `NX_TARGET_REQUIRED`, `NX_AMBIGUOUS_PART` (two or more of the agent's parts loaded, components included, and a call without refs names no `part`; the hint lists the files with a neutral example, `details.loaded_parts`, `details.count`) | after_fix | Pass the explicit reference; `details.candidates` lists choices; for a part add `part` (a file name) to the arguments | `NX_AMBIGUOUS_REFERENCE`, `NX_AMBIGUOUS_GEOMETRY`, `NX_AMBIGUOUS_TARGET`, `NX_AMBIGUOUS_THREAD`, `NX_OBJECT_OWNER_AMBIGUOUS`, `NX_NO_TARGET_BODY` |
 | 8 | `precondition` | `NX_SKETCH_ACTIVE`, `NX_SKETCH_NOT_ACTIVE`, `NX_NO_WORK_PART`, `NX_WRONG_APPLICATION`, `NX_NOT_LOADED`, `NX_UNSAVED_PART`, `NX_PART_IN_USE` | after_fix | Run the tool named in `hint` (finish sketch, activate part, save, load components), then retry | `NX_SKETCH_ACTIVE`, `NX_SKETCH_NOT_ACTIVE`, `NX_NO_ACTIVE_SKETCH`, `NX_NO_PART_OPEN`, `NX_NO_WORK_PART`, `NX_NO_DISPLAY_PART`, `NX_DRAWING_CONTEXT`, `NX_DRAWING_ACTIVE`, `NX_NO_DRAWING`, `NX_NO_COMPONENTS`, `NX_UNLOADED_COMPONENT`, `NX_ASSEMBLY_NOT_LOADED`, `NX_UNSAVED_PART`, `NX_PART_IN_USE`, `NX_APPLICATION_UNAVAILABLE` |
 | 9 | `already_exists` | `NX_ALREADY_EXISTS`, `NX_NAME_CONFLICT` | after_fix | Choose another name or path, or use the existing object in `details` | `NX_FILE_EXISTS`, `NX_ALREADY_EXISTS`, `NX_NAME_EXISTS`, `NX_NAME_CONFLICT`, `NX_IMPORT_NAME_CONFLICT`, `NX_MATERIAL_EXISTS`, `NX_SECTION_EXISTS`, `NX_PARTS_LIST_EXISTS` |
@@ -302,35 +303,53 @@ Present in every result, success or error.
 `operation_id` is optional; the kernel generates one when absent and returns it. A caller's own id is 8-128 characters from `A-Z a-z 0-9 _ -` (listed schemas carry `minLength` and `pattern`); a bad one is refused before NX with what is wrong ("too short: 7 of at least 8 characters").
 Supply your own when you might need to retry after a transport failure.
 
-**Call keys inside `arguments`.** Besides `operation_id`, NX-side calls accept `part` (the
-target part: a loaded part's file name with or without `.prt`, its workspace path or `p:N`)
-and `expires_at` (epoch seconds or ISO 8601: a changing call that reaches NX later is
-refused with `NX_CALL_EXPIRED` and never runs; the sidecar gives every changing call one,
-send time + 135 s, unless the agent passed its own). They are not schema properties, also
-not in the strict schemas of the listed core tools, which take them all the same (the
-server does not validate input against the listed schemas; Claude Code sends such a key);
-`nx_invoke`/`nx_invoke_read` arguments are the other route. A tool's
-own `part` parameter (`nx_activate_part`, `nx_close_part`, `nx_save_part`) stays its
-argument. The kernel makes the target current for the call and restores the engineer's
-state afterwards (phase P2, architecture.md 3.1 gate 4s): a model call on a part that is
-not the work part runs there while the display stays (a quiet work part), drawing,
-capture, camera, explosion and Sheet Metal calls show it for the call (Sheet Metal
-entered there, the previous application restored), reads run on it without any switch, and
-a ref of another part runs in that part. Nothing switches while the target is the work
-part. A restore NX refused is an `NX_UPDATE_WARNING` on the result; drawing views of a
-part that is not displayed are refreshed later (`NX_NOTE`).
-Loading or displaying a part never drops NX's undo marks (phase P1): parallel agents create
-their parts with `nx_create_part(display: false)`, and a load only ends the undo history
-before it (architecture.md 1.3).
-Undo, redo and checkpoints work per part (phase P3): each acts on its target part and
-reports that part's depths. NX's undo is linear, so when another part's work came after the
-operations to undo, the undo deletes what they created instead (create-only features with
-nothing depending on them, verified: `data.compensated`), or it is refused with
-`NX_CROSS_PART` naming the operations and parts in the way. The engineer's edits end every
-part's undo history: no agent undo or restore reverts them (before P3 the history was
-cleared; now it stays listed behind the barrier, `details.reason: engineer_change`). A
-preview is accepted in its own part, aged only by calls in that part; a refused accept keeps
-it (before P3 a stale refusal consumed it).
+### 1.10 Several parts and parallel agents
+
+The full rules are in [architecture.md 3.4](architecture.md#34-several-parts-and-parallel-agents).
+What an agent needs:
+
+- A call acts on the part its refs name. It never needs `part`; a `part` it gives must
+  name the same part (reads too), else `NX_WRONG_PART_CONTEXT`.
+- A call without refs acts on the work part while at most one of the agent's parts is
+  loaded (the `owned` rows of `nx_list_parts`, components included; never a part the
+  engineer opened). With two or more it needs `part`, else `NX_AMBIGUOUS_PART` (the hint
+  lists the files). The load that brings the second part says so (`NX_NOTE` "2 parts are
+  loaded: calls without refs now take part"). There is no mode and no time window.
+- Never activate a part to target it: `nx_activate_part` only shows a part. Parallel
+  agents create their parts with `nx_create_part(display: false)`.
+- The kernel makes the part current for the call (a model call on a background part
+  runs there while the display stays; drawing, capture, camera, explosion and Sheet
+  Metal calls show it for the call) and restores the engineer's display, work part and
+  application afterwards. A restore NX refused is an `NX_UPDATE_WARNING`; drawing views
+  of a part that is not displayed refresh later (`NX_NOTE`).
+- `envelope.part` (1.6) names the part when `part` was given or two or more parts are
+  loaded. In `nx_run_batch` and `nx_preview_changes` each step acts on its own part (its
+  refs, its own `part`, else the batch's part), a step result in another part carries
+  `part`, and one undo mark rolls back every part.
+- Undo, redo and checkpoints act per part; the engineer's edits end every part's undo
+  history.
+
+**Call keys inside `arguments`**, like `operation_id`. They are not schema properties,
+also not in the strict listed schemas of the core tools, which take them all the same
+(the server does not validate input against the listed schemas). A tool's own `part`
+parameter (`nx_activate_part`, `nx_save_part`, `nx_close_part`) stays its argument.
+
+| Key | Value |
+|---|---|
+| `part` | A loaded part's file name with or without `.prt`, its workspace path, or `p:N` |
+| `expires_at` | Epoch seconds or ISO 8601. A changing call that reaches NX later never runs (`NX_CALL_EXPIRED`); reads still answer. The sidecar sets send time + 135 s unless the agent passed its own |
+
+**Error codes.**
+
+| Code | When |
+|---|---|
+| `NX_AMBIGUOUS_PART` | A call without refs and without `part` while two or more agent parts are loaded (`details.loaded_parts`, `details.count`); refs in several parts that do not decide; two loaded parts share the file name in `part` |
+| `NX_WRONG_PART_CONTEXT` | `part` contradicts the refs or the call's own object; NX refused to make the part current (not started) |
+| `NX_NOT_FOUND`, `NX_PATH_OUTSIDE_WORKSPACE`, `NX_INVALID_ARGUMENT` | `part` names no loaded part, a path outside the workspace, or is malformed (field `/part`) |
+| `NX_CALL_EXPIRED` | The call's `expires_at` passed, or its client closed the connection, before NX ran it: not started, no receipt |
+| `NX_PART_BUSY` | `nx_close_part` of a part another call stream changed within 300 s; `force: true` closes |
+| `NX_CROSS_PART` | An undo or restore that other parts' later work blocks and that deletion cannot replace (`details.in_the_way`) |
+| `NX_IDEMPOTENCY_CONFLICT` | The same `operation_id` and arguments in another part |
 
 ---
 
@@ -366,7 +385,7 @@ the catalogue test, which fails above budget.
 | Item | Today | Target |
 |---|---|---|
 | Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | At most 1,040 characters per listed tool on average, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included: 167 listed tools (163 + 4 gateways) average 960.3 (160,373 characters, about 42K tokens). A mean rather than a total, so adding tools does not move the cap; the per-tool caps (1,200, 2,500 for unions, median 700; measured median 693) still bound each definition. The full profile is opt-in for clients that load schemas on demand; the default `agent` profile stays at 15K |
-| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,000 characters (14,891 measured), about 4K tokens |
+| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,000 characters (14,991 measured), about 4K tokens |
 | One discovery call (10 rows) | full descriptions, 1-3K tokens | name + summary + effect rows, about 300 tokens |
 | Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call; each entry at most 200 characters over the tool's definition (1,057 characters, about 280 tokens, per tool measured) |
 | Typical modeling task (find 4 tools, fetch 4 schemas, 10 calls) | about 8-10K tokens of tool metadata | about 5K tokens |
@@ -382,7 +401,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_get_status` | Bridge, NX build, work/display part, top-level part count and the agent's loaded-part count (`parts.agent_loaded`: from two on, calls without refs take `part`, 3.1 of architecture.md), application, panel mode (`auto` or `ask`, with the panel's `mode_label` Auto or Ask me first; only the engineer changes it), the agent calls queued for NX (`control.queue`: `waiting`, `oldest_seconds`), workspace root and path rules | `include?: bridge/parts/control/workspace` | read |
+| `nx_get_status` | Bridge, NX build, work/display part, top-level part count and the agent's loaded-part count (`parts.agent_loaded`: from two on, calls without refs take `part`, 1.10), application, panel mode (`auto` or `ask`, with the panel's `mode_label` Auto or Ask me first; only the engineer changes it), the agent calls queued for NX (`control.queue`: `waiting`, `oldest_seconds`), workspace root and path rules | `include?: bridge/parts/control/workspace` | read |
 | `nx_find_tools` | Search the catalogue (2.1) | `query \| queries, domain?, effect?, Page` | read |
 | `nx_get_tool_schemas` | Schemas, examples, evidence, sub-schemas such as sheet-metal operations, per-variant `required_by` fields | `names[1..10], include_output` | read |
 | `nx_invoke` | Gateway call | `tool, arguments, intent?, detail` | per tool |

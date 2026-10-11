@@ -1,0 +1,115 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mb/mb_front.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "fblk", "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
+  {"call": "nx_create_part", "setup": true, "save": "back", "args": {"path": "$run/mb/mb_back.prt", "units": "mm", "display": false}},
+  {"call": "nx_create_primitive", "setup": true, "save": "bblk", "args": {"shape": "block", "length": 30, "width": 30, "height": 5, "part": "mb_back"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "bblk2", "args": {"shape": "block", "length": 10, "width": 10, "height": 10, "origin": [100, 0, 0], "part": "mb_back"}},
+
+  {"call": "nx_run_batch", "save": "b1",
+   "args": {"part": "mb_front", "operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_OK"}},
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_OK"}}
+   ]},
+   "intent": "Acceptance: a batch child whose ref pins the background part runs there",
+   "expect": {"mutation_outcome": "committed", "part.file": "mb_front.prt", "data.count": 2,
+              "data.results.0.data.name": "FRONT_OK", "data.results.1.data.name": "BACK_OK",
+              "data.results.1.part.file": "mb_back.prt"}},
+  {"call": "nx_list_parts", "args": {},
+   "intent": "Acceptance: the display and work part never moved",
+   "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
+  {"call": "nx_list_objects", "args": {"part": "mb_back", "kind": "feature", "name_contains": "BACK_OK"},
+   "expect": {"page.total": 1, "part.file": "mb_back.prt"}},
+
+  {"call": "nx_run_batch",
+   "args": {"part": "mb_front", "operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_UNDONE"}},
+    {"tool": "nx_delete_objects", "arguments": {"objects": ["$bblk2.data.feature.id"]}},
+    {"tool": "nx_set_name", "arguments": {"object": "f:999999", "name": "NEVER"}}
+   ]},
+   "intent": "Acceptance: a failing child rolls back both parts under the one mark (rename in the front part, delete in the back part)",
+   "expect": {"ok": false, "mutation_outcome": "rolled_back", "error.details.child_index": 2}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$bblk2.data.bodies.0.id"]},
+   "intent": "Acceptance: the deleted back block came back (10 x 10 x 10)",
+   "expect": {"data.volume": {"close": 1000, "tol": 1e-06}, "part.file": "mb_back.prt"}},
+  {"call": "nx_list_objects", "args": {"part": "mb_front", "kind": "feature", "name_contains": "FRONT_OK"},
+   "intent": "Acceptance: the front rename was undone",
+   "expect": {"page.total": 1}},
+
+  {"call": "nx_run_batch",
+   "args": {"part": "mb_front", "operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_UNDONE"}},
+    {"tool": "nx_set_name", "arguments": {"object": "f:999999", "name": "NEVER"}}
+   ]},
+   "intent": "Acceptance: a child refused in its checks after an applied child still rolls back the batch (kernel fix, risk 10)",
+   "expect": {"ok": false, "mutation_outcome": "rolled_back", "error.code": "NX_NOT_FOUND", "error.details.child_index": 1}},
+  {"call": "nx_list_objects", "args": {"part": "mb_front", "kind": "feature", "name_contains": "FRONT_OK"},
+   "expect": {"page.total": 1}},
+
+  {"call": "nx_run_batch", "save": "b3",
+   "args": {"part": "mb_front", "operations": [
+    {"tool": "nx_create_sketch", "arguments": {"part": "mb_back", "placement": {"principal": "xy"}, "name": "MB_BACK_SK"}},
+    {"tool": "nx_create_sketch_curves", "arguments": {"sketch": "$$0.data.sketch", "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [12, 8]}]}},
+    {"tool": "nx_finish_sketch", "arguments": {"sketch": "$$0.data.sketch"}}
+   ]},
+   "intent": "Acceptance: a child's part key sends a ref-less step to the background part; its placeholders follow",
+   "expect": {"mutation_outcome": "committed", "data.results.0.part.file": "mb_back.prt",
+              "data.results.1.part.file": "mb_back.prt", "data.results.2.data.curve_count": 4}},
+  {"call": "nx_list_objects", "args": {"part": "mb_back", "kind": "sketch"},
+   "expect": {"page.total": 1, "data.items.0.name": "MB_BACK_SK"}},
+  {"call": "nx_list_objects", "args": {"part": "mb_front", "kind": "sketch"},
+   "expect": {"page.total": 0}},
+
+  {"call": "nx_run_batch",
+   "args": {"operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_AGAIN"}}
+   ]},
+   "intent": "Acceptance: a batch without part whose steps all name the background part acts there",
+   "expect": {"mutation_outcome": "committed", "part.file": "mb_back.prt", "part.from": "resolver"}},
+  {"call": "nx_run_batch",
+   "args": {"operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_MIXED"}},
+    {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_MIXED"}}
+   ]},
+   "intent": "Acceptance: a batch without part whose steps name two parts must say which part it belongs to",
+   "expect": {"ok": false, "error.code": "NX_AMBIGUOUS_PART", "mutation_outcome": "not_started"}},
+  {"call": "nx_run_batch",
+   "args": {"part": "mb_front", "operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "NEVER", "part": "mb_nope"}}
+   ]},
+   "intent": "Acceptance: a child part key that names no loaded part is refused before any step runs",
+   "expect": {"ok": false, "error.code": "NX_NOT_FOUND", "error.field": "/operations/0/arguments/part", "mutation_outcome": "not_started"}},
+
+  {"call": "nx_preview_changes", "save": "pv",
+   "args": {"part": "mb_front", "operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_PV"}},
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_PV"}}
+   ]},
+   "intent": "Acceptance: a preview child in the background part is previewed and rolled back",
+   "expect": {"mutation_outcome": "previewed", "data.results.1.part.file": "mb_back.prt"}},
+  {"call": "nx_list_objects", "args": {"part": "mb_back", "kind": "feature", "name_contains": "BACK_PV"},
+   "expect": {"page.total": 0}},
+  {"call": "nx_finish_preview", "args": {"preview_id": "$pv.data.preview_id", "action": "accept"},
+   "intent": "Acceptance: accepting it applies both parts' steps under one mark",
+   "expect": {"mutation_outcome": "committed", "part.file": "mb_front.prt", "data.count": 2}},
+  {"call": "nx_list_objects", "args": {"part": "mb_back", "kind": "feature", "name_contains": "BACK_PV"},
+   "expect": {"page.total": 1}},
+  {"call": "nx_list_parts", "args": {},
+   "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
+
+  {"call": "nx_preview_changes", "save": "pvc",
+   "args": {"part": "mb_back", "capture": true, "operations": [
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_CAPTURE"}}
+   ]},
+   "intent": "Acceptance: a preview capture of the background part displays that part for the image",
+   "expect": {"mutation_outcome": "previewed", "part.file": "mb_back.prt", "data.image.path": {"matches": "^captures/preview-"}}},
+  {"call": "nx_list_parts", "args": {},
+   "intent": "Acceptance: after the capture the engineer's display and work part are back",
+   "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
+  {"call": "nx_finish_preview", "args": {"preview_id": "$pvc.data.preview_id", "action": "discard"},
+   "expect": {"mutation_outcome": "not_applicable"}}
+ ]
+}

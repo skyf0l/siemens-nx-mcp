@@ -7,7 +7,11 @@ tool's schema or a ``"$n.path"`` reference to a step that has not run yet refuse
 the batch with nothing changed.
 
 Each step then runs through the kernel's child gates (``Tx.run`` /
-``kernel.run_child``) under this call's one mark and receipt. A child's Ref field
+``kernel.run_child``) under this call's one mark and receipt. A step acts on the part its
+refs name, or the ``part`` call key in its arguments, else the batch's part; one mark
+rolls back every part (NX's undo is session-wide). Without ``part`` the batch's own part
+is the one part every step names (refs, ``part`` or an earlier step's result), else the
+usual rule (the work part, or ``NX_AMBIGUOUS_PART`` with two or more parts loaded). A child's Ref field
 may name an earlier step's result, ``"$0.data.sketch"`` (0-based). Before each
 step ``tx.checkpoint`` writes progress to the receipt and honours
 ``nx_cancel_operation`` (the receipt's ``.cancel`` file) and the cost budget. A
@@ -23,6 +27,7 @@ import re
 from typing import Annotated, NoReturn, TypedDict
 
 from nx_mcp.core import catalogue
+from nx_mcp.core import target as targets
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, classify, fail
 from nx_mcp.core.tx import Tx
@@ -106,11 +111,12 @@ def _refuse(spec, registry, mode: str) -> NoReturn:
          hint=hint, details={f"{mode}able": names})  # fmt: skip
 
 
-def _preflight(operations: list[Step], mode: str = "batch") -> list:
+def _preflight(operations: list[Step], mode: str = "batch", services=None) -> list:
     """Every step's spec, checked before any step runs; raise on the first problem.
 
     ``mode`` ``"batch"`` admits batchable tools, ``"preview"`` previewable ones
-    (``nx_preview_changes``)."""
+    (``nx_preview_changes``). A step's ``part`` call key must name a loaded part
+    (``services``)."""
     registry = catalogue.load()
     specs = []
     for index, step in enumerate(operations):
@@ -121,7 +127,12 @@ def _preflight(operations: list[Step], mode: str = "batch") -> list:
                 _unknown(name, registry, mode)
             if not _admitted(spec, mode):
                 _refuse(spec, registry, mode)
-            checked = spec.check(step["arguments"], placeholders=True)
+            arguments, keys = targets.split_call_keys(spec, step["arguments"])
+            if "part" in keys:
+                targets.check_call_keys(keys["part"])
+                if services is not None:
+                    targets.part_from_text(services, keys["part"])
+            checked = spec.check(arguments, placeholders=True)
             for path, text in checked.placeholders:
                 step_ref = re.match(r"^\$([0-9]+)", text)  # validate matched PLACEHOLDER_PATTERN
                 if step_ref is not None and int(step_ref.group(1)) >= index:
@@ -135,7 +146,35 @@ def _preflight(operations: list[Step], mode: str = "batch") -> list:
     return specs
 
 
+def steps_part(services, args) -> object:
+    """Gate 3t of a batch or preview without ``part``: the one part its steps name (refs,
+    a step's ``part``, or an earlier step's result), else None (the usual rule). A
+    ``part`` given to the batch wins (``yields_to_part``)."""
+    found: dict = {}
+    for step in args.get("operations") or []:
+        spec = catalogue.get(str(step.get("tool"))) if isinstance(step, dict) else None
+        if spec is None or not isinstance(step.get("arguments"), dict):
+            return None
+        arguments, keys = targets.split_call_keys(spec, step["arguments"])
+        if isinstance(keys.get("part"), str):
+            part = targets.part_from_text(services, keys["part"])
+            found[services.part_key(part)] = part
+            continue
+        checked = spec.check(arguments, placeholders=True)
+        pinned = targets.pinned_parts(services, checked, spec.target)
+        if len(pinned) == 1:
+            key, (part, *_rest) = next(iter(pinned.items()))
+            found[key] = part
+        elif pinned or not checked.placeholders:
+            return None  # a step across parts, or a step that names no part
+    return next(iter(found.values())) if len(found) == 1 else None
+
+
+steps_part.yields_to_part = True  # type: ignore[attr-defined]
+
+
 @tool(
+    target=steps_part,
     effect="model",
     label="Run batch",
     summary=_summary,
@@ -166,7 +205,7 @@ def nx_run_batch(
     a failure undoes all. "$0.data.sketch" names step 0's result. Heavy features (extrude):
     call alone, or preview then accept."""
     with tx.checks():  # a refused step changes nothing
-        _preflight(operations)
+        _preflight(operations, services=tx.services)
     total = len(operations)
     tx.checkpoint(done=0, total=total)
     results: list[StepResult] = []

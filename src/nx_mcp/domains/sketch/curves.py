@@ -782,7 +782,7 @@ def _trim_extend(tx, sk, item, field):
         b.BoundaryObjects.Add(limits)
         b.ExtendBound = False
         target = b.TrimmedCurves if trim else b.ExtendedCurves
-        target.Add(obj, part.ModelingViews.WorkView, tx.nx.Point3d(*pick))
+        target.Add(obj, common.pick_view(tx, part), tx.nx.Point3d(*pick))
         b.Commit()
     with native(default="NX_UPDATE_FAILED"):
         sk.sketch.Update()

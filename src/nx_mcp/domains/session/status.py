@@ -134,6 +134,8 @@ class WorkspaceInfo(TypedDict):
 
 class RunningInfo(TypedDict):
     tool: str
+    # null unless this status call passes the running call's own operation_id: another
+    # agent's call is never named to a reader
     operation_id: str | None
     elapsed_seconds: float | None
     progress: dict | None  # {completed, total} from the receipt
@@ -206,8 +208,22 @@ def snapshot_parts(session, root) -> PartsInfo | None:
         return None
 
 
-def running_info(status: dict | None, store=None) -> RunningInfo | None:
-    """The call the host is running, from its status or snapshot."""
+def _shared(parts) -> bool:
+    """Whether a snapshot shows two or more loaded parts (unknown: shared)."""
+    try:
+        return int(parts.get("agent_loaded", parts["loaded"])) >= 2
+    except Exception:
+        return True
+
+
+def running_info(
+    status: dict | None, store=None, reader=None, *, shared: bool = False
+) -> RunningInfo | None:
+    """The call the host is running, from its status or snapshot. With two or more parts
+    loaded (``shared``) its ``operation_id`` shows only to a ``reader`` (the status call's
+    own operation_id) that names it: a reader never learns another agent's id (to query
+    or cancel it); solo, it shows as before. The tool, elapsed time and progress show to
+    every reader."""
     if not status or not status.get("running_method"):
         return None
     operation_id = status.get("running_operation_id")
@@ -221,7 +237,9 @@ def running_info(status: dict | None, store=None) -> RunningInfo | None:
         elapsed = time.monotonic() - started
     return {
         "tool": str(status["running_method"]),
-        "operation_id": operation_id,
+        "operation_id": operation_id
+        if operation_id and (reader == operation_id or not shared)
+        else None,
         "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
         "progress": progress,
     }
@@ -267,7 +285,9 @@ def envelope_from_snapshot(snapshot: dict, params: dict, *, root, build, store=N
         "parts": snapshot.get("parts"),
         "control": control_data(snapshot),
         "workspace": workspace_info(root),
-        "operation": running_info(snapshot, store),
+        "operation": running_info(
+            snapshot, store, params.get("operation_id"), shared=_shared(snapshot.get("parts"))
+        ),
     }
     return _envelope(data, params)
 
@@ -355,7 +375,9 @@ def nx_get_status(
         },
         "control": control_data(status) if status is not None else None,
         "workspace": workspace_info(root),
-        "operation": running_info(status, services.store),
+        "operation": running_info(
+            status, services.store, tx.operation_id, shared=len(target.agent_parts(services)) >= 2
+        ),
     }
     return _select(data, include)  # type: ignore[return-value]  # the fields include picks
 
@@ -459,8 +481,8 @@ def nx_cancel_operation(tx: Tx, *, operation: CancelRef) -> CancelData:
         name = record.get("tool")
         if state == "unknown" and "fingerprint" not in record:
             fail("NX_NOT_FOUND", f"No receipt for operation {operation}", field="/operation",
-                 hint="Pass the operation_id of a changing call that is still running "
-                 "(nx_get_status shows it under operation); reads are not receipted")  # fmt: skip
+                 hint="Pass the operation_id you gave a changing call that is still running "
+                 "(nx_get_status shows which tool runs); reads are not receipted")  # fmt: skip
         if state != "running":
             # Not a blocker that clears (NX_IN_USE): cancelling a finished call never works.
             fail("NX_NOT_RUNNING",

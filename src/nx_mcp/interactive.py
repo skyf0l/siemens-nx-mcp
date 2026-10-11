@@ -32,7 +32,8 @@ them):
 While two or more parts are loaded, the running line, the card and every activity
 line name the target part's file first (``[cover.prt] Extrude ...``); with one part
 the lines are as they were. A queued call whose client gave up (closed its socket, or
-its ``expires_at`` passed) is answered NX_CALL_EXPIRED and never shown or run.
+its ``expires_at`` passed) is answered NX_CALL_EXPIRED and never shown or run; the
+activity log notes it (``Skipped ...: the agent stopped waiting``).
 
 Requests wake the host at once: the listening socket posts FD_ACCEPT to the
 panel window (``WSAAsyncSelect``), which runs a tick right away. NX holds
@@ -1464,12 +1465,28 @@ class InteractiveHost:
         return expires is not None and time.time() > expires
 
     def _reject_gone(self):
-        """Answer queued calls whose client gave up before they are shown or run."""
+        """Answer queued calls whose client gave up before they are shown or run; the
+        activity log says so (one line per call)."""
         from nx_mcp.bridge import client_gone
 
-        gone = {id(p) for p in self.dispatcher.waiting() if self._gone(p)}
-        if gone:
-            self.dispatcher.reject_where(lambda p: id(p) in gone, client_gone())
+        gone = [p for p in self.dispatcher.waiting() if self._gone(p)]
+        if not gone:
+            return
+        ids = {id(p) for p in gone}
+        self.dispatcher.reject_where(lambda p: id(p) in ids, client_gone())
+        for pending in gone:
+            self._log_skipped(pending)
+
+    def _log_skipped(self, pending):
+        """``Skipped [b.prt] Extrude ...: the agent stopped waiting``: a queued call the
+        host or the bridge answered NX_CALL_EXPIRED without running it."""
+        error = getattr(pending, "error", None)
+        if getattr(pending, "started", False) or getattr(error, "code", None) != "NX_CALL_EXPIRED":
+            return
+        try:
+            self.activity.skipped(self._summary_of(pending), method=pending.method)
+        except Exception as exc:
+            self.last_error = "Activity history: " + str(exc)
 
     def _unasked_read(self, pending):
         return (
@@ -1484,7 +1501,9 @@ class InteractiveHost:
         try:
             took = take and self._take_light()
             self._light = True
-            return bool(self.dispatcher.drain_where(lambda p: p is pending))
+            ran = bool(self.dispatcher.drain_where(lambda p: p is pending))
+            self._log_skipped(pending)  # the bridge found its client gone at the start
+            return ran
         finally:
             self._light = False
             if took:

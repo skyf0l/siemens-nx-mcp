@@ -289,8 +289,27 @@ def nx_edit_section_view(
 # ---- hooks: nx_list_objects(kind=section_view), nx_delete_objects ----------------------------
 
 
+def _listing_view(tx, part):
+    """``(view, displayed)``: the model view a listing reads sections through.
+
+    The displayed part: its work view (refused while a sheet is shown). A part in the
+    background (a read bound to it, gate 4s): NX 2406 refuses its ``WorkView`` ("only on
+    a displayed part"), so the modeling view holding an active section (the work view it
+    was made in), else the first one; any view reads a section's plane."""
+    if display.same(tx.session.Parts.Display, part):
+        return display.model_view(tx, part), True
+    views = list(getattr(part, "ModelingViews", []) or [])
+    for view in views:
+        if getattr(view, "ActiveDynamicSection", None) is not None:
+            return view, False
+    return (views[0] if views else None), False
+
+
 @lister("section_view")
 def list_sections(tx, owner, owner_kind):
+    """Rows with the plane, cap and state. ``sectioning`` is None for a part in the
+    background: NX 2406 reads its views' sectioning toggle as off until it is displayed
+    again (the toggle comes back then)."""
     if owner is not None:
         fail("NX_UNSUPPORTED_OPTION", "Section views are listed for the whole part",
              field="/owner")  # fmt: skip
@@ -298,12 +317,14 @@ def list_sections(tx, owner, owner_kind):
     found = display.sections(part)
     if not found:
         return []
-    view = display.model_view(tx, part)
+    view, displayed = _listing_view(tx, part)
     out = []
     for section in found:
         state = display.section_state(tx, part, view, section)
         details = {k: state[k] for k in ("origin", "normal", "cap", "active")}
-        details["sectioning"] = bool(view.DisplaySectioningToggle) and state["active"]
+        details["sectioning"] = (
+            bool(view.DisplaySectioningToggle) and state["active"] if displayed else None
+        )
         out.append((section, "section_view", {"type": "one_plane", "details": details}))
     return out
 

@@ -625,6 +625,7 @@ def nx_close_part(
     active = {int(p.Tag) for p in (session_parts.Work, session_parts.Display) if p is not None}
     prototypes = _prototypes(target) if unload_components else []
     had_undo = undo_marks.has_undo_state(tx.services)
+    _report_closed(tx, target)
     closed = _saving.close_part(tx, target, save=save)
     rows = list(closed["closed"])
     out: CloseData = {"saved": bool(save), "undo_marks": closed["undo_marks"]}
@@ -648,6 +649,17 @@ def nx_close_part(
     out["closed_count"] = len(rows)
     out["remaining_count"] = len(list(tx.session.Parts))
     return out
+
+
+def _report_closed(tx, part) -> None:
+    """``envelope.part`` names the closed part with the ref it had (gate 14 reads the
+    call's target after the close, when NX no longer lists the part: its row would
+    otherwise carry no id, or a fresh ref of a part that is gone)."""
+    named = getattr(tx, "target", None)
+    if named is None or named.key != tx.services.part_key(part):
+        return
+    with contextlib.suppress(Exception):
+        named.closed = {"id": _row(tx, part).get("id"), "file": named.file}
 
 
 def _prototypes(part) -> list:

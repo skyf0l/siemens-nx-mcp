@@ -84,6 +84,27 @@ def test_clone_renames_every_file_loads_as_saved_and_verifies_references(nx, roo
     assert kept.data["part"]["kind"] == "part"
 
 
+def test_clone_of_a_background_assembly_keeps_the_engineers_display(nx, root):
+    """Gate 4s: the assembly is a quiet work part under another display. The clone never
+    displays it, and activate (the copy left as work part) is refused before copying."""
+    asm, _blk, _plate = saved_assembly(nx)
+    nx.structure[str((root / "proj/asm.prt").resolve()).casefold()] = [
+        str(root / "proj/parts/blk.prt"), str(root / "proj/parts/plate.prt")
+    ]  # fmt: skip
+    other = nx.new_part("other.prt")  # displayed and work: asm is in the background
+    nx.session.strict_work = True  # NX: SetWork only under the display part
+    ok = call(nx, assembly.nx_export_assembly, part="asm", path="copy", format="clone", prefix="C_")
+    assert ok.ok and ok.mutation_outcome == "committed", ok
+    assert (root / "copy/C_asm.prt").is_file()
+    assert ("show", asm) not in nx.session.calls  # the assembly was never displayed
+    assert nx.session.Parts.Display is other and nx.session.Parts.Work is other
+    kept = call(nx, assembly.nx_export_assembly, part="asm", path="copy2", format="clone",
+                prefix="D_", activate=True)  # fmt: skip
+    assert kept.error["code"] == "NX_WRONG_PART_CONTEXT" and kept.error["field"] == "/activate"
+    assert kept.mutation_outcome == "not_started" and not (root / "copy2").exists()
+    assert nx.session.Parts.Display is other and nx.session.Parts.Work is other
+
+
 def test_clone_rejections(nx, root):
     asm, _blk, _plate = saved_assembly(nx)
     missing = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone")

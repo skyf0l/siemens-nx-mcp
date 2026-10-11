@@ -18,6 +18,9 @@ from typing import Any
 LINE_WIDTH = 84
 ENGINEER_CHANGE = "You changed the model — agent will re-read its references"
 LOG_LIMIT_BYTES = 5 * 1024 * 1024
+# Why a queued step never ran: its client gave up (``expires_at`` passed, or it closed
+# its connection).
+SKIPPED_REASON = "the agent stopped waiting"
 
 # Failure outcome -> what the engineer needs to know about the model.
 _MODEL_STATE = {
@@ -40,6 +43,7 @@ _SHORT_REASON = {
     "NX_UI_BUSY": "an NX dialog is open",
     "NX_MODAL_DIALOG_OPEN": "an NX dialog waits for an answer",
     "NX_ROLLBACK_FAILED": "undo failed",
+    "NX_CALL_EXPIRED": SKIPPED_REASON,
     # Catalogue codes whose messages are long; others show their message.
     "NX_PART_NOT_GRANTED": "engineer's part, not granted",
     "NX_VERSION_UNSUPPORTED": "not tested on this NX version",
@@ -177,26 +181,50 @@ class Activity:
 
     def engineer_change(self, at: float | None = None) -> Entry:
         """The engineer changed the model between two agent steps."""
-        entry = Entry(
-            started=time.time() if at is None else at,
-            summary=ENGINEER_CHANGE,
-            note=ENGINEER_CHANGE,
+        return self._note(
+            Entry(
+                started=time.time() if at is None else at,
+                summary=ENGINEER_CHANGE,
+                note=ENGINEER_CHANGE,
+            )
         )
-        self._write(entry)
-        self.entries.append(entry)
-        while len(self.entries) > self.keep:
-            self.entries.popleft()
-        return entry
 
     def nx_dialog(self, text: str, at: float | None = None) -> Entry:
         """NX opened a modal dialog: NX and every call wait for a person to answer it."""
-        entry = Entry(
-            started=time.time() if at is None else at,
-            summary=text,
-            note=text,
-            label="NX DIALOG",
-            mark="⚠",
+        return self._note(
+            Entry(
+                started=time.time() if at is None else at,
+                summary=text,
+                note=text,
+                label="NX DIALOG",
+                mark="⚠",
+            )
         )
+
+    def skipped(
+        self,
+        summary: str,
+        reason: str = SKIPPED_REASON,
+        *,
+        method: str = "",
+        at: float | None = None,
+    ) -> Entry:
+        """A queued agent step NX refused before it ran (its client gave up: the call
+        expired or its connection closed): ``Skipped [b.prt] Extrude ...: <reason>``."""
+        text = f"Skipped {summary}: {reason}"
+        return self._note(
+            Entry(
+                started=time.time() if at is None else at,
+                summary=summary,
+                method=method,
+                note=text,
+                label="SKIPPED",
+                mark="✗",
+            )
+        )
+
+    def _note(self, entry: Entry) -> Entry:
+        """Log and keep an event line (not an agent step's result)."""
         self._write(entry)
         self.entries.append(entry)
         while len(self.entries) > self.keep:

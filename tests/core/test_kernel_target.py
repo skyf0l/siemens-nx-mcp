@@ -520,7 +520,7 @@ def test_default_policies():
         "nx_create_extrude": ("refs", "work", False),
         "nx_measure_mass": ("assembly", "none", False),
         "nx_capture_view": ("display", "display", True),
-        "nx_get_camera": ("display", "none", False),
+        "nx_get_camera": ("any", "none", False),  # NX's displayed view (P6 audit)
         "nx_create_drawing_view": ("sheet", "display", True),
         "nx_create_sheet_metal_feature": ("refs", "display", True),
         "nx_create_part": ("creates", "none", False),
@@ -611,3 +611,26 @@ def test_a_call_with_an_unknown_ref_is_not_ref_less():
     r = run(nx, "nx_get_feature", feature="f:999")  # the handler reports the ref
     assert r.error["code"] not in ("NX_AMBIGUOUS_PART", "NX_WRONG_PART_CONTEXT"), r
     assert r.error["code"] == "NX_STALE_REFERENCE" and r.part["from"] == "work", r
+
+
+def test_a_refs_registered_kind_decides_over_the_inferred_one():
+    """Live References have no ``kind_of`` and NX classes such as Explosion are not
+    inferred: the kind a ref was registered with feeds ``target.kinds`` (display_bound
+    ``kind:explosion``) and the assembly/sheet deciders."""
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.core import target as targets
+
+    entries = {"ex:3": NS(kind="explosion")}
+
+    def infer(_obj):
+        raise ValueError("unknown NX class")
+
+    services = NS(
+        references=NS(entry=entries.get),
+        infer_kind=infer,
+        handle_kind=lambda h: "section" if h == "obj_7" else None,
+    )
+    assert targets._kind_of(services, object(), (), "ex:3") == "explosion"
+    assert targets._kind_of(services, object(), (), "obj_7") == "section_view"
+    assert targets._kind_of(services, object(), ("face",), "f:9") == "face"

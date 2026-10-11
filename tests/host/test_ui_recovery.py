@@ -686,7 +686,7 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
     status = observed[0]  # nx_get_status from the snapshot, never queued
     assert status["ok"] and status["mutation_outcome"] == "not_applicable"
     assert status["data"]["operation"]["tool"] == "nx_test_busy"
-    assert status["data"]["operation"]["operation_id"] == "op_busy_0001"
+    assert status["data"]["operation"]["operation_id"] == "op_busy_0001"  # solo: shown
     assert status["data"]["control"] == {
         "mode": "auto",
         "mode_label": "Auto",

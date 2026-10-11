@@ -315,7 +315,7 @@ def _make_relation(tx, sk, kind, objs):
                 (a, pa), (c, pc) = (objs["curves"][0], "center"), (objs["curves"][1], "center")
             else:
                 (a, pa), (c, pc) = objs["points"]
-            view = part.ModelingViews.WorkView
+            view = common.pick_view(tx, part)
             snaps = nx.InferSnapType.SnapType
             empty = nx.Point3d(0.0, 0.0, 0.0)
             b.StationaryObject.SetValue(

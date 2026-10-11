@@ -429,3 +429,17 @@ def require_fixed_unmoved(tx, positions, field=None) -> None:
             field=field,
             details={"fixed_curves_moved": moved},
         )
+
+
+def pick_view(tx, part):
+    """The model view a pick (a point on a curve: coincident and concentric snaps, trim and
+    extend) is made in: the work view of the displayed part. NX 2406 refuses
+    ``ModelingViews.WorkView`` of a part that is not displayed (a sketch in a quiet
+    background work part, gate 4s: "only on a displayed part"); its modeling views still
+    answer, and a pick point that lies on the curve picks the same piece in any of them."""
+    shown = tx.session.Parts.Display
+    if shown is not None and int(shown.Tag) == int(part.Tag):
+        return part.ModelingViews.WorkView
+    for view in part.ModelingViews:
+        return view
+    return part.ModelingViews.WorkView  # no modeling view: NX's own refusal

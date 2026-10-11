@@ -154,21 +154,25 @@ class ToolSpec:
     # ``none`` (reads: never), ``work`` (quiet work-part switch), ``display`` (shown).
     switch: str = "none"
     # Decorator ``display_bound``: the call needs its target displayed: True (always,
-    # implies switch ``display``) or the variant values that do, and ``/<param>[/<key>]``
-    # pointers to arguments that do when given (``working_in`` handlers: a reference
-    # set's ``/component``; a path sketch's ``/placement/path``).
+    # implies switch ``display``) or the variant values that do, ``/<param>[/<key>]``
+    # pointers to arguments that do when given and not false (``working_in`` handlers: a
+    # reference set's ``/component``; a path sketch's ``/placement/path``; a preview's
+    # ``/capture``), and ``kind:<ref kind>`` for calls whose references name an object of
+    # that kind (``nx_delete_objects`` of an explosion: ``kind:explosion``).
     display_bound: bool | tuple[str, ...] = False
 
-    def switch_for(self, args: Mapping) -> str:
-        """The switch mode of a call: ``display`` for a display-bound variant or given
-        display-bound argument."""
+    def switch_for(self, args: Mapping, kinds=()) -> str:
+        """The switch mode of a call: ``display`` for a display-bound variant, given
+        display-bound argument or reference kind (``kinds``: the kinds its refs name)."""
         if self.display_bound is True:
             return "display"
         if self.display_bound:
             if self.variants is not None and self.variant_of(args) in self.display_bound:
                 return "display"
             for item in self.display_bound:
-                if item.startswith("/") and _pointed(args, item) is not None:
+                if item.startswith("/") and _pointed(args, item) not in (None, False):
+                    return "display"
+                if item.startswith("kind:") and item[5:] in kinds:
                     return "display"
         return self.switch
 
@@ -657,6 +661,7 @@ def _target_rules(
             for v in display_bound
             if v not in variant_values
             and not (v.startswith("/") and v.strip("/").split("/")[0] in params)
+            and not (v.startswith("kind:") and v[5:] in KINDS)
         ]
         if not display_bound or unknown:
             problems.append(

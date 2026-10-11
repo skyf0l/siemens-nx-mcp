@@ -1,14 +1,18 @@
 """nx_delete_objects on the shared fake kernel: dispatch to @deleter hooks, dependents,
 read-back, refusals and rollback under one undo mark."""
 
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 import pytest
 
 from nx_mcp.core import catalogue
 from nx_mcp.core.errors import fail
+from nx_mcp.domains.session import delete
 from tests.kit import fake_nx, run
-from tests.kit.objects import Feature
+from tests.kit.kernel import services
+from tests.kit.objects import Feature, Part
+from tests.kit.parts import with_parts
 
 COLLECTIONS = ("Bodies", "Features", "Sketches", "Curves")
 
@@ -182,3 +186,88 @@ def test_dependents_name_the_part_like_the_deleted_rows(nx):
     ok = run(nx, "nx_delete_objects", objects=[extrude.ref])
     part = ok.data["deleted"][0]["part"]
     assert ok.data["dependents"] and {r["part"] for r in ok.data["dependents"]} == {part}
+
+
+# ---------------------------------------------------------------------------
+# A part in the background (gate 4s): display-bound kinds display it for the call
+
+
+def _background(nx, name="asm.prt"):
+    """``name`` loaded but not displayed: NX shows (and works in) the fixture's part."""
+    with_parts(nx, services(nx).root)  # the display switch (tests/kit/parts.py)
+    parts = nx.session.Parts
+    work, display = parts.Work, parts.Display
+    part = Part(nx.session, Path(services(nx).root) / name)
+    parts.Work, parts.Display = work, display
+    nx.session.strict_work = True  # NX: SetWork only under the display part
+    return part
+
+
+def _owned(nx, part, obj, kind):
+    obj.OwningPart, obj.IsOccurrence = part, False
+    obj.ref = nx.ref_of(obj, kind)
+    return obj
+
+
+def test_an_explosion_of_a_background_assembly_is_deleted_on_the_displayed_assembly(nx):
+    shown = nx.session.Parts.Display
+    asm = _background(nx)
+    explosion = _owned(nx, asm, NS(Tag=9101, Name="E1"), "explosion")
+    asm.ComponentAssembly = NS(RootComponent=None, Explosions=[explosion])
+    asm.DraftingViews = []  # no view shows it (its modeling views are not listable here)
+    seen = []
+
+    def remove():
+        seen.append((nx.session.Parts.Display, nx.session.Parts.Work))
+        asm.ComponentAssembly.Explosions.remove(explosion)
+
+    explosion.Delete = remove
+    ok = run(nx, "nx_delete_objects", objects=[explosion.ref])  # the real deleter
+    assert ok.ok and ok.mutation_outcome == "committed", ok
+    assert seen == [(asm, asm)]  # explosion_context: work and display part
+    assert ("show", asm) in nx.session.calls
+    assert nx.session.Parts.Display is shown and nx.session.Parts.Work is shown
+
+
+@pytest.mark.parametrize("kind", delete.DISPLAYED_KINDS)
+def test_display_bound_kinds_display_their_part(nx, kind):
+    asm = _background(nx)
+    obj = _owned(nx, asm, NS(Tag=9200, Name="X1"), kind)
+    seen = []
+    deleters = {**catalogue.hooks("deleter"), kind: lambda tx, objs: seen.append(
+        (tx.part, nx.session.Parts.Display))}  # fmt: skip
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setitem(catalogue._HOOKS, "deleter", deleters)
+        mp.setitem(catalogue._HOOKS, "lister", {})
+        ok = run(nx, "nx_delete_objects", objects=[obj.ref])
+    assert ok.ok, ok
+    assert seen == [(asm, asm)]
+    assert nx.session.Parts.Display is nx.part
+
+
+def test_features_of_a_background_part_are_deleted_in_the_quiet_work_part(nx):
+    asm = _background(nx)
+    f = _owned(nx, asm, Feature("EXTRUDE(1)"), "feature")
+    f.Suppressed, f.cascade = False, []
+    asm.Features.append(f)
+    seen = []
+
+    def delete_list(objects):
+        seen.append((nx.session.Parts.Display, nx.session.Parts.Work))
+        asm.Features.remove(f)
+
+    nx.session.UpdateManager.AddToDeleteList = delete_list
+    ok = run(nx, "nx_delete_objects", objects=[f.ref])
+    assert ok.ok, ok
+    assert seen == [(nx.part, asm)]  # the display stays the engineer's
+    assert [name for name, _ in nx.session.calls] == ["SetWorkPartQuietly", "SetWork"]
+
+
+def test_the_display_bound_kinds_of_nx_delete_objects():
+    spec = catalogue.load()["nx_delete_objects"]
+    assert spec.switch == "work"
+    for kind in delete.DISPLAYED_KINDS:
+        assert spec.switch_for({"objects": ["x:1"]}, {kind}) == "display", kind
+    for kind in ("feature", "sketch", "curve", "component", "traceline"):
+        assert spec.switch_for({"objects": ["x:1"]}, {kind}) == "work", kind
+    assert spec.switch_for({}, {"feature", "explosion"}) == "display"  # mixed kinds

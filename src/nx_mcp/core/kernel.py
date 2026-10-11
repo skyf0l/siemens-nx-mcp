@@ -4,7 +4,11 @@
 always returns the surface 1.6 envelope (``ok`` true or false); it never raises
 for a tool failure. ``run_child(spec, args, parent_tx)`` applies the gates
 marked C to a child of ``nx_run_batch`` / ``nx_preview_changes`` and raises
-``NXError`` so the parent rolls everything back under its one mark.
+``NXError`` so the parent rolls everything back under its one mark. A child resolves its
+own target (its refs, a ``part`` call key in its arguments, else the parent's part) and
+is switched to it for its step (gates 3t and 4s); NX's undo is session-wide, so the one
+mark covers every part. A failure after a child ran always rolls back (never
+``not_started``, even when the failing child refused inside ``tx.checks()``).
 
 Gate order: 1 schema, 2 workspace paths, 3 variant inference and evidence/version,
 4 ``requires``,
@@ -66,7 +70,7 @@ REQUIRE_FAILURES = {
     "assembly": (
         "NX_WRONG_PART_CONTEXT",
         "The work part is not an assembly",
-        "Activate an assembly with nx_activate_part",
+        "Name the assembly with part (nx_list_parts lists the loaded parts)",
     ),
     "interactive": (
         "NX_VIEWPORT_UNAVAILABLE",
@@ -629,6 +633,7 @@ def run(spec, args, ctx: Context) -> dict:
         )
         tx.mark = mark
         tx.target = target
+        tx.bound = bound
         for code, message in bound.notes:
             tx.warn(code, message)
         if record is not None and record.get("previous"):
@@ -701,13 +706,14 @@ def run(spec, args, ctx: Context) -> dict:
             handler_started
             and (
                 handler_done
-                or (tx is not None and tx.touched)
+                or (tx is not None and (tx.touched or bool(tx.children)))
                 or (observer is not None and observer.touched)
             )
         )
         if (
             getattr(error, "unchanged", False)
             and not handler_done
+            and not (tx is not None and tx.children)  # earlier children ran: roll back
             and _still_unchanged(spec, services, tx, part, before)
         ):
             touched = False  # raised inside tx.checks(): nothing was changed yet
@@ -975,10 +981,20 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
 def run_child(
     spec, args, parent: Tx, *, prior: list | None = None, mode: str | None = None
 ) -> dict:
-    """Run one child under the parent's mark and receipt; raise ``NXError`` on failure."""
+    """Run one child under the parent's mark and receipt; raise ``NXError`` on failure.
+
+    The child resolves its own target (gate 3t): its refs, or a ``part`` call key in its
+    arguments, else the parent's target. A target that is not the current work part is
+    made current for the child (gate 4s) and the parent's state comes back after it; the
+    parent snapshots that part first (``tx.touch_part``), so its rollback, read-back and
+    ``changes`` cover it. NX's undo is session-wide: the parent's one mark rolls back
+    every part its children changed."""
     services = parent.services
     mode = mode or parent.mode or ("preview" if parent.spec.effect == "session" else "batch")
     index = len(parent.children)
+    args, keys = targets.split_call_keys(spec, args)
+    part_text = keys.get("part")
+    bound: switching.Bound | None = None
     try:
         if mode == "batch" and not spec.batchable:
             fail("NX_UNSUPPORTED_OPTION", f"{spec.name} cannot run in a batch", field="/tool")
@@ -986,14 +1002,30 @@ def run_child(
             fail("NX_UNSUPPORTED_OPTION", f"{spec.name} cannot run in a preview", field="/tool")
         if parent.mark is None:
             fail("NX_ERROR", "A child call needs the parent's undo mark")
+        targets.check_call_keys(part_text)  # a child's expires_at is the parent's
         parent.checkpoint(done=index)
         checked = _gate_schema(spec, args, placeholders=True, services=services)  # 1
         if checked.placeholders:
             _resolve_placeholders(checked, prior if prior is not None else parent.children)
             checked = _gate_schema(spec, checked.args, services=services)
-        _gate_paths(spec, checked, services)  # 2
+        target = targets.resolve(  # 3t: refs, part, else the parent's part
+            spec, checked, services, part=part_text, parent=_root(parent).target
+        )
+        _gate_paths(spec, checked, services, target)  # 2
         _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
+        if target is not None and spec.effect == "model":
+            parent.touch_part(target.part)  # before the switch: the parent's rollback
+        bound = switching.enter(  # 4s
+            spec,
+            checked.args,
+            target,
+            services,
+            explicit=part_text is not None or _switched(parent),
+            nested=_switched(parent),
+        )
+        for code, message in bound.notes:
+            parent.warn(code, message)
         _gate_requires(spec, services)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
@@ -1007,6 +1039,8 @@ def run_child(
             arguments=args,
         )
         child.mark = parent.mark
+        child.target = target
+        child.bound = bound
         call_args = _gate_units(spec, checked, services, child)  # 9
         observer = None
         try:
@@ -1017,6 +1051,7 @@ def run_child(
             parent.warnings.extend(child.warnings)
             if child.non_undoable_reason:
                 parent.non_undoable(child.non_undoable_reason)
+        bound.check()  # 4s (after): the child's target is still the work part
         _check_ownership_after(services, flags)
         before, after = _readback_parts(spec, services, child, part, before, parent.mark)  # 11
         retired = services.invalidate(before, after, spec.invalidates == "topology")  # 12
@@ -1030,6 +1065,9 @@ def run_child(
         }
         if child.units.get("length"):
             result["units"] = {k: v for k, v in child.units.items() if v}
+        if target is not None and (part_text is not None or not _same_target(parent, target)):
+            with contextlib.suppress(Exception):
+                result["part"] = target.row(services)  # a child in another part says so
         parent.children.append(result)
         return result
     except Exception as exc:
@@ -1038,3 +1076,26 @@ def run_child(
         error.details.setdefault("child_index", index)
         error.details.setdefault("child_tool", spec.name)
         raise at_child(error, index) from exc
+    finally:
+        if bound is not None:  # 4s: the parent's part is current again
+            warning = bound.leave()
+            if warning:
+                parent.warn("NX_UPDATE_WARNING", warning)
+
+
+def _root(tx: Tx) -> Tx:
+    while tx.parent is not None:
+        tx = tx.parent
+    return tx
+
+
+def _switched(parent: Tx) -> bool:
+    """Whether the top-level call made NX current on a part of its own (gate 4s): its
+    children then switch whenever their target is not the current work part."""
+    bound = _root(parent).bound
+    return bool(bound is not None and (bound.switched or bound.bound))
+
+
+def _same_target(parent: Tx, target) -> bool:
+    own = _root(parent).target
+    return own is not None and own.key == target.key

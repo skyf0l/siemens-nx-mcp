@@ -13,13 +13,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_camera": "6978d36d9135f5ef6f9dd832b80be30bdac62f8b8cd6755a4a88065dc6fdb26f",
-    "nx_get_camera": "6978d36d9135f5ef6f9dd832b80be30bdac62f8b8cd6755a4a88065dc6fdb26f",
+    "nx_set_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3",
+    "nx_get_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3",
     "nx_capture_view": "e853b8895a410b44f86bfbaa25c6d6105eded3bb3ecb29f5a61d2a6ccc006450",
     "nx_restore_display": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f",
     "nx_save_presentation": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f"
   },
-  "recorded": "2026-10-11T14:16:33Z",
+  "recorded": "2026-10-11T19:40:30Z",
   "passed": true,
   "checks": 63,
   "failed_checks": 0,

@@ -22,7 +22,7 @@ import contextlib
 import math
 
 from nx_mcp.core.errors import fail
-from nx_mcp.kit import facts, select, units
+from nx_mcp.kit import facts, geom, select, units
 
 MODELING_DISPLAY = 1  # UF_DRAW display state: 1 modeling, 2 drawing
 TRUE_SHAPE_TOL_DEG = 0.01  # Max tilt of a plane against the drawing plane.
@@ -35,13 +35,14 @@ def seen_true_shape(normal, view_z, tol_deg=TRUE_SHAPE_TOL_DEG):
 
 
 def work_view_is_drawing(part):
-    """True when NX shows a drawing sheet as the work view (no modeling view)."""
+    """True when NX shows a drawing sheet as the work view (no modeling view). A part
+    that is not displayed has no work view ("only on a displayed part"): False."""
     try:
         _ = part.ModelingViews.WorkView
     except AttributeError:
         return False
-    except Exception:  # NX: "The view is not a model view"
-        return True
+    except Exception as error:  # NX: "The view is not a model view"
+        return "displayed part" not in str(error)
     return False
 
 
@@ -207,11 +208,31 @@ def size(sheet):
     return [float(sheet.Length), float(sheet.Height)]
 
 
-def axes(view):
+def axes(view, tx=None):
     """``(x, y, z)`` of a drafting view: its horizontal, vertical and viewing directions
-    in work-part coordinates (rows of ``view.Matrix``)."""
-    m = view.Matrix
+    in work-part coordinates (rows of ``view.Matrix``).
+
+    NX 2406 refuses ``view.Matrix`` of a part that is not displayed ("This operation can
+    only be performed on a displayed part": a read bound to a background part, gate 4s);
+    with ``tx`` the axes then come from UF ``View.MapModelToDrawing``, which still
+    answers: the sheet images of the unit vectors give the x and y rows (normalized, so
+    scale and units drop out) and z = x cross y."""
+    try:
+        m = view.Matrix
+    except Exception:
+        if tx is None:
+            raise
+        return mapped_axes(tx, view)
     return [m.Xx, m.Xy, m.Xz], [m.Yx, m.Yy, m.Yz], [m.Zx, m.Zy, m.Zz]
+
+
+def mapped_axes(tx, view):
+    """``axes`` from the orthographic model-to-sheet map (no ``view.Matrix``)."""
+    origin = to_sheet(tx, view, (0.0, 0.0, 0.0))
+    images = [to_sheet(tx, view, e) for e in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))]
+    x = geom.unit([image[0] - origin[0] for image in images])
+    y = geom.unit([image[1] - origin[1] for image in images])
+    return x, y, geom.unit(geom.cross(x, y))
 
 
 def to_sheet(tx, view, p3):
@@ -495,7 +516,7 @@ def edge_in_view(tx, view, edge, drawn=None, part_per_sheet=1.0):
         total = float(edge.GetLength()) if hasattr(edge, "GetLength") else None
     if found["kind"] == "arc":
         out["center"] = to_sheet(tx, view, found["center"])
-        if found.get("normal") is not None and seen_true_shape(found["normal"], axes(view)[2]):
+        if found.get("normal") is not None and seen_true_shape(found["normal"], axes(view, tx)[2]):
             out["radius"] = float(found["radius"])
     if drawn is not None and total and drawn < total * (1 - 1e-6):
         out["partial"] = True

@@ -356,7 +356,7 @@ class Session:
                 p.Labels,
             ]
             objs = list(itertools.chain.from_iterable(groups))
-            attrs = [(o, o.IsBlanked, o.Color, o.transparency) for o in objs]
+            attrs = [(o, o.IsBlanked, o.Color, o.transparency, o.Name) for o in objs]
             states.append((p, [list(g) for g in groups], attrs, p.IsModified))
         shown = (list(self.Parts), self.Parts.Display, self.Parts.Work)
         self.marks[mark] = (states, self.ActiveSketch, shown)
@@ -379,8 +379,9 @@ class Session:
                 strict=True,
             ):
                 dest[:] = values
-            for obj, blank, color, transparency in attrs:
+            for obj, blank, color, transparency, name in attrs:
                 obj.IsBlanked, obj.Color, obj.transparency = blank, color, transparency
+                obj.Name = name  # NX undo restores a rename
             p.IsModified = modified
         self.ActiveSketch = active
 

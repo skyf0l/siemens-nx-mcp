@@ -1,0 +1,49 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mdl/mdl_front.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
+  {"call": "nx_create_part", "setup": true, "save": "back", "args": {"path": "$run/mdl/mdl_back.prt", "units": "mm", "display": false}},
+
+  {"call": "nx_get_status", "args": {},
+   "intent": "Acceptance: with nothing running, the status names no running operation (two agent parts loaded)",
+   "expect": {"ok": true, "data.operation": null, "data.parts.agent_loaded": 2}},
+
+  {"call": "nx_set_camera", "args": {"part": "mdl_front", "orientation": "top", "expires_at": 1},
+   "intent": "Acceptance: a queued view call whose expires_at passed is refused before it starts",
+   "expect": {"ok": false, "error.code": "NX_CALL_EXPIRED", "mutation_outcome": "not_started"}},
+
+  {"call": "nx_create_sketch", "save": "sk", "args": {"part": "mdl_back", "placement": {"principal": "xy"}, "name": "MDL_PARKED",
+    "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}]},
+   "intent": "Acceptance: an open sketch in the background part is parked between calls",
+   "expect": {"mutation_outcome": "committed", "part.file": "mdl_back.prt", "data.active": true, "data.parked": true, "data.curves": {"count": 4}}},
+  {"call": "nx_finish_sketch", "save": "fin", "args": {"sketch": "$sk.data.sketch.id"},
+   "expect": {"mutation_outcome": "committed", "data.was_active": true, "data.curve_count": 4, "part.file": "mdl_back.prt"}},
+  {"call": "nx_undo_operation", "args": {"part": "mdl_back"},
+   "intent": "Acceptance: undoing nx_finish_sketch re-parks the sketch and says so",
+   "expect": {"mutation_outcome": "committed", "data.undone": ["$fin.operation_id"], "part.file": "mdl_back.prt",
+              "warnings": {"contains": {"code": "NX_NOTE"}}, "warnings.0.message": {"matches": "open again \\(parked\\)"}}},
+  {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["geometry"]},
+   "intent": "Acceptance: the sketch is open again (parked) with its four curves",
+   "expect": {"data.active": true, "data.parked": true, "data.curves": {"count": 4}, "part.file": "mdl_back.prt",
+              "data.curves.1.start": {"close": [40, 0], "tol": 1e-09}}},
+  {"call": "nx_finish_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+   "intent": "Acceptance: the re-parked sketch finishes again",
+   "expect": {"mutation_outcome": "committed", "data.was_active": true, "data.curve_count": 4}},
+  {"call": "nx_create_extrude", "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 10}},
+   "intent": "Acceptance: and models: 40 x 20 x 10",
+   "expect": {"mutation_outcome": "committed", "part.file": "mdl_back.prt", "data.volume": {"close": 8000, "tol": 1e-06}}},
+  {"call": "nx_list_parts", "args": {},
+   "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}, "page.total": 2}},
+
+  {"call": "nx_close_part", "args": {"part": "mdl_back", "save": false},
+   "intent": "Acceptance: closing the background part names it in the envelope (file and id)",
+   "expect": {"mutation_outcome": "committed", "part.file": "mdl_back.prt", "part.id": "$back.data.part.id",
+              "data.closed": {"count": 1}, "data.closed.0.id": "$back.data.part.id"}},
+  {"call": "nx_list_parts", "args": {},
+   "intent": "Acceptance: the engineer's display and work part stay",
+   "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}, "page.total": 1}}
+ ]
+}

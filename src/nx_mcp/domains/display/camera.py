@@ -65,7 +65,7 @@ class CameraData(TypedDict, total=False):
 
 
 @tool(
-    target="display",
+    target="any",  # NX's displayed view: never ambiguous, never switched (a plain read)
     effect="read",
     label="Get camera",
     summary="Read the camera",

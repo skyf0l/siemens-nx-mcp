@@ -87,3 +87,53 @@ def test_views_and_refresh():
 def test_seen_true_shape():
     assert drawing.seen_true_shape([0, 0, 1], [0, 0, -1])
     assert not drawing.seen_true_shape([0, 0, 1], [0, -1, 0])
+
+
+class _BackgroundView:
+    """A drafting view of a part that is not displayed: NX 2406 refuses its Matrix."""
+
+    Tag = 7
+
+    @property
+    def Matrix(self):
+        raise RuntimeError("This operation can only be performed on a displayed part")
+
+
+def test_axes_of_a_background_view_come_from_the_model_to_sheet_map():
+    """Front view (x right, z up, -y toward the viewer) at scale 2, origin at (100, 50)."""
+    from types import SimpleNamespace as NS
+
+    rows = ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
+
+    def to_drawing(tag, p):
+        assert tag == 7
+        dots = [sum(a * b for a, b in zip(row, p, strict=True)) for row in rows]
+        return [100 + 2 * dots[0], 50 + 2 * dots[1]]
+
+    tx = NS(uf=NS(View=NS(MapModelToDrawing=to_drawing)))
+    x, y, z = drawing.axes(_BackgroundView(), tx)
+    assert x == pytest.approx([1, 0, 0]) and y == pytest.approx([0, 0, 1])
+    assert z == pytest.approx([0, -1, 0])
+    with pytest.raises(RuntimeError):
+        drawing.axes(_BackgroundView())  # without tx NX's refusal stands
+
+
+def test_a_part_that_is_not_displayed_has_no_drawing_work_view():
+    """NX refuses WorkView of a background part ("only on a displayed part"): that is not
+    a drawing sheet shown; "not a model view" is."""
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.kit import drawing as kdrawing
+
+    def part(message):
+        class Views:
+            @property
+            def WorkView(self):  # noqa: N802 (NXOpen name)
+                raise RuntimeError(message)
+
+        return NS(ModelingViews=Views())
+
+    assert kdrawing.work_view_is_drawing(part("The view is not a model view")) is True
+    assert not kdrawing.work_view_is_drawing(
+        part("This operation can only be done on a displayed part")
+    )

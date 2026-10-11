@@ -480,6 +480,9 @@ class Tx:
         # The part gate 3t resolved (core.target.Target) or None; gate 4s made it current
         # (``tx.part`` is it: the work part after a switch, the bound part of a read).
         self.target: Any = None
+        # Gate 4s's state of this call (core.switching.Bound): a child of a call that
+        # switched NX to its target switches again when its own target differs.
+        self.bound: Any = None
         # Keys the kernel adds to this call's undo-history entry (``compensation``: an
         # undo by deletion, never undone itself; core/marks.py).
         self.history_note: dict | None = None
@@ -548,7 +551,7 @@ class Tx:
                 fail(
                     "NX_WRONG_OWNER",
                     f"{ref} is not owned by the work part",
-                    hint="Use geometry of the work part or activate the owning part",
+                    hint="Pass refs of one part: a call acts in the part its refs name",
                     details={"ref": ref},
                 )
         return obj
