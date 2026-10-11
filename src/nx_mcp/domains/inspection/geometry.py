@@ -9,6 +9,9 @@ Without ``order``, ``nearest`` is used when ``near`` is given, else ``lowest``.
 A feature owner limits the candidates to the feature's own faces or edges
 (``Feature.GetFaces``/``GetEdges``), not every face of its bodies. ``normal`` also
 takes an axis word (``+z``, ``-x``, ``top`` = ``+z``, ``bottom`` = ``-z``).
+``parallel`` keeps the line edges along an axis (either sense) or parallel to a principal
+plane (``xy``: across z), within ``tolerance`` as for ``normal``: ``parallel: 'z'`` gives
+a block's vertical edges, where ``axis`` only orders the rows.
 
 Plane normals are UF ``AskFaceData`` directions (the outward normal on NX 2406);
 a cylinder whose face sense is reversed (``AskFaceData`` sign -1) is a bore.
@@ -36,6 +39,7 @@ from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     REF_PATTERN,
+    Aliases,
     Doc,
     Json,
     Length,
@@ -48,7 +52,8 @@ from nx_mcp.core.types import (
     Text,
 )
 from nx_mcp.domains.inspection import common
-from nx_mcp.kit import args, bodies, curve, facts, geom, measure, parts, result, select
+from nx_mcp.kit import args, bodies, curve, geom, measure, parts, result, select
+from nx_mcp.kit import facts as kfacts
 
 FACE_TYPES = {22: "plane", 16: "cylinder", 17: "cone", 18: "sphere", 19: "torus"}
 FACE_CONE = 17
@@ -77,7 +82,7 @@ Normal = Annotated[tuple[float, float, float], NORMAL_DOC] | Annotated[str, Text
 # A short ref or a row's anchor (no pattern here: resolve_owner explains a bad value).
 OwnerRef = Annotated[
     str, Text(400), RefKind("body", "feature", "component"),
-    Doc("Ref/anchor: body/feature/component"),
+    Doc("body/feature/component"),
 ]  # fmt: skip
 AnchorText = Annotated[str, Text(400), Doc("Anchor '@...' from nx_create_anchor or a result row")]
 
@@ -88,9 +93,13 @@ SelectorObject = Annotated[
 ]
 SELECTOR_KEYS = {
     "part", "kind", "geometry_type", "order", "axis", "tolerance",
-    "owner", "owner_kind", "normal", "radius", "near", "role",
+    "owner", "owner_kind", "normal", "radius", "near", "role", "parallel",
 }  # fmt: skip
-OPTIONAL_SELECTOR_KEYS = {"owner", "owner_kind", "normal", "radius", "near", "role"}
+OPTIONAL_SELECTOR_KEYS = {"owner", "owner_kind", "normal", "radius", "near", "role", "parallel"}
+PLANE_NORMALS = {"xy": "z", "yz": "x", "xz": "y"}
+Parallel = Annotated[
+    Literal["x", "y", "z", "xy", "yz", "xz"], Aliases(zx="xz", yx="xy", zy="yz")
+]  # an axis (lines along it) or a principal plane (lines across its normal)
 
 
 class GeometryRow(result.Row, total=False):
@@ -178,11 +187,14 @@ def direction(value, field="/normal"):
 # Candidate scan
 
 
-def implied_type(kind, geometry_type, normal, radius, role):
+def implied_type(kind, geometry_type, normal, radius, role, lined=False):
     """``any`` narrowed by the filters that imply a type: a normal (plane), a role
-    (cylinder) or a radius (cylinder on faces, circle on edges)."""
+    (cylinder), a radius (cylinder on faces, circle on edges) or a line direction
+    (``lined``: ``parallel``, line edges)."""
     if geometry_type != "any":
         return geometry_type
+    if kind == "edge" and lined:
+        return "line"
     if kind == "face" and normal is not None:
         return "plane"
     if kind == "face" and (role is not None or radius is not None):
@@ -192,7 +204,7 @@ def implied_type(kind, geometry_type, normal, radius, role):
     return geometry_type
 
 
-def _check_rule(kind, geometry_type, normal, radius, near, order, role=None):
+def _check_rule(kind, geometry_type, normal, radius, near, order, role=None, lined=False):
     if kind == "body" and (geometry_type, normal, radius, role) != ("any", None, None, None):
         fail(
             "NX_INVALID_ARGUMENT",
@@ -217,6 +229,14 @@ def _check_rule(kind, geometry_type, normal, radius, near, order, role=None):
         fail("NX_INVALID_ARGUMENT", "radius filters cylinders or circles", field="/radius")
     if role is not None and (kind, geometry_type) != ("face", "cylinder"):
         fail("NX_INVALID_ARGUMENT", "role filters cylindrical faces only", field="/role")
+    if lined and (kind, geometry_type) != ("edge", "line"):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"parallel filters line edges by direction, not {kind} {geometry_type}",
+            field="/parallel",
+            hint='Use kind "edge" (geometry_type "line" or "any"); planar faces filter by '
+            "normal, circles by radius and near",
+        )
     if order == "nearest" and near is None:
         fail(
             "NX_INVALID_ARGUMENT",
@@ -284,9 +304,36 @@ def _describe(tx, obj, kind):
     return facts
 
 
+def _line_direction(tx, edge) -> list[float] | None:
+    """The unit direction of a line edge from its vertices (UF Eval when NX gives none);
+    None when degenerate."""
+    try:
+        start, end = (geom.xyz(v) for v in edge.GetVertices())
+    except Exception:
+        found = kfacts.edge(tx, edge)
+        start, end = found["start"], found["end"]
+    delta = geom.sub(end, start)
+    length = math.sqrt(geom.dot(delta, delta))
+    return geom.scale(delta, 1.0 / length) if length > 1e-12 else None
+
+
+def _along(tx, obj, parallel, tolerance) -> bool:
+    """Whether a line edge runs along the axis ``parallel`` (either sense) or across the
+    normal of the principal plane ``parallel``, within the angle tolerance of ``normal``
+    (cos >= 1 - tolerance)."""
+    found = _line_direction(tx, obj)
+    if found is None:
+        return False
+    if parallel in PLANE_NORMALS:
+        across = math.sqrt(max(0.0, 1 - (1 - tolerance) ** 2))
+        return abs(found[AXES.index(PLANE_NORMALS[parallel])]) <= across
+    return abs(found[AXES.index(parallel)]) >= 1 - tolerance
+
+
 def search(
-    tx, *, owner_obj, kind, geometry_type, normal, radius, near, order, axis, tolerance, role=None
-):
+    tx, *, owner_obj, kind, geometry_type, normal, radius, near, order, axis, tolerance, role=None,
+    parallel=None,
+):  # fmt: skip
     """Ranked ``[(rank, obj, facts)]`` of every face or edge matching the rule."""
     want_normal = direction(normal) if normal is not None else None
     target = args.vec3(near, "/near") if near is not None else None
@@ -296,6 +343,8 @@ def search(
         if geometry_type != "any" and facts["type"] != geometry_type:
             continue
         if want_normal is not None and geom.dot(want_normal, facts["normal"]) < 1 - tolerance:
+            continue
+        if parallel is not None and not _along(tx, obj, parallel, tolerance):
             continue
         if radius is not None and abs(facts["radius"] - radius) > tolerance:
             continue
@@ -343,8 +392,8 @@ def _part_path(tx):
     ),
     keywords=(
         "select face",
-        "find edge",
-        "pick geometry",
+        "vertical edges",
+        "edges by direction",
         "nearest face",
         "top face",
         "list edges",
@@ -367,12 +416,13 @@ def nx_find_geometry(
     near: Point3 | None = None,
     order: Order | None = None,
     axis: Literal["x", "y", "z"] | None = None,
+    parallel: Parallel | None = None,
     tolerance: Tolerance = DEFAULT_TOLERANCE,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> FindData:
-    """Find faces/edges/bodies by type, normal, radius, role. Ranked: nearest to near,
-    outermost along normal, else lowest; selector reruns in nx_resolve_reference."""
+    """Find faces/edges/bodies by type, normal, radius, role. parallel: edges along an
+    axis/plane. Ranked: near or normal/axis."""
     common.note_exploded(tx)
     want = direction(normal) if normal is not None else None
     # Without an axis: the normal's main axis, else z; without an order: nearest to near,
@@ -385,8 +435,9 @@ def nx_find_geometry(
             order = "nearest"
         else:
             order = "highest" if want and want[along] > 0 else "lowest"
-    geometry_type = implied_type(kind, geometry_type, normal, radius, role)
-    _check_rule(kind, geometry_type, normal, radius, near, order, role)
+    lined = parallel is not None
+    geometry_type = implied_type(kind, geometry_type, normal, radius, role, lined)
+    _check_rule(kind, geometry_type, normal, radius, near, order, role, lined)
     owner_obj, owner_kind = _owner(tx, owner)
     ranked = search(
         tx,
@@ -400,6 +451,7 @@ def nx_find_geometry(
         axis=axis,
         tolerance=tolerance,
         role=role,
+        parallel=parallel,
     )
     selected, page = result.page(ranked, offset, limit)
     items = [
@@ -423,6 +475,8 @@ def nx_find_geometry(
         rule["radius"] = float(radius)
     if role is not None:
         rule["role"] = role
+    if parallel is not None:
+        rule["parallel"] = parallel
     if near is not None:
         rule["near"] = [float(v) for v in near]
     selector: dict[str, Any] | None = rule
@@ -493,7 +547,7 @@ def _group_holes(tx, bores, tol):
 
 def _edge_positions(tx, edge, axis, origin):
     """Axial positions of an edge: its centre for an arc, else its end points."""
-    found = facts.edge(tx, edge)
+    found = kfacts.edge(tx, edge)
     points = [found["center"]] if found["kind"] == "arc" else [found["start"], found["end"]]
     return [geom.dot(geom.sub(p, origin), axis) for p in points]
 
@@ -753,6 +807,7 @@ def _parse_selector(text):
         or value.get("order") not in ("nearest", "highest", "lowest")
         or value.get("axis") not in ("x", "y", "z")
         or value.get("role") not in (None, "bore", "boss")
+        or value.get("parallel") not in (None, *AXES, *PLANE_NORMALS)
     ):
         missing = sorted(required - set(value)) if isinstance(value, dict) else []
         extra = sorted(set(value) - SELECTOR_KEYS) if isinstance(value, dict) else []
@@ -816,7 +871,9 @@ def nx_resolve_reference(
     owner_obj = _selector_owner(tx, parsed)
     rule = {k: parsed.get(k) for k in ("normal", "radius", "near")}
     role = parsed.get("role")
-    _check_rule(parsed["kind"], parsed["geometry_type"], order=parsed["order"], role=role, **rule)
+    parallel = parsed.get("parallel")
+    _check_rule(parsed["kind"], parsed["geometry_type"], order=parsed["order"], role=role,
+                lined=parallel is not None, **rule)  # fmt: skip
     ranked = search(
         tx,
         owner_obj=owner_obj,
@@ -827,6 +884,7 @@ def nx_resolve_reference(
         tolerance=parsed["tolerance"],
         role=role,
         **rule,
+        parallel=parallel,
     )
     if not ranked:
         fail("NX_NOT_FOUND", "No geometry satisfies the selector now", field="/selector")

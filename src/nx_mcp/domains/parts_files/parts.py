@@ -5,6 +5,14 @@ the agent's; saving or closing any other part needs the engineer's grant
 (``tx.require_owned``). Parts outside the workspace are refused first, since
 no grant can help there. NX names parts by file basename, so a new file name a
 loaded part already uses is refused before NX acts (``NX_NAME_CONFLICT``).
+
+Closing an assembly also closes the component parts it leaves unused that the agent
+created or opened (``unload_components``, default true): NX 2406 unloads prototypes
+the assembly loaded itself, but keeps parts loaded on their own (a cover and a bolt the
+agent created before assembling them stayed loaded after the kit closed, round 2). A
+component part is kept (``kept_components`` with the reason) when the agent did not
+create or open it, another loaded assembly uses it, it was the work or display part
+before the call, or it has unsaved changes (never saved or discarded implicitly).
 """
 
 from __future__ import annotations
@@ -74,13 +82,22 @@ class SaveData(TypedDict, total=False):
     changed_files: list[str]
     other_modified_parts: list[result.Row]  # loaded parts left with unsaved changes
     verified_parts: int
+    updated_views: list[result.Row]  # out-of-date drawing views updated before the save
 
 
-class CloseData(TypedDict):
+class KeptPart(TypedDict):
+    part: result.Row
+    path: str
+    reason: str
+
+
+class CloseData(TypedDict, total=False):
     closed: list[result.Row]
     closed_count: int
     remaining_count: int
     saved: bool
+    unloaded_components: list[result.Row]
+    kept_components: list[KeptPart]
 
 
 def _row(tx, part) -> result.Row:
@@ -235,6 +252,7 @@ def new_part(tx, target: Path, units: str):
         "start model",
         "new assembly",
         "assembly part",
+        "create assembly",
     ),
     cost="heavy",
     example={"path": "projects/demo/base.prt", "units": "mm"},
@@ -400,13 +418,15 @@ def _missing_parents(path: Path) -> list[Path]:
     return out
 
 
-def _save_as(tx, target, destination: Path) -> None:
-    """Native Save As of ``target`` to ``destination``. A refusal that left the part and
-    the disk as they were is not partial (folders this call made are removed again)."""
+def _save_as(tx, target, destination: Path) -> list:
+    """Native Save As of ``target`` to ``destination``; returns the rows of the
+    out-of-date drawing views updated first. A refusal that left the part and the disk as
+    they were is not partial (folders this call made are removed again)."""
     made = _missing_parents(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     before = parts.file_of(target)
-    with parts.saving(tx, target):
+    with parts.saving(tx, target) as views:
+        updated = [tx.ref(v, "drawing_view") for v in views]
         try:
             with native(default="NX_SAVE_FAILED"):
                 status = target.SaveAs(str(destination))
@@ -432,6 +452,7 @@ def _save_as(tx, target, destination: Path) -> None:
         if status is not None and hasattr(status, "Dispose"):
             with contextlib.suppress(Exception):
                 status.Dispose()
+    return updated
 
 
 @tool(
@@ -450,7 +471,7 @@ def nx_save_part(
 ) -> SaveData:
     """Save a loaded part (default the work part) in place, or as a new .prt (path).
     Save-as moves the loaded part and its ref to the new file; the old file stays. Never
-    overwrites; expires NX undo marks."""
+    overwrites; expires NX undo marks; updates out-of-date drawing views first."""
     with tx.checks():
         target = resolve_part(tx, part) if part else tx.part
         field = "/part" if part else None
@@ -473,7 +494,7 @@ def nx_save_part(
         audit = _saving.verified_save(tx, target)
         return {"part": _row(tx, target), "path": _rel(tx, parts.file_of(target)), **audit}
     destination = Path(path)
-    _save_as(tx, target, destination)
+    updated = _save_as(tx, target, destination)
     readback.expect(
         parts.same_file(parts.file_of(target), destination),
         "save_as",
@@ -481,12 +502,16 @@ def nx_save_part(
     )
     readback.expect(destination.is_file(), "save_as_file", path=_rel(tx, destination))
     readback.expect(not target.IsModified, "save_as_modified")
-    return {
+    out: SaveData = {
         "part": _row(tx, target),
         "path": _rel(tx, destination),
         "saved_as": True,
         "saved_files": [_rel(tx, destination)],
     }
+    if updated:
+        out["updated_views"] = updated
+        _saving.note_updated(tx, updated)
+    return out
 
 
 def _close_summary(a, say) -> str:
@@ -509,10 +534,13 @@ def nx_close_part(
     part: LoadedPart,
     save: Annotated[bool, Doc("true saves first, false discards changes; required if modified")]
     | None = None,
+    unload_components: Annotated[
+        bool, Doc("Also close the unused, unmodified component parts the agent loaded")
+    ] = True,
 ) -> CloseData:
     """Close one loaded part by ref, workspace path or file name (never implicitly the work
     part). With unsaved changes, save (true or false) is required. Refused while a loaded
-    assembly uses it; NX may also unload unused prototypes."""
+    assembly uses it; its unused component parts the agent loaded close too."""
     with tx.checks():
         target = loaded_part(tx, part)
         field = "/part"
@@ -541,11 +569,85 @@ def nx_close_part(
                 },
             )
     save = bool(save)
+    session_parts = tx.session.Parts
+    active = {int(p.Tag) for p in (session_parts.Work, session_parts.Display) if p is not None}
+    prototypes = _prototypes(target) if unload_components else []
     closed = _saving.close_part(tx, target, save=save)
+    rows = list(closed["closed"])
+    out: CloseData = {"saved": bool(save)}
+    if prototypes:
+        unloaded, kept = _unload_unused(tx, prototypes, active)
+        rows += unloaded
+        if unloaded:
+            out["unloaded_components"] = unloaded
+        if kept:
+            out["kept_components"] = kept
     _report_units(tx)
-    return {
-        "closed": closed["closed"],
-        "closed_count": len(closed["closed"]),
-        "remaining_count": closed["remaining_count"],
-        "saved": bool(save),
-    }
+    out["closed"] = rows
+    out["closed_count"] = len(rows)
+    out["remaining_count"] = len(list(tx.session.Parts))
+    return out
+
+
+def _prototypes(part) -> list:
+    """The loaded component parts of ``part`` (every level), once each."""
+    found: dict[int, object] = {}
+    for component, _path in parts.components(part):
+        prototype = getattr(component, "Prototype", None)
+        if prototype is not None and hasattr(prototype, "Tag"):
+            found.setdefault(int(prototype.Tag), prototype)
+    return list(found.values())
+
+
+def _created(tx, part) -> bool:
+    """Created or opened by the agent (a part only granted by the engineer is not)."""
+    created = getattr(tx.services, "created", None)
+    return bool(created(part) if created is not None else tx.services.owns(part))
+
+
+def _unload_unused(tx, prototypes, active) -> tuple[list, list]:
+    """Close the component parts a closed assembly left unused that the agent loaded;
+    ``(closed rows, kept rows with the reason)``. Sub-assemblies go before their parts."""
+    loaded = {int(p.Tag) for p in tx.session.Parts}
+    pending = [p for p in prototypes if int(p.Tag) in loaded]
+    unloaded: list = []
+    reasons: dict[int, str] = {}
+    progress = True
+    while pending and progress:
+        progress = False
+        for part in list(pending):
+            tag = int(part.Tag)
+            if tag not in {int(p.Tag) for p in tx.session.Parts}:
+                pending.remove(part)  # NX unloaded it with an earlier close
+                continue
+            reason = None
+            if not _created(tx, part):
+                reason = "not created or opened by the agent"
+            elif tag in active:
+                reason = "work or display part before the close"
+            elif parts.dependents(tx, part):
+                reasons[tag] = "used by another loaded assembly"
+                continue  # a parent may close later in this loop
+            elif bool(getattr(part, "IsModified", False)):
+                reason = "unsaved changes: close it with save=true or save=false"
+            if reason is None:
+                known = {int(p.Tag) for p in prototypes}
+                for nested in _prototypes(part):  # a sub-assembly's parts come next
+                    if int(nested.Tag) not in known:
+                        prototypes.append(nested)
+                        pending.append(nested)
+                try:
+                    unloaded.extend(_saving.close_part(tx, part, save=False)["closed"])
+                    progress = True
+                except Exception as error:
+                    reason = f"close failed: {error}"
+            if reason is not None:
+                reasons[tag] = reason
+            pending.remove(part)
+    still = {int(p.Tag) for p in tx.session.Parts}
+    kept = [
+        {"part": _row(tx, p), "path": _rel(tx, parts.file_of(p)), "reason": reasons[int(p.Tag)]}
+        for p in prototypes
+        if int(p.Tag) in still and int(p.Tag) in reasons
+    ]
+    return unloaded, kept

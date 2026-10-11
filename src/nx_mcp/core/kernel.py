@@ -556,8 +556,21 @@ def run(spec, args, ctx: Context) -> dict:
             before = services.snapshot(part) if part is not None else {}
             floor = _ref_floor(services)
             mark = services.set_mark("NX MCP: " + spec.label)
-        tx = Tx(services, spec, operation_id=operation_id, receipts=receipts, record=record)
+        tx = Tx(
+            services,
+            spec,
+            operation_id=operation_id,
+            receipts=receipts,
+            record=record,
+            arguments=raw_args,
+        )
         tx.mark = mark
+        if record is not None and record.get("previous"):
+            tx.warn(
+                "NX_UPDATE_WARNING",
+                f"{operation_id} was reverted by {record['previous']['reverted_by']}; this "
+                "call ran it again (nx_get_operation lists the reverted run under previous)",
+            )
         call_args = _gate_units(spec, checked, services, tx)  # 9
         handler_started = True
         with services.observe() as observer:
@@ -578,7 +591,10 @@ def run(spec, args, ctx: Context) -> dict:
                 changes["references"] = tx.references
                 changes.pop("stale_kinds", None)
             if tx.outcome != "not_applicable":  # a discarded preview: no mark to undo
+                depth = len(services.undo_history())
                 services.record_history(mark, part, operation_id, spec.name)
+                if len(services.undo_history()) > depth:  # new work (not an undo, restore)
+                    services.redo_steps().clear()  # ends what nx_redo_operation repeats
         elif tx.changed:  # a file or session tool reporting the objects it changed
             changes = {"created": [], "modified": list(tx.changed), "deleted": []}
             changes["references"] = "preserved"
@@ -805,8 +821,9 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
             return "partial", "preserved", failed
         return "rolled_back", "preserved", error
     if spec.effect == "session" and tx is not None and tx.outcome in ("rolled_back", "partial"):
-        # The handler undid its own temporary changes (tx.preview()): it knows the outcome.
-        return tx.outcome, "part_invalidated", error
+        # The handler undid its own changes (tx.preview(), nx_redo_operation): it knows the
+        # outcome, and the references when it rebound them (tx.after_undo()).
+        return tx.outcome, tx.references or "part_invalidated", error
     # A view handler that kept nothing, and session effects, have no generic rollback.
     return "unknown", "preserved", error
 
@@ -841,7 +858,14 @@ def run_child(
         flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
         before = services.snapshot(part) if part is not None else {}
-        child = Tx(services, spec, operation_id=parent.operation_id, parent=parent, mode=mode)
+        child = Tx(
+            services,
+            spec,
+            operation_id=parent.operation_id,
+            parent=parent,
+            mode=mode,
+            arguments=args,
+        )
         child.mark = parent.mark
         call_args = _gate_units(spec, checked, services, child)  # 9
         observer = None

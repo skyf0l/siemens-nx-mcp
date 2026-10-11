@@ -297,7 +297,19 @@ class FakeServices(Services):
         return retired
 
     def record_history(self, mark, part, operation_id, tool):
-        self.history.append({"mark": mark, "operation_id": operation_id, "method": tool})
+        if not self.mark_exists(mark):  # an undo went back past its own mark (as the host)
+            return
+        self.history.append(
+            {
+                "mark": mark,
+                "part_id": self.part_key(part) if part is not None else None,
+                "operation_id": operation_id,
+                "method": tool,
+            }
+        )
+
+    def undo_history(self):
+        return self.history
 
     def after_commit(self, spec):
         self.epoch += 1

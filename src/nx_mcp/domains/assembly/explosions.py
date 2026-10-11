@@ -3,6 +3,10 @@
 Exploded poses are absolute assembly poses; a placement gives one, or an offset from the
 pose the component inherits (assembled, or carried by its exploded parent). Assembled
 poses never change (read back).
+Creating or editing an explosion shows it in the modeling work view unless
+``display=false`` (agents left it assembled after creating it, round 2): ``views`` reports
+where it is shown. While a drawing sheet is open nothing is shown (a note says so):
+``nx_set_explosion_display`` targets drawing views.
 See ``exploded.py`` for the NX 2406 post-transform and trace-refresh rules.
 """
 
@@ -53,6 +57,7 @@ class Placement(_PlacementRequired, total=False):
 
 
 forbid_extra(Placement)
+Display = Annotated[bool, Doc("Show it in the work view; false keeps the view as it is")]
 # Components listed in a create result (nx_get_explosion pages them all).
 LISTED = 50
 
@@ -153,9 +158,10 @@ def nx_create_explosion(
     *,
     name: Name,
     placements: Annotated[list[Placement], Items(1, 1000)] | None = None,
+    display: Display = True,
 ) -> ExplosionData:
-    """Create a named explosion of the displayed work assembly. placements (as in
-    nx_edit_explosion) move components at once; the others stay assembled."""
+    """Create a named explosion of the displayed work assembly and show it in the work view.
+    placements (as in nx_edit_explosion) move components at once; the others stay assembled."""
     if name != name.strip():
         fail("NX_INVALID_ARGUMENT", "The name has leading or trailing spaces", field="/name")
     placements = placements or []
@@ -198,13 +204,16 @@ def nx_create_explosion(
         tx.warn("NX_NO_EFFECT", "Nothing is exploded yet: every component is at its "
                 "assembled pose. Move them with nx_edit_explosion placements "
                 '[{"component": "o:N", "offset": [dx, dy, dz]}].')  # fmt: skip
-        return out
-    seen = set()
-    tags = [_pick(tx, entries, seen, p["component"], f"/placements/{i}/component")
-            for i, p in enumerate(placements)]  # fmt: skip
-    after, moved, _views = _explode(tx, created, tags, targets, [])
-    out["placed"] = [after[t] for t in tags]
-    out["moved_count"] = moved
+    else:
+        seen = set()
+        tags = [_pick(tx, entries, seen, p["component"], f"/placements/{i}/component")
+                for i, p in enumerate(placements)]  # fmt: skip
+        after, moved, _views = _explode(tx, created, tags, targets, [])
+        out["placed"] = [after[t] for t in tags]
+        out["moved_count"] = moved
+    if display:
+        show_in_work_view(tx, part, created)
+    out["views"] = exploded.views(tx, part, created)
     return out
 
 
@@ -213,6 +222,28 @@ class EditExplosionData(TypedDict):
     components: list[ExplodedRow]
     moved_count: int
     updated_views: list[result.Row]
+    views: list[result.Row]
+
+
+def show_in_work_view(tx, part, ex) -> None:
+    """Show ``ex`` in the modeling work view and fit it (verified); a note instead while a
+    drawing sheet is the work view."""
+    if drawing.current(part) is not None or drawing.work_view_is_drawing(part):
+        tx.warn("NX_NOTE", "A drawing sheet is open, so the explosion is not shown in the work "
+                "view: nx_set_explosion_display shows it in a view")  # fmt: skip
+        return
+    view = part.ModelingViews.WorkView
+    api = exploded.uf(tx)
+    if int(api.AskViewExplosion(view.Tag) or 0) == int(ex.Tag):
+        return
+    with native(default="NX_BUILD_FAILED"):
+        api.SetViewExplosion(view.Tag, ex.Tag)
+    exploded.regenerate(tx)
+    with native():
+        view.Fit()
+    got = int(api.AskViewExplosion(view.Tag) or 0)
+    readback.expect(got == int(ex.Tag), "view", "The work view did not take the explosion",
+                    actual=got)  # fmt: skip
 
 
 def _edit_summary(a, say):
@@ -240,9 +271,11 @@ def nx_edit_explosion(
     explosion: ExplosionRef,
     placements: Annotated[list[Placement], Items(1, 1000)] | None = None,
     reset_components: Annotated[list[ComponentRef], Items(1, 1000)] | None = None,
+    display: Display = True,
 ) -> EditExplosionData:
-    """Move components in an explosion by an offset or to an absolute pose, or reset them.
-    Assembled poses never change; traces and drawing views follow."""
+    """Move components in an explosion by an offset or to an absolute pose, or reset them,
+    and show it in the work view. Assembled poses never change; traces and drawing views
+    follow."""
     placements = placements or []
     resets = reset_components or []
     if not placements and not resets:
@@ -250,7 +283,7 @@ def nx_edit_explosion(
              hint='e.g. placements=[{"component": "o:4", "offset": [0, 0, 40]}]')  # fmt: skip
     targets = _targets(placements)
     with tx.checks():
-        common.explosion_context(tx)
+        part = common.explosion_context(tx)
         ex = common.explosion(tx, explosion)
         entries = exploded.tree(ex)
         seen: set[int] = set()
@@ -259,11 +292,14 @@ def nx_edit_explosion(
         tags = [_pick(tx, entries, seen, p["component"], f"/placements/{i}/component")
                 for i, p in enumerate(placements)]  # fmt: skip
     after, moved, views = _explode(tx, ex, tags, targets, reset_tags)
+    if display:
+        show_in_work_view(tx, part, ex)
     return {
         "explosion": tx.ref(ex, "explosion"),
         "components": [after[t] for t in tags + reset_tags],
         "moved_count": moved,
         "updated_views": [tx.ref(v, "drawing_view") for v in views],
+        "views": exploded.views(tx, part, ex),
     }
 
 

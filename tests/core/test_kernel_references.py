@@ -175,3 +175,30 @@ def test_work_part_resolution_takes_the_work_assemblys_components_only(svc, tmp_
         with pytest.raises(NXError) as refused:
             tx.resolve(svc.references.row(obj, kind)["id"], work_part=True)
         assert refused.value.code == "NX_WRONG_OWNER"
+
+
+def _refused(svc, ref, kinds=()):
+    with pytest.raises(NXError) as caught:
+        svc.references.resolve(ref, kinds)
+    return caught.value
+
+
+def test_unknown_refs_say_whether_they_were_never_issued(svc, tmp_path):
+    edge = svc.part.add("edge", "E1")
+    edge_ref = svc.references.row(edge, "edge")["id"]
+    number = int(edge_ref.split(":")[1])
+    # Issued in this session as an edge: the face prefix names the edge ref instead.
+    wrong = _refused(svc, f"fc:{number}")
+    assert wrong.code == "NX_NOT_FOUND" and wrong.details["issued_as"] == edge_ref
+    assert "never issued" in wrong.message and edge_ref in wrong.hint
+    # A number not issued yet: never issued, with how to get refs.
+    ahead = _refused(svc, f"fc:{number + 500}", ("face",))
+    assert ahead.code == "NX_NOT_FOUND" and ahead.details["reason"] == "never_issued"
+    assert "from nx_find_geometry" in ahead.hint and "gone" not in ahead.hint
+    # No kind has this prefix.
+    assert _refused(svc, "zz:5").code == "NX_INVALID_ARGUMENT"
+    # Below a new session's floor: an earlier session's ref or an invented one, said so.
+    later = FakeServices(tmp_path)
+    old = _refused(later, edge_ref)
+    assert old.code == "NX_STALE_REFERENCE" and old.details["reason"] == "not_in_this_session"
+    assert "no tool returned never did" in old.message and "earlier NX session" not in old.message

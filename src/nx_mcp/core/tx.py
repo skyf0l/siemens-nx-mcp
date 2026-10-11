@@ -157,6 +157,12 @@ class Services:
         ``index`` is the length of :meth:`undo_history` when it was created."""
         return self.__dict__.setdefault("_undo_checkpoints", {})
 
+    def redo_steps(self) -> list:
+        """The live list of agent calls an undo or a restore reverted, next to repeat
+        first: ``{operation_id, method, part_id}`` (``nx_redo_operation``). A new
+        committed model call empties it, and so does an engineer edit (the host)."""
+        return self.__dict__.setdefault("_redo_steps", [])
+
     def mark_exists(self, mark) -> bool:
         """False once NX dropped the undo mark (a save, a part close)."""
         return bool(self.session.DoesUndoMarkExist(mark, None))
@@ -379,6 +385,7 @@ class Tx:
         record=None,
         parent: Tx | None = None,
         mode: str | None = None,
+        arguments: dict | None = None,
     ) -> None:
         self._services = services
         self.spec = spec
@@ -387,6 +394,8 @@ class Tx:
         self.record = record
         self.parent = parent
         self.mode = mode  # None, "batch" or "preview" for children
+        # The argument names the caller sent (before defaults), for ``tx.given``.
+        self._given = frozenset(arguments) if isinstance(arguments, dict) else frozenset()
         self.started = time.monotonic()
         self.touched = False
         self.frame = "work_part_absolute"
@@ -439,6 +448,11 @@ class Tx:
     @property
     def services(self) -> Services:
         return self._services
+
+    def given(self, name: str) -> bool:
+        """Whether the caller passed argument ``name`` (False when the handler got the
+        schema default, or when the call's arguments are unknown)."""
+        return name in self._given
 
     # -- references -------------------------------------------------------------
     def resolve(self, ref: str, *kinds: str, work_part: bool = False):
@@ -665,3 +679,27 @@ class Tx:
         if spec is None:
             fail("NX_UNKNOWN_TOOL", f"Unknown tool {tool}", field="/tool")
         return kernel.run_child(spec, args, self, prior=prior, mode=mode)
+
+    def call(self, tool: str, args: dict, *, operation_id: str) -> dict:
+        """Run a catalogue tool as a top-level call of its own, as if the agent sent it
+        with ``operation_id``: its own receipt, undo mark and undo-history entry. Only a
+        session tool without an undo mark of its own (``nx_redo_operation``) does this;
+        returns the call's envelope, ``ok`` true or false (it never raises for a tool
+        failure)."""
+        from nx_mcp.core import catalogue, kernel
+
+        if self.mark is not None or self.parent is not None or self.spec.effect != "session":
+            fail("NX_ERROR", "Only a session tool outside any undo mark runs top-level calls")
+        spec = catalogue.get(tool)
+        if spec is None:
+            fail("NX_UNKNOWN_TOOL", f"Unknown tool {tool}", field="/tool")
+        services: Any = self._services
+        loaded = None
+        with contextlib.suppress(Exception):
+            loaded = services.loaded()
+        try:
+            return kernel.run(spec, args, kernel.Context(services, operation_id=operation_id))
+        finally:
+            if loaded is not None:  # parts the call loaded count as the agent's (host)
+                with contextlib.suppress(Exception):
+                    services.track(loaded)

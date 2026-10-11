@@ -83,7 +83,7 @@ def _standard(dims_mm):
     )
 
 
-def _projection(tx, sheet):
+def projection_of(tx, sheet):
     third = tx.nx.Drawings.DrawingSheet.ProjectionAngleType.ThirdAngle
     return "third_angle" if sheet.ProjectionAngle == third else "first_angle"
 
@@ -210,7 +210,7 @@ def nx_create_drawing_sheet(
     sheet = created[0]
     if sheet.Name != name:
         sheet.SetName(name)  # template sheets keep the template's own sheet name
-    template_projection = _projection(tx, sheet) if path is not None else None
+    template_projection = projection_of(tx, sheet) if path is not None else None
     template_scale = sheet.GetScale()
     # Templates carry their own scale and projection: apply the request explicitly.
     angle = getattr(
@@ -225,7 +225,7 @@ def nx_create_drawing_sheet(
     actual = {
         "units": actual_units,
         "scale": numerator / denominator,
-        "projection": _projection(tx, sheet),
+        "projection": projection_of(tx, sheet),
         "name": sheet.Name,
         "size": _standard(dims_mm),
     }
@@ -330,6 +330,14 @@ def nx_activate_drawing_sheet(
         drawing.close_sheets(tx, part)
     else:
         drawing.open_sheet(tx, target, part)
+    stale = drawing.out_of_date(v for s in part.DrawingSheets for v in s.GetDraftingViews())
+    if stale:
+        names = ", ".join(str(v.Name) for v in stale[:5])
+        tx.warn(
+            "NX_NOTE",
+            f"{len(stale)} drawing view(s) are out of date ({names}): the model changed since "
+            "they were updated. nx_update_annotations updates them; nx_export_drawing does too",
+        )
     current = drawing.current(part)
     return {
         "sheet": tx.ref(current, "drawing_sheet") if current is not None else None,

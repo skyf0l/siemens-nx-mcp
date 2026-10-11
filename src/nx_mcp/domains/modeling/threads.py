@@ -432,18 +432,48 @@ def _check_manual(spec: ManualSpec) -> None:
         fail("NX_INVALID_ARGUMENT", "angle must be between 0 and 180", field="/spec/angle")
 
 
-def _check_fit(internal, diameter, major, minor, tap, field="/face") -> None:
-    """Refuse a thread with no material to thread: a bore at or above the major diameter,
-    a shaft at or below the minor one."""
+def _seed_feature(face):
+    """The feature that made a bore face, or None: the first feature of its body listing
+    the face. NX 2406 lists a hole's face on both the HOLE PACKAGE ('SIMPLE HOLE(2)') and
+    its instance ('SIMPLE HOLE(2:1A)'); the package comes first and holds the diameter
+    nx_edit_feature changes."""
+    try:
+        for feature in face.GetBody().GetFeatures():
+            if any(int(f.Tag) == int(face.Tag) for f in feature.GetFaces()):
+                return feature
+    except Exception:  # an object without the feature listing: no seed named
+        return None
+    return None
+
+
+def _check_fit(tx, face, internal, diameter, fit, field="/face") -> None:
+    """Refuse a thread with no material to thread: a bore at or above the major diameter
+    (a clearance hole for that size), a shaft at or below the minor one."""
+    major, minor, tap, size = fit
     tol = 1e-6 * max(1.0, diameter)
     if internal and major is not None and diameter >= major - tol:
+        name = size or f"major diameter {major:.6g}"
+        drill = tap if tap else minor
+        seed = _seed_feature(face)
+        details: dict[str, Any] = {"bore": diameter, "major_diameter": major}
+        if drill:
+            details["tap_drill"] = drill
+        if seed is not None:
+            details["seed_feature"] = tx.ref(seed, kind="feature")
+        where = f" ({details['seed_feature']['id']})" if seed is not None else ""
         fail(
             "NX_WRONG_GEOMETRY",
-            f"This bore is {diameter:.6g} across; an internal thread of major diameter "
-            f"{major:.6g} needs a smaller bore",
+            f"This bore is {diameter:.6g} across: a clearance hole for {name}, not a tapped "
+            "hole; an internal thread needs the bore at the tap drill",
             field=field,
-            hint=(f"Drill the tap drill {tap:.6g} first, or " if tap else "")
-            + "pick a larger size; nx_create_hole form 'threaded' drills and threads at once",
+            hint="For a tapped hole, edit the hole that made this bore"
+            + where
+            + (f" to the tap drill {drill:.6g}" if drill else " to the tap drill")
+            + " with nx_edit_feature (parameters [{'name': 'diameter', 'value': "
+            + (f"{drill:.6g}" if drill else "<tap drill>")
+            + "}]) and thread it then, or make it with nx_create_hole form 'threaded'. "
+            "Keep a clearance hole unthreaded",
+            details=details,
         )
     if not internal and minor is not None and diameter <= minor + tol:
         fail(
@@ -453,6 +483,68 @@ def _check_fit(internal, diameter, major, minor, tap, field="/face") -> None:
             field=field,
             hint="Pick a smaller size or thread a larger shaft",
         )
+
+
+# A custom internal thread whose minor diameter is off the bore by more than this many
+# pitches, or whose depth (major - bore) / 2 exceeds one pitch, is reported.
+MINOR_OFF_PITCHES = 0.25
+
+
+def _check_custom(tx, spec, plans) -> None:
+    """Warn about a custom (manual) spec: no table row of the part's unit system has its
+    major diameter and pitch, or an internal thread does not fit its bore."""
+    from nx_mcp.kit import units
+
+    major, minor, pitch = (float(spec[k]) for k in ("major_diameter", "minor_diameter", "pitch"))
+    try:
+        rows = thread_rows()
+    except NXError:
+        rows = []
+    unit = "Metric" if units.part_units(tx) == "mm" else "Inch"
+
+    def number(row, key):
+        return common.float_or_none(row.get(key)) or -1.0
+
+    sizes = [
+        r
+        for r in rows
+        if r.get("Unit") == unit
+        and abs(number(r, "MajorDiameter") - major) <= 1e-3 * max(1.0, major)
+        and abs(number(r, "Pitch") - pitch) <= 1e-6 * max(1.0, pitch)
+    ]
+    # A standard minor diameter: a row's minor diameter or tap drill within this share of
+    # the pitch (the rows differ by engagement).
+    near_minor = MINOR_OFF_PITCHES * pitch
+    if rows and not any(
+        min(abs(number(r, "MinorDiameter") - minor), abs(number(r, "TapDrillDia") - minor))
+        <= near_minor
+        for r in sizes
+    ):
+        if sizes:
+            row = sizes[0]
+            known = (
+                f"; {row.get('Size')} has minor diameter {number(row, 'MinorDiameter'):g} "
+                f"and tap drill {number(row, 'TapDrillDia'):g}"
+            )
+        else:
+            known = ""
+        tx.warn(
+            "NX_NOTE",
+            f"Non-standard thread: no {unit.lower()} row of the NX thread table has major "
+            f"diameter {major:g}, pitch {pitch:g} and minor diameter {minor:g}{known}; give "
+            "spec {'size': ...} for a standard thread",
+        )
+    for plan in plans:
+        if not plan["internal"]:
+            continue
+        bore = 2 * plan["radius"]
+        if abs(minor - bore) > MINOR_OFF_PITCHES * pitch or (major - bore) / 2 > pitch:
+            tx.warn(
+                "NX_NOTE",
+                f"The custom internal thread (major {major:g}, minor {minor:g}) does not fit "
+                f"the {bore:.6g} bore: a tapped bore is about the minor diameter",
+            )
+            break
 
 
 def _end_faces(tx, target, axis) -> list:
@@ -504,8 +596,8 @@ def _plan(tx, ref, field, start_face, length, fit) -> dict:
     if int(data[0]) != select.FACE_CYLINDER:
         fail("NX_WRONG_GEOMETRY", "Select a cylindrical face", field=field)
     radius, axis = float(data[4]), geom.unit([float(v) for v in data[2]])
-    major, minor, tap = fit
-    _check_fit(float(data[6]) < 0, 2 * radius, major, minor, tap, field=field)
+    internal = float(data[6]) < 0
+    _check_fit(tx, target, internal, 2 * radius, fit, field=field)
     body = target.GetBody()
     if start_face is None:
         start = _start_face(tx, target, axis, field)
@@ -516,7 +608,7 @@ def _plan(tx, ref, field, start_face, length, fit) -> dict:
     full = length is None or length == "full"
     span = _full_length(tx, target, start, axis) if full else float(length)
     return {"face": target, "radius": radius, "body": body, "start": start, "span": span,
-            "full": full, "field": field}  # fmt: skip
+            "full": full, "field": field, "internal": internal}  # fmt: skip
 
 
 def _build(tx, plan, row, manual, length, options) -> tuple[Any, ThreadReadback]:
@@ -611,8 +703,8 @@ def nx_create_thread(
     reverse: bool = False,
 ) -> ThreadData:
     """Thread a cylindrical face, or several (faces: one thread each). spec: a table size
-    ('M6': Metric Coarse, engagement 0.75) or pitch and diameters. A bore must be below the
-    major diameter (tap drill). Symbolic keeps the volume; detailed cuts it."""
+    ('M6': Metric Coarse, engagement 0.75) or pitch and diameters. A bore must be the tap
+    drill (a clearance bore is refused). Symbolic keeps the volume; detailed cuts it."""
     args.exactly_one(face=face, faces=faces)
     refs = [face] if face is not None else args.distinct("/faces", faces or [], "faces")
     if length is not None and length != "full" and float(length) <= 0:
@@ -624,10 +716,12 @@ def nx_create_thread(
         major = common.float_or_none(row.get("MajorDiameter"))
         minor = common.float_or_none(row.get("MinorDiameter"))
         tap = common.float_or_none(row.get("TapDrillDia"))
+        size = row.get("Size")
     else:
         manual = spec
         _check_manual(spec)
         major, minor, tap = float(spec["major_diameter"]), float(spec["minor_diameter"]), None
+        size = None
     plans = [
         _plan(
             tx,
@@ -635,10 +729,12 @@ def nx_create_thread(
             "/face" if face is not None else f"/faces/{i}",
             start_face,
             length,
-            (major, minor, tap),
+            (major, minor, tap, size),
         )  # fmt: skip
         for i, ref in enumerate(refs)
     ]
+    if manual is not None:
+        _check_custom(tx, manual, plans)
     if row is not None:
         check_units(tx, row, "/spec/standard")
     bodies = list({int(p["body"].Tag): p["body"] for p in plans}.values())

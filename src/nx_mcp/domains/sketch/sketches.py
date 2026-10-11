@@ -4,10 +4,11 @@ NX 2406 findings kept here:
 
 - A principal-plane sketch is placed on a coordinate system built from the exact
   frame (``SketchInPlaceBuilder2.Csystem``) and its frame is read back.
-- On a face or datum plane without ``x_direction`` the sketch selects the target
-  directly (``PlaneOption.Inferred``), which keeps it associative; NX 2406 ignores
-  ``AxisReference`` in that mode, so an explicit x direction uses a coincident
-  smart plane plus an axis and origin, still associative to the target.
+- On a face or datum plane the inferred placement (``PlaneOption.Inferred``) puts the
+  origin at the face centre on some faces (a block's) and at a vertex on others (an
+  extrude's), and ignores ``AxisReference``. The sketch therefore uses a coincident smart
+  plane (still associative to the target) with an axis and an origin: the absolute
+  origin dropped onto the plane, x the absolute X projected (``face_frame``).
 - A path sketch needs the same work and display part, a validated builder and a
   model update before it can be activated.
 - Committing a feature ends sketch mode silently on NX 2406, so every modeling
@@ -70,7 +71,11 @@ class PrincipalPlacement(_Principal, total=False):
 
 
 class _On(TypedDict):
-    on: Annotated[str, RefTo("face", "datum_plane")]
+    on: Annotated[
+        str,
+        RefTo("face", "datum_plane"),
+        Doc("Local origin: part origin projected onto it; x: X projected (Y if normal is X)"),
+    ]
 
 
 class OnPlacement(_On, total=False):
@@ -200,7 +205,20 @@ def _on_principal(tx, want):
         return b.Commit()
 
 
+def face_frame(origin, normal, x=None):
+    """``(origin, x)`` of a sketch on the plane through ``origin`` with unit ``normal``:
+    the part's absolute origin dropped onto the plane, and ``x`` (default the absolute X
+    projected onto the plane, the absolute Y on a plane normal to X)."""
+    at = geom.scale(normal, geom.dot(origin, normal))
+    if x is None:
+        base = [1.0, 0.0, 0.0] if abs(normal[0]) < 0.9 else [0.0, 1.0, 0.0]
+        x = geom.unit(geom.sub(base, geom.scale(normal, geom.dot(base, normal))))
+    return at, x
+
+
 def _on_target(tx, p):
+    """A sketch on a planar face or datum plane, at a predictable frame (``face_frame``):
+    NX's own inferred origin is the face centre on some faces and a vertex on others."""
     obj, origin, normal = select.planar(tx, p["on"], "/placement/on")
     x = None
     if p.get("x_direction") is not None:
@@ -211,27 +229,26 @@ def _on_target(tx, p):
                 "x_direction must lie in the target plane",
                 field="/placement/x_direction",
             )
+    at, x = face_frame(origin, normal, x)
     part, nx = tx.part, tx.nx
     with builders.build(tx, part.Sketches.CreateSketchInPlaceBuilder2, nx.Sketch.Null) as b:
-        if x is None:
-            b.PlaneOption = nx.Sketch.PlaneOption.Inferred
-            b.PlaneOrFace.Value = obj
-        else:
-            plane = part.Planes.CreatePlane(
-                nx.Point3d(*origin),
-                nx.Vector3d(*normal),
-                nx.SmartObject.UpdateOption.WithinModeling,
-            )
-            plane.SetMethod(nx.PlaneTypes.MethodType.Coincident)
-            plane.SetGeometry([obj])
-            plane.Evaluate()
-            b.PlaneOption = nx.Sketch.PlaneOption.NewPlane
-            b.PlaneReference = plane
-            b.AxisReference = builders.direction(tx, x, origin, "/placement/x_direction")
-            b.OriginOption = nx.OriginMethod.SpecifyPoint
-            b.SketchOrigin = builders.point(tx, origin)
+        # A coincident smart plane keeps the sketch associative to the target; NX 2406
+        # ignores AxisReference and SketchOrigin on an Inferred plane.
+        plane = part.Planes.CreatePlane(
+            nx.Point3d(*origin),
+            nx.Vector3d(*normal),
+            nx.SmartObject.UpdateOption.WithinModeling,
+        )
+        plane.SetMethod(nx.PlaneTypes.MethodType.Coincident)
+        plane.SetGeometry([obj])
+        plane.Evaluate()
+        b.PlaneOption = nx.Sketch.PlaneOption.NewPlane
+        b.PlaneReference = plane
+        b.AxisReference = builders.direction(tx, x, at, "/placement/x_direction")
+        b.OriginOption = nx.OriginMethod.SpecifyPoint
+        b.SketchOrigin = builders.point(tx, at)
         sketch = b.Commit()
-    return sketch, origin, normal, x
+    return sketch, at, normal, x
 
 
 def _on_path(tx, p):
@@ -349,9 +366,8 @@ def nx_create_sketch(
             readback.expect_same_direction(got[axis], want[axis], axis)
     elif "on" in where:
         readback.expect_parallel(got["normal"], normal, "normal")
-        readback.expect_on_plane(got["origin"], origin, normal, "origin_on_plane")
-        if x is not None:
-            readback.expect_same_direction(got["x_axis"], x, "x_axis")
+        readback.expect_close(got["origin"], origin, "origin")
+        readback.expect_same_direction(got["x_axis"], x, "x_axis")
     else:
         _verify_path(tx, got, edges)
     if name:

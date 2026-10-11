@@ -5,11 +5,16 @@ NX 2406 lessons kept here: a variable blend adds its radius points with
 closed edge 0 and 1 are the same point: NX 670075); ``ChamferBuilder`` takes
 ``SymmetricOffsets``/``TwoOffsets``/``OffsetAndAngle`` with ``ReverseOffsets``
 swapping the faces; builders get a 0.001 mm distance tolerance; a draft needs
-its faces on the stationary face's body.
+its faces on the stationary face's body. Both take the edges given (a dumb rule): a chamfer
+or blend of part of a tangent-continuous chain (the straight top edges of a plate with
+rounded corners, without the arcs) stops in a step, so the left-out chain edges are
+reported, or added with ``chain``.
 """
 
 from __future__ import annotations
 
+import functools
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -28,15 +33,92 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, expr, measure, select, units
+from nx_mcp.kit import args, builders, curve, expr, geom, measure, select, units
 
 EdgeList = Annotated[list[EdgeRef], Items(1, 200)]
 FaceList = Annotated[list[FaceRef], Items(1, 200)]
+ChainFlag = Annotated[bool, Doc("Add the edges tangent-continuous with the given ones")]
+# Edges meeting at a vertex continue a tangent chain when their tangents there differ by
+# less than this many degrees.
+TANGENT_DEGREES = 1.0
+# Bodies with more edges than this are not searched for a tangent chain.
+CHAIN_EDGE_LIMIT = 5000
 
 
 def _edges(tx, refs):
     edges = select.edges(tx, refs, "/edges")
     return edges, common.one_body(edges, "/edges")
+
+
+def _vertex_key(point) -> tuple:
+    return tuple(round(float(v), 5) for v in point)
+
+
+def tangent_chain(tx, body, selected) -> list:
+    """The edges of ``body`` not in ``selected`` that continue it tangentially: reached
+    through shared vertices where the tangents agree within ``TANGENT_DEGREES``."""
+    edges = list(body.GetEdges())
+    if len(edges) > CHAIN_EDGE_LIMIT:
+        return []
+    by_vertex: dict[tuple, list] = {}
+    vertices: dict[int, list] = {}
+    for edge in edges:
+        try:
+            points = [geom.xyz(v) for v in edge.GetVertices()]
+        except Exception:  # an edge without vertices to read
+            continue
+        vertices[int(edge.Tag)] = points
+        for key in {_vertex_key(p) for p in points}:
+            by_vertex.setdefault(key, []).append(edge)
+    cache: dict[int, list] = {}
+
+    def ends_of(edge) -> list:
+        """``[(vertex key, unit tangent)]`` at the edge's ends ([] if not evaluable); each
+        evaluated end is keyed by the nearest of the edge's own vertices."""
+        tag = int(edge.Tag)
+        if tag not in cache:
+            cache[tag] = []
+            points = vertices.get(tag) or []
+            try:
+                with curve.evaluator(tx, edge) as e:
+                    found = [e.at(0.0), e.at(1.0)]
+            except Exception:
+                found = []
+            for at, d in found:
+                if points and geom.norm(d) > 0:
+                    near = min(points, key=functools.partial(geom.dist, at))
+                    cache[tag].append((_vertex_key(near), geom.unit(d)))
+        return cache[tag]
+
+    cos = math.cos(math.radians(TANGENT_DEGREES))
+    chosen = {int(e.Tag) for e in selected}
+    frontier, found = list(selected), []
+    while frontier:
+        for key, tangent in ends_of(frontier.pop()):
+            for other in by_vertex.get(key, []):
+                if int(other.Tag) in chosen:
+                    continue
+                if any(k == key and abs(geom.dot(tangent, d)) >= cos for k, d in ends_of(other)):
+                    chosen.add(int(other.Tag))
+                    found.append(other)
+                    frontier.append(other)
+    return found
+
+
+def chain_edges(tx, selected, body, chain: bool, what: str) -> list:
+    """``selected`` plus its tangent chain when ``chain``; otherwise ``selected``, with a
+    note when it leaves edges of a tangent-continuous chain out."""
+    missing = tangent_chain(tx, body, selected)
+    if chain:
+        return [*selected, *missing]
+    if missing:
+        tx.warn(
+            "NX_NOTE",
+            f"The edges are part of a tangent-continuous chain and {len(missing)} edge(s) of "
+            f"it are left out, so the {what} ends in a step there; pass chain true to "
+            "include them (or add them to edges)",
+        )
+    return selected
 
 
 class RadiusPoint(TypedDict):
@@ -66,6 +148,7 @@ def nx_create_blend(
     edges: EdgeList,
     radius: Length | None = None,
     variable: Annotated[list[RadiusPoint], Items(2, 20)] | None = None,
+    chain: ChainFlag = False,
 ) -> common.FeatureData:
     """Blend (fillet) edges of one body: a constant radius, or a radius varying along one
     edge. Edge refs expire after each feature: re-find them."""
@@ -84,6 +167,11 @@ def nx_create_blend(
         if any(b[0] - a[0] < 1e-6 for a, b in zip(points, points[1:], strict=False)):
             fail("NX_INVALID_ARGUMENT", "radius points need distinct positions", field="/variable")
     selected, body = _edges(tx, edges)
+    if variable is None:
+        selected = chain_edges(tx, selected, body, chain, "blend")
+    elif chain:
+        fail("NX_INVALID_ARGUMENT", "A variable blend takes one edge, not a chain",
+             field="/chain")  # fmt: skip
     before = measure.volume(tx, body)
     part = tx.part
     update = tx.nx.SmartObject.UpdateOption.WithinModeling
@@ -151,6 +239,7 @@ def nx_create_chamfer(
     offset2: Length | None = None,
     angle: Angle | None = None,
     reverse: Annotated[bool, Doc("Swap which face takes offset (asymmetric methods)")] = False,
+    chain: ChainFlag = False,
 ) -> common.FeatureData:
     """Chamfer edges of one body by a symmetric offset, two offsets (offset2), or an offset
     and angle (0..90 deg). NX picks the first face from the edge direction; reverse swaps the
@@ -195,6 +284,7 @@ def nx_create_chamfer(
             )
         angle_value = expr.number(angle)
     selected, body = _edges(tx, edges)
+    selected = chain_edges(tx, selected, body, chain, "chamfer")
     before = measure.volume(tx, body)
     options = tx.nx.Features.ChamferBuilder.ChamferOption
     with builders.build(tx, tx.part.Features.CreateChamferBuilder, None) as b:

@@ -136,7 +136,8 @@ class StepCreator(NS):
     def __init__(self, fake):
         super().__init__(
             SettingsFile=None, ExportFrom=None, LayerMask=None, OutputFile=None,
-            FileSaveFlag=True, ProcessHoldFlag=False, InputFile=None, ExportAs=1,
+            FileSaveFlag=True, ProcessHoldFlag=False, InputFile=None,
+            ExportAs=getattr(fake, "step_export_as", 1),  # NX keeps the session's last choice
             ObjectTypes=NS(Solids=False, Surfaces=False, Curves=True),
         )  # fmt: skip
         self._fake = fake

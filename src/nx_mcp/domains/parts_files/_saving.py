@@ -19,11 +19,15 @@ from nx_mcp.core.errors import classify, fail
 from nx_mcp.kit import files, parts, result
 
 
-class SaveAudit(TypedDict):
+class _Audit(TypedDict):
     saved_files: list[str]
     changed_files: list[str]
     other_modified_parts: list[result.Row]
     verified_parts: int
+
+
+class SaveAudit(_Audit, total=False):
+    updated_views: list[result.Row]  # out-of-date drawing views updated before the save
 
 
 def fingerprint(path) -> dict:
@@ -118,10 +122,12 @@ def verified_save(tx, part) -> SaveAudit:
         if int(p.Tag) != tag and before.get(int(p.Tag), {}).get("modified")
     ]
     native_errors: list = []
+    updated: list = []
     save_error = None
     called = False
     try:
-        with parts.saving(tx, part):
+        with parts.saving(tx, part) as views:
+            updated = [tx.ref(v, "drawing_view") for v in views]
             tx.non_undoable("native NX save")
             called = True
             status = part.Save(
@@ -150,7 +156,20 @@ def verified_save(tx, part) -> SaveAudit:
         except Exception as error:
             save_error.details["audit"] = getattr(error, "details", {"error": str(error)})
         raise save_error
-    return verify(before, snapshot(tx), tag, native_errors, tx.workspace.root, others)
+    audit = verify(before, snapshot(tx), tag, native_errors, tx.workspace.root, others)
+    if updated:
+        audit["updated_views"] = updated
+        note_updated(tx, updated)
+    return audit
+
+
+def note_updated(tx, updated) -> None:
+    """The note for drawing views ``parts.saving`` updated before a save."""
+    tx.warn(
+        "NX_NOTE",
+        f"Updated {len(updated)} out-of-date drawing view(s) before saving, so the "
+        "sheets do not reopen marked (Out of Date)",
+    )
 
 
 def close_part(tx, target, *, save: bool) -> dict:

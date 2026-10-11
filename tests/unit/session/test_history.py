@@ -60,15 +60,11 @@ def test_undo_reverts_only_the_agents_last_operation(nx):
         "tool": "nx_delete_objects",
         "undone": ["op_delete_b"],
         "undo_depth": 1,
+        "redo_depth": 1,
     }
-    # No NX redo: the undone call and its arguments, to repeat it.
+    # The undone call as nx_invoke takes it: tool and arguments, no operation_id.
     assert redo == [
-        {
-            "tool": "nx_delete_objects",
-            "arguments": {"objects": [b.ref]},
-            "operation_id": "op_delete_b",
-            "complete": True,
-        }
+        {"tool": "nx_delete_objects", "arguments": {"objects": [b.ref]}, "complete": True}
     ]
     assert names(nx) == ["B(2)", "C(3)"]  # B back, A still deleted
     # Only refs of objects that are gone are listed stale; the part is not invalidated.
@@ -80,8 +76,13 @@ def test_undo_reverts_only_the_agents_last_operation(nx):
     store = services(nx).store
     assert store.get("op_delete_b")["reverted_by"] == "op_undo_last"
     assert "reverted_by" not in store.get("op_delete_a")
-    replay = delete(nx, b, "op_delete_b")  # a retry replays, never recreates
-    assert replay.replayed and "reverted" in replay.warnings[-1]["message"]
+    # Repeating the reverted call runs it again, never a replay of the undone result:
+    # here it fails honestly, the delete retired B's ref (core tests: a re-run commits).
+    again = run(nx, "nx_delete_objects", operation_id="op_delete_b", objects=[b.ref])
+    assert not again.ok and not again.replayed and names(nx) == ["B(2)", "C(3)"]
+    assert again.error["code"] == "NX_STALE_REFERENCE", again
+    record = store.get("op_delete_b")
+    assert record["state"] == "failed" and record["previous"]["reverted_by"] == "op_undo_last"
 
 
 def test_undo_never_reaches_past_the_agents_history(nx):
@@ -269,3 +270,31 @@ def test_restore_by_label_takes_the_newest_restorable_checkpoint(nx):
     ok = run(nx, "nx_restore_checkpoint", checkpoint_id="before cuts")  # only first is live
     assert ok.ok and ok.data["checkpoint_id"] == first
     del c
+
+
+def test_redo_repeats_the_undone_call_as_its_own_operation():
+    from tests.unit.sketch.fakes import sketch_nx
+
+    nx = sketch_nx()
+    placement = {"principal": "xy"}
+    made = run(nx, "nx_create_sketch", operation_id="op_sketch_one", placement=placement)
+    assert made.ok and len(nx.part.Sketches) == 1, made
+    undo = run(nx, "nx_undo_operation", operation_id="op_undo_sketch")
+    assert undo.ok and list(nx.part.Sketches) == [] and undo.data["redo_depth"] == 1
+    assert undo.data["redo"] == [
+        {"tool": "nx_create_sketch", "arguments": {"placement": placement}, "complete": True}
+    ]
+    redo = run(nx, "nx_redo_operation", operation_id="op_redo_sketch")
+    assert redo.ok and redo.mutation_outcome == "committed", redo
+    assert redo.data["redone"] == ["op_sketch_one"] and redo.data["redo_depth"] == 0
+    assert len(nx.part.Sketches) == 1
+    created = redo.data["results"][0]["changes"]["created"]
+    assert [r["kind"] for r in created] == ["sketch"]
+    history = services(nx).history
+    assert [h["operation_id"] for h in history] == ["op_sketch_one"]  # not the redo itself
+    record = services(nx).store.get("op_sketch_one")
+    assert record["state"] == "committed" and record["previous"]["reverted_by"] == "op_undo_sketch"
+    # The same id repeated now replays the redone run; nothing is left to redo.
+    assert run(nx, "nx_create_sketch", operation_id="op_sketch_one", placement=placement).replayed
+    again = run(nx, "nx_redo_operation")
+    assert again.error["code"] == "NX_NOT_FOUND" and again.mutation_outcome == "not_started"

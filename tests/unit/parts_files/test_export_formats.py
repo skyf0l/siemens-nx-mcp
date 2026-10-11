@@ -135,7 +135,8 @@ def test_step_ap242_needs_its_license(nx, root, ugii):
     nx.ap242_licensed = True
     ok = export(nx, path="b.step", format="step_ap242")
     assert ok.ok and ok.data["schema"] == "AP242" and ok.data["solids"] == 2, ok
-    # AP214 keeps its own schema and does not touch ExportAs.
+    # AP214 sets its own schema even when the session's last export was AP242.
+    nx.step_export_as = nx.nx.StepCreator.ExportAsOption.Ap242
     plain = export(nx, path="c.step", format="step")
     assert plain.data["schema"] == "AP214" and plain.data["file_units"] == "mm"
     assert nx.step_creators[-1].ExportAs == nx.nx.StepCreator.ExportAsOption.Ap214

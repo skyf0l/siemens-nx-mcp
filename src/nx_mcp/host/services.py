@@ -721,6 +721,8 @@ class NXServices(Services):
             if any(key.endswith("_" + generation) for key in keys):
                 self._generations.pop(tag, None)
         self.history[:] = [h for h in self.history if h.get("part_id") not in keys]
+        redo = self.redo_steps()
+        redo[:] = [h for h in redo if h.get("part_id") not in keys]
         for cp in self.checkpoints.values():  # listed as expired, never dropped silently
             if cp.get("part_id") in keys:
                 cp.setdefault("expired", "part_closed")
@@ -728,8 +730,10 @@ class NXServices(Services):
     def engineer_changed(self) -> None:
         """The engineer edited the model between agent calls: no undo or checkpoint
         reaches back over the edit (checkpoints stay listed, expired). References are
-        re-validated by the host (:meth:`revalidate`), not dropped."""
+        re-validated by the host (:meth:`revalidate`), not dropped. Nothing is left
+        to redo either: the undone calls were made for the model before the edit."""
         self.history.clear()
+        self.redo_steps().clear()
         for cp in self.checkpoints.values():
             cp.setdefault("expired", "engineer_change")
         self.epoch += 1

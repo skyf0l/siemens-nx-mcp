@@ -281,7 +281,27 @@ def test_a_face_ref_string_is_a_sketch_on_that_face():
     nx.next_sketch = ((0, 0, 5), (1, 0, 0), (0, 1, 0))
     ok = run(nx, "nx_create_sketch", placement=top.ref)
     assert ok.ok, ok
-    assert nx.last("SketchInPlaceBuilder2").PlaneOption == "Inferred"
+    b = nx.last("SketchInPlaceBuilder2")
+    assert b.PlaneOption == "NewPlane" and b.OriginOption == "SpecifyPoint"
+    assert ok.data["frame"]["origin"] == [0, 0, 5]
+
+
+def test_a_face_sketch_origin_is_the_part_origin_projected_and_read_back():
+    nx = sketch_nx()
+    body = nx.block(10, 10, 5, origin=(20, 30, 0))
+    top = body.face(normal=(0, 0, 1))
+    # NX's inferred origin would be the face centre (25, 35, 5): a wrong frame is refused.
+    nx.next_sketch = ((25, 35, 5), (1, 0, 0), (0, 1, 0))
+    bad = run(nx, "nx_create_sketch", placement={"on": top.ref})
+    assert bad.error["details"]["check"] == "origin" and bad.mutation_outcome == "rolled_back"
+    nx.next_sketch = ((0, 0, 5), (1, 0, 0), (0, 1, 0))
+    ok = run(nx, "nx_create_sketch", placement={"on": nx.ref_of(top, "face")})
+    assert ok.ok and ok.data["frame"]["origin"] == [0, 0, 5], ok
+    # On a face normal to X the local x is the absolute Y (as on the yz plane).
+    from nx_mcp.domains.sketch.sketches import face_frame
+
+    assert face_frame([30, 32, 2], [1, 0, 0]) == ([30, 0, 0], [0.0, 1.0, 0.0])
+    assert face_frame([30, 32, 2], [0, -1, 0]) == ([0, 32, 0], [1.0, 0.0, 0.0])
 
 
 def test_finish_without_a_sketch_finishes_the_active_one():

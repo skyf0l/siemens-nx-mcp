@@ -1,0 +1,43 @@
+{
+ "covers": {
+  "nx_create_assembly_constraint": ["concentric"]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cf/cf_pin.prt", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "circle", "center": [0, 0], "radius": 5}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {"call": "nx_create_extrude", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 20}}},
+  {"call": "nx_save_part", "setup": true, "args": {}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_component", "setup": true, "save": "P1", "args": {"path": "$run/cf/cf_pin.prt", "name": "P1"}},
+  {"call": "nx_create_component", "setup": true, "save": "P2", "args": {"path": "$run/cf/cf_pin.prt", "name": "P2", "pose": {"translation": [30, 0, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "P3", "args": {"path": "$run/cf/cf_pin.prt", "name": "P3", "pose": {"translation": [0, 40, 8]}}},
+  {"call": "nx_create_assembly_constraint", "setup": true, "args": {"type": "fix", "component": "$P2.data.component.id"}},
+  {"call": "nx_find_geometry", "setup": true, "save": "c1", "args": {"owner": "$P1.data.component.id", "kind": "face", "geometry_type": "cylinder", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "c2", "args": {"owner": "$P2.data.component.id", "kind": "face", "geometry_type": "cylinder", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "c3", "args": {"owner": "$P3.data.component.id", "kind": "face", "geometry_type": "cylinder", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "t1", "args": {"owner": "$P1.data.component.id", "kind": "face", "normal": "+z", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "e2", "args": {"owner": "$P2.data.component.id", "kind": "edge", "geometry_type": "circle", "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_create_assembly_constraint", "args": {"type": "concentric", "component": "$P1.data.component.id", "geometry": "$t1.data.items.0.id", "target_component": "$P2.data.component.id", "target_geometry": "$e2.data.items.0.id"},
+   "expect": {"error.code": "NX_WRONG_GEOMETRY", "error.field": "/geometry", "mutation_outcome": "not_started",
+              "error.details.circular_edges": {"count": 1}, "error.details.circular_edges.0.kind": "edge",
+              "error.hint": {"contains": "geometry_type='circle'"}}},
+  {"call": "nx_create_assembly_constraint", "args": {"type": "concentric", "component": "$P3.data.component.id", "geometry": "$c3.data.items.0.id", "target_component": "$P2.data.component.id", "target_geometry": "$c2.data.items.0.id"},
+   "expect": {"error.code": "NX_AMBIGUOUS_REFERENCE", "mutation_outcome": "not_started",
+              "error.details.candidates": {"count": 2}, "error.details.candidates.0.geometry.kind": "edge",
+              "error.details.candidates.0.target_geometry.kind": "edge"}},
+  {"call": "nx_create_assembly_constraint", "save": "con", "args": {"type": "concentric", "component": "$P1.data.component.id", "geometry": "$c1.data.items.0.id", "target_component": "$P2.data.component.id", "target_geometry": "$e2.data.items.0.id"},
+   "expect": {"mutation_outcome": "committed", "data.type": "concentric", "data.status": "Solved",
+              "data.references.0.geometry.kind": "edge", "data.references.1.geometry.kind": "edge",
+              "data.moved": {"count": 1}, "data.moved.0.name": "P1",
+              "data.moved.0.translation": {"close": [30, 0, 0], "tol": 1e-6},
+              "warnings": {"contains": {"code": "NX_NOTE"}}}},
+  {"call": "nx_find_geometry", "args": {"owner": "$P1.data.component.id", "kind": "edge", "geometry_type": "circle", "order": "highest", "axis": "z", "limit": 1},
+   "expect": {"data.items.0.center": {"close": [30, 0, 20], "tol": 1e-6}}},
+  {"call": "nx_check_model", "args": {"scope": "assembly"},
+   "expect": {"data.healthy": true, "data.errors": 0}}
+ ]
+}

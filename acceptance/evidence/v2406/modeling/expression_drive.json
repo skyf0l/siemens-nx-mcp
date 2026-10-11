@@ -19,14 +19,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_shell": "499632c6157d210c6246daec7bcc71177eee30bd2dd63e4dc041798b91871e04",
-    "nx_create_draft": "499632c6157d210c6246daec7bcc71177eee30bd2dd63e4dc041798b91871e04",
+    "nx_create_shell": "e67dc0ba9ef06b19837762f9b5f6c38785671f312d6fb9e9035ebad9d3cfd08a",
+    "nx_create_draft": "e67dc0ba9ef06b19837762f9b5f6c38785671f312d6fb9e9035ebad9d3cfd08a",
     "nx_create_datum_plane": "b787a7cd312d4bca162f9da76ee631b74e3631391d25f27a54e0982b1b2a7c16",
     "nx_create_tube": "ea85b05c6b24e8d6a664e9d383634aaa64990d78476b8695c991d9d21043dbd7",
-    "nx_create_primitive": "20d6b21293ec13fc06eb0e2087a3033f30484c89fa8fd359d94970b3797566b8",
+    "nx_create_primitive": "38dbb89cb4b86b0d22d8145454d387f94ae77af68d8bdee4bedd09b8fc315aa8",
     "nx_create_transform": "2d9513ae4b094271cd836e10e92bdfe224494e247252b451dadbf6a85d452aba"
   },
-  "recorded": "2026-10-11T08:09:36Z",
+  "recorded": "2026-10-11T10:04:57Z",
   "passed": true,
   "checks": 27,
   "failed_checks": 0,

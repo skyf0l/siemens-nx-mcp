@@ -5,6 +5,12 @@ NX 2406 builds each with its own feature builder (``BlockFeatureBuilder``,
 expression, so a size given as an expression name or formula keeps the primitive driven
 by it. A new body is read back by volume and centroid against the closed-form values; a
 combined one like an extrude (``common.combined``).
+
+NX 2406: ``BlockFeatureBuilder`` ignores its ``BooleanOption`` (measured: subtract with
+``SetTargetBodies`` commits the block as a separate body, plate 96000 + block 9600). It
+combines only through ``SetBooleanOperationAndTarget(Feature.BooleanType, body)``, which
+takes one target body (a second target is left untouched), so a block combines with one
+target. Cylinder, cone and sphere honour ``BooleanOption`` with several targets.
 """
 
 from __future__ import annotations
@@ -166,7 +172,12 @@ def _build(tx, shape: str, sizes: dict, base, x, y, z, combine):
             expr.drive(b.TopDiameter, sizes.get("top_diameter") or 0.0)
             expr.drive(b.Height, sizes["height"])
             b.Axis = _axis(tx, base, z)
-        builders.boolean(tx, b.BooleanOption, combine)
+        targets = builders.boolean(tx, b.BooleanOption, combine)
+        if shape == "block" and combine is not None:  # the block's own boolean (module notes)
+            kind = getattr(
+                features.Feature.BooleanType, builders.BOOLEAN_TYPES[combine["operation"]]
+            )
+            b.SetBooleanOperationAndTarget(kind, targets[0])
         return b.commit()
 
 
@@ -174,7 +185,7 @@ def _build(tx, shape: str, sizes: dict, base, x, y, z, combine):
     effect="model",
     label="Create primitive",
     summary=_summary,
-    keywords=("block", "box", "cuboid", "primitive", "plate", "cylinder", "cone", "sphere"),
+    keywords=("block", "box", "cuboid", "block body", "plate", "cylinder", "cone", "sphere"),
     requires=("work_part", "no_active_sketch"),
     variants="shape",
     cost="heavy",
@@ -207,6 +218,14 @@ def nx_create_primitive(
     }  # fmt: skip
     _check(shape, sizes, x_direction, centered)
     common.check_combine(combine)
+    if shape == "block" and combine is not None and len(combine["targets"]) > 1:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "A block combines with one target body: NX's block takes a single target",
+            field="/combine/targets",
+            hint="Combine one block per target body (one call each), or use a cylinder, cone "
+            "or sphere, which take several targets",
+        )
     x, y, z = _frame(tx, direction, x_direction)
     base = [0.0, 0.0, 0.0] if origin is None else [float(v) for v in origin]
     if centered:  # the centre given: step back to the corner or the base centre

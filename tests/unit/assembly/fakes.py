@@ -132,7 +132,7 @@ class ErrorList:
 TYPE = NS(Fix=1, Touch=2, Distance=3, Parallel=4, Perpendicular=5, Angle=6, Concentric=7,
           AlignLock=8, Fit=9, Bond=40, Center12=41, Center22=42)  # fmt: skip
 ALIGN = NS(InferAlign=10, CoAlign=11, ContraAlign=12)
-STATUS = NS(Solved=20, NotSolved=21, OverConstrained=22, Suppressed=23)
+STATUS = NS(Solved=20, NotSolved=21, OverConstrained=22, Suppressed=23, CannotSolve=24)
 
 
 class Reference:

@@ -61,6 +61,52 @@ def test_assembly_scope_reports_unloaded_and_suppressed_components():
     assert ok.data["parts_checked"] == 2 and ok.data["warnings"] == 1
 
 
+def _constraints(nx, *rows):
+    """A positioner on the work part with constraints ``(component, status, suppressed)``;
+    statuses are NX 2406's SolverStatus values."""
+    from types import SimpleNamespace as NS
+
+    from tests.kit.objects import Object
+
+    status = NS(Solved=9, CannotSolve=10, NotSolved=8, Suppressed=1, OverConstrained=3)
+    nx.nx.Positioning = NS(Constraint=NS(
+        SolverStatus=status, Type=NS(Concentric=7, Touch=2), Alignment=NS(CoAlign=11),
+    ))  # fmt: skip
+    made = []
+    for component, state, suppressed in rows:
+        c = Object("CONCENTRIC")
+        c.OwningPart, c.Suppressed = nx.part, suppressed
+        c.ConstraintType, c.ConstraintAlignment = 7, 11
+        c.GetConstraintStatus = lambda state=state: getattr(status, state)
+        c.GetReferences = lambda comp=component: [NS(GetMovableObject=lambda: comp)]
+        nx.remember(c)
+        made.append(c)
+    nx.part.ComponentAssembly.Positioner = NS(Constraints=made)
+    return made
+
+
+def test_unsolved_assembly_constraints_are_errors_or_warnings():
+    nx = inspection_nx()
+    a, b = assembly(nx, ("A", [0, 0, 0, 1, 1, 1]), ("B", [2, 0, 0, 3, 1, 1]))
+    broken, _ok, _held, pending = _constraints(
+        nx, (a, "CannotSolve", False), (b, "Solved", False), (a, "CannotSolve", True),
+        (b, "NotSolved", False),
+    )  # fmt: skip
+    for scope in ("assembly", "part"):
+        ok = run(nx, "nx_check_model", scope=scope)
+        assert ok.ok and ok.data["healthy"] is False, ok
+        found = [i for i in ok.data["issues"] if i["kind"] == "assembly_constraint"]
+        assert [(i["severity"], i["status"]) for i in found] == [
+            ("error", "CannotSolve"), ("warning", "NotSolved")]  # fmt: skip
+        assert found[0]["object"]["id"] == nx.ref_of(broken, "assembly_constraint")
+        assert found[0]["components"] == [nx.ref_of(a, "component")]
+        assert "concentric constraint is CannotSolve" in found[0]["message"]
+        assert "nx_edit_assembly_constraint" in found[0]["message"]
+        assert found[1]["object"]["id"] == nx.ref_of(pending, "assembly_constraint")
+    summary = run(nx, "nx_get_model_summary")
+    assert summary.data["health"] == {"healthy": False, "errors": 1, "warnings": 1}
+
+
 def test_summary_overview_and_sections():
     nx = inspection_nx()
     nx.block(40, 20, 10)

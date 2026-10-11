@@ -1,0 +1,21 @@
+{
+  "covers": {"nx_save_part": []},
+  "fixture": "fixtures/drawing_out_of_date.prt",
+  "part": null,
+  "steps": [
+    {"call": "nx_open_part", "setup": true, "save": "fx", "args": {"path": "$fixture"}},
+    {"call": "nx_save_part", "args": {},
+     "expect": {"mutation_outcome": "committed", "data.updated_views": {"count": 4},
+                "data.updated_views.0.kind": "drawing_view", "data.updated_views.0.name": "Front@1",
+                "data.saved_files": {"count": 1},
+                "warnings": {"contains": {"code": "NX_NOTE"}}}},
+    {"call": "nx_close_part", "setup": true, "args": {"part": "$fx.data.part.id", "save": false}},
+    {"call": "nx_open_part", "setup": true, "save": "again", "args": {"path": "$fixture"}},
+    {"call": "nx_activate_drawing_sheet", "args": {"sheet": "SHT1"},
+     "expect": {"data.sheet.name": "SHT1", "warnings": {"count": 0}}},
+    {"call": "nx_save_part", "args": {},
+     "expect": {"mutation_outcome": "committed", "warnings": {"count": 1},
+                "warnings.0.message": {"contains": "expires NX undo marks"}}},
+    {"call": "nx_close_part", "setup": true, "args": {"part": "$again.data.part.id", "save": false}}
+  ]
+}

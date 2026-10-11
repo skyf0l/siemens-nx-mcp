@@ -44,15 +44,15 @@ def _wanted(objects, values):
 
 
 @refresher("drawing_view")
-def refresh_detail_views(tx, objects):
-    """Re-map managed detail-view boundaries to their parents."""
-    managed = [
-        v for s in tx.part.DrawingSheets for v in s.GetDraftingViews() if attribute(tx, v, DETAIL)
-    ]
-    targets = _wanted(objects, managed)
-    if not targets:
-        return []
-    return [tx.ref(v, "drawing_view") for v in views.refresh_details(tx, targets)]
+def refresh_views(tx, objects):
+    """Update out-of-date views (the "(Out of Date)" sheet banner) and re-map managed
+    detail-view boundaries to their parents."""
+    shown = [v for s in tx.part.DrawingSheets for v in s.GetDraftingViews()]
+    stale = drawing.update_out_of_date(tx, _wanted(objects, shown))
+    targets = _wanted(objects, [v for v in shown if attribute(tx, v, DETAIL)])
+    done = views.refresh_details(tx, targets) if targets else []
+    rows = {int(v.Tag): v for v in [*stale, *done]}
+    return [tx.ref(v, "drawing_view") for v in rows.values()]
 
 
 @refresher("drawing_table")
@@ -146,22 +146,23 @@ def list_sheets(tx, owner, owner_kind):
     ]
 
 
+def _view_details(tx, sheet, view):
+    """``center`` is the border's centre; ``position`` the view's reference point, which
+    NX keeps off the centre of projected and section views."""
+    bounds = drawing.borders(tx, view)
+    return {
+        "sheet": sheet.Name,
+        "center": [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2],
+        "bounds": bounds,
+        "position": drawing.position(view),
+    }
+
+
 @lister("drawing_view")
 def list_views(tx, owner, owner_kind):
     _whole_part(owner)
     return [
-        (
-            v,
-            "drawing_view",
-            {
-                "type": views.view_type(v),
-                "details": {
-                    "sheet": s.Name,
-                    "position": drawing.position(v),
-                    "bounds": drawing.borders(tx, v),
-                },
-            },
-        )
+        (v, "drawing_view", {"type": views.view_type(v), "details": _view_details(tx, s, v)})
         for s in tx.part.DrawingSheets
         for v in s.GetDraftingViews()
     ]

@@ -14,10 +14,14 @@ NX 2406 findings encoded here:
   equivalents; the angle is verified against all four.
 - Default text positions lie outside the view border (TEXT_GAP_MM, in sheet units),
   stepped outward past annotations already there; an explicit origin is kept as given.
+- A linear dimension on the body's outline that stops short of the body's extent (a
+  filleted plate's straight edge: 110 of 120) adds a note naming the extent and the
+  outer edges (``overall``).
 """
 
 from __future__ import annotations
 
+import contextlib
 import math
 import re
 from typing import Annotated, Literal, TypedDict
@@ -36,7 +40,7 @@ from nx_mcp.core.types import (
     Text,
     forbid_extra,
 )
-from nx_mcp.domains.drawing import fits
+from nx_mcp.domains.drawing import fits, overall
 from nx_mcp.domains.drawing.common import (
     ViewArg,
     associated,
@@ -409,6 +413,8 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
             dimension = builder.commit()
         actual = result.measured(dimension.ComputedSize)
         _check_value(actual, expected)
+        with contextlib.suppress(NXError):  # the check only adds a note
+            overall.warn_short(tx, view, [a, b] if second else [a], pa, pb, orientation, actual)
         return placed(tx, sh, dimension, {
             "dimension": _row(tx, dimension, actual, expected),
             "origin": sh.to_sheet(dimension.AnnotationOrigin),

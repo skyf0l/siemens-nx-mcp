@@ -551,12 +551,59 @@ def _top3(query):
         ("new assembly part", ["nx_create_part"]),
         ("assembly constraints status", ["nx_list_objects"]),
         ("edges in drawing view", ["nx_find_geometry"]),
-        ("redo", ["nx_undo_operation"]),
+        ("redo", ["nx_redo_operation", "nx_undo_operation"]),
+        # pump-cover round 2 misses (2026-10-11)
+        ("pocket", ["nx_create_extrude"]),
+        ("rectangular pocket", ["nx_create_extrude"]),
+        ("create assembly", ["nx_create_part"]),
+        ("edge selection by direction", ["nx_find_geometry"]),
+        ("vertical edges", ["nx_find_geometry"]),
+        ("create assembly component", ["nx_create_component"]),
+        ("drawing sheet views", ["nx_create_drawing_sheet"]),
+        ("block body dimensions", ["nx_create_primitive"]),
     ],
 )
 def test_find_puts_the_expected_tools_in_the_top_three(query, expected):
     top = _top3(query)
     assert set(expected) <= set(top), top
+
+
+@pytest.mark.parametrize(
+    ("query", "first", "below"),
+    [
+        ("create expression", "nx_set_expression", "nx_export_expressions"),
+        ("set material", "nx_set_material", "nx_get_material"),
+        ("add part attribute", "nx_set_attributes", "nx_get_attributes"),
+        ("make block", "nx_create_primitive", "nx_create_drawing_sheet"),
+        ("create drawing sheet", "nx_create_drawing_sheet", "nx_activate_drawing_sheet"),
+        ("pocket", "nx_create_extrude", "nx_create_emboss_body"),
+    ],
+)
+def test_find_ranks_creating_tools_first_for_action_words(query, first, below):
+    names = [h.entry.name for h in gateways.ranked(_entries(), query)[0]]
+    assert names[0] == first and names.index(below) > 0, names[:5]
+
+
+@pytest.mark.parametrize(
+    ("name", "suggested"),
+    [
+        ("nx_fillet_edges", "nx_create_blend"),
+        ("nx_round_edges", "nx_create_blend"),
+        ("nx_cut_extrude", "nx_create_extrude"),
+        ("nx_create_pocket", "nx_create_extrude"),
+        ("nx_redo", "nx_redo_operation"),
+        ("nx_list_objcts", "nx_list_objects"),  # a typo keeps its spelling first
+    ],
+)
+async def test_unknown_tool_names_suggest_tools_by_their_words(
+    tmp_path, every_tool, name, suggested
+):
+    agent = server(tmp_path)
+    schemas = body(await agent.call_tool("nx_get_tool_schemas", {"names": [name]}))
+    assert schemas["error"]["details"]["not_found"][0]["close_matches"][0] == suggested
+    invoked = body(await agent.call_tool("nx_invoke", {"tool": name, "arguments": {}}))
+    assert invoked["error"]["code"] == "NX_UNKNOWN_TOOL"
+    assert invoked["error"]["details"]["close_matches"][0] == suggested
 
 
 def test_find_puts_create_part_first_for_create_new_part():
@@ -853,11 +900,16 @@ async def test_find_hints_only_at_several_tasks_and_notes_what_is_missing(tmp_pa
     async def find(arguments):
         return body(await agent.call_tool("nx_find_tools", arguments))["data"]
 
-    for single in ("assembly constraints status", "edges in drawing view", "new assembly part"):
+    singles = ("assembly constraints status", "edges in drawing view", "new assembly part",
+               "thread standard size", "expand handle result")  # fmt: skip
+    for single in singles:
         assert "hint" not in await find({"query": single}), single
     assert "queries" in (await find({"query": "extrude sketch, then pattern holes"}))["hint"]
+    assert "queries" in (await find({"query": "revolve shaft then chamfer edge"}))["hint"]
     redo = await find({"query": "redo"})
-    assert redo["tools"][0]["name"] == "nx_undo_operation" and "no redo" in redo["note"]
+    assert redo["tools"][0]["name"] == "nx_redo_operation" and "note" not in redo
+    pocket = await find({"query": "pocket"})
+    assert pocket["tools"][0]["name"] == "nx_create_extrude" and "subtract" in pocket["note"]
     many = await find({"queries": [f"task {i}" for i in range(20)]})
     assert len(many["results"]) == 20
 
@@ -888,3 +940,14 @@ def test_a_ref_in_a_ref_or_path_union_is_not_resolved_as_a_path(tmp_path):
     path = {"part": "parts/a.prt"}
     assert proxy._resolve_paths(spec, path) is None
     assert path["part"] == str(tmp_path / "parts" / "a.prt")
+
+
+async def test_listed_status_names_only_the_two_panel_modes(tmp_path, every_tool):
+    """The panel has Auto and Ask me first; the removed 'agent (Agent drives)' mode must
+    not come back in any listed text (a stale sidecar process served it in round 2)."""
+    for surface in ("agent", "full"):
+        tools = {t.name: t for t in await server(tmp_path, surface=surface).list_tools()}
+        status = tools["nx_get_status"].description or ""
+        assert "auto or ask" in status, status
+        text = " ".join(t.description or "" for t in tools.values())
+        assert "Agent drives" not in text and "auto, agent" not in text

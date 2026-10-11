@@ -26,15 +26,17 @@ def nx():
     return nx
 
 
-def explosion(nx, name="E1"):
-    ok = run(nx, "nx_create_explosion", name=name)
+def explosion(nx, name="E1", **options):
+    ok = run(nx, "nx_create_explosion", name=name, **options)
     assert ok.ok, ok
     return ok.data["explosion"]["id"]
 
 
 def test_create_explosion_starts_at_assembled_poses(nx):
     ok = run(nx, "nx_create_explosion", name="E1")
-    assert ok.ok and ok.data["component_count"] == 4 and ok.data["views"] == []
+    view = nx.asm.ModelingViews.WorkView
+    assert ok.ok and ok.data["component_count"] == 4
+    assert [v["id"] for v in ok.data["views"]] == [nx.ref_of(view, "modeling_view")]
     rows = {r["id"]: r for r in ok.data["components"]}
     assert set(rows) == {nx.a.ref, nx.b.ref, nx.sub.ref, nx.n.ref}
     assert rows[nx.n.ref]["path"] == "SUB/N"
@@ -184,6 +186,41 @@ def test_display_attaches_and_detaches_an_explosion(nx):
     assert both.error["field"] == "/model_view"
 
 
+def test_create_and_edit_show_the_explosion_in_the_work_view_unless_display_false(nx):
+    view = nx.asm.ModelingViews.WorkView
+    shown = run(nx, "nx_create_explosion", name="E1", placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 40]}])  # fmt: skip
+    first = nx.assembly.explosions[0]
+    assert shown.ok and nx.assembly.view_explosion[int(view.Tag)] == int(first.Tag), shown
+    assert shown.data["views"][0]["kind"] == "modeling_view" and nx.fitted
+    kept = run(nx, "nx_create_explosion", name="E2", display=False)
+    assert kept.ok and kept.data["views"] == []
+    assert nx.assembly.view_explosion[int(view.Tag)] == int(first.Tag)  # still E1
+    second = kept.data["explosion"]["id"]
+    quiet = run(nx, "nx_edit_explosion", explosion=second, display=False,
+                placements=[{"component": nx.a.ref, "offset": [0, 0, 5]}])  # fmt: skip
+    assert quiet.ok and quiet.data["views"] == []
+    edited = run(nx, "nx_edit_explosion", explosion=second,
+                 placements=[{"component": nx.a.ref, "offset": [0, 0, 9]}])  # fmt: skip
+    assert edited.ok and edited.data["views"][0]["kind"] == "modeling_view", edited
+    assert nx.assembly.view_explosion[int(view.Tag)] == int(nx.assembly.explosions[1].Tag)
+    # A broken read-back rolls the call back.
+    nx.uf.Assem.SetViewExplosion = lambda tag, ex_tag: None
+    bad = run(nx, "nx_edit_explosion", explosion=shown.data["explosion"]["id"],
+              placements=[{"component": nx.a.ref, "offset": [0, 0, 1]}])  # fmt: skip
+    assert bad.mutation_outcome == "rolled_back" and bad.error["details"]["check"] == "view"
+
+
+def test_explosion_is_not_shown_while_a_drawing_sheet_is_open(nx):
+    from types import SimpleNamespace as NS
+
+    nx.asm.DrawingSheets = NS(CurrentDrawingSheet=object())
+    ok = run(nx, "nx_create_explosion", name="E1")
+    assert ok.ok and ok.data["views"] == [] and not nx.assembly.view_explosion
+    assert any("nx_set_explosion_display" in w["message"] for w in ok.warnings
+               if w["code"] == "NX_NOTE")  # fmt: skip
+
+
 def test_delete_refuses_an_explosion_in_use(nx):
     ex = explosion(nx)
     run(nx, "nx_set_explosion_display", explosion=ex)
@@ -255,8 +292,8 @@ def test_trace_rules(nx):
 def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
     from nx_mcp.kit import capture
 
-    ex = explosion(nx)
-    run(nx, "nx_edit_explosion", explosion=ex, placements=[
+    ex = explosion(nx, display=False)
+    run(nx, "nx_edit_explosion", explosion=ex, display=False, placements=[
         {"component": nx.b.ref, "pose": {"translation": [30, 0, 60], "rotation": RZ90}}])  # fmt: skip
     trace(nx, ex)
     seen = []
@@ -286,7 +323,7 @@ def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
 def test_animation_failure_leaves_no_file_and_restores_the_view(nx, monkeypatch):
     from nx_mcp.kit import capture
 
-    ex = explosion(nx)
+    ex = explosion(nx, display=False)
 
     def fail(*_a, **_k):
         raise RuntimeError("render failed")

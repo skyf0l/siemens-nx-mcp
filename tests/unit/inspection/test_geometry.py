@@ -378,3 +378,33 @@ def test_a_drawing_view_owner_explains_where_model_edges_come_from():
     bad = run(nx, "nx_find_geometry", owner=ref, kind="edge")
     assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/owner", bad
     assert "model body" in bad.error["hint"] and "nx_list_view_edges" in bad.error["hint"]
+
+
+def test_parallel_keeps_line_edges_along_an_axis_or_a_plane_and_reruns():
+    nx = inspection_nx()
+    body = nx.block(40, 20, 10)
+    vertical = run(nx, "nx_find_geometry", owner=body.ref, kind="edge", parallel="z", limit=20)
+    assert vertical.ok, vertical
+    rows = vertical.data["items"]
+    assert vertical.page["total"] == 4 and all(r["type"] == "line" for r in rows)
+    for row in rows:
+        edge = next(e for e in body.edges if e.ref == row["id"])
+        a, b = edge.GetVertices()
+        assert (a.X, a.Y) == (b.X, b.Y) and a.Z != b.Z
+    sel = json.loads(vertical.data["selector"])
+    assert sel["parallel"] == "z" and sel["geometry_type"] == "line"
+    flat = run(nx, "nx_find_geometry", owner=body.ref, kind="edge", parallel="XY", limit=20)
+    assert flat.ok and flat.page["total"] == 8, flat
+    along_x = run(nx, "nx_find_geometry", owner=body.ref, kind="edge", parallel="x",
+                  order="highest", axis="z", limit=1)  # fmt: skip
+    assert along_x.page["total"] == 4 and along_x.data["items"][0]["center"][2] == 10
+    swapped = run(nx, "nx_find_geometry", owner=body.ref, kind="edge", parallel="zx", limit=20)
+    assert swapped.ok and swapped.page["total"] == 8  # plane names in any order
+    again = run(nx, "nx_resolve_reference", selector=along_x.data["selector"], tie_tolerance=1e-9)
+    assert again.error["code"] == "NX_AMBIGUOUS_REFERENCE"  # two top edges along x tie
+    face = run(nx, "nx_find_geometry", kind="face", parallel="z")
+    assert face.error["field"] == "/parallel" and "normal" in face.error["hint"]
+    circle = run(nx, "nx_find_geometry", kind="edge", geometry_type="circle", parallel="z")
+    assert circle.error["field"] == "/parallel"
+    word = run(nx, "nx_find_geometry", kind="edge", parallel="up")
+    assert word.error["category"] == "invalid_argument"

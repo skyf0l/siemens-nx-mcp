@@ -5,9 +5,14 @@
   best field (name > keyword, label > variant > description) times the word's
   rarity in the catalogue; scaled by the share of words matched; plus bonuses for
   the share of the tool's name words named, a keyword or label phrase in the
-  query and a word naming the tool's domain. An exact name wins. ``queries`` runs
-  1-20 one-task searches at once. Nothing matched: close spellings and the domain
-  overview; an empty query returns that overview.
+  query (a one-word keyword counts less), a word naming the tool's domain and, for a
+  query with an action word (create, make, add, set...), tools that create or set
+  (``nx_create_*``, ``nx_set_*``) over those that read or export. An exact name
+  wins. ``queries`` runs 1-20 one-task searches at once. Nothing matched: close
+  spellings and the domain overview; an empty query returns that overview. Words for
+  things NX MCP does as another tool ("pocket": an extrude that subtracts) add a note.
+- Unknown tool names (``nx_fillet_edges``) are answered with tools found by their
+  words (fillet -> nx_create_blend) as well as close spellings.
 - ``nx_get_tool_schemas``: input schema, example, prerequisites and evidence for
   1-10 tools or variants (``nx_create_datum_plane#offset``).
 - ``nx_invoke``: call any tool; ``intent`` is shown in the NX panel.
@@ -33,8 +38,9 @@ NAMES = ("nx_find_tools", "nx_get_tool_schemas", "nx_invoke", "nx_invoke_read")
 MAX_QUERIES = 20  # one-task searches per nx_find_tools call
 # Words naming something NX MCP does not do, with what to do instead (a find note).
 MISSING = {
-    "redo": "There is no redo: nx_undo_operation's result lists the undone calls under "
-    "redo (tool and arguments); repeat them in order",
+    "pocket": "No pocket tool: sketch the outline on the face (nx_create_sketch, "
+    "nx_create_sketch_curves), then nx_create_extrude into the body with combine "
+    "{operation: subtract}",
 }
 TOOL_NAME = r"^nx_[a-z0-9_]{1,80}$"
 SUMMARY_CHARS = 48
@@ -56,6 +62,12 @@ SYNONYMS = {
     "show": ("list", "get"),
     "around": ("circular",),
     "polar": ("circular",),
+    "cut": ("extrude", "subtract"),
+    "pocket": ("extrude", "subtract"),
+    "cutout": ("extrude", "subtract"),
+    "bevel": ("chamfer",),
+    "drill": ("hole",),
+    "bore": ("hole",),
 }
 WEIGHTS = {"name": 8, "keyword": 4, "variant": 4, "label": 4, "description": 1}
 SYNONYM, PREFIX = 0.75, 0.5  # a synonym or a word's prefix ranks below the word itself
@@ -64,6 +76,15 @@ COVERAGE = 0.5  # share of a tool's score that follows the share of query words 
 NAME = 4  # times the share of the tool's name words the query names (pattern: nx_create_pattern)
 PHRASE = 6  # bonus when a whole keyword or the label appears in the query
 DOMAIN = 3  # bonus when a query word names the tool's domain
+KEYWORD = 2  # bonus when a query word is a whole one-word keyword ("pocket": extrude)
+# Action words: a query with one ranks tools whose name verb is in CHANGING by ACTION
+# above those that read, list, export or activate ("create expression": set_expression
+# over export_expressions). Never respelled: "make block" keeps "make".
+ACTION_WORDS = frozenset(
+    ["create", "make", "add", "new", "set", "insert", "build", "place", "define", "generate"]
+)
+CHANGING = frozenset({"create", "set"})
+ACTION = 3
 SPELLING, MAX_SPELLINGS = 0.75, 4  # difflib cutoff and count of close spellings
 # The empty-query overview names these first in each domain (others: alphabetical).
 KEY_TOOLS = {
@@ -161,6 +182,9 @@ def words(text: str) -> list[str]:
     return [stem(w) for w in re.findall(r"[a-z0-9]+", str(text).casefold())]
 
 
+ACTION_STEMS = frozenset(stem(w) for w in ACTION_WORDS)
+
+
 class Entry:
     """One searchable catalogue tool."""
 
@@ -183,6 +207,9 @@ class Entry:
             for p in ([w for w in words(k) if w not in STOP_WORDS] for k in (*keywords, label))
             if len(p) > 1
         }
+        # One-word keywords, as stemmed query words ("pocket" on nx_create_extrude).
+        self.single = {w[0] for w in (words(k) for k in keywords) if len(w) == 1}
+        self.verb = name.split("_")[1] if name.count("_") >= 2 else ""
         # Words of the name, label and keywords as written: close spellings come from these.
         self.terms = {
             w for text in (name.removeprefix("nx_"), label, *keywords) for w in _raw(text)
@@ -230,8 +257,11 @@ class Entry:
         total += NAME * len(named) / max(len(self.fields["name"]), 1)
         text = " " + " ".join(query) + " "
         total += sum(PHRASE for p in self.phrases if f" {p} " in text)
+        total += KEYWORD * len(self.single.intersection(query))
         if any(DOMAIN_WORDS.get(w) == self.domain for w in query):
             total += DOMAIN
+        if self.verb in CHANGING and ACTION_STEMS.intersection(query):
+            total += ACTION
         return total, matched
 
 
@@ -272,7 +302,7 @@ class Index:
         spellings: list[str] = []
         terms = sorted(self.terms)
         for typed, word in query_words(query):
-            if self.tools(word):
+            if self.tools(word) or word in ACTION_STEMS:
                 kept.append(typed)
             else:
                 close = difflib.get_close_matches(typed, terms, n=2, cutoff=SPELLING)
@@ -355,8 +385,34 @@ def close_matches(name: str, known) -> list[str]:
     return difflib.get_close_matches(str(name), list(known), n=3, cutoff=0.6)
 
 
-def unknown_tool(name: str, known, *, field: str | None = "/tool") -> NXError:
-    matches = close_matches(name, known)
+TYPO = 0.85  # a close spelling this similar is a typo of that name: it comes first
+
+
+def suggestions(name: str, known, entries=(), index: Index | None = None) -> list[str]:
+    """Up to 3 tools for an unknown tool name: a near-identical spelling first (a typo),
+    then the best tools for the name's words (``nx_fillet_edges``: "fillet edges" ->
+    nx_create_blend), then other close spellings."""
+    known = list(known)
+    spelled = close_matches(name, known)
+    typos = [n for n in spelled if difflib.SequenceMatcher(None, str(name), n).ratio() >= TYPO]
+    found: list[str] = []
+    text = str(name).removeprefix("nx_").replace("_", " ")
+    if entries and text.strip():
+        index = index or Index(entries)
+        searched = index.respell(text)[0]
+        hits, _ = ranked([e for e in entries if e.name in known], searched, index=index)
+        found = [h.entry.name for h in hits[:3]]
+    out: list[str] = []
+    for candidate in (*typos, *found, *spelled):
+        if candidate not in out:
+            out.append(candidate)
+    return out[:3]
+
+
+def unknown_tool(
+    name: str, known, *, field: str | None = "/tool", entries=(), index=None
+) -> NXError:
+    matches = suggestions(name, known, entries, index)
     return NXError(
         "NX_UNKNOWN_TOOL",
         f"Unknown tool: {name}",

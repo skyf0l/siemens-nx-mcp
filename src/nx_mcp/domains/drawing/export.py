@@ -5,6 +5,9 @@ NX 2406 findings encoded here:
 - A sheet's plotted presentation is current only after its views are updated and
   the sheet was displayed: views are updated and each exported sheet is opened
   before plotting, then the previous sheet or the modeling view is restored.
+- Views NX flagged out of date (``DraftingView.IsOutOfDate``, the "(Out of Date)" sheet
+  banner, e.g. a part saved with stale views and reopened) are reported in
+  ``updated_views``; after the update none may remain flagged.
 - DXF/DWG export (``DxfdwgCreator``, "export from displayed part") includes unsaved
   changes and never saves the part; it runs an external translator (tens of
   seconds) and writes one sheet per file.
@@ -18,7 +21,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Aliases, Items, PathTo
+from nx_mcp.core.types import Aliases, Doc, Items, PathTo
 from nx_mcp.domains.drawing.common import SheetArg, sheet_of
 from nx_mcp.kit import builders, drawing, files, parts, result
 
@@ -35,6 +38,7 @@ class ExportData(TypedDict):
     size: int
     sha256: str
     sheets: list[result.Row]
+    updated_views: Annotated[list[result.Row], Doc("Views out of date before the export")]
 
 
 def _check_loaded(part):
@@ -113,8 +117,9 @@ def nx_export_drawing(
                 fail("NX_WRONG_PART_CONTEXT", "Make the work part the display part",
                      hint="Activate it with nx_activate_part")  # fmt: skip
     temp = tx.files.stage(path)
-    with parts.saving(tx, part, force_display=True):
+    with parts.saving(tx, part, force_display=True, update_views=False):
         views = [v for s in selected for v in s.GetDraftingViews()]
+        stale = drawing.update_out_of_date(tx, views)
         if views:
             part.DraftingViews.UpdateViews(views)
         for sheet in selected:  # refresh each sheet's presentation before plotting
@@ -136,6 +141,7 @@ def nx_export_drawing(
         "size": meta["size"],
         "sha256": meta["sha256"],
         "sheets": [tx.ref(s, "drawing_sheet") for s in selected],
+        "updated_views": [tx.ref(v, "drawing_view") for v in stale],
     }
 
 

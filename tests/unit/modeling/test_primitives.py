@@ -129,7 +129,30 @@ def test_combined_block_subtracts_from_a_target():
     types = nx.nx.GeometricUtilities.BooleanOperation.BooleanType
     assert b.BooleanOption.Type is types.Subtract
     assert b.BooleanOption.SetTargetBodies.calls[0][0][0] == [plate]
+    # NX 2406's block ignores BooleanOption: its own single-target boolean is what applies.
+    kind, target = b.SetBooleanOperationAndTarget.calls[0][0]
+    assert kind is nx.nx.Features.Feature.BooleanType.Subtract and target is plate
     assert ok.data["volume"] == 7000
+
+
+def test_a_block_takes_one_target_and_a_tool_left_separate_is_named():
+    nx = modeling_nx()
+    a, b = nx.block(40, 20, 10), nx.block(40, 20, 10)
+    bad = run(
+        nx, "nx_create_primitive", length=10, width=10, height=10,
+        combine={"operation": "subtract", "targets": [a.ref, b.ref]},
+    )  # fmt: skip
+    assert bad.error["field"] == "/combine/targets" and bad.mutation_outcome == "not_started"
+    assert nx.builders == []
+    # NX commits the block as its own body and leaves the target as it was: refused.
+    nx.on_commit("BlockFeatureBuilder", made(nx, [0, 0, 6, 10, 10, 10]))
+    bad = run(
+        nx, "nx_create_primitive", length=10, width=10, height=4, origin=[0, 0, 6],
+        combine={"operation": "subtract", "targets": [a.ref]},
+    )  # fmt: skip
+    assert bad.error["code"] == "NX_BUILD_FAILED", bad
+    assert "tool body was left separate" in bad.error["message"]
+    assert bad.mutation_outcome == "rolled_back"
 
 
 @pytest.mark.parametrize(

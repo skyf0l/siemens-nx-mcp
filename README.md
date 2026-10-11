@@ -11,7 +11,7 @@ MCP client -> sidecar (python -m nx_mcp.server: stdio, schemas, validation, path
 
 The sidecar imports without NX. Every public tool is one `@tool` function in
 `src/nx_mcp/domains/<domain>/`; the catalogue (`nx_mcp.core.catalogue`) currently holds
-159 tools in 10 domains, listed with their arguments in the generated
+163 tools in 10 domains, listed with their arguments in the generated
 [tool reference](docs/tools.md). The kernel runs every call through the same gates
 (validation, workspace paths, evidence, part ownership, undo mark and rollback, receipts).
 There is no arbitrary journal-execution tool. Design: [architecture](docs/design/architecture.md)
@@ -84,7 +84,8 @@ Pass returned opaque references, never display names; they can go stale after
 undo, close or engineer edits and are re-acquired through `nx_list_objects` or
 `nx_find_geometry`. Give mutations an `operation_id`; after an uncertain outcome
 call `nx_get_operation` before retrying, and a repeat with the same ID and
-arguments replays the recorded result. Every model mutation runs under an undo
+arguments replays the recorded result (a call that `nx_undo_operation` reverted
+runs again instead; `nx_redo_operation` repeats undone calls). Every model mutation runs under an undo
 mark and rolls back on failure.
 
 ## Evidence

@@ -308,8 +308,9 @@ def _select(tx, block, selected) -> None:
 
 def _step_writer(tx, builder, format, part, selected, settings, temp, opts):
     builder.SettingsFile = str(settings)
-    if format == "step_ap242":
-        builder.ExportAs = tx.nx.StepCreator.ExportAsOption.Ap242
+    # Always set the schema: a new StepCreator may start from the session's last choice.
+    option = tx.nx.StepCreator.ExportAsOption
+    builder.ExportAs = option.Ap242 if format == "step_ap242" else option.Ap214
     builder.ExportFrom = tx.nx.StepCreator.ExportFromOption.DisplayPart
     # NX 2406: an unmodified display part is read from InputFile ("No parts in current
     # input file" without it); a modified one is exported from memory.

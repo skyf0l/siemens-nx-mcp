@@ -1,7 +1,9 @@
 """Model overview and health (tool-surface 3.9).
 
 ``nx_check_model`` reads native feature errors and warnings, suppression, unloaded or
-suppressed components, UF body consistency and sealed internal voids (a solid body
+suppressed components, unsolved assembly constraints (the solver status NX keeps: a
+constraint whose edge a prototype edit consumed reports CannotSolve, an error; NotSolved
+or OutOfDate is a warning), UF body consistency and sealed internal voids (a solid body
 with more than one shell, ``voids``: a warning with each void's facet volume and box);
 it does not run a model update.
 Shared prototypes are checked once. ``nx_get_model_summary`` pages the feature tree,
@@ -19,8 +21,13 @@ from nx_mcp.core.errors import native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit
 from nx_mcp.domains.inspection import voids
-from nx_mcp.kit import bodies, expr, measure, parts, result
+from nx_mcp.kit import bodies, expr, measure, parts, positioning, result
 from nx_mcp.kit import features as kfeatures
+
+CONSTRAINT_ADVICE = (
+    "its geometry may be gone after a part edit; re-create it on current geometry, or edit "
+    "or suppress it with nx_edit_assembly_constraint"
+)
 
 
 class Issue(TypedDict, total=False):
@@ -33,6 +40,8 @@ class Issue(TypedDict, total=False):
     faults: list[dict[str, Any]]
     shells: int
     voids: list[dict[str, Any]]
+    status: str
+    components: list[str]
 
 
 class Counts(TypedDict):
@@ -87,6 +96,19 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
     features = solids = 0
     for owner in checked.values():
         where = tx.services.part_path(owner)
+        for row in positioning.unsolved(tx, owner):
+            issues.append(
+                {
+                    "severity": row["severity"],
+                    "kind": "assembly_constraint",
+                    "part": where,
+                    "object": row["constraint"],
+                    "status": row["status"],
+                    "components": row["components"],
+                    "message": f"{row['type'] or 'assembly'} constraint is {row['status']}: "
+                    + CONSTRAINT_ADVICE,
+                }
+            )
         # Feature.Suppressed is also True for features rolled back after the current
         # feature; only the user's suppressions are issues.
         held = {t for t, (_f, user, _a) in kfeatures.states(tx, owner).items() if user}
@@ -176,8 +198,8 @@ def nx_check_model(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> HealthData:
-    """Check feature errors and warnings, suppression, unloaded components, body
-    consistency and sealed voids (warning). healthy: no errors or warnings; no update."""
+    """Check feature errors/warnings, suppression, unloaded components, unsolved constraints,
+    body consistency, sealed voids. healthy: no errors or warnings; no update."""
     issues, counts = diagnose(tx, scope)
     selected, page = result.page(issues, offset, limit)
     return {

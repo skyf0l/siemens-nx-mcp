@@ -35,8 +35,9 @@ NX know-how lives once in `kit/`, and evidence is machine-checked acceptance out
 ```text
 core/          NX-free: types, validate, catalogue, summary, errors, kernel, tx, references,
                receipts, evidence
-kit/           shared NX helpers: geom, args, units, builders, select, sketch, drawing, expr,
-               readback, result
+kit/           shared NX helpers: geom, args, units, builders, select, sketch, drawing, explode,
+               expr, readback, result, bodies, capture, curve, display, facts, features, files,
+               measure, model, parts, pose, positioning, snapshots, surface
 domains/       session, parts_files, sketch, modeling, freeform, assembly, inspection, drawing,
                sheet_metal, display: one package each, one @tool function per tool
 host/          NX side: dispatch (bridge call -> kernel), services (NXServices)
@@ -173,7 +174,15 @@ its own kinds:
 - `@lister(kind)` for `nx_list_objects`;
 - `@deleter(kind)` for `nx_delete_objects`;
 - `@definition(feature_type)` for `nx_edit_feature(definition=...)`;
-- `@refresher(kind)` for `nx_update_annotations` and for the kernel's refresh.
+- `@refresher(kind)` for `nx_update_annotations` and for the kernel's refresh (gate 13):
+  `fn(tx, objects or None) -> [rows refreshed]`. Registered: `drawing_view` (updates
+  out-of-date views, re-maps detail boundaries), `drawing_table`, `dimension` (hole
+  callouts), `annotation` (sheet-metal callouts) and `assembly_constraint`, a post-call
+  check that refreshes nothing: it reads the solver status of the work part's constraints
+  and of those of loaded assemblies that position it, and warns (`NX_UPDATE_WARNING`, once
+  per status change) about those that no longer solve;
+- `@sheet_locator(kind)` for gate 9: `fn(services, obj) -> sheet or None`, the drawing
+  sheet an annotation, dimension or table lies on.
 
 **Import-time validation.** A violation raises `CatalogueError`: the sidecar refuses to
 start, and `dev_reload.py` prints the error. The checks:
@@ -195,7 +204,7 @@ start, and `dev_reload.py` prints the error. The checks:
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
-| `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint, idempotent replay, states, outcome, progress, `.cancel` flag. A receipt keeps the request's `arguments`, redacted (`redact`: file contents and long strings become size notes, lists keep 100 items, at most 8,000 characters), which `nx_get_operation` echoes, and a development failure's `traceback`. Running receipts from an earlier session become `unknown`. Also holds the undo history for `nx_undo_operation` and checkpoints |
+| `receipts.py` | Receipts (successor of `recovery.OperationStore`): fingerprint, idempotent replay, states, outcome, progress, `.cancel` flag. A receipt keeps the request's `arguments`, redacted (`redact`: file contents and long strings become size notes, lists keep 100 items, at most 8,000 characters), which `nx_get_operation` echoes, and a development failure's `traceback`. Running receipts from an earlier session become `unknown`. A committed call an undo or a checkpoint restore reverted (`reverted_by`) runs again under its id instead of replaying; the new receipt keeps the reverted run under `previous` (`previous_run`: start and finish, what reverted it, the refs it created, up to 5 earlier reverted runs). The undo history, checkpoints and redo list live in the services (`undo_history`, `undo_checkpoints`, `redo_steps`, 4) |
 | `evidence.py` | Loads `evidence/*.json`. `available(spec, build, variant)`, `known_build(build)`, discovery filter, writer API for the runner |
 
 **`native()` mapping.**
@@ -213,8 +222,13 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 
 - The prefix is a mnemonic; the registry stores the exact kind.
 - `n` comes from one workspace-wide counter that is never reused. Its floor is persisted in
-  `.nx-mcp/refs.json` at host start, so a ref from an earlier session or reload fails as
-  `stale_reference` and never aliases another object.
+  `.nx-mcp/refs.json` at host start, so a ref from an earlier session or reload never
+  aliases another object. A ref this session never issued is refused by
+  `references._unknown`: an unknown prefix is `invalid_argument`; a number at or above the
+  floor that no tool returned is `not_found/NX_NOT_FOUND` (`details.reason: never_issued`,
+  plus `issued_as` when the number is a ref of another kind); a number below the floor is
+  `stale_reference` (`reason: not_in_this_session`: refs are not persisted, so an earlier
+  session's ref and an invented one look the same).
 - Features, bodies and sketches carry an automatic `anchor` (`"@smoke/a/blk.prt:EXTRUDE(4)"`)
   built from the persistent journal identifier, plus a body index for bodies. Faces and
   edges get an anchor only on request (decision 5).
@@ -257,11 +271,25 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `builders` | `with builders.build(tx, factory, *a) as b:` then `b.commit()` (`CommitFeature` or `Commit`). `Destroy()` always runs, and rejections pass through `native(default="NX_BUILD_FAILED")`. Also `point(tx, p)`, `direction(tx, v, origin)`, `collector(tx, refs, "Edge"/"Face"/"Body")` |
 | `select` | `planar(tx, ref)` → `(obj, origin, normal)` for a planar face or datum plane of the work part. `plane`, `axis`, `direction(tx, value)` resolve the union types. `bodies`, `faces`, `edges(tx, refs)`, `owned_by_work_part(tx, obj)` |
 | `sketch` | `with sketch.editing(tx, ref) as sk:` activates the sketch and restores the previous state, with `sk.frame`, `sk.to_part(p2)` and `sk.to_local(p3)`. `sketch.solve(tx, sk)` returns status and DOF, or raises `solver_failed`. `sketch.owns(tx, sk, curve)` is the one ownership check |
-| `drawing` | `with drawing.on_sheet(tx, sheet) as sh:` activates the sheet and restores the previous sheet and display afterwards (it does not switch or restore the NX application; open). `sh.units`, `sh.point(SheetPoint)`, `drawing.view(tx, ref)`, `drawing.refresh(tx, views)`. `visible_edges(tx, view)` and `edge_in_view` give the model edges a view draws in sheet coordinates; `annotation_box` (an annotation's sheet bounds) and `crowding` (views it overlaps, off-sheet) |
+| `drawing` | `with drawing.on_sheet(tx, sheet) as sh:` activates the sheet and restores the previous sheet and display afterwards (it does not switch or restore the NX application; open). `sh.units`, `sh.point(SheetPoint)`, `drawing.view(tx, ref)`, `drawing.refresh(tx, views)`. `visible_edges(tx, view)` and `edge_in_view` give the model edges a view draws in sheet coordinates; `annotation_box` (an annotation's sheet bounds) and `crowding` (views it overlaps, off-sheet). `out_of_date(views)` (views NX flags "(Out of Date)") and `update_out_of_date(tx, views)` (updates and returns them; `NX_UPDATE_FAILED` when NX still flags any) |
 | `explode` | `shown(tx)`: the explosion shown in the work view of the displayed work assembly, else None; `assembled_note(tx)`: the note that NX measures assembled (unexploded) poses while one is shown |
 | `expr` | `create(tx, name, formula, units)`, `set_formula`, `value`, `alias(feature, "distance")` (semantic parameter names), `bind` |
 | `readback` | `expect(ok, check, **actual)`, `expect_close(actual, wanted, check, tol=None)` (scalar or vector, scaled tolerance), `expect_same_direction`, `expect_on_plane`. Each raises `verification_failed` with `details.check` |
 | `result` | `rows(tx, objs, kind)`, `page(rows, page)`, `measured(value, "length")`, `rename(tx, obj, name)` (returns the name as NX normalised it) |
+| `bodies` | Which bodies a call covers: `of(tx, obj)` (body, feature, component occurrence bodies), `scope(tx, "auto")`, `occurrences(component)`, `solids(found, field)` |
+| `capture` | `studio_png(tx, path, w, h, style=...)` (Studio Image Capture at the exact pixel size) and `viewport_png(tx, path, w, h)` (rasterises the graphics window at its own size; returns the actual size) |
+| `curve` | UF `Eval` on curves and edges: `ends`, `point_at`, `closest`, `min_distance`, `point_distance` |
+| `display` | Display state of the displayed part: `shown_part`, `model_view`, `camera`/`set_camera`, styles, appearance, datums, dynamic sections, and the `Snapshots` behind `restore_id` |
+| `facts` | `edge(tx, edge)` (line/arc data), `face_point(tx, face)` (a point inside a trimmed face), `on_object` |
+| `features` | The feature timeline as the Part Navigator shows it (`timeline`, `internal`) and each feature's state (`states`) |
+| `files` | Workspace files: `metadata(path, root)` (`{path, size, sha256}`), `write_new`, `temp_path`, `png_size` |
+| `measure` | `mass`, `volume`, `bounds`, `area`, `length`, `inertia` in work-part units |
+| `model` | `update(tx, mark=None)`: the NX model update inside the call's undo mark (errors → `NX_UPDATE_FAILED`) |
+| `parts` | Loaded parts: `loaded(tx, path)`, `check_new_name` (NX names a part by its file basename), `activate`, `components`, `load_components`, `dependents`. `with parts.saving(tx, part) as updated:` keeps a part's drawing preview data through a save (opens a sheet, restores sheet, display and work parts) and first updates the views NX flags out of date (`drawing.update_out_of_date`), yielding them for `updated_views` (`nx_save_part`; `nx_export_drawing` passes `update_views=False` and updates its own sheets) |
+| `pose` | Rigid poses `(t, R)`: `compose`, `inverse`, `relative`, `move_args` (NX component moves rotate about the assembly origin), `axis_rotation`, `interpolate` |
+| `positioning` | Assembly constraint state shared by assembly and inspection: `all_constraints(part)`, `solved`, `status_name`, `kind_name`, `components`, `uses(constraint, prototype)`, and `unsolved(tx, part)` → `[{constraint, type, status, severity, components}]` (CannotSolve, OverConstrained, Inconsistent, Conflicting are errors, other statuses warnings) for `nx_check_model` and the post-call constraint check (3.1 gate 13) |
+| `snapshots` | Retention of stored result snapshots (never receipts); a deleted snapshot leaves a tombstone, so `nx_get_result` tells expired from unknown |
+| `surface` | Surface differential geometry and sampled edge continuity (G0/G1/G2) |
 
 ### 1.5 `domains/<domain>/`
 
@@ -465,13 +493,13 @@ always reports `not_started`.
 | 4 | `requires` | N · C | Read-only state checks (`NX_NO_WORK_PART`, `NX_SKETCH_ACTIVE`, `NX_WRONG_APPLICATION`, ...) whose hint names the tool to run. They run before the hold, so the engineer is never asked to approve a request that cannot succeed, and again after it |
 | 5 | Engineer control hold | N (host) | Auto: each call takes NX's main window for itself only (no `UI.LockAccess`) and gives it back; reads never wait, other calls wait silently while the engineer is in an NX command or dialog (at most 120 s, then `NX_UI_BUSY`), and a non-read call is refused with `NX_MODAL_DIALOG_OPEN` (not started) while a modal NX dialog is open. No request card in Auto, long steps included. Ask me first: every call waits on the panel card (`spec.summary` and the agent's `intent`); **Run once** or **Run & switch to Auto** runs it, **Not now** returns `NX_CONTROL_DECLINED`, and 60 s without an answer returns `NX_CONTROL_PAUSED`. Only `nx_get_status` skips the hold (it reports the mode), and batch children inherit the parent's call. Only the engineer changes the mode; no tool does |
 | 6 | Part ownership | N · C | In production, `model` and `file` effects and `nx_close_part` may change only parts the agent created, opened when they were not already loaded, or was granted by the engineer on the panel. The work part is checked first. After the handler, any non-owned part whose `IsModified` flipped forces a rollback. Error: `engineer_control/NX_PART_NOT_GRANTED`. Off with `NX_MCP_DEV=1` |
-| 7 | Receipt | N | Every non-`read` effect gets a fingerprint of tool plus canonical arguments. The same id with the same arguments replays the committed result (`replayed: true`); different arguments give `NX_IDEMPOTENCY_CONFLICT`. Children write progress into the parent's receipt |
+| 7 | Receipt | N | Every non-`read` effect gets a fingerprint of tool plus canonical arguments. The same id with the same arguments replays the committed result (`replayed: true`); different arguments give `NX_IDEMPOTENCY_CONFLICT`. A committed call that `nx_undo_operation` or `nx_restore_checkpoint` reverted (`reverted_by`) runs again instead: its new receipt keeps the reverted run under `previous`, and a warning says so. Children write progress into the parent's receipt |
 | 8 | Undo mark | N | `model` only: a visible mark `NX MCP: <label>`. Children share the parent's mark; a preview's mark is always undone |
 | 9 | Unit conversion | N · C | `Quantity` fields become floats in the target part's or sheet's units, then canonical forms replace their alternatives (an axis-angle `Pose` becomes `{translation, rotation}`). Gate 1 already rejected wrong dimensions, so this gate cannot fail on arguments |
 | 10 | Handler | N · C | `handler(tx, **args)` |
 | 11 | Read-back | N · C | The handler verifies with `kit.readback`. For `model` tools the kernel also turns a snapshot diff into `changes`, drops inherited NX 2406 feature errors, and treats a new feature in error as `geometry_failed/NX_UPDATE_FAILED` with rollback. The same applies to every other part the handler declared with `tx.touch_part` (`kernel._readback_parts`) |
 | 12 | Reference invalidation | N · C | After a commit: refs of objects NX no longer has. After a rollback: refs of objects the undo did not restore (1.3) |
-| 13 | Annotation refresh | N | If `refresh_annotations` is set, the `@refresher` hooks run inside the same undo mark, and what they refresh is added to `changes.modified` |
+| 13 | Annotation refresh | N | If `refresh_annotations` is set (default for `model` tools of modeling, sketch, freeform, sheet_metal and assembly), every `@refresher` hook runs inside the same undo mark, and what they refresh is added to `changes.modified`: out-of-date drawing views, detail boundaries, tables, hole callouts, sheet-metal callouts. The `assembly_constraint` hook only warns about constraints the call left unsolved (1.2); a failing status check never fails the call |
 | 14 | Result projection | N (envelope), S (compaction) | The surface 1.6 envelope with `units`, `frame`, `changes` and `warnings`. With `detail=compact`, arrays over 20 items go to the result store |
 | 15 | Error mapping | N, S | `NXError` becomes `{category, code, message, hint, field, retry, nx_code, details}`; `retry` comes from the category table |
 
@@ -498,6 +526,13 @@ Members of `Tx`:
   that is always undone; object counts are verified afterwards.
 - `tx.files.stage(path)` / `tx.files.publish()`: atomic workspace writes.
   `tx.non_undoable(reason)`. `tx.workspace`, `tx.dev`.
+- `tx.given(name)`: whether the caller passed argument `name`, as opposed to the handler
+  receiving the schema default (False when the call's arguments are unknown). E.g.
+  `nx_capture_view` honours `width`/`height` exactly only when given.
+- `tx.call(tool, args, operation_id=...)`: runs a catalogue tool as a top-level call of
+  its own through `kernel.run` (own receipt, undo mark and undo-history entry) and returns
+  its envelope, `ok` true or false. Only a `session` tool outside any undo mark may use it
+  (`nx_redo_operation`).
 
 Handlers never set undo marks, write receipts or touch the panel.
 
@@ -565,7 +600,12 @@ other name lists are deleted. What holds today:
   in a part it creates.
 - **Receipts (gate 7 before gate 2).** Repeating a finished call with the same `operation_id`
   and arguments replays its envelope; different arguments are `NX_IDEMPOTENCY_CONFLICT`, a
-  running one `NX_OUTCOME_UNKNOWN`.
+  running one `NX_OUTCOME_UNKNOWN`. A call an undo or restore reverted runs again (receipt
+  `previous` links the reverted run); `nx_redo_operation` repeats such calls through
+  `tx.call`, each a top-level operation with its own mark and history entry. The redo list
+  (`services.redo_steps`) gets the calls an undo or restore reverted; the kernel empties it
+  when a new model call enters the undo history, `engineer_changed` empties it, and a part
+  close drops that part's entries.
 - **Sheet units (gate 9)** come from the referenced sheet or view, a new sheet's `units`, the
   current sheet, else part units; handlers get `tx.sheet` and `tx.units`.
 - **View rollback.** `view` handlers record what they change with `tx.display.keep*`; a failure
@@ -669,9 +709,9 @@ and fails above the cap (`-s` prints the measured values).
 
 | Item | Cap | Measured |
 |---|---|---|
-| Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 166 tools (162 + 4 gateways), 159,006 chars, mean 957.9 |
-| Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 692.5, max 2,431 |
-| `agent` profile listing | 15,000 chars (about 4K tokens) | 14,906 chars |
+| Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 167 tools (163 + 4 gateways), 160,373 chars, mean 960.3 |
+| Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 693, max 2,435 |
+| `agent` profile listing | 15,000 chars (about 4K tokens) | 14,891 chars |
 | `nx_find_tools` page of 10 rows | 1,400 chars | at most 1,371 |
-| `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,055 chars per tool |
+| `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,057 chars per tool |
 | Compact result before `result_id` paging | 4,000 chars | |

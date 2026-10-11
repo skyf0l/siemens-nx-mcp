@@ -330,6 +330,37 @@ def test_save_as_and_close_use_the_drawing_context(nx, drawing_part):
     assert drawing_part.sheet.opened == 2 and drawing_part not in nx.session.Parts
 
 
+@pytest.mark.parametrize("path", [None, "copy/dwg3.prt"])
+def test_save_updates_out_of_date_views_first_and_reports_them(nx, drawing_part, path):
+    from types import SimpleNamespace as NS
+
+    from tests.kit.objects import Object
+
+    stale, fresh = Object("ORTHO@1"), Object("ORTHO@2")
+    stale.IsOutOfDate, fresh.IsOutOfDate = True, False
+    drawing_part.sheet.GetDraftingViews = lambda: [stale, fresh]
+    seen = []
+
+    def update(views):
+        seen.append([v.Name for v in views])
+        for v in views:
+            v.IsOutOfDate = False
+
+    saved = []
+    real = type(drawing_part).Save
+    drawing_part.Save = lambda *a: (saved.append(stale.IsOutOfDate), real(drawing_part, *a))[1]
+    drawing_part.DraftingViews = NS(UpdateViews=update)
+    drawing_part.SaveOptions.DrawingCgmData = False  # out-of-date views alone open the sheet
+    ok = call(nx, tools.nx_save_part, **({"path": path} if path else {}))
+    assert ok.ok and seen == [["ORTHO@1"]], ok
+    assert [r["id"] for r in ok.data["updated_views"]] == [nx.ref_of(stale, "drawing_view")]
+    assert "Updated 1 out-of-date drawing view(s)" in ok.warnings[-1]["message"]
+    assert saved in ([False], [])  # updated before the native save (save-as: SaveAs)
+    assert drawing_part.DrawingSheets.CurrentDrawingSheet is None
+    again = call(nx, tools.nx_save_part)
+    assert again.ok and "updated_views" not in again.data and len(seen) == 1
+
+
 def test_saving_the_work_part_never_saves_its_components(nx):
     part = nx.new_part("asm.prt")
     calls = []
@@ -566,3 +597,67 @@ def test_close_part_summary_names_the_file():
     spec = tools.nx_close_part.spec
     text = summary.render(spec, {"part": "C:/ws/cl/plate.prt", "save": True}, strict=True)
     assert text == "Close plate.prt, saving it"
+
+
+# ---- closing an assembly closes the unused component parts the agent loaded ----
+def _keeps_prototypes(nx, part):
+    """NX 2406 keeps a part loaded on its own (created or opened) after its assembly
+    closes: only the assembly itself unloads."""
+    from tests.kit.objects import Part
+
+    part.Close = lambda *_a: Part.Close(part)
+
+
+def test_close_assembly_unloads_unused_agent_component_parts(nx):
+    blk = nx.new_part("kit/blk.prt")
+    pin = nx.new_part("kit/pin.prt")
+    sub = nx.new_part("kit/sub.prt")
+    nx.attach(sub, pin)
+    asm = nx.new_part("kit/asm.prt")
+    nx.attach(asm, blk)
+    nx.attach(asm, sub)
+    for part in (asm, sub):
+        _keeps_prototypes(nx, part)
+    ok = call(nx, tools.nx_close_part, part=nx.ref_of(asm, "part"), save=False)
+    assert ok.ok, ok
+    assert {r["name"] for r in ok.data["closed"]} == {"asm", "blk", "sub", "pin"}
+    assert {r["name"] for r in ok.data["unloaded_components"]} == {"blk", "sub", "pin"}
+    left = list(nx.session.Parts)
+    assert ok.data["closed_count"] == 4 and ok.data["remaining_count"] == len(left)
+    assert "kept_components" not in ok.data and not {blk, pin, sub, asm} & set(left)
+
+
+def test_close_assembly_keeps_modified_shared_active_and_foreign_component_parts(nx):
+    mine = nx.new_part("kit/mine.prt")
+    dirty = nx.new_part("kit/dirty.prt")
+    dirty.IsModified = True
+    shared = nx.new_part("kit/shared.prt")
+    theirs = nx.new_part("kit/theirs.prt")
+    other = nx.new_part("kit/other.prt")
+    nx.attach(other, shared)
+    asm = nx.new_part("kit/asm.prt")
+    for proto in (mine, dirty, shared, theirs):
+        nx.attach(asm, proto)
+    _keeps_prototypes(nx, asm)
+    svc = services(nx)
+    svc.created = lambda part: part is not theirs
+    nx.session.Parts.Work = nx.session.Parts.Display = mine  # active before the call
+    ok = call(nx, tools.nx_close_part, part=nx.ref_of(asm, "part"), save=False)
+    assert ok.ok, ok
+    kept = {r["part"]["name"]: r["reason"] for r in ok.data["kept_components"]}
+    assert set(kept) == {"mine", "dirty", "shared", "theirs"}
+    assert "unsaved changes" in kept["dirty"] and "another loaded assembly" in kept["shared"]
+    assert "not created" in kept["theirs"] and "work or display" in kept["mine"]
+    assert "unloaded_components" not in ok.data and ok.data["closed_count"] == 1
+    assert dirty in nx.session.Parts and dirty.IsModified  # never discarded implicitly
+
+
+def test_close_assembly_with_unload_components_false_keeps_them(nx):
+    blk = nx.new_part("kit/blk.prt")
+    asm = nx.new_part("kit/asm.prt")
+    nx.attach(asm, blk)
+    _keeps_prototypes(nx, asm)
+    ok = call(nx, tools.nx_close_part, part=nx.ref_of(asm, "part"), save=False,
+              unload_components=False)  # fmt: skip
+    assert ok.ok and ok.data["closed_count"] == 1 and blk in nx.session.Parts
+    assert "unloaded_components" not in ok.data and "kept_components" not in ok.data

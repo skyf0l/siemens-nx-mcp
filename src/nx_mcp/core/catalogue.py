@@ -65,6 +65,7 @@ VERBS = frozenset(
         "capture",
         "restore",
         "undo",
+        "redo",
         "preview",
         "run",
         "cancel",

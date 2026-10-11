@@ -162,6 +162,33 @@ def refresh(tx, views):
     return views
 
 
+def out_of_date(views):
+    """The views NX flags out of date (``DraftingView.IsOutOfDate``; their sheet's banner
+    shows "(Out of Date)", e.g. after a part saved with stale views is reopened)."""
+    stale = []
+    for v in views:
+        with contextlib.suppress(Exception):  # a view this NX build cannot answer for
+            if bool(getattr(v, "IsOutOfDate", False)):
+                stale.append(v)
+    return stale
+
+
+def update_out_of_date(tx, views):
+    """Update the out-of-date ones of ``views``; returns them. Views NX still flags
+    afterwards fail ``NX_UPDATE_FAILED``."""
+    stale = out_of_date(views)
+    if stale:
+        tx.part.DraftingViews.UpdateViews(stale)
+        left = out_of_date(stale)
+        if left:
+            fail(
+                "NX_UPDATE_FAILED",
+                f"NX left {len(left)} drawing view(s) out of date after updating them",
+                details={"views": [str(v.Name) for v in left[:20]]},
+            )
+    return stale
+
+
 # ---- sheet geometry, view placement and annotation owners (drawing domain) -------------
 
 

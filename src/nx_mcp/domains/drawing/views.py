@@ -72,6 +72,7 @@ ORIENTATIONS = {
 }
 ORIENTATION_ALIASES = {"iso": "isometric", "plan": "top", "rear": "back"}
 OFFSETS = {"right": (1, 0), "left": (-1, 0), "top": (0, 1), "bottom": (0, -1)}
+OPPOSITE = {"right": "left", "left": "right", "top": "bottom", "bottom": "top"}
 DIRECTION_ALIASES = {"above": "top", "up": "top", "below": "bottom", "down": "bottom"}
 # The view z axis (toward the viewer, part coordinates) of NX's standard model views.
 TOWARD_VIEWER = {
@@ -99,7 +100,9 @@ Band = tuple[float, float]
 NEEDS = {
     "base": "e.g. {type: base, orientation: front, position: [120, 150]}; sheet defaults to "
     "the open sheet, body to the part's only body",
-    "projected": "e.g. {type: projected, parent: <view ref>, direction: right, spacing: 20}",
+    "projected": "e.g. {type: projected, parent: <view ref>, orientation: top, spacing: 20} "
+    "(the side follows the sheet's projection angle), or direction: the side of the parent "
+    "on the sheet where the view goes (right, left, top, bottom)",
     "auxiliary": "hinge: a straight edge ref seen in the parent; position: the sheet point",
     "broken": "breaks: [[start, end]] sheet coordinates along axis (x or y)",
     "break_out": "center: a model point [x, y, z]; radius, depth below center: part units",
@@ -151,6 +154,32 @@ def orientation_of(toward):
     if all(abs(abs(c) - 1 / math.sqrt(3)) <= 1e-6 for c in toward):
         return "isometric"
     return None
+
+
+def projected_side(parent_axes, orientation, angle):
+    """The side of a parent view (right, left, top, bottom on the sheet) where a projected
+    view shows ``orientation``, else None (that view does not project from this parent).
+
+    Third angle puts a view on the side it looks from (the view from the parent's right
+    on its right); first angle on the opposite side.
+    """
+    toward = TOWARD_VIEWER.get(orientation)
+    if toward is None:
+        return None
+    x, y = parent_axes[0], parent_axes[1]
+    for side, axis, sign in (("right", x, 1), ("left", x, -1), ("top", y, 1), ("bottom", y, -1)):
+        if sign * geom.dot(toward, axis) >= 1 - 1e-6:
+            return OPPOSITE[side] if angle == "first_angle" else side
+    return None
+
+
+def projected_sides(parent_axes, angle):
+    """``{orientation: side}`` of the standard views that project from a parent."""
+    return {
+        name: side
+        for name in TOWARD_VIEWER
+        if (side := projected_side(parent_axes, name, angle)) is not None
+    }
 
 
 def parent_of(tx, view, sheet):
@@ -306,7 +335,9 @@ def _summary(a, say):
     if kind == "base":
         return f"Base view {a.get('orientation', '')}{on}"
     if kind == "projected":
-        return f"Projected view {a.get('direction', '')} of {say('parent')}"
+        return f"Projected view {a.get('orientation') or a.get('direction') or ''} of " + say(
+            "parent"
+        )
     if kind == "flat_pattern":
         return f"Flat-pattern view{on}"
     if kind in ("broken", "break_out"):
@@ -365,7 +396,11 @@ def nx_create_drawing_view(
     | None = None,
     body: BodyRef | None = None,
     explosion: ExplosionRef | None = None,
-    direction: Annotated[Literal["right", "left", "top", "bottom"], Aliases(DIRECTION_ALIASES)]
+    direction: Annotated[
+        Literal["right", "left", "top", "bottom"],
+        Aliases(DIRECTION_ALIASES),
+        Doc("Projected: the side of the parent on the sheet"),
+    ]
     | None = None,
     spacing: Annotated[float, Range(gt=0), Doc("Gap between borders")] | None = None,
     hinge: EdgeRef | None = None,
@@ -415,8 +450,13 @@ def _create(tx, kind, a):
         return _create_base(tx, a["sheet"], a["orientation"], a["body"], a["explosion"],
                             position, scale)  # fmt: skip
     if kind == "projected":
-        _need(kind, parent=parent, direction=a["direction"])
-        return _create_projected(tx, parent, a["direction"], a["spacing"], position)
+        _need(kind, parent=parent)
+        if a["direction"] is None and a["orientation"] is None:
+            fail("NX_INVALID_ARGUMENT", "A projected view needs orientation or direction",
+                 field="/orientation", hint=NEEDS[kind])  # fmt: skip
+        return _create_projected(
+            tx, parent, a["direction"], a["orientation"], a["spacing"], position
+        )
     if kind == "auxiliary":
         _need(kind, parent=parent, hinge=a["hinge"], position=position)
         return _create_auxiliary(tx, parent, a["hinge"], position)
@@ -531,11 +571,46 @@ def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, 
         return view_data(tx, view, target_sheet)
 
 
-def _create_projected(tx, parent_ref, direction, spacing, position):
-    dx, dy = OFFSETS[direction]
-    k, sign = (0, dx) if dx else (1, dy)  # the free axis and the side of the parent
+def _projected_direction(tx, parent, sheet, direction, orientation):
+    """The side of the parent for ``orientation`` on this sheet's projection angle;
+    a contradicting ``direction`` is refused."""
+    if orientation is None:
+        return direction
+    from nx_mcp.domains.drawing.sheets import projection_of
+
+    angle = projection_of(tx, sheet)
+    axes = drawing.axes(parent)
+    side = projected_side(axes, orientation, angle)
+    sides = projected_sides(axes, angle)
+    if side is None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A {orientation} view does not project from this parent "
+            f"({orientation_of(axes[2]) or 'a rotated view'})",
+            field="/orientation",
+            hint=(f"Project {', '.join(sides)} from it, or" if sides else "Use")
+            + f" a base view with orientation {orientation}",
+            details={"projects": sides},
+        )
+    if direction is not None and direction != side:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"On this {angle.replace('_', ' ')} sheet the {orientation} view lies {side} of "
+            f"the parent, not {direction}",
+            field="/direction",
+            hint="Omit direction: orientation picks the side (direction is the side of the "
+            "parent on the sheet where the view goes)",
+            details={"projects": sides},
+        )
+    return side
+
+
+def _create_projected(tx, parent_ref, direction, orientation, spacing, position):
     with tx.checks():
         parent, sheet = drawing.view(tx, parent_ref, "/parent")
+        direction = _projected_direction(tx, parent, sheet, direction, orientation)
+        dx, dy = OFFSETS[direction]
+        k, sign = (0, dx) if dx else (1, dy)  # the free axis and the side of the parent
         if spacing is not None and position is not None:
             fail("NX_INVALID_ARGUMENT", "Give spacing or position, not both", field="/position")
         sheet_units = units.sheet_units(tx, sheet)
@@ -608,6 +683,13 @@ def _create_projected(tx, parent_ref, direction, spacing, position):
         _construction(tx, view)
         _verify_scale(tx, view, parent_scale)
         out = view_data(tx, view, sheet)
+        if orientation is not None:
+            readback.expect(
+                out["orientation"] == orientation,
+                "orientation",
+                f"NX shows the {out['orientation'] or 'rotated'} view, not {orientation}",
+                toward_viewer=out["toward_viewer"],
+            )
         out["gap"] = measured
         return out
 

@@ -12,9 +12,13 @@ also clears the modified flag a studio style or lighting would leave (measured),
 ``part_modified`` warning below only appears with ``hide_sketches=false`` or nothing to hide.
 
 NX 2406 findings (``kit.capture``): the viewport export rasterises the graphics window
-at its own size, so ``resolution`` can differ from ``requested`` (a warning says so);
-Studio quality renders exactly the requested size, also for drawing sheets. Captures
-never use a desktop screenshot. The rendering style, lighting and (with ``fit``) the
+at its own size. Omitted ``width``/``height`` take that size without a warning; given
+ones are honoured: when the window differs, a shaded model view is rendered again at
+the exact size by Studio capture in the same style (``quality`` then says ``studio``;
+measured: same look, letterboxed to the window's aspect). A wireframe view or a drawing
+sheet keeps the window size with an ``NX_APPROXIMATED`` warning. Studio quality on a
+drawing sheet is refused: NX 2406 renders the sheet's frame and centrelines but drops the
+views' geometry (wireframe drafting curves). Captures never use a desktop screenshot. The rendering style, lighting and (with ``fit``) the
 camera are put back afterwards, so the engineer's view is unchanged and the result's
 ``mutation_outcome`` is ``not_applicable``, as for a read. NX 2406 measured: viewport
 and Studio captures in the current style, and a viewport capture in another style, leave
@@ -36,6 +40,7 @@ file there that is not a PNG is refused. ``overwritten`` says whether a file was
 from __future__ import annotations
 
 import contextlib
+import os
 import uuid
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
@@ -49,6 +54,7 @@ from nx_mcp.kit import capture, display, drawing, files
 from nx_mcp.kit.result import Row
 
 Pixels = Annotated[int, Range(ge=128, le=4096)]
+SHADED = ("shaded", "shaded_with_edges", "studio")  # styles a Studio capture renders
 Rgb = Annotated[tuple[float, float, float], Doc("RGB 0..1 or 0..255")]
 Background = Literal["white", "black", "original", "transparent", "color"]
 
@@ -105,6 +111,20 @@ def _background(background, color) -> tuple[str, tuple[float, float, float] | No
     return background, (values[0], values[1], values[2])
 
 
+def _studio_over(tx, temp, width, height, style, background, color):
+    """Render the model view at the exact size over the viewport PNG at ``temp``; the
+    viewport PNG stays when Studio fails. Returns the size or None."""
+    studio = temp.with_name(temp.stem + ".studio.png")
+    try:
+        size = capture.studio_png(
+            tx, studio, width, height, style=style, background=background, color=color
+        )
+    except Exception:  # NX could not render it: keep the window-size image
+        return None
+    os.replace(studio, temp)
+    return size
+
+
 def _summary(a, say):
     what = "Render" if a.get("quality") == "studio" else "Capture"
     if a.get("overwrite") and a.get("path"):
@@ -140,7 +160,7 @@ def nx_capture_view(
     lighting: Annotated[int, Range(ge=1, le=5)] | None = None,
 ) -> CaptureData:
     """PNG of the shown view or sheet, saved to path or captures/. Inline image only with
-    inline=true or no path. view_from/up aim it. Exact width/height need quality=studio."""
+    inline=true or no path. view_from/up aim it. Sheets: window size."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
     if up is not None and view_from is None:
@@ -175,6 +195,13 @@ def nx_capture_view(
             )
         if sheet and aim is not None:
             fail("NX_UNSUPPORTED_OPTION", "A drawing sheet has no 3D camera", field="/view_from")
+        if sheet and quality == "studio":
+            fail(
+                "NX_UNSUPPORTED_OPTION",
+                "Studio drops a drawing sheet's view geometry: capture sheets with "
+                "quality=viewport (the window size)",
+                field="/quality",
+            )
         if (fit or aim is not None) and not sheet:
             display.shown_part(tx, work=True)  # the kept camera is restored in the work part
         if replacing and files.png_size(Path(str(path))) is None:
@@ -183,6 +210,8 @@ def nx_capture_view(
                 "overwrite replaces PNG images only; the file there is not a PNG",
                 field="/path",
             )
+    exact = tx.given("width") or tx.given("height")
+    why = "a drawing sheet" if sheet else "a wireframe view"
     root = Path(tx.workspace.root)
     target = Path(path) if path else root / "captures" / f"view-{uuid.uuid4().hex[:12]}.png"
     temp = tx.files.stage(target, replace=overwrite)
@@ -224,6 +253,13 @@ def nx_capture_view(
                 size = capture.viewport_png(
                     tx, temp, width, height, style=chosen, background=backdrop, color=rgb
                 )
+                shown = chosen or out.get("camera", {}).get("style")
+                if exact and list(size) != [width, height] and not sheet and shown in SHADED:
+                    studio = _studio_over(tx, temp, width, height, chosen, backdrop, rgb)
+                    if studio is not None:
+                        size, out["quality"] = studio, "studio"
+                    else:
+                        why = "NX's Studio render failed, so the view"
         finally:
             for obj in hide:  # the scratch undo restores them too (and the modified flag)
                 with contextlib.suppress(Exception):
@@ -234,11 +270,11 @@ def nx_capture_view(
         tx.display.restore()  # the fitted camera goes back: the engineer's view is unchanged
     published = tx.files.publish()[0]  # with overwrite: atomic replace of the old PNG
     meta = files.metadata(published, root)
-    if list(size) != [width, height]:
+    if exact and list(size) != [width, height]:
         tx.warn(
             "NX_APPROXIMATED",
-            f"NX exported the graphics window at {size[0]}x{size[1]}, not {width}x{height}; "
-            "use quality=studio for an exact size",
+            f"NX exported the graphics window at {size[0]}x{size[1]}, not {width}x{height}: "
+            f"{why} is captured at the window size",
         )
     if not was_modified and bool(part.IsModified):
         tx.warn(

@@ -64,6 +64,126 @@ def test_concentric_takes_circular_edges_only(nx):
     assert ok.ok and ok.data["type"] == "concentric"
 
 
+def _boxes(nx):
+    """UF bounding boxes of fake occurrence edges (``local`` ends under the pose)."""
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.kit import geom
+
+    def box(tag):
+        edge = nx.edges_by_tag[int(tag)]
+        c = edge.OwningComponent
+        a, b = (geom.add(geom.matvec(c.r, p), c.t) for p in edge.local)
+        return [min(x, y) for x, y in zip(a, b, strict=True)] + [
+            max(x, y) for x, y in zip(a, b, strict=True)]  # fmt: skip
+
+    nx.edges_by_tag = {}
+    nx.uf.ModlGeneral = NS(AskBoundingBox=box)
+
+
+def _cylinder(nx, c, *zs, radius=5.0, kind="cylinder"):
+    """A face of ``c`` with one circular edge per height in ``zs`` (box = the circle)."""
+    face = c.face(kind)
+    edges = []
+    for z in zs:
+        e = c.edge([-radius, -radius, z], [radius, radius, z], circular=True)
+        nx.edges_by_tag[int(e.Tag)] = e
+        edges.append(e)
+    face.GetEdges = lambda: list(edges)
+    return face, edges
+
+
+def test_concentric_takes_a_cylindrical_face_by_its_nearest_circular_edge(nx):
+    _boxes(nx)
+    shank, (_low, top) = _cylinder(nx, nx.b, 0, 20)  # B sits at x=60
+    hole_face, (rim, bottom) = _cylinder(nx, nx.a, 15, -10)
+    target = nx.ref_of(rim, "edge")
+    ok = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+             geometry=nx.ref_of(shank, "face"), target_component=nx.a.ref,
+             target_geometry=target)  # fmt: skip
+    assert ok.ok, ok
+    c = nx.assembly.positioner.Constraints[-1]
+    assert [r.GetGeometry() for r in c.refs] == [top, rim]  # z=20 is nearer z=15 than z=0
+    assert any(nx.ref_of(top, "edge") in w["message"] for w in ok.warnings
+               if w["code"] == "NX_NOTE"), ok.warnings  # fmt: skip
+    # Two faces: the closest pair of their circular edges.
+    nx.assembly.positioner.Constraints.clear()
+    both = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+               geometry=nx.ref_of(shank, "face"), target_component=nx.a.ref,
+               target_geometry=nx.ref_of(hole_face, "face"))  # fmt: skip
+    assert both.ok, both
+    assert [r.GetGeometry() for r in nx.assembly.positioner.Constraints[-1].refs] == [top, rim]
+    assert bottom is not rim
+
+
+def test_concentric_refuses_ties_and_names_the_circular_edges_of_a_planar_face(nx):
+    _boxes(nx)
+    tied, edges = _cylinder(nx, nx.b, -10, 10)  # B at x=60: both ends equally far
+    rim = nx.a.edge([-5, -5, 0], [5, 5, 0], circular=True)
+    nx.edges_by_tag[int(rim.Tag)] = rim
+    nx.b.t = [0.0, 0.0, 0.0]
+    tie = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+              geometry=nx.ref_of(tied, "face"), target_component=nx.a.ref,
+              target_geometry=nx.ref_of(rim, "edge"))  # fmt: skip
+    assert tie.error["code"] == "NX_AMBIGUOUS_REFERENCE" and tie.error["field"] == "/geometry"
+    assert tie.mutation_outcome == "not_started"
+    named = {c["geometry"]["id"] for c in tie.error["details"]["candidates"]}
+    assert named == {nx.ref_of(e, "edge") for e in edges}
+    plane, ring = _cylinder(nx, nx.b, 3, kind="plane")
+    bad = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+              geometry=nx.ref_of(plane, "face"), target_component=nx.a.ref,
+              target_geometry=nx.ref_of(rim, "edge"))  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/geometry"
+    assert [e["id"] for e in bad.error["details"]["circular_edges"]] == [
+        nx.ref_of(ring[0], "edge")]  # fmt: skip
+    hint = bad.error["hint"]
+    assert "geometry_type='circle'" in hint and "nx_list_objects(kind='edge'" in hint
+    line = run(nx, "nx_create_assembly_constraint", type="concentric", component=nx.b.ref,
+               geometry=geometry(nx, nx.b, "edge"), target_component=nx.a.ref,
+               target_geometry=nx.ref_of(rim, "edge"))  # fmt: skip
+    assert line.error["code"] == "NX_WRONG_GEOMETRY" and "near" in line.error["hint"]
+
+
+def _refresh(nx):
+    """Gate 13's constraint check after a call in the current work part: the warnings."""
+    from nx_mcp.core.catalogue import get, hooks
+    from nx_mcp.core.tx import Tx
+    from tests.kit.kernel import services
+
+    tx = Tx(services(nx), get("nx_set_component_pose"), operation_id="op_test_refresh")
+    assert hooks("refresher")["assembly_constraint"](tx, None) == []
+    return tx.warnings
+
+
+def test_a_part_edit_that_breaks_a_constraint_warns_once(nx):
+    """Gate 13: a model call warns about constraints positioning the work part that no
+    longer solve, once per status change."""
+    ok = run(nx, "nx_create_assembly_constraint", type="fix", component=nx.a.ref)
+    assert ok.ok and not ok.warnings, ok
+    concentric = run(nx, "nx_create_assembly_constraint", type="concentric",
+                     component=nx.b.ref, geometry=geometry(nx, nx.b, "edge", True),
+                     target_component=nx.a.ref,
+                     target_geometry=geometry(nx, nx.a, "edge", True))  # fmt: skip
+    assert concentric.ok and not concentric.warnings
+    c = nx.assembly.positioner.Constraints[-1]
+    c.status = STATUS.CannotSolve  # its edge went with a later boolean in blk.prt
+    nx.session.Parts.Work = nx.pin  # an edit in a part the constraint does not use
+    assert _refresh(nx) == []
+    nx.session.Parts.Work = nx.blk  # the edit happens in the component part
+    warned = _refresh(nx)
+    assert len(warned) == 1 and nx.ref_of(c, "assembly_constraint") in warned[0]["message"]
+    assert "concentric: CannotSolve" in warned[0]["message"] and "asm.prt" in warned[0]["message"]
+    assert "nx_check_model" in warned[0]["message"]
+    assert _refresh(nx) == []  # once per status change
+    c.status = STATUS.Solved
+    assert _refresh(nx) == []
+    c.status = STATUS.CannotSolve
+    assert len(_refresh(nx)) == 1  # broken again
+    c.status = STATUS.OverConstrained
+    nx.session.Parts.Work = nx.asm  # a call in the assembly checks its own constraints
+    assert "concentric: OverConstrained" in _refresh(nx)[0]["message"]
+
+
 def test_concentric_with_a_touch_hints_align_lock(nx):
     """Concentric is coaxial AND coplanar: a touch on the same component over-constrains."""
     edge = geometry(nx, nx.b, "edge", True)

@@ -17,10 +17,10 @@ def root(nx) -> Path:
 
 def test_viewport_capture_reports_the_window_size_and_an_inline_image():
     nx = display_nx()
-    ok = run(nx, "nx_capture_view", width=800, height=500)
+    ok = run(nx, "nx_capture_view")
     assert ok.ok and ok.mutation_outcome == "not_applicable"  # a view-only action
     data = ok.data
-    assert data["requested"] == [800, 500] and data["resolution"] == list(WINDOW)
+    assert data["requested"] == [1024, 768] and data["resolution"] == list(WINDOW)
     assert data["path"].startswith("captures/view-") and data["path"].endswith(".png")
     file = root(nx) / data["path"]
     assert files.png_size(file) == WINDOW and data["sha256"] == files.sha256(file)
@@ -33,12 +33,41 @@ def test_viewport_capture_reports_the_window_size_and_an_inline_image():
         "width": WINDOW[0],
         "height": WINDOW[1],
     }
-    assert [w["code"] for w in ok.warnings] == ["NX_APPROXIMATED"]
+    assert not ok.warnings and data["quality"] == "viewport"  # no size asked: the window's
     builder = nx.captures[0]
     assert builder.kind == "viewport" and builder.destroyed
     assert builder.background_color == [1.0, 1.0, 1.0] and builder.EnhanceEdges is True
     assert data["camera"]["view"] == "trimetric" and "restore_id" not in ok.envelope
     assert data["hidden_sketches"] == 0 and data["marks_part_modified"] is False
+
+
+def test_a_given_size_is_honoured_by_a_studio_render_of_the_shaded_view():
+    nx = display_nx()
+    ok = run(nx, "nx_capture_view", width=800, height=500, path="shots/v.png")
+    assert ok.ok and not ok.warnings, ok
+    assert ok.data["resolution"] == [800, 500] and ok.data["quality"] == "studio"
+    assert files.png_size(root(nx) / "shots" / "v.png") == (800, 500)
+    assert [c.kind for c in nx.captures] == ["viewport", "studio"]
+    assert sorted(p.name for p in (root(nx) / "shots").iterdir()) == ["v.png"]
+
+
+def test_a_size_equal_to_the_default_still_counts_as_given():
+    nx = display_nx()
+    ok = run(nx, "nx_capture_view", width=1024)  # tx.given: the caller asked for 1024x768
+    assert ok.ok and ok.data["resolution"] == [1024, 768] and ok.data["quality"] == "studio"
+
+
+def test_a_wireframe_view_or_a_sheet_keeps_the_window_size_with_a_warning():
+    nx = display_nx()
+    wire = run(nx, "nx_capture_view", width=800, height=500, style="wireframe")
+    assert wire.data["resolution"] == list(WINDOW) and wire.data["quality"] == "viewport"
+    assert "a wireframe view is captured at the window size" in wire.warnings[0]["message"]
+    show_sheet(nx)
+    sheet = run(nx, "nx_capture_view", width=800, height=500)
+    assert "a drawing sheet is captured" in sheet.warnings[0]["message"]
+    assert [c.kind for c in nx.captures] == ["viewport", "viewport"]
+    studio = run(nx, "nx_capture_view", quality="studio")
+    assert studio.error["field"] == "/quality" and studio.mutation_outcome == "not_started"
 
 
 def test_studio_capture_renders_the_exact_size_with_style_light_and_colour():

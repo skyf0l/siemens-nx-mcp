@@ -1,0 +1,42 @@
+{
+ "covers": {
+  "nx_find_geometry": [],
+  "nx_resolve_reference": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "blk", "args": {"path": "$run/ed/ed_blk.prt", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"placement": {"principal": "xy"}}},
+  {"call": "nx_create_sketch_curves", "setup": true, "args": {"sketch": "$sk.data.sketch.id", "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}]}},
+  {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$sk.data.sketch.id"}},
+  {"call": "nx_create_extrude", "setup": true, "save": "ext", "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 10}}},
+  {"call": "nx_find_geometry", "save": "vert", "args": {"owner": "$ext.data.bodies.0.id", "kind": "edge", "parallel": "z", "order": "lowest", "axis": "x"},
+   "expect": {"page.total": 4, "data.items.0.type": "line", "data.items.0.center.2": {"close": 5, "tol": 1e-6},
+              "data.items.0.center.0": {"close": 0, "tol": 1e-6}, "data.items.3.center.0": {"close": 40, "tol": 1e-6},
+              "data.selector": {"contains": "\"parallel\":\"z\""}}},
+  {"call": "nx_find_geometry", "args": {"kind": "edge", "parallel": "xy"},
+   "expect": {"page.total": 8, "data.items.0.type": "line"}},
+  {"call": "nx_find_geometry", "args": {"kind": "edge", "parallel": "x", "order": "highest", "axis": "z"},
+   "expect": {"page.total": 4, "data.items.0.center.2": {"close": 10, "tol": 1e-6}, "data.items.0.center.0": {"close": 20, "tol": 1e-6}}},
+  {"call": "nx_find_geometry", "args": {"kind": "edge", "parallel": "zx"},
+   "expect": {"page.total": 8}},
+  {"call": "nx_find_geometry", "save": "corner", "args": {"kind": "edge", "parallel": "z", "near": [40, 20, 5], "limit": 1},
+   "expect": {"page.total": 4, "data.items.0.distance": {"close": 0, "tol": 1e-6}, "data.items.0.center": {"close": [40, 20, 5], "tol": 1e-6}}},
+  {"call": "nx_resolve_reference", "args": {"selector": "$corner.data.selector"},
+   "expect": {"data.via": "selector", "data.object.kind": "edge", "data.object.id": "$corner.data.items.0.id"}},
+  {"call": "nx_find_geometry", "args": {"kind": "face", "parallel": "z"},
+   "expect": {"error.category": "invalid_argument", "error.field": "/parallel", "mutation_outcome": "not_applicable"}},
+  {"call": "nx_find_geometry", "args": {"kind": "edge", "geometry_type": "circle", "parallel": "z"},
+   "expect": {"error.field": "/parallel"}},
+  {"call": "nx_save_part", "setup": true, "args": {}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_component", "setup": true, "save": "R", "args": {"path": "$run/ed/ed_blk.prt", "name": "R", "pose": {"translation": [100, 0, 0], "rotation": [[1, 0, 0], [0, 0, -1], [0, 1, 0]]}}},
+  {"call": "nx_find_geometry", "args": {"owner": "$R.data.component.id", "kind": "edge", "parallel": "y", "order": "lowest", "axis": "x"},
+   "expect": {"page.total": 4, "data.items.0.center.1": {"close": -5, "tol": 1e-6}, "data.items.0.center.0": {"close": 100, "tol": 1e-6}}},
+  {"call": "nx_find_geometry", "args": {"owner": "$R.data.component.id", "kind": "edge", "parallel": "z", "order": "highest", "axis": "x"},
+   "expect": {"page.total": 4, "data.items.0.center.2": {"close": 10, "tol": 1e-6}, "data.items.0.center.0": {"close": 140, "tol": 1e-6}}},
+  {"call": "nx_find_geometry", "args": {"owner": "$R.data.component.id", "kind": "edge", "parallel": "yz"},
+   "expect": {"page.total": 8}}
+ ]
+}

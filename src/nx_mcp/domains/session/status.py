@@ -136,7 +136,10 @@ class OperationData(TypedDict, total=False):
     finished_at: str | None
     progress: dict | None  # {completed, total, at}
     cancel_requested: bool
-    reverted_by: str | None
+    reverted_by: str | None  # the undo (operation_id) or checkpoint that reverted it
+    # the run an undo reverted before this one ran again under the same id (re-run):
+    # {started_at, finished_at, reverted_by, created, earlier}
+    previous: dict | None
     reason: str | None  # why the state is unknown
     error: dict | None
     result: dict | None  # the committed call's envelope
@@ -405,6 +408,7 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
         "progress": record.get("progress"),
         "cancel_requested": _cancel_flag(tx.services.store, operation),
         "reverted_by": record.get("reverted_by"),
+        "previous": record.get("previous"),
         "reason": record.get("reason"),
         "error": error if state != "committed" else None,
         "result": stored if state == "committed" else None,

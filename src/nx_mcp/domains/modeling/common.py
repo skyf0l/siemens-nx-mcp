@@ -85,11 +85,17 @@ def body_rows(tx, bodies):
     return [tx.ref(b, kind="body") for b in bodies]
 
 
+def same_volume(before: float, after: float) -> bool:
+    """Equal volumes within ``changed``'s "same" band."""
+    band = VOLUME_REL * max(1.0, abs(before), abs(after))
+    return abs(after - before) <= max(band, 1e-6 * max(1.0, abs(before)))
+
+
 def changed(before, after, how, check="volume"):
     """Read back a volume change: ``more``, ``less``, ``at_least``, ``at_most``,
     ``differs``, ``positive`` or ``same`` (within a 1e-6 relative band)."""
     band = VOLUME_REL * max(1.0, abs(before), abs(after))
-    same = abs(after - before) <= max(band, 1e-6 * max(1.0, abs(before)))
+    same = same_volume(before, after)
     ok = {
         "more": after > before + band,
         "less": after < before - band,
@@ -208,6 +214,17 @@ def combined(tx, feature, combine, targets, before: float, tags: set) -> Feature
             hint="Move or resize the profile so it overlaps or touches the target, or omit "
             "combine to make a new body",
             details={"separate_bodies": len(new)},
+        )
+    if new and alive and same_volume(before, measure.volume(tx, alive)):
+        # The targets are untouched and a body appeared: the boolean was not applied (a
+        # split target changes volume, so it never lands here).
+        fail(
+            "NX_BUILD_FAILED",
+            f"NX did not apply the {combine['operation']}: the tool body was left separate "
+            "and the target kept its volume",
+            hint="Make sure the new geometry overlaps the target body; or omit combine and "
+            "combine the new body with nx_create_boolean",
+            details={"separate_bodies": len(new), "target_volume": before},
         )
     out = result_of(tx, feature, [*alive, *new])
     changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])

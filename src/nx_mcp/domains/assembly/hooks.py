@@ -4,17 +4,27 @@
 ``@deleter(kind)`` is ``fn(tx, objects) -> None`` and deletes inside the caller's mark.
 An explosion shown in a view is refused (``NX_IN_USE``): show the assembled state
 there first with ``nx_set_explosion_display``.
+
+``@refresher("assembly_constraint")`` runs after every committed geometry-domain model
+call (gate 13): it reads the solver status of the constraints in the loaded assemblies
+that position the work part (and of the work part's own constraints) and warns once per
+status change about those that no longer solve. NX 2406 marks a constraint CannotSolve
+as soon as a prototype edit consumes its edge (live: a blend on a pin edge used by a
+concentric, the assembly not even displayed), so no solve is needed to see it.
 """
 
 from __future__ import annotations
 
 import contextlib
 
-from nx_mcp.core.catalogue import deleter, lister
+from nx_mcp.core.catalogue import deleter, lister, refresher
 from nx_mcp.core.errors import fail, native
 from nx_mcp.domains.assembly import common, constraints, exploded, patterns, structure
 from nx_mcp.domains.assembly.reference_sets import members
-from nx_mcp.kit import model
+from nx_mcp.kit import model, positioning
+
+# services attribute: {constraint tag: last unsolved status warned about}
+_SEEN = "_nx_mcp_unsolved_constraints"
 
 
 def _whole_part(owner):
@@ -110,3 +120,58 @@ def delete_traces(tx, objects):
     with native(default="NX_BUILD_FAILED"):
         tx.session.UpdateManager.AddToDeleteList(list(objects))
     model.update(tx)
+
+
+def _considered(tx, work) -> list:
+    """``[(part, constraint)]``: the work part's constraints and those of every loaded
+    assembly that position an occurrence of the work part."""
+    out = []
+    for part in list(tx.session.Parts):
+        own = int(part.Tag) == int(work.Tag)
+        for c in positioning.all_constraints(part):
+            if own or positioning.uses(c, work):
+                out.append((part, c))
+    return out
+
+
+@refresher("assembly_constraint")
+def check_constraints(tx, objects):
+    """Warn about constraints this call left unsolved (status changes only); no rows."""
+    if objects is not None:
+        return []
+    try:
+        work = tx.part
+        if work is None:
+            return []
+        found = _considered(tx, work)
+        if not found:
+            return []
+        seen = getattr(tx.services, _SEEN, None)
+        if seen is None:
+            seen = {}
+            setattr(tx.services, _SEEN, seen)
+        said = " ".join(w.get("message", "") for w in tx.warnings)
+        news = []
+        for part, c in found:
+            tag = int(c.Tag)
+            if c.Suppressed or positioning.solved(tx, c):
+                seen.pop(tag, None)
+                continue
+            status = positioning.status_name(tx, c)
+            if status == "Suppressed" or seen.get(tag) == status:
+                continue
+            seen[tag] = status
+            ref = tx.ref(c, "assembly_constraint", part=part)["id"]
+            if ref not in said:
+                where = tx.services.part_path(part)
+                news.append(f"{ref} ({positioning.kind_name(tx, c)}: {status}) in {where}")
+        if news:
+            tx.warn(
+                "NX_UPDATE_WARNING",
+                "Assembly constraints no longer solve: " + ", ".join(news[:10])
+                + "; their geometry may be gone. nx_check_model(scope='assembly') lists them; "
+                "re-create or suppress them (nx_edit_assembly_constraint)",
+            )  # fmt: skip
+    except Exception:  # a status check never fails the call it follows
+        return []
+    return []

@@ -4,7 +4,9 @@ NX 2406 findings encoded here:
 
 - A constraint counts only when the solver reports ``Solved``; anything else rolls
   the change back as ``NX_CONSTRAINT_UNSATISFIED`` with the solver status.
-- Concentric needs circular edges (cylindrical faces leave it unsolved), and the
+- Concentric needs circular edges (cylindrical faces leave it unsolved): a cylindrical
+  or conical face given instead is replaced by its circular edge nearest the other
+  geometry (edge pairs by bounding-box centre distance; a tie is refused), and the
   solver may move either component unless one is fixed: ``moved`` lists every
   direct component whose pose changed. It makes the circle centres coincide AND the
   circle planes coplanar (live: a pin's bottom edge concentric with another's top edge
@@ -41,25 +43,14 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import MM_PER_IN, QUANTITY_MAX, Aliases, Doc, RefTo, Text
 from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import ComponentId, ComponentRow
-from nx_mcp.kit import display, geom, model, readback, result, select
+from nx_mcp.kit import display, geom, model, positioning, readback, result, select
 from nx_mcp.kit import pose as kpose
 
-TYPES = {
-    "fix": "Fix",
-    "touch": "Touch",
-    "align": "Touch",
-    "distance": "Distance",
-    "parallel": "Parallel",
-    "perpendicular": "Perpendicular",
-    "angle": "Angle",
-    "concentric": "Concentric",
-    "align_lock": "AlignLock",
-    "fit": "Fit",
-    "bond": "Bond",
-    "center_1_2": "Center12",
-    "center_2_2": "Center22",
-}
-NAMES = {v: k for k, v in TYPES.items() if k != "align"}
+TYPES, NAMES = positioning.TYPES, positioning.NAMES
+all_constraints = positioning.all_constraints
+kind_name = positioning.kind_name
+status_name = positioning.status_name
+solved = positioning.solved
 Kind = Annotated[
     Literal[
         "fix", "touch", "align", "distance", "parallel", "perpendicular", "angle", "concentric",
@@ -83,6 +74,12 @@ _QUANTITY = re.compile(
     r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*(mm|in|deg|rad|\u00b0)?\s*$", re.IGNORECASE
 )
 VALUE_MAX = 1e6
+CONCENTRIC_EDGES_HINT = (
+    "Concentric takes circular edges: nx_find_geometry(owner=<component>, kind='edge', "
+    "geometry_type='circle', near=[x,y,z] or radius=r), or nx_list_objects(kind='edge', "
+    "owner=<face>); a cylindrical face works when one of its circular edges is nearest "
+    "the other geometry"
+)
 CONCENTRIC_HINT = (
     "concentric makes the circular edges coaxial AND coplanar, so a touch on another plane "
     "over-constrains; for a bolt or pin in a hole use align_lock on the axes + touch (head "
@@ -107,8 +104,7 @@ class ConstraintData(TypedDict, total=False):
     moved: list[ComponentRow]
 
 
-def _cls(tx):
-    return tx.nx.Positioning.Constraint
+_cls = positioning.cls
 
 
 @contextlib.contextmanager
@@ -145,29 +141,6 @@ def solve(tx, net):
         net.Solve()
         net.ApplyToModel()
     model.update(tx)
-
-
-def all_constraints(part) -> list:
-    positioner = getattr(getattr(part, "ComponentAssembly", None), "Positioner", None)
-    return list(positioner.Constraints) if positioner is not None else []
-
-
-def kind_name(tx, constraint) -> str:
-    cls = _cls(tx)
-    native_type = result.enum_name(constraint.ConstraintType, cls.Type)
-    if native_type == "Touch":
-        align = result.enum_name(constraint.ConstraintAlignment, cls.Alignment)
-        return "align" if align == "CoAlign" else "touch"
-    return NAMES.get(native_type, native_type.lower())
-
-
-def status_name(tx, constraint) -> str:
-    cls = _cls(tx)
-    return result.enum_name(constraint.GetConstraintStatus(), cls.SolverStatus)
-
-
-def solved(tx, constraint) -> bool:
-    return constraint.GetConstraintStatus() == _cls(tx).SolverStatus.Solved
 
 
 def record(tx, constraint) -> ConstraintData:
@@ -361,13 +334,85 @@ def _geometry(tx, ref, owner, field, type):
             "Select a face or edge of that component (occurrence geometry)",
             field=field,
         )
-    if type == "concentric" and (
-        tx.kind_of(obj) != "edge" or obj.SolidEdgeType != tx.nx.Edge.EdgeType.Circular
-    ):
-        fail("NX_WRONG_GEOMETRY", "Concentric needs circular edges", field=field)
     if type == "fit" and tx.kind_of(obj) != "face":
         fail("NX_WRONG_GEOMETRY", "Fit needs cylindrical or spherical faces", field=field)
     return obj
+
+
+def _circular(tx, edge) -> bool:
+    return tx.kind_of(edge) == "edge" and edge.SolidEdgeType == tx.nx.Edge.EdgeType.Circular
+
+
+def _centre(tx, obj) -> list[float]:
+    """The bounding-box centre of an edge (a full circle's centre), assembly coordinates."""
+    with native():
+        box = [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)]
+    return [(box[i] + box[i + 3]) / 2 for i in range(3)]
+
+
+def _circles_of(tx, obj, field) -> list:
+    """``[obj]`` for a circular edge; the circular edges of a cylindrical or conical face.
+    Anything else fails with the way to find circular edges (and a face's circular edges
+    by ref in ``details.circular_edges``)."""
+    if _circular(tx, obj):
+        return [obj]
+    circles: list = []
+    axial = False
+    if tx.kind_of(obj) == "face":
+        with contextlib.suppress(Exception):
+            circles = [e for e in obj.GetEdges() if _circular(tx, e)]
+        with contextlib.suppress(Exception):
+            axial = select.face_data(tx, obj)[0] in (select.FACE_CYLINDER, select.FACE_CONE)
+    if circles and axial:
+        return circles
+    message = "Concentric needs circular edges"
+    if circles:
+        message += " (this face is not cylindrical; details.circular_edges lists its edges)"
+    fail(
+        "NX_WRONG_GEOMETRY",
+        message,
+        field=field,
+        hint=CONCENTRIC_EDGES_HINT,
+        details={"circular_edges": [tx.ref(e, "edge") for e in circles[:10]]} if circles else {},
+    )
+
+
+def _concentric_edges(tx, refs, names):
+    """Replace a cylindrical or conical face among the two concentric references by its
+    circular edge nearest the other one: the closest pair of edge centres. A tie of the
+    two closest pairs is refused with the candidates."""
+    options = [
+        _circles_of(tx, obj, "/" + name) for (_o, obj), name in zip(refs, names, strict=True)
+    ]
+    if all(len(found) == 1 for found in options):
+        return [(owner, found[0]) for (owner, _obj), found in zip(refs, options, strict=True)]
+    centres = {int(e.Tag): _centre(tx, e) for found in options for e in found}
+    pairs = sorted(
+        (math.dist(centres[int(a.Tag)], centres[int(b.Tag)]), i, a, b)
+        for i, (a, b) in enumerate((a, b) for a in options[0] for b in options[1])
+    )
+    if len(pairs) > 1 and pairs[1][0] - pairs[0][0] <= 1e-6 * max(1.0, pairs[0][0]):
+        candidates = [
+            {name: tx.ref(e, "edge") for name, e in zip(names, pair[2:], strict=True)}
+            for pair in pairs[:2]
+        ]
+        fail(
+            "NX_AMBIGUOUS_REFERENCE",
+            "Two circular-edge pairs of the faces are equally near each other",
+            field="/" + names[0 if len(options[0]) > 1 else 1],
+            hint=CONCENTRIC_EDGES_HINT,
+            details={"candidates": candidates},
+        )
+    chosen = pairs[0][2:]
+    for (_owner, obj), name, edge in zip(refs, names, chosen, strict=True):
+        if edge is not obj:
+            used = tx.ref(edge, "edge")["id"]
+            tx.warn(
+                "NX_NOTE",
+                f"{name}: the face's circular edge {used}, nearest the other geometry, was "
+                "used (concentric takes circular edges)",
+            )
+    return [(owner, edge) for (owner, _obj), edge in zip(refs, chosen, strict=True)]
 
 
 def _uses_axis(tx, type, obj) -> bool:
@@ -460,9 +505,9 @@ def nx_create_assembly_constraint(
     alignment: Alignment = "infer",
 ) -> ConstraintData:
     """Constrain a direct component to a sibling (touch is the mate) or fix it; it must solve.
-    Concentric: circular edges made coaxial AND coplanar (a touch on another plane
-    over-constrains); bolt in hole: align_lock axes + touch. Fit: equal-radius faces; center_1_2: between two target
-    geometries."""
+    Concentric: circular edges (or a cylinder's edge nearest the other) made coaxial AND
+    coplanar; bolt in hole: align_lock axes + touch. Fit: equal-radius faces; center_1_2:
+    between two target geometries."""
     given = {
         "geometry": geometry, "target_component": target_component,
         "target_geometry": target_geometry, "geometry2": geometry2,
@@ -488,10 +533,12 @@ def nx_create_assembly_constraint(
                 if type == "center_1_2":  # NX pairs the first two references
                     fields = ("target_geometry", "target_geometry2", "geometry")
                 refs = []
-                for name in fields:
-                    if given[name] is not None:
-                        owner = moving if name.startswith("geometry") else target
-                        refs.append((owner, _geometry(tx, given[name], owner, "/" + name, type)))
+                names = [name for name in fields if given[name] is not None]
+                for name in names:
+                    owner = moving if name.startswith("geometry") else target
+                    refs.append((owner, _geometry(tx, given[name], owner, "/" + name, type)))
+                if type == "concentric":
+                    refs = _concentric_edges(tx, refs, names)
     if type == "align" and alignment == "infer":
         alignment = "same"
     cls = _cls(tx)

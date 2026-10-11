@@ -1,0 +1,94 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/out_of_date_views.json",
+  "scenario_sha256": "6612c84e3914065a337630297740f56055601f6c0b8529ba9850bb60029c81a4",
+  "domain": "drawing",
+  "covers": {
+    "nx_export_drawing": [],
+    "nx_update_annotations": [],
+    "nx_activate_drawing_sheet": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_export_drawing": "457c07bd8c84511e5676c9ebc84fd489367cb934685cf4fee64c4ab0962f8f61",
+    "nx_update_annotations": "eb439bed426e202d38bf500e3a89989153ac18aeb9249025dba6f1e048abed7a",
+    "nx_activate_drawing_sheet": "b2d9b086f65b4c4152d8a310f77d7867794241ee61707e9bd6810b0e158a579e"
+  },
+  "recorded": "2026-10-11T11:02:28Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 3,
+      "call": "nx_export_drawing",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 4,
+      "call": "nx_activate_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_export_drawing",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_update_annotations",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

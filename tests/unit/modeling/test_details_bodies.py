@@ -472,3 +472,58 @@ def test_transform_copy_is_fixed_at_its_timestamp():
     assert in_place.ok and "EXTRACT_BODY" in in_place.data["feature"]["name"], in_place
     assert nx.last("ExtractFaceBuilder").FixAtCurrentTimestamp is True
     assert not any(b.kind == "MoveObjectBuilder" for b in nx.builders)
+
+
+def rounded_plate(nx):
+    """A 40 x 20 x 10 plate with R5 vertical corners: its top loop is 4 lines and 4 arcs
+    (one tangent chain); vertical seam edges meet it square at the tangent points."""
+    block = nx.block(40, 20, 10)
+    z = 10.0
+    loop = [  # (start, end, tangent at start, tangent at end)
+        ((5, 0), (35, 0), (1, 0), (1, 0)),
+        ((35, 0), (40, 5), (1, 0), (0, 1)),
+        ((40, 5), (40, 15), (0, 1), (0, 1)),
+        ((40, 15), (35, 20), (0, 1), (-1, 0)),
+        ((35, 20), (5, 20), (-1, 0), (-1, 0)),
+        ((5, 20), (0, 15), (-1, 0), (0, -1)),
+        ((0, 15), (0, 5), (0, -1), (0, -1)),
+        ((0, 5), (5, 0), (0, -1), (1, 0)),
+    ]
+    ends = {}
+    edges = []
+    for s, e, ts, te in loop:
+        edge = nx.remember(nx.edge((*s, z), (*e, z), body=block, linear=ts == te))
+        ends[int(edge.Tag)] = (((*s, z), (*ts, 0)), ((*e, z), (*te, 0)))
+        edges.append(edge)
+    for corner in ((5, 0), (35, 0), (40, 5), (40, 15), (35, 20), (5, 20), (0, 15), (0, 5)):
+        seam = nx.remember(nx.edge((*corner, 0), (*corner, z), body=block))
+        ends[int(seam.Tag)] = (((*corner, 0), (0, 0, 1)), ((*corner, z), (0, 0, 1)))
+        edges.append(seam)
+    block.edges = edges
+    nx.uf.Eval = NS(
+        Initialize=lambda tag: tag,
+        AskLimits=lambda h: (0.0, 1.0),
+        EvaluateUnitVectors=lambda h, t: ends[h][0 if t < 0.5 else 1],
+        Free=lambda h: None,
+    )
+    return block, edges[0:8:2], edges[1:8:2]
+
+
+@pytest.mark.parametrize("tool", ["nx_create_chamfer", "nx_create_blend"])
+def test_part_of_a_tangent_chain_is_noted_or_completed(tool):
+    nx = modeling_nx()
+    block, lines, arcs = rounded_plate(nx)
+    kind = "ChamferBuilder" if tool == "nx_create_chamfer" else "EdgeBlendBuilder"
+    size = {"offset": 1} if tool == "nx_create_chamfer" else {"radius": 1}
+    changes(nx, kind, block, 7900.0)
+    part = run(nx, tool, edges=[e.ref for e in lines], **size)
+    assert part.ok, part
+    note = [w["message"] for w in part.warnings if w["code"] == "NX_NOTE"]
+    assert note and "4 edge(s)" in note[0] and "chain true" in note[0], part.warnings
+    changes(nx, kind, block, 7800.0)
+    whole = run(nx, tool, edges=[nx.ref_of(e, "edge") for e in lines], chain=True, **size)
+    assert whole.ok and not whole.warnings, whole
+    b = nx.last(kind)
+    collector = b.SmartCollector if kind == "ChamferBuilder" else b.AddChainset.calls[0][0][0]
+    ((_kind, chained),) = collector.rules
+    assert {int(e.Tag) for e in chained} == {int(e.Tag) for e in lines + arcs}

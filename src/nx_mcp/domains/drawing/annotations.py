@@ -672,7 +672,7 @@ class RefreshData(TypedDict, total=False):
     note: str
 
 
-NOT_MANAGED = "Not managed: notes, dimensions and ordinary views follow the model on their own"
+NOT_MANAGED = "Not managed: notes, dimensions and up-to-date views follow the model on their own"
 
 
 @tool(
@@ -681,7 +681,14 @@ NOT_MANAGED = "Not managed: notes, dimensions and ordinary views follow the mode
     summary=lambda a, say: (
         f"Update {len(a['objects'])} annotations" if a.get("objects") else "Update all annotations"
     ),
-    keywords=("refresh", "update parts list", "bend table", "detail boundary", "BOM update"),
+    keywords=(
+        "refresh",
+        "update parts list",
+        "bend table",
+        "detail boundary",
+        "BOM update",
+        "out of date views",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     invalidates="deleted",
@@ -693,7 +700,7 @@ def nx_update_annotations(
     objects: Annotated[list[Ref], Items(1, 100)] | None = None,
 ) -> RefreshData:
     """Refresh managed annotations from the model: parts lists, bend tables, title blocks,
-    detail boundaries and callouts. Omit objects to refresh all of them; given objects
+    detail boundaries and callouts. Also updates out-of-date views. Omit objects to refresh all of them; given objects
     nothing refreshes come back in skipped."""
     live = (
         [select.resolve(tx, r, field=f"/objects/{i}") for i, r in enumerate(objects)]

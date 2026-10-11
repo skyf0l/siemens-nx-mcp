@@ -30,14 +30,15 @@
    },
    "expect": {
     "mutation_outcome": "not_applicable",
-    "data.quality": "viewport",
+    "data.quality": "studio",
     "data.requested": [
      800,
      500
     ],
-    "data.resolution": {
-     "count": 2
-    },
+    "data.resolution": [
+     800,
+     500
+    ],
     "data.image.inline": false,
     "data.image.mime_type": "image/png",
     "data.image.sha256": {
@@ -49,7 +50,11 @@
     "data.camera.style": "shaded_with_edges",
     "frame": "display_part_absolute",
     "data.overwritten": false,
-    "data.marks_part_modified": false
+    "data.marks_part_modified": false,
+    "data.image.width": 800,
+    "warnings": {
+     "count": 0
+    }
    }
   },
   {
@@ -110,6 +115,25 @@
    "expect": {
     "data.style": "wireframe",
     "data.image.inline": false
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/wire_sized.png",
+    "style": "wireframe",
+    "width": 900,
+    "height": 600
+   },
+   "expect": {
+    "data.quality": "viewport",
+    "data.resolution": {
+     "count": 2
+    },
+    "warnings.0.code": "NX_APPROXIMATED",
+    "warnings.0.message": {
+     "contains": "a wireframe view is captured"
+    }
    }
   },
   {
@@ -208,9 +232,10 @@
      800,
      500
     ],
-    "data.resolution": {
-     "count": 2
-    }
+    "data.resolution": [
+     800,
+     500
+    ]
    }
   },
   {
@@ -309,6 +334,9 @@
     "data.image.inline": false,
     "data.resolution": {
      "count": 2
+    },
+    "warnings": {
+     "count": 0
     }
    }
   },
@@ -321,11 +349,28 @@
     "height": 594
    },
    "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/quality",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "path": "$run/sheet_sized.png",
+    "width": 840,
+    "height": 594
+   },
+   "expect": {
     "data.sheet.name": "SHT1",
-    "data.resolution": [
-     840,
-     594
-    ]
+    "data.quality": "viewport",
+    "data.resolution": {
+     "count": 2
+    },
+    "warnings.0.code": "NX_APPROXIMATED",
+    "warnings.0.message": {
+     "contains": "a drawing sheet is captured at the window size"
+    }
    }
   },
   {

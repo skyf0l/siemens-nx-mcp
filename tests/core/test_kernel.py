@@ -702,6 +702,21 @@ def test_a_new_sheet_uses_its_units_argument_and_stale_refs_are_left_to_the_hand
     assert stale["ok"] and stale["data"]["sheet"] is None
 
 
+def test_tx_given_tells_a_passed_argument_from_its_default(svc):
+    seen = []
+    block = SPECS["nx_create_block"]
+
+    def handler(tx, **args):
+        seen.append((tx.given("size"), tx.given("angle"), tx.given("name")))
+        return block.handler(tx, **args)
+
+    spec = dataclasses.replace(block, handler=handler)
+    assert kernel.run(spec, {"size": 1}, kernel.Context(svc))["ok"]
+    assert kernel.run(spec, {"size": 1, "angle": 0}, kernel.Context(svc))["ok"]
+    assert seen == [(True, False, False), (True, True, False)]  # angle=0 equals the default
+    assert not tx_module.Tx(svc, block, operation_id=None).given("size")  # arguments unknown
+
+
 def test_non_sheet_tools_do_not_get_sheet_units(svc):
     ok = run(svc, "nx_create_block", size=1)
     assert "sheet_length" not in ok["units"] and not SPECS["nx_create_block"].sheet
@@ -848,3 +863,82 @@ def test_budget_defaults_follow_the_cost_classes():
         "long": 1800.0,
     }
     assert tx_module.DEFAULT_BUDGET_SECONDS == 300.0
+
+
+# -- undo, re-run and redo ------------------------------------------------------------
+
+
+def call(svc, name, operation_id, **args):
+    """A catalogue tool (nx_undo_operation, nx_redo_operation) on the fake services."""
+    spec = catalogue.load()[name]
+    return kernel.run(spec, args, kernel.Context(svc, operation_id=operation_id))
+
+
+def blocks(svc):
+    return sum(1 for o in svc.part.objects if o.kind == "feature")
+
+
+def test_a_reverted_operation_runs_again_under_its_id(svc, registered):
+    first = run(svc, "nx_create_block", operation_id="op_block_one", size=2)
+    assert first["ok"] and blocks(svc) == 1
+    undo = call(svc, "nx_undo_operation", "op_undo_one")
+    assert undo["ok"] and blocks(svc) == 0, undo
+    assert undo["data"]["redo"] == [
+        {"tool": "nx_create_block", "arguments": {"size": 2}, "complete": True}
+    ]
+    assert undo["data"]["redo_depth"] == 1
+    again = run(svc, "nx_create_block", operation_id="op_block_one", size=2)
+    assert again["ok"] and "replayed" not in again and blocks(svc) == 1, again
+    assert again["data"]["feature"]["id"] != first["data"]["feature"]["id"]
+    assert "reverted by op_undo_one" in again["warnings"][-1]["message"]
+    record = svc.store.get("op_block_one")
+    assert "reverted_by" not in record and record["previous"]["reverted_by"] == "op_undo_one"
+    assert record["previous"]["created"] == [r["id"] for r in first["changes"]["created"]]
+    # The new run is committed: repeating it now replays it.
+    assert run(svc, "nx_create_block", operation_id="op_block_one", size=2)["replayed"]
+    assert blocks(svc) == 1
+    # New work ended the redo list.
+    nothing = call(svc, "nx_redo_operation", "op_redo_none")
+    assert nothing["error"]["code"] == "NX_NOT_FOUND"
+    assert nothing["mutation_outcome"] == "not_started"
+
+
+def test_redo_repeats_undone_calls_in_order(svc, registered):
+    run(svc, "nx_create_block", operation_id="op_block_one", size=2)
+    run(svc, "nx_create_block", operation_id="op_block_two", size=3)
+    assert call(svc, "nx_undo_operation", "op_undo_last")["ok"]
+    assert call(svc, "nx_undo_operation", "op_undo_first")["ok"] and blocks(svc) == 0
+    too_many = call(svc, "nx_redo_operation", "op_redo_many", steps=3)
+    assert too_many["error"]["field"] == "/steps" and too_many["mutation_outcome"] == "not_started"
+    redo = call(svc, "nx_redo_operation", "op_redo_one")
+    assert redo["ok"] and redo["data"]["redone"] == ["op_block_one"], redo
+    assert redo["data"]["redo_depth"] == 1 and redo["data"]["undo_depth"] == 1
+    assert redo["data"]["results"][0]["data"]["size"] == 2 and blocks(svc) == 1
+    rest = call(svc, "nx_redo_operation", "op_redo_two")
+    assert rest["ok"] and rest["data"]["redone"] == ["op_block_two"] and blocks(svc) == 2
+    assert [h["operation_id"] for h in svc.undo_history()] == ["op_block_one", "op_block_two"]
+    # Each redone call is an operation of its own: undo takes back only the last one.
+    assert call(svc, "nx_undo_operation", "op_undo_again")["ok"] and blocks(svc) == 1
+    assert call(svc, "nx_redo_operation", "op_redo_three")["ok"] and blocks(svc) == 2
+    chain = svc.store.get("op_block_two")["previous"]
+    assert chain["reverted_by"] == "op_undo_again"
+    assert chain["earlier"][0]["reverted_by"] == "op_undo_last"
+
+
+def test_a_failing_redo_step_undoes_the_steps_redone(svc, registered):
+    run(svc, "nx_create_block", operation_id="op_block_one", size=2)
+    run(svc, "nx_create_block", operation_id="op_block_two", size=3)
+    assert call(svc, "nx_undo_operation", "op_undo_both", steps=2)["ok"] and blocks(svc) == 0
+    record = svc.store.get("op_block_two")
+    record["arguments"] = {"size": 3, "fail_with": "NX_UPDATE_FAILED"}  # fails when repeated
+    record["fingerprint"] = __import__("nx_mcp.core.receipts").core.receipts.fingerprint(
+        "nx_create_block", record["arguments"]
+    )
+    svc.store.put(record)
+    failed = call(svc, "nx_redo_operation", "op_redo_both", steps=2)
+    assert not failed["ok"] and failed["mutation_outcome"] == "rolled_back", failed
+    assert failed["error"]["code"] == "NX_UPDATE_FAILED"
+    assert failed["error"]["details"]["redone_before_rollback"] == 1
+    assert blocks(svc) == 0 and svc.undo_history() == []
+    assert [s["operation_id"] for s in svc.redo_steps()] == ["op_block_one", "op_block_two"]
+    assert svc.store.get("op_block_one")["reverted_by"] == "op_redo_both"

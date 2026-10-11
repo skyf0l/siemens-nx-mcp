@@ -1,0 +1,40 @@
+{
+ "covers": {
+  "nx_create_chamfer": ["symmetric"],
+  "nx_create_blend": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk",
+   "args": {"placement": "xy", "curves": [{"type": "rounded_rectangle", "center": [20, 10], "width": 40, "height": 20, "radius": 5}],
+            "finish": true}},
+  {"call": "nx_create_extrude", "save": "a", "args": {"sketch": "$sk.data.sketch.id", "end": {"type": "distance", "value": 10}},
+   "expect": {"data.volume": {"close": 7785.398163397448, "tol": 0.001}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "l1", "args": {"owner": "$a.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [20, 0, 10], "order": "nearest", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "l2", "args": {"owner": "$a.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [40, 10, 10], "order": "nearest", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "l3", "args": {"owner": "$a.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [20, 20, 10], "order": "nearest", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "l4", "args": {"owner": "$a.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [0, 10, 10], "order": "nearest", "limit": 1}},
+  {"call": "nx_create_chamfer",
+   "args": {"edges": ["$l1.data.items.0.id", "$l2.data.items.0.id", "$l3.data.items.0.id", "$l4.data.items.0.id"], "offset": 1},
+   "intent": "Acceptance: the four straight top edges of a rounded plate leave the four arcs of their tangent chain out: noted",
+   "expect": {"mutation_outcome": "committed", "warnings.0.code": "NX_NOTE",
+              "warnings.0.message": {"contains": "4 edge(s)"}, "data.volume": {"close": 7738.8021854592225, "tol": 0.01}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sk2",
+   "args": {"placement": "xy", "curves": [{"type": "rounded_rectangle", "center": [20, 60], "width": 40, "height": 20, "radius": 5}],
+            "finish": true}},
+  {"call": "nx_create_extrude", "save": "b", "args": {"sketch": "$sk2.data.sketch.id", "end": {"type": "distance", "value": 10}},
+   "expect": {"data.volume": {"close": 7785.398163397448, "tol": 0.001}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "t1", "args": {"owner": "$b.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [20, 50, 10], "order": "nearest", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "t2", "args": {"owner": "$b.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [40, 60, 10], "order": "nearest", "limit": 1}},
+  {"call": "nx_create_chamfer",
+   "args": {"edges": ["$t1.data.items.0.id", "$t2.data.items.0.id"], "offset": 1, "chain": true},
+   "intent": "Acceptance: chain adds the rest of the tangent loop (2 lines + 4 arcs): the whole top loop is chamfered",
+   "expect": {"data.volume": {"close": 7730.737397680696, "tol": 0.01}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "b1", "args": {"owner": "$b.data.bodies.0.id", "kind": "edge", "geometry_type": "line", "near": [20, 50, 0], "order": "nearest", "limit": 1}},
+  {"call": "nx_create_blend",
+   "args": {"edges": ["$b1.data.items.0.id"], "radius": 1, "chain": true},
+   "expect": {"data.volume": {"close": 7707.128520774755, "tol": 0.01}}}
+ ]
+}

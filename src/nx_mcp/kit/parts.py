@@ -4,8 +4,8 @@
     parts.check_new_name(tx, path)                 # NX_ALREADY_EXISTS / NX_NAME_CONFLICT
     parts.activate(tx, part, work=True, display=True)
     for component, names in parts.components(part): ...
-    with parts.saving(tx, part):                   # drawing preview data survives the save
-        part.Save(...)
+    with parts.saving(tx, part) as updated:        # drawing preview data survives the save
+        part.Save(...)                             # updated: views it brought up to date
 
 NX 2406 findings encoded here:
 
@@ -15,6 +15,8 @@ NX 2406 findings encoded here:
 - A part whose drawing sheets keep CGM preview data saves them only while a
   sheet is displayed: ``saving`` opens the current (or first) sheet, saves,
   then restores the sheet, the modeling display and the work/display parts.
+- Views saved out of date reopen with an "(Out of Date)" sheet banner: ``saving``
+  updates the views NX flags out of date before the save.
 - ``SetDisplay`` also changes the work part; set the work part afterwards.
 - NX remembers an application per part: the one last entered with
   ``ApplicationSwitchImmediate`` while it was displayed (a new part keeps its
@@ -357,18 +359,31 @@ def load_components(tx, part, *, limit: int = 10000) -> int:
     return len(opened)
 
 
+def _sheet_views(sheets) -> list:
+    views: list = []
+    for sheet in sheets:
+        with contextlib.suppress(Exception):  # a sheet NX cannot list views of
+            views.extend(sheet.GetDraftingViews())
+    return views
+
+
 @contextlib.contextmanager
-def saving(tx, part, *, force_display: bool = False):
+def saving(tx, part, *, force_display: bool = False, update_views: bool = True):
     """Keep a part's drawing preview data through a save; restore the display after.
 
-    Without drawing sheets, or when the part keeps no CGM preview data and
-    ``force_display`` is False, nothing changes. A failed restore raises
-    ``NX_RESTORE_FAILED`` (the save itself already happened).
+    Yields the drawing views it updated: with ``update_views`` (default) the views NX
+    flags out of date on any sheet are updated first, so the saved part does not reopen
+    with "(Out of Date)" sheets. Without drawing sheets, or when the part keeps no CGM
+    preview data, has no out-of-date view and ``force_display`` is False, nothing
+    changes. A failed restore raises ``NX_RESTORE_FAILED`` (the save itself already
+    happened).
     """
     sheets = list(getattr(part, "DrawingSheets", None) or [])
     keeps_cgm = bool(getattr(getattr(part, "SaveOptions", None), "DrawingCgmData", False))
-    if not sheets or (not keeps_cgm and not force_display):
-        yield
+    views = _sheet_views(sheets) if sheets and update_views else []
+    stale = drawing.out_of_date(views)
+    if not sheets or (not keeps_cgm and not force_display and not stale):
+        yield []
         return
     session = tx.session
     if session.ActiveSketch is not None:
@@ -396,7 +411,7 @@ def saving(tx, part, *, force_display: bool = False):
         if moved:
             activate(tx, part)
         drawing.open_sheet(tx, original or sheets[0], part)
-        yield
+        yield drawing.update_out_of_date(tx, stale) if stale else []
     except BaseException:
         with contextlib.suppress(Exception):
             restore()  # never hides the error already propagating

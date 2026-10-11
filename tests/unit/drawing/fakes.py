@@ -257,6 +257,24 @@ def install_eval(nx, edges):
         _, center, radius, xa, _ya, _span = by_tag[handle].curve
         return NS(Center=center, Radius=radius, XAxis=xa)
 
+    def closest(handle, p):
+        """``(parameter, point)``: the curve point closest to ``p`` (exact for both)."""
+        kind, *data = by_tag[handle].curve
+        if kind == "line":
+            a, b = data
+            d = [b[i] - a[i] for i in range(3)]
+            t = sum((p[i] - a[i]) * d[i] for i in range(3)) / sum(v * v for v in d)
+        else:
+            center, _radius, xa, ya, span = data
+            rel = [p[i] - center[i] for i in range(3)]
+            angle = math.atan2(sum(rel[i] * ya[i] for i in range(3)),
+                               sum(rel[i] * xa[i] for i in range(3))) % (2 * math.pi)  # fmt: skip
+            if angle > span:  # past the end: the nearer end
+                angle = span if angle - span < 2 * math.pi - angle else 0.0
+            t = angle / span
+        t = min(1.0, max(0.0, t))
+        return t, at(handle, t)[0]
+
     nx.uf.Eval = NS(
         Initialize=lambda tag: int(tag),
         Initialize2=lambda tag: int(tag),
@@ -265,6 +283,7 @@ def install_eval(nx, edges):
         IsLine=lambda h: by_tag[h].curve[0] == "line",
         IsArc=lambda h: by_tag[h].curve[0] == "arc",
         AskArc=arc,
+        EvaluateClosestPoint=closest,
         Free=lambda h: None,
     )
 

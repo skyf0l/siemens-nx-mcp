@@ -75,7 +75,7 @@ CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)
 # words than this, or joining tasks (``,`` ``;`` ``+`` "and" "then"), earns a hint to split
 # the tasks into ``queries`` (a long single task, "assembly constraints status", does not).
 FIND_LIMIT, QUERIES_LIMIT, MAX_QUERY_WORDS = 10, 5, 5
-TASK_JOINS = re.compile(r"[,;+&]|(?:and|then|also)", re.IGNORECASE)
+TASK_JOINS = re.compile(r"[,;+&]|\b(?:and|then|also)\b", re.IGNORECASE)
 FULL_INSTRUCTIONS = (
     "Siemens NX integration. Runtime support varies by NX version; no general certification "
     "is claimed. Tools return {ok, mutation_outcome, data | error}. Every changing tool takes "
@@ -215,7 +215,7 @@ class Surface:
         if entry is not None:
             error = evidence.license_error(entry)
         else:
-            error = gateways.unknown_tool(name, self.known(), field=None if direct else "/tool")
+            error = self.unknown(name, field=None if direct else "/tool")
         return result(failure(str(name), error, "not_started"))
 
     async def _gateway(self, name, arguments) -> CallToolResult:
@@ -242,7 +242,7 @@ class Surface:
             return result(failure(target, problem, "not_started"))
         if name == "nx_invoke_read" and self.effect_of(target) != "read":
             if self.effect_of(target) is None:
-                unknown = gateways.unknown_tool(target, self.known())
+                unknown = self.unknown(target)
                 return result(failure(target, unknown, "not_started"))
             problem = NXError(
                 "NX_UNSUPPORTED_OPTION",
@@ -257,6 +257,15 @@ class Surface:
             intent=getattr(request, "intent", None),
             detail=request.detail,
             direct=False,
+        )
+
+    def suggest(self, name: str) -> list[str]:
+        """Tools for an unknown name: a typo's spelling, then tools found by its words."""
+        return gateways.suggestions(name, self.known(), self._visible_entries(), self.index)
+
+    def unknown(self, name: str, *, field: str | None = "/tool") -> NXError:
+        return gateways.unknown_tool(
+            name, self.known(), field=field, entries=self._visible_entries(), index=self.index
         )
 
     def effect_of(self, name) -> str | None:
@@ -495,7 +504,7 @@ class Surface:
                         {"name": name, "reason": f"not available on this NX build: {reason}"}
                     )
                     continue
-                hint = gateways.close_matches(base, self.known())
+                hint = self.suggest(base)
                 if spec is not None and self.proxy.visible(spec) and variant:
                     hint = [f"{base}#{v}" for v in self.proxy.variants(spec)]
                 missing.append({"name": name, "close_matches": hint})

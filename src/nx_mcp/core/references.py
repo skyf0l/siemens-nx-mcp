@@ -37,7 +37,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import NoReturn, TypedDict
 
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.types import KIND_GROUPS, expand_kinds
@@ -91,6 +91,14 @@ REACQUIRE = {
     "nx_find_geometry",
 }
 REACQUIRE_DEFAULT = "List the objects again (nx_list_objects, nx_find_geometry) for current refs"
+# Where refs of a kind come from (the hint for a ref this session never issued).
+FINDERS = {
+    "part": "nx_list_parts",
+    "component": "nx_list_components",
+    "face": "nx_find_geometry",
+    "edge": "nx_find_geometry",
+    "body": "nx_list_objects or nx_find_geometry",
+}
 
 
 class Row(TypedDict, total=False):
@@ -330,13 +338,7 @@ class References:
             fail("NX_INVALID_ARGUMENT", f"Not a reference: {ref!r}")
         entry = self._entries.get(ref)
         if entry is None:
-            if int(match.group(2)) < self.counter.floor:
-                fail(
-                    "NX_STALE_REFERENCE",
-                    f"{ref} is from an earlier NX session or host reload",
-                    details={"ref": ref},
-                )
-            fail("NX_NOT_FOUND", f"{ref} was never issued in this session", details={"ref": ref})
+            self._unknown(ref, match.group(1), int(match.group(2)))
         if wanted is not None and entry.kind not in wanted:
             self._wrong_kind(ref, entry.kind, wanted)
         if not self.backend.handle_live(entry.handle):
@@ -362,6 +364,56 @@ class References:
         if deleted(obj):
             _gone(ref, entry.kind, entry.name)
         return obj
+
+    def _unknown(self, ref: str, prefix: str, number: int) -> NoReturn:
+        """Refuse a short ref this session never issued: an unknown prefix, a number
+        issued with another prefix, a number not issued yet (never issued: NX_NOT_FOUND),
+        or a number below the session's floor. Refs are not persisted, so the last cannot
+        tell an earlier session's ref from an invented one: the message says both."""
+        kinds = sorted(k for k, p in PREFIX.items() if p == prefix)
+        if not kinds:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{ref} is not a reference: no object kind has the prefix {prefix!r}",
+                hint="Pass a ref exactly as a tool result returned it (b:41 body, fc:88 "
+                "face, e:12 edge, f:7 feature, s:3 sketch, p:1 part)",
+                details={"ref": ref},
+            )
+        finder = FINDERS.get(kinds[0], "nx_list_objects") if len(kinds) == 1 else "nx_list_objects"
+        hint = (
+            f"Get current refs from {finder} or from the result of the call that made the "
+            "object; pass refs exactly as tool results return them"
+        )
+        if number >= self.counter.floor:
+            other = next(
+                (
+                    e
+                    for p in sorted(set(PREFIX.values()))
+                    if (e := self._entries.get(f"{p}:{number}"))
+                ),
+                None,
+            )
+            if other is not None:
+                fail(
+                    "NX_NOT_FOUND",
+                    f"{ref} was never issued: {number} is {other.id}, "
+                    f"{article(other.kind)} {other.kind} ({other.name or other.kind})",
+                    hint=f"Use {other.id} for that {other.kind}, or " + hint[0].lower() + hint[1:],
+                    details={"ref": ref, "reason": "never_issued", "issued_as": other.id},
+                )
+            fail(
+                "NX_NOT_FOUND",
+                f"{ref} was never issued: no tool returned it in this NX session",
+                hint=hint,
+                details={"ref": ref, "reason": "never_issued"},
+            )
+        fail(
+            "NX_STALE_REFERENCE",
+            f"{ref} is not a reference of this NX session: a ref from before the last NX "
+            "start or host reload no longer resolves, and one no tool returned never did",
+            hint=hint,
+            details={"ref": ref, "reason": "not_in_this_session"},
+        )
 
     def _resolve_anchor(self, anchor: str, wanted) -> object:
         """The unique current feature, body or sketch an anchor names

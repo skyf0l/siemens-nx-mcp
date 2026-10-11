@@ -410,6 +410,9 @@ def test_thread_refuses_a_bore_without_material_to_thread(table):
     bad = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
               spec={"size": "M6"})  # fmt: skip
     assert bad.error["code"] == "NX_WRONG_GEOMETRY" and "tap drill 5" in bad.error["hint"]
+    assert "clearance hole for M6 x 1.0" in bad.error["message"]
+    assert "nx_edit_feature" in bad.error["hint"] and "larger" not in bad.error["hint"]
+    assert bad.error["details"]["tap_drill"] == 5
     assert not [b for b in nx.builders if b.kind == "ThreadBuilder"]
     # An external M8 on a 6 mm shaft (below its minor diameter): refused too.
     nx.uf.Modeling.AskFaceData = ask
@@ -435,3 +438,36 @@ def test_thread_spec_without_size_says_what_to_send(table):
     eng = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
               spec={"size": "M6", "engagement": 0.6})  # fmt: skip
     assert eng.error["field"] == "/spec/engagement" and "'0.75'" in eng.error["hint"]
+
+
+def test_custom_internal_spec_off_the_table_or_the_bore_is_noted(table):
+    nx, body, cyl, start = thread_nx()
+    ask = nx.uf.Modeling.AskFaceData
+    nx.uf.Modeling.AskFaceData = lambda tag: (
+        (*list(ask(tag))[:6], -1) if tag == cyl.Tag else ask(tag)
+    )
+    cyl.radius = 3.3  # the 6.6 clearance bore of the benchmark: major 7 / minor 6.6 on it
+    odd = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+              spec={"pitch": 1, "major_diameter": 7, "minor_diameter": 6.6})  # fmt: skip
+    assert odd.ok, odd
+    notes = [w["message"] for w in odd.warnings if w["code"] == "NX_NOTE"]
+    assert any("Non-standard thread" in n for n in notes), odd.warnings
+    # A table-matching custom spec on its tap-drill bore: no note.
+    cyl.radius = 2.5
+    fine = run(nx, "nx_create_thread", face=nx.ref_of(cyl, "face"),
+               start_face=nx.ref_of(start, "face"), length=8,
+               spec={"pitch": 1, "major_diameter": 6, "minor_diameter": 4.917})  # fmt: skip
+    assert fine.ok and not fine.warnings, fine.warnings
+    # A minor diameter far below the bore: the thread does not fit it.
+    cyl.radius = 2.9
+    off = run(nx, "nx_create_thread", face=nx.ref_of(cyl, "face"),
+              start_face=nx.ref_of(start, "face"), length=8,
+              spec={"pitch": 1, "major_diameter": 6, "minor_diameter": 4.9})  # fmt: skip
+    assert any("does not fit" in w["message"] for w in off.warnings), off.warnings
+    # Major and pitch of M6 x 1.0 with a minor diameter of no row: non-standard too.
+    cyl.radius = 2.8
+    shallow = run(nx, "nx_create_thread", face=nx.ref_of(cyl, "face"),
+                  start_face=nx.ref_of(start, "face"), length=8,
+                  spec={"pitch": 1, "major_diameter": 6, "minor_diameter": 5.6})  # fmt: skip
+    notes = [w["message"] for w in shallow.warnings]
+    assert any("M6 x 1.0 has minor diameter 4.891" in n for n in notes), notes

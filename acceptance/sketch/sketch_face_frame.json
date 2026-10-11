@@ -1,0 +1,39 @@
+{
+ "covers": {
+  "nx_create_sketch": ["on"]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"length": 40, "width": 20, "height": 10, "origin": [50, 30, 0]}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top",
+   "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [0, 0, 1], "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_create_sketch", "save": "s1",
+   "args": {"placement": {"on": "$top.data.items.0.id"}, "curves": [{"type": "rectangle", "corner1": [60, 35], "corner2": [80, 45]}], "finish": true},
+   "intent": "Acceptance: on a block's top face the sketch origin is the part origin dropped onto the face (not the face centre), so local x, y are part X, Y",
+   "expect": {"mutation_outcome": "committed", "data.frame.origin": {"close": [0, 0, 10], "tol": 1e-09},
+              "data.frame.x_axis": {"close": [1, 0, 0], "tol": 1e-09}, "data.frame.y_axis": {"close": [0, 1, 0], "tol": 1e-09},
+              "data.frame.normal": {"close": [0, 0, 1], "tol": 1e-09}}},
+  {"call": "nx_create_extrude",
+   "args": {"sketch": "$s1.data.sketch.id", "end": {"type": "distance", "value": 4}, "direction": [0, 0, -1],
+            "combine": {"operation": "subtract", "targets": ["$blk.data.bodies.0.id"]}},
+   "expect": {"data.volume": {"close": 7200, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "side",
+   "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [1, 0, 0], "order": "highest", "axis": "x", "limit": 1}},
+  {"call": "nx_create_sketch", "save": "s2", "args": {"placement": "$side.data.items.0.id", "finish": true},
+   "expect": {"data.frame.origin": {"close": [90, 0, 0], "tol": 1e-09}, "data.frame.x_axis": {"close": [0, 1, 0], "tol": 1e-09},
+              "data.frame.y_axis": {"close": [0, 0, 1], "tol": 1e-09}, "data.frame.normal": {"close": [1, 0, 0], "tol": 1e-09}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "front",
+   "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [0, -1, 0], "order": "lowest", "axis": "y", "limit": 1}},
+  {"call": "nx_create_sketch", "save": "s3", "args": {"placement": {"on": "$front.data.items.0.id"}, "finish": true},
+   "expect": {"data.frame.origin": {"close": [0, 30, 0], "tol": 1e-09}, "data.frame.x_axis": {"close": [1, 0, 0], "tol": 1e-09},
+              "data.frame.y_axis": {"close": [0, 0, 1], "tol": 1e-09}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top2",
+   "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [0, 0, 1], "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_create_datum_plane", "setup": true, "save": "dp",
+   "args": {"method": "offset", "reference": "$top2.data.items.0.id", "distance": 5}},
+  {"call": "nx_create_sketch", "args": {"placement": {"on": "$dp.data.datum_plane.id"}, "finish": true},
+   "expect": {"data.frame.origin": {"close": [0, 0, 15], "tol": 1e-09}, "data.frame.x_axis": {"close": [1, 0, 0], "tol": 1e-09}}}
+ ]
+}

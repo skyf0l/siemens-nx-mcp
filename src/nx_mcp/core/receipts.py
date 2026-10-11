@@ -7,6 +7,9 @@ strings are replaced by a size note, and the copy is bounded (:func:`redact`).
 Gate 7. The records live in an :class:`OperationStore`
 (``.nx-mcp/operations/<operation_id>.json``), which ``nx_get_operation`` and
 ``nx_cancel_operation`` (domains/session/status.py) read from either process.
+Repeating an operation_id replays the finished call, except a committed call that
+``nx_undo_operation`` or ``nx_restore_checkpoint`` reverted: it runs again, and its
+new receipt links the reverted run (``previous``).
 ``store`` needs ``get(op_id)``, ``put(record)`` and ``path(op_id)``; running receipts
 from an earlier session are turned into ``unknown`` by the store's ``recover()``.
 """
@@ -113,6 +116,31 @@ def redact(args, _key: str | None = None):
     return copy if size <= MAX_ARGUMENTS else {"omitted": size}
 
 
+REVERTED_RUNS = 5  # reverted runs of one operation_id kept in its receipt (newest first)
+
+
+def previous_run(existing: dict) -> dict | None:
+    """The reverted run a re-run of the same operation_id links to, or None: when it
+    started and finished, what reverted it (an undo's operation_id or a checkpoint id),
+    the refs it created, and the runs before it (at most ``REVERTED_RUNS``)."""
+    if not existing.get("reverted_by") or existing.get("state") != "committed":
+        return None
+    created = ((existing.get("envelope") or {}).get("changes") or {}).get("created") or []
+    run = {
+        "started_at": existing.get("started_at"),
+        "finished_at": existing.get("finished_at"),
+        "reverted_by": existing["reverted_by"],
+        "created": [r.get("id") for r in created if isinstance(r, dict)][:20],
+    }
+    earlier = existing.get("previous")
+    if isinstance(earlier, dict):
+        chain = [earlier, *(earlier.get("earlier") or [])]
+        run["earlier"] = [{k: v for k, v in r.items() if k != "earlier"} for r in chain][
+            : REVERTED_RUNS - 1
+        ]
+    return run
+
+
 class OperationStore:
     """Durable receipts as JSON files. No NXOpen calls; safe for sidecar status queries."""
 
@@ -174,7 +202,10 @@ class Receipts:
             )
 
     def replay(self, tool: str, args: dict, operation_id: str) -> dict | None:
-        """The replayed envelope of a finished operation with this id, else None.
+        """The replayed envelope of a finished operation with this id, else None: also
+        None for a committed operation that an undo or a restore reverted (its receipt has
+        ``reverted_by``), so repeating it recreates the work instead of replaying a result
+        that no longer exists.
 
         Raises ``NX_IDEMPOTENCY_CONFLICT`` for the same id with other arguments and
         ``NX_OUTCOME_UNKNOWN`` while it is running or unknown. The kernel asks before
@@ -193,18 +224,11 @@ class Receipts:
                 )
             state = existing.get("state")
             stored = existing.get("envelope")
+            if existing.get("reverted_by") and state == "committed":
+                return None  # undone: the call runs again (begin links the new receipt)
             if state in ("committed", "failed") and isinstance(stored, dict):
                 replay = dict(stored, replayed=True)
                 warnings = list(replay.get("warnings") or [])
-                if existing.get("reverted_by"):
-                    warnings.append(
-                        {
-                            "code": "NX_UPDATE_WARNING",
-                            "message": "This operation was reverted by "
-                            + str(existing["reverted_by"])
-                            + "; replay does not recreate it",
-                        }
-                    )
                 if existing.get("session_id") != self.session_id:
                     warnings.append(
                         {
@@ -224,11 +248,15 @@ class Receipts:
     def begin(
         self, tool: str, args: dict, operation_id: str, part_key: str | None
     ) -> tuple[dict | None, dict | None]:
-        """``(record, None)`` for a new operation or ``(None, replayed_envelope)``."""
+        """``(record, None)`` for a new operation or ``(None, replayed_envelope)``.
+
+        An operation an undo or a checkpoint restore reverted runs again under its id:
+        the new receipt keeps the reverted run under ``previous`` (:func:`previous_run`)."""
         replayed = self.replay(tool, args, operation_id)
         if replayed is not None:
             return None, replayed
         digest = fingerprint(tool, args)
+        earlier = previous_run(self.store.get(operation_id))
         record = {
             "operation_id": operation_id,
             "method": tool,
@@ -241,6 +269,8 @@ class Receipts:
             "mutation_outcome": "unknown",
             "started_at": timestamp(),
         }
+        if earlier is not None:
+            record["previous"] = earlier
         self.store.put(record)
         return record, None
 
