@@ -15,10 +15,10 @@
   "nx_build": "2406.9160",
   "sources": {
     "nx_list_view_edges": "1bb526f8ffe71d41cb312801b20134963f6df3e48a311ef5c1814e03cc6b7789",
-    "nx_create_drawing_dimension": "844529cefa27a6cc21e56d535d8387df13250a1aae7fc242330b678c5fab4344",
+    "nx_create_drawing_dimension": "0699669fe983d0a821907c2556dcdf4bdd180769ce82dc7c1d54a5ed06657812",
     "nx_edit_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75"
   },
-  "recorded": "2026-10-12T05:39:26Z",
+  "recorded": "2026-10-12T10:59:13Z",
   "passed": true,
   "checks": 56,
   "failed_checks": 0,

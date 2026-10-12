@@ -640,7 +640,7 @@
    },
    "expect": {
     "error.code": "NX_WRONG_GEOMETRY",
-    "mutation_outcome": "rolled_back",
+    "mutation_outcome": "not_started",
     "error.field": "/faces/0"
    }
   },

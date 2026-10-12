@@ -72,8 +72,15 @@
      "close": 60,
      "tol": 0.0001
     },
-    "data.table.kind": "drawing_table"
-   }
+    "data.table.kind": "drawing_table",
+    "changes.created": {
+     "count_kind": {
+      "drawing_table": 1
+     }
+    }
+   },
+   "save": "rev",
+   "intent": "Acceptance: one table is one created drawing_table (NX also lists its cells table)"
   },
   {
    "call": "nx_create_drawing_table",
@@ -122,7 +129,58 @@
       10
      ],
      "tol": 1e-06
+    },
+    "changes.created": {
+     "count_kind": {
+      "drawing_table": 1
+     }
     }
+   },
+   "save": "tb"
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$tb.changes.created.0.id"
+   },
+   "expect": {
+    "ok": true,
+    "data.table.id": "$tb.data.table.id",
+    "data.kind": "title_block",
+    "data.rows": {
+     "count": 2
+    },
+    "data.cells": {
+     "count": 4
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/sheet",
+    "error.message": {
+     "contains": "not both"
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "drawing_table",
+    "part": "$part.data.part.id"
+   },
+   "expect": {
+    "data.items": {
+     "count": 2
+    },
+    "data.items.0.type": "revision",
+    "data.items.1.type": "title_block"
    }
   },
   {

@@ -524,7 +524,8 @@ def test_rebinding_reads_back_the_bound_edges():
     nx, d, ref = rebind_nx()
     ok = run(nx, "nx_edit_dimension", dimension=ref, edges=[nx.back.ref])
     assert ok.ok, ok
-    assert ok.data["value"] == 64 and [o["id"] for o in ok.data["objects"]] == [nx.back.ref] * 2
+    assert ok.data["value"] == 64 and [o["id"] for o in ok.data["objects"]] == [nx.back.ref]
+    assert ok.data["associations"] == 2  # both ends of the one edge: listed once
     nx2, _, ref2 = rebind_nx()
     nx2.rebinds = False  # NX kept the old edges (and showed the expected value)
     kept = run(nx2, "nx_edit_dimension", dimension=ref2, edges=[nx2.back.ref])
@@ -540,3 +541,76 @@ def test_rebind_errors_name_the_edges_field():
     assert "own length" in end_on.error["hint"]
     level = run(nx, "nx_edit_dimension", dimension=ref, edges=[nx.left.ref, nx.ach.ref])
     assert level.error["field"] == "/edges/1"
+
+
+def test_bilateral_and_limits_need_upper_above_lower():
+    nx, d, ref = fit_nx()
+    swapped = run(nx, "nx_edit_dimension", dimension=ref,
+                  tolerance={"type": "bilateral", "upper": -0.1, "lower": 0.2})  # fmt: skip
+    assert swapped.error["category"] == "invalid_argument", swapped
+    assert (
+        swapped.error["field"] == "/tolerance/lower" and swapped.mutation_outcome == "not_started"
+    )
+    ok = run(nx, "nx_edit_dimension", dimension=ref,
+             tolerance={"type": "bilateral", "upper": 0.1, "lower": -0.05})  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["tolerance"]["upper"] == pytest.approx(0.1)
+    # one side given: the held other side counts (upper 0.1 stays above)
+    low = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"lower": 0.2})
+    assert low.error["field"] == "/tolerance/lower" and "upper > lower" in low.error["message"]
+    limits = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "limits"})
+    assert limits.ok and limits.data["tolerance"]["lower"] == pytest.approx(-0.05)
+    flat = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "limits", "upper": -0.05})
+    assert flat.error["field"] == "/tolerance/upper" and flat.mutation_outcome == "not_started"
+
+
+def test_a_switch_to_symmetric_needs_upper():
+    nx, d, ref = fit_nx()
+    ok = run(nx, "nx_edit_dimension", dimension=ref,
+             tolerance={"type": "bilateral", "upper": 0.05, "lower": -0.02})  # fmt: skip
+    assert ok.ok, ok
+    sym = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "symmetric"})
+    assert sym.error["field"] == "/tolerance/upper" and sym.mutation_outcome == "not_started"
+    assert "needs upper" in sym.error["message"]
+    assert d.ToleranceType is nx.nx.Annotations.ToleranceType.BilateralTwoLines
+
+
+def test_a_style_edit_that_moves_the_text_puts_it_back():
+    nx, d, ref = fit_nx()
+    d.AnnotationOrigin = nx.nx.Point3d(120.0, 120.0, 0.0)
+    builder = nx.part.SettingsManager.CreateAnnotationEditSettingsBuilder
+
+    def moving(objects):
+        b = builder(objects)
+        commit = b.Commit
+
+        def moved():
+            d.AnnotationOrigin = nx.nx.Point3d(120.0, 100.0, 0.0)  # NX re-places the text
+            return commit()
+
+        b.Commit = moved
+        return b
+
+    nx.part.SettingsManager.CreateAnnotationEditSettingsBuilder = moving
+    ok = run(nx, "nx_edit_dimension", dimension=ref,
+             tolerance={"type": "fit", "hole": "H7", "shaft": "g6"})  # fmt: skip
+    assert ok.ok, ok
+    p = d.AnnotationOrigin
+    assert [p.X, p.Y, p.Z] == [120.0, 120.0, 0.0]
+
+
+def test_inch_dimensions_read_and_keep_a_period():
+    """NX 2406 shows inch dimensions with a period whatever separator they store."""
+    nx, d, ref = fit_nx()
+    A = nx.nx.Annotations
+    d.point = A.DecimalPointCharacter.Comma
+    mm = run(nx, "nx_get_dimension", dimension=ref)
+    assert mm.data["format"]["decimal_separator"] == "comma"
+    d.unit = A.DimensionUnit.Inches
+    inch = run(nx, "nx_get_dimension", dimension=ref)
+    assert inch.data["format"]["decimal_separator"] == "period"
+    for fmt in ({"decimal_separator": "comma"}, {"units": "in", "decimal_separator": "comma"}):
+        no = run(nx, "nx_edit_dimension", dimension=ref, format=fmt)
+        assert no.error["code"] == "NX_UNSUPPORTED_OPTION", no
+        assert no.error["field"] == "/format/decimal_separator"
+        assert no.mutation_outcome == "not_started"

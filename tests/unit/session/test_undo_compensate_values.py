@@ -142,7 +142,7 @@ def test_drawing_views_nx_refreshed_do_not_block_a_create_only_undo():
                                                              "modified": views}}}  # fmt: skip
     assert compensate._creates(entry, record) == [feature]
     record["envelope"]["changes"]["modified"].append({"id": "b:3", "kind": "body"})
-    with pytest.raises(compensate.Refusal, match="did more than create features"):
+    with pytest.raises(compensate.Refusal, match="did more than create objects"):
         compensate._creates(entry, record)
 
 
@@ -156,7 +156,8 @@ def test_an_operation_behind_another_parts_close_is_offered_and_done_by_compensa
     # parts' later work (bench3t: the close refused, the later work compensated).
     done = run(nx, "nx_undo_operation", part="a", operation="op_a_attr_1")
     assert done.ok and done.data["compensated"] and attributes(nx.a) == {}, done
-    assert any("c.prt was closed after it" in w["message"] for w in done.warnings), done
+    assert any("1 later part load or close" in w["message"] for w in done.warnings), done
+    assert not any("c.prt" in w["message"] for w in done.warnings)  # no other part named
 
 
 def test_an_operation_behind_a_close_that_cannot_be_compensated_is_refused_with_the_hint(nx):
@@ -172,9 +173,14 @@ def test_an_operation_behind_a_close_that_cannot_be_compensated_is_refused_with_
          "close": ["c.prt"]}
     )  # fmt: skip
     refused = run(nx, "nx_undo_operation", part="a")
-    assert refused.error["code"] == "NX_NOT_FOUND", refused
-    assert refused.error["details"]["reason"] == "part_closed"
-    assert "cannot be compensated either" in refused.error["hint"]
+    # Another part's close does not end a.prt's history: it is in the way of NX's undo
+    assert refused.error["code"] == "NX_CROSS_PART", refused
+    assert refused.error["details"]["in_the_way"] == [
+        {"operation_id": "op_close", "tool": "nx_close_part", "part": "c.prt", "barrier": "close"}
+    ]
+    assert "c.prt closed by op_close (nx_close_part)" in refused.error["message"]
+    assert "cannot be compensated" in refused.error["message"]
+    assert refused.error["hint"].startswith("Fix forward instead")
 
 
 def test_an_operation_that_qualifies_for_nothing_gets_the_fix_forward_hint(nx):

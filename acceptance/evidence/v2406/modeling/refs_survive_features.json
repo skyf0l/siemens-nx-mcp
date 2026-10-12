@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/refs_survive_features.json",
-  "scenario_sha256": "1a835483d8f7663f7058f7ee9c5776d8381eddaac79d0181b6b5fdda637596a1",
+  "scenario_sha256": "ab0fc0d8ea297e3c19f0d0b2aa08a7a1b8599315671c21e2be6d3c61733e6323",
   "domain": "modeling",
   "covers": {
     "nx_create_thread": [],
@@ -13,9 +13,9 @@
     "nx_create_thread": "c659e615d1d798144ecade5837df6b885b1a09cb70f63a68e8eb27f5a08b52be",
     "nx_create_blend": "e67dc0ba9ef06b19837762f9b5f6c38785671f312d6fb9e9035ebad9d3cfd08a"
   },
-  "recorded": "2026-10-12T07:45:45Z",
+  "recorded": "2026-10-12T09:55:45Z",
   "passed": true,
-  "checks": 19,
+  "checks": 22,
   "failed_checks": 0,
   "steps": [
     {
@@ -97,24 +97,24 @@
     },
     {
       "index": 12,
-      "call": "nx_create_hole",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
-      "index": 13,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 14,
-      "call": "nx_create_thread",
+      "index": 13,
+      "call": "nx_create_hole",
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
     },
     {
       "index": 15,
@@ -139,56 +139,56 @@
     },
     {
       "index": 18,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 19,
+      "index": 20,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 20,
+      "index": 21,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_create_extrude",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_measure_distance",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 23,
+      "index": 24,
       "call": "nx_create_blend",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 24,
-      "call": "nx_measure_distance",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
       "index": 25,
-      "call": "nx_create_blend",
+      "call": "nx_measure_distance",
       "setup": false,
       "passed": true,
       "checks": 1
@@ -198,7 +198,21 @@
       "call": "nx_create_blend",
       "setup": false,
       "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 27,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
       "checks": 2
+    },
+    {
+      "index": 28,
+      "call": "nx_create_chamfer",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

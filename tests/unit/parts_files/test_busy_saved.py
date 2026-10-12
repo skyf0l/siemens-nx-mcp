@@ -1,8 +1,8 @@
-"""The busy rule after a save (core/busy.py, benchmark bench3p): a part whose changes are
-saved (or that was just opened from its file) is not busy, so an agent's own close after
-its own save closes even when another agent's call came last; a change after the save
-makes it busy again. Exports never change a part. Also: nx_open_part reports a part NX
-marked modified while loading it."""
+"""The busy rule of a shared connection after a save (core/busy.py): a part whose changes
+are saved (or that was just opened from its file) is not busy, so an agent's own close
+after its own save closes even while other agents call; a change after the save makes it
+busy again. A close that saves is never busy. Exports never change a part. Also:
+nx_open_part reports a part NX marked modified while loading it."""
 
 from __future__ import annotations
 
@@ -12,38 +12,39 @@ from nx_mcp.core import busy
 from nx_mcp.domains.parts_files import parts as tools
 from tests.kit.kernel import services
 from tests.unit.parts_files.support import call
-from tests.unit.parts_files.test_close_multipart import _tools, block, create  # noqa: F401
+from tests.unit.parts_files.test_close_multipart import _tools  # noqa: F401
+from tests.unit.parts_files.test_part_owners import SHARED, block, create
 
 
-def test_a_saved_part_closes_although_another_part_got_the_last_call(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    assert call(nx, tools.nx_save_part, part="a").ok
-    block(nx, "b")  # another agent's call comes last
-    closed = call(nx, tools.nx_close_part, part="a", save=False)
+def test_a_saved_part_closes_although_other_calls_came_last(nx):
+    create(nx, "mc/a.prt", SHARED)
+    create(nx, "mc/b.prt", SHARED, display=False)
+    block(nx, "a", SHARED)
+    assert call(nx, tools.nx_save_part, part="a", caller=SHARED).ok
+    block(nx, "b", SHARED)  # another agent's call comes last
+    closed = call(nx, tools.nx_close_part, part="a", save=False, caller=SHARED)
     assert closed.ok, closed
 
 
 def test_a_change_after_the_save_makes_the_part_busy_again(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    assert call(nx, tools.nx_save_part, part="a").ok
-    block(nx, "a")
-    block(nx, "b")
-    refused = call(nx, tools.nx_close_part, part="a", save=False)
+    create(nx, "mc/a.prt", SHARED)
+    create(nx, "mc/b.prt", SHARED, display=False)
+    assert call(nx, tools.nx_save_part, part="a", caller=SHARED).ok
+    block(nx, "a", SHARED)
+    block(nx, "b", SHARED)
+    refused = call(nx, tools.nx_close_part, part="a", save=False, caller=SHARED)
     assert refused.error["code"] == "NX_PART_BUSY", refused
     assert refused.error["details"]["last_change"]["tool"] == "nx_create_test_block"
-    assert "save it first" in refused.error["hint"]
+    assert "force: true" in refused.error["hint"]
 
 
-def test_a_close_that_saves_still_respects_another_streams_unsaved_changes(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    block(nx, "b")
-    refused = call(nx, tools.nx_close_part, part="a", save=True)
-    assert refused.error["code"] == "NX_PART_BUSY", refused
+def test_a_close_that_saves_is_never_busy(nx):
+    create(nx, "mc/a.prt", SHARED)
+    create(nx, "mc/b.prt", SHARED, display=False)
+    block(nx, "a", SHARED)
+    block(nx, "b", SHARED)
+    closed = call(nx, tools.nx_close_part, part="a", save=True, caller=SHARED)
+    assert closed.ok and closed.data["saved"], closed
 
 
 def test_file_calls_never_change_a_part_and_a_save_marks_it_saved():
@@ -96,24 +97,25 @@ def test_a_part_nx_marks_modified_while_loading_it_is_reported_not_refused(nx, r
 
 
 def test_a_part_just_opened_from_its_file_is_not_busy(nx, root):
-    create(nx, "mc/a.prt")
-    block(nx, "a")
-    assert call(nx, tools.nx_save_part, part="a").ok
-    assert call(nx, tools.nx_close_part, part="a", save=False).ok
-    create(nx, "mc/b.prt", display=False)
-    assert call(nx, tools.nx_open_part, path="mc/a.prt").ok
-    block(nx, "b")  # another agent's call comes last
-    closed = call(nx, tools.nx_close_part, part="a", save=False)
+    create(nx, "mc/a.prt", SHARED)
+    block(nx, "a", SHARED)
+    assert call(nx, tools.nx_save_part, part="a", caller=SHARED).ok
+    assert call(nx, tools.nx_close_part, part="a", save=False, caller=SHARED).ok
+    create(nx, "mc/b.prt", SHARED, display=False)
+    assert call(nx, tools.nx_open_part, path="mc/a.prt", caller=SHARED).ok
+    block(nx, "b", SHARED)  # another agent's call comes last
+    closed = call(nx, tools.nx_close_part, part="a", save=False, caller=SHARED)
     assert closed.ok, closed
 
 
 def test_reusing_a_loaded_part_keeps_its_unsaved_changes_busy(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    assert call(nx, tools.nx_save_part, part="a").ok  # its file exists
-    block(nx, "a")
-    reused = call(nx, tools.nx_open_part, path="mc/a.prt", work=False, display=False)
+    create(nx, "mc/a.prt", SHARED)
+    create(nx, "mc/b.prt", SHARED, display=False)
+    assert call(nx, tools.nx_save_part, part="a", caller=SHARED).ok  # its file exists
+    block(nx, "a", SHARED)
+    reused = call(nx, tools.nx_open_part, path="mc/a.prt", work=False, display=False,
+                  caller=SHARED)  # fmt: skip
     assert reused.ok and reused.data["already_loaded"], reused
-    block(nx, "b")
-    refused = call(nx, tools.nx_close_part, part="a", save=False)
+    block(nx, "b", SHARED)
+    refused = call(nx, tools.nx_close_part, part="a", save=False, caller=SHARED)
     assert refused.error["code"] == "NX_PART_BUSY", refused

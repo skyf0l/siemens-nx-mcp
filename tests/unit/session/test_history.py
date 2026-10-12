@@ -130,6 +130,7 @@ def test_checkpoint_restore_undoes_everything_since(nx):
             "available": True,
             "expired_reason": None,
             "operations_after": 2,
+            "compensated": False,
         }
     ]
     ok = run(nx, "nx_restore_checkpoint", operation_id="op_restore", checkpoint_id=checkpoint)
@@ -180,16 +181,18 @@ def test_expired_foreign_and_cross_part_checkpoints_are_refused(nx):
     assert crossed.ok and crossed.data["reverted"] == [] and names(nx) == [], crossed
     nx.part.Save()  # NX drops the marks outside any call: the kernel cannot tell why
     listed = run(nx, "nx_list_checkpoints").data
-    assert listed["checkpoints"][0]["available"] is False and listed["undo_depth"] == 0
-    assert listed["checkpoints"][0]["expired_reason"] == "mark_evicted"
+    # Per part: nothing of the work part changed since, so the checkpoint stays available
+    # although NX dropped its mark (a save in a call of its own part: test_undo_loads).
+    row = listed["checkpoints"][0]
+    assert row["available"] is True and row["expired_reason"] is None, row
+    assert row["compensated"] is False and listed["undo_depth"] == 0
     assert listed["last_operation"] is None
-    expired = run(nx, "nx_restore_checkpoint", checkpoint_id=checkpoint)
-    assert expired.error["code"] == "NX_STALE_CHECKPOINT"
-    assert "oldest first" in expired.error["message"]  # a save in a call: test_undo_loads
+    again = run(nx, "nx_restore_checkpoint", checkpoint_id=checkpoint)
+    assert again.ok and again.data["reverted"] == [], again
     missing = run(nx, "nx_restore_checkpoint", checkpoint_id="no such checkpoint")
     assert missing.error["code"] == "NX_NOT_FOUND", missing
     assert missing.error["details"]["checkpoints"] == [
-        {"checkpoint_id": checkpoint, "label": "checkpoint", "available": False}
+        {"checkpoint_id": checkpoint, "label": "checkpoint", "available": True}
     ]
     assert "nx_list_checkpoints" in missing.error["hint"]
     bad = run(nx, "nx_restore_checkpoint", checkpoint_id="x" * 81)
@@ -240,16 +243,21 @@ def test_undo_takes_several_steps_and_bounds_them(nx):
     assert [h["operation_id"] for h in services(nx).history] == ["op_del_a"]
 
 
-def test_undo_depth_counts_only_operations_nx_can_still_undo(nx):
+def test_undo_depth_counts_only_operations_the_undo_can_still_undo(nx):
     a, b = features(nx, "A(1)", "B(2)")
     delete(nx, a, "op_del_a")
-    nx.session.marks.clear()  # a save drops the marks of the earlier operations
+    nx.session.marks.clear()  # NX dropped the marks of the earlier operations
     delete(nx, b, "op_del_b")
     cp = run(nx, "nx_create_checkpoint", label="after save").data
+    # op_del_a has no mark left and a delete is not undone by deletion: only op_del_b
     assert cp["undo_depth"] == 1  # the same count nx_list_checkpoints reports
     assert run(nx, "nx_list_checkpoints").data["undo_depth"] == 1
     refused = run(nx, "nx_undo_operation", steps=2)
-    assert refused.error["field"] == "/steps"
+    assert refused.error["code"] == "NX_NOT_FOUND", refused
+    assert refused.error["details"]["reason"] == "mark_evicted"
+    assert "did more than create objects (deleted" in refused.error["message"]
+    too_many = run(nx, "nx_undo_operation", steps=3)
+    assert too_many.error["field"] == "/steps" and too_many.error["details"]["undo_depth"] == 1
 
 
 def test_restore_by_label_takes_the_newest_restorable_checkpoint(nx):

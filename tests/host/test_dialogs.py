@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from types import SimpleNamespace as NS
 
 import pytest
@@ -105,8 +106,14 @@ def test_the_watch_thread_sees_a_dialog_while_the_call_blocks():
 
 
 def host(tmp_path):
-    return NS(activity=Activity(tmp_path / "activity.log"), running_method="nx_activate_part",
-              last_error=None, notice=None, _set_notice=lambda text: None)  # fmt: skip
+    """An InteractiveHost without NX: just what the dialog helpers read."""
+    h = object.__new__(interactive.InteractiveHost)
+    h._activity = Activity(tmp_path / "activity.log")
+    h.running_method, h.current_part, h.last_error, h.notice = "nx_activate_part", None, None, None
+    h._snapshot = None
+    h.dispatcher = NS(reject_where=lambda *a: 0, fail_running=lambda error: False)
+    h._set_notice = lambda text: None
+    return h
 
 
 def test_a_call_is_refused_while_a_dialog_blocks_nx(tmp_path, monkeypatch):
@@ -164,7 +171,7 @@ def test_dev_mode_answers_a_call_blocked_by_a_new_dialog_at_once(tmp_path, dev):
         return {"status": "success"}
 
     stub.dispatcher = MainThreadDispatcher(blocked, timeout=0.5)
-    stub._answer_blocked_call = lambda d: interactive.InteractiveHost._answer_blocked_call(stub, d)
+    stub.dispatcher.explain = stub._explain_wait
 
     def call():
         try:
@@ -180,13 +187,14 @@ def test_dev_mode_answers_a_call_blocked_by_a_new_dialog_at_once(tmp_path, dev):
         threading.Event().wait(0.01)
     interactive.InteractiveHost._dialog_appeared(stub, dialogs.Dialog(5, "Error During Update"))
     caller.join(2)
-    if dev:  # answered at once, while the call still waits in NX
-        (error,) = results
-        assert error.code == "NX_MODAL_DIALOG_OPEN" and not released.is_set()
-        assert error.details["mutation_outcome"] == "unknown"
-        assert error.details["dialogs"][0]["title"] == "Error During Update"
-    else:  # production: reported only; the caller waits (here: the bridge timeout)
-        assert results[0].code == "NX_BRIDGE_UNAVAILABLE"
+    (error,) = results
+    # dev: answered at once, while the call still waits in NX; production: at the run
+    # timeout, but with the dialog named instead of "the bridge is not running"
+    assert error.code == "NX_MODAL_DIALOG_OPEN" and not released.is_set()
+    assert error.details["mutation_outcome"] == "unknown"
+    assert error.details["dialogs"][0]["title"] == "Error During Update"
+    assert error.details["blocked_call"]["tool"] == "nx_activate_part"
+    assert "“Error During Update”" in error.message and "never clicks" in error.message
     released.set()
     runner.join(2)
     assert len(results) == 1 and stub.dispatcher._running is None  # late result dropped
@@ -232,3 +240,152 @@ def test_the_watch_never_notifies_after_stop():
     assert [d.title for d in watch.stop()] == ["Late"]  # reported in the result...
     watch.poll()
     assert heard == []  # ...but never answers a call that has ended (or the next one)
+
+
+# ---------------------------------------------------------------------------
+# NX's message boxes (live NX 2406, 2026-10-12): "Edit Sketch" blocked NX 34 minutes
+# unnoticed: it is owned by a hidden, enabled "Information" #32770 window and has no
+# modal frame; the modal loop disables NX's main window (the root owner) instead.
+
+INFO = 19270994  # the hidden "Information" owner
+
+
+def edit_sketch_box(**changes):
+    window = {
+        "hwnd": 659272, "pid": PID, "cls": "#32770", "title": "Edit Sketch",
+        "owner": INFO, "owner_pid": PID, "owner_enabled": True, "owner_visible": False,
+        "root_owner": MAIN, "root_enabled": False, "modal_frame": False, "active": True,
+        "texts": ("The edit causes curves or dimensions to be deleted.\n",), "buttons": ("&OK",),
+    }  # fmt: skip
+    window.update(changes)
+    return dialogs.Window(**window)
+
+
+def test_an_nx_message_box_with_a_hidden_owner_blocks_nx():
+    # during an agent call the host disabled NX's main window itself: the box is the
+    # active window of NX's UI thread, which proves the modal loop
+    (found,) = dialogs.blocking([edit_sketch_box()], PID, host_disabled={MAIN})
+    assert found.title == "Edit Sketch" and found.buttons == ("OK",)
+    assert found.text.startswith("The edit causes curves")
+    assert dialogs.blocking([edit_sketch_box(active=False)], PID) != []  # NX disabled it
+    # the version before this fix: the enabled hidden owner read as "modeless"
+    assert dialogs.is_modal(edit_sketch_box(owner_visible=True), PID, {MAIN}) is False
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"root_enabled": True},  # NX's main window takes input: not modal
+        {"active": False},  # host-disabled root, no modal frame, not active: no proof
+    ],
+)
+def test_a_hidden_owner_box_without_proof_is_not_blocking(changes):
+    assert dialogs.blocking([edit_sketch_box(**changes)], PID, host_disabled={MAIN}) == []
+
+
+def test_a_scan_from_outside_nx_needs_proof_for_every_owner():
+    # the sidecar cannot know which window the host disabled
+    assert dialogs.blocking([edit_sketch_box()], PID, dialogs.ANY_OWNER) != []
+    assert dialogs.blocking([edit_sketch_box(active=False)], PID, dialogs.ANY_OWNER) == []
+    plain = sheet_metal_warning(modal_frame=False)
+    assert dialogs.blocking([plain], PID, dialogs.ANY_OWNER) == []
+    assert dialogs.blocking([sheet_metal_warning()], PID, dialogs.ANY_OWNER) != []
+
+
+def test_the_watch_hears_when_a_dialog_closes():
+    box = dialogs.Dialog(5, "Edit Sketch")
+    screens = [[box], [box], []]
+    new, gone = [], []
+    watch = dialogs.Watch([], on_new=new.append, on_gone=gone.append,
+                          scanner=lambda: screens.pop(0))  # fmt: skip
+    watch.poll()
+    watch.poll()
+    assert new == [box] and gone == []
+    watch.poll()
+    assert gone == [box]
+
+
+def test_the_blocked_message_names_the_dialog_the_call_and_the_part():
+    row = {"title": "Edit Sketch", "text": "The edit causes curves or dimensions to be deleted.\n",
+           "tool": "nx_create_sketch_constraints", "part": "sketch_1_b.prt", "since": 0}  # fmt: skip
+    text = dialogs.blocked_message({**row, "since": time.time() - 34}, outcome="not_started")
+    assert text.startswith("NX is blocked by its modal dialog “Edit Sketch”: The edit causes")
+    assert "during nx_create_sketch_constraints in sketch_1_b.prt" in text and "34 s ago" in text
+    assert text.endswith("This call did not run.")
+    assert "unknown" in dialogs.blocked_message({"title": "X"}, outcome="unknown")
+    assert "opened" not in dialogs.blocked_message({"title": "X"}, outcome="unknown")
+
+
+def test_a_blocking_dialog_answers_every_waiting_caller_at_once(tmp_path):
+    """Queued calls are answered when the dialog appears, new calls are refused before
+    they queue, the status read names the dialog, and the answer frees NX again."""
+    from nx_mcp.bridge import MainThreadDispatcher
+
+    released, results = threading.Event(), {}
+    stub = host(tmp_path)
+    stub.dev = False
+    stub.current_part = "sketch_1_b.prt"
+    stub.running_method = "nx_create_sketch_constraints"
+    stub._snapshot = {"running_method": "nx_create_sketch_constraints", "mode": "auto",
+                      "activity": "running"}  # fmt: skip
+    stub.dispatcher = MainThreadDispatcher(lambda m, p: released.wait(5) and {}, timeout=5,
+                                           queue_timeout=5)  # fmt: skip
+    stub.dispatcher.explain = stub._explain_wait
+
+    def call(name):
+        try:
+            results[name] = stub.dispatcher.call(name, {})
+        except NXError as error:
+            results[name] = error
+
+    first = threading.Thread(target=call, args=("nx_create_sketch_constraints",))
+    first.start()
+    runner = threading.Thread(target=lambda: stub.dispatcher.drain(timeout=1))
+    runner.start()
+    while stub.dispatcher._running is None:
+        threading.Event().wait(0.01)
+    queued = threading.Thread(target=call, args=("nx_extrude",))
+    queued.start()
+    while not stub.dispatcher.waiting():
+        threading.Event().wait(0.01)
+    box = dialogs.Dialog(7, "Edit Sketch", "The edit causes curves or dimensions to be deleted.")
+    stub._dialog_appeared(box)
+    queued.join(2)
+    error = results["nx_extrude"]  # answered at once, not after the 135 s queue wait
+    assert error.code == "NX_MODAL_DIALOG_OPEN"
+    assert error.details["mutation_outcome"] == "not_started"
+    assert error.details["blocked_call"] == {"tool": "nx_create_sketch_constraints",
+                                             "part": "sketch_1_b.prt", "seconds": 0}  # fmt: skip
+    assert "“Edit Sketch”" in error.message and error.category == "engineer_control"
+    with pytest.raises(NXError) as refused:  # a new call never queues
+        stub.dispatch("nx_list_parts", {})
+    assert refused.value.code == "NX_MODAL_DIALOG_OPEN"
+    assert stub._snapshot["blocked_by_dialog"]["title"] == "Edit Sketch"
+    stub._dialog_gone(box)  # the engineer answered it
+    assert stub.blocked_by is None and stub._snapshot["blocked_by_dialog"] is None
+    released.set()
+    first.join(2)
+    runner.join(2)
+    assert results["nx_create_sketch_constraints"] == {}
+
+
+def test_the_status_read_names_the_blocking_dialog(tmp_path, monkeypatch):
+    from nx_mcp.domains.session import status
+
+    stub = host(tmp_path)
+    stub.blocked_by = {"title": "Edit Sketch", "text": "curves deleted", "buttons": ["OK"],
+                       "hwnd": 7, "tool": "nx_create_sketch_constraints", "part": "a.prt",
+                       "since": time.time() - 5}  # fmt: skip
+    stub._snapshot = {"running_method": "nx_create_sketch_constraints", "mode": "auto",
+                      "activity": "running"}  # fmt: skip
+    stub._queue_state = lambda: {"waiting": 0, "oldest_seconds": None}
+    stub.services = NS(workspace=NS(root=tmp_path), build="2406.9160", store=None)
+    monkeypatch.setattr(status, "licenses", lambda: [], raising=False)
+    envelope = stub.dispatch("nx_get_status", {"include": ["control"]})
+    control = envelope["data"]["control"]
+    assert control["activity"] == "blocked_by_dialog" and control["busy"] is True
+    row = control["blocked_by_dialog"]
+    assert row["title"] == "Edit Sketch" and row["tool"] == "nx_create_sketch_constraints"
+    assert "hwnd" not in row and row["seconds"] >= 5
+    (warning,) = envelope["warnings"]
+    assert warning["code"] == "NX_MODAL_DIALOG" and "“Edit Sketch”" in warning["message"]

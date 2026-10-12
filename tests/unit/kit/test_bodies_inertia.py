@@ -79,3 +79,21 @@ def test_the_wcs_is_the_displayed_parts():
     nx.session.Parts.Display = None  # nothing displayed: the part's own
     nx.part.WCS = shown.WCS
     assert measure.wcs(nx.tx)[0] == [7, 8, 9]
+
+
+def test_expect_sound_skips_known_faults_and_scale_note_follows_part_units():
+    nx = fake_nx()
+    good, bad = nx.block(1, 1, 1), nx.block(2, 2, 2)
+    faults = {int(bad.Tag): (2, [875316, 1], [bad.Tag])}
+    nx.uf.Modeling.AskBodyConsistency = lambda tag: faults.get(int(tag), (0, [], []))
+    assert bodies.faulty(nx.tx, [good, bad]) == {int(bad.Tag)}
+    bodies.expect_sound(nx.tx, [good, bad], known={int(bad.Tag)})  # faulty before: passes
+    with pytest.raises(NXError) as error:
+        bodies.expect_sound(nx.tx, [good, bad])
+    assert error.value.code == "NX_BUILD_FAILED" and len(error.value.details["faults"]) == 2
+    nx.uf.Modeling.AskBodyConsistency = Mock(side_effect=RuntimeError("no UF"))
+    bodies.expect_sound(nx.tx, [bad])  # UF cannot tell: no failure
+    nx.uf.ModlGeneral = NS(AskBoundingBox=lambda tag: [0, 0, 0, 12_000, 1, 1])
+    assert "12000 mm" in bodies.scale_note(nx.tx, [good])
+    nx.uf.ModlGeneral = NS(AskBoundingBox=lambda tag: [0, 0, 0, 9_000, 1, 1])
+    assert bodies.scale_note(nx.tx, [good]) is None and bodies.scale_note(nx.tx, []) is None

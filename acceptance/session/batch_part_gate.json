@@ -1,0 +1,20 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "args": {"path": "$run/bpg/bpg_a.prt", "units": "mm", "display": false}, "setup": true},
+  {"call": "nx_create_part", "args": {"path": "$run/bpg/bpg_b.prt", "units": "mm", "display": false}, "setup": true},
+  {"call": "nx_create_primitive", "args": {"part": "bpg_a", "shape": "block", "length": 20, "width": 20, "height": 20}, "setup": true, "save": "ablk"},
+  {"call": "nx_create_primitive", "args": {"part": "bpg_b", "shape": "block", "length": 10, "width": 10, "height": 10}, "setup": true, "save": "bblk"},
+  {"call": "nx_run_batch", "args": {"part": "bpg_b", "operations": [{"tool": "nx_set_name", "arguments": {"object": "$ablk.data.feature.id", "name": "BPG_NEVER"}}]}, "intent": "Acceptance: a batch for bpg_b whose step names an object of bpg_a is refused (bench: it renamed the other part's body)", "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "mutation_outcome": "not_started", "error.field": "/operations/0/arguments/object", "error.message": {"matches": "bpg_b[.]prt .*bpg_a[.]prt"}, "error.hint": {"contains": "bpg_a.prt"}}},
+  {"call": "nx_run_batch", "args": {"part": "bpg_b", "operations": [{"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BPG_B_FIRST"}}, {"tool": "nx_set_name", "arguments": {"object": "$ablk.data.feature.id", "name": "BPG_NEVER"}}]}, "intent": "Acceptance: refused after a step ran: the whole batch rolls back", "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "mutation_outcome": "rolled_back", "error.details.child_index": 1}},
+  {"call": "nx_list_objects", "args": {"part": "bpg_b", "kind": "feature", "name_contains": "BPG_B_FIRST"}, "expect": {"page.total": 0}},
+  {"call": "nx_preview_changes", "args": {"part": "bpg_b", "operations": [{"tool": "nx_set_name", "arguments": {"object": "$ablk.data.feature.id", "name": "BPG_NEVER"}}]}, "intent": "Acceptance: the same gate for a preview's steps", "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "mutation_outcome": "not_started"}},
+  {"call": "nx_set_name", "args": {"part": "bpg_b", "object": "$ablk.data.feature.id", "name": "BPG_NEVER"}, "intent": "Acceptance: as for a direct call", "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT"}},
+  {"call": "nx_list_objects", "args": {"part": "bpg_a", "kind": "feature", "name_contains": "BPG_NEVER"}, "intent": "Acceptance: nothing was renamed in bpg_a", "expect": {"page.total": 0}},
+  {"call": "nx_run_batch", "args": {"part": "bpg_b", "operations": [{"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BPG_B_OK"}}, {"tool": "nx_set_name", "arguments": {"object": "$ablk.data.feature.id", "name": "BPG_A_OK", "part": "bpg_a"}}]}, "intent": "Acceptance: a step with its own part key acts there", "expect": {"mutation_outcome": "committed", "part.file": "bpg_b.prt", "data.results.1.part.file": "bpg_a.prt"}},
+  {"call": "nx_list_objects", "args": {"part": "bpg_a", "kind": "feature", "name_contains": "BPG_A_OK"}, "expect": {"page.total": 1}},
+  {"call": "nx_list_objects", "args": {"part": "bpg_b", "kind": "feature", "name_contains": "BPG_B_OK"}, "expect": {"page.total": 1}}
+ ]
+}

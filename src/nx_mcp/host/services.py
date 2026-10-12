@@ -57,8 +57,8 @@ _ANNOTATION_GROUPS = (
     "IdSymbols",
     "PartsLists",
     "BendTables",
+    "HoleTables",
     "TableSections",
-    "Tables",
     "Centerlines",
     "DraftingSurfaceFinishSymbol",
     "Welds",
@@ -77,19 +77,29 @@ def _name(value, fallback: str) -> str:
     return str(getattr(value, "Name", "") or getattr(value, "JournalIdentifier", "") or fallback)
 
 
-def _table_tags(part) -> set:
-    """Tags of the drawing tables of ``part`` (empty when it has none or no drafting)."""
-    tags: set = set()
+def _tags(group) -> set:
+    with contextlib.suppress(Exception):  # A collection this NX build cannot enumerate.
+        return {int(o.Tag) for o in group or []}
+    return set()
+
+
+def _table_tags(part, uf) -> tuple[set, set]:
+    """``(tables, inner)`` tags of ``part``: one tag per drawing table (parts list, bend
+    or hole table, tabular note, title block), and the table sections that belong to a
+    parts list, bend or hole table (NX lists them in ``TableSections`` too). NX's
+    ``Annotations.Tables`` (the cells behind each table) is never read."""
     annotations = getattr(part, "Annotations", None)
-    groups = [
-        getattr(annotations, n, None)
-        for n in ("PartsLists", "BendTables", "TableSections", "Tables")
-    ]
-    groups.append(getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None))
-    for group in groups:
+    owners: set = set()
+    for name in ("PartsLists", "BendTables", "HoleTables"):
+        owners |= _tags(getattr(annotations, name, None))
+    inner: set = set()
+    sections = _tags(getattr(annotations, "TableSections", None))
+    for tag in sections if owners and uf is not None else ():
         with contextlib.suppress(Exception):
-            tags.update(int(o.Tag) for o in group or [])
-    return tags
+            if int(uf.Tabnot.AskTabularNoteOfSection(tag)) in owners:
+                inner.add(tag)
+    blocks = _tags(getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None))
+    return owners | (sections - inner) | blocks, inner
 
 
 def part_annotations(part) -> list:
@@ -445,12 +455,16 @@ class NXServices(Services):
             ("section", getattr(part, "DynamicSections", [])),
             ("component", components(part)),
         ]
+        uf = None
+        with contextlib.suppress(Exception):
+            uf = self.uf
+        tables, inner = _table_tags(part, uf)
         snap = {
             (kind, int(v.Tag)): self.register(v, kind, part, kind.title())
             for kind, values in groups
             for v in values
+            if not (kind == "annotation" and int(v.Tag) in inner)
         }
-        tables = _table_tags(part)
         for (kind, tag), entry in snap.items():
             if kind == "annotation" and tag in tables:
                 entry["kind"] = "drawing_table"

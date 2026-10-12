@@ -71,10 +71,12 @@ def test_unknown_and_not_started_say_different_things():
     started = MainThreadDispatcher(lambda m, p: time.sleep(0.2) or {}, timeout=0.05)
     unknown = _run(started, "x")["error"]
     assert not unknown.retryable and "may still be running" in unknown.message
+    assert unknown.code == "NX_OUTCOME_UNKNOWN"  # NX runs it: never "bridge not running"
     held = MainThreadDispatcher(lambda m, p: {}, timeout=5, queue_timeout=0.05)
     with pytest.raises(NXError) as caught:
         held.call("x", {})
-    assert caught.value.retryable and "did not start; it is safe to retry" in caught.value.message
+    assert caught.value.retryable and caught.value.code == "NX_BUSY"
+    assert "did not start" in caught.value.message and "Nothing ran" in caught.value.message
     assert held.waiting() == [] and len(held._calls.queue) == 0  # the expired call left
 
 

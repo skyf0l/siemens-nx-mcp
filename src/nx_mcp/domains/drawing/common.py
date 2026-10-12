@@ -340,6 +340,30 @@ def table_kind(tx, obj):
     return None
 
 
+def shown_table(tx, obj):
+    """The table NX shows for ``obj``: a bare tabular note (``Table``, the cells behind a
+    table section or title block, listed by NX apart) maps to its section or title block;
+    any other object is returned as is."""
+    if type(obj).__name__ != "Table":
+        return obj
+    tag = int(obj.Tag)
+    part = tx.part
+    for section in getattr(part.Annotations, "TableSections", None) or []:
+        try:
+            if int(tx.uf.Tabnot.AskTabularNoteOfSection(section.Tag)) == tag:
+                return section
+        except Exception:  # a section NX cannot answer for
+            continue
+    for block in getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None) or []:
+        handle = attribute(tx, block, NATIVE_TABLE)
+        try:
+            if handle and int(tx.uf.Tag.AskTagOfHandle(handle)) == tag:
+                return block
+        except Exception:  # a stale handle
+            continue
+    return obj
+
+
 def annotation_kind(tx, obj):
     """The reference kind of a drafting object: ``dimension``, ``drawing_table`` or
     ``annotation``."""

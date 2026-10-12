@@ -224,6 +224,9 @@
     "data.value": {
      "close": 50,
      "tol": 1e-09
+    },
+    "data.text": {
+     "contains": "50.00"
     }
    }
   },
@@ -232,8 +235,7 @@
    "args": {
     "dimension": "$lin.data.dimension.id",
     "format": {
-     "units": "in",
-     "decimal_separator": "comma"
+     "units": "in"
     },
     "tolerance": {
      "type": "symmetric",
@@ -242,7 +244,7 @@
    },
    "expect": {
     "data.format.units": "in",
-    "data.format.decimal_separator": "comma",
+    "data.format.decimal_separator": "period",
     "data.tolerance.type": "symmetric",
     "data.value": {
      "close": 50,
@@ -255,7 +257,24 @@
     "data.tolerance.lower": {
      "close": -0.1,
      "tol": 1e-09
+    },
+    "data.text": {
+     "contains": "1.97"
     }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "format": {
+     "decimal_separator": "comma"
+    }
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "mutation_outcome": "not_started",
+    "error.field": "/format/decimal_separator"
    }
   },
   {
@@ -291,6 +310,36 @@
    "args": {
     "dimension": "$lin.data.dimension.id",
     "tolerance": {
+     "type": "symmetric"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/tolerance/upper"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "tolerance": {
+     "type": "bilateral",
+     "upper": -0.1,
+     "lower": 0.2
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/tolerance/lower"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "tolerance": {
      "upper": 0.1
     }
    },
@@ -314,6 +363,43 @@
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
     "error.field": "/tolerance/lower"
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$lin.data.dimension.id",
+    "format": {
+     "decimals": 2,
+     "units": "mm",
+     "decimal_separator": "comma"
+    },
+    "tolerance": {
+     "type": "fit",
+     "hole": "H7",
+     "shaft": "g6"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.tolerance.type": "fit",
+    "data.tolerance.hole": "H7",
+    "data.tolerance.shaft": "g6",
+    "data.origin": {
+     "close": [
+      200,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.value": {
+     "close": 50,
+     "tol": 1e-09
+    },
+    "data.format.decimal_separator": "comma",
+    "data.text": {
+     "contains": "50,00"
+    }
    }
   },
   {
@@ -353,10 +439,10 @@
      "tol": 1e-06
     },
     "data.objects": {
-     "count": 2
+     "count": 1
     },
     "data.objects.0.kind": "edge",
-    "data.objects.1.kind": "edge"
+    "data.associations": 2
    }
   },
   {

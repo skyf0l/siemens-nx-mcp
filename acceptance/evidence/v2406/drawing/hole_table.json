@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/hole_table.json",
-  "scenario_sha256": "1e6111fdb493c116a227e0a9dd620cbffeb5e8b6854e8b693ce7aec6d7ec9a6e",
+  "scenario_sha256": "cf58ab104f25104c08143a9a7a4d9f46ffd39ce843d1c5e554b674939a7ee23f",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_table": [
@@ -14,12 +14,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7",
-    "nx_edit_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7"
+    "nx_create_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82",
+    "nx_edit_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82"
   },
-  "recorded": "2026-10-11T07:19:54Z",
+  "recorded": "2026-10-12T11:01:03Z",
   "passed": true,
-  "checks": 40,
+  "checks": 41,
   "failed_checks": 0,
   "steps": [
     {
@@ -139,7 +139,7 @@
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 15
+      "checks": 16
     },
     {
       "index": 18,

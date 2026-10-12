@@ -13,8 +13,16 @@ A blocking dialog is a visible, enabled top-level Win32 dialog (class
 modal dialog disables its owner, a modeless box left open does not and is
 ignored. When the host disabled the owner itself (it disables NX's main window
 while an agent call runs) that proves nothing, so the dialog must also have a modal frame
-(``DS_MODALFRAME`` / ``WS_EX_DLGMODALFRAME``, as NX's message boxes have). NX's own
-"Work in Progress" progress box has no owner and is ignored.
+(``DS_MODALFRAME`` / ``WS_EX_DLGMODALFRAME``, as the "Sheet Metal" warning has) or be
+the active window of NX's UI thread. NX's own "Work in Progress" progress box has no
+owner and is ignored.
+
+NX's message boxes (live NX 2406: "Edit Sketch: The edit causes curves or dimensions
+to be deleted." [OK]) are owned by a *hidden* "Information" ``#32770`` window that
+stays enabled, and have no modal frame; the modal loop disables the root owner (NX's
+main window) instead. So for a hidden owner the root owner (``GA_ROOTOWNER``) must be
+disabled, with the same proof (modal frame or active window) when the host disabled it.
+The first version missed exactly this box: NX and every call waited 34 minutes.
 
 One scan is an ``EnumWindows`` pass (about 0.4 ms) reading only what needs no
 window message (class, owner, enabled and visible flags, styles). Titles and texts
@@ -25,17 +33,34 @@ and only for confirmed modal dialogs. Off Windows it finds nothing.
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import os
 import sys
 import threading
+import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 
 DIALOG_CLASS = "#32770"
 POLL_SECONDS = 0.25
 GW_OWNER = 4
+GA_ROOTOWNER = 3
 GWL_STYLE, GWL_EXSTYLE = -16, -20
 DS_MODALFRAME, WS_EX_DLGMODALFRAME = 0x80, 0x1
+
+
+class _AnyOwner:
+    """``host_disabled`` for a scan from outside NX (the sidecar): any owner may be one
+    the host disabled for a call, so a disabled owner alone proves nothing."""
+
+    def __contains__(self, hwnd) -> bool:
+        return True
+
+    def __iter__(self):
+        return iter(())
+
+
+ANY_OWNER = _AnyOwner()
 
 
 @dataclass(frozen=True)
@@ -54,6 +79,10 @@ class Window:
     buttons: tuple[str, ...] = ()
     owner_enabled: bool = False  # a modal dialog disables its owner
     modal_frame: bool = True  # DS_MODALFRAME or WS_EX_DLGMODALFRAME
+    owner_visible: bool = True  # NX's message boxes have a hidden owner
+    root_owner: int = 0  # GA_ROOTOWNER (NX's main window); 0: the owner itself
+    root_enabled: bool = False  # a modal loop disables the root owner
+    active: bool = False  # the active window of its (NX's UI) thread
 
 
 @dataclass(frozen=True)
@@ -73,24 +102,35 @@ class Dialog:
                 "buttons": list(self.buttons)}  # fmt: skip
 
 
+def _owners(host_disabled):
+    return host_disabled if isinstance(host_disabled, _AnyOwner) else set(host_disabled)
+
+
 def is_modal(w: Window, pid: int, host_disabled: Iterable[int] = ()) -> bool:
     """Whether ``w`` is a modal dialog blocking the NX process ``pid``.
 
     ``host_disabled``: owner windows the host disabled itself (during a call); their
-    disabled state proves nothing, so a dialog they own needs a modal frame."""
+    disabled state proves nothing, so a dialog they own needs a modal frame or must be
+    the active window of NX's UI thread (``ANY_OWNER``: every owner, from outside NX)."""
     if w.pid != pid or w.cls != DIALOG_CLASS or not (w.visible and w.enabled):
         return False
     if not w.owner or w.owner_pid != pid:
         return False  # unowned (NX's "Work in Progress") or another program's
+    disabled = _owners(host_disabled)
+    proof = w.modal_frame or w.active
+    if not w.owner_visible:  # an NX message box: its hidden owner stays enabled
+        if w.root_enabled:
+            return False  # NX still takes input: not modal
+        return (w.root_owner or w.owner) not in disabled or proof
     if w.owner_enabled:
         return False  # modeless: NX still takes input
-    return w.owner not in set(host_disabled) or w.modal_frame
+    return w.owner not in disabled or proof
 
 
 def blocking(windows: Iterable[Window], pid: int, host_disabled: Iterable[int] = ()):
     """The modal dialogs among ``windows`` that block the NX process ``pid``."""
     found = []
-    disabled = set(host_disabled)
+    disabled = _owners(host_disabled)
     for w in windows:
         if not is_modal(w, pid, disabled):
             continue
@@ -103,6 +143,27 @@ def new_dialogs(before: Iterable[Dialog], after: Iterable[Dialog]) -> list[Dialo
     """Dialogs in ``after`` that were not open in ``before`` (by window handle)."""
     known = {d.hwnd for d in before}
     return [d for d in after if d.hwnd not in known]
+
+
+def blocked_message(row: dict, *, outcome: str) -> str:
+    """The error text for a call that met NX blocked by the modal dialog ``row``
+    (``{title, text, tool, part, since}``): what blocks NX, since when, by which call."""
+    title = row.get("title") or "untitled"
+    text = " ".join(str(row.get("text") or "").split())
+    shown = f"“{title}”" + (f": {text}" if text else "")
+    since = row.get("since")
+    age = f" {max(0, int(time.time() - since))} s ago" if isinstance(since, (int, float)) else ""
+    where = f" in {row['part']}" if row.get("part") else ""
+    context = f" (opened{age} during {row['tool']}{where})" if row.get("tool") else ""
+    tail = (
+        "The outcome of this call is unknown until then."
+        if outcome == "unknown"
+        else "This call did not run."
+    )
+    return (
+        f"NX is blocked by its modal dialog {shown}{context}. "
+        "NX and every call wait until someone answers it in NX; the agent never clicks it. " + tail
+    )
 
 
 def message(dialogs: list[Dialog], *, still_open: bool) -> str:
@@ -130,8 +191,21 @@ def _user32():  # pragma: no cover - needs Windows
 
 def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
     """The visible top-level ``#32770`` windows of ``pid``; sends no window message."""
-    ctypes, w, user = _user32()
+    _, w, user = _user32()
     callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+
+    class GuiThreadInfo(ctypes.Structure):
+        _fields_ = [("cbSize", w.DWORD), ("flags", w.DWORD), ("hwndActive", w.HWND),
+                    ("hwndFocus", w.HWND), ("hwndCapture", w.HWND), ("hwndMenuOwner", w.HWND),
+                    ("hwndMoveSize", w.HWND), ("hwndCaret", w.HWND), ("rcCaret", w.RECT)]  # fmt: skip
+
+    def active(hwnd) -> bool:
+        """``hwnd`` is the active window of its thread (GetGUIThreadInfo sends no message)."""
+        info = GuiThreadInfo(cbSize=ctypes.sizeof(GuiThreadInfo))
+        thread = user.GetWindowThreadProcessId(hwnd, None)
+        if not user.GetGUIThreadInfo(thread, ctypes.byref(info)):
+            return False
+        return int(info.hwndActive or 0) == int(hwnd)
 
     def cls(hwnd) -> str:
         buffer = ctypes.create_unicode_buffer(256)
@@ -149,6 +223,7 @@ def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
         if pid_of(hwnd) != pid or not user.IsWindowVisible(hwnd) or cls(hwnd) != DIALOG_CLASS:
             return True
         owner = user.GetWindow(hwnd, GW_OWNER) or 0
+        root = (user.GetAncestor(hwnd, GA_ROOTOWNER) or 0) if owner else 0
         style = user.GetWindowLongW(hwnd, GWL_STYLE) & 0xFFFFFFFF
         exstyle = user.GetWindowLongW(hwnd, GWL_EXSTYLE) & 0xFFFFFFFF
         out.append(Window(
@@ -156,6 +231,9 @@ def _windows(pid: int) -> list[Window]:  # pragma: no cover - needs Windows
             int(owner), pid_of(owner) if owner else 0,
             owner_enabled=bool(owner and user.IsWindowEnabled(owner)),
             modal_frame=bool(style & DS_MODALFRAME or exstyle & WS_EX_DLGMODALFRAME),
+            owner_visible=bool(owner and user.IsWindowVisible(owner)),
+            root_owner=int(root), root_enabled=bool(root and user.IsWindowEnabled(root)),
+            active=active(hwnd),
         ))  # fmt: skip
         return True
 
@@ -204,7 +282,7 @@ def scan(
     if windows is None and sys.platform != "win32":
         return []
     pid = os.getpid() if pid is None else pid
-    disabled = set(host_disabled)
+    disabled = _owners(host_disabled)
     try:
         modal = [w for w in (windows or _windows)(pid) if is_modal(w, pid, disabled)]
         read = texts if texts is not None else (_texts if windows is None else None)
@@ -221,16 +299,19 @@ def _with_texts(w: Window, read) -> Window:
 
 
 class Watch:
-    """Scan from a thread while a call runs; ``on_new`` hears each new dialog once.
+    """Scan from a thread while a call runs; ``on_new`` hears each new dialog once and
+    ``on_gone`` each reported dialog that closed again (someone answered it).
 
     ``stop()`` returns every dialog that appeared during the call (answered or not).
     """
 
-    def __init__(self, before: list[Dialog], *, on_new=None, scanner=scan,
+    def __init__(self, before: list[Dialog], *, on_new=None, on_gone=None, scanner=scan,
                  interval: float = POLL_SECONDS) -> None:  # fmt: skip
         self.before = list(before)
         self.seen: list[Dialog] = []
+        self.gone: list[Dialog] = []
         self.on_new = on_new
+        self.on_gone = on_gone
         self.scanner = scanner
         self.interval = interval
         self._stop = threading.Event()
@@ -238,15 +319,23 @@ class Watch:
         self._thread: threading.Thread | None = None
 
     def poll(self, *, notify: bool = True) -> list[Dialog]:
-        fresh = new_dialogs(self.before + self.seen, self.scanner())
+        now = self.scanner()
+        fresh = new_dialogs(self.before + self.seen, now)
         for dialog in fresh:
             self.seen.append(dialog)
-            if notify and self.on_new is not None:
-                with self._notify:  # never after stop(): the call has ended
-                    if not self._stop.is_set():
-                        with contextlib.suppress(Exception):
-                            self.on_new(dialog)
+            self._tell(self.on_new, dialog, notify)
+        open_now = {d.hwnd for d in now}
+        for dialog in [d for d in self.seen if d.hwnd not in open_now and d not in self.gone]:
+            self.gone.append(dialog)
+            self._tell(self.on_gone, dialog, notify)
         return fresh
+
+    def _tell(self, listener, dialog: Dialog, notify: bool) -> None:
+        if notify and listener is not None:
+            with self._notify:  # never after stop(): the call has ended
+                if not self._stop.is_set():
+                    with contextlib.suppress(Exception):
+                        listener(dialog)
 
     def _run(self) -> None:
         while not self._stop.wait(self.interval):
@@ -266,3 +355,25 @@ class Watch:
             self._thread.join(timeout=2)
         self.poll(notify=False)
         return list(self.seen)
+
+
+def process_alive(pid: int | None) -> bool | None:
+    """Whether process ``pid`` runs (None: unknown, off Windows). Never signals it."""
+    if not pid or sys.platform != "win32":
+        return None
+    try:  # pragma: no cover - needs Windows
+        import ctypes
+
+        kernel = ctypes.windll.kernel32
+        handle = kernel.OpenProcess(0x1000, False, int(pid))  # QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return None
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel.CloseHandle(handle)
+    except Exception:
+        return None

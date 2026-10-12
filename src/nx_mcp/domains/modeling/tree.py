@@ -645,15 +645,24 @@ def nx_set_current_feature(
     """Roll the timeline to a feature (a ref like f:12 from nx_list_objects), or to the end
     when feature is omitted. Later features become inactive (not suppressed) and new features
     are inserted after the current one."""
-    part = tx.part
-    order = timeline(part)
-    if not order:
-        fail("NX_NOT_FOUND", "The work part has no features")
-    chosen = _feature(tx, feature) if feature is not None else order[-1]
+    with tx.checks():
+        part = tx.part
+        order = timeline(part)
+        if not order:
+            fail("NX_NOT_FOUND", "The work part has no features")
+        chosen = _feature(tx, feature) if feature is not None else order[-1]
+        bodies = {int(b.Tag) for b in part.Bodies}
     with native(default="NX_BUILD_FAILED"):
         chosen.MakeCurrentFeature()
     update(tx)
     after = states(tx, part)
+    gone = len(bodies - {int(b.Tag) for b in part.Bodies})
+    if gone:  # NX removes the bodies of inactive features: listed as deleted, not destroyed
+        tx.warn(
+            "NX_NOTE",
+            f"{gone} body(ies) of the now inactive features are gone until the timeline rolls "
+            "forward (changes.deleted); rolling forward rebuilds them under new refs",
+        )
     current = getattr(part, "CurrentFeature", None)
     if current is None:
         active = [f for f, _, a in after.values() if a]
@@ -748,28 +757,31 @@ def nx_set_feature_order(
     field = "/" + ("anchor" if before is None and after is None else where)
     if feature == ref:
         fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
-    part = tx.part
-    moved, target = _feature(tx, feature), _feature(tx, ref, field)
-    key, at = int(moved.Tag), int(target.Tag)
-    if key == at:
-        fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
-    old = states(tx, part)
-    order = list(old)
-    names = {tag: display_name(f) for tag, (f, _, _) in old.items()}
-    parents = {key: {int(p.Tag) for p in moved.GetParents()}}
-    children = {key: child_map(list(part.Features)).get(key, set())}
-    conflicts = reorder_conflicts(order, parents, children, key, at, where)
-    if conflicts:
-        relation = "after its child" if conflicts[0][1] == "child" else "before its parent"
-        fail(
-            "NX_DEPENDENCY_ORDER",
-            f"Moving {names[key]} {where} {names[at]} would put it {relation} "
-            + ", ".join(names[k] for k, _ in conflicts),
-            field=field,
-            hint="Pick an anchor that keeps the feature after its parents and before its "
-            "children (details.conflicts)",
-            details={"conflicts": [{**_row(tx, old[k][0]), "relation": r} for k, r in conflicts]},
-        )
+    with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
+        part = tx.part
+        moved, target = _feature(tx, feature), _feature(tx, ref, field)
+        key, at = int(moved.Tag), int(target.Tag)
+        if key == at:
+            fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
+        old = states(tx, part)
+        order = list(old)
+        names = {tag: display_name(f) for tag, (f, _, _) in old.items()}
+        parents = {key: {int(p.Tag) for p in moved.GetParents()}}
+        children = {key: child_map(list(part.Features)).get(key, set())}
+        conflicts = reorder_conflicts(order, parents, children, key, at, where)
+        if conflicts:
+            relation = "after its child" if conflicts[0][1] == "child" else "before its parent"
+            fail(
+                "NX_DEPENDENCY_ORDER",
+                f"Moving {names[key]} {where} {names[at]} would put it {relation} "
+                + ", ".join(names[k] for k, _ in conflicts),
+                field=field,
+                hint="Pick an anchor that keeps the feature after its parents and before its "
+                "children (details.conflicts)",
+                details={
+                    "conflicts": [{**_row(tx, old[k][0]), "relation": r} for k, r in conflicts]
+                },
+            )
     wanted = expected_order(order, key, at, where)
     new = old
     if wanted != order:

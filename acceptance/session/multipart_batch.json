@@ -13,9 +13,9 @@
   {"call": "nx_run_batch", "save": "b1",
    "args": {"part": "mb_front", "operations": [
     {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_OK"}},
-    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_OK"}}
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_OK", "part": "mb_back"}}
    ]},
-   "intent": "Acceptance: a batch child whose ref pins the background part runs there",
+   "intent": "Acceptance: a batch child with its own part key runs in the background part",
    "expect": {"mutation_outcome": "committed", "part.file": "mb_front.prt", "data.count": 2,
               "data.results.0.data.name": "FRONT_OK", "data.results.1.data.name": "BACK_OK",
               "data.results.1.part.file": "mb_back.prt"}},
@@ -28,7 +28,7 @@
   {"call": "nx_run_batch",
    "args": {"part": "mb_front", "operations": [
     {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_UNDONE"}},
-    {"tool": "nx_delete_objects", "arguments": {"objects": ["$bblk2.data.feature.id"]}},
+    {"tool": "nx_delete_objects", "arguments": {"objects": ["$bblk2.data.feature.id"], "part": "mb_back"}},
     {"tool": "nx_set_name", "arguments": {"object": "f:999999", "name": "NEVER"}}
    ]},
    "intent": "Acceptance: a failing child rolls back both parts under the one mark (rename in the front part, delete in the back part)",
@@ -87,7 +87,7 @@
   {"call": "nx_preview_changes", "save": "pv",
    "args": {"part": "mb_front", "operations": [
     {"tool": "nx_set_name", "arguments": {"object": "$fblk.data.feature.id", "name": "FRONT_PV"}},
-    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_PV"}}
+    {"tool": "nx_set_name", "arguments": {"object": "$bblk.data.feature.id", "name": "BACK_PV", "part": "mb_back"}}
    ]},
    "intent": "Acceptance: a preview child in the background part is previewed and rolled back",
    "expect": {"mutation_outcome": "previewed", "data.results.1.part.file": "mb_back.prt"}},

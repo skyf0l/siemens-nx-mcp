@@ -192,6 +192,46 @@
    }
   },
   {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "one",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "linear",
+    "first": "$left.data.items.0.id",
+    "orientation": "vertical",
+    "origin": [
+     40,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_get_dimension",
+   "args": {
+    "dimension": "$one.data.dimension.id"
+   },
+   "expect": {
+    "data.value": {
+     "close": 50,
+     "tol": 1e-09
+    },
+    "data.associations": 2,
+    "data.objects": {
+     "count": 1
+    },
+    "data.objects.0.id": "$left.data.items.0.id",
+    "data.text": "50",
+    "data.origin": {
+     "close": [
+      40,
+      200
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
    "call": "nx_get_dimension",
    "args": {
     "dimension": "$lin.data.dimension.id"

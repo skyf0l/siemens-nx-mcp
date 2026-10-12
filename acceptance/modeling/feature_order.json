@@ -259,7 +259,8 @@
     },
     "error.message": {
      "matches": "^Moving BLEND\\(\\d+\\) before \\S+ would put it before its parent EXTRUDE\\(\\d+\\)"
-    }
+    },
+    "mutation_outcome": "not_started"
    }
   },
   {

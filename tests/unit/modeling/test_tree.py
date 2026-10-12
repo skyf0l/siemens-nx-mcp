@@ -173,6 +173,25 @@ def test_set_current_feature_and_roll_to_end():
     assert bad.error["details"]["check"] == "current"
 
 
+def test_rolling_back_names_the_bodies_nx_removes_until_rolled_forward():
+    """Live: the inactive SPHERE body was listed as deleted with no word why."""
+    nx = modeling_nx()
+    block, boss, hole = timeline(nx)
+    sphere = nx.block(1, 1, 1)
+
+    def roll_back():
+        nx.part.CurrentFeature = block
+        nx.part.Bodies.remove(sphere)  # NX drops the inactive feature's body
+
+    block.MakeCurrentFeature = roll_back
+    ok = run(nx, "nx_set_current_feature", feature=nx.ref_of(block, "feature"))
+    assert ok.ok, ok
+    notes = [w["message"] for w in ok.warnings if w["code"] == "NX_NOTE"]
+    assert notes and "1 body(ies)" in notes[0] and "new refs" in notes[0]
+    missing = run(nx, "nx_set_current_feature", feature="f:999999")
+    assert missing.mutation_outcome == "not_started"
+
+
 def test_reorder_checks_dependencies_before_nx():
     nx = modeling_nx()
     block, boss, hole = timeline(nx)
@@ -205,6 +224,7 @@ def test_reorder_checks_dependencies_before_nx():
         position="before",
     )
     assert bad.error["code"] == "NX_DEPENDENCY_ORDER" and calls == ["before"]
+    assert bad.mutation_outcome == "not_started"  # a refusal before NX: nothing changed
     assert bad.error["details"]["conflicts"][0]["relation"] == "parent"
 
 

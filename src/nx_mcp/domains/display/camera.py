@@ -64,8 +64,15 @@ class CameraData(TypedDict, total=False):
     interactive: bool
 
 
+def _hidden(services, part, args) -> bool:
+    """Gate 4s asks only for a target that is not displayed: the camera is that part's
+    displayed view, so it is shown for the read and the engineer's tab comes back."""
+    return True
+
+
 @tool(
-    target="any",  # NX's displayed view: never ambiguous, never switched (a plain read)
+    target="any",  # never ambiguous: the displayed part, or the named or agent's only part
+    display_bound=(_hidden,),
     effect="read",
     label="Get camera",
     summary="Read the camera",

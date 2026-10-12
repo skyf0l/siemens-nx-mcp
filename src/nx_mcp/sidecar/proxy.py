@@ -13,13 +13,17 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
 import hashlib
+import itertools
 import json
 import math
 import os
 import re
 import time
 import typing
+import uuid
+import weakref
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
@@ -33,6 +37,7 @@ from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
 from nx_mcp.core.types import REF_PATTERN, RefKind
 from nx_mcp.core.validate import combine, is_union, unwrap
+from nx_mcp.kit.snapshots import claim
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
 
@@ -296,6 +301,51 @@ def _project(envelope: dict, store) -> dict:
     return projected
 
 
+# Caller identity (core/busy.py): every NX call carries ``caller`` = {"id", "shared"}.
+# ``id`` is this sidecar process, its MCP session and an id the client puts in the request's
+# ``_meta`` (one of CLIENT_ID_KEYS, any namespace prefix); ``shared`` is true while calls of
+# that id overlapped within SHARED_SECONDS (several agents behind one connection).
+PROCESS_ID = "sc-" + uuid.uuid4().hex[:8]
+CALLER: contextvars.ContextVar[str | None] = contextvars.ContextVar("nx_caller", default=None)
+CLIENT_ID_KEYS = frozenset({"agentid", "sessionid", "clientsessionid"})
+SHARED_SECONDS = 120.0
+_SESSIONS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()  # session -> number
+_NUMBERS = itertools.count(1)  # never reused, also after a session is gone
+
+
+def caller_id(context) -> str:
+    """The caller id of an MCP request context (``request_context`` of the server)."""
+    ident = PROCESS_ID
+    session = getattr(context, "session", None)
+    if session is not None:
+        try:
+            number = _SESSIONS.get(session)
+            if number is None:
+                number = _SESSIONS[session] = next(_NUMBERS)
+            ident += f".{number}"
+        except TypeError:  # a session object without weak references
+            ident += ".1"
+    client = client_id(getattr(context, "meta", None))
+    return f"{ident}:{client}" if client else ident
+
+
+def client_id(meta) -> str | None:
+    """An agent or session id the MCP client put in the request's ``_meta``, else None."""
+    if meta is None:
+        return None
+    try:
+        values = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
+    except Exception:
+        return None
+    for key, value in values.items():
+        name = re.sub(r"[^a-z]", "", str(key).rsplit("/", 1)[-1].lower())
+        if name in CLIENT_ID_KEYS and isinstance(value, (str, int)) and str(value).strip():
+            return re.sub(r"[^A-Za-z0-9_.:-]", "", str(value))[:64] or None
+    return None
+
+
+# Bridge failures the sidecar explains by looking at NX from outside (explain_stall).
+STALL_CODES = ("NX_BRIDGE_UNAVAILABLE", "NX_OUTCOME_UNKNOWN", "NX_BUSY", "NX_MODAL_DIALOG_OPEN")
 STATUS_TTL = 30.0  # seconds a listing trusts the session state read from nx_get_status
 STATUS_TIMEOUT = 5.0
 
@@ -312,6 +362,8 @@ class CatalogueProxy:
         self._key: tuple | None = None
         self._read_at = 0.0
         self.licenses: list[dict] = []
+        self._running: dict[str, int] = {}  # caller id -> its calls waiting for NX now
+        self._overlap: dict[str, float] = {}  # caller id -> when two of its calls overlapped
 
     def _descriptor(self):
         path = getattr(self.bridge, "descriptor_path", None)
@@ -367,6 +419,70 @@ class CatalogueProxy:
             return  # NX busy or down: keep what is known
         if isinstance(rows, list):
             self.licenses = [r for r in rows if isinstance(r, dict) and r.get("tool")]
+
+    def explain_stall(self, error: NXError) -> NXError:
+        """Say truthfully why NX did not answer: a modal NX dialog blocks it (seen from
+        here, outside NX: NX's own report may never arrive), NX is not running, or NX
+        runs but its bridge does not accept connections. Other errors pass unchanged;
+        never raises (a diagnostic must not fail the call)."""
+        if error.code not in STALL_CODES:
+            return error
+        try:
+            return self._explain_stall(error)
+        except Exception:
+            return error
+
+    def _explain_stall(self, error: NXError) -> NXError:
+        from nx_mcp.host import dialogs
+
+        descriptor = self._descriptor()
+        pid = getattr(descriptor, "pid", None)
+        alive = dialogs.process_alive(pid)
+        if not pid or alive is None:
+            return error
+        details = dict(error.details or {})
+        if not alive:
+            if error.code != "NX_BRIDGE_UNAVAILABLE":
+                return error
+            return NXError(
+                error.code,
+                f"NX (pid {pid}) is not running: {error.message}",
+                hint="Start NX with the NX MCP host, or ask the engineer; "
+                "check nx_get_operation before retrying a mutation",
+                retryable=error.retryable,
+                details=details,
+            )
+        found = dialogs.scan(pid, host_disabled=dialogs.ANY_OWNER)
+        if found:
+            if error.code == "NX_MODAL_DIALOG_OPEN":
+                return error
+            outcome = details.get("mutation_outcome") or "unknown"
+            first = found[0]
+            message = dialogs.blocked_message(
+                {"title": first.title, "text": first.text}, outcome=outcome
+            )
+            then = (
+                "then query nx_get_operation before retrying"
+                if outcome != "not_started"
+                else "nx_get_status shows when NX is free; then retry"
+            )
+            return NXError(
+                "NX_MODAL_DIALOG_OPEN",
+                message,
+                hint="Ask the engineer to answer the NX dialog (the agent never clicks it); "
+                + then,
+                details={**details, "dialogs": [d.row() for d in found], "seen_from": "sidecar"},
+            )
+        if error.code == "NX_BRIDGE_UNAVAILABLE":
+            return NXError(
+                error.code,
+                f"{error.message} NX (pid {pid}) is running, so its NX MCP host is stopped, "
+                "reloading or not answering.",
+                hint=error.hint,
+                retryable=error.retryable,
+                details=details,
+            )
+        return error
 
     def signature(self) -> tuple:
         """What listings depend on; a change sends tools/list_changed."""
@@ -525,8 +641,9 @@ class CatalogueProxy:
         if intent:
             params["intent"] = " ".join(intent.split())
         try:
-            answer = await self.bridge.call(spec.name, params)
+            answer = await self._send(spec.name, params)
         except NXError as error:
+            error = await asyncio.to_thread(self.explain_stall, error)
             envelope = from_bridge_error(spec.name, spec.effect, error, operation_id)
             if spec.name == "nx_get_status" and envelope["error"].get("category") == "bridge":
                 # Status still answers with NX down: workspace rules, bridge unavailable.
@@ -549,6 +666,9 @@ class CatalogueProxy:
         else:
             if isinstance(answer, dict) and "ok" in answer:
                 envelope = answer
+                full = answer.get("full_result")  # a bridge overflow snapshot: the caller's
+                if isinstance(full, dict) and isinstance(full.get("id"), str):
+                    claim(full["id"])
             else:
                 fault = NXError(
                     "NX_PROTOCOL_MISMATCH", f"NX returned no result envelope for {spec.name}"
@@ -562,6 +682,22 @@ class CatalogueProxy:
         if detail == "compact":
             envelope = _project(envelope, self.store)
         return result(envelope, extra=self._attachments(envelope))
+
+    async def _send(self, method: str, params: dict) -> dict:
+        """``bridge.call`` with the ``caller`` key (always the sidecar's: an agent's own
+        ``caller`` argument is replaced) and the bookkeeping of overlapping calls."""
+        ident = CALLER.get() or PROCESS_ID
+        now = time.monotonic()
+        running = self._running.get(ident, 0)
+        if running:
+            self._overlap[ident] = now
+        shared = now - self._overlap.get(ident, -math.inf) <= SHARED_SECONDS
+        params["caller"] = {"id": ident, "shared": shared}
+        self._running[ident] = running + 1
+        try:
+            return await self.bridge.call(method, params)
+        finally:
+            self._running[ident] -= 1
 
     def _local(self, spec, params: dict, operation_id) -> dict:
         from nx_mcp.sidecar import local

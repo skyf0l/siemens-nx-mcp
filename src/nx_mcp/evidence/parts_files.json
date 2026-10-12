@@ -1,21 +1,21 @@
 {
   "nx_activate_part": {
     "v2406": {
-      "checks": 81,
-      "recorded": "2026-10-12T08:02:20Z",
-      "scenario": "acceptance/parts_files/multipart_close.json",
-      "scenario_sha256": "4e11d7c1019171670c5c690d6ceef4651f3d9e11852674339149379b83f6fd1c",
-      "source_sha256": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d",
+      "checks": 58,
+      "recorded": "2026-10-12T10:46:32Z",
+      "scenario": "acceptance/parts_files/part_ownership.json",
+      "scenario_sha256": "e596f4f9ab72977f352f0b86f2b0e104ae7c7e77c7883599d9971403eed6ffe9",
+      "source_sha256": "6643009fa74137ee49c3e4c182bf4847baf5eac5972b5f344babf899c61f3da4",
       "variants": []
     }
   },
   "nx_close_part": {
     "v2406": {
-      "checks": 81,
-      "recorded": "2026-10-12T08:02:20Z",
-      "scenario": "acceptance/parts_files/multipart_close.json",
-      "scenario_sha256": "4e11d7c1019171670c5c690d6ceef4651f3d9e11852674339149379b83f6fd1c",
-      "source_sha256": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d",
+      "checks": 58,
+      "recorded": "2026-10-12T10:46:32Z",
+      "scenario": "acceptance/parts_files/part_ownership.json",
+      "scenario_sha256": "e596f4f9ab72977f352f0b86f2b0e104ae7c7e77c7883599d9971403eed6ffe9",
+      "source_sha256": "6643009fa74137ee49c3e4c182bf4847baf5eac5972b5f344babf899c61f3da4",
       "variants": []
     }
   },
@@ -32,10 +32,10 @@
   "nx_create_part": {
     "v2406": {
       "checks": 35,
-      "recorded": "2026-10-12T06:04:33Z",
+      "recorded": "2026-10-12T10:43:10Z",
       "scenario": "acceptance/parts_files/create_part.json",
       "scenario_sha256": "2e62b815a7ee956c271f82928580fc9be7029dfd4d9078c4e9916c9353f2bd19",
-      "source_sha256": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d",
+      "source_sha256": "6643009fa74137ee49c3e4c182bf4847baf5eac5972b5f344babf899c61f3da4",
       "variants": []
     }
   },
@@ -106,10 +106,10 @@
   "nx_import_model": {
     "v2406": {
       "checks": 39,
-      "recorded": "2026-10-12T07:58:37Z",
+      "recorded": "2026-10-12T10:46:15Z",
       "scenario": "acceptance/parts_files/import_model.json",
       "scenario_sha256": "7145ccdf820e333cf558b3d219cd629bcb790a4d8ad945cd954926a74fd525de",
-      "source_sha256": "73723446f5dfb8e574e88f6f0dfb75a86b3eab310c8e1679ad10fc09dd3fee24",
+      "source_sha256": "26da538b54148c50bef6c6f4ce3eede36398277cbfecbf11ed01dc29292c3393",
       "variants": [
         "dxf_dwg",
         "iges",
@@ -132,30 +132,30 @@
   "nx_list_parts": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-12T06:04:28Z",
+      "recorded": "2026-10-12T10:46:18Z",
       "scenario": "acceptance/parts_files/list_parts.json",
       "scenario_sha256": "837df5e4e05b49f1c41c5c857929f553482b6a683e757209c65003399e75774f",
-      "source_sha256": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d",
+      "source_sha256": "6643009fa74137ee49c3e4c182bf4847baf5eac5972b5f344babf899c61f3da4",
       "variants": []
     }
   },
   "nx_open_part": {
     "v2406": {
-      "checks": 42,
-      "recorded": "2026-10-12T06:04:39Z",
-      "scenario": "acceptance/parts_files/open_part.json",
-      "scenario_sha256": "428ecb79ac784828f28dc0f1becac8af1aa3fbcdaaa344a7493beffde0c89034",
-      "source_sha256": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d",
+      "checks": 58,
+      "recorded": "2026-10-12T10:46:32Z",
+      "scenario": "acceptance/parts_files/part_ownership.json",
+      "scenario_sha256": "e596f4f9ab72977f352f0b86f2b0e104ae7c7e77c7883599d9971403eed6ffe9",
+      "source_sha256": "6643009fa74137ee49c3e4c182bf4847baf5eac5972b5f344babf899c61f3da4",
       "variants": []
     }
   },
   "nx_save_part": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-12T07:59:55Z",
+      "recorded": "2026-10-12T10:42:19Z",
       "scenario": "acceptance/session/refs_survive_undo_save.json",
       "scenario_sha256": "09d8f8a554443ca6938e99c219386f94bd2e4097f89846614c2facc5663e27ac",
-      "source_sha256": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d",
+      "source_sha256": "6643009fa74137ee49c3e4c182bf4847baf5eac5972b5f344babf899c61f3da4",
       "variants": []
     }
   },

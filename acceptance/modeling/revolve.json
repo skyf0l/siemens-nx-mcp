@@ -396,6 +396,68 @@
    }
   },
   {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "far",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$far.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       100,
+       0
+      ],
+      "corner2": [
+       110,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$far.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$far.data.sketch.id",
+    "axis": {
+     "principal": "z"
+    },
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$full.data.bodies.0.id"
+     ]
+    }
+   },
+   "intent": "Acceptance: a subtract revolve that misses its target says so (live: 'crosses the axis' for a profile on one side)",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "error.field": "/combine/targets",
+    "error.nx_code": 671623,
+    "error.message": {
+     "contains": "misses the combine targets"
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

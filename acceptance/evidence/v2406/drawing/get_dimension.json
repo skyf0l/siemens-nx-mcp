@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/get_dimension.json",
-  "scenario_sha256": "bb1fa8346fa00f195db48ee93ad8571a728d9bee47d69d6c4e9a5e79904fce77",
+  "scenario_sha256": "28675030d2cf597cc9c07ad675e7233dd6a9493a4994ba61bd31d9b6bcd514bb",
   "domain": "drawing",
   "covers": {
     "nx_get_dimension": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_dimension": "844529cefa27a6cc21e56d535d8387df13250a1aae7fc242330b678c5fab4344"
+    "nx_get_dimension": "0699669fe983d0a821907c2556dcdf4bdd180769ce82dc7c1d54a5ed06657812"
   },
-  "recorded": "2026-10-11T10:10:45Z",
+  "recorded": "2026-10-12T09:46:05Z",
   "passed": true,
-  "checks": 16,
+  "checks": 22,
   "failed_checks": 0,
   "steps": [
     {
@@ -109,27 +109,41 @@
     },
     {
       "index": 14,
-      "call": "nx_get_dimension",
-      "setup": false,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
       "passed": true,
-      "checks": 12
+      "checks": 0
     },
     {
       "index": 15,
       "call": "nx_get_dimension",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 6
     },
     {
       "index": 16,
       "call": "nx_get_dimension",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 12
     },
     {
       "index": 17,
+      "call": "nx_get_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_get_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

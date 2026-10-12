@@ -75,7 +75,14 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "blocked": (
         "after_fix",
-        ("NX_DEPENDENCY_ORDER", "NX_IN_USE", "NX_READ_ONLY", "NX_CROSS_PART", "NX_PART_BUSY"),
+        (
+            "NX_DEPENDENCY_ORDER",
+            "NX_IN_USE",
+            "NX_READ_ONLY",
+            "NX_CROSS_PART",
+            "NX_PART_BUSY",
+            "NX_ENGINEER_PART",
+        ),
         "Resolve the blocker listed in details; ask the engineer when it is their data",
     ),
     "geometry_failed": (
@@ -138,8 +145,10 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "bridge": (
         "after_wait",
-        ("NX_BRIDGE_UNAVAILABLE", "NX_PROTOCOL_MISMATCH", "NX_AUTH_FAILED"),
-        "NX or the bridge is not running; check nx_get_operation before retrying a mutation",
+        ("NX_BRIDGE_UNAVAILABLE", "NX_BUSY", "NX_PROTOCOL_MISMATCH", "NX_AUTH_FAILED"),
+        "NX did not take the call; the message says why (NX_BUSY: NX runs another call; "
+        "NX_BRIDGE_UNAVAILABLE: NX or its bridge is not running). nx_get_status shows NX's "
+        "state; check nx_get_operation before retrying a mutation",
     ),
     "interrupted": (
         "after_status_check",

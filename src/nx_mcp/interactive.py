@@ -145,6 +145,22 @@ def _envelope(error):
     return envelope if isinstance(envelope, dict) else None
 
 
+def _show_blocked(envelope, blocked):
+    """Name the modal dialog that blocks NX in a status envelope (``control`` and a
+    warning); the dialog's window handle stays inside the host."""
+    from nx_mcp.host import dialogs
+
+    row = {k: v for k, v in blocked.items() if k != "hwnd"}
+    since = row.get("since")
+    row["seconds"] = round(time.time() - since) if isinstance(since, (int, float)) else None
+    control = (envelope.get("data") or {}).get("control")
+    if isinstance(control, dict):
+        control["blocked_by_dialog"] = row
+        control["activity"] = "blocked_by_dialog"
+    message = dialogs.blocked_message(blocked, outcome="not_started").rsplit(" This call", 1)[0]
+    envelope.setdefault("warnings", []).append({"code": "NX_MODAL_DIALOG", "message": message})
+
+
 def _running_tail(method):
     """Catalogue tools of cost light do not pause NX noticeably (arch. 3.3)."""
     from nx_mcp.host.dispatch import cost_of
@@ -585,6 +601,9 @@ class InteractiveHost:
     _fast_accept = False
     _rewake = False
     _uf = None
+    # The modal NX dialog blocking the running call (``_dialog_appeared``): {title, text,
+    # buttons, hwnd, tool, part, since}; None while NX is not blocked.
+    blocked_by = None
 
     def __init__(self, workspace, descriptor_path, resident=False):
         import secrets
@@ -648,6 +667,7 @@ class InteractiveHost:
         self.dispatcher = MainThreadDispatcher(
             self.execute, queue_timeout=QUEUE_TIMEOUT, progress=progress, run_timeout=run_timeout
         )
+        self.dispatcher.explain = self._explain_wait
         self.server = BridgeServer(
             self.dispatch,
             token=token,
@@ -771,19 +791,28 @@ class InteractiveHost:
         # Bridge-worker health reads use an immutable UI-thread snapshot only.
         # They must not wait behind the native operation they are diagnosing.
         snapshot = getattr(self, "_snapshot", None)
+        blocked = self.blocked_by
+        if blocked is not None and method != STATUS_TOOL:
+            # NX waits for a person: no call can start, so none waits in the queue.
+            raise self._blocked_error(blocked, "not_started")
         if method == STATUS_TOOL and snapshot and snapshot.get("running_method"):
             from nx_mcp.domains.session import status
 
             services = self.services
             # The queue as it is now (the snapshot's dates from the call's start).
             snapshot = {**snapshot, "queue": self._queue_state()}
-            return status.envelope_from_snapshot(
+            if blocked is not None:
+                snapshot["activity"] = "blocked_by_dialog"
+            envelope = status.envelope_from_snapshot(
                 snapshot,
                 params,
                 root=services.workspace.root,
                 build=getattr(services, "build", None),
                 store=getattr(services, "store", None),
             )
+            if blocked is not None:
+                _show_blocked(envelope, blocked)
+            return envelope
         return self.dispatcher.call(method, params)
 
     # -- panel -----------------------------------------------------------------
@@ -1100,6 +1129,7 @@ class InteractiveHost:
             "running_operation_id": (
                 getattr(self, "current_operation_id", None) if self.running_method else None
             ),
+            "blocked_by_dialog": self.blocked_by,
             "operation_elapsed_seconds": (
                 time.monotonic() - self.operation_started
                 if self.operation_started is not None
@@ -1442,6 +1472,7 @@ class InteractiveHost:
                 self.last_error = "Activity history: " + str(exc)
             self.running_method = None
             self.operation_started = None
+            self.blocked_by = None  # the call ended: no dialog holds it any more
             self.current_summary = self.current_intent = self.current_started_at = None
             self.current_part = None
             self._remember_model()
@@ -1480,10 +1511,14 @@ class InteractiveHost:
                 details={"mutation_outcome": "not_started",
                          "dialogs": [d.row() for d in open_now]},
             )  # fmt: skip
-        return dialogs.Watch(open_now, on_new=self._dialog_appeared, scanner=scan).start()
+        return dialogs.Watch(
+            open_now, on_new=self._dialog_appeared, on_gone=self._dialog_gone, scanner=scan
+        ).start()
 
     def _dialog_appeared(self, dialog):
-        """From the watch thread: log it now, while NX still waits for an answer."""
+        """From the watch thread, while NX waits for an answer: log the dialog, mark NX
+        blocked (``nx_get_status`` shows it; new calls are refused at once), answer every
+        queued call, and in development the blocked call too."""
         try:
             self.activity.nx_dialog(
                 f"NX waits for an answer to a modal dialog (during "
@@ -1491,32 +1526,89 @@ class InteractiveHost:
             )
         except Exception as exc:
             self.last_error = "Activity history: " + str(exc)
+        if self.blocked_by is None:
+            self.blocked_by = {
+                **dialog.row(),
+                "hwnd": dialog.hwnd,
+                "tool": self.running_method,
+                "part": getattr(self, "current_part", None),
+                "since": time.time(),
+            }
+            self._mark_snapshot(self.blocked_by)
+            self._reject_queued(self.blocked_by)
         if getattr(self, "dev", False):
             self._answer_blocked_call(dialog)
+
+    def _dialog_gone(self, dialog):
+        """From the watch thread: someone answered the blocking dialog; NX runs again."""
+        blocked = self.blocked_by
+        if blocked is not None and blocked.get("hwnd") == dialog.hwnd:
+            self.blocked_by = None
+            self._mark_snapshot(None)
+
+    def _mark_snapshot(self, blocked):
+        """Put the blocking dialog in (or out of) the snapshot health reads answer from."""
+        snapshot = getattr(self, "_snapshot", None)
+        if isinstance(snapshot, dict):
+            self._snapshot = {**snapshot, "blocked_by_dialog": blocked}
+
+    def _reject_queued(self, blocked):
+        """Answer every queued call now: none can start before someone answers the dialog."""
+        try:
+            self.dispatcher.reject_where(
+                lambda pending: pending.method != STATUS_TOOL,
+                self._blocked_error(blocked, "not_started"),
+            )
+        except Exception as exc:
+            self.last_error = "Cannot answer the queued calls: " + str(exc)
+
+    def _blocked_error(self, blocked, outcome):
+        """NX_MODAL_DIALOG_OPEN for a call NX cannot run or finish while ``blocked``."""
+        from nx_mcp.host import dialogs
+
+        since = blocked.get("since")
+        row = {k: blocked.get(k) for k in ("title", "text", "buttons")}
+        then = (
+            "then query nx_get_operation before retrying"
+            if outcome == "unknown"
+            else "nx_get_status shows when NX is free; then retry"
+        )
+        return NXError(
+            "NX_MODAL_DIALOG_OPEN",
+            dialogs.blocked_message(blocked, outcome=outcome),
+            hint="Ask the engineer to answer the NX dialog (the agent never clicks it); " + then,
+            details={
+                "mutation_outcome": outcome,
+                "dialogs": [row],
+                "blocked_call": {
+                    "tool": blocked.get("tool"),
+                    "part": blocked.get("part"),
+                    "seconds": round(time.time() - since) if since else None,
+                },
+            },
+        )
+
+    def _explain_wait(self, pending, started):
+        """The dispatcher's timeout answer while a modal dialog blocks NX (else None)."""
+        blocked = self.blocked_by
+        if blocked is None:
+            return None
+        return self._blocked_error(blocked, "unknown" if started else "not_started")
 
     def _answer_blocked_call(self, dialog):
         """Development only: answer the call a new modal dialog blocks with an error now.
 
         The call itself stays in NX until someone answers the dialog (never the agent);
         the agent learns at once instead of waiting for the bridge timeout. Production
-        only reports the dialog (``_report_dialogs``)."""
-        from nx_mcp.host import dialogs
-
+        only reports the dialog (``_report_dialogs``); its caller hears of it at the
+        run timeout (``_explain_wait``) unless someone answers first."""
+        blocked = self.blocked_by or {
+            **dialog.row(),
+            "tool": self.running_method,
+            "since": time.time(),
+        }
         try:
-            self.dispatcher.fail_running(
-                NXError(
-                    "NX_MODAL_DIALOG_OPEN",
-                    dialogs.message([dialog], still_open=True),
-                    hint="Stop and ask the engineer to answer the NX dialog; never "
-                    "click it. The call's outcome is unknown until then: check it with "
-                    "nx_get_operation",
-                    details={
-                        "mutation_outcome": "unknown",
-                        "dialogs": [dialog.row()],
-                        "method": self.running_method,
-                    },
-                )
-            )
+            self.dispatcher.fail_running(self._blocked_error(blocked, "unknown"))
         except Exception as exc:
             self.last_error = "Cannot answer the blocked call: " + str(exc)
 

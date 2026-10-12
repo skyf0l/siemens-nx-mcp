@@ -56,6 +56,7 @@ def test_resize_hole_diameter_reads_back_and_refuses_wrong_faces():
     top = nx.ref_of(block.face((0, 0, 1)), "face")
     plane = run(nx, "nx_edit_faces", faces=[top], action="resize", diameter=8)
     assert plane.error["code"] == "NX_WRONG_GEOMETRY" and plane.error["field"] == "/faces/0"
+    assert plane.mutation_outcome == "not_started"  # live: reported rolled_back
     both = run(nx, "nx_edit_faces", faces=[top], action="resize", diameter=8, angle=30)
     neither = run(nx, "nx_edit_faces", faces=[top], action="resize")
     assert both.error["field"] == neither.error["field"] == "/diameter"

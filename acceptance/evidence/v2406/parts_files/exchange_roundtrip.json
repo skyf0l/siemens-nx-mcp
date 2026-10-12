@@ -19,10 +19,10 @@
   "nx_build": "2406.9160",
   "sources": {
     "nx_export_model": "b0b8441b6478a000b23f59db10ed09f718b50e0b482f62a601bc7815c10e1bef",
-    "nx_import_model": "73723446f5dfb8e574e88f6f0dfb75a86b3eab310c8e1679ad10fc09dd3fee24",
+    "nx_import_model": "26da538b54148c50bef6c6f4ce3eede36398277cbfecbf11ed01dc29292c3393",
     "nx_export_profile": "c80d32dd720134f67d7157ca34183789c34766615ea86eab9fb711a1d75547cd"
   },
-  "recorded": "2026-10-12T07:55:56Z",
+  "recorded": "2026-10-12T10:43:30Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

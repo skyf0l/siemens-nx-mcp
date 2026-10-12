@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/edit_dimension.json",
-  "scenario_sha256": "06488b2773a8de091a4a055e7919767ca04a1921ec78f40d56c7ad932f880474",
+  "scenario_sha256": "2b10ffdad4bb6720880ba20ef8c046058cfff89ba1e4e1ed644d5fb2ae519350",
   "domain": "drawing",
   "covers": {
     "nx_edit_dimension": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_dimension": "844529cefa27a6cc21e56d535d8387df13250a1aae7fc242330b678c5fab4344"
+    "nx_edit_dimension": "0699669fe983d0a821907c2556dcdf4bdd180769ce82dc7c1d54a5ed06657812"
   },
-  "recorded": "2026-10-11T10:09:37Z",
+  "recorded": "2026-10-12T09:45:56Z",
   "passed": true,
-  "checks": 49,
+  "checks": 68,
   "failed_checks": 0,
   "steps": [
     {
@@ -112,28 +112,28 @@
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 9
     },
     {
       "index": 15,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 7
     },
     {
       "index": 16,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 17,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 18,
@@ -154,52 +154,80 @@
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 3
     },
     {
       "index": 21,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 3
     },
     {
       "index": 22,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 23,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 8
     },
     {
       "index": 24,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 25,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 26,
       "call": "nx_edit_dimension",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 27,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 28,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 30,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 31,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

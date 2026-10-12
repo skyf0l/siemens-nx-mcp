@@ -549,7 +549,9 @@ async def test_cleanup_closes_assemblies_before_their_components(tmp_path, monke
     before = [nx.parts[0]]
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        report = await runner.close_new_parts(session, before)
+        report = await runner.close_new_parts(
+            session, before, own_dir=tmp_path / "smoke", workspace=tmp_path
+        )
     assert not report["failed"], report["failed"]
     assert report["closed"] == ["smoke/top.prt", "smoke/sub.prt", "smoke/pin.prt"]
     assert [p["path"] for p in nx.parts] == ["C:/eng/bracket.prt"]
@@ -569,7 +571,9 @@ async def test_cleanup_reports_why_a_part_stays_loaded(tmp_path, monkeypatch):
     nx = AssemblyNX({"smoke/pin.prt": "smoke/top.prt"}, locked={"smoke/top.prt"})
     server = create_server(nx, Workspace(tmp_path), surface="agent")
     async with create_connected_server_and_client_session(server) as session:
-        report = await runner.close_new_parts(session, [nx.parts[0]])
+        report = await runner.close_new_parts(
+            session, [nx.parts[0]], own_dir=tmp_path / "smoke", workspace=tmp_path
+        )
     assert report["closed"] == []
     assert report["failed"] == [
         "could not close smoke/top.prt: NX_READ_ONLY: The part is locked (nx_code 3520018)",
@@ -596,14 +600,42 @@ async def test_cleanup_restores_only_the_runs_own_display_part(tmp_path, monkeyp
         assert report["closed"] == ["smoke/dev/new.prt"] and report["restored"] == [own["path"]]
         assert nx.calls[-1] == ("nx_activate_part", nx.calls[-1][1])
         assert nx.calls[-1][1]["part"] == own["part"]["id"]
-        # Another owner's directory: nothing is displayed again.
+        # Another owner's directory: its new part is never closed, nothing displayed again.
         nx.calls.clear()
         nx.parts.append(nx.row("smoke/dev/new.prt", display=True))
         report = await runner.close_new_parts(
             session, before, own_dir=tmp_path / "smoke" / "other", workspace=tmp_path
         )
-    assert report["not_restored"] == own["path"] and "restored" not in report
-    assert [c[0] for c in nx.calls] == ["nx_close_part"]
+    assert report["closed"] == [] and "restored" not in report
+    assert "nx_close_part" not in [c[0] for c in nx.calls]
+
+
+async def test_cleanup_never_closes_parts_loaded_outside_the_run_folder(tmp_path, monkeypatch):
+    # Another session's agent (or the engineer) loads parts in the same NX during a run.
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    nx = FakeNX()
+    nx.parts = [nx.row("C:/eng/bracket.prt")]
+    before = [dict(p) for p in nx.parts]
+    nx.parts += [
+        nx.row("smoke/run1/mine.prt"),
+        nx.row("cars/bugatti_chiron.prt"),
+        nx.row("smoke/other/theirs.prt"),
+    ]
+    server = create_server(nx, Workspace(tmp_path), surface="agent")
+    async with create_connected_server_and_client_session(server) as session:
+        report = await runner.close_new_parts(
+            session, before, own_dir=tmp_path / "smoke" / "run1", workspace=tmp_path
+        )
+        assert report["closed"] == ["smoke/run1/mine.prt"]
+        # Without the run's folder nothing is closed.
+        nx.parts.append(nx.row("smoke/run1/late.prt"))
+        assert (await runner.close_new_parts(session, before))["closed"] == []
+    assert [p["path"] for p in nx.parts] == [
+        "C:/eng/bracket.prt",
+        "cars/bugatti_chiron.prt",
+        "smoke/other/theirs.prt",
+        "smoke/run1/late.prt",
+    ]
 
 
 async def test_cleanup_reactivates_by_fresh_ids_and_skips_parts_the_steps_closed(

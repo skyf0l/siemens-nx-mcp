@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/mirror.json",
-  "scenario_sha256": "2005183026826e879dff4e5bf822c71b25db3cc00fa6aa7ec09469ac7dbdc71a",
+  "scenario_sha256": "d80af0ce799218ab2ccc9cc686a7fd3cd19a4a286893d7b34657ba219bff4a8a",
   "domain": "modeling",
   "covers": {
     "nx_create_mirror": [
@@ -11,11 +11,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_mirror": "4e4b06135ac992ecda5e47f1982741a9a9c80439b4bc0fcf283f53e7216bfa5b"
+    "nx_create_mirror": "8bee354d418b38925a8e7bac4e2fad5dd977d0cde9b47c99a059d7d518ae5b95"
   },
-  "recorded": "2026-10-11T08:10:20Z",
+  "recorded": "2026-10-12T09:54:31Z",
   "passed": true,
-  "checks": 17,
+  "checks": 20,
   "failed_checks": 0,
   "steps": [
     {
@@ -139,6 +139,13 @@
     },
     {
       "index": 18,
+      "call": "nx_create_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

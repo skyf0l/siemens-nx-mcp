@@ -10,6 +10,12 @@ committing a new section makes it active and switches view sectioning on;
 ``DeleteSections`` leaves sectioning on with no section left, so the deleter switches
 it off when no active section remains (``kit.display.delete_sections``). A failed
 create or edit puts the previous sections and sectioning state back itself.
+
+Sections are display state, not in the agent's undo history, yet NX's session-wide undo
+reverts them (live, 30 agents: a section vanished and an edit came back undone, with no
+error). Each create or edit remembers the state it left (``_remembered``); the next
+create, edit or listing in that part names a section that is gone or differs
+(``NX_NOTE``) instead of silently working on the reverted one.
 """
 
 from __future__ import annotations
@@ -19,7 +25,7 @@ import re
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import deleter, lister, tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import REF_PATTERN, Doc, Length, Name, Point3, RefTo, Text, Vec3
 from nx_mcp.domains.display.common import choice
@@ -113,6 +119,60 @@ def _section_of(tx, part, value):
         hint="Pass a section ref (sv:N) from details.sections",
         details={"sections": [tx.ref(s, "section_view") for s in (named or found)]},
     )
+
+
+def _remembered(tx, part) -> dict:
+    """``{section tag: state}`` this NX session's create and edit calls left in ``part``."""
+    services = getattr(tx, "services", None)
+    if services is None:  # a hook called outside the kernel: nothing remembered
+        return {}
+    store = services.__dict__.setdefault("_section_states", {})
+    return store.setdefault(services.part_key(part), {})
+
+
+def _remember(tx, part, section, state) -> None:
+    keep = {k: state[k] for k in ("origin", "normal", "cap")}
+    _remembered(tx, part)[int(section.Tag)] = {**keep, "name": str(getattr(section, "Name", ""))}
+
+
+def _note_reverts(tx, part, view) -> None:
+    """An ``NX_NOTE`` naming sections that are gone or changed since a call set them (an
+    undo or an engineer edit reverted them); forgets them, so it is said once."""
+    known = _remembered(tx, part)
+    if not known or view is None:
+        return
+    live = {int(s.Tag): s for s in display.sections(part)}
+    said = []
+    for tag, was in list(known.items()):
+        if tag not in live:
+            said.append(f"{was['name'] or tag} is gone")
+            del known[tag]
+            continue
+        try:
+            now = display.section_state(tx, part, view, live[tag])
+        except Exception:
+            continue
+        moved = not (
+            geom.dist(now["origin"], was["origin"]) <= geom.tol(now["origin"], was["origin"])
+            and geom.same_direction(geom.unit(now["normal"]), geom.unit(was["normal"]), 1e-6)
+        )
+        if moved or now["cap"] != was["cap"]:
+            said.append(
+                f"{was['name'] or tag} is at origin {_rounded(now['origin'])} normal "
+                f"{_rounded(now['normal'])} cap {now['cap']} (left at {_rounded(was['origin'])} "
+                f"normal {_rounded(was['normal'])} cap {was['cap']})"
+            )
+            known[tag] = {**known[tag], **{k: now[k] for k in ("origin", "normal", "cap")}}
+    if said:
+        tx.warn(
+            "NX_NOTE",
+            "Since an earlier call set them, section " + "; ".join(said) + ": an undo or an "
+            "engineer edit reverted them (sections are not in the agent's undo history)",
+        )
+
+
+def _rounded(values) -> list:
+    return [round(float(v), 6) for v in values]
 
 
 def _hidden_side(origin, normal) -> str:
@@ -215,6 +275,7 @@ def nx_create_section_view(
     origin, normal = _plane(plane, offset)
     with tx.checks():
         part, view = _context(tx)
+        _note_reverts(tx, part, view)
         current = view.ActiveDynamicSection
         if current is not None:
             fail(
@@ -233,6 +294,7 @@ def nx_create_section_view(
         _expect_plane(out, origin, normal)
         readback.expect(out["cap"] == cap, "cap", cap=out["cap"])
         readback.expect(out["active"] and out["sectioning"], "active", active=out["active"])
+    _remember(tx, part, section, out)
     tx.frame = "display_part_absolute"
     return out
 
@@ -261,6 +323,7 @@ def nx_edit_section_view(
         fail("NX_INVALID_ARGUMENT", "Give plane, offset, enabled or cap", field="/plane")
     with tx.checks():
         part, view = _context(tx)
+        _note_reverts(tx, part, view)
         target = _section_of(tx, part, section)
         moved = plane is not None or offset is not None
         origin = normal = None
@@ -282,6 +345,7 @@ def nx_edit_section_view(
             on = out["active"] and out["sectioning"]
             readback.expect(on == enabled, "enabled", active=out["active"],
                             sectioning=out["sectioning"])  # fmt: skip
+    _remember(tx, part, target, out)
     tx.frame = "display_part_absolute"
     return out
 
@@ -314,6 +378,9 @@ def list_sections(tx, owner, owner_kind):
         fail("NX_UNSUPPORTED_OPTION", "Section views are listed for the whole part",
              field="/owner")  # fmt: skip
     part = tx.part
+    if _remembered(tx, part):
+        with contextlib.suppress(NXError):  # a shown sheet: no view to compare through
+            _note_reverts(tx, part, _listing_view(tx, part)[0])
     found = display.sections(part)
     if not found:
         return []
@@ -333,3 +400,6 @@ def list_sections(tx, owner, owner_kind):
 def delete_sections(tx, objects):
     part = tx.part
     display.delete_sections(tx, part, display.model_view(tx, part), objects)
+    known = _remembered(tx, part)
+    for obj in objects:
+        known.pop(int(obj.Tag), None)

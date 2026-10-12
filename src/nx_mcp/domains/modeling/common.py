@@ -6,6 +6,7 @@ import math
 from typing import Literal, TypedDict
 
 from nx_mcp.core.errors import fail
+from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import builders, curve, geom, measure, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
@@ -122,6 +123,15 @@ def result_of(tx, feature, bodies=None) -> FeatureData:
         "bodies": body_rows(tx, bodies),
         "volume": volume,
     }
+
+
+def sound(tx, made, known=()) -> None:
+    """After a build: an invalid (self-intersecting) body fails and rolls back; bodies
+    spanning over 10 m get a warning (``kit.bodies``)."""
+    kbodies.expect_sound(tx, made, known=known)
+    note = kbodies.scale_note(tx, made)
+    if note:
+        tx.warn("NX_UPDATE_WARNING", note)
 
 
 def boolean_feature(tx, operation, target, tools):

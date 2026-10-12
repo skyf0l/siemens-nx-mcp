@@ -101,7 +101,11 @@ def test_an_engineers_part_the_agent_opens_again_stays_as_it_is(nx):
     nx.session.Parts.Display = nx.session.Parts.Work = eng
     again = call(nx, tools.nx_open_part, path="e/eng.prt")
     assert again.ok and again.data["already_loaded"] and again.data["display"], again
-    assert kept(nx, eng) and not notes(again)
+    assert kept(nx, eng) and notes(again) == [
+        "eng.prt is already loaded as the engineer's part: it stays as it is (no tab or "
+        'work part change). Read it with "part": "eng.prt"; to change it, save a copy of '
+        "your own"
+    ]
 
 
 def test_without_an_engineer_part_shown_the_tab_policy_is_as_before(nx):

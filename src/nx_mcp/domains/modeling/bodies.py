@@ -854,15 +854,18 @@ def nx_edit_faces(
     vector, mirror = direction, plane
     if pattern is not None:
         _pattern_check(pattern)
-    selected = select.faces(tx, faces, "/faces")
-    body = common.one_body(selected, "/faces")
-    a = dict(given)
-    a["vector"] = select.direction(tx, vector, "/direction") if vector is not None else None
-    a["other"] = select.one(tx, replacement, "face", field="/replacement") if replacement else None
-    if mirror is not None:
-        a["mirror"] = select.plane(tx, mirror, "/plane")[1:]
-    if action == "resize":
-        _resize_targets(tx, selected, diameter)
+    with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
+        selected = select.faces(tx, faces, "/faces")
+        body = common.one_body(selected, "/faces")
+        a = dict(given)
+        a["vector"] = select.direction(tx, vector, "/direction") if vector is not None else None
+        a["other"] = (
+            select.one(tx, replacement, "face", field="/replacement") if replacement else None
+        )
+        if mirror is not None:
+            a["mirror"] = select.plane(tx, mirror, "/plane")[1:]
+        if action == "resize":
+            _resize_targets(tx, selected, diameter)
     before = measure.volume(tx, body)
     count = len(body.GetFaces())
     with builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:

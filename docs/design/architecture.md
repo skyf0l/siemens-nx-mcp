@@ -206,12 +206,12 @@ start, and `dev_reload.py` prints the error. The checks:
 
 | Module | Responsibility |
 |---|---|
-| `errors.py` | Table of 22 categories and 70 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
+| `errors.py` | Table of 22 categories and 71 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `target.py` | Gate 3t (pure): the call keys (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), `part_from_text`, `agent_parts`, the two-parts note (`census`, `load_note`), `roots`, `resolve` and `refuse_other_part` (3.4) |
 | `switching.py` | Gate 4s: `enter(...)` returns the call's `Bound` (`check`, `defers`, `leave`), `repair`, `deferred`; drives `kit.switching.Switch` through `Services.switch` (3.4) |
 | `marks.py` | NX undo marks around a call: `watch` before a non-read call's mark, `settle` after it; load, close and engineer barriers (`barrier`, `close_barrier`, `engineer_change`), the reasons of dropped marks, `remove_entries`. Never raises (3.4) |
-| `busy.py` | Busy parts: `record` after a committed changing call, `facts`/`refuse` (`NX_PART_BUSY`), `note`, `loaded_at`, `component_reason`; table in `Services.part_activity()` (3.4) |
+| `busy.py` | Part ownership between callers: `record` after a committed changing call (the parts it worked in, the caller of the parts it loaded), `adopt` (agent parts after a host reload), `refuse_engineer` (`NX_ENGINEER_PART`), `refuse_close`/`refuse_activate` (`NX_PART_BUSY`), `loaded_at`, `component_reason`; table in `Services.part_activity()` (3.4) |
 | `parking.py` | Parked sketches: `park`/`unpark`/`parked`/`open_in`, table in `Services.parked_sketches()` (3.4) |
 | `tx.py` | `Tx`, the handler's only route to NX and to the services (3.2) |
 | `references.py` | short refs, kinds, anchors, invalidation |
@@ -611,9 +611,10 @@ queued for NX.
 ### 3.4 Several parts and parallel agents
 
 Several parts can be loaded in one NX session, and several agents can work in them at the
-same time through one bridge. Calls carry no caller identity: the unit is the part, never
-the agent. While at most one of the agent's parts is loaded, every call behaves as it did
-before this feature (solo behaviour unchanged). This section is the one place that
+same time through one bridge. Targeting knows no caller: the unit is the part, never the
+agent. Only closing, activating and saving a part ask who sends the call (the `caller`
+key, "Part ownership" below). While at most one of the agent's parts is loaded, every
+call behaves as it did before this feature (solo behaviour unchanged). This section is the one place that
 explains the feature; other sections point here.
 
 **Targeting: rule G (gate 3t, `core/target.py`).** `resolve` decides in this order:
@@ -891,31 +892,49 @@ another tab, so the engineer's model is never swapped out of its window.
   import's new part loaded by name is recorded; closing an assembly never unloads it
   (below).
 
-**Busy parts, closes and parked sketches (phase P4).**
+**Part ownership, closes and parked sketches.**
 
+- **Caller identity** (the `caller` call key, `core/target.check_caller`): the sidecar
+  adds `{"id", "shared"}` to every NX call and replaces any `caller` an agent passes.
+  `id` = the sidecar process (`sc-<8 hex>`), its MCP session (`.N`) and, when the MCP
+  client puts one in the request's `_meta` (`agentId`, `sessionId`, `clientSessionId`,
+  any namespace prefix), `:<that id>`. One agent per sidecar (the usual deployment): one
+  id per agent. Subagents of one client share its MCP server, so they share one id;
+  `shared` is true while that id ran calls at the same time within the last 120 s. A
+  call without the key (an older sidecar, a direct bridge client) has no identity.
 - **Busy table** (`core/busy.py`, `Services.part_activity()`): a committed call stamps
   the parts it worked in (`at`: its target, the parts its batch children changed, the
   part `nx_create_part`/`nx_open_part` made or reused, `tx.worked_in`, else the first
-  part it loaded; loads also stamp `loaded_at`). A `model` or `session` call, the new
-  part of `nx_create_part` and a part a call without target loaded also stamp
-  `changed_at`; `nx_save_part` stamps `saved_at`, and so does `nx_open_part` for a part
-  it loaded from its file (it matches the file); `file` calls (saves, exports) never
-  change a part. Reads and `view` effects (captures, cameras, highlights) stamp nothing.
-  The *stream* is the part the last changing or file call worked in.
-- **Close.** A part is busy while it holds unsaved changes from the last 300 s
-  (`BUSY_SECONDS`): `changed_at` within 300 s and after its last `saved_at`. While two or
-  more agent parts are loaded, `nx_close_part` of a busy part is refused (`NX_PART_BUSY`,
-  `details.last_call_part`, `details.last_change`; the hint says to save it first or
-  force) while the stream is another loaded part. A close of a saved part (benchmark
-  bench3p: 4 of 4 forced closes followed the agent's own save while another agent's call
-  came last), a close right after working in the part (the stream is that part) and a
-  run of closes need nothing; `force: true` closes anyway. `nx_save_part` never warns: a
-  save loses no one's work and ends the part's busy state (benchmark bench3t: 14 notes on
-  agents' saves of their own parts, keyed on the session-wide last call, all false).
-  Without identity, when agents call at the same time, an agent's
-  own close of an unsaved part right after another agent's call is refused too (save
-  first, or force), and a close right after the owner's own call passes. The protection
-  that stays: a part another call changed and nobody saved is never closed silently.
+  part it loaded; loads also stamp `loaded_at` and record the loading caller in
+  `owners`). A `model` or `session` call, the new part of `nx_create_part` and a part a
+  call without target loaded also stamp `changed_at`; `nx_save_part` stamps `saved_at`,
+  and so does `nx_open_part` for a part it loaded from its file; `file` calls (saves,
+  exports) never change a part. Reads and `view` effects stamp nothing. The agent parts
+  and their callers survive a host reload in the same NX process
+  (`.nx-mcp/part-owners.json`: tag, file and caller; `adopt` at the first call).
+- **Engineer parts** (not created or opened by an agent call, `Services.created`; a
+  part only granted on the panel is still the engineer's): `nx_close_part` and
+  `nx_activate_part` refuse them, `nx_save_part` refuses them unless granted
+  (`NX_ENGINEER_PART`, category `blocked`, `details.action`; no `force`, development mode
+  included: tooltest2 lost the stand-in engineer part `eng_desk2` to a `save: false`
+  close). `nx_open_part` of a loaded engineer part changes nothing (no tab, no work
+  part) and says so. Reads still read them.
+- **Another agent's part** (its owner's id and the caller's id both known and
+  different): `nx_close_part` and `nx_activate_part` refuse it without `force`
+  (`NX_PART_BUSY`, `details.reason: other_agent`, `details.owner`), saved or not; saving
+  it is allowed (it loses nothing); `nx_open_part` of it never shows it.
+- **No identity tells the callers apart** (same id, or either unknown): a close is
+  refused (`NX_PART_BUSY`, `reason: recent_change`) only when the caller's connection is
+  `shared`, the close discards changes (`save` false, the part modified), the part has
+  unsaved changes from the last 300 s (`BUSY_SECONDS`) and a call worked in it within
+  30 s (`RECENT_SECONDS`). The message names the part being closed and its last change;
+  the hint offers `force: true` or `save: true`. A solo connection (a sidecar per agent,
+  the acceptance runner) never meets this rule, and a close that saves never does. In a
+  shared connection an agent's own discarding close within 30 s of its own work is
+  refused too (one retry with `force`). tooltest2 (30 agents, one sidecar): the old rule
+  (keyed on the session-wide last call) refused 25 own closes and no foreign one; the
+  foreign close of `parts_files_2_a` (changed 17 s, worked in 0 s before) meets this
+  rule, own closes 2-56 s after own edits mostly do not.
 - **Kept marks.** `nx_close_part` closes with `CloseRetainUndoMarks` (`data.undo_marks:
   kept`), displayed or not; closing the active tab brings the most recently active
   remaining tab back (`data.displayed`). Only an NX without the call drops every mark
@@ -982,8 +1001,13 @@ The engineer-only and card-only counts are `engineer_busy` and `waiting_for_answ
   engineer's (two tab switches, 63-92 ms each once the tab exists).
 - Without an engineer part displayed, an import into a new part (`new_part_path`)
   still leaves the new part's tab active.
-- Two agents in one part share its history: undo, checkpoints and the busy rule see one
-  part, not two callers.
+- Two agents in one part share its history: undo and checkpoints see one part, not two
+  callers. Agents behind one shared sidecar have one caller id (`caller.shared`): only
+  the recent-change rule protects their parts from each other's closes.
+- `part-owners.json` is written after each committed changing call: an agent part
+  loaded by a host that never wrote it (older code), or loaded by `nx_dev_python` with no
+  changing call after it, is the engineer's after a host reload; tools then no longer
+  close, show or save it (the engineer, or a development snippet `services.own(part)`).
 - `uf.Assem.SetWorkPartQuietly` is undocumented; `NX_MCP_SWITCH=display` is the
   fallback.
 - A preview measures its own (the parent's) part only: in a mixed-part preview the

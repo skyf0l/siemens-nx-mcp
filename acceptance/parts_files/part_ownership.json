@@ -1,0 +1,34 @@
+{
+ "covers": {
+  "nx_close_part": [],
+  "nx_activate_part": [],
+  "nx_save_part": [],
+  "nx_open_part": []
+ },
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "engineer", "args": {"code": "import os\npath = r'$run\\own\\own_eng.prt'\nos.makedirs(os.path.dirname(path), exist_ok=True)\nb = session.Parts.FileNew()\nb.TemplateFileName = 'model-plain-1-mm-template.prt'\nb.Units = NXOpen.Part.Units.Millimeters\nb.NewFileName = path\nb.MakeDisplayedPart = False\nb.DisplayPartOption = NXOpen.DisplayPartOption.AllowAdditional\np = b.Commit()\nb.Destroy()\nresult = p.Leaf"}, "intent": "Acceptance: the engineer creates a part of their own (unsaved, in the background)", "expect": {"ok": true}},
+  {"call": "engineer", "args": {"code": "p = [x for x in session.Parts if str(x.Leaf).lower() == 'own_eng'][0]\nservices.owned_parts.pop(services.part_key(p), None)\nresult = services.owns(p)"}, "expect": {"ok": true}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run/own/own_eng"}, "intent": "Acceptance: the engineer's part is not the agent's", "expect": {"page.total": 1, "data.items.0.owned": false}},
+  {"call": "nx_close_part", "args": {"part": "own_eng", "save": false}, "intent": "Acceptance: an agent never closes the engineer's part (tooltest2: eng_desk2 was discarded this way)", "expect": {"ok": false, "error.code": "NX_ENGINEER_PART", "error.category": "blocked", "error.field": "/part", "mutation_outcome": "not_started", "error.message": {"matches": "^own_eng[.]prt is the engineer's part"}, "error.details.action": "close"}},
+  {"call": "nx_close_part", "args": {"part": "own_eng", "save": false, "force": true}, "intent": "Acceptance: force does not close the engineer's part either", "expect": {"ok": false, "error.code": "NX_ENGINEER_PART", "mutation_outcome": "not_started"}},
+  {"call": "nx_activate_part", "args": {"part": "own_eng", "display": true}, "intent": "Acceptance: an agent never activates the engineer's part; the hint says calls reach it by part", "expect": {"ok": false, "error.code": "NX_ENGINEER_PART", "error.details.action": "activate", "error.hint": {"contains": "\"part\": \"own_eng.prt\""}}},
+  {"call": "nx_save_part", "args": {"part": "own_eng"}, "intent": "Acceptance: an agent never saves the engineer's part unless they granted it", "expect": {"ok": false, "error.code": "NX_ENGINEER_PART", "error.details.action": "save", "error.hint": {"contains": "Allow agent to change"}}},
+  {"call": "nx_get_model_summary", "args": {"part": "own_eng"}, "intent": "Acceptance: read tools still read the engineer's part", "expect": {"ok": true, "part.file": "own_eng.prt"}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run/own/own_eng"}, "intent": "Acceptance: the engineer's part is still loaded and unsaved", "expect": {"page.total": 1, "data.items.0.owned": false}},
+  {"call": "nx_create_part", "setup": true, "save": "a", "args": {"path": "$run/own/own_a.prt", "units": "mm", "display": false}},
+  {"call": "nx_create_part", "setup": true, "save": "b", "args": {"path": "$run/own/own_b.prt", "units": "mm", "display": false}},
+  {"call": "nx_create_primitive", "args": {"part": "own_a", "shape": "block", "length": 20, "width": 20, "height": 20}, "expect": {"mutation_outcome": "committed", "part.file": "own_a.prt", "data.volume": {"close": 8000, "tol": 1e-06}}},
+  {"call": "nx_create_primitive", "args": {"part": "own_b", "shape": "block", "length": 10, "width": 10, "height": 10}, "expect": {"mutation_outcome": "committed", "part.file": "own_b.prt", "data.volume": {"close": 1000, "tol": 1e-06}}},
+  {"call": "nx_close_part", "args": {"part": "own_a", "save": false}, "intent": "Acceptance: the agent's own close of its unsaved part right after a call in another part closes without force (tooltest2: 25 of 25 NX_PART_BUSY were such false positives)", "expect": {"mutation_outcome": "committed", "data.closed_count": 1, "data.closed.0.name": {"matches": "(?i)^own_a$"}}},
+  {"call": "engineer", "args": {"code": "p = [x for x in session.Parts if str(x.Leaf).lower() == 'own_b'][0]\nservices.part_activity()['owners'][services.part_key(p)] = {'caller': 'sc-other.1'}\nresult = 'own_b now belongs to another MCP connection'"}, "intent": "Acceptance: own_b becomes another agent's part (as if another sidecar had created it)", "expect": {"ok": true}},
+  {"call": "nx_close_part", "args": {"part": "own_b", "save": false}, "intent": "Acceptance: another agent's part is not closed without force, and the refusal names that part", "expect": {"ok": false, "error.code": "NX_PART_BUSY", "error.category": "blocked", "mutation_outcome": "not_started", "error.message": {"matches": "^own_b[.]prt belongs to another agent: another MCP connection [(]sc-other[.]1[)] loaded it$"}, "error.details.reason": "other_agent", "error.details.owner": "sc-other.1", "error.details.part": "own_b.prt", "error.hint": {"contains": "force: true"}}},
+  {"call": "nx_activate_part", "args": {"part": "own_b"}, "intent": "Acceptance: nor activated without force", "expect": {"ok": false, "error.code": "NX_PART_BUSY", "error.details.action": "activate"}},
+  {"call": "nx_save_part", "args": {"part": "own_b"}, "intent": "Acceptance: saving another agent's part loses no one's work and is not refused", "expect": {"mutation_outcome": "committed", "data.path": {"matches": "own_b[.]prt$"}}},
+  {"call": "nx_open_part", "args": {"path": "$run/own/own_b.prt", "display": true}, "intent": "Acceptance: opening the file of another agent's loaded part never shows it", "expect": {"mutation_outcome": "committed", "data.already_loaded": true, "data.display": false, "warnings": {"contains": {"code": "NX_NOTE"}}}},
+  {"call": "nx_close_part", "args": {"part": "own_b", "save": false, "force": true}, "intent": "Acceptance: force closes another agent's part", "expect": {"mutation_outcome": "committed", "data.closed_count": 1}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run/own/"}, "intent": "Acceptance: only the engineer's part is left", "expect": {"page.total": 1, "data.items.0.owned": false}},
+  {"call": "engineer", "setup": true, "args": {"code": "p = [x for x in session.Parts if str(x.Leaf).lower() == 'own_eng'][0]\np.CloseRetainUndoMarks(NXOpen.BasePart.CloseWholeTree.FalseValue, NXOpen.BasePart.CloseModified.CloseModified, None)\nresult = 'closed'"}}
+ ]
+}

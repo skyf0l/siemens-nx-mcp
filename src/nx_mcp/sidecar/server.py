@@ -34,7 +34,7 @@ from nx_mcp.core.catalogue import CatalogueError
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.types import RefKind
 from nx_mcp.core.validate import unwrap
-from nx_mcp.sidecar import artifacts, gateways, schema
+from nx_mcp.sidecar import artifacts, gateways, proxy, schema
 from nx_mcp.sidecar.proxy import CatalogueProxy, failure, result
 
 logger = logging.getLogger("nx_mcp")
@@ -198,6 +198,21 @@ class Surface:
         }
 
     async def call_tool(self, name, arguments) -> CallToolResult:
+        token = proxy.CALLER.set(self.caller())  # who sends it (core/busy.py)
+        try:
+            return await self._call_tool(name, arguments)
+        finally:
+            proxy.CALLER.reset(token)
+
+    def caller(self) -> str:
+        """The caller id of the MCP request being handled (``proxy.caller_id``)."""
+        try:
+            context = self.mcp._mcp_server.request_context
+        except LookupError:  # called outside an MCP request (tests, the runner's direct use)
+            return proxy.PROCESS_ID
+        return proxy.caller_id(context)
+
+    async def _call_tool(self, name, arguments) -> CallToolResult:
         arguments = arguments if isinstance(arguments, dict) else {}
         if self.proxy.connected_key() != self.proxy._key:
             await self.proxy.refresh()  # NX (re)connected: its build and session state

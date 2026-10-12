@@ -129,8 +129,8 @@ def test_hole_positions_must_be_inside_the_face_and_on_its_plane():
     nx, block, top, _ = hole_nx()
     above = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 21]], form="simple",
                 diameter=6, depth={"type": "distance", "value": 10})  # fmt: skip
-    # Checking a position needs the face: the call touched NX and reports rolled_back.
-    assert above.error["field"] == "/positions/0" and above.mutation_outcome == "rolled_back"
+    # Checking a position reads the face but changes nothing: not_started (tx.checks).
+    assert above.error["field"] == "/positions/0" and above.mutation_outcome == "not_started"
     assert above.changes["references"] == "preserved" and nx.builders == []
     top.contains = lambda p: 2
     outside = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 20]], form="simple",

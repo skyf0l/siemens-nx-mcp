@@ -311,6 +311,19 @@ def test_revolve_profile_across_the_axis_is_a_clear_argument_error():
     assert nx.live_builders == 0
 
 
+def test_revolve_combine_that_misses_its_targets_says_so():
+    """Live: NX 2406 refuses a subtract revolve that misses the target with 671623, the
+    code of a profile across the axis; the profile was on one side."""
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    sk = nx.sketch()
+    nx.refuse("RevolveBuilder", code=671623, message="Unable to create revolved body")
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "z"},
+              combine={"operation": "subtract", "targets": [block.ref]})  # fmt: skip
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671623
+    assert bad.error["field"] == "/combine/targets" and "misses" in bad.error["message"]
+
+
 def _square(nx, corners):
     """Sketch lines around ``corners``, evaluable through a minimal ``uf.Eval``."""
     lines = {}
@@ -375,3 +388,19 @@ def test_a_missed_limit_face_says_the_profile_misses_the_target():
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671473
     assert "misses the target body" in bad.error["message"] and "direction" in bad.error["hint"]
     assert bad.mutation_outcome == "rolled_back"
+
+
+def test_sweep_that_builds_a_self_intersecting_body_rolls_back():
+    """Live: section and guide swapped gave ok with a self-intersecting body."""
+    nx = modeling_nx()
+    section, guide = nx.sketch(), nx.sketch()
+
+    def bad_body(b):
+        made = extruded(nx, [0, 0, 0, 1, 1, 40])(b)
+        nx.faults[int(made.bodies[0].Tag)] = 1
+        return made
+
+    nx.on_commit("SweptBuilder", bad_body)
+    bad = run(nx, "nx_create_sweep", section=guide.ref, guide=section.ref)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
+    assert bad.error["details"]["check"] == "body_health"

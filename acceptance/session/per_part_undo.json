@@ -1,0 +1,32 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "args": {"path": "$run/ppu/ppu_a.prt", "units": "mm", "display": false}, "setup": true, "save": "a"},
+  {"call": "nx_create_part", "args": {"path": "$run/ppu/ppu_b.prt", "units": "mm", "display": false}, "setup": true, "save": "b"},
+  {"call": "nx_create_primitive", "args": {"part": "ppu_a", "shape": "block", "length": 40, "width": 20, "height": 10}, "save": "a1", "expect": {"mutation_outcome": "committed", "data.volume": {"close": 8000, "tol": 1e-06}, "part.file": "ppu_a.prt"}},
+  {"call": "nx_create_checkpoint", "args": {"part": "ppu_a", "label": "ppu a start"}, "save": "cpa", "expect": {"mutation_outcome": "committed", "data.undo_depth": 1}},
+  {"call": "nx_create_primitive", "args": {"part": "ppu_a", "shape": "block", "length": 10, "width": 10, "height": 10, "origin": [60, 0, 0]}, "save": "a2", "expect": {"mutation_outcome": "committed", "data.volume": {"close": 1000, "tol": 1e-06}}},
+  {"call": "nx_create_part", "args": {"path": "$run/ppu/ppu_c.prt", "units": "mm", "display": false}, "save": "c", "intent": "Acceptance: another part is loaded after A's work (a barrier NX's undo never crosses)", "expect": {"mutation_outcome": "committed", "data.display": false}},
+  {"call": "nx_close_part", "args": {"part": "$c.data.part.id", "save": false, "force": true}, "intent": "Acceptance: and closed again, keeping NX's undo marks", "expect": {"mutation_outcome": "committed", "data.undo_marks": "kept"}},
+  {"call": "nx_list_checkpoints", "args": {"part": "ppu_a"}, "intent": "Acceptance: per part: another part's load and close end neither A's history nor its checkpoint", "expect": {"data.checkpoints": {"contains": {"label": "ppu a start", "available": true, "expired_reason": null, "operations_after": 1, "compensated": true}}, "data.undo_depth": 2, "data.last_operation": "$a2.operation_id"}},
+  {"call": "nx_undo_operation", "args": {"part": "ppu_a"}, "intent": "Acceptance: A's last block is undone across C's load and close (by deletion: NX's undo would load C again)", "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.undone": ["$a2.operation_id"], "warnings": {"contains": {"code": "NX_UPDATE_WARNING"}}, "changes.deleted": {"count_kind": {"feature": 1, "body": 1}}}},
+  {"call": "nx_list_objects", "args": {"part": "ppu_a", "kind": "body"}, "expect": {"data.items": {"count": 1}}},
+  {"call": "nx_redo_operation", "args": {"part": "ppu_a"}, "expect": {"mutation_outcome": "committed", "data.redone": ["$a2.operation_id"], "part.file": "ppu_a.prt"}},
+  {"call": "nx_list_objects", "args": {"part": "ppu_a", "kind": "body"}, "expect": {"data.items": {"count": 2}}},
+  {"call": "nx_create_primitive", "args": {"part": "ppu_b", "shape": "block", "length": 30, "width": 30, "height": 5}, "save": "b1", "expect": {"mutation_outcome": "committed", "data.volume": {"close": 4500, "tol": 1e-06}}},
+  {"call": "nx_save_part", "args": {"part": "ppu_b"}, "intent": "Acceptance: B is saved: NX drops every undo mark of the session", "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_list_checkpoints", "args": {"part": "ppu_a"}, "intent": "Acceptance: another part's save does not expire A's checkpoint; a restore now compensates", "expect": {"data.checkpoints": {"contains": {"label": "ppu a start", "available": true, "operations_after": 1, "compensated": true}}, "data.undo_depth": 2}},
+  {"call": "nx_restore_checkpoint", "args": {"checkpoint_id": "$cpa.data.checkpoint_id"}, "intent": "Acceptance: A goes back to its checkpoint by deleting the redone block; B untouched", "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.reverted": ["$a2.operation_id"], "part.file": "ppu_a.prt"}},
+  {"call": "nx_list_objects", "args": {"part": "ppu_a", "kind": "body"}, "save": "abodies", "expect": {"data.items": {"count": 1}}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$abodies.data.items.0.id"]}, "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}},
+  {"call": "nx_list_objects", "args": {"part": "ppu_b", "kind": "body"}, "expect": {"data.items": {"count": 1}}},
+  {"call": "nx_undo_operation", "args": {"part": "ppu_b"}, "intent": "Acceptance: B's own save ends B's history", "expect": {"ok": false, "error.code": "NX_NOT_FOUND", "error.details.reason": "saved_or_closed", "mutation_outcome": "not_started"}},
+  {"call": "nx_undo_operation", "args": {"part": "ppu_b", "mode": "compensate"}, "intent": "Acceptance: mode compensate reaches over the part's own save", "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.undone": ["$b1.operation_id"]}},
+  {"call": "nx_list_objects", "args": {"part": "ppu_b", "kind": "body"}, "expect": {"data.items": {"count": 0}}},
+  {"call": "nx_save_part", "args": {"part": "ppu_a"}, "setup": true},
+  {"call": "nx_list_checkpoints", "args": {"part": "ppu_a"}, "intent": "Acceptance: A's own save expires A's checkpoint", "expect": {"data.checkpoints": {"contains": {"label": "ppu a start", "available": false, "expired_reason": "saved_or_closed"}}}},
+  {"call": "nx_restore_checkpoint", "args": {"checkpoint_id": "$cpa.data.checkpoint_id"}, "expect": {"ok": false, "error.code": "NX_STALE_CHECKPOINT", "mutation_outcome": "not_started"}}
+ ]
+}

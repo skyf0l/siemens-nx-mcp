@@ -22,6 +22,7 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, CurveRef, Doc, FaceRef, Items, Length, Point3, Vec3
 from nx_mcp.domains.freeform import common
+from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import builders, curve, geom, measure, readback, select, units
 
 # ---------------------------------------------------------------------------
@@ -196,6 +197,7 @@ def nx_create_thicken(
         fail("NX_INVALID_ARGUMENT", "The thickness must not be zero", field=field)
     with tx.checks():
         selected = select.faces(tx, faces, "/faces")
+        of_solid = sum(hasattr(f, "GetBody") and not common.is_sheet(f.GetBody()) for f in selected)
     part = tx.part
     with builders.build(tx, part.Features.CreateThickenBuilder, None) as b:
         builders.fill(tx, b.FaceCollector, selected, "Face")
@@ -206,6 +208,13 @@ def nx_create_thicken(
     out = common.result_of(tx, feature)
     bodies = [b for b in common.feature_bodies(feature) if not common.is_sheet(b)]
     readback.expect(bool(bodies), "solid", "NX built no solid")
+    kbodies.expect_sound(tx, bodies)
+    note = kbodies.scale_note(tx, bodies)
+    if note:
+        tx.warn("NX_UPDATE_WARNING", note)
+    if of_solid:
+        tx.warn("NX_NOTE", f"{of_solid} face(s) belong to a solid: the thickened solid is a "
+                "new body and the source solid is unchanged")  # fmt: skip
     volume = measure.volume(tx, bodies)
     readback.expect(volume > 0, "volume", "The thickened solid has no volume", volume=volume)
     if len(selected) == 1 and select.face_data(tx, selected[0])[0] == select.FACE_PLANE:

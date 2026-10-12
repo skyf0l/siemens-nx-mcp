@@ -5,6 +5,9 @@
     bodies.scope(tx, "auto")           # work-part bodies (+ occurrences when an assembly)
     bodies.occurrences(component)      # [] when it or a parent is suppressed or unloaded
     bodies.solids(found, field)        # NX_WRONG_GEOMETRY for a sheet body
+    bodies.faulty(tx, found)           # tags UF body consistency faults (self-intersecting)
+    bodies.expect_sound(tx, made, known=...)  # after a build: consistency faults fail
+    bodies.scale_note(tx, made)        # warning text when the bodies span over 10 m
 
 Occurrence bodies come from ``component.FindOccurrence(prototype_body)``, so
 suppressed components, unloaded prototypes and reference sets are honoured the way
@@ -14,8 +17,11 @@ runs between components (long assembly walks stay cancellable).
 
 from __future__ import annotations
 
+import contextlib
+from typing import Any
+
 from nx_mcp.core.errors import fail
-from nx_mcp.kit import parts
+from nx_mcp.kit import measure, parts, units
 
 SCOPES = ("auto", "part", "assembly")
 
@@ -118,3 +124,73 @@ def require(found, field=None):
             field=field,
         )
     return found
+
+
+# A built body spanning more than this (10 m) gets a scale warning: a value in the wrong
+# units or a typo (a tube diameter 1e5) builds a valid but absurd body.
+SCALE_LIMIT_MM = 10_000.0
+SOUND_HINT = (
+    "NX built a self-intersecting or invalid body. Check the inputs: section and guide "
+    "swapped, a section larger than the path's bend radius, or an extreme size"
+)
+
+
+def _consistency(tx, body) -> tuple[int, list]:
+    """``(fault count, [{code, message}])`` from UF ``AskBodyConsistency``; ``(0, [])``
+    when UF cannot tell (no UF, or it raises)."""
+    check = getattr(getattr(tx.uf, "Modeling", None), "AskBodyConsistency", None)
+    if check is None:
+        return 0, []
+    try:
+        count, codes, _tags = check(body.Tag)
+    except Exception:
+        return 0, []
+    faults: list[dict[str, Any]] = []
+    for code in list(codes or [])[:5]:
+        fault: dict[str, Any] = {"code": int(code)}
+        with contextlib.suppress(Exception):
+            fault["message"] = str(tx.nx.NXException(int(code)).GetMessage())
+        faults.append(fault)
+    return int(count or 0), faults
+
+
+def faulty(tx, found) -> set[int]:
+    """Tags of the bodies in ``found`` UF finds inconsistent (before a change: a body that
+    was already faulty does not fail the call)."""
+    return {int(b.Tag) for b in found if _consistency(tx, b)[0]}
+
+
+def expect_sound(tx, made, *, known=(), check="body_health") -> None:
+    """After a build: ``NX_BUILD_FAILED`` (the kernel rolls back) when a body in ``made``
+    has UF consistency faults (self-intersection, bad topology) it did not have before
+    (``known``: tags from :func:`faulty`)."""
+    skip = {int(t) for t in known}
+    for body in made:
+        if int(body.Tag) in skip:
+            continue
+        count, faults = _consistency(tx, body)
+        if count:  # no body ref in details: the rollback retires it
+            fail(
+                "NX_BUILD_FAILED",
+                f"NX built an invalid body ({count} consistency fault(s), e.g. "
+                "self-intersecting faces); it was rolled back",
+                hint=SOUND_HINT,
+                details={"check": check, "faults": faults},
+            )
+
+
+def scale_note(tx, made) -> str | None:
+    """A warning text when ``made`` spans more than 10 m (a value in the wrong units or a
+    typo), else None."""
+    if not made:
+        return None
+    try:
+        low, high = measure.bounds(tx, list(made))
+        span = max(h - lo for lo, h in zip(low, high, strict=True))
+        unit = units.part_units(tx)
+    except Exception:
+        return None
+    limit = SCALE_LIMIT_MM / units.MM_PER[unit]
+    if span <= limit:
+        return None
+    return f"The result spans {span:.6g} {unit} (over 10 m): check the values and units"

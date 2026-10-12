@@ -228,6 +228,7 @@ async def test_invoke_forwards_validated_arguments_with_intent_and_operation_id(
     assert method == "nx_create_datum_plane"
     expires = params.pop("expires_at")  # the ghost guard's start deadline (bridge.py)
     assert abs(expires - (time.time() + QUEUE_TIMEOUT)) < 5
+    assert params.pop("caller")["id"].startswith("sc-")  # who sends it (core/busy.py)
     assert params == {**OFFSET, "operation_id": "op_retry", "intent": "Add the mounting plane"}
     assert json.loads(result.content[0].text) == body(result)
 

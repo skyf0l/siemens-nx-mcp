@@ -20,7 +20,10 @@ def test_viewport_capture_reports_the_window_size_and_an_inline_image():
     ok = run(nx, "nx_capture_view")
     assert ok.ok and ok.mutation_outcome == "not_applicable"  # a view-only action
     data = ok.data
-    assert data["requested"] == [1024, 768] and data["resolution"] == list(WINDOW)
+    # No width/height: the window's size, and no requested size to mistake for it (live:
+    # a schema default 1024x768 next to a 1106x1794 image read as a failed request).
+    assert "requested" not in data and data["resolution"] == list(WINDOW)
+    assert not ok.warnings
     assert data["path"].startswith("captures/view-") and data["path"].endswith(".png")
     file = root(nx) / data["path"]
     assert files.png_size(file) == WINDOW and data["sha256"] == files.sha256(file)

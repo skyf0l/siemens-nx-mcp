@@ -1,9 +1,12 @@
 """Batch and preview children across parts (kernel.run_child, domains/session/batch.py).
 
 Each child resolves its own target: its refs, a ``part`` call key in its arguments, else
-the batch's part. A child in another part is made current for its step (gate 4s, quiet
-work part) and the batch's part comes back after it; one undo mark rolls back every part
-(NX's undo is session-wide: tests/kit/objects.Session restores every part).
+the batch's part. Under a batch that names its ``part``, a child without a ``part`` of
+its own is checked against the batch's part like a top-level call (refs of another part:
+``NX_WRONG_PART_CONTEXT``); with its own ``part`` it acts there. A child in another part
+is made current for its step (gate 4s, quiet work part) and the batch's part comes back
+after it; one undo mark rolls back every part (NX's undo is session-wide:
+tests/kit/objects.Session restores every part).
 """
 
 from __future__ import annotations
@@ -107,11 +110,13 @@ def datum(part=None):
     return {"tool": "nx_create_test_datum", "arguments": {"part": part} if part else {}}
 
 
-def test_children_act_in_the_parts_their_refs_name_and_the_batch_part_comes_back():
+def test_children_act_in_the_parts_they_name_and_the_batch_part_comes_back():
     nx, a, b, c = three()
     fa, fb, fc = _feature(nx, a, "A1"), _feature(nx, b, "B1"), _feature(nx, c, "C1")
     marks = len(nx.session.marks)
-    ok = run(nx, "nx_run_batch", part="b", operations=[rename(fb), rename(fc), datum()])
+    ok = run(
+        nx, "nx_run_batch", part="b", operations=[rename(fb), rename(fc, part="c"), datum()]
+    )  # fmt: skip
     assert ok.ok, ok
     assert (fa.Name, fb.Name, fc.Name) == ("A1", "EDITED", "EDITED")
     assert [f.Name for f in b.Features] == ["EDITED", "DATUM(2)"]  # step 2 inherits b.prt
@@ -130,7 +135,7 @@ def test_a_failing_child_rolls_back_every_part_under_the_one_mark():
     fb, fc = _feature(nx, b, "B1"), _feature(nx, c, "C1")
     bad = run(
         nx, "nx_run_batch", part="b",
-        operations=[datum(), rename(fc), rename(fb, fail_after=True)],
+        operations=[datum(), rename(fc, part="c"), rename(fb, fail_after=True)],
     )  # fmt: skip
     assert not bad.ok and bad.mutation_outcome == "rolled_back", bad
     assert bad.error["details"]["child_index"] == 2
@@ -141,7 +146,8 @@ def test_a_failing_child_rolls_back_every_part_under_the_one_mark():
 def test_a_child_in_another_part_failing_rolls_back_the_batch_part_too():
     nx, a, b, c = three()
     fb, fc = _feature(nx, b, "B1"), _feature(nx, c, "C1")
-    bad = run(nx, "nx_run_batch", part="b", operations=[rename(fb), rename(fc, fail_after=True)])
+    steps = [rename(fb), rename(fc, part="c", fail_after=True)]
+    bad = run(nx, "nx_run_batch", part="b", operations=steps)
     assert not bad.ok and bad.mutation_outcome == "rolled_back", bad
     assert (fb.Name, fc.Name) == ("B1", "C1") and shown(nx) == ("work", "work")
 
@@ -173,9 +179,41 @@ def test_without_part_the_batch_takes_the_one_part_its_steps_name():
     assert mixed.error["code"] == "NX_AMBIGUOUS_PART", mixed  # two parts: say which
     refless = run(nx, "nx_run_batch", operations=[rename(fb), datum()])
     assert refless.error["code"] == "NX_AMBIGUOUS_PART", refless
-    given = run(nx, "nx_run_batch", part="a", operations=[rename(fb), rename(fc)])
-    assert given.ok and given.part["file"] == "a.prt", given  # part wins, steps go home
+    given = run(nx, "nx_run_batch", part="a", operations=[rename(fb, part="b"),
+                                                            rename(fc, part="c")])  # fmt: skip
+    assert given.ok and given.part["file"] == "a.prt", given  # each step names its part
     assert fb.Name == fc.Name == "EDITED" and shown(nx) == ("work", "work")
+
+
+def test_under_the_batch_part_a_step_with_refs_of_another_part_is_refused():
+    """The part-vs-refs gate runs on every child (bench: a batch with part session_3_b
+    renamed a body of session_3_a)."""
+    nx, a, b, c = three()
+    fa, fb = _feature(nx, a, "A1"), _feature(nx, b, "B1")
+    del c.Features[:]
+    for tool in ("nx_run_batch", "nx_preview_changes"):
+        refused = run(nx, tool, part="b", operations=[datum(), rename(fa)])
+        assert refused.error["code"] == "NX_WRONG_PART_CONTEXT", refused
+        error = refused.error
+        assert error["field"] == "/operations/1/arguments/feature", error
+        assert "acts in b.prt (its part)" in error["message"] and "a.prt" in error["message"]
+        assert '"part": "a.prt"' in error["hint"] and error["details"]["child_index"] == 1
+        assert refused.mutation_outcome == "rolled_back"
+        assert (fa.Name, fb.Name, len(b.Features)) == ("A1", "B1", 1)
+    for tool in ("nx_run_batch", "nx_preview_changes"):  # refused first: nothing ran
+        first = run(nx, tool, part="b", operations=[rename(fa), datum()])
+        assert first.error["code"] == "NX_WRONG_PART_CONTEXT", first
+        assert first.mutation_outcome == "not_started" and len(b.Features) == 1, first
+    direct = run(nx, "nx_edit_test_feature", part="b", feature=fa.ref)  # the same rule
+    assert direct.error["code"] == "NX_WRONG_PART_CONTEXT"
+    ok = run(nx, "nx_run_batch", part="b", operations=[rename(fb), rename(fa, part="a")])
+    assert ok.ok and fa.Name == fb.Name == "EDITED", ok
+    # a ref an earlier step returned follows that step's part (it passed the gate there)
+    chained = [datum(part="c"), {"tool": "nx_edit_test_feature",
+                                 "arguments": {"feature": "$0.data.feature"}}]  # fmt: skip
+    ok = run(nx, "nx_run_batch", part="b", operations=chained)
+    assert ok.ok and [f.Name for f in c.Features] == ["EDITED"], ok
+    assert ok.data["results"][1]["part"]["file"] == "c.prt"
 
 
 def test_solo_batches_behave_as_before():
@@ -189,7 +227,8 @@ def test_solo_batches_behave_as_before():
 def test_preview_children_in_another_part_are_previewed_and_rolled_back():
     nx, a, b, c = three()
     fb, fc = _feature(nx, b, "B1"), _feature(nx, c, "C1")
-    seen = run(nx, "nx_preview_changes", part="b", operations=[rename(fb), rename(fc)])
+    steps = [rename(fb), rename(fc, part="c")]
+    seen = run(nx, "nx_preview_changes", part="b", operations=steps)
     assert seen.ok and seen.mutation_outcome == "previewed", seen
     assert (fb.Name, fc.Name) == ("B1", "C1") and shown(nx) == ("work", "work")
     assert seen.data["results"][1]["part"]["file"] == "c.prt"

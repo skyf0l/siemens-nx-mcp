@@ -52,8 +52,10 @@ MAX_INSTANCES = 1000
 
 def _plane(tx, value, field):
     """``(datum plane, origin, unit normal)``: a datum plane ref is used as is (associative);
-    a face, principal or explicit plane becomes a fixed datum plane."""
-    obj, origin, normal = select.plane(tx, value, field)
+    a face, principal or explicit plane becomes a fixed datum plane. A bad plane is refused
+    before anything is built (not_started)."""
+    with tx.checks():
+        obj, origin, normal = select.plane(tx, value, field)
     if obj is not None and hasattr(obj, "Normal"):
         return obj, origin, normal
     return builders.fixed_plane(tx, origin, normal), origin, normal
@@ -184,7 +186,8 @@ def _mirror_summary(a, say):
 
 
 def _mirror_bodies(tx, refs, plane, keep_original):
-    sources = common.solids(tx, refs)
+    with tx.checks():
+        sources = common.solids(tx, refs)
     datum, origin, normal = _plane(tx, plane, "/plane")
     masses = [measure.mass(tx, [b]) for b in sources]
     with builders.build(tx, tx.part.Features.CreateMirrorBodyBuilder, None) as b:
@@ -438,8 +441,9 @@ def _check(layout, p):
                 "A second direction needs direction2, count2 and spacing2",
                 field=where,
             )
-        if p["spacing"] == 0 or (all(second) and p["spacing2"] == 0):
-            fail("NX_INVALID_ARGUMENT", "Spacing must not be zero", field=where + "/spacing")
+        for key in ("spacing", "spacing2") if all(second) else ("spacing",):
+            if p[key] == 0:
+                fail("NX_INVALID_ARGUMENT", f"{key} must not be zero", field=f"{where}/{key}")
         total = p["count"] * (p.get("count2") or 1)
     elif layout == "circular":
         if p["angle"] <= 0 or (p["count"] - 1) * p["angle"] > 360.0 - 1e-9:

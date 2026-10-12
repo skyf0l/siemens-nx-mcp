@@ -153,6 +153,10 @@ def test_report_argument_rules_change_nothing(monkeypatch):
     )  # fmt: skip
     assert zero.error["field"] == "/section_planes/0/normal"
     assert not (root / "x.zip").exists() and not (root / "y.zip").exists()
+    one = nx.block(1, 1, 1)  # live: one body was reported rolled_back
+    single = run(nx, "nx_export_inspection_report", path=str(root / "z.zip"),
+                 objects=[one.ref, one.ref])  # fmt: skip
+    assert single.error["field"] == "/objects" and single.mutation_outcome == "not_started"
 
 
 def test_report_without_capture(monkeypatch):

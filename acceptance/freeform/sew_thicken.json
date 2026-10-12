@@ -1337,6 +1337,40 @@
    }
   },
   {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "gt",
+   "args": {
+    "limit": 1,
+    "owner": "$g.data.bodies.0.id",
+    "kind": "face",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_thicken",
+   "args": {
+    "faces": [
+     "$gt.data.items.0.id"
+    ],
+    "thickness": 20000
+   },
+   "intent": "Acceptance: a 20 m thicken is built with a scale warning (live: 1e5 accepted silently)",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bounds.max.2": {
+     "close": 20000,
+     "tol": 0.01
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_UPDATE_WARNING"
+     }
+    }
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

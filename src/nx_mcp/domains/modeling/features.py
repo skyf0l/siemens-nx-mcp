@@ -24,6 +24,7 @@ from nx_mcp.core.types import (
     SketchRef,
 )
 from nx_mcp.domains.modeling import common
+from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import builders, curve, expr, geom, measure, readback, select, units
 from nx_mcp.kit import sketch as ksketch
 
@@ -179,7 +180,7 @@ def nx_create_extrude(
     origin = geom.xyz(sk.Origin)
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
-    tags = common.body_tags(tx)
+    tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     try:
         with builders.build(tx, tx.part.Features.CreateExtrudeBuilder, None) as b:
             b.Section = builders.section(tx, sk)
@@ -192,6 +193,7 @@ def nx_create_extrude(
         if error.nx_code == LIMIT_FACE_MISSED:
             _limit_missed(error, "through_all" in (start_limit["type"], end_limit["type"]))
         raise
+    common.sound(tx, common.feature_bodies(feature), known)
     if combine is not None:
         return cast(ExtrudeData, common.combined(tx, feature, combine, targets, before, tags))
     out = cast(ExtrudeData, common.result_of(tx, feature))
@@ -260,6 +262,19 @@ def _crosses(nx_code=None, nx_message=None):
     )
 
 
+def _missed(error, combine) -> NoReturn:
+    fail(
+        "NX_BUILD_FAILED",
+        f"NX refused the {combine['operation']} revolve ({error.message}), but the profile "
+        "stays on one side of the axis: the revolved body most likely misses the combine "
+        "targets",
+        field="/combine/targets",
+        hint="Make the revolved region overlap the targets, or revolve without combine and "
+        "use nx_create_boolean",
+        nx_code=error.nx_code,
+    )
+
+
 @tool(
     effect="model",
     label="Revolve sketch",
@@ -295,7 +310,7 @@ def nx_create_revolve(
             _crosses()
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
-    tags = common.body_tags(tx)
+    tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     try:
         with builders.build(tx, tx.part.Features.CreateRevolveBuilder, None) as b:
             b.Section = builders.section(tx, sk)
@@ -307,7 +322,10 @@ def nx_create_revolve(
     except NXError as error:
         if error.nx_code != REVOLVE_CROSSES_AXIS:
             raise
+        if combine is not None:  # NX 2406 says "crosses" for a revolve that misses targets too
+            _missed(error, combine)
         _crosses(error.nx_code, error.message)  # a crossing the samples missed
+    common.sound(tx, common.feature_bodies(feature), known)
     if combine is not None:
         return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)
@@ -358,6 +376,7 @@ def nx_create_sweep(
         raise
     swept = common.feature_bodies(feature)
     readback.expect(bool(swept), "bodies", "The sweep built no body")
+    common.sound(tx, swept)  # swapped section and guide self-intersect
     if combine is None:
         out = common.result_of(tx, feature)
         common.changed(0.0, out["volume"], "positive")

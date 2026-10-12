@@ -450,17 +450,18 @@ def nx_export_inspection_report(
     clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
-    found, pairs, sheets = _groups(tx, objects)
-    checks = analyze(
-        tx,
-        found,
-        pairs,
-        clearance=clearance,
-        max_pairs=max_pairs,
-        include_clear=False,
-        include_contact=True,
-        sheets=sheets,
-    )
+    with tx.checks():  # lookups, refusals and measurements: no file yet (not_started)
+        found, pairs, sheets = _groups(tx, objects)
+        checks = analyze(
+            tx,
+            found,
+            pairs,
+            clearance=clearance,
+            max_pairs=max_pairs,
+            include_clear=False,
+            include_contact=True,
+            sheets=sheets,
+        )
     units = tx.units.get("length") or "mm"
     report: dict[str, Any] = {
         "format": "nx-mcp-inspection",

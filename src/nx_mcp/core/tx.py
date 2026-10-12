@@ -214,8 +214,9 @@ class Services:
         return self.__dict__.setdefault("_parked_sketches", {})
 
     def part_activity(self) -> dict:
-        """The live busy-part table (``core/busy.py``): ``{"parts": {part_key: {at,
-        tool, operation_id, loaded_at}}, "stream": part_key}``."""
+        """The live part table (``core/busy.py``): ``{"parts": {part_key: {at, tool,
+        operation_id, loaded_at, changed_at, saved_at}}, "owners": {part_key: {caller}},
+        "adopted": bool}``."""
         return self.__dict__.setdefault("_part_activity", {})
 
     def after_commit(self, spec) -> None: ...
@@ -489,6 +490,9 @@ class Tx:
         # The part a call without a target worked in (the part nx_create_part or
         # nx_open_part made or reused): the busy-part table's stream (core/busy.py).
         self.worked_in: Any = None
+        # Who sends the call (``{"id", "shared"}`` from the sidecar, core/busy.py) or None;
+        # children inherit the parent's.
+        self.caller: dict | None = parent.caller if parent is not None else None
 
     def note_restore(self, data: dict) -> None:
         """Keep the before-values of what this call changes in its undo-history entry
@@ -751,6 +755,12 @@ class Tx:
                 kernel.rebind_after_undo(services)
             if failed is not None:
                 self.outcome = "rolled_back" if rollback_error is None else "partial"
+                if (
+                    rollback_error is None
+                    and not self.children
+                    and getattr(failed, "unchanged", False)
+                ):  # the first step was refused before any change (kernel: not_started)
+                    self.outcome = "not_started"
                 if rollback_error is not None and isinstance(failed, NXError):
                     failed.details["rollback_error"] = str(rollback_error)
             elif rollback_error is not None:

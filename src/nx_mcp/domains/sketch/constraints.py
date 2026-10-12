@@ -25,6 +25,12 @@ NX 2406 findings kept here (modern solver, ``Sketch.UsesLegacySolver`` False):
 - Relation builders and drags also maintain relations NX *finds* (a Make Equal
   resized an unrelated circle of the same radius); every found relation is
   relaxed (``kit.sketch.relax_found_relations``).
+- A request whose solve collapses curves (a point held on two parallel sides of one
+  rectangle, or on two sides meeting at a corner; a corner onto the far side; both
+  ends of one curve made coincident) makes NX delete them behind the modal "Edit
+  Sketch: The edit causes curves or dimensions to be deleted." box, which blocks NX
+  for everyone (live, 2026-10-12). Such items are refused before NX solves
+  (``kit.sketch.collapse_risks``); a solve that still deleted a curve rolls back.
 """
 
 from __future__ import annotations
@@ -300,6 +306,7 @@ def _refusal(what):
 def _make_relation(tx, sk, kind, objs):
     """The modern-solver ``SketchMake*Builder`` relations; the second curve moves."""
     nx, part = tx.nx, tx.part
+    kept = ksketch.curve_labels(sk)
     names = {
         "parallel": "CreateSketchMakeParallelBuilder",
         "perpendicular": "CreateSketchMakePerpendicularBuilder",
@@ -339,10 +346,12 @@ def _make_relation(tx, sk, kind, objs):
         ksketch.relax_found_relations(b)
         with _refusal(kind.replace("_", " ") + " constraint"):
             b.Commit()
+    ksketch.require_kept(sk, kept)
 
 
 def _symmetric(tx, sk, objs):
     (a, c), centerline = objs["curves"], objs["centerline"]
+    kept = ksketch.curve_labels(sk)
     with builders.build(tx, tx.part.Sketches.CreateSketchSymmetricBuilder) as b:
         b.StationaryObject.Value = a
         b.MotionObjects.Add(c)
@@ -352,6 +361,38 @@ def _symmetric(tx, sk, objs):
         ksketch.relax_found_relations(b)
         with _refusal("symmetric constraint"):
             b.Commit()
+    ksketch.require_kept(sk, kept)
+
+
+def _refuse_collapse(tx, sk, kind, objs, field):
+    """Refuse an item whose solve would collapse curves: NX would delete them behind its
+    modal "Edit Sketch" dialog, which blocks NX for every caller (module doc)."""
+    if kind not in ("coincident", "point_on_curve", "midpoint"):
+        return
+    target = objs["curves"][0] if kind != "coincident" else None
+    risks = ksketch.collapse_risks(tx, sk, kind, objs["points"], target)
+    if not risks:
+        return
+    risk = risks[0]
+    curves = [tx.ref(c, "curve")["id"] for c in risk["curves"]]
+    details: dict = {"reason": risk["reason"], "curves": curves}
+    hint = "Choose other geometry, or delete the conflicting constraint first (nx_check_sketch)"
+    if risk.get("constraint") is not None:
+        held = tx.ref(risk["constraint"], "sketch_constraint")["id"]
+        details["constraint"] = held
+        hint = (
+            f"Delete constraint {held} first (nx_edit_sketch_curves {{type: delete, object: "
+            f"{held!r}}}), or choose other geometry"
+        )
+    fail(
+        "NX_SKETCH_OVERCONSTRAINED",
+        f"NX cannot solve this {kind.replace('_', ' ')} constraint: {risk['reason']} "
+        f"({', '.join(curves)}). NX would delete the collapsed curves behind a dialog that "
+        "blocks NX, so the item was not sent to NX",
+        field=field,
+        hint=hint,
+        details=details,
+    )
 
 
 def _create_and_drag(tx, sk, kind, objs):
@@ -552,6 +593,7 @@ def nx_create_sketch_constraints(
             tx.checkpoint(done=i, total=len(items))
             field, kind = f"/constraints/{i}", item["type"]
             objs = _resolve_item(tx, sk, item, field)
+            _refuse_collapse(tx, sk, kind, objs, field)
             known = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
             row: AppliedConstraint = {"item": i, "type": kind}
             if kind == "fixed":

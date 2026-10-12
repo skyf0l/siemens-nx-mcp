@@ -333,6 +333,32 @@
    }
   },
   {
+   "call": "nx_create_mirror",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "plane": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "normal": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "intent": "Acceptance: a zero plane normal is a plain argument error (live: reported rolled_back)",
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/plane/normal",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

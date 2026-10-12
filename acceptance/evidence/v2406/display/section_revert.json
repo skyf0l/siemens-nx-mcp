@@ -1,0 +1,85 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/section_revert.json",
+  "scenario_sha256": "7494ab76b8c154e24e0c828b3af6a109d7487fc01f08458648a4b9dea112dfc9",
+  "domain": "display",
+  "covers": {
+    "nx_create_section_view": [],
+    "nx_edit_section_view": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_section_view": "8355174e2f40b36f7fd4da16e6ffda5c72026f9542fd50783a9a21aeda46421e",
+    "nx_edit_section_view": "8355174e2f40b36f7fd4da16e6ffda5c72026f9542fd50783a9a21aeda46421e"
+  },
+  "recorded": "2026-10-12T09:50:57Z",
+  "passed": true,
+  "checks": 17,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_datum_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_section_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 5,
+      "call": "nx_edit_section_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_edit_section_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

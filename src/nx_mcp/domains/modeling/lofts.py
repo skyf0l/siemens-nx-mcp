@@ -394,6 +394,7 @@ def nx_create_loft(
         feature = b.commit()
     bodies = common.feature_bodies(feature)
     readback.expect(bool(bodies), "bodies", "The loft built no body")
+    common.sound(tx, bodies)
     readback.expect(
         all(bool(getattr(x, "IsSolidBody", solid)) == solid for x in bodies),
         "body_type",

@@ -1,11 +1,6 @@
-"""Closing and saving with several agent parts loaded (phase P4): busy parts
-(core/busy.py), closes that keep NX's undo marks (_saving.close_part), file names on
-activate and save, and basename collisions.
-
-Busy rule, no caller identity: with two or more agent parts loaded, a close of a part a
-call worked in within 300 s is refused while the last call worked in another loaded
-part; ``force`` closes anyway; a close right after working in the part, and a run of
-closes, always close.
+"""Closing and saving with several agent parts loaded (phase P4): closes that keep NX's
+undo marks (_saving.close_part), file names on activate and save, and basename
+collisions. Who may close or activate a part: tests/unit/parts_files/test_part_owners.py.
 """
 
 from __future__ import annotations
@@ -15,7 +10,7 @@ from typing import TypedDict
 
 import pytest
 
-from nx_mcp.core import busy, catalogue
+from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import make_spec
 from nx_mcp.core.tx import Tx
 from nx_mcp.domains.parts_files import parts as tools
@@ -39,6 +34,7 @@ def nx_create_test_block(tx: Tx) -> Made:
         obj.OwningPart, obj.IsOccurrence = part, False
     part.Bodies.append(body)
     part.Features.append(feature)
+    part.IsModified = True  # as NX: a model change leaves the part unsaved
     return {"feature": tx.ref(feature, "feature")}
 
 
@@ -77,104 +73,6 @@ def _keeps_prototypes(part):
 
 
 # ---------------------------------------------------------------------------
-# Busy parts
-
-
-def test_a_busy_part_is_refused_while_the_last_call_worked_in_another_part(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    block(nx, "b")
-    refused = call(nx, tools.nx_close_part, part="a", save=False)
-    assert refused.error["code"] == "NX_PART_BUSY", refused
-    assert refused.error["category"] == "blocked" and refused.error["field"] == "/part"
-    assert refused.mutation_outcome == "not_started" and "force: true" in refused.error["hint"]
-    details = refused.error["details"]
-    assert details["part"] == "a.prt" and details["last_call_part"] == "b.prt"
-    assert details["last_change"]["tool"] == "nx_create_test_block"
-    assert "a" in loaded(nx)
-    forced = call(nx, tools.nx_close_part, part="a", save=False, force=True)
-    assert forced.ok and [r["name"] for r in forced.data["closed"]] == ["a"], forced
-    say = {"part": "a"}.get
-    assert tools.nx_close_part.spec.summary({"part": "a", "force": True}, say) == (
-        "Close a without saving (forced)"
-    )
-
-
-def test_an_own_close_right_after_working_in_the_part_closes(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    block(nx, "b")
-    closed = call(nx, tools.nx_close_part, part="b.prt", save=False)
-    assert closed.ok, closed
-    assert loaded(nx) == ["a", "work"]
-
-
-def test_a_run_of_closes_closes_every_part(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    block(nx, "b")
-    assert call(nx, tools.nx_close_part, part="b", save=False).ok
-    second = call(nx, tools.nx_close_part, part="a", save=False)  # the stream's part is gone
-    assert second.ok, second
-
-
-def test_one_agent_part_is_never_busy(nx):
-    nx.session.Parts.remove(nx.part)  # only the agent's own part stays loaded
-    create(nx, "mc/a.prt")
-    block(nx, "a")
-    other = Part(nx.session, services(nx).root / "eng.prt")
-    services(nx).foreign.add(services(nx).part_key(other))  # the engineer's part
-    nx.session.Parts.Work = nx.session.Parts.Display = nx.session.Parts[0]
-    assert busy.facts(services(nx), nx.session.Parts[0]) is None
-
-
-def test_work_older_than_the_busy_time_does_not_block(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    block(nx, "b")
-    entries = services(nx).part_activity()["parts"]
-    for entry in entries.values():
-        entry["changed_at"] -= busy.BUSY_SECONDS + 1
-    assert call(nx, tools.nx_close_part, part="a", save=False).ok
-
-
-def test_reads_and_view_effects_never_make_a_part_busy(nx):
-    svc = services(nx)
-    target = NS(key="part_x")
-    for effect in ("read", "view"):
-        busy.record(svc, NS(effect=effect, name="nx_capture_view"), target, None, None)
-    assert svc.part_activity().get("parts", {}) == {}
-    busy.record(svc, NS(effect="model", name="nx_extrude"), target, None, None)
-    assert svc.part_activity()["parts"]["part_x"]["tool"] == "nx_extrude"
-    assert svc.part_activity()["stream"] == "part_x"
-
-
-def test_a_load_makes_the_new_part_busy_and_the_stream(nx):
-    create(nx, "mc/a.prt")
-    block(nx, "a")
-    create(nx, "mc/b.prt", display=False)  # the last call worked in b (its load)
-    refused = call(nx, tools.nx_close_part, part="a", save=False)
-    assert refused.error["code"] == "NX_PART_BUSY", refused
-
-
-def test_saving_a_busy_part_never_warns_and_ends_its_busy_state(nx):
-    create(nx, "mc/a.prt")
-    create(nx, "mc/b.prt", display=False)
-    block(nx, "a")
-    block(nx, "b")  # the last call worked in b: a's save is its agent's own (bench3t)
-    saved = call(nx, tools.nx_save_part, part="a")
-    assert saved.ok, saved
-    notes = [w["message"] for w in saved.warnings]
-    assert not any("another agent" in n or "busy" in n for n in notes), notes
-    closed = call(nx, tools.nx_close_part, part="a", save=False)
-    assert closed.ok, closed  # saved: not busy, although the stream is b
-
-
-# ---------------------------------------------------------------------------
 # Closes keep NX's undo marks
 
 
@@ -202,7 +100,8 @@ def test_the_active_tab_closes_keeping_marks_and_the_previous_tab_comes_back(nx)
     listed = call(nx, NS(spec=catalogue.load()["nx_list_checkpoints"]), part="b")
     (row,) = listed.data["checkpoints"]
     assert row["checkpoint_id"] == checkpoint.data["checkpoint_id"]
-    assert row["available"] is False and row["expired_reason"] == "part_closed"  # mark kept
+    # the close of another part does not end b's checkpoint; the undo of b's block did
+    assert row["available"] is False and row["expired_reason"] == "undone_past"
     assert made.ok
 
 
@@ -251,6 +150,7 @@ def test_an_assembly_close_keeps_a_component_a_call_worked_in_after_its_load(nx)
     nx.attach(asm, late)
     _keeps_prototypes(asm)
     block(nx, "late")  # after the assembly's load: in use
+    late.IsModified = False  # not the unsaved-changes reason: the call's work keeps it
     block(nx, "asm")
     closed = call(nx, tools.nx_close_part, part="asm", save=False)
     assert closed.ok, closed

@@ -32,10 +32,10 @@
   "nx_check_interference": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-11T20:48:50Z",
+      "recorded": "2026-10-12T10:55:23Z",
       "scenario": "acceptance/inspection/interference_sheets.json",
       "scenario_sha256": "a4a5fd09059dc4124e69d978eea3aad1362130a0a37ab4fae9cf17174ddeb6a7",
-      "source_sha256": "c970f2b844bffd4e2dc4741f816c7b4831beb42cd26301f4e5d9bbe88aec590b",
+      "source_sha256": "00d283862e5df91400e1fc520d5b004566f09133c1d3302d72c849bb5133bd9b",
       "variants": []
     }
   },
@@ -62,10 +62,10 @@
   "nx_export_inspection_report": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-11T20:48:50Z",
+      "recorded": "2026-10-12T10:55:23Z",
       "scenario": "acceptance/inspection/interference_sheets.json",
       "scenario_sha256": "a4a5fd09059dc4124e69d978eea3aad1362130a0a37ab4fae9cf17174ddeb6a7",
-      "source_sha256": "c970f2b844bffd4e2dc4741f816c7b4831beb42cd26301f4e5d9bbe88aec590b",
+      "source_sha256": "00d283862e5df91400e1fc520d5b004566f09133c1d3302d72c849bb5133bd9b",
       "variants": []
     }
   },

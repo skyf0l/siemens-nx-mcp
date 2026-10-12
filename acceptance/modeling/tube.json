@@ -438,6 +438,59 @@
      "tol": 0.0001
     }
    }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$pf.data.sketch.id",
+    "outer_diameter": 20
+   },
+   "intent": "Acceptance: a tube wider than the path's 5 mm bend self-intersects: refused and rolled back",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.details.check": "body_health",
+    "error.details.faults.0.code": 875315
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$pf.data.sketch.id",
+    "outer_diameter": 100000
+   },
+   "intent": "Acceptance: OD 1e5 along a 50 mm path (live: ok, a 1e14 mm3 unhealthy body)",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.details.check": "body_health"
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$p.data.sketch.id",
+    "outer_diameter": 25000
+   },
+   "intent": "Acceptance: a valid but 25 m wide tube is built with a scale warning",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 24543692606.17,
+     "tol": 25000
+    },
+    "warnings.0.code": "NX_UPDATE_WARNING",
+    "warnings.0.message": {
+     "contains": "over 10 m"
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
   }
  ]
 }

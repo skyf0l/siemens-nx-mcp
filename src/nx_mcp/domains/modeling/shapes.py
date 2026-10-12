@@ -43,6 +43,7 @@ from nx_mcp.core.types import (
 )
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args, builders, curve, expr, geom, measure, readback, result, select, units
+from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import sketch as ksketch
 
 PathRef = Annotated[str, RefTo("sketch", "curve", "edge")]
@@ -50,12 +51,15 @@ PathRef = Annotated[str, RefTo("sketch", "curve", "edge")]
 FORMULA_REL = 1e-3
 # NX 2406: "The target cannot properly cap the open profile smart volume."
 RIB_CANNOT_CAP = 4095004
-RIB_HINT = (
-    "The rib must close against the body. perpendicular: it grows from the sketch plane along "
-    "the sketch normal, so that side must face material (flip grows the other way, e.g. a "
-    "sketch on a cup's rim). parallel: the sketch plane must cut through the body (e.g. an "
-    "L-bracket's mid-plane, not a side face) and the curves must run from wall to wall"
-)
+RIB_HINTS = {
+    "perpendicular": "A perpendicular rib grows the curves from the sketch plane along its "
+    "normal until they meet the body, so that side must face material (flip grows the other "
+    "way, e.g. a sketch on a cup's rim). A gusset or web drawn in its own plane (a line from "
+    "wall to plate, the plane cutting the body) is orientation parallel",
+    "parallel": "A parallel rib fills, in the sketch plane, the region the curves close with "
+    "the body: the plane must cut through the body (e.g. an L-bracket's mid-plane, not a side "
+    "face) and the curves must run from wall to wall",
+}
 
 
 def _new_bodies(feature, *known):
@@ -90,7 +94,7 @@ def nx_create_rib(
     thickness: Length,
     orientation: Annotated[
         Literal["perpendicular", "parallel"],
-        Doc("perpendicular: wall grown along the sketch normal; parallel: plate in its plane"),
+        Doc("perpendicular: wall along the sketch normal; parallel: plate/gusset in its plane"),
     ] = "perpendicular",
     side: Annotated[
         Literal["symmetric", "one_side", "other_side"],
@@ -141,8 +145,7 @@ def nx_create_rib(
             feature = b.commit()
     except NXError as error:
         if error.code == "NX_BUILD_FAILED" and not error.hint:
-            capped = error.nx_code == RIB_CANNOT_CAP or "cap" in str(error.message).lower()
-            error.hint = RIB_HINT if capped else RIB_HINT.split(". ", 1)[1]
+            error.hint = RIB_HINTS[orientation]
         raise
     if combine:
         out = common.result_of(tx, feature, [target])
@@ -223,7 +226,7 @@ def nx_create_tube(
         fill, single = _path(tx, [path] if isinstance(path, str) else path)
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
-    tags = common.body_tags(tx)
+    tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     try:
         with builders.build(tx, tx.part.Features.CreateTubeBuilder, None) as b:
             b.Tolerance = units.part_tolerance(tx)
@@ -236,6 +239,7 @@ def nx_create_tube(
     except NXError as error:
         common.smooth_hint(error)
         raise
+    common.sound(tx, common.feature_bodies(feature), known)
     if combine is not None:
         return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)

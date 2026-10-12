@@ -241,3 +241,25 @@ def test_listed_in_a_background_part_through_its_section_view():
         "origin": [10, 5, 0], "normal": [1, 0, 0], "cap": True, "active": True,
         "sectioning": None,
     }  # fmt: skip
+
+
+def test_a_section_an_undo_reverted_or_removed_is_named_on_the_next_call():
+    """Live, parallel agents: an edit came back undone and a section vanished without a
+    word (NX's session-wide undo reverts sections, which no undo history lists)."""
+    nx = display_nx()
+    made = run(nx, "nx_create_section_view", plane=PLANE, name="SEC2")
+    ref = made.data["section"]["id"]
+    run(nx, "nx_edit_section_view", section=ref, plane={"origin": [25, 5, 0]}, cap=False)
+    section = nx.part.DynamicSections[0]
+    section.origin, section.cap = [10.0, 5.0, 0.0], True  # an undo put the old state back
+    off = run(nx, "nx_edit_section_view", section=ref, enabled=False)
+    assert off.ok and off.data["origin"] == [10, 5, 0]
+    notes = [w["message"] for w in off.warnings if w["code"] == "NX_NOTE"]
+    assert len(notes) == 1 and "SEC2 is at origin [10.0, 5.0, 0.0]" in notes[0]
+    assert "left at [25.0, 5.0, 0.0]" in notes[0] and "cap False" in notes[0]
+    again = run(nx, "nx_edit_section_view", section=ref, enabled=True)
+    assert not [w for w in again.warnings if w["code"] == "NX_NOTE"]  # said once
+    nx.part.DynamicSections.remove(section)  # an undo removed it
+    listed = run(nx, "nx_list_objects", kind="section_view")
+    assert listed.ok and listed.data["items"] == []
+    assert any("SEC2 is gone" in w["message"] for w in listed.warnings)

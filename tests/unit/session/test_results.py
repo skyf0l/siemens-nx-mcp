@@ -112,23 +112,49 @@ def test_delete_previews_then_prunes_both_stores(tmp_path):
     receipt = tmp_path / ".nx-mcp" / "operations" / "op.json"
     receipt.parent.mkdir(parents=True)
     receipt.write_text("keep")
-    preview = side(tmp_path, rs.nx_delete_results, max_age_seconds=50)
+    preview = side(tmp_path, rs.nx_delete_results, max_age_seconds=50, all_agents=True)
     assert preview.ok and preview.mutation_outcome == "not_applicable"  # a preview changes nothing
     assert preview.data["applied"] is False and preview.data["snapshot_count"] == 3
     assert preview.data["selected_count"] == 1 and path.exists()
-    assert preview.data["deleted_count"] == 0
+    assert preview.data["deleted_count"] == 0 and preview.data["scope"] == "all"
     done = side(tmp_path, rs.nx_delete_results, max_age_seconds=50, dry_run=False)
     assert done.data["applied"] and done.data["selected_count"] == 1 and not path.exists()
     assert done.data["deleted_count"] == 1 and done.mutation_outcome == "committed"
+    assert done.data["scope"] == "own"
     nothing = side(tmp_path, rs.nx_delete_results, max_age_seconds="1d", dry_run=False)
     assert nothing.data["deleted_count"] == 0 and nothing.mutation_outcome == "not_applicable"
     assert side(tmp_path, rs.nx_get_result, result_id=new).ok
-    everything = side(tmp_path, rs.nx_delete_results, max_bytes=1, dry_run=False)
+    everything = side(tmp_path, rs.nx_delete_results, max_bytes=1, dry_run=False,
+                      all_agents=True)  # fmt: skip
     assert everything.data["selected_count"] == 2 and everything.data["bytes_after_cleanup"] == 0
     gone = side(tmp_path, rs.nx_get_result, result_id=bridge["full_result"]["id"])
     assert gone.error["code"] == "NX_RESULT_EXPIRED" and gone.error["details"]["state"] == "pruned"
     assert "pruned by retention" in gone.error["message"]
     assert receipt.read_text() == "keep"
+
+
+def test_age_and_size_prune_only_the_callers_own_snapshots(tmp_path):
+    """30 agents share the workspace: by age or size only the caller's own snapshots go
+    (bench: max_age_seconds 1h deleted 689 of 743 snapshots of every agent)."""
+    mine = stored(tmp_path, {"mine": 1})  # this sidecar stored it: its caller's
+    folder = tmp_path / ".nx-mcp" / "agent-results"
+    theirs = "result_" + "a" * 32  # another agent's sidecar stored this one
+    (folder / (theirs + ".json")).write_text('{"theirs": 1}', encoding="utf-8")
+    old = time.time() - 7200
+    for name in (mine, theirs):
+        os.utime(folder / (name + ".json"), (old, old))
+    preview = side(tmp_path, rs.nx_delete_results, max_age_seconds="1h")
+    assert preview.data["scope"] == "own" and preview.data["snapshot_count"] == 1
+    assert preview.data["selected_count"] == 1
+    done = side(tmp_path, rs.nx_delete_results, max_age_seconds="1h", dry_run=False)
+    assert done.ok and done.data["deleted_count"] == 1, done
+    assert not (folder / (mine + ".json")).exists() and (folder / (theirs + ".json")).exists()
+    sized = side(tmp_path, rs.nx_delete_results, max_bytes=1, dry_run=False)
+    assert sized.data["deleted_count"] == 0 and (folder / (theirs + ".json")).exists()
+    everyone = side(tmp_path, rs.nx_delete_results, max_age_seconds="1h", dry_run=False,
+                    all_agents=True)  # fmt: skip
+    assert everyone.data["scope"] == "all" and everyone.data["deleted_count"] == 1
+    assert not (folder / (theirs + ".json")).exists()
 
 
 def test_delete_exact_ids(tmp_path):
@@ -182,3 +208,17 @@ async def test_proxy_forwards_detail_and_never_calls_nx(tmp_path, monkeypatch):
     full = (await proxy.call(spec, {**args, "detail": "full"})).structuredContent
     assert len(full["data"]["items"][0]["points"]) == 25
     assert not bridge.call.called
+
+
+async def test_proxy_claims_the_bridge_snapshots_it_receives(tmp_path, monkeypatch):
+    from nx_mcp.domains.session import status
+    from nx_mcp.kit.snapshots import claimed
+
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    bridge = AsyncMock()
+    full = {"id": "result_" + "b" * 32, "tool": "nx_get_result"}
+    bridge.call.return_value = {"ok": True, "tool": "nx_get_status", "data": {},
+                                "full_result": full}  # fmt: skip
+    proxy = CatalogueProxy(bridge, Workspace(tmp_path), ResultStore(tmp_path), build="v2406")
+    await proxy.call(status.nx_get_status.spec, {})
+    assert full["id"] in claimed()

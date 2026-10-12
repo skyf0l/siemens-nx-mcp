@@ -90,6 +90,7 @@ class Context:
     part: str | None = None
     expires_at: Any = None
     parent: Any = None  # the calling Tx's target (nx_redo_operation's own calls)
+    caller: Any = None  # who sends the call (the sidecar's ``caller`` key, core/busy.py)
 
 
 # ---------------------------------------------------------------------------
@@ -571,7 +572,9 @@ def run(spec, args, ctx: Context) -> dict:
     handler_started = handler_done = False
     args, keys = targets.split_call_keys(spec, args)  # part/expires_at in arguments
     part_text = keys.get("part", ctx.part)
+    caller = targets.check_caller(keys.get("caller", ctx.caller))
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
+    busy.adopt(services)  # agent parts of this NX process after a host reload
     try:
         expires = targets.check_call_keys(part_text, keys.get("expires_at", ctx.expires_at))
         targets.check_expiry(spec, expires)  # the ghost guard: no receipt, not_started
@@ -634,6 +637,7 @@ def run(spec, args, ctx: Context) -> dict:
         tx.mark = mark
         tx.target = target
         tx.bound = bound
+        tx.caller = caller
         for code, message in bound.notes:
             tx.warn(code, message)
         if record is not None and record.get("previous"):
@@ -984,17 +988,19 @@ def run_child(
     """Run one child under the parent's mark and receipt; raise ``NXError`` on failure.
 
     The child resolves its own target (gate 3t): its refs, or a ``part`` call key in its
-    arguments, else the parent's target. A target that is not the current work part is
-    made current for the child (gate 4s) and the parent's state comes back after it; the
-    parent snapshots that part first (``tx.touch_part``), so its rollback, read-back and
-    ``changes`` cover it. NX's undo is session-wide: the parent's one mark rolls back
-    every part its children changed."""
+    arguments, else the parent's target; under a parent given ``part``, a child without
+    its own is checked against that part (:func:`_batch_part`). A target that is not the
+    current work part is made current for the child (gate 4s) and the parent's state comes
+    back after it; the parent snapshots that part first (``tx.touch_part``), so its
+    rollback, read-back and ``changes`` cover it. NX's undo is session-wide: the parent's
+    one mark rolls back every part its children changed."""
     services = parent.services
     mode = mode or parent.mode or ("preview" if parent.spec.effect == "session" else "batch")
     index = len(parent.children)
     args, keys = targets.split_call_keys(spec, args)
     part_text = keys.get("part")
     bound: switching.Bound | None = None
+    started = False  # the child's handler ran: a failure before it changed nothing
     try:
         if mode == "batch" and not spec.batchable:
             fail("NX_UNSUPPORTED_OPTION", f"{spec.name} cannot run in a batch", field="/tool")
@@ -1005,12 +1011,23 @@ def run_child(
         targets.check_call_keys(part_text)  # a child's expires_at is the parent's
         parent.checkpoint(done=index)
         checked = _gate_schema(spec, args, placeholders=True, services=services)  # 1
+        held = {pointer(path) for path, _text in checked.placeholders}  # earlier steps' refs
         if checked.placeholders:
             _resolve_placeholders(checked, prior if prior is not None else parent.children)
             checked = _gate_schema(spec, checked.args, services=services)
-        target = targets.resolve(  # 3t: refs, part, else the parent's part
-            spec, checked, services, part=part_text, parent=_root(parent).target
-        )
+        inherited = _batch_part(services, parent, part_text)
+        try:
+            target = targets.resolve(  # 3t: refs, part, else the parent's part
+                spec, checked, services, part=part_text or inherited, parent=_root(parent).target
+            )
+        except NXError as refused:  # refs of another part than the batch's own part
+            if inherited is None or refused.code != "NX_WRONG_PART_CONTEXT":
+                raise
+            if not _from_steps(spec, checked, services, _root(parent).target, held):
+                raise _off_batch_part(spec, checked, services, _root(parent), refused) from None
+            target = targets.resolve(  # refs an earlier step returned: that step's part
+                spec, checked, services, part=None, parent=_root(parent).target
+            )
         _gate_paths(spec, checked, services, target)  # 2
         _gate_variant(spec, checked, services)  # 3
         _gate_evidence(spec, checked, services)  # 3
@@ -1043,6 +1060,7 @@ def run_child(
         child.bound = bound
         call_args = _gate_units(spec, checked, services, child)  # 9
         observer = None
+        started = True
         try:
             with services.observe() as observer:
                 data = spec.handler(child, **call_args)  # 10
@@ -1075,6 +1093,8 @@ def run_child(
         _remember_license(spec, args, services, error)
         error.details.setdefault("child_index", index)
         error.details.setdefault("child_tool", spec.name)
+        if not started:  # refused by a gate: the parent is not_started unless steps ran
+            setattr(error, "unchanged", True)  # noqa: B010
         raise at_child(error, index) from exc
     finally:
         if bound is not None:  # 4s: the parent's part is current again
@@ -1087,6 +1107,56 @@ def _root(tx: Tx) -> Tx:
     while tx.parent is not None:
         tx = tx.parent
     return tx
+
+
+def _batch_part(services, parent: Tx, part_text) -> str | None:
+    """Gate 3t of a child without its own ``part`` under a call that named one (the
+    ``part`` of nx_run_batch or nx_preview_changes): that part as ``p:N``, so the child's
+    refs are checked against it as a top-level call's are (``NX_WRONG_PART_CONTEXT``). A
+    step acts in another part only with its own ``part``."""
+    root = _root(parent).target
+    if part_text is not None or root is None or root.source != "part":
+        return None
+    return targets.part_id(services, root.part)
+
+
+def _foreign_fields(spec, checked, services, target) -> list:
+    """``(part, fields)`` of the refs that name another part than ``target``'s (an
+    occurrence held by ``target`` counts as its own)."""
+    out = []
+    for key, (part, where, _kinds, holders) in targets.pinned_parts(
+        services, checked, spec.target
+    ).items():
+        if key != target.key and target.key not in holders:
+            out.append((part, where))
+    return out
+
+
+def _from_steps(spec, checked, services, target, held: set) -> bool:
+    """Whether every ref of another part than the batch's came from an earlier step's
+    result (``"$0.data.sketch"``): that step passed the gate in its own part, so the
+    chained step follows it there."""
+    foreign = _foreign_fields(spec, checked, services, target)
+    return bool(foreign) and all(f in held for _part, where in foreign for f in where)
+
+
+def _off_batch_part(spec, checked, services, root: Tx, error: NXError) -> NXError:
+    """The refusal of a child whose refs name another part than the batch's ``part``."""
+    target = root.target
+    field, other = None, str((error.details.get("own") or {}).get("file") or "another part")
+    with contextlib.suppress(Exception):
+        for part, where in _foreign_fields(spec, checked, services, target)[:1]:
+            field, other = where[0], targets.file_name(part)
+    named = f"{field} names objects of {other}" if field else f"its object belongs to {other}"
+    return NXError(
+        "NX_WRONG_PART_CONTEXT",
+        f"{root.spec.name} acts in {target.file} (its part) but this step's {named}: a step "
+        "acts in another part only with a part of its own",
+        field=field,
+        hint=f'Add "part": "{other}" to this step\'s arguments to act there, or pass refs '
+        f"of {target.file}",
+        details={**error.details, "batch_part": target.file},
+    )
 
 
 def _switched(parent: Tx) -> bool:

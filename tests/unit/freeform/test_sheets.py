@@ -280,3 +280,11 @@ def test_trim_default_projection_is_face_normal_and_refusal_explains():
     assert details["boundary_gaps"] == [{"boundary": below.ref, "gap": 4.0}]
     assert "direction" in bad.error["hint"] and below.ref in bad.error["hint"]
     assert not nx.last("TrimsheetBuilder").ProjectionDirection.ProjectDirectionMethod.calls
+
+
+def test_thicken_refuses_an_invalid_body():
+    nx, top = thick_nx()
+    nx.uf.Modeling.AskBodyConsistency = lambda tag: (1, [875316], [tag])
+    bad = run(nx, "nx_create_thicken", faces=[top.ref], thickness=2)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
+    assert bad.error["details"]["faults"][0]["code"] == 875316

@@ -22,13 +22,18 @@ display part changed). Marks NX evicted are ``mark_evicted``, with a note in the
 result. Both never raise.
 
 History entries are ``{mark, part_id, operation_id, method}``; an entry or checkpoint
-whose mark is gone gets ``expired`` (the reason). The history is one list for the whole
-session, read per part (``domains/session/history.py``). Barriers (:func:`barrier`) have
-``mark`` None and end every part's undo, because NX's undo is linear:
+whose mark is gone gets ``expired`` (the reason) and ``expired_by`` (the part key of the
+call that dropped it: the part it saved, closed, loaded or worked in; None when unknown).
+The history is one list for the whole session, read per part
+(``domains/session/history.py``): another part's save, close or load ends neither this
+part's history nor its checkpoints (``foreign_cut``), it only keeps NX's undo from
+reaching back over it. Barriers (:func:`barrier`) have ``mark`` None, because NX's undo
+is linear:
 
-- ``load`` (the loaded parts' paths): a part load by a file or session call;
+- ``load`` (the loaded parts' paths): a part load by a file or session call; NX's undo
+  never crosses it (it would unload the part), an undo by deletion does;
 - ``close`` (the closed parts' paths): a part closed with its undo marks kept (an undo
-  across it would load the part again; :func:`close_barrier`);
+  across it would load the part again; :func:`close_barrier`); the same;
 - ``engineer``: the engineer changed the model between agent calls (the host's mark
   fingerprint, :func:`engineer_change`). No agent undo or restore crosses it, so none
   reverts the engineer's work; their edits stay.
@@ -188,15 +193,70 @@ def _present(services, entry) -> bool:
     )
 
 
-def expire_dropped(services, reason: str) -> int:
-    """Give every tracked entry whose mark NX dropped ``reason``; how many."""
+def expire_dropped(services, reason: str, by=None) -> int:
+    """Give every tracked entry whose mark NX dropped ``reason`` (and ``expired_by``: the
+    part key of the call that dropped it); how many."""
     count = 0
     for group in _tracked(services):
         for entry in group:
             if not _alive(services, entry):
                 entry["expired"] = reason
+                entry["expired_by"] = by
                 count += 1
     return count
+
+
+def own_cut(entry: dict, key) -> bool:
+    """Whether ``entry`` (a history entry or checkpoint of the part ``key``) lost its NX
+    mark to that part's own save or close (or to a save the kernel cannot attribute):
+    the agent's own decision, which ends the part's default undo and its checkpoints. A
+    mark another part's save, close or load dropped, or one NX evicted, is a
+    :func:`foreign_cut`: the part's undo reaches over it by deletion."""
+    reason = entry.get("expired")
+    if not reason or reason in ("mark_evicted", "undone_past", "engineer_change", "part_closed"):
+        return False
+    by = entry.get("expired_by")
+    return by == key or (by is None and reason == "saved_or_closed")
+
+
+def own_save(services, key) -> None:
+    """After the part ``key`` was saved: its history entries and checkpoints whose marks an
+    earlier foreign cut dropped are now cut by its own save (NX would have dropped them
+    here). Never raises."""
+    with contextlib.suppress(Exception):
+        for group in (services.undo_history(), services.undo_checkpoints().values()):
+            for entry in group:
+                if entry.get("part_id") == key and foreign_cut(entry, key):
+                    entry["expired"], entry["expired_by"] = "saved_or_closed", key
+
+
+def foreign_cut(entry: dict, key) -> bool:
+    """Whether ``entry``'s NX mark is gone for a reason that is not the part's own (see
+    :func:`own_cut`)."""
+    reason = entry.get("expired")
+    return bool(reason) and reason in (
+        "mark_evicted", "saved_or_closed", "part_loaded", "display_reset"
+    ) and not own_cut(entry, key)  # fmt: skip
+
+
+def _call_part(services, seen: Watch, tx, loaded: list, closed: list):
+    """The part key of the part a call worked in (its target, else the part it loaded or
+    closed), None when unknown: who dropped the marks."""
+    with contextlib.suppress(Exception):
+        target = getattr(tx, "target", None) if tx is not None else None
+        if target is not None:
+            return target.key
+    with contextlib.suppress(Exception):
+        if loaded:
+            return services.part_key(loaded[0])
+    with contextlib.suppress(Exception):
+        if closed:
+            return services.part_key(seen.parts[closed[0]])
+    with contextlib.suppress(Exception):
+        worked = getattr(tx, "worked_in", None) if tx is not None else None
+        if worked is not None:
+            return services.part_key(worked)
+    return None
 
 
 def has_undo_state(services) -> bool:
@@ -228,7 +288,7 @@ def _settle(services, seen: Watch, spec, operation_id: str, tx) -> None:
             reason = "display_reset"
         else:
             reason = "saved_or_closed"  # a save (or a part loaded and closed again)
-        expire_dropped(services, reason)
+        expire_dropped(services, reason, _call_part(services, seen, tx, loaded, closed))
         if tx is not None and reason != "saved_or_closed":  # saves and closes say so
             tx.warn(
                 "NX_NOTE",

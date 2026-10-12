@@ -131,7 +131,12 @@ def test_rib_that_cannot_close_against_the_body_says_how_to_fix_it():
     )
     bad = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=1)
     assert bad.error["nx_code"] == 4095004 and bad.mutation_outcome == "rolled_back"
-    assert "flip" in bad.error["hint"] and "mid-plane" in bad.error["hint"]
+    assert "flip" in bad.error["hint"] and "orientation parallel" in bad.error["hint"]
+    nx.refuse("RibBuilder", code=4095004, message="cannot cap")
+    flat = run(
+        nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=1, orientation="parallel"
+    )
+    assert "mid-plane" in flat.error["hint"] and "flip" not in flat.error["hint"]
 
 
 def line(nx, length):
@@ -375,3 +380,48 @@ def test_inch_tube_length_comes_from_millimetres():
     ok = run(nx, "nx_create_tube", path=[c.ref], outer_diameter=0.5, inner_diameter="6.35 mm")
     assert ok.ok, ok
     assert nx.last("TubeBuilder").InnerDiameter.RightHandSide == "0.25"
+
+
+def test_tube_with_an_invalid_body_rolls_back_and_a_huge_one_warns():
+    """Live: a tube OD 1e5 along a 100 mm path built a self-intersecting 1e14 mm3 body."""
+    nx = modeling_nx()
+    c = line(nx, 50.0)
+    tube(nx, 10, 0, 50.0)
+    made = []
+    nx.on_commit(
+        "TubeBuilder",
+        lambda b: (
+            made.append(feature(nx, "TUBE", [new_body(nx, [0, 0, 0, 50, 1, 1], 1250 * math.pi)]))
+            or nx.faults.update({int(made[-1].bodies[0].Tag): 2})
+            or made[-1]
+        ),
+    )
+    bad = run(nx, "nx_create_tube", path=[c.ref], outer_diameter=10)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
+    assert bad.error["details"]["check"] == "body_health" and "self-intersect" in bad.error["hint"]
+    far = line(nx, 20_000.0)
+    tube(nx, 10, 0, 20_000.0)
+    ok = run(nx, "nx_create_tube", path=[far.ref], outer_diameter=10)
+    assert ok.ok, ok
+    assert any("over 10 m" in w["message"] for w in ok.warnings)
+
+
+def test_tube_into_a_target_that_was_already_faulty_still_builds():
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    nx.faults[int(block.Tag)] = 1  # an imported body with a fault before the call
+    sk = nx.sketch()
+
+    def cut(b):
+        block.volume = 7000
+        return feature(nx, "TUBE", [block])
+
+    nx.on_commit("TubeBuilder", cut)
+    ok = run(
+        nx,
+        "nx_create_tube",
+        path=[sk.ref],
+        outer_diameter=4,
+        combine={"operation": "subtract", "targets": [block.ref]},
+    )
+    assert ok.ok, ok

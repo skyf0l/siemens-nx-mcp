@@ -203,6 +203,16 @@ def default_descriptor_path() -> Path:
     return Path.home() / ".local" / "state" / "nx-mcp" / "bridge.json"
 
 
+def client_descriptor_path() -> Path:
+    """The descriptor a sidecar reads: ``NX_MCP_BRIDGE_DESCRIPTOR``, else the graphical
+    NX host's ``interactive-bridge.json`` when it exists, else the batch ``bridge.json``."""
+    if configured := os.environ.get("NX_MCP_BRIDGE_DESCRIPTOR"):
+        return Path(configured)
+    batch = default_descriptor_path()
+    interactive = batch.with_name("interactive-bridge.json")
+    return interactive if interactive.exists() else batch
+
+
 def _error_payload(error: NXError) -> dict[str, Any]:
     return error.as_dict()
 
@@ -457,6 +467,9 @@ class MainThreadDispatcher:
         # server's connections in flight to tell when a worker wants to run.
         self.parked = 0
         self._running: _PendingBridgeCall | None = None
+        # ``explain(pending, started)``: the host's error for a call that timed out (a
+        # modal NX dialog blocks NX), or None for the bridge's own NX_BUSY/unknown answer.
+        self.explain: Callable[[_PendingBridgeCall, bool], NXError | None] | None = None
 
     def _park(self, pending: _PendingBridgeCall) -> None:
         with self._count_lock:
@@ -511,21 +524,55 @@ class MainThreadDispatcher:
                     deadline = (pending.started_at or pending.queued_at) + limit
             if started and time.monotonic() < deadline:
                 continue
+            explained = self._explain(pending, started)
+            if explained is not None:
+                raise explained
             if started:
                 raise NXError(
-                    "NX_BRIDGE_UNAVAILABLE",
-                    f"NX did not finish the call within {limit:.0f} s of starting it and may "
-                    "still be running. Query the operation receipt before retrying.",
+                    "NX_OUTCOME_UNKNOWN",
+                    f"NX started this call {limit:.0f} s ago and has not finished it: it may "
+                    "still be running (nx_get_status shows what NX runs). The bridge is "
+                    "connected; query nx_get_operation with the operation_id before retrying.",
                     retryable=False,
                     details={"mutation_outcome": "unknown"},
                 )
             raise NXError(
-                "NX_BRIDGE_UNAVAILABLE",
-                f"The call waited {self._queue_timeout:.0f} s in NX's queue behind other work "
-                "and did not start; it is safe to retry.",
+                "NX_BUSY",
+                f"The call waited {self._queue_timeout:.0f} s in NX's queue and did not start: "
+                f"{self._busy_with(pending)}. Nothing ran; retry when NX is free.",
+                hint="NX and the bridge are running; nx_get_status shows what NX runs. "
+                "Retry later (the call did not run)",
                 retryable=True,
-                details={"mutation_outcome": "not_started"},
+                details={"mutation_outcome": "not_started", **self._running_row(pending)},
             )
+
+    def _explain(self, pending: _PendingBridgeCall, started: bool) -> NXError | None:
+        """The host's own answer for a call that timed out (``explain``: a modal NX
+        dialog blocks it), or None; never raises."""
+        if self.explain is None:
+            return None
+        try:
+            return self.explain(pending, started)
+        except Exception:
+            return None
+
+    def _running_row(self, pending: _PendingBridgeCall) -> dict[str, Any]:
+        """``{"running": {tool, seconds}}`` of the call NX runs instead (never its
+        operation_id: it may be another agent's), or {}."""
+        running = self._running
+        if running is None or running is pending:
+            return {}
+        since = running.started_at or running.queued_at
+        return {"running": {"tool": running.method, "seconds": round(time.monotonic() - since)}}
+
+    def _busy_with(self, pending: _PendingBridgeCall) -> str:
+        row = self._running_row(pending).get("running")
+        if row:
+            return f"NX is running and busy with {row['tool']} (running for {row['seconds']} s)"
+        return (
+            "NX is running but did not take it (the engineer was busy in NX, or calls ahead "
+            "of it waited)"
+        )
 
     def drain(self, timeout: float = 0.0, *, limit: int = 1) -> int:
         """Execute up to ``limit`` pending calls on the calling thread."""
@@ -721,7 +768,9 @@ class BridgeClient:
                 ) from error
             raise NXError(
                 "NX_BRIDGE_UNAVAILABLE",
-                f"NX bridge is unavailable: {error}",
+                f"Cannot reach the NX bridge at {self.host}:{self.port} ({type(error).__name__}: "
+                f"{error}): NX or its NX MCP host is not running, or is restarting. Nothing ran.",
+                hint="Start NX with the NX MCP host (or wait for its restart), then retry",
                 retryable=True,
                 details={"mutation_outcome": "not_started"},
             ) from error
@@ -777,11 +826,15 @@ class DescriptorBridgeClient:
         timeout: float = CLIENT_TIMEOUT,
         per_cost: bool = True,
     ) -> None:
-        self.descriptor_path = (
-            Path(descriptor_path) if descriptor_path else default_descriptor_path()
-        )
+        self._descriptor_path = Path(descriptor_path) if descriptor_path else None
         self.timeout = timeout
         self.per_cost = per_cost
+
+    @property
+    def descriptor_path(self) -> Path:
+        """The given path, else ``client_descriptor_path()`` at each call (NX may start
+        after the sidecar)."""
+        return self._descriptor_path or client_descriptor_path()
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -789,7 +842,8 @@ class DescriptorBridgeClient:
         except (OSError, ValueError) as error:
             raise NXError(
                 "NX_BRIDGE_UNAVAILABLE",
-                "Start the NX MCP bridge inside Siemens NX before calling tools.",
+                "No NX bridge is registered (no bridge descriptor): NX with the NX MCP host is "
+                "not running. Start it inside Siemens NX before calling tools. Nothing ran.",
                 retryable=True,
                 details={"mutation_outcome": "not_started"},
             ) from error

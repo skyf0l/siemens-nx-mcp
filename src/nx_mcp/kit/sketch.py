@@ -514,6 +514,7 @@ def drag(tx, sk, curve, which, target=None):
     Without ``target`` the drag has zero length: NX solves every persistent
     constraint (it may still move that point). Returns the drag solver status
     name (``Updated`` when solved, ``UpdateFailed`` when NX could not solve).
+    A solve that made NX delete curves fails (``require_kept``).
     """
     from nx_mcp.kit import builders
 
@@ -525,6 +526,7 @@ def drag(tx, sk, curve, which, target=None):
     g.PointIndex = 0
     start = point(tx, curve, which)
     goal = to_part(frame(s), target) if target is not None else start
+    kept = curve_labels(s)
     with builders.build(tx, tx.part.Sketches.CreateDragGeometryBuilder) as b:
         b.SetDragGeometry([g])
         b.InitializeDrag(nx.Point3d(*(float(v) for v in start)))
@@ -532,8 +534,225 @@ def drag(tx, sk, curve, which, target=None):
         b.DragToPoint(nx.Point3d(*(float(v) for v in goal)))
         raw = b.GetSolverStatus()
         b.Commit()
+    require_kept(s, kept)
     s.Update()
     return enum_name(raw, nx.SketchDragGeometryBuilder.SolverStatus)
+
+
+# ---------------------------------------------------------------------------
+# Solves that make NX delete curves
+#
+# NX 2406 finding (live, 2026-10-12): when a drag (``SketchDragGeometryBuilder``) or a
+# relation builder (``SketchMake*Builder``) solves to a configuration in which curves
+# collapse (a point held on two parallel sides of one rectangle, a point held on two
+# sides that meet at a corner, a vertex pulled onto the side its neighbour ends on, two
+# ends of one curve made coincident), NX deletes the collapsed curves and their
+# constraints when the builder ends, on ``Commit`` *and* on ``Destroy``. Interactive NX
+# first opens the modal message box "Edit Sketch: The edit causes curves or dimensions
+# to be deleted." [OK], which blocks NX and every bridge call until a person answers it
+# (batch NX deletes silently). ``DragToPoint`` itself shows nothing, but its solution
+# cannot be taken back: ``RestoreOperation``, a drag back, deleting the new constraints
+# and ``UI.LockAccess`` all still delete (and show the box); ``UndoToMark`` with the
+# builder alive crashed NX. So the requests that do it are refused before NX solves
+# (``collapse_risks``, used by the constraint tool), and every solve checks afterwards
+# that no curve vanished (``require_kept``: batch NX, or an engineer who answered OK).
+
+
+def curve_labels(sk) -> dict:
+    """``{tag: label}`` of the sketch's geometry, read before a solve (a deleted curve
+    can no longer be asked its name)."""
+    labels = {}
+    for c in _sketch_of(sk).GetAllGeometry():
+        name = ""
+        with contextlib.suppress(Exception):
+            name = str(getattr(c, "JournalIdentifier", "") or getattr(c, "Name", "") or "")
+        labels[int(c.Tag)] = name or f"tag {int(c.Tag)}"
+    return labels
+
+
+def require_kept(sk, labels, field=None) -> None:
+    """Fail when a solve deleted sketch geometry ``labels`` (``curve_labels``) held."""
+    gone = sorted(label for tag, label in labels.items() if tag not in tags(sk))
+    if gone:
+        fail(
+            "NX_SKETCH_OVERCONSTRAINED",
+            f"NX could only solve the change by deleting {len(gone)} sketch curve(s) "
+            f"({', '.join(gone)}): the constraints collapse them; rolled back",
+            hint="The new constraint conflicts with the existing ones (nx_check_sketch "
+            "lists them): delete or change the conflicting constraint, or constrain other "
+            "geometry",
+            field=field,
+            details={"deleted_curves": gone},
+        )
+
+
+def ends(tx, curve) -> list:
+    """``[(which, part xyz)]`` of the start and end of a line or open arc ([] otherwise)."""
+    if curve_kind(tx, curve) not in ("line", "arc"):
+        return []
+    return [(w, point(tx, curve, w)) for w in ("start", "end")]
+
+
+def _meet(p, q) -> bool:
+    return geom.dist(p, q) <= geom.tol(p, q) * 10
+
+
+def adjacent(tx, a, b) -> bool:
+    """Whether an end of curve ``a`` coincides with an end of curve ``b`` (a corner)."""
+    return any(_meet(p, q) for _, p in ends(tx, a) for _, q in ends(tx, b))
+
+
+def connected(tx, sk, a, b) -> bool:
+    """Whether curves ``a`` and ``b`` belong to one chain of curves joined end to end."""
+    curves = [c for c in geometry(sk) if ends(tx, c)]
+    target, seen, todo = int(b.Tag), {int(a.Tag)}, [a]
+    while todo:
+        here = todo.pop()
+        if int(here.Tag) == target:
+            return True
+        for c in curves:
+            if int(c.Tag) not in seen and adjacent(tx, here, c):
+                seen.add(int(c.Tag))
+                todo.append(c)
+    return False
+
+
+def curves_at(tx, sk, p) -> list:
+    """``[(curve, which)]``: the curve ends of the sketch that lie at part point ``p``."""
+    return [(c, w) for c in geometry(sk) for w, q in ends(tx, c) if _meet(p, q)]
+
+
+def held_on(tx, sk, curve, which) -> list:
+    """``[(target curve, constraint)]``: the curves a persistent point-on-curve or
+    midpoint constraint holds the point ``which`` of ``curve`` on."""
+    nx = tx.nx
+    out = []
+    for c in attached(tx, sk, curve):
+        if constraint_type(tx, c) not in ("point_on_curve", "midpoint"):
+            continue
+        get = getattr(c, "GetGeometry", None)
+        try:
+            rows = list(get() or []) if get is not None else []
+        except Exception:
+            continue
+        held = target = None
+        for g in rows:
+            obj = getattr(g, "Geometry", None)
+            if obj is None:
+                continue
+            name = enum_name(g.PointType, nx.Sketch.ConstraintPointType)
+            if int(obj.Tag) == int(curve.Tag) and CONSTRAINT_POINT.get(which) == name:
+                held = obj
+            elif name not in CONSTRAINT_POINT.values():
+                target = obj
+        if held is not None and target is not None:
+            out.append((target, c))
+    return out
+
+
+def _line_gap(tx, a, b) -> float:
+    """Distance between two parallel lines (from ``b``'s start to ``a``'s line)."""
+    s, e, p = point(tx, a, "start"), point(tx, a, "end"), point(tx, b, "start")
+    d = geom.sub(e, s)
+    t = geom.dot(geom.sub(p, s), d) / geom.dot(d, d)
+    return geom.dist(p, geom.add(s, geom.scale(d, t)))
+
+
+def _parallel_lines(tx, a, b) -> bool:
+    u = geom.sub(point(tx, a, "end"), point(tx, a, "start"))
+    v = geom.sub(point(tx, b, "end"), point(tx, b, "start"))
+    return geom.norm(geom.cross(u, v)) <= 1e-9 * geom.norm(u) * geom.norm(v)
+
+
+def collapse_risks(tx, sk, kind, points, target=None) -> list:
+    """Why solving constraint ``kind`` would collapse curves (NX then deletes them behind
+    the "Edit Sketch" dialog): ``[{"reason": text, "curves": [...], "constraint": c}]``,
+    empty when no known collapse applies. ``points``: ``[(curve, which)]`` of the request;
+    ``target``: the curve of a ``point_on_curve`` or ``midpoint`` request.
+
+    Known collapses (each seen live on NX 2406):
+    - a point held on line L, put on a line T parallel to L and joined to it by other
+      curves (a rectangle's opposite sides): the curves between them collapse;
+    - a point held on line L, put on a line T that meets L at a corner: NX deletes curves;
+    - a vertex put on line T while a curve at that vertex already ends on T (a rectangle
+      corner onto the far side): that curve folds onto T;
+    - a midpoint on line T for a point at one of T's own ends: T shrinks to nothing;
+    - coincident ends of one curve (also through the curves ending there)."""
+    risks: list = []
+    if kind == "coincident" and len(points) == 2:
+        (a, pa), (b, pb) = points
+        here = curves_at(tx, sk, point(tx, a, pa)) if pa != "center" else []
+        there = curves_at(tx, sk, point(tx, b, pb)) if pb != "center" else []
+        here = here or [(a, pa)]
+        there = there or [(b, pb)]
+        for c, w in here:
+            for d, v in there:
+                if int(c.Tag) == int(d.Tag) and w != v:
+                    risks.append(
+                        {
+                            "reason": "both points are ends of the same curve, which would "
+                            "shrink to nothing",
+                            "curves": [c],
+                        }
+                    )
+        return risks[:1]
+    if kind not in ("point_on_curve", "midpoint") or target is None or not points:
+        return risks
+    if curve_kind(tx, target) != "line":
+        return risks
+    src, which = points[0]
+    for line, constraint in held_on(tx, sk, src, which):
+        if int(line.Tag) == int(target.Tag) or curve_kind(tx, line) != "line":
+            continue
+        if _parallel_lines(tx, line, target):
+            gap = _line_gap(tx, line, target)
+            if gap > geom.tol(point(tx, line, "start"), point(tx, target, "start")) * 10 and (
+                connected(tx, sk, line, target)
+            ):
+                risks.append(
+                    {
+                        "reason": f"the point is already held on a parallel line {gap:.6g} away "
+                        "that other curves join to this one: the curves between them would "
+                        "collapse",
+                        "curves": [line],
+                        "constraint": constraint,
+                    }
+                )
+        elif adjacent(tx, line, target):
+            risks.append(
+                {
+                    "reason": "the point is already held on a line that meets this one at a "
+                    "corner: it could only sit on the corner, which NX solves by deleting "
+                    "curves (use a coincident constraint with the corner instead)",
+                    "curves": [line],
+                    "constraint": constraint,
+                }
+            )
+    if which == "center":
+        return risks
+    at = point(tx, src, which)
+    joined = curves_at(tx, sk, at)
+    if kind == "midpoint" and any(int(c.Tag) == int(target.Tag) for c, _ in joined):
+        risks.append(
+            {
+                "reason": "the point is an end of this line: its midpoint there would shrink "
+                "the line to nothing",
+                "curves": [target],
+            }
+        )
+    for c, w in joined:
+        if int(c.Tag) == int(target.Tag):
+            continue
+        other = point(tx, c, "end" if w == "start" else "start")
+        if any(_meet(other, q) for _, q in ends(tx, target)):
+            risks.append(
+                {
+                    "reason": "a curve ending at this point already ends on this line: it "
+                    "would fold onto the line",
+                    "curves": [c],
+                }
+            )
+    return risks
 
 
 def set_construction(tx, curves, on):

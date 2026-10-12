@@ -1,0 +1,118 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/results_scope.json",
+  "scenario_sha256": "53f072affece22f9ad8625f8780687bd5f6a03da936166489eca5e59635118a9",
+  "domain": "session",
+  "covers": {
+    "nx_delete_results": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_delete_results": "25a46998d34f1527c7cfa39848e84ea3362d727a98c761bde574ff353b221015"
+  },
+  "recorded": "2026-10-12T10:41:05Z",
+  "passed": true,
+  "checks": 21,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 10,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

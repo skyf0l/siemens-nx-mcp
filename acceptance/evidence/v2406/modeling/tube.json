@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/tube.json",
-  "scenario_sha256": "495501c214d51e5d98432c40f639e598f707d381fa160e88d6121a757d43f812",
+  "scenario_sha256": "6bab786e7972ad0ae30d72bb85234763a8df75c508691821f69418637efab337",
   "domain": "modeling",
   "covers": {
     "nx_create_tube": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_tube": "ea85b05c6b24e8d6a664e9d383634aaa64990d78476b8695c991d9d21043dbd7"
+    "nx_create_tube": "bd0847ef1b01ca24b5596577b736851d0671bea63b3e19780412956c49ed4720"
   },
-  "recorded": "2026-10-11T08:11:37Z",
+  "recorded": "2026-10-12T09:57:32Z",
   "passed": true,
-  "checks": 21,
+  "checks": 33,
   "failed_checks": 0,
   "steps": [
     {
@@ -211,6 +211,34 @@
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 29,
+      "call": "nx_create_tube",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 30,
+      "call": "nx_create_tube",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 31,
+      "call": "nx_create_tube",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 32,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
     }
   ]
 }

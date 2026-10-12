@@ -36,21 +36,35 @@ def test_get_camera_reads_the_model_view():
     assert data["interactive"] is True and "sheet" not in data
 
 
-def test_get_camera_is_a_plain_read_of_the_display_with_parts_in_the_background():
+def test_get_camera_reads_the_display_or_shows_the_named_background_part():
     """Two of the agent's parts loaded: the camera read needs no part (never
-    NX_AMBIGUOUS_PART), switches nothing and reads the displayed part's view, also when
-    the call names a part in the background."""
+    NX_AMBIGUOUS_PART) and then switches nothing. A named part in the background is shown
+    for the read (live: the engineer's camera came back for part X) and the shown tab
+    comes back."""
     nx = display_nx()
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)  # tab switches
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
     parts = nx.session.Parts
     shown = parts.Display
-    Part(nx.session, Path(services(nx).root) / "plate.prt")
+    plate = Part(nx.session, Path(services(nx).root) / "plate.prt")
     parts.Work = parts.Display = shown
     nx.session.strict_work = True
-    for args in ({}, {"part": "plate"}):
-        ok = run(nx, "nx_get_camera", **args)
-        assert ok.ok, (args, ok)
-        assert ok.data["view"] == "trimetric" and ok.data["part"]["name"] == shown.Name
-    assert nx.session.calls == [] and parts.Display is shown and parts.Work is shown
+    ok = run(nx, "nx_get_camera")
+    assert ok.ok and ok.data["part"]["name"] == shown.Name, ok
+    assert nx.session.calls == [] and parts.Display is shown
+    seen = []
+    plate.ModelingViews = NS(WorkView=shown.ModelingViews.WorkView)
+    original = display.camera
+    try:
+        display.camera = lambda tx, view: (
+            seen.append(tx.session.Parts.Display) or original(tx, view)
+        )
+        ok = run(nx, "nx_get_camera", part="plate")
+    finally:
+        display.camera = original
+    assert ok.ok, ok
+    assert ok.data["part"]["name"] == plate.Name and seen == [plate]
+    assert parts.Display is shown and parts.Work is shown
 
 
 def test_get_camera_reports_the_shown_sheet():

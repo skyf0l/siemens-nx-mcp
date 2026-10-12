@@ -99,6 +99,15 @@ def test_mirror_target_errors(extra, field):
     assert not any(b.commits for b in nx.builders)
 
 
+def test_mirror_plane_errors_are_not_started():
+    """Live: a zero plane normal was reported rolled_back."""
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    bad = run(nx, "nx_create_mirror", bodies=[block.ref],
+              plane={"origin": [0, 0, 0], "normal": [0, 0, 0]})  # fmt: skip
+    assert bad.error["field"] == "/plane/normal" and bad.mutation_outcome == "not_started"
+
+
 # ---------------------------------------------------------------------------
 # Pattern
 
@@ -251,6 +260,18 @@ def test_along_curve_and_fill():
             "/parameters/direction2",
         ),  # fmt: skip
         ("linear", {"direction": [1, 0, 0], "count": 2, "spacing": 0}, "/parameters/spacing"),
+        (
+            "linear",
+            {
+                "direction": [1, 0, 0],
+                "count": 2,
+                "spacing": -10,
+                "direction2": [0, 1, 0],
+                "count2": 2,
+                "spacing2": 0,
+            },
+            "/parameters/spacing2",
+        ),  # fmt: skip  (live: the zero spacing2 was reported on /spacing)
         (
             "linear",
             {

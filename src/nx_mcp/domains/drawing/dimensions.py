@@ -620,6 +620,7 @@ class DimensionInfo(TypedDict, total=False):
     valid: bool
     associations: int
     objects: list[result.Row]
+    text: str
     format: dict
     tolerance: dict
     origin: list[float]
@@ -637,9 +638,13 @@ def _enum(value, enum, table=None):
 
 
 def bound_objects(tx, d):
-    """Rows of the objects (edges) a dimension measures, in association order."""
-    rows = []
+    """Rows of the objects (edges) a dimension measures, in association order, each once
+    (``associations`` counts the native associativities)."""
+    rows, seen = [], set()
     for obj in associated(d):
+        if int(obj.Tag) in seen:  # both ends of one edge (a dimension of its length)
+            continue
+        seen.add(int(obj.Tag))
         try:
             rows.append(tx.ref(obj, "edge" if kind_of_geometry(obj) == "edge" else None))
         except NXError:  # an object without a reference kind (a sketch point)
@@ -675,6 +680,8 @@ def dimension_info(tx, d):
             },
             "units": units.part_units(tx),
         }
+        if out["format"]["units"] == "in":  # NX 2406 shows inches with a period whatever
+            out["format"]["decimal_separator"] = "period"  # the stored character
         if out["tolerance"]["type"] in NO_DEVIATIONS:  # NX keeps, but does not show, them
             del out["tolerance"]["upper"], out["tolerance"]["lower"]
         if out["tolerance"]["type"] == "fit":
@@ -682,6 +689,8 @@ def dimension_info(tx, d):
     finally:
         fmt.Dispose()
         prefs.Dispose()
+    with contextlib.suppress(Exception):  # the text NX shows (its decimal separator)
+        out["text"] = " ".join(str(t) for t in d.GetDimensionText()[0])
     bound = bound_objects(tx, d)
     if bound:
         out["objects"] = bound
@@ -812,26 +821,43 @@ def _normalized(tol):
     return tol
 
 
+def _held(tx, d) -> tuple[float, float]:
+    """The (upper, lower) deviations NX holds for ``d``, in part units."""
+    if units.part_units(tx) == "mm":
+        return float(d.UpperMetricToleranceValue), float(d.LowerMetricToleranceValue)
+    return float(d.UpperToleranceValue), float(d.LowerToleranceValue)
+
+
 def _deviations(tx, d, tol):
     """Check upper/lower against the tolerance type (the request's or the dimension's)
-    and mirror a symmetric one (+/- upper)."""
-    kind = tol.get("type") or _enum(d.ToleranceType, tx.nx.Annotations.ToleranceType, TOLERANCES)
+    and mirror a symmetric one (+/- upper). A switch to symmetric needs upper; bilateral
+    and limits need upper > lower (the held value fills the one not given)."""
+    held = _enum(d.ToleranceType, tx.nx.Annotations.ToleranceType, TOLERANCES)
+    kind = tol.get("type") or held
     given = [k for k in ("upper", "lower") if k in tol]
     if kind in NO_DEVIATIONS and given:
         fail("NX_INVALID_ARGUMENT", f"A {kind} tolerance shows no deviations: drop "
              f"{given[0]}, or use type bilateral, symmetric or limits",
              field=f"/tolerance/{given[0]}")  # fmt: skip
-    if kind != "symmetric":
-        return tol
-    if len(given) == 2 and not math.isclose(tol["lower"], -tol["upper"], abs_tol=1e-12):
-        fail("NX_INVALID_ARGUMENT", "A symmetric tolerance is +/- upper: give upper only",
-             field="/tolerance/lower")  # fmt: skip
-    if given:
-        value = abs(float(tol[given[0]]))
-    else:  # switching to symmetric keeps the upper value NX holds
-        mm = units.part_units(tx) == "mm"
-        value = abs(float(d.UpperMetricToleranceValue if mm else d.UpperToleranceValue))
-    return {**tol, "upper": value, "lower": -value}
+    if kind == "symmetric":
+        if len(given) == 2 and not math.isclose(tol["lower"], -tol["upper"], abs_tol=1e-12):
+            fail("NX_INVALID_ARGUMENT", "A symmetric tolerance is +/- upper: give upper only",
+                 field="/tolerance/lower")  # fmt: skip
+        if not given and held != "symmetric":  # a switch: never reuse a stale upper
+            fail("NX_INVALID_ARGUMENT", "A symmetric tolerance needs upper (the +/- value)",
+                 field="/tolerance/upper", hint='e.g. {"type": "symmetric", "upper": 0.05}')  # fmt: skip
+        value = abs(float(tol[given[0]] if given else _held(tx, d)[0]))  # still symmetric
+        return {**tol, "upper": value, "lower": -value}
+    if kind in ("bilateral", "limits"):
+        upper, lower = _held(tx, d)
+        upper = float(tol.get("upper", upper))
+        lower = float(tol.get("lower", lower))
+        if not upper > lower:
+            field = "/tolerance/" + ("lower" if "lower" in tol else "upper")
+            fail("NX_INVALID_ARGUMENT", f"A {kind} tolerance needs upper > lower (signed "
+                 f"deviations); got upper {upper:g}, lower {lower:g}", field=field,
+                 hint='e.g. {"type": "bilateral", "upper": 0.1, "lower": -0.05}')  # fmt: skip
+    return tol
 
 
 def _fit_request(tol):
@@ -916,6 +942,19 @@ def _set_fit(tx, d, tol):
                     grade_key: grade})  # fmt: skip
 
 
+def _origin(d):
+    """The dimension's text origin [x, y, z] (model units), or None when NX has none."""
+    point = getattr(d, "AnnotationOrigin", None)
+    return geom.xyz(point) if point is not None else None
+
+
+def _keep_origin(tx, d, origin) -> None:
+    """Put the dimension text back where it was: NX's style builder can move it (a fit)."""
+    now = _origin(d)
+    if now is None or geom.dist(now, origin) > 1e-9:
+        d.AnnotationOrigin = tx.nx.Point3d(*origin)
+
+
 def _rebind_view(d):
     for i in range(1, int(d.NumberOfAssociativities) + 1):
         view = getattr(d.GetAssociativity(i), "ObjectView", None)
@@ -952,6 +991,9 @@ def nx_edit_dimension(
     if tolerance:
         tolerance = _normalized(tolerance)
         _fit_request(tolerance)
+    if format and format.get("decimal_separator") == "comma" and format.get("units") == "in":
+        fail("NX_UNSUPPORTED_OPTION", "NX shows inch dimensions with a period",
+             field="/format/decimal_separator")  # fmt: skip
     for field, part in (("format", format), ("tolerance", tolerance)):
         if part and "decimals" in part and not 0 <= part["decimals"] <= 8:
             fail("NX_INVALID_ARGUMENT", "decimals must be 0-8", field=f"/{field}/decimals")
@@ -964,7 +1006,16 @@ def nx_edit_dimension(
         d = select.resolve(tx, dimension, "dimension", field="/dimension", work_part=True)
         if tolerance and not fit:
             tolerance = _deviations(tx, d, tolerance)
+        asked = format or {}
+        if (
+            asked.get("decimal_separator") == "comma"
+            and "units" not in asked
+            and _format_units(tx, d) == "in"
+        ):
+            fail("NX_UNSUPPORTED_OPTION", "NX shows inch dimensions with a period: add "
+                 "format units mm", field="/format/decimal_separator")  # fmt: skip
         before = (float(d.ComputedSize), int(d.NumberOfAssociativities), bool(d.IsRetained))
+        origin = _origin(d)
         if first is not None:
             view = _rebind_view(d)
             if view is None or not type(d).__name__.endswith(
@@ -996,9 +1047,12 @@ def nx_edit_dimension(
         _set_tolerance(tx, d, tolerance)
         if fit:
             _set_fit(tx, d, tolerance)
+    if first is None and origin is not None:
+        _keep_origin(tx, d, origin)
     d.RedisplayObject()
     out = dimension_info(tx, d)
-    if first is None:
+    if first is None and origin is not None:
+        readback.expect_close(_origin(d), origin, "origin", tol=1e-6)
         after = (out["value"], out["associations"], not out["valid"])
         readback.expect(
             math.isclose(after[0], before[0], rel_tol=1e-9, abs_tol=1e-12)

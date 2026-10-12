@@ -479,10 +479,11 @@ def nx_create_hole(
     spec = check_spec(form, diameter, limit, tip_angle, counterbore, countersink, thread)
     points = check_positions(positions)
     row = tap_row(threads.thread_rows(), spec) if form == "threaded" else None
-    placement, body, origin, outward = _placement(tx, face, target)
-    centres = _on_face(tx, placement, points, origin, outward)
-    if row is not None:
-        threads.check_units(tx, row, "/thread/standard")
+    with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
+        placement, body, origin, outward = _placement(tx, face, target)
+        centres = _on_face(tx, placement, points, origin, outward)
+        if row is not None:
+            threads.check_units(tx, row, "/thread/standard")
     drill = geom.scale(outward, -1.0)
     part = tx.part
     nx = tx.nx

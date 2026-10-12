@@ -153,7 +153,8 @@ def test_an_interleaved_create_only_operation_is_undone_by_deletion():
     assert deleted == {"feature", "body"} and undo.changes["references"] == "listed"
     assert made.data["feature"]["id"] in undo.changes["stale_refs"]
     assert any("deleted what it created" in w["message"] for w in undo.warnings)
-    assert "op_b_block_1 (nx_create_test_block in b.prt)" in undo.warnings[0]["message"]
+    message = undo.warnings[0]["message"]  # why, without naming other parts' work
+    assert "1 later operation of other parts" in message and "b.prt" not in message
     # The undo by deletion stays in the history and is never undone itself.
     assert history(nx) == [("op_b_block_1", False), ("op_a_undo_1", True)]
     store = services(nx).store
@@ -170,7 +171,7 @@ def test_a_second_undo_never_brings_the_deleted_objects_back():
     # B's own undo would revert A's undo by deletion with NX's undo: B deletes instead.
     b_undo = run(nx, "nx_undo_operation", part="b")
     assert b_undo.ok and b_undo.data["compensated"] and counts(a, b) == [(0, 0), (0, 0)]
-    assert "an undo by deletion" in b_undo.warnings[0]["message"]
+    assert "undos by deletion" in b_undo.warnings[0]["message"]
 
 
 def test_an_interleaved_operation_that_is_not_create_only_is_refused_naming_the_other_part():
@@ -185,7 +186,7 @@ def test_an_interleaved_operation_that_is_not_create_only_is_refused_naming_the_
     assert refused.error["code"] == "NX_CROSS_PART" and refused.mutation_outcome == "not_started"
     error = refused.error
     assert "op_b_block_1 (nx_create_test_block in b.prt)" in error["message"]
-    assert "did more than create features (deleted" in error["message"]
+    assert "did more than create objects (deleted" in error["message"]
     assert error["details"]["operation_id"] == "op_b_block_1"
     assert error["details"]["in_the_way"] == [
         {"operation_id": "op_b_block_1", "tool": "nx_create_test_block", "part": "b.prt"}
@@ -222,15 +223,6 @@ def test_a_feature_another_feature_uses_is_never_deleted():
     assert refused.error["details"]["dependents"][0]["name"] == "BLEND"
     explicit = run(nx, "nx_undo_operation", part="a", mode="delete_created")
     assert explicit.error["code"] == "NX_DEPENDENCY_ORDER" and len(a.Features) == 2
-
-
-def test_a_sketch_is_never_undone_by_deletion():
-    nx, a, b = two()
-    assert run(nx, "nx_create_test_sketch", operation_id="op_a_sketch_1", part="a").ok
-    block(nx, "b", "op_b_block_1")
-    refused = run(nx, "nx_undo_operation", part="a")
-    assert refused.error["code"] == "NX_CROSS_PART" and "created sketch" in refused.error["message"]
-    assert len(a.Sketches) == 1
 
 
 def test_a_deletion_that_takes_more_than_was_created_is_rolled_back():
@@ -305,8 +297,7 @@ def test_delete_created_reaches_across_a_load_but_never_across_the_engineer():
     )  # fmt: skip
     ok = run(nx, "nx_undo_operation", part="a")  # the default compensates across the load
     assert ok.ok and ok.data["compensated"] and counts(a) == [(0, 0)], ok
-    assert any("part_loaded" not in w["message"] and "c.prt was loaded" in w["message"]
-               for w in ok.warnings), ok.warnings  # fmt: skip
+    assert any("1 later part load or close" in w["message"] for w in ok.warnings), ok.warnings
     block(nx, "a", "op_a_block_2")
     services(nx).engineer_changed()
     for mode in (None, "delete_created"):

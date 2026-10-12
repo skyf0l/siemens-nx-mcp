@@ -27,7 +27,7 @@ import contextlib
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypedDict, cast
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -633,8 +633,28 @@ def nx_set_component_pose(
         target = (t, r if r is not None else kpose.identity())
     else:
         target = kpose.relative(current, t, r)
-    structure.move(tx, c, target)
+    got = structure.move(tx, c, target)
+    tx.note_restore({"component": component, "before": list(current), "after": list(got)})
     return {
         "component": common.component_row(tx, c),
         "previous": {"translation": current[0], "rotation": current[1]},
     }
+
+
+@restorer("nx_set_component_pose")
+def _restore_pose(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Put a component an ``nx_set_component_pose`` moved back at its previous pose (the
+    compensating undo): refused when it moved again since."""
+    ref = data["component"]
+    before, after = tuple(data["before"]), tuple(data["after"])
+    c = common.component(tx, ref, "/component")
+    now = structure.pose(c)
+    if not kpose.close(now, after, tol=1e-6 * max(1.0, *map(abs, after[0]))):
+        fail(
+            "NX_DEPENDENCY_ORDER",
+            f"{ref} moved since: it is at {now[0]}, the operation placed it at {after[0]}",
+            details={"component": ref, "translation": now[0]},
+        )
+    if apply:
+        structure.move(tx, c, before, check="previous_pose")
+    return f"the pose of {ref} back to {before[0]}"

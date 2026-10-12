@@ -188,10 +188,16 @@ def test_save_refuses_parts_outside_the_workspace_and_not_owned(nx, monkeypatch)
     svc.dev = False
     svc.owns = lambda part: False
     refused = call(nx, tools.nx_save_part, part=nx.ref_of(mine, "part"))
-    assert refused.error["code"] == "NX_PART_NOT_GRANTED" and refused.error["field"] == "/part"
-    assert refused.mutation_outcome == "not_started"
+    assert refused.error["code"] == "NX_ENGINEER_PART" and refused.error["field"] == "/part"
+    assert refused.mutation_outcome == "not_started" and "Allow agent" in refused.error["hint"]
     closing = call(nx, tools.nx_close_part, part=nx.ref_of(mine, "part"), save=False)
-    assert closing.error["code"] == "NX_PART_NOT_GRANTED" and mine in nx.session.Parts
+    assert closing.error["code"] == "NX_ENGINEER_PART" and mine in nx.session.Parts
+    svc.granted = lambda part: True  # the engineer's grant lets the agent save, never close
+    assert call(nx, tools.nx_save_part, part=nx.ref_of(mine, "part")).error["code"] == (
+        "NX_PART_NOT_GRANTED"  # gate 6 next: this fake's owns() still says no
+    )
+    closing = call(nx, tools.nx_close_part, part=nx.ref_of(mine, "part"), save=False)
+    assert closing.error["code"] == "NX_ENGINEER_PART"
 
 
 def test_failed_native_save_is_partial(nx):
@@ -620,7 +626,8 @@ def test_close_part_by_path_keeps_the_refusals(nx, root):
     svc.dev = False
     svc.owns = lambda part: False
     granted = call(nx, tools.nx_close_part, part="dirty", save=False)
-    assert granted.error["code"] == "NX_PART_NOT_GRANTED" and dirty in nx.session.Parts
+    assert granted.error["code"] == "NX_ENGINEER_PART" and dirty in nx.session.Parts
+    assert granted.error["category"] == "blocked" and granted.mutation_outcome == "not_started"
 
 
 def test_close_part_summary_names_the_file():

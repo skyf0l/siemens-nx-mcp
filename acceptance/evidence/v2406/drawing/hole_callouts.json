@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_dimension": "844529cefa27a6cc21e56d535d8387df13250a1aae7fc242330b678c5fab4344"
+    "nx_create_drawing_dimension": "0699669fe983d0a821907c2556dcdf4bdd180769ce82dc7c1d54a5ed06657812"
   },
-  "recorded": "2026-10-11T10:10:52Z",
+  "recorded": "2026-10-12T10:58:26Z",
   "passed": true,
   "checks": 37,
   "failed_checks": 0,

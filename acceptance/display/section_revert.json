@@ -1,0 +1,24 @@
+{
+ "covers": {"nx_create_section_view": [], "nx_edit_section_view": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
+  {"call": "nx_create_datum_plane", "setup": true, "save": "dp", "args": {"method": "point_normal", "origin": [0, 0, 50], "normal": [0, 0, 1]}},
+  {"call": "nx_create_section_view", "save": "sec", "args": {"plane": "xz", "offset": 5, "name": "CUT_U"},
+   "expect": {"mutation_outcome": "committed", "data.origin": {"close": [0, 5, 0], "tol": 1e-9}, "data.cap": true}},
+  {"call": "nx_edit_section_view", "args": {"section": "CUT_U", "offset": 2, "cap": false},
+   "expect": {"mutation_outcome": "committed", "data.origin": {"close": [0, 7, 0], "tol": 1e-9}, "data.cap": false, "warnings": {"count": 0}}},
+  {"call": "nx_undo_operation", "args": {"operation": "$dp.operation_id"},
+   "intent": "Acceptance: NX's undo to an earlier mark also removes a section made after it (live, parallel agents: sections vanished or edits came back undone)",
+   "expect": {"mutation_outcome": "committed", "changes.deleted": {"contains": {"id": "$sec.data.section.id"}}}},
+  {"call": "nx_list_objects", "args": {"kind": "section_view"},
+   "intent": "Acceptance: the next listing names the section that is gone instead of staying silent",
+   "expect": {"data.items": {"count": 0}, "warnings.0.code": "NX_NOTE", "warnings.0.message": {"contains": "section CUT_U is gone"}}},
+  {"call": "nx_list_objects", "args": {"kind": "section_view"},
+   "expect": {"data.items": {"count": 0}, "warnings": {"count": 0}}},
+  {"call": "nx_edit_section_view", "args": {"section": "CUT_U", "enabled": false},
+   "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/section", "mutation_outcome": "not_started"}}
+ ]
+}

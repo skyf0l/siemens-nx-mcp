@@ -227,6 +227,96 @@
    "expect": {
     "data.healthy": true
    }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "ss",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      100,
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$ss.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 5
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$ss.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "sep",
+   "args": {
+    "sketch": "$ss.data.sketch.id",
+    "end": {
+     "type": "distance",
+     "value": 5
+    }
+   }
+  },
+  {
+   "call": "nx_set_current_feature",
+   "args": {
+    "feature": "$fil.data.feature.id"
+   },
+   "intent": "Acceptance: rolling back past a feature with its own body says NX removes the body until rolled forward (live: listed as deleted with no word)",
+   "expect": {
+    "mutation_outcome": "committed",
+    "changes.deleted": {
+     "contains": {
+      "id": "$sep.data.bodies.0.id"
+     }
+    },
+    "warnings.0.code": "NX_NOTE",
+    "warnings.0.message": {
+     "contains": "1 body(ies) of the now inactive features"
+    }
+   }
+  },
+  {
+   "call": "nx_set_current_feature",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.inactive": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_current_feature",
+   "args": {
+    "feature": "$blk.data.bodies.0.id"
+   },
+   "expect": {
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_started"
+   }
   }
  ]
 }

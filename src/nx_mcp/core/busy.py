@@ -1,52 +1,57 @@
-"""Busy parts: a close of a part other calls are working in (D8, phase P4).
+"""Part ownership between callers: engineer parts, other agents' parts, busy parts (3.4).
 
-Calls carry no caller identity (no agent label; ``part`` names a part, never a caller),
-so the rule reads only the order of calls and the parts' saved state. It applies while
-two or more of the agent's parts are loaded (``core/target.agent_parts``, as rule G
-counts them); with one, every call behaves as before.
+**Caller identity.** The sidecar adds the call key ``caller`` to every NX call
+(``core/target.check_caller``): ``{"id", "shared"}``. ``id`` names the sidecar process and
+its MCP session (plus an id the MCP client puts in the request's ``_meta``, when it gives
+one): one per agent where each agent has its own sidecar. ``shared`` is true while that
+connection ran calls at the same time within the last two minutes: several agents share
+it (subagents of one client share its MCP server), so ``id`` does not tell them apart.
+A call without the key (an older sidecar, a direct bridge client) has no identity.
 
-- A part is *busy* while it holds unsaved changes made within ``BUSY_SECONDS``: a
-  committed call changed it in that time (effect ``model`` or ``session`` in its target,
-  the new part ``nx_create_part`` made, or the part a call without a target loaded) and
-  no save of the part came after that change. ``file`` calls (``nx_save_part``, exports)
-  never change a part, and a save ends its busy state: closing a saved part loses no
-  one's work. A part ``nx_open_part`` loaded from its file (``tx.worked_in`` of a
-  ``session`` call, not loaded before it) matches the file, as after a save; a reused
-  part keeps its state. Reads and view effects (captures, cameras,
-  highlights) never count.
-- The *stream* is the part the last committed changing or file call worked in.
-- ``nx_close_part`` refuses a busy part with ``NX_PART_BUSY`` while the stream is another
-  part that is still loaded: the previous call worked elsewhere, so the close does not
-  follow the calls that changed this part. A close right after working in the part (the
-  stream is the part), a close after the part's own save (benchmark bench3p: 4 of 4
-  forced closes were of parts their agent had just saved while another agent's call came
-  last), and a run of closes (once a part closes, the stream names a part that is gone)
-  close. ``force`` closes anyway.
-- ``nx_save_part`` never warns: a save loses no one's work and ends the part's busy
-  state. The stream says nothing about who saves (benchmark bench3t: 14 save notes
-  keyed on the session-wide last call, every one on the agent's own part, all false).
+**Owners.** A committed changing call that loads a part (create, open, import, an
+assembly's components) records the loading caller (:func:`record`). The record survives
+a host reload in the same NX process (``.nx-mcp/part-owners.json``: tag and file of every
+loaded agent part, :func:`adopt`).
+
+**Rules** (:func:`refuse_engineer`, :func:`refuse_close`, :func:`refuse_activate`):
+
+- An *engineer part* (loaded by the engineer: not created or opened by an agent call;
+  ``Services.created``) is never closed or activated by an agent tool, and never saved
+  unless the engineer granted it on the panel (``NX_ENGINEER_PART``, no ``force``,
+  development mode included). Read tools still read it.
+- *Another agent's part* (its owner's id and the caller's id are both known and differ)
+  is not closed or activated without ``force`` (``NX_PART_BUSY``, reason
+  ``other_agent``). Saving it loses nothing and is not refused.
+- *No identity tells the callers apart* (same id, or either unknown). A close is refused
+  only when all hold: the caller's connection is ``shared``; the close discards changes
+  (``save`` false); the part has unsaved changes a call made within ``BUSY_SECONDS``; and
+  a call worked in it within ``RECENT_SECONDS`` (reason ``recent_change``). A solo agent
+  (its connection never runs calls at once) is never refused by this rule, nor is a close
+  that saves. In a shared connection an agent's own close within ``RECENT_SECONDS`` of
+  its own work in the part is refused too (one retry with ``force``): the refusal says
+  so. Measured (30 agents in one sidecar): the foreign close of a part changed 17 s and
+  worked in 0 s before is refused; own closes 2 to 56 s after own edits mostly pass.
 - Closing an assembly keeps a component part that a call worked in (saves included)
-  within ``BUSY_SECONDS`` after the assembly was loaded (``component_reason``);
-  components the assembly's own calls loaded are not busy themselves.
-
-Limits, stated in the refusal: when agents call at the same time, an agent's own close
-of an unsaved part that comes right after another agent's call in another part is
-refused as well (save it first, or repeat the close with ``force``), and a close right
-after the owner's own call is not.
+  within ``BUSY_SECONDS`` after the assembly was loaded (:func:`component_reason`).
 """
 
 from __future__ import annotations
 
 import contextlib
+import json
+import os
 import time
+from pathlib import Path
 
 from nx_mcp.core import target as targets
 from nx_mcp.core.errors import fail
 
-BUSY_SECONDS = 300.0
-CHANGING = ("model", "file", "session")  # calls that move the stream
+BUSY_SECONDS = 300.0  # unsaved changes this recent make a part busy
+RECENT_SECONDS = 30.0  # ... when a call also worked in it this recently (shared connection)
+CHANGING = ("model", "file", "session")  # calls that stamp the parts they worked in
 CHANGES = ("model", "session")  # calls that change their part (file calls never do)
 SAVE = "nx_save_part"  # its part's changes are on disk: not busy until the next change
+OWNERS_FILE = "part-owners.json"  # in <workspace>/.nx-mcp: agent parts across host reloads
 
 
 def _table(services) -> dict:
@@ -60,6 +65,11 @@ def _entries(services) -> dict:
     return _table(services).setdefault("parts", {})
 
 
+def _owners(services) -> dict:
+    """``{part_key: {"caller": id or None, "at": load time}}``."""
+    return _table(services).setdefault("owners", {})
+
+
 def _tag(part) -> int | None:
     try:
         return int(part.Tag)
@@ -67,10 +77,18 @@ def _tag(part) -> int | None:
         return None
 
 
+def _caller_id(caller) -> str | None:
+    return caller.get("id") if isinstance(caller, dict) else None
+
+
+# ---------------------------------------------------------------------------
+# Recording
+
+
 def record(services, spec, target, tx, loaded_before: frozenset | None, now=None) -> None:
-    """After a committed changing call: stamp the parts it worked in and loaded and move
-    the stream. ``loaded_before``: the tags of the parts loaded before the call. Never
-    raises."""
+    """After a committed changing call: stamp the parts it worked in and record the caller
+    of the parts it loaded. ``loaded_before``: the tags of the parts loaded before the
+    call. Never raises."""
     if spec.effect not in CHANGING:
         return
     with contextlib.suppress(Exception):
@@ -80,7 +98,7 @@ def record(services, spec, target, tx, loaded_before: frozenset | None, now=None
 def _record(services, spec, target, tx, loaded_before, now) -> None:
     entries = _entries(services)
     operation_id = getattr(tx, "operation_id", None)
-
+    caller = _caller_id(getattr(tx, "caller", None))
     changes = spec.effect in CHANGES
 
     def stamp(
@@ -88,7 +106,7 @@ def _record(services, spec, target, tx, loaded_before, now) -> None:
     ) -> None:
         entry = entries.setdefault(key, {})
         if worked:
-            # worked in (component_reason): saves and exports too
+            # worked in (component_reason, RECENT_SECONDS): saves and exports too
             entry.update(at=now, tool=spec.name, operation_id=operation_id)
             if saved or (spec.name == SAVE and not made):
                 entry["saved_at"] = now
@@ -97,34 +115,34 @@ def _record(services, spec, target, tx, loaded_before, now) -> None:
                 entry["change"] = {"tool": spec.name, "operation_id": operation_id}
         if loaded:
             entry["loaded_at"] = now
+            _owners(services)[key] = {"caller": caller, "at": now}
 
-    stream = None
     if target is not None:
         stamp(target.key, worked=True)
-        stream = target.key
     for key in getattr(tx, "extra_parts", None) or ():  # batch children in other parts
         stamp(key, worked=True)
     worked_in = getattr(tx, "worked_in", None)
+    new = None
     if worked_in is not None:  # a part the call made (unsaved) or opened (as its file)
         key = services.part_key(worked_in)
+        new = loaded_before is not None and _tag(worked_in) not in loaded_before
         # nx_open_part loading the file (nx_create_part is a file call; a reused part
         # keeps what it was)
-        opened = spec.effect == "session" and (
-            loaded_before is not None and _tag(worked_in) not in loaded_before
-        )
+        opened = spec.effect == "session" and new
         stamp(key, worked=True, made=not opened, saved=opened)
-        stream = stream or key
     if loaded_before is not None:
         loaded = [p for p in services.parts() or [] if _tag(p) not in loaded_before]
         for part in loaded:
             stamp(services.part_key(part), worked=False, loaded=True)
-        if stream is None and loaded:
-            stream = services.part_key(loaded[0])
-            stamp(stream, worked=True, made=True)
-    if stream is not None:
-        _table(services)["stream"] = stream
+        if target is None and worked_in is None and loaded:
+            stamp(services.part_key(loaded[0]), worked=True, made=True)
     for key in [k for k, e in entries.items() if now - _newest(e) > 2 * BUSY_SECONDS]:
         entries.pop(key, None)
+    owners = _owners(services)
+    live = {services.part_key(p) for p in services.parts() or []}
+    for key in [k for k in owners if k not in live]:  # closed parts
+        owners.pop(key, None)
+    _persist(services)
 
 
 def _newest(entry: dict) -> float:
@@ -152,50 +170,204 @@ def _unsaved_age(entry: dict | None, now: float) -> float | None:
     return age if age <= BUSY_SECONDS else None
 
 
-def facts(services, part, now=None) -> dict | None:
-    """Why a close of ``part`` is refused, or None: busy (unsaved changes made within
-    ``BUSY_SECONDS``), two or more agent parts loaded, and the stream is another loaded
-    part."""
+# ---------------------------------------------------------------------------
+# Owners across host reloads
+
+
+def _owners_path(services) -> Path | None:
+    with contextlib.suppress(Exception):
+        return Path(services.workspace.root) / ".nx-mcp" / OWNERS_FILE
+    return None
+
+
+def _file(part) -> str:
+    return str(getattr(part, "FullPath", "") or "").replace("\\", "/").casefold()
+
+
+def _persist(services) -> None:
+    """Write the tag, file and caller of every loaded agent part (never raises)."""
+    path = _owners_path(services)
+    if path is None:
+        return
+    with contextlib.suppress(Exception):
+        owners = _owners(services)
+        rows = {}
+        for part in services.parts() or []:
+            key, tag = services.part_key(part), _tag(part)
+            # a part this call loaded is owned only after it (``Services.track``)
+            if tag is None or (key not in owners and engineer(services, part)):
+                continue
+            rows[str(tag)] = {"file": _file(part), "caller": (owners.get(key) or {}).get("caller")}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_suffix(".tmp")
+        temp.write_text(json.dumps({"pid": os.getpid(), "parts": rows}), encoding="utf-8")
+        os.replace(temp, path)
+
+
+def adopt(services) -> None:
+    """Once per services (a host start or reload): the loaded parts the owners file lists
+    for this NX process (same tag and file) are agent parts again, with their caller.
+    Never raises."""
+    table = _table(services)
+    if table.get("adopted"):
+        return
+    table["adopted"] = True
+    path = _owners_path(services)
+    with contextlib.suppress(Exception):
+        saved = json.loads(path.read_text(encoding="utf-8")) if path else {}
+        if saved.get("pid") != os.getpid():
+            return
+        rows = saved.get("parts") or {}
+        for part in services.parts() or []:
+            row = rows.get(str(_tag(part)))
+            if not row or row.get("file") != _file(part):
+                continue
+            if engineer(services, part):
+                services.own(part)
+            _owners(services).setdefault(services.part_key(part), {"caller": row.get("caller")})
+
+
+# ---------------------------------------------------------------------------
+# Who a part belongs to
+
+
+def engineer(services, part) -> bool:
+    """Whether ``part`` is the engineer's: not created or opened by an agent call (a part
+    the engineer only granted is still theirs). Unknown: not the engineer's."""
+    try:
+        created = getattr(services, "created", None)
+        return not bool(created(part) if created is not None else services.owns(part))
+    except Exception:
+        return False
+
+
+def _granted(services, part) -> bool:
+    try:
+        granted = getattr(services, "granted", None)
+        return bool(granted(part)) if granted is not None else False
+    except Exception:
+        return False
+
+
+def owner(services, part) -> str | None:
+    """The id of the caller that loaded ``part`` (None: unknown)."""
+    with contextlib.suppress(Exception):
+        return (_owners(services).get(services.part_key(part)) or {}).get("caller")
+    return None
+
+
+def other_agent(services, part, caller) -> str | None:
+    """The owner id of ``part`` when both it and the caller's id are known and differ."""
+    mine, theirs = _caller_id(caller), owner(services, part)
+    return theirs if mine and theirs and mine != theirs else None
+
+
+ACTIONS = {
+    "close": "closes",
+    "activate": "activates or shows",
+    "save": "saves",
+}
+
+
+def refuse_engineer(services, part, action: str, *, field: str | None = "/part") -> None:
+    """``NX_ENGINEER_PART`` when ``part`` is the engineer's (a granted part may be
+    saved)."""
+    if not engineer(services, part) or (action == "save" and _granted(services, part)):
+        return
+    name = targets.file_name(part)
+    hint = {
+        "close": f"Leave {name} to the engineer; close only parts you created or opened",
+        "activate": f'Calls reach {name} without activation: read it with "part": "{name}"',
+        "save": f"Ask the engineer to save {name}, or to tick 'Allow agent to change' for it "
+        "in the NX MCP panel; or save your work as a part of your own",
+    }[action]
+    fail(
+        "NX_ENGINEER_PART",
+        f"{name} is the engineer's part (not created or opened by an agent): no agent "
+        f"tool {ACTIONS[action]} it",
+        field=field,
+        hint=hint,
+        details={"part": name, "action": action},
+    )
+
+
+def _other_agent_refusal(services, part, action: str, theirs: str, field) -> None:
+    name = targets.file_name(part)
+    fail(
+        "NX_PART_BUSY",
+        f"{name} belongs to another agent: another MCP connection ({theirs}) loaded it",
+        field=field,
+        hint=f"Leave {name} to that agent. If it is yours (your MCP connection restarted) "
+        f"or abandoned, repeat the {action} with force: true",
+        details={"part": name, "reason": "other_agent", "owner": theirs, "action": action},
+    )
+
+
+def refuse_activate(services, part, caller, *, force: bool, field: str = "/part") -> None:
+    """Activating: never the engineer's part; another agent's only with ``force``."""
+    refuse_engineer(services, part, "activate", field=field)
+    theirs = other_agent(services, part, caller)
+    if theirs is not None and not force:
+        _other_agent_refusal(services, part, "activate", theirs, field)
+
+
+def facts(services, part, caller, *, save: bool, now=None) -> dict | None:
+    """Why a close of ``part`` (an agent part) is refused without ``force``, or None."""
     now = time.time() if now is None else now
     try:
-        if len(targets.agent_parts(services)) < 2:
+        name = targets.file_name(part)
+        theirs = other_agent(services, part, caller)
+        if theirs is not None:
+            return {"part": name, "reason": "other_agent", "owner": theirs}
+        if save or not (isinstance(caller, dict) and caller.get("shared")):
             return None
-        key = services.part_key(part)
-        entry = _entries(services).get(key)
-        age = _unsaved_age(entry, now)
-        stream = _table(services).get("stream")
-        if age is None or entry is None or stream is None or stream == key:
+        if not bool(getattr(part, "IsModified", True)):
             return None
-        other = targets.part_by_key(services, stream)
-        if other is None:
+        entry = _entries(services).get(services.part_key(part))
+        changed = _unsaved_age(entry, now)
+        worked = _age(entry, now)
+        if changed is None or worked is None or worked > RECENT_SECONDS or entry is None:
             return None
     except Exception:
         return None
     return {
-        "part": targets.file_name(part),
-        "changed_seconds_ago": round(age, 1),
+        "part": name,
+        "reason": "recent_change",
+        "changed_seconds_ago": round(changed, 1),
+        "worked_seconds_ago": round(worked, 1),
         "last_change": dict(entry.get("change") or {}),
-        "last_call_part": targets.file_name(other),
-        "busy_seconds": BUSY_SECONDS,
+        "last_call": entry.get("tool"),
+        "recent_seconds": RECENT_SECONDS,
     }
 
 
-def refuse(services, part, *, field: str = "/part") -> None:
-    """``NX_PART_BUSY`` when :func:`facts` says so (callers skip it with ``force``)."""
-    found = facts(services, part)
+def refuse_close(services, part, caller, *, save: bool, force: bool, field="/part") -> None:
+    """Closing: never the engineer's part; another agent's part and a busy part (shared
+    connection, unsaved recent changes discarded) only with ``force``."""
+    refuse_engineer(services, part, "close", field=field)
+    if force:
+        return
+    found = facts(services, part, caller, save=save)
     if found is None:
         return
+    if found["reason"] == "other_agent":
+        _other_agent_refusal(services, part, "close", found["owner"], field)
     name = found["part"]
     fail(
         "NX_PART_BUSY",
-        f"{name} was changed {found['changed_seconds_ago']:.0f} s ago "
-        f"({found['last_change']['tool']}) and the last call worked in "
-        f"{found['last_call_part']}: another agent may be working in {name}",
+        f"Closing {name} would discard its unsaved changes "
+        f"({found['last_change'].get('tool')} {found['changed_seconds_ago']:.0f} s ago; a "
+        f"call worked in it {found['worked_seconds_ago']:.0f} s ago). Several agents share "
+        f"this MCP connection, so NX MCP cannot tell whether {name} is yours",
         field=field,
-        hint=f"If {name} is your own part, save it first (a saved part closes) or repeat "
-        "the call with force: true; otherwise leave it to the agent working in it",
+        hint=f"If {name} is yours, repeat the close with force: true (or save: true to keep "
+        "the changes); otherwise leave it to the agent working in it",
         details=found,
     )
+
+
+# ---------------------------------------------------------------------------
+# Assembly closes
 
 
 def loaded_at(services, part) -> float:

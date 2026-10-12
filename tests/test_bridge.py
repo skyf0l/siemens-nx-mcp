@@ -39,6 +39,24 @@ def test_default_descriptor_path_uses_home_state_as_final_fallback(
     assert default_descriptor_path() == Path.home() / ".local" / "state" / "nx-mcp" / "bridge.json"
 
 
+def test_sidecar_reads_the_graphical_nx_descriptor_when_it_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.delenv("NX_MCP_BRIDGE_DESCRIPTOR", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    client = DescriptorBridgeClient()
+    assert client.descriptor_path == tmp_path / "nx-mcp" / "bridge.json"  # batch fallback
+    interactive = tmp_path / "nx-mcp" / "interactive-bridge.json"
+    interactive.parent.mkdir()
+    interactive.write_text("{}", encoding="utf-8")  # NX started after the sidecar
+    assert client.descriptor_path == interactive
+    monkeypatch.setenv("NX_MCP_BRIDGE_DESCRIPTOR", str(tmp_path / "custom.json"))
+    assert client.descriptor_path == tmp_path / "custom.json"
+    assert DescriptorBridgeClient(tmp_path / "given.json").descriptor_path == (
+        tmp_path / "given.json"
+    )
+
+
 @pytest.mark.asyncio
 async def test_bridge_round_trip_uses_versioned_authenticated_json_rpc():
     server = BridgeServer(

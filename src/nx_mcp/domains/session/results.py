@@ -11,6 +11,13 @@ pages or expands one snapshot by JSON pointer; ``nx_delete_results`` (replaces
 ``nx_result_cleanup``) previews or prunes them. Both run in the sidecar
 (``runs="sidecar"``) and never reach NX; mutation receipts and CAD files are
 never touched.
+
+Several agents share the workspace's snapshots, each through its own sidecar process.
+By age or size ``nx_delete_results`` prunes only the caller's own snapshots: those its
+sidecar stored or received (``kit.snapshots.claimed``; after a sidecar restart the
+earlier ones count as others'); ``all_agents`` prunes every agent's. ``result_ids`` names
+exact snapshots (whoever stored them). The automatic retention (7 days, 256 MiB) still
+prunes every snapshot.
 """
 
 from __future__ import annotations
@@ -25,7 +32,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Offset, Range, Text
 from nx_mcp.kit import result
-from nx_mcp.kit.snapshots import LOCK, bury, maintain, settings, tombstone
+from nx_mcp.kit.snapshots import LOCK, bury, claimed, maintain, settings, tombstone
 
 # The two snapshot folders under <workspace>/.nx-mcp: sidecar compaction, bridge overflow.
 STORES = ("agent-results", "bridge-results")
@@ -57,6 +64,9 @@ class ResultData(TypedDict, total=False):
 
 class CleanupData(TypedDict):
     applied: bool  # false for a preview (dry_run)
+    # own: this caller's snapshots (counts and sizes too); all: every agent's
+    # (all_agents); ids: exactly result_ids
+    scope: Literal["own", "all", "ids"]
     deleted_count: int  # snapshots actually deleted (0 for a preview)
     policy: dict  # {max_age_seconds, max_bytes}
     snapshot_count: int
@@ -264,24 +274,27 @@ def nx_delete_results(
     | None = None,
     result_ids: Annotated[list[ResultId], Items(1, 100), Doc("Select exactly these snapshots")]
     | None = None,
+    all_agents: Annotated[bool, Doc("Age/size: every agent's snapshots, not only yours")] = False,
 ) -> CleanupData:
     """Preview (default) or delete stored result snapshots by age, total size or result_id.
-    Defaults: 7 days, 256 MiB. Snapshots are shared by all agents on this workspace;
-    result_ids deletes only yours. Receipts and CAD files are never touched."""
+    Defaults: 7 days, 256 MiB, only your own snapshots (all_agents: every agent's on this
+    workspace). Receipts and CAD files are never touched."""
     with tx.checks():
         max_age_seconds = _amount(max_age_seconds, DURATIONS, "/max_age_seconds", "'7d'")
         try:
             policy = settings()
         except ValueError as error:
             fail("NX_INVALID_ARGUMENT", f"Retention settings: {error}")
-    out = _delete(tx, dry_run, max_age_seconds, max_bytes, result_ids, policy)
+    out = _delete(tx, dry_run, max_age_seconds, max_bytes, result_ids, policy, all_agents)
     out["deleted_count"] = out["selected_count"] if out["applied"] else 0
     if not out["deleted_count"]:
         tx.outcome = "not_applicable"  # a preview, or nothing matched: no file changed
     return out
 
 
-def _delete(tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy) -> CleanupData:
+def _delete(
+    tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy, all_agents
+) -> CleanupData:
     root = tx.workspace.root
     if result_ids:
         wanted = list(dict.fromkeys(result_ids))
@@ -308,6 +321,7 @@ def _delete(tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy) -> 
                     bury(p.parent, [p.stem], "deleted")
         return {
             "applied": not dry_run,
+            "scope": "ids",
             "deleted_count": 0,
             "policy": policy,
             "snapshot_count": count,
@@ -316,8 +330,10 @@ def _delete(tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy) -> 
             "bytes_after_cleanup": total - sum(sizes.values()),
             "missing": [i for i, p in found if p is None],
         }
+    only = None if all_agents else claimed()
     out = {
         "applied": not dry_run,
+        "scope": "all" if only is None else "own",
         "deleted_count": 0,
         "policy": policy,
         "snapshot_count": 0,
@@ -327,12 +343,11 @@ def _delete(tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy) -> 
         "missing": [],
     }
     for folder in directories(root):
-        report = maintain(folder, apply=False, max_age_seconds=max_age_seconds, max_bytes=max_bytes)
+        limits = {"max_age_seconds": max_age_seconds, "max_bytes": max_bytes, "only": only}
+        report = maintain(folder, apply=False, **limits)
         if not dry_run and report["selected_count"]:
             tx.touched = True
-            report = maintain(
-                folder, apply=True, max_age_seconds=max_age_seconds, max_bytes=max_bytes
-            )
+            report = maintain(folder, apply=True, **limits)
         out["policy"] = report["policy"]
         for key in ("snapshot_count", "bytes_before", "selected_count", "bytes_after_cleanup"):
             out[key] += report[key]

@@ -1,12 +1,14 @@
-"""The call keys ``part`` and ``expires_at`` on the sidecar path (phase P5).
+"""The call keys ``part``, ``expires_at`` and ``caller`` on the sidecar path (phase P5).
 
 The sidecar path is the source of truth for what an agent's ``part`` reaches NX with:
 inside ``nx_invoke``/``nx_invoke_read`` arguments, and on the direct core tools, whose
 listed schemas name ``part`` on the seven ref-less ones (benchmark bench3p: agents trust
 a strict schema over the instructions). The proxy pops it as a call key before gate 1.
-A changing call gets ``expires_at`` (the ghost guard) unless the agent gave one.
+A changing call gets ``expires_at`` (the ghost guard) unless the agent gave one. Every NX
+call gets ``caller`` (core/busy.py): the sidecar's, never the agent's.
 """
 
+import asyncio
 import time
 from unittest.mock import AsyncMock
 
@@ -18,6 +20,7 @@ from nx_mcp.core import catalogue, evidence
 from nx_mcp.core.types import RefKind
 from nx_mcp.core.validate import unwrap
 from nx_mcp.server import create_server
+from nx_mcp.sidecar import proxy
 from nx_mcp.sidecar import server as surface
 from nx_mcp.workspace import Workspace
 from tests.sidecar.test_budget import AGENT_LISTING, listing_size
@@ -119,7 +122,11 @@ async def test_part_reaches_nx_through_a_real_mcp_client_session(tmp_path, every
     async with create_connected_server_and_client_session(make(tmp_path, bridge)) as client:
         result = await client.call_tool("nx_check_model", {"part": "cover.prt", "limit": 1})
     assert not result.isError
-    assert bridge.call.call_args.args == ("nx_check_model", {"limit": 1, "part": "cover.prt"})
+    method, params = bridge.call.call_args.args
+    caller = params.pop("caller")
+    assert (method, params) == ("nx_check_model", {"limit": 1, "part": "cover.prt"})
+    assert caller["id"].startswith(proxy.PROCESS_ID + ".")  # this process and MCP session
+    assert caller["shared"] is False
 
 
 async def test_gateways_forward_both_keys_untouched(tmp_path, every_tool_tested):
@@ -130,7 +137,9 @@ async def test_gateways_forward_both_keys_untouched(tmp_path, every_tool_tested)
         "nx_invoke_read", {"tool": "nx_check_model", "arguments": {"scope": "part", **keys}}
     )
     assert not result.isError
-    assert bridge.call.call_args.args[1] == {"scope": "part", **keys}
+    params = dict(bridge.call.call_args.args[1])
+    assert params.pop("caller")["id"] == proxy.PROCESS_ID
+    assert params == {"scope": "part", **keys}
     bridge.call.return_value = answer("nx_create_primitive", "model")
     await server.call_tool(
         "nx_invoke",
@@ -166,3 +175,59 @@ async def test_a_full_profile_tool_takes_part_too(tmp_path, every_tool_tested):
     )
     assert not result.isError, result.structuredContent
     assert bridge.call.call_args.args[1]["part"] == "cover"
+
+
+async def test_the_caller_key_is_the_sidecars_never_the_agents(tmp_path, every_tool_tested):
+    bridge = bridge_for("nx_create_primitive", "model")
+    server = make(tmp_path, bridge)
+    forged = {"id": "someone-else", "shared": False}
+    await server.call_tool("nx_create_primitive", {**BLOCK, "caller": forged})
+    assert bridge.call.call_args.args[1]["caller"] == {"id": proxy.PROCESS_ID, "shared": False}
+
+
+async def test_overlapping_calls_of_one_caller_mark_its_connection_shared(
+    tmp_path, every_tool_tested
+):
+    """Subagents of one client share its MCP server: their calls overlap."""
+    seen: list[dict] = []
+    gate = asyncio.Event()
+
+    async def slow(method, params):
+        seen.append(dict(params["caller"]))
+        await gate.wait()
+        return answer(method)
+
+    bridge = AsyncMock()
+    bridge.call.side_effect = slow
+    server = make(tmp_path, bridge)
+    first = asyncio.ensure_future(server.call_tool("nx_check_model", {}))
+    await asyncio.sleep(0)
+    second = asyncio.ensure_future(server.call_tool("nx_check_model", {}))
+    await asyncio.sleep(0.05)
+    gate.set()
+    await asyncio.gather(first, second)
+    assert [c["shared"] for c in seen] == [False, True]
+    await server.call_tool("nx_check_model", {})  # alone, but within SHARED_SECONDS
+    assert seen[-1]["shared"] is True
+
+
+def test_a_client_supplied_agent_id_in_meta_tells_callers_apart():
+    from types import SimpleNamespace as NS
+
+    class Meta:
+        def __init__(self, **values):
+            self.values = values
+
+        def model_dump(self):
+            return dict(self.values)
+
+    class Session:  # an MCP ServerSession: one per connection
+        pass
+
+    session = Session()
+    one = proxy.caller_id(NS(session=session, meta=Meta(**{"claudecode/agentId": "agent 7!"})))
+    two = proxy.caller_id(NS(session=session, meta=Meta(sessionId="s-2", progressToken=3)))
+    plain = proxy.caller_id(NS(session=session, meta=None))
+    assert one.endswith(":agent7") and two.endswith(":s-2")
+    assert one.split(":")[0] == two.split(":")[0] == plain  # same connection
+    assert proxy.caller_id(NS(session=Session(), meta=None)) != plain  # another session

@@ -80,6 +80,24 @@ def test_parts_lists_need_an_assembly_and_one_per_part_when_the_site_says_so():
     assert second.mutation_outcome == "not_started"
 
 
+def test_the_section_of_a_parts_list_or_hole_table_is_not_a_table_of_its_own():
+    # Live NX 2406 lists the section of each parts list and hole table in TableSections.
+    from nx_mcp.domains.drawing.tables import all_tables
+
+    nx = tables_nx()
+    plist, hole = table(nx, name="PartsList"), table(nx, name="HoleTable")
+    plist_section, hole_section, note = table(nx), table(nx), table(nx)
+    owner = {int(plist_section.Tag): plist.Tag, int(hole_section.Tag): hole.Tag,
+             int(note.Tag): 999}  # fmt: skip
+    nx.uf.Tabnot = NS(AskTabularNoteOfSection=lambda tag: owner[int(tag)])
+    nx.part.Annotations.PartsLists.append(plist)
+    nx.part.Annotations.HoleTables = [hole]
+    nx.part.Annotations.TableSections.extend([plist_section, hole_section, note])
+    tx = NS(part=nx.part, uf=nx.uf, nx=nx)
+    found = {int(o.Tag): kind for o, kind in all_tables(tx)}
+    assert found == {int(plist.Tag): "parts_list", int(hole.Tag): "hole", int(note.Tag): "table"}
+
+
 def test_table_edits_must_match_the_kind_and_its_options():
     nx = tables_nx()
     rev = table(nx, "revision")

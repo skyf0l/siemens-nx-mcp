@@ -3,8 +3,12 @@
 Every format reads a staged copy (``imports/<operation_id>/input<suffix>``, where the
 translator also writes its log and, for STEP, the prototypes of an unflattened
 assembly) into the work part; ``new_part`` first creates and activates an agent-owned
-part. The source file is checked in Python before NX sees it (a bad DXF otherwise
-opens a modal NX dialog), and the result is read back against the file's own facts.
+part. A repeat of the operation (``nx_redo_operation``, or the call run again after an
+undo) reuses its finished staging folder, else takes ``imports/<operation_id>-<n>``;
+each import removes finished staging folders (``_finished``: only the staged copy and
+translator logs, nothing loaded, older than ``STAGING_KEEP_SECONDS``). The source file
+is checked in Python before NX sees it (a bad DXF otherwise opens a modal NX dialog), and
+the result is read back against the file's own facts.
 
 NX 2406 findings:
 
@@ -75,6 +79,10 @@ FILE_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0, "in": 25.4, "ft": 304.8, "um": 0.
 DXF_UNITS = {1: "in", 2: "ft", 4: "mm", 5: "cm", 6: "m", 13: "um"}
 DXF_CURVES = ("LINE", "ARC", "CIRCLE", "LWPOLYLINE", "POLYLINE", "SPLINE", "ELLIPSE")
 MAX_ROWS = 200
+# A finished staging folder (only input.* and translator logs, no part file, nothing of it
+# loaded) is removed by a later import once it is this old.
+STAGING_KEEP_SECONDS = 600
+STAGING_LOGS = (".log", ".err", ".txt", ".syslog")
 
 
 class ImportOptions(TypedDict, total=False):
@@ -530,7 +538,7 @@ def nx_import_model(
         target_sketch = ksketch.resolve(tx, sketch) if sketch is not None else None
     loaded_before = {int(p.Tag) for p in tx.session.Parts}
     previous = (tx.session.Parts.Work, tx.session.Parts.Display)
-    folder = root / "imports" / (tx.operation_id or "import")
+    folder = _staging(tx, root / "imports", tx.operation_id or "import")
     # The engineer tab guard (kit.parts.present): the import runs in the new part's own
     # tab, then the engineer's tab comes back with its work part.
     engineer = parts.engineer_tab(tx) if new_part_path is not None else None
@@ -566,6 +574,7 @@ def nx_import_model(
         parts.give_back(tx, engineer, previous[0])
         guarded = parts.Presented(False, False, engineer, True)
         tx.warn("NX_NOTE", parts.shown_note(tx, part, guarded))
+    _sweep(tx, root / "imports", folder)
     bodies, curves = made["bodies"], made["curves"]
     return {
         "part": tx.ref(part, "part"),
@@ -735,6 +744,61 @@ def _into_sketch(tx, sk, curves, report) -> result.Row:
             readback.expect(abs(ksketch.height(f, start)) <= tol, "sketch_plane")
     report["bounds"] = {"min": got_low, "max": got_high}
     return tx.ref(sk, "sketch")
+
+
+def _finished(tx, folder: Path) -> bool:
+    """Whether ``folder`` is a staging folder of a finished import that nothing needs: it
+    holds only the staged copy (``input.*``) and translator logs, no part file, and no
+    loaded part lies in it."""
+    try:
+        files = list(folder.iterdir())
+        names = [f.name.lower() for f in files]
+        other = [
+            n for n in names
+            if n.endswith(".prt")
+            or not (n.startswith(("input.", "output.")) or n.endswith(STAGING_LOGS))
+        ]  # fmt: skip
+        if other or not any(n.startswith("input.") for n in names):
+            return False
+        if not all(f.is_file() for f in files):
+            return False
+        inside = folder.resolve()
+    except OSError:
+        return False
+    for p in tx.session.Parts:
+        file = parts.file_of(p)
+        with contextlib.suppress(Exception):
+            if file and Path(file).resolve().is_relative_to(inside):
+                return False
+    return True
+
+
+def _staging(tx, base: Path, name: str) -> Path:
+    """The staging folder of this import: ``imports/<operation_id>``; a repeat of the
+    operation reuses its finished folder (:func:`_finished`), else (still in use) it takes
+    ``<operation_id>-<n>``."""
+    folder, n = base / name, 1
+    while folder.exists():
+        if _finished(tx, folder):
+            shutil.rmtree(folder, ignore_errors=True)
+            if not folder.exists():
+                break
+        n += 1
+        folder = base / f"{name}-{n}"
+    return folder
+
+
+def _sweep(tx, base: Path, keep: Path) -> None:
+    """Remove finished staging folders under ``imports/`` (:func:`_finished`) older than
+    ``STAGING_KEEP_SECONDS``; never this import's (``keep``). Never raises."""
+    now = time.time()
+    with contextlib.suppress(OSError):
+        for folder in list(base.iterdir()):
+            with contextlib.suppress(OSError):
+                if not folder.is_dir() or folder.resolve() == keep.resolve():
+                    continue
+                if now - folder.stat().st_mtime >= STAGING_KEEP_SECONDS and _finished(tx, folder):
+                    shutil.rmtree(folder, ignore_errors=True)
 
 
 def _undo_import(tx, loaded_before: set | None, previous: tuple, folder: Path) -> None:

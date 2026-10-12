@@ -1,0 +1,55 @@
+{
+  "covers": {"nx_create_sketch_constraints": ["point_on_curve", "midpoint", "coincident"]},
+  "fixture": null,
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+    {"call": "nx_create_sketch", "setup": true, "save": "sk",
+     "args": {"placement": {"principal": "xz", "origin": [0, 0, 5]}, "name": "collapse", "finish": true, "curves": [
+       {"type": "rectangle", "corner1": [0, 0], "corner2": [10, 10]},
+       {"type": "circle", "center": [5, 5], "radius": 2},
+       {"type": "line", "start": [30, 0], "end": [40, 0]},
+       {"type": "line", "start": [30, 5], "end": [40, 5]},
+       {"type": "line", "start": [3, -5], "end": [6, 5]}]}},
+    {"call": "nx_create_sketch_constraints", "save": "held",
+     "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+       {"type": "point_on_curve", "points": [{"curve": "$sk.data.curves.4.id", "point": "center"}],
+        "curves": ["$sk.data.curves.0.id"]}]},
+     "expect": {"ok": true, "data.constraints.0.residual": {"close": 0, "tol": 1e-6}}},
+    {"call": "nx_create_sketch_constraints",
+     "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+       {"type": "midpoint", "points": [{"curve": "$sk.data.curves.4.id", "point": "center"}],
+        "curves": ["$sk.data.curves.2.id"]}]},
+     "expect": {"error.code": "NX_SKETCH_OVERCONSTRAINED", "error.field": "/constraints/0",
+                "error.details.curves": {"count": 1}, "error.details.reason": {"contains": "parallel line 10 away"},
+                "mutation_outcome": "rolled_back"}},
+    {"call": "nx_create_sketch_constraints",
+     "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+       {"type": "point_on_curve", "points": [{"curve": "$sk.data.curves.4.id", "point": "center"}],
+        "curves": ["$sk.data.curves.1.id"]}]},
+     "expect": {"error.code": "NX_SKETCH_OVERCONSTRAINED", "error.details.reason": {"contains": "at a corner"},
+                "mutation_outcome": "rolled_back"}},
+    {"call": "nx_create_sketch_constraints",
+     "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+       {"type": "point_on_curve", "points": [{"curve": "$sk.data.curves.1.id", "point": "start"}],
+        "curves": ["$sk.data.curves.3.id"]}]},
+     "expect": {"error.code": "NX_SKETCH_OVERCONSTRAINED", "error.details.reason": {"contains": "fold onto the line"},
+                "mutation_outcome": "rolled_back"}},
+    {"call": "nx_create_sketch_constraints",
+     "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+       {"type": "coincident", "points": [{"curve": "$sk.data.curves.2.id", "point": "start"},
+                                         {"curve": "$sk.data.curves.0.id", "point": "end"}]}]},
+     "expect": {"error.code": "NX_SKETCH_OVERCONSTRAINED", "error.details.reason": {"contains": "ends of the same curve"},
+                "mutation_outcome": "rolled_back"}},
+    {"call": "nx_create_sketch_constraints",
+     "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+       {"type": "point_on_curve", "points": [{"curve": "$sk.data.curves.4.id", "point": "center"}],
+        "curves": ["$sk.data.curves.7.id"]},
+       {"type": "midpoint", "points": [{"curve": "$sk.data.curves.6.id", "point": "start"}],
+        "curves": ["$sk.data.curves.5.id"]}]},
+     "expect": {"ok": true, "data.constraints.0.residual": {"close": 0, "tol": 1e-6},
+                "data.constraints.1.residual": {"close": 0, "tol": 1e-6}}},
+    {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+     "expect": {"data.curves": {"count": 8}, "data.curves.0.start": {"close": [0, 0], "tol": 1e-6}, "data.curves.4.type": "circle"}}
+  ]
+}

@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import MM_PER_IN, Doc, Length, PathTo, Range, Text
@@ -233,7 +233,8 @@ def nx_set_sheet_metal_defaults(
         fail("NX_INVALID_ARGUMENT", "bend_formula belongs to a formula bend_definition",
              field="/bend_formula")  # fmt: skip
     with tx.checks():
-        method = bend_definition or read(tx)["bend_definition"]
+        before = read(tx)
+        method = bend_definition or before["bend_definition"]
         if bend_formula is not None and method not in FORMULAS:
             fail("NX_INVALID_ARGUMENT", f"The part's bend method is {method}; set "
                  "bend_definition to a formula method with bend_formula",
@@ -281,4 +282,58 @@ def nx_set_sheet_metal_defaults(
     if bend_formula is not None:
         readback.expect(read_back[method] == bend_formula, "bend_formula", wanted=bend_formula,
                         got=read_back[method])  # fmt: skip
+    tx.note_restore({"before": dict(before), "after": dict(got)})
     return got
+
+
+def _equal(a, b) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return geom.close(float(a), float(b), 1e-9)
+    return _same_text(a, b)
+
+
+@restorer("nx_set_sheet_metal_defaults")
+def _restore_defaults(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set the sheet-metal defaults an ``nx_set_sheet_metal_defaults`` changed back (the
+    compensating undo): refused when one changed again since, or had no value before (NX
+    cannot unset a default)."""
+    before, after = data["before"], data["after"]
+    keys = [k for k in before if not _equal(before[k], after.get(k))]
+    now = read(tx)
+    moved = [k for k in keys if not _equal(now.get(k), after.get(k))]
+    if moved:
+        fail(
+            "NX_DEPENDENCY_ORDER",
+            "The sheet-metal defaults changed since: "
+            + ", ".join(
+                f"{k} is {now.get(k)!r}, the operation set {after.get(k)!r}" for k in moved
+            ),
+            details={"changed": moved},
+        )
+    unset = [k for k in keys if before[k] is None]
+    if unset:
+        fail(
+            "NX_UNSUPPORTED_OPTION",
+            f"{', '.join(unset)} had no value before the operation: NX cannot unset a "
+            "sheet-metal default",
+            details={"unset": unset},
+        )
+    if apply and keys:
+        formulas = [k for k in keys if k in FORMULAS]
+        for key in formulas:  # a formula is set with its method
+            nx_set_sheet_metal_defaults(tx, bend_definition=key, bend_formula=before[key])
+        rest = {k: before[k] for k in keys if k not in FORMULAS}
+        if formulas:  # then the method it had
+            rest.setdefault("bend_definition", before["bend_definition"])
+        if rest:
+            nx_set_sheet_metal_defaults(tx, **rest)
+        got = read(tx)
+        wrong = [k for k in keys if not _equal(got.get(k), before[k])]
+        readback.expect(not wrong, "defaults", "The sheet-metal defaults "
+                        f"{', '.join(wrong)} did not read back their previous values",
+                        names=wrong)  # fmt: skip
+    return "sheet-metal defaults back to " + (
+        ", ".join(f"{k} {before[k]!r}" for k in keys) or "(unchanged)"
+    )

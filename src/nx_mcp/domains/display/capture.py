@@ -12,7 +12,8 @@ also clears the modified flag a studio style or lighting would leave (measured),
 ``part_modified`` warning below only appears with ``hide_sketches=false`` or nothing to hide.
 
 NX 2406 findings (``kit.capture``): the viewport export rasterises the graphics window
-at its own size. Omitted ``width``/``height`` take that size without a warning; given
+at its own size. Omitted ``width``/``height`` (no schema default, no ``requested``) take
+that size without a warning (Studio quality: 1024x768); given
 ones are honoured: when the window differs, a shaded model view is rendered again at
 the exact size by Studio capture in the same style (``quality`` then says ``studio``;
 measured: same look, letterboxed to the window's aspect). A wireframe view or a drawing
@@ -69,6 +70,7 @@ Background = Literal["white", "black", "original", "transparent", "color"]
 # string forms would double the listed schema of this directly listed core tool.
 SheetArg = Annotated[str, Text(128), RefKind("drawing_sheet"), Doc("Sheet ref/name to capture")]
 LISTED_SHEETS = 5
+DEFAULT_SIZE = (1024, 768)  # Studio's size, and the viewport's hint, without width/height
 
 
 class ImageInfo(TypedDict):
@@ -202,8 +204,8 @@ def nx_capture_view(
     up: tuple[float, float, float] | None = None,  # a direction like view_from
     fit: bool | None = None,
     hide_sketches: bool = True,
-    width: Pixels = 1024,
-    height: Pixels = 768,
+    width: Pixels | None = None,
+    height: Pixels | None = None,
     background: Background | None = None,
     color: Rgb | None = None,
     style: Literal["current", "shaded", "shaded_with_edges", "wireframe", "studio"] = "current",
@@ -262,11 +264,14 @@ def nx_capture_view(
                 "overwrite replaces PNG images only; the file there is not a PNG",
                 field="/path",
             )
-    exact = tx.given("width") or tx.given("height")
+    exact = width is not None or height is not None
+    width, height = width or DEFAULT_SIZE[0], height or DEFAULT_SIZE[1]
     root = Path(tx.workspace.root)
     target = Path(path) if path else root / "captures" / f"view-{uuid.uuid4().hex[:12]}.png"
     temp = tx.files.stage(target, replace=overwrite)
-    out: CaptureData = {"quality": quality, "requested": [width, height]}
+    out: CaptureData = {"quality": quality}
+    if exact or quality == "studio":
+        out["requested"] = [width, height]
     was_modified = bool(part.IsModified)
     shown = drawing.on_sheet(tx, wanted, part) if wanted is not None else contextlib.nullcontext()
     with shown:  # a sheet asked for: opened for the capture, the previous display comes back

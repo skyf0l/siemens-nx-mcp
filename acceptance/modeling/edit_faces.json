@@ -419,6 +419,22 @@
    }
   },
   {
+   "call": "nx_edit_faces",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "action": "resize",
+    "diameter": 5
+   },
+   "intent": "Acceptance: resizing a planar face is refused before NX (live: reported rolled_back)",
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/faces/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

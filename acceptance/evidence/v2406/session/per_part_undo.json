@@ -1,0 +1,191 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/per_part_undo.json",
+  "scenario_sha256": "fe5c627d3ef10bec44b647a0940054d78cd67f220f0849fe3adf985685800e15",
+  "domain": "session",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {},
+  "recorded": "2026-10-12T10:40:05Z",
+  "passed": true,
+  "checks": 48,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 4,
+      "call": "nx_create_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_create_part",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_close_part",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_list_checkpoints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 11,
+      "call": "nx_redo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
+      "call": "nx_list_checkpoints",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 21,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 23,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_list_checkpoints",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 25,
+      "call": "nx_restore_checkpoint",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

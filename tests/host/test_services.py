@@ -238,6 +238,33 @@ def test_annotations_include_drafting_gdt_and_datum_targets():
     assert sorted(int(o.Tag) for o in part_annotations(part)) == [1, 2, 3, 4]
 
 
+def test_each_drawing_table_is_one_object():
+    # Live NX 2406: a tabular note is a TableSection plus a cells Table, a parts list or
+    # hole table also has a TableSection, a title block a cells Table; changes.created
+    # listed each table twice.
+    from nx_mcp.host.services import _table_tags, part_annotations
+
+    def obj(tag):
+        return NS(Tag=tag)
+
+    notes = {10: 11, 20: 21, 30: 31}  # section -> its tabular note (cells table)
+    uf = NS(Tabnot=NS(AskTabularNoteOfSection=lambda tag: notes[int(tag)]))
+    part = NS(
+        Notes=[],
+        Labels=[],
+        Annotations=NS(
+            TableSections=[obj(10), obj(20), obj(30)],
+            Tables=[obj(11), obj(21), obj(31), obj(41)],
+            PartsLists=[obj(21)],
+            HoleTables=[obj(31)],
+        ),
+        DraftingManager=NS(TitleBlocks=[obj(40)]),
+    )
+    tables, inner = _table_tags(part, uf)
+    assert tables == {10, 21, 31, 40} and inner == {20, 30}
+    assert sorted(int(o.Tag) for o in part_annotations(part)) == [10, 20, 21, 30, 31, 40]
+
+
 class Shown(Parts):
     """Parts that change the display (and with it the work) part like NX; the host
     restores them only with the variant that keeps NX's undo marks."""

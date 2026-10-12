@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote
 
-from nx_mcp.kit.snapshots import LOCK, maintain, settings
+from nx_mcp.kit.snapshots import LOCK, claim, maintain, settings
 
 ARTIFACT_LIMIT = 8 * 1024 * 1024
 
@@ -42,6 +42,7 @@ class ResultStore:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        claim(result_id)  # the caller's own: nx_delete_results prunes it by default
         maintain(self.root, apply=True, protect=result_id)
         return result_id
 

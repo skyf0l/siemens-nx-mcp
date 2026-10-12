@@ -388,7 +388,8 @@
    },
    "expect": {
     "error.category": "invalid_argument",
-    "error.field": "/positions/0"
+    "error.field": "/positions/0",
+    "mutation_outcome": "not_started"
    }
   },
   {
@@ -411,7 +412,8 @@
    },
    "expect": {
     "error.category": "invalid_argument",
-    "error.field": "/positions/0"
+    "error.field": "/positions/0",
+    "mutation_outcome": "not_started"
    }
   },
   {

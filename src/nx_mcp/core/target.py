@@ -3,7 +3,8 @@
 Pure: reads the reference table and the loaded parts, changes nothing in NX (it may
 issue a ``p:N`` ref for a part it reports). The call keys ``part`` and
 ``expires_at`` travel inside ``arguments`` like ``operation_id``
-(:func:`split_call_keys`); :func:`check_call_keys` validates them.
+(:func:`split_call_keys`); :func:`check_call_keys` validates them. The sidecar adds
+``caller`` (who sends the call, ``core/busy.py``; :func:`check_caller`), never the agent.
 
 Order (:func:`resolve`): the tool's own part argument (``target="arg:<param>"``), a
 ``resolver`` hook (it may return :data:`ANY`: the call's own object is gone, any part will
@@ -42,7 +43,8 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.types import REF_PATTERN, expand_kinds
 from nx_mcp.core.validate import get_at, pointer
 
-CALL_KEYS = ("part", "expires_at")
+CALL_KEYS = ("part", "expires_at", "caller")
+CALLER_ID_MAX = 200
 PART_TEXT_MAX = 260
 LISTED = 10  # parts a hint or details list
 # Reference kinds that decide the target when references span parts.
@@ -133,6 +135,20 @@ def check_call_keys(part=None, expires_at=None) -> float | None:
         "/expires_at: seconds since 1970 (UTC) or an ISO 8601 time such as 2026-10-11T12:00:00Z",
         field="/expires_at",
     )
+
+
+def check_caller(caller) -> dict | None:
+    """The sidecar's ``caller`` key as ``{"id": str, "shared": bool}``, None when absent or
+    malformed (a call without identity; never refused: the key is the sidecar's, not the
+    agent's)."""
+    if isinstance(caller, str):
+        caller = {"id": caller}
+    if not isinstance(caller, dict):
+        return None
+    ident = caller.get("id")
+    if not isinstance(ident, str) or not ident.strip() or len(ident) > CALLER_ID_MAX:
+        return None
+    return {"id": ident.strip(), "shared": caller.get("shared") is True}
 
 
 def check_expiry(spec, expires_at: float | None, now: float | None = None) -> None:

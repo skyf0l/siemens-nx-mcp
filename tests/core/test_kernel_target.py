@@ -560,12 +560,14 @@ def test_redo_finds_its_part_and_its_calls_inherit_it():
 
 
 def test_default_policies():
+    from nx_mcp.domains.display import camera
+
     specs = catalogue.load()
     expect = {
         "nx_create_revolve": ("refs", "work", False),
         "nx_measure_mass": ("assembly", "none", False),
         "nx_capture_view": ("display", "display", True),
-        "nx_get_camera": ("any", "none", False),  # NX's displayed view (P6 audit)
+        "nx_get_camera": ("any", "none", (camera._hidden,)),  # a named hidden part is shown
         "nx_create_drawing_view": ("sheet", "display", True),
         "nx_create_sheet_metal_feature": ("refs", "display", True),
         "nx_create_part": ("creates", "none", False),

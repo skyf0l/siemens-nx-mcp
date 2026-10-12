@@ -59,6 +59,7 @@
      "expect": {"error.field": "/section_planes", "mutation_outcome": "not_started"}},
     {"call": "nx_export_inspection_report", "args": {"part": "$part", "path": "$run/insp/bad.txt"},
      "expect": {"error.category": "unsupported", "error.field": "/path", "mutation_outcome": "not_started"}},
+    {"call": "nx_export_inspection_report", "args": {"part": "$part", "path": "$run/insp/one.zip", "objects": ["$A.data.component.id", "$A.data.component.id"]}, "intent": "Acceptance: one body only is refused before any file (live: reported rolled_back)", "expect": {"error.category": "invalid_argument", "error.field": "/objects", "mutation_outcome": "not_started"}},
     {"call": "nx_list_objects", "args": {"part": "$part", "kind": "body"},
      "expect": {"page.total": 0}}
   ]

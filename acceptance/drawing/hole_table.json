@@ -376,6 +376,11 @@
       40
      ],
      "tol": 1e-09
+    },
+    "changes.created": {
+     "count_kind": {
+      "drawing_table": 1
+     }
     }
    }
   },

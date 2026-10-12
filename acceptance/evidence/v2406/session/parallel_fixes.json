@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/parallel_fixes.json",
-  "scenario_sha256": "3520695fab8cfb52bdc603569c34e429b10b2fcd8379929bde45132ca91d2e52",
+  "scenario_sha256": "6edaa7491f13866fe79553f867138728af9d89fd41c573a3f23d717d4e132b62",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-12T05:58:33Z",
+  "recorded": "2026-10-12T10:40:26Z",
   "passed": true,
-  "checks": 92,
+  "checks": 89,
   "failed_checks": 0,
   "steps": [
     {
@@ -280,56 +280,56 @@
     },
     {
       "index": 39,
-      "call": "nx_close_part",
+      "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 40,
-      "call": "nx_save_part",
+      "call": "nx_create_primitive",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
       "index": 41,
-      "call": "nx_create_primitive",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 42,
       "call": "nx_close_part",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 43,
+      "index": 42,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 44,
+      "index": 43,
       "call": "nx_create_primitive",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 45,
+      "index": 44,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 46,
+      "index": 45,
       "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 46,
+      "call": "nx_create_component",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -350,90 +350,83 @@
     },
     {
       "index": 49,
-      "call": "nx_create_component",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 50,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 51,
+      "index": 50,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 51,
+      "call": "nx_create_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 1
     },
     {
       "index": 52,
-      "call": "nx_create_explosion",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 53,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 54,
+      "index": 53,
       "call": "nx_create_explosion",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 55,
+      "index": 54,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 56,
+      "index": 55,
       "call": "nx_set_explosion_display",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 57,
+      "index": 56,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 58,
+      "index": 57,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 59,
+      "index": 58,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 60,
+      "index": 59,
       "call": "nx_open_part",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 61,
+      "index": 60,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,

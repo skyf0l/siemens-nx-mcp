@@ -579,6 +579,22 @@
     },
     "error.nx_code": 4095004
    }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 3
+   },
+   "intent": "Acceptance: a gusset drawn in its plane with the default perpendicular orientation (live: never builds) names orientation parallel",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.hint": {
+     "contains": "orientation parallel"
+    }
+   }
   }
  ]
 }

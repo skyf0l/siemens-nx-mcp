@@ -411,9 +411,13 @@ class Session:
             obj = stack.pop()
             stack.extend(getattr(obj, "children", []) if isinstance(obj, Feature) else [])
             gone = [obj, *getattr(obj, "bodies", [])] if isinstance(obj, Feature) else [obj]
+            if isinstance(obj, Sketch):  # NX deletes a sketch with its geometry
+                stack.extend(obj.geometry)
             for part in self.Parts:
-                for name in ("Bodies", "Features", "Sketches", "Curves"):
+                for name in ("Bodies", "Features", "Sketches", "Curves", "Points"):
                     values = getattr(part, name, [])
+                    if not isinstance(values, list):
+                        continue  # a test's Points seam (CreatePoint), no collection
                     for value in gone:
                         if value in values:
                             values.remove(value)

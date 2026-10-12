@@ -704,8 +704,10 @@ async def close_new_parts(
     own_dir: Path | None = None,
     workspace: Path | None = None,
 ) -> dict:
-    """Close every part loaded since ``before``; re-activate the earlier parts only when
-    they are the run's own (under ``own_dir``) and still loaded (by fresh part IDs).
+    """Close every part loaded since ``before`` under the run's own folder ``own_dir``;
+    re-activate the earlier parts only when they are the run's own and still loaded (by
+    fresh part IDs). A part loaded meanwhile anywhere else (another agent's or the
+    engineer's, in the same NX) is never closed; without ``own_dir`` nothing is.
 
     ``mode`` is the scenario's ``cleanup``: ``close`` (default, without saving),
     ``save`` (save, then close) or ``keep``. Closing a drawing part closes its
@@ -722,7 +724,11 @@ async def close_new_parts(
         return report
     known = {p.get("path") for p in before}
     after = await loaded_parts(session) or []
-    pending = [p for p in reversed(after) if p.get("path") not in known]
+    pending = [
+        p
+        for p in reversed(after)
+        if p.get("path") not in known and _inside(p.get("path"), own_dir, workspace)
+    ]
     reasons: dict = {}  # path -> the error of the refused close
     for _ in range(CLOSE_PASSES):
         if not pending:

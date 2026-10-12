@@ -7,11 +7,14 @@ tool's schema or a ``"$n.path"`` reference to a step that has not run yet refuse
 the batch with nothing changed.
 
 Each step then runs through the kernel's child gates (``Tx.run`` /
-``kernel.run_child``) under this call's one mark and receipt. A step acts on the part its
-refs name, or the ``part`` call key in its arguments, else the batch's part; one mark
-rolls back every part (NX's undo is session-wide). Without ``part`` the batch's own part
-is the one part every step names (refs, ``part`` or an earlier step's result), else the
-usual rule (the work part, or ``NX_AMBIGUOUS_PART`` with two or more parts loaded). A child's Ref field
+``kernel.run_child``) under this call's one mark and receipt. A step acts on the ``part``
+call key in its arguments, else the part its refs name, else the batch's part; one mark
+rolls back every part (NX's undo is session-wide). Under a batch given ``part``, a step
+without a ``part`` of its own is checked against the batch's part as a top-level call is:
+refs of another part are ``NX_WRONG_PART_CONTEXT`` (the step names its own ``part`` to
+act there). Without ``part`` the batch's own part is the one part every step names (refs,
+``part`` or an earlier step's result), else the usual rule (the work part, or
+``NX_AMBIGUOUS_PART`` with two or more parts loaded). A child's Ref field
 may name an earlier step's result, ``"$0.data.sketch"`` (0-based). Before each
 step ``tx.checkpoint`` writes progress to the receipt and honours
 ``nx_cancel_operation`` (the receipt's ``.cancel`` file) and the cost budget. A

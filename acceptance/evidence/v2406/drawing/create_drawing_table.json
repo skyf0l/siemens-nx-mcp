@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/create_drawing_table.json",
-  "scenario_sha256": "eca2d7f5576b857fe6a3ef2fef92c1ea7cdf54e3e30b0c3a8a3aedf818f1829f",
+  "scenario_sha256": "151eb482bbb667ab399c65743fc1eca31802fb2e4eed1d313c3e9cc84979a8a1",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_table": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_table": "e729ba86000788c7baee0b6ab76a14c2e0a4a247c4860dfedccfdb2c205949d7"
+    "nx_create_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82"
   },
-  "recorded": "2026-10-11T07:05:10Z",
+  "recorded": "2026-10-12T11:00:57Z",
   "passed": true,
-  "checks": 24,
+  "checks": 37,
   "failed_checks": 0,
   "steps": [
     {
@@ -38,35 +38,35 @@
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 8
     },
     {
       "index": 4,
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 5,
-      "call": "nx_create_drawing_table",
+      "call": "nx_get_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 6,
-      "call": "nx_create_drawing_table",
+      "call": "nx_get_drawing_table",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
       "index": 7,
-      "call": "nx_create_drawing_table",
+      "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 8,
@@ -77,6 +77,27 @@
     },
     {
       "index": 9,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

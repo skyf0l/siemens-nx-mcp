@@ -249,3 +249,25 @@ def test_a_hole_table_shows_unsigned_distances():
     out = {"holes": [{"position": [70.0, 30.0]}], "rows": [["1", "70.00", "30.00"]]}
     assert hole_callouts.verify_table(tx, view, points, [body], out, 1.0) == "start"
     assert not warnings
+
+
+def test_a_tabular_note_reads_and_edits_as_the_table_that_shows_it():
+    """NX lists a table's cells (a ``Table``) apart from the section that shows them; a ref
+    of that note reads and edits the section, never an empty ``table``."""
+    nx = grid_nx()
+    rev = revision(nx, [["A", "First"]], [10, 60])
+    section = nx.part.Annotations.TableSections[0]
+    note = type("Table", (Object,), {})("NOTE")
+    note.Tag = nx.uf.Tabnot.AskTabularNoteOfSection(section.Tag)
+    note.OwningPart, note.IsOccurrence = nx.part, False
+    ref = nx.ref_of(note, "drawing_table")
+    ok = run(nx, "nx_get_drawing_table", table=ref)
+    assert ok.ok, ok
+    assert ok.data["table"]["id"] == rev.data["table"]["id"]
+    assert ok.data["kind"] == "revision" and ok.data["rows"] == [["A", "First"]]
+    edit = run(nx, "nx_edit_drawing_table", table=ref, kind="revision", rows=[["B", "Next"]])
+    assert edit.ok, edit
+    assert edit.data["table"]["id"] == rev.data["table"]["id"]
+    assert edit.data["rows"] == [["B", "Next"]]
+    both = run(nx, "nx_get_drawing_table", table=ref, sheet=nx.sheet_obj.ref)
+    assert both.error["field"] == "/sheet" and "not both" in both.error["message"]

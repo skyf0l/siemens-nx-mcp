@@ -66,8 +66,10 @@ def test_create_without_display_keeps_the_work_part_display_part_and_marks(nx):
     assert nx.session.shown == []  # no display switch at all
 
 
-def test_a_shown_new_part_keeps_the_marks_but_undo_stops_at_its_load(nx):
-    """Display true: as before, nothing before the load can be undone."""
+def test_a_shown_new_part_keeps_the_marks_and_its_load_ends_no_other_parts_history(nx):
+    """Display true: the load is a barrier NX's undo never crosses, but it ends neither
+    the other part's history nor its checkpoints (per part)."""
+    work = nx.part
     delete(nx, "A(1)", "op_delete_a1")
     cp = run(nx, "nx_create_checkpoint", label="before b").data["checkpoint_id"]
     ok = run(nx, "nx_create_part", path="b.prt", display=True)
@@ -77,15 +79,18 @@ def test_a_shown_new_part_keeps_the_marks_but_undo_stops_at_its_load(nx):
     assert all(nx.session.DoesUndoMarkExist(h["mark"]) for h in history if h.get("mark"))
     assert history[-1]["load"] == ["b.prt"] and history[-1]["method"] == "nx_create_part"
     row = checkpoints(nx)["before b"]
-    assert row["available"] is False and row["expired_reason"] == "part_loaded"
+    assert row["available"] is True and row["expired_reason"] is None, row
     refused = run(nx, "nx_undo_operation", part="b")
     assert refused.error["code"] == "NX_NOT_FOUND" and refused.mutation_outcome == "not_started"
-    assert refused.error["details"] == {"undo_depth": 0, "reason": "part_loaded"}
-    assert "b.prt was loaded after it (nx_create_part)" in refused.error["message"]
-    restore = run(nx, "nx_restore_checkpoint", checkpoint_id=cp)
-    assert restore.error["code"] == "NX_STALE_CHECKPOINT"
-    assert "restoring this checkpoint would unload it" in restore.error["message"]
-    assert restore.error["details"]["loaded"] == ["b.prt"]
+    assert refused.error["details"] == {"undo_depth": 0}
+    assert "no operation of b.prt is in the undo history" in refused.error["message"]
+    restore = run(nx, "nx_restore_checkpoint", checkpoint_id=cp)  # nothing of work.prt since
+    assert restore.ok and restore.data["reverted"] == [] and restore.part["file"] == "work.prt"
+    assert len(nx.session.Parts) == 2 and work in nx.session.Parts  # b stays loaded
+    crossed = run(nx, "nx_undo_operation", part="work")  # a delete behind b's load
+    assert crossed.error["code"] == "NX_CROSS_PART", crossed
+    assert crossed.error["details"]["in_the_way"][0]["barrier"] == "load"
+    assert "b.prt loaded by" in crossed.error["message"] and len(nx.session.Parts) == 2
 
 
 def test_undo_in_a_part_still_works_after_other_parts_load_and_display_switches(nx, tmp_path):
@@ -108,13 +113,13 @@ def test_undo_in_a_part_still_works_after_other_parts_load_and_display_switches(
     ok = run(nx, "nx_undo_operation", part="work", steps=2)
     assert ok.ok and ok.data["undone"] == ["op_delete_a2", "op_delete_a3"], ok
     assert names(nx) == ["A(2)"] and ok.data["undo_depth"] == 0  # A(3) came after the mark
-    more = run(nx, "nx_undo_operation", part="work")
-    assert more.error["code"] == "NX_NOT_FOUND" and "c.prt" in more.error["message"]
+    more = run(nx, "nx_undo_operation", part="work")  # a delete behind the loads
+    assert more.error["code"] == "NX_CROSS_PART" and "c.prt" in more.error["message"]
     assert len(nx.session.Parts) == 3  # a, b and c: nothing was unloaded
-    assert checkpoints(nx)["a only"]["expired_reason"] == "part_loaded"
-    assert run(nx, "nx_restore_checkpoint", checkpoint_id=cp).error["code"] == (
-        "NX_STALE_CHECKPOINT"
-    )
+    row = checkpoints(nx)["a only"]  # per part: the loads of b and c do not end it
+    assert row["available"] is True and row["operations_after"] == 0, row
+    restored = run(nx, "nx_restore_checkpoint", checkpoint_id=cp)
+    assert restored.ok and restored.data["reverted"] == [] and len(nx.session.Parts) == 3
 
 
 def test_an_undo_that_unloads_a_part_forgets_it_and_says_so(nx):
@@ -136,9 +141,13 @@ def test_steps_past_a_load_say_where_the_history_ends(nx):
     assert run(nx, "nx_create_part", path="b.prt", display=False).ok
     delete(nx, "A(2)", "op_delete_a2")
     too_far = run(nx, "nx_undo_operation", part="work", steps=2)
-    assert too_far.error["code"] == "NX_INVALID_ARGUMENT"
-    assert too_far.error["details"] == {"undo_depth": 1, "reason": "part_loaded"}
-    assert "b.prt was loaded after it" in too_far.error["message"]
+    assert too_far.error["code"] == "NX_CROSS_PART", too_far  # the load is in the way
+    assert too_far.error["details"]["in_the_way"][0]["part"] == "b.prt"
+    assert "b.prt loaded by" in too_far.error["message"]
+    assert run(nx, "nx_list_checkpoints", part="work").data["undo_depth"] == 1
+    beyond = run(nx, "nx_undo_operation", part="work", steps=3)
+    assert beyond.error["code"] == "NX_INVALID_ARGUMENT"
+    assert beyond.error["details"] == {"undo_depth": 1}
 
 
 def test_no_barrier_without_anything_to_protect(nx):
@@ -177,12 +186,18 @@ def test_marks_nx_evicts_are_reported_and_expire_as_mark_evicted(nx):
         warned += delete(nx, f"A({i})", f"op_delete_a{i}").warnings
     notes = [w for w in warned if "180 undo marks" in w["message"]]
     assert notes and notes[0]["code"] == "NX_NOTE"
-    rows = checkpoints(nx)
-    assert rows["early"]["expired_reason"] == "mark_evicted"
+    early = checkpoints(nx)["early"]  # an evicted mark does not end it
+    assert early["available"] is True and early["compensated"] is False, early
+    assert services(nx).checkpoints[early["checkpoint_id"]]["expired"] == "mark_evicted"
     depth = run(nx, "nx_list_checkpoints").data["undo_depth"]
     assert 0 < depth < 5
     too_far = run(nx, "nx_undo_operation", steps=depth + 1)
     assert too_far.error["details"]["reason"] == "mark_evicted"
+    # the refused undo's own mark evicted op_delete_a2's: deletes are not compensated
+    restore = run(nx, "nx_restore_checkpoint", checkpoint_id="early")
+    assert restore.error["code"] == "NX_NOT_FOUND", restore
+    assert restore.error["details"]["reason"] == "mark_evicted"
+    assert restore.mutation_outcome == "not_started"
 
 
 def test_a_load_that_drops_every_mark_says_part_loaded(nx, monkeypatch):
@@ -199,7 +214,13 @@ def test_a_load_that_drops_every_mark_says_part_loaded(nx, monkeypatch):
     monkeypatch.setattr(part_tools, "new_part", displaying)
     ok = run(nx, "nx_create_part", path="b.prt")
     assert ok.ok and any("NX dropped every undo mark" in w["message"] for w in ok.warnings)
-    assert checkpoints(nx)["cp"]["expired_reason"] == "part_loaded"
+    row = checkpoints(nx)["cp"]
+    kept = services(nx).checkpoints[row["checkpoint_id"]]
+    assert kept["expired"] == "part_loaded" and kept["expired_by"] != kept["part_id"]
+    # another part's load dropped the mark: nothing of the work part since, still available
+    assert row["available"] is True and row["expired_reason"] is None
+    entry = services(nx).history[0]
+    assert entry["expired"] == "part_loaded" and entry["expired_by"] == kept["expired_by"]
 
 
 def test_an_engineer_display_switch_that_dropped_the_marks_says_display_reset(tmp_path):

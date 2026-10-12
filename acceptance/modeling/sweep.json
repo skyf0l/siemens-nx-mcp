@@ -407,6 +407,27 @@
      "tol": 0.001
     }
    }
+  },
+  {
+   "call": "nx_create_sweep",
+   "args": {
+    "section": "$gf.data.sketch.id",
+    "guide": "$sec.data.sketch.id"
+   },
+   "intent": "Acceptance: section and guide swapped make a self-intersecting body: refused and rolled back (live: ok with check_model 875316)",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.details.check": "body_health",
+    "error.details.faults.0.code": 875316
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
   }
  ]
 }

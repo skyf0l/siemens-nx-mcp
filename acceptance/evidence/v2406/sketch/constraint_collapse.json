@@ -1,0 +1,87 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sketch/constraint_collapse.json",
+  "scenario_sha256": "6f153821cbcb5ddebab5c2fe6609efa781ab30c0f2e97edafa44ecece6652f6d",
+  "domain": "sketch",
+  "covers": {
+    "nx_create_sketch_constraints": [
+      "point_on_curve",
+      "midpoint",
+      "coincident"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_sketch_constraints": "c3f3abaa0c5b0febd720fb4d4f5e0980d1bb03ea9e0312f400edb14a58ce2efb"
+  },
+  "recorded": "2026-10-12T10:36:16Z",
+  "passed": true,
+  "checks": 22,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

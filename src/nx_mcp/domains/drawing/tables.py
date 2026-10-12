@@ -42,6 +42,7 @@ from nx_mcp.domains.drawing.common import (
     NATIVE_TABLE,
     TABLE_KIND,
     commit,
+    shown_table,
     table_kind,
     table_tag,
     uf_types,
@@ -557,9 +558,9 @@ def nx_edit_drawing_table(
         title_blocks.check_edits(cells)
     pairs = None
     with tx.checks():
-        obj = select.resolve(
+        obj = shown_table(tx, select.resolve(
             tx, table, "drawing_table", "annotation", field="/table", work_part=True
-        )
+        ))  # fmt: skip
         actual = table_kind(tx, obj)
         if actual != kind:
             fail("NX_WRONG_KIND", f"The table is a {actual or 'non-table'}, not a {kind}",
@@ -789,12 +790,14 @@ def nx_get_drawing_table(
     kind, evaluated rows, columns, update mode and position; title blocks list cells (label,
     lock, text with <W@TITLE> links, value)."""
     if (table is None) == (sheet is None):
-        fail("NX_INVALID_ARGUMENT", "Give table or sheet", field="/table")
+        both = table is not None
+        fail("NX_INVALID_ARGUMENT", "Give table or sheet" + (", not both" if both else ""),
+             field="/sheet" if both else "/table")  # fmt: skip
     if table is not None:
         obj = select.resolve(
             tx, table, "drawing_table", "annotation", field="/table", work_part=True
         )
-        return table_info(tx, obj)
+        return table_info(tx, shown_table(tx, obj))
     target = select.resolve(tx, sheet, "drawing_sheet", field="/sheet", work_part=True)
     on_sheet = [
         (obj, kind)
@@ -818,17 +821,18 @@ def nx_get_drawing_table(
 
 def all_tables(tx):
     """``[(table, kind)]`` of the work part: parts lists, bend and hole tables, managed
-    tables and title blocks; a title block's own table section is not listed apart."""
+    tables and title blocks; the table section of a title block, parts list, bend or
+    hole table is not listed apart."""
     part = tx.part
     blocks = list(getattr(getattr(part, "DraftingManager", None), "TitleBlocks", None) or [])
-    found = [
+    owners = [
         *part.Annotations.PartsLists,
         *part.Annotations.BendTables,
         *(getattr(part.Annotations, "HoleTables", None) or []),
-        *(getattr(part.Annotations, "TableSections", None) or []),
-        *blocks,
     ]
-    inside = {int(t) for b in blocks if (t := table_tag(tx, b)) is not None}
+    found = [*owners, *(getattr(part.Annotations, "TableSections", None) or []), *blocks]
+    owners += blocks
+    inside = {int(t) for b in owners if (t := table_tag(tx, b)) is not None}
     out = []
     for obj in {int(o.Tag): o for o in found}.values():
         kind = table_kind(tx, obj)

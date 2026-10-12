@@ -306,8 +306,8 @@ PNG of the shown view or a sheet, to path or captures/; inline only with inline=
 | `up` | Point3 | optional |  |
 | `fit` | boolean | optional |  |
 | `hide_sketches` | boolean | `true` |  |
-| `width` | integer | `1024` |  |
-| `height` | integer | `768` |  |
+| `width` | integer | optional |  |
+| `height` | integer | optional |  |
 | `background` | `white` \| `black` \| `original` \| `transparent` \| `color` | optional |  |
 | `color` | Point3 | optional | RGB 0..1 or 0..255 |
 | `style` | `current` \| `shaded` \| `shaded_with_edges` \| `wireframe` \| `studio` | `"current"` |  |
@@ -625,7 +625,7 @@ Move or rename an annotation, dimension or table, or replace a note's text. posi
 
 ### `nx_edit_dimension`
 
-**Edit dimension** · effect `model` · NX 2406: tested; 49 checks in `acceptance/drawing/edit_dimension.json`
+**Edit dimension** · effect `model` · NX 2406: tested; 68 checks in `acceptance/drawing/edit_dimension.json`
 
 Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (read back in objects). upper/lower: signed numbers in part units; symmetric takes upper (+/-). Fit: ISO 286 hole/shaft class (H7, g6); limits are checked.
 
@@ -682,7 +682,7 @@ Export drawing sheets of the work part to a new PDF (all or the given sheets) or
 
 ### `nx_get_dimension`
 
-**Get dimension** · effect `read` · NX 2406: tested; 16 checks in `acceptance/drawing/get_dimension.json`
+**Get dimension** · effect `read` · NX 2406: tested; 22 checks in `acceptance/drawing/get_dimension.json`
 
 Read a drawing dimension: measured value, format, tolerance and sheet position. valid is false for a retained dimension that lost its geometry.
 
@@ -764,7 +764,7 @@ Create a Through Curve Mesh sheet from intersecting primary and cross sections. 
 
 ### `nx_create_sew`
 
-**Sew sheets** · effect `model` · NX 2406: tested; 37 checks in `acceptance/freeform/sew_thicken.json`
+**Sew sheets** · effect `model` · NX 2406: tested; 40 checks in `acceptance/freeform/sew_thicken.json`
 
 Sew edge-sharing sheet bodies into the target sheet (tools are consumed). solid=true requires a closed solid. Failures report each tool's gap in details.gaps.
 
@@ -790,7 +790,7 @@ Create a 3D Studio Spline through the points or with them as control poles. Edit
 
 ### `nx_create_thicken`
 
-**Thicken faces** · effect `model` · NX 2406: tested; 37 checks in `acceptance/freeform/sew_thicken.json`
+**Thicken faces** · effect `model` · NX 2406: tested; 40 checks in `acceptance/freeform/sew_thicken.json`
 
 Thicken sheet faces into a solid. thickness t means offset1=t, offset2=0; offsets are signed along the face normal (1 and -1: 2 thick, centred). side says where it went.
 
@@ -1311,7 +1311,7 @@ Create a block, cylinder, cone or sphere solid as a new body or combined with bo
 
 ### `nx_create_revolve`
 
-**Revolve sketch** · effect `model` · NX 2406: tested; 23 checks in `acceptance/modeling/revolve.json`
+**Revolve sketch** · effect `model` · NX 2406: tested; 28 checks in `acceptance/modeling/revolve.json`
 
 Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combined with bodies. Angles follow the right-hand rule about the axis direction.
 
@@ -1325,7 +1325,7 @@ Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combi
 
 ### `nx_create_rib`
 
-**Create rib** · effect `model` · NX 2406: tested (all variants); 25 checks in `acceptance/modeling/rib.json`
+**Create rib** · effect `model` · NX 2406: tested (all variants); 28 checks in `acceptance/modeling/rib.json`
 
 Add a rib (wall, web or gusset) of a thickness from open sketch curves to a solid body. The curves extend to the body and must close a region with it (a parallel rib fills it). volume is the body's (the rib body's if not combined); added is the rib's.
 
@@ -1334,7 +1334,7 @@ Add a rib (wall, web or gusset) of a thickness from open sketch curves to a soli
 | `sketch` | string | required | Ref: sketch |
 | `body` | string | required | Ref: body |
 | `thickness` | number or string | required | Part units, or '10 mm'/'0.5 in' |
-| `orientation` | `perpendicular` \| `parallel` | `"perpendicular"` | perpendicular: wall grown along the sketch normal; parallel: plate in its plane |
+| `orientation` | `perpendicular` \| `parallel` | `"perpendicular"` | perpendicular: wall along the sketch normal; parallel: plate/gusset in its plane |
 | `side` | `symmetric` \| `one_side` \| `other_side` | `"symmetric"` | Centred or one side; a parallel rib's one_side is the sketch normal side |
 | `draft` | number or string | optional | Draft of a perpendicular rib's walls |
 | `combine` | boolean | `true` | Unite the rib with the body; false keeps a new body |
@@ -1369,7 +1369,7 @@ Hollow a solid body to a wall thickness, opening the removed faces.
 
 ### `nx_create_sweep`
 
-**Sweep section along guide** · effect `model` · NX 2406: tested; 20 checks in `acceptance/modeling/sweep.json`
+**Sweep section along guide** · effect `model` · NX 2406: tested; 25 checks in `acceptance/modeling/sweep.json`
 
 Sweep a closed section sketch along a guide sketch, as a new body or combined with bodies (a separate Boolean feature). The guide must be tangent-continuous (G1).
 
@@ -1536,7 +1536,7 @@ List NX thread standards, a standard's sizes, or one size's rows (diameters, tap
 
 ### `nx_set_current_feature`
 
-**Set current feature** · effect `model` · NX 2406: tested; 10 checks in `acceptance/modeling/current_feature.json`
+**Set current feature** · effect `model` · NX 2406: tested; 18 checks in `acceptance/modeling/current_feature.json`
 
 Roll the timeline to a feature (a ref like f:12 from nx_list_objects), or to the end when feature is omitted. Later features become inactive (not suppressed) and new features are inserted after the current one.
 
@@ -1558,7 +1558,7 @@ Create a named Number expression or change its formula ('10 mm' converts to the 
 
 ### `nx_set_feature_order`
 
-**Reorder feature** · effect `model` · NX 2406: tested; 25 checks in `acceptance/modeling/feature_order.json`
+**Reorder feature** · effect `model` · NX 2406: tested; 26 checks in `acceptance/modeling/feature_order.json`
 
 Move a feature directly before or after another: before or after alone, or anchor with position. Refs like f:12. A feature cannot move before a parent or after a child (NX_DEPENDENCY_ORDER lists them). NX renumbers names (see renamed).
 
@@ -1604,28 +1604,29 @@ No arguments.
 
 ### `nx_activate_part`
 
-**Activate part** · effect `session` · NX 2406: tested; 81 checks in `acceptance/parts_files/multipart_close.json`
+**Activate part** · effect `session` · NX 2406: tested; 58 checks in `acceptance/parts_files/part_ownership.json`
 
-Show a loaded part in its own NX tab for the engineer. Not needed to work in it: calls reach a part by refs or the part key. Never takes the engineer's active tab: the part's tab then stays behind it, and the reply says so.
+Show a loaded part in its own NX tab for the engineer. Not needed to work in it: calls reach a part by refs or the part key. Never takes the engineer's active tab: the part's tab then stays behind it, and the reply says so. Never the engineer's part; another agent's only with force.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `work` | boolean | `true` |  |
 | `display` | boolean | optional | Show it in its own NX tab; never needed: calls reach it by part |
+| `force` | boolean | `false` | Go ahead although another agent may be working in it |
 
 ### `nx_close_part`
 
-**Close part** · effect `session` · NX 2406: tested; 81 checks in `acceptance/parts_files/multipart_close.json`
+**Close part** · effect `session` · NX 2406: tested; 58 checks in `acceptance/parts_files/part_ownership.json`
 
-Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Refused while a loaded assembly uses it, or while another agent may be working in it (force). Unused parts only it brought in close too.
+Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Never the engineer's part; refused while an assembly uses it or another agent may work in it (force). Unused parts only it brought in close too.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `save` | boolean | optional | true saves first, false discards changes; required if modified |
 | `unload_components` | boolean | `true` | Also close the unused, unmodified component parts only it brought in |
-| `force` | boolean | `false` | Close even if another agent may be working in it |
+| `force` | boolean | `false` | Go ahead although another agent may be working in it |
 
 ### `nx_create_directory`
 
@@ -1759,7 +1760,7 @@ List the loaded parts: file, units, work/display state, modified flag and owned 
 
 ### `nx_open_part`
 
-**Open part** · effect `session` · NX 2406: tested; 42 checks in `acceptance/parts_files/open_part.json`
+**Open part** · effect `session` · NX 2406: tested; 58 checks in `acceptance/parts_files/part_ownership.json`
 
 Open a workspace .prt, or reuse it if loaded. Calls reach it by part (its file name) without showing it; it never takes the engineer's active NX tab. A reopened part gets a new ref.
 
@@ -1835,7 +1836,7 @@ Ask a running call (nx_run_batch or another multi-step tool) to stop at its next
 
 **Create checkpoint** · effect `session` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
-Set an in-session undo checkpoint in the work part (restore by id or label). A save, part close, later part load or undo past it expires it; disk saves are never rolled back.
+Set an in-session undo checkpoint in the work part (restore by id or label). Its part's own save or close, the engineer's edits or an undo past it expire it; other parts' work never does. Disk saves are never rolled back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1853,9 +1854,9 @@ Delete 1-100 objects (ids like f:12) of the work part in one undoable step. Kind
 
 ### `nx_delete_results`
 
-**Delete stored results** · effect `file` · NX 2406: tested; 81 checks in `acceptance/session/results.json`
+**Delete stored results** · effect `file` · NX 2406: tested; 21 checks in `acceptance/session/results_scope.json`
 
-Preview (default) or delete stored result snapshots by age, total size or result_id. Defaults: 7 days, 256 MiB. Snapshots are shared by all agents on this workspace; result_ids deletes only yours. Receipts and CAD files are never touched.
+Preview (default) or delete stored result snapshots by age, total size or result_id. Defaults: 7 days, 256 MiB, only your own snapshots (all_agents: every agent's on this workspace). Receipts and CAD files are never touched.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1863,6 +1864,7 @@ Preview (default) or delete stored result snapshots by age, total size or result
 | `max_age_seconds` | integer or string | optional | Older snapshots go: seconds, or '12h', '7d' |
 | `max_bytes` | integer | optional | Oldest snapshots go until the total fits |
 | `result_ids` | array[1-100] of string | optional | Select exactly these snapshots |
+| `all_agents` | boolean | `false` | Age/size: every agent's snapshots, not only yours |
 
 ### `nx_finish_preview`
 
@@ -1913,7 +1915,7 @@ NX build, bridge state, panel mode, work and display part, workspace root and ru
 
 **List checkpoints** · effect `read` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
-List this session's checkpoints (with part: that part's) and the part's undo depth. Expired ones show available=false and expired_reason (undone_past, saved_or_closed, part_loaded, display_reset, mark_evicted, engineer_change or part_closed).
+List this session's checkpoints (with part: that part's) and the part's undo depth. Expired ones show available=false and expired_reason; compensated=true: a restore now deletes what the part made since instead of using NX's undo.
 
 No arguments.
 
@@ -1942,7 +1944,7 @@ Repeat the part's agent calls an undo or checkpoint restore reverted, next first
 
 **Restore checkpoint** · effect `model` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
-Roll the checkpoint's part back to it (id or label), undoing its agent operations since; it stays restorable. Refused when expired, or when other parts' later work is in the way. Refs of objects that remain stay valid; save to persist.
+Roll the checkpoint's part back to it (id or label), undoing its agent operations since; it stays restorable. Other parts' later work makes it compensate (delete what the part made, set values back), refused when that does not qualify. Save to persist.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |

@@ -42,7 +42,7 @@
   "nx_export_flat_pattern": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-12T07:54:50Z",
+      "recorded": "2026-10-12T11:03:06Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
       "source_sha256": "d148430c523270bb5b98030e73505e276b4781818c8ecaa96085d60c3e69c793",
@@ -52,7 +52,7 @@
   "nx_get_sheet_metal": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-12T07:54:50Z",
+      "recorded": "2026-10-12T11:03:06Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
       "source_sha256": "95a0511ea3b5bef12af2c1ee901d3bde2d5424d217901961aa0f065f85125285",
@@ -62,20 +62,20 @@
   "nx_get_sheet_metal_defaults": {
     "v2406": {
       "checks": 25,
-      "recorded": "2026-10-12T07:54:37Z",
+      "recorded": "2026-10-12T11:02:51Z",
       "scenario": "acceptance/sheet_metal/flat_pattern_axes.json",
       "scenario_sha256": "eb69e2e8b0ed051ac2e879cd39be3e869928a3aae7e66aecde22a2e8bbd94b66",
-      "source_sha256": "8feb8b93e0b1ec75591e417b068b5a04b337abdbec9063935cc156cb506d3604",
+      "source_sha256": "e372a3b710c15e0ee38385076358771f2d93738dbf413087317cf2ca8e366e2f",
       "variants": []
     }
   },
   "nx_set_sheet_metal_defaults": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-12T07:54:50Z",
+      "recorded": "2026-10-12T11:03:06Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "8feb8b93e0b1ec75591e417b068b5a04b337abdbec9063935cc156cb506d3604",
+      "source_sha256": "e372a3b710c15e0ee38385076358771f2d93738dbf413087317cf2ca8e366e2f",
       "variants": []
     }
   }

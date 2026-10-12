@@ -3,7 +3,10 @@
 Ownership (gate 6): a part the agent creates or opens (not already loaded) is
 the agent's; saving or closing any other part needs the engineer's grant
 (``tx.require_owned``). Parts outside the workspace are refused first, since
-no grant can help there. NX names parts by file basename, so a new file name a
+no grant can help there. Engineer parts (``core/busy.py``: not created or opened by an
+agent call) are never closed or activated, and saved only when granted
+(``NX_ENGINEER_PART``, development mode included); reusing one with nx_open_part never
+shows it. NX names parts by file basename, so a new file name a
 loaded part already uses is refused before NX acts (``NX_NAME_CONFLICT``).
 
 Closing an assembly also closes the component parts only the assembly brought in
@@ -29,11 +32,12 @@ active before back, unless the call passes ``display`` true. ``work`` without di
 makes the part the work part only where NX allows it (a component of the display part);
 elsewhere the work part stays and a note says so (calls reach the part by ``part``).
 
-Parallel agents (phase P4, ``core/busy.py``): with two or more of the agent's parts
-loaded, ``nx_close_part`` refuses (``NX_PART_BUSY``) a part a call changed within 300 s
-while the last call worked in another loaded part; ``force`` closes anyway, and a close
-right after working in the part never needs it. A save never warns: it loses no one's
-work and ends the part's busy state. A close keeps NX's undo marks (``_saving.close_part``; closing the active tab brings the
+Parallel agents (``core/busy.py``): ``nx_close_part`` and ``nx_activate_part`` refuse
+(``NX_PART_BUSY``) a part another agent's MCP connection loaded (the sidecar's ``caller``
+key), and ``nx_close_part`` a part whose unsaved changes from the last 300 s it would
+discard while a call worked in it within 30 s, when several agents share the caller's
+connection; ``force`` goes ahead. ``nx_open_part`` reusing another agent's part never
+shows it. A save never warns: it loses no one's work. A close keeps NX's undo marks (``_saving.close_part``; closing the active tab brings the
 most recently active remaining tab back); undo does not cross it.
 
 Parts are named by ref, workspace path or file name (``LoadedPart``) wherever a loaded
@@ -66,7 +70,7 @@ PartPath = Annotated[str, Doc("New workspace .prt path"), PathTo("new", ".prt")]
 LoadedPart = Annotated[
     str, Text(260), Doc("Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name")
 ]
-Force = Annotated[bool, Doc("Close even if another agent may be working in it")]
+Force = Annotated[bool, Doc("Go ahead although another agent may be working in it")]
 # Save-as target. "replace" lets the part's own file through gate 2 (an in-place save);
 # any other existing file is refused in the handler: save-as never overwrites.
 SaveAsPath = Annotated[
@@ -363,6 +367,8 @@ def nx_open_part(
         if part is None:
             parts.check_new_name(tx, source)
     already = part is not None
+    if already and _foreign(tx, part):
+        return _reused_foreign(tx, part)
     if part is None:
         with native():
             part, status = tx.session.Parts.OpenBase(str(source))
@@ -382,6 +388,28 @@ def nx_open_part(
     if not already and bool(getattr(part, "IsModified", False)):
         _note_modified_on_load(tx, part, out)
     return out
+
+
+def _foreign(tx, part) -> str | None:
+    """``engineer`` or ``other_agent`` when ``part`` is not the caller's to show, else
+    None."""
+    if busy.engineer(tx.services, part):
+        return "engineer"
+    return "other_agent" if busy.other_agent(tx.services, part, tx.caller) else None
+
+
+def _reused_foreign(tx, part) -> OpenData:
+    """nx_open_part of a file the engineer or another agent has loaded: nothing changes
+    (no tab, no work part), and a note says whose it is and how calls reach it."""
+    whose = "the engineer's" if _foreign(tx, part) == "engineer" else "another agent's"
+    name = Path(str(parts.file_of(part))).name
+    tx.warn(
+        "NX_NOTE",
+        f"{name} is already loaded as {whose} part: it stays as it is (no tab or work part "
+        f'change). Read it with "part": "{name}"; to change it, save a copy of your own',
+    )
+    _report_units(tx)
+    return {**_state(tx, part), "already_loaded": True}
 
 
 def _note_shown(tx, part, shown) -> None:
@@ -428,14 +456,17 @@ def nx_activate_part(
     part: LoadedPart,
     work: bool = True,
     display: Annotated[bool, Doc(TAB_DOC)] | None = None,
+    force: Force = False,
 ) -> PartData:
     """Show a loaded part in its own NX tab for the engineer. Not needed to work in it:
     calls reach a part by refs or the part key. Never takes the engineer's active tab:
-    the part's tab then stays behind it, and the reply says so."""
+    the part's tab then stays behind it, and the reply says so. Never the engineer's part;
+    another agent's only with force."""
     if not work and display is False:
         fail("NX_INVALID_ARGUMENT", "Set work or display (or both)", field="/work")
     with tx.checks():
         target = loaded_part(tx, part)
+        busy.refuse_activate(tx.services, target, tx.caller, force=force)
     if display is None and parts.engineer_tab(tx) is not None:
         display = True  # the guard: its own tab behind the engineer's, never active
     shown = parts.present(tx, target, work=work, display=display)
@@ -580,6 +611,7 @@ def nx_save_part(
         if path is not None and parts.same_file(parts.file_of(target), path):
             path = None  # the part's own file: save it in place
         parts.in_workspace(tx, target, field=field, allow_unsaved=path is not None)
+        busy.refuse_engineer(tx.services, target, "save", field=field)
         tx.require_owned(target, field=field)
         if path is not None:
             if Path(path).exists():
@@ -594,9 +626,11 @@ def nx_save_part(
     tx.warn("NX_NOTE", "Saving expires NX undo marks and checkpoints")
     if path is None:
         audit = _saving.verified_save(tx, target)
+        undo_marks.own_save(tx.services, tx.services.part_key(target))
         return {"part": _row(tx, target), "path": _rel(tx, parts.file_of(target)), **audit}
     destination = Path(path)
     updated = _save_as(tx, target, destination)
+    undo_marks.own_save(tx.services, tx.services.part_key(target))
     readback.expect(
         parts.same_file(parts.file_of(target), destination),
         "save_as",
@@ -647,13 +681,14 @@ def nx_close_part(
     force: Force = False,
 ) -> CloseData:
     """Close one loaded part by ref, workspace path or file name (never implicitly the work
-    part). With unsaved changes, save (true or false) is required. Refused while a loaded
-    assembly uses it, or while another agent may be working in it (force). Unused parts
-    only it brought in close too."""
+    part). With unsaved changes, save (true or false) is required. Never the engineer's
+    part; refused while an assembly uses it or another agent may work in it (force).
+    Unused parts only it brought in close too."""
     with tx.checks():
         target = loaded_part(tx, part)
         field = "/part"
         parts.in_workspace(tx, target, field=field)
+        busy.refuse_engineer(tx.services, target, "close", field=field)
         tx.require_owned(target, field=field)
         parents = parts.dependents(tx, target)
         if parents:
@@ -677,8 +712,7 @@ def nx_close_part(
                     "modified": True,
                 },
             )
-        if not force:
-            busy.refuse(tx.services, target, field=field)
+        busy.refuse_close(tx.services, target, tx.caller, save=bool(save), force=force)
     save = bool(save)
     since = busy.loaded_at(tx.services, target)  # components a call worked in since stay
     session_parts = tx.session.Parts

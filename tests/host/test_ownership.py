@@ -44,7 +44,7 @@ def test_changes_are_refused_on_the_engineers_part_until_granted(engineer, monke
     engineer.part.Save = Mock(wraps=engineer.part.Save)
     with pytest.raises(NXError) as error:
         engineer.run("nx_save_part", {})
-    assert error.value.code == "NX_PART_NOT_GRANTED"
+    assert error.value.code == "NX_ENGINEER_PART"  # core/busy.py, before gate 6
     assert error.value.details["mutation_outcome"] == "not_started"
     assert "NX MCP panel" in error.value.hint
     engineer.part.Save.assert_not_called()
@@ -71,7 +71,7 @@ def test_reads_still_run_on_the_engineers_part(engineer):
     ],
 )
 def test_save_and_close_need_ownership(engineer, method, args, monkeypatch):
-    # The parts_files catalogue tools call tx.require_owned before saving or closing.
+    # The parts_files tools refuse the engineer's parts (core/busy.py) before gate 6.
     monkeypatch.setattr(kernel, "_gate_evidence", lambda *a: None)
     engineer.part.Save = Mock()
     engineer.part.SaveAs = Mock()
@@ -80,7 +80,7 @@ def test_save_and_close_need_ownership(engineer, method, args, monkeypatch):
         args = {"part": engineer.e.register(engineer.part, "part", engineer.part, "Part")["id"]}
     with pytest.raises(dispatch.KernelError) as error:
         engineer.run(method, args)
-    assert error.value.code == "NX_PART_NOT_GRANTED"
+    assert error.value.code == "NX_ENGINEER_PART"
     assert error.value.details["mutation_outcome"] == "not_started"
     engineer.part.Save.assert_not_called()
     engineer.part.SaveAs.assert_not_called()
@@ -95,7 +95,7 @@ def test_close_checks_the_named_part_not_the_work_part(engineer, tmp_path, monke
     ref = engineer.e.register(other, "part", other, "Part")["id"]
     with pytest.raises(dispatch.KernelError) as error:
         engineer.run("nx_close_part", {"part": ref, "save": False})
-    assert error.value.code == "NX_PART_NOT_GRANTED" and "theirs.prt" in error.value.message
+    assert error.value.code == "NX_ENGINEER_PART" and "theirs.prt" in error.value.message
     other.Close.assert_not_called()
 
 

@@ -14,11 +14,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_hole": "7f0b80b9282d1586d1aa400fcba64ff77da11ddd5ccd53fb77bcd3cd1856d4d2",
+    "nx_create_hole": "7c4bbdf668b6eccbce02a8c4ff43a95f0778ceb4eba502764ea034f2daca270d",
     "nx_create_thread": "c659e615d1d798144ecade5837df6b885b1a09cb70f63a68e8eb27f5a08b52be",
     "nx_list_thread_sizes": "c659e615d1d798144ecade5837df6b885b1a09cb70f63a68e8eb27f5a08b52be"
   },
-  "recorded": "2026-10-12T05:38:59Z",
+  "recorded": "2026-10-12T09:57:08Z",
   "passed": true,
   "checks": 48,
   "failed_checks": 0,
