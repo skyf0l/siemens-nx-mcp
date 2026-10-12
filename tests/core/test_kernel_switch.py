@@ -403,3 +403,12 @@ def test_display_bound_arguments_pick_display_mode():
     for kind in ("section_view", "drawing_sheet", "dimension"):
         assert delete.switch_for({}, {kind}) == "display", kind
     assert specs["nx_get_camera"].switch_for({"part": "plate"}) == "none"  # a plain read
+    extrude = specs["nx_create_extrude"]  # NX refuses a through-all extrude out of view
+    assert extrude.switch_for({"end": 10}) == "work"
+    assert extrude.switch_for({"end": {"type": "distance", "value": 10}}) == "work"
+    assert extrude.switch_for({"end": {"type": "through_all"}}) == "display"
+    assert extrude.switch_for({"end": 5, "start": {"type": "through_all"}}) == "display"
+    edit = specs["nx_edit_component"]  # replace and make unique only in the shown assembly
+    assert edit.switch_for({"components": ["o:1"], "name": "A"}) == "work"
+    assert edit.switch_for({"components": ["o:1"], "replace_with": "b.prt"}) == "display"
+    assert edit.switch_for({"components": ["o:1"], "make_unique": "c.prt"}) == "display"

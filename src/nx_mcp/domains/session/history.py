@@ -13,13 +13,17 @@ model (``core/marks.py``), and no undo or restore crosses it.
 
 NX keeps one linear undo list for the session, so the undo of part A may use NX's undo
 only while nothing else lies between A's undone operations and the top of that list.
-Other parts' operations in between: the undo deletes what A's operations created instead
-(``domains/session/compensate.py``: create-only features, nothing depending on them,
-verified), or it is refused with ``NX_CROSS_PART`` naming the operations and parts in the
-way. ``mode`` ``delete_created`` always undoes by deletion, also across part loads;
-``operation`` undoes one named own operation (``NX_DEPENDENCY_ORDER`` while later
-operations of the part follow it, unless by deletion). An undo by deletion stays in the
-history as a ``compensation`` entry that is never undone itself.
+Other parts' operations in between: the undo compensates A's operations instead
+(``domains/session/compensate.py``: deletes what create-only operations made, nothing
+depending on it, and sets back the values ``nx_set_attributes``, ``nx_set_expression``
+and ``nx_set_name`` changed, all verified), or it is refused with ``NX_CROSS_PART``
+naming the operations and parts in the way and how to fix forward. ``mode``
+``compensate`` (``delete_created`` is the same) always compensates, also across part
+loads, closes and saves that cut NX's history (never across the engineer's edits); a
+refusal at such a cut says when the operations qualify. ``operation`` undoes one named
+own operation (``NX_DEPENDENCY_ORDER`` while later operations of the part follow it,
+unless compensated). A compensating undo stays in the history as a ``compensation``
+entry that is never undone itself.
 
 Checkpoints are NX undo marks of this session only. A save or a part close removes
 NX's marks (``saved_or_closed``), NX evicts its oldest marks beyond about 180 for the
@@ -72,7 +76,11 @@ Label = Annotated[
 ]
 Steps = Annotated[int, Range(ge=1), Doc("Operations to undo")]
 OperationKey = Annotated[str, Text(128), Doc("Own operation_id to undo")]
-UndoMode = Annotated[Literal["delete_created"], Doc("Delete what they made, no NX undo")]
+UndoMode = Annotated[
+    Literal["compensate", "delete_created"],
+    Doc("No NX undo: delete what they made, set values back"),
+]
+COMPENSATE = ("compensate", "delete_created")  # delete_created: the v1 name, same thing
 RedoCount = Annotated[int, Range(ge=1), Doc("Undone operations to repeat, next first")]
 ExpiredReason = Literal[
     "undone_past",
@@ -98,6 +106,12 @@ STALE_HINT = (
     "which ones are available"
 )
 DELETE_HINT = "Delete the objects with nx_delete_objects"
+# What an agent can do when no undo applies: change the model forward to the state wanted.
+FIX_FORWARD = (
+    "Fix forward instead: delete what it made with nx_delete_objects, or set the changed "
+    "values back with the tool that set them (nx_set_attributes, nx_set_expression, "
+    "nx_set_name, nx_set_feature_suppression, nx_edit_feature)"
+)
 LISTED = 20  # checkpoints named in a not-found error
 IN_THE_WAY = 10  # operations named in a cross-part refusal
 
@@ -123,9 +137,10 @@ class _UndoData(TypedDict):
 
 
 class UndoData(_UndoData, total=False):
-    # true: undone by deleting what the calls created (other parts' work came after
-    # them, or mode delete_created); changes.deleted lists what went
+    # true: undone without NX's undo (other parts' work came after them, or mode
+    # compensate): what they created deleted (changes.deleted), values set back (restored)
     compensated: bool
+    restored: list[str]  # the values set back, e.g. "PART_NO of cover.prt back to 'A-1'"
     missing: list[str]  # created refs a later operation had already deleted
     kept_expressions: list[str]  # created expressions NX kept (still in use)
     renumbered: list[dict]  # anchors NX renumbered: {ref, anchor, was}
@@ -176,7 +191,8 @@ class _RestoreData(TypedDict):
 
 
 class RestoreData(_RestoreData, total=False):
-    compensated: bool  # true: undone by deleting what the calls created (see UndoData)
+    compensated: bool  # true: undone without NX's undo (see UndoData)
+    restored: list[str]
     missing: list[str]
     kept_expressions: list[str]
     renumbered: list[dict]
@@ -470,10 +486,12 @@ def _delete_created(
     tx.history_note = {"compensation": True, "undid": [str(h["operation_id"]) for h in undone]}
     _push_redo(services, undone)
     kinds = ", ".join(f"{n} {k}{'s' if n != 1 else ''}" for k, n in sorted(info["kinds"].items()))
-    tx.warn(
-        "NX_UPDATE_WARNING",
-        f"Undone by deleting what {'it' if len(undone) == 1 else 'they'} created ({kinds}): " + why,
-    )
+    done = []
+    if kinds:
+        done.append(f"deleted what {'it' if len(undone) == 1 else 'they'} created ({kinds})")
+    if info.get("restored"):
+        done.append("set back " + "; ".join(info["restored"]))
+    tx.warn("NX_UPDATE_WARNING", f"Undone without NX's undo, it {' and '.join(done)}: " + why)
     if info.get("missing"):
         tx.warn(
             "NX_NOTE",
@@ -492,7 +510,7 @@ def _delete_created(
             + "; use these anchors",
         )
     extra: dict = {"compensated": True}
-    for name in ("missing", "kept_expressions", "renumbered"):
+    for name in ("restored", "missing", "kept_expressions", "renumbered"):
         if info.get(name):
             extra[name] = info[name]
     return redo, extra
@@ -503,31 +521,32 @@ def _plan(
 ) -> tuple[str, int, compensate.Plan | None, list]:
     """How to undo ``undone`` (the part's operations, oldest first): ``("nx", start,
     None, [])`` when nothing else lies after them, else ``("delete", start, plan, in the
-    way)``; refuses (``NX_CROSS_PART``) when deletion does not qualify. ``mode``
-    ``delete_created``: always by deletion (its own refusal codes)."""
+    way)``; refuses (``NX_CROSS_PART``) when compensation does not qualify. ``mode``
+    ``compensate``: always compensated (its own refusal codes)."""
     services = tx.services
     start = next(i for i, h in enumerate(history) if h is undone[0])
     chosen = {id(h) for h in undone}
     blockers = [h for h in history[start:] if id(h) not in chosen]
-    if mode != "delete_created" and not blockers:
+    if mode not in COMPENSATE and not blockers:
         return "nx", start, None, []
     try:
         plan = compensate.plan(tx, undone, history[start:])
     except compensate.Refusal as refusal:
-        if mode == "delete_created":
+        if mode in COMPENSATE:
             fail(
                 refusal.code,
-                f"{what} cannot be undone by deleting what it created: {refusal.reason}",
-                hint=DELETE_HINT,
+                f"{what} cannot be undone without NX's undo (deleting what it created, "
+                f"setting back the values it set): {refusal.reason}",
+                hint=FIX_FORWARD,
                 details={"delete_created": refusal.reason, **refusal.details},
             )
         rows = _in_the_way(services, blockers)
         fail(
             "NX_CROSS_PART",
             f"Undoing {what} with NX's undo would also revert later work: "
-            f"{_sentence(rows, len(blockers))}; and it cannot be undone by deleting what "
-            f"it created: {refusal.reason}",
-            hint=DELETE_HINT + ", or undo the later operations of those parts first",
+            f"{_sentence(rows, len(blockers))}; and it cannot be compensated (deleting what "
+            f"it created, setting back the values it set): {refusal.reason}",
+            hint=FIX_FORWARD + "; or undo the later operations of those parts first",
             details={
                 "part_id": undone[0].get("part_id"),
                 "operation_id": blockers[0].get("operation_id"),
@@ -541,7 +560,7 @@ def _plan(
 
 def _why_deleted(services, blockers: list) -> str:
     if not blockers:
-        return "mode delete_created, so NX's undo was not used"
+        return "mode compensate, so NX's undo was not used"
     rows = _in_the_way(services, blockers)
     return f"later work ({_sentence(rows, len(blockers))}) came after it, so NX's undo was not used"
 
@@ -642,7 +661,29 @@ def _undo_part(services, args) -> Any:
     return ANY
 
 
-def _not_found(file: str, end: dict | None, older: bool, other: bool) -> None:
+def _offer(tx: Tx, history: list, key, ops: list, end: dict | None) -> str:
+    """The hint for operations NX's undo no longer reaches (``ops``, oldest first, beyond
+    the cut ``end``): mode compensate when they qualify, else how to fix forward."""
+    if not ops or end is None or undo_marks.barrier(end) == "engineer":
+        return FIX_FORWARD
+    start = next((i for i, h in enumerate(history) if h is ops[0]), 0)
+    try:
+        plan = compensate.plan(tx, ops, history[start:])
+    except compensate.Refusal as refusal:
+        return f"It cannot be compensated either ({refusal.reason}). " + FIX_FORWARD
+    what = []
+    if plan.features:
+        what.append("delete what it created")
+    if plan.restores:
+        what.append("set back the values it set")
+    return (
+        "Repeat with mode compensate: without NX's undo it will "
+        + " and ".join(what or ["undo it"])
+        + ", leaving other parts untouched"
+    )
+
+
+def _not_found(file: str, end: dict | None, older: bool, other: bool, offer: str = "") -> None:
     reason, why = _why_ended(end) if end is not None else (None, "")
     if end is not None:
         message = f"the history of {file} ends at its last operation: {why}"
@@ -655,7 +696,10 @@ def _not_found(file: str, end: dict | None, older: bool, other: bool) -> None:
         "history; delete or edit the objects instead"
     )
     if older and reason in ("part_loaded", "part_closed", "mark_evicted", "saved_or_closed"):
-        hint += " (mode delete_created deletes what create-only operations made)"
+        hint = offer or (
+            hint + " (mode compensate deletes what create-only operations made and sets "
+            "back values they set)"
+        )
     fail(
         "NX_NOT_FOUND",
         "No agent operation can be undone: " + message,
@@ -678,15 +722,17 @@ def _too_many(steps: int, depth: int, end: dict | None, field: str = "/steps") -
 
 
 def _choose(
-    services, history: list, key, file: str, steps: int, operation: str | None, mode: str | None
+    tx: Tx, history: list, key, file: str, steps: int, operation: str | None, mode: str | None
 ) -> list:
     """The part's operations to undo, oldest first (refusals inside ``tx.checks``)."""
-    ops, end = _reach(history, key) if mode == "delete_created" else _walk(services, history, key)
+    services = tx.services
+    ops, end = _reach(history, key) if mode in COMPENSATE else _walk(services, history, key)
     if operation is None:
         if not ops:
-            older = bool(_reach(history, key)[0])
+            reached = _reach(history, key)[0]
             other = any(undo_marks.barrier(h) is None for h in history)
-            _not_found(file, end, older, other)
+            offer = _offer(tx, history, key, list(reversed(reached[:steps])), end)
+            _not_found(file, end, bool(reached), other, offer)
         if steps > len(ops):
             _too_many(steps, len(ops), end)
         return list(reversed(ops[:steps]))
@@ -704,23 +750,27 @@ def _choose(
         )
     if not any(h is found for h in ops):
         reason, why = _why_ended(end) if end is not None else ("mark_evicted", "")
+        reached = _reach(history, key)[0]
         fail(
             "NX_NOT_FOUND",
-            f"{operation} can no longer be undone: the history of {file} ends after it: {why}",
+            f"{operation} can no longer be undone with NX's undo: the history of {file} ends "
+            f"after it: {why}",
             field="/operation",
-            hint=DELETE_HINT,
+            hint=_offer(tx, history, key, [found], end)
+            if any(h is found for h in reached)
+            else FIX_FORWARD,
             details={"undo_depth": _depth(services, key), "reason": reason},
             retry="never",
         )
     index = next(i for i, h in enumerate(ops) if h is found)  # newer ones come first
-    if index and mode != "delete_created":
+    if index and mode not in COMPENSATE:
         fail(
             "NX_DEPENDENCY_ORDER",
             f"{index} later operation(s) of {file} follow {operation}: NX's undo would "
             "revert them too",
             field="/operation",
-            hint=f"Undo them too with steps {index + 1}, or pass mode delete_created to "
-            "delete only what it created",
+            hint=f"Undo them too with steps {index + 1}, or pass mode compensate to "
+            "delete only what it created and set back only the values it set",
             details={"later": [str(h["operation_id"]) for h in reversed(ops[:index])]},
         )
     return [found]
@@ -753,7 +803,7 @@ def nx_undo_operation(
         if operation is not None and tx.given("steps"):
             fail("NX_INVALID_ARGUMENT", "Pass steps or operation, not both", field="/operation",
                  hint="operation undoes that one operation; steps the part's last ones")  # fmt: skip
-        undone = _choose(services, history, key, file, steps, operation, mode)
+        undone = _choose(tx, history, key, file, steps, operation, mode)
         what = (
             f"{undone[0]['operation_id']} ({undone[0].get('method')})"
             if len(undone) == 1

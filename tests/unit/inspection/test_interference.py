@@ -47,7 +47,8 @@ def test_clearance_flags_close_pairs_and_contact_can_be_hidden():
     assert near.data["counts"]["below_clearance"] == 1 and near.data["pairs"][0]["distance"] == 5
     far = run(nx, "nx_check_interference", objects=refs, clearance=1)
     assert far.data["pairs"] == [] and far.data["skipped_pairs"] == 1
-    assert far.data["checked_pairs"] == 0 and far.data["counts"]["clear"] == 1
+    assert far.data["checked_pairs"] == 0 and far.data["counts"]["clear"] == 0
+    assert far.data["counts"]["skipped"] == 1 and "cannot touch" in far.data["skipped_reason"]
     listed = run(nx, "nx_check_interference", objects=refs, include_clear=True)
     assert listed.data["pairs"][0]["classification"] == "clear"
     hidden = run(nx, "nx_check_interference", include_contact=False)

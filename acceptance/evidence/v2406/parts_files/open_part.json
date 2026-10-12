@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/open_part.json",
-  "scenario_sha256": "5a818668ae9fd2e28f78eabd9226178ca7c379e6e0e066925096318935c17c8f",
+  "scenario_sha256": "0fee7a3b68eac9bebd5faf3fe1f69297451590896044985ed7b6615cd143d595",
   "domain": "parts_files",
   "covers": {
     "nx_open_part": []
@@ -9,9 +9,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_open_part": "ddaebe8c0832238cfda7fca166f25ae6d692254e018994397e6116f23f719b0e"
+    "nx_open_part": "6763d25a5e6efcf67185ae8918712cb52b0fde8852b079433514792ea402d7a6"
   },
-  "recorded": "2026-10-11T19:44:16Z",
+  "recorded": "2026-10-12T04:39:00Z",
   "passed": true,
   "checks": 40,
   "failed_checks": 0,

@@ -23,7 +23,7 @@
    "expect": {"ok": true, "data.type": "VerticalDimension", "data.value": {"close": 50, "tol": 1e-09},
               "data.origin": {"close": [200, 200], "tol": 1e-06}, "data.sheet.name": "SHT1", "data.associations": 2}},
 
-  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mdr/mdr_front.prt", "units": "mm"}},
+  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mdr/mdr_front.prt", "units": "mm", "display": true}},
   {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 40, "width": 20, "height": 10, "part": "mdr_front"}},
   {"call": "nx_create_drawing_sheet", "setup": true, "save": "sh2", "args": {"part": "$part.data.part.id", "name": "SHT2", "size": "a4", "projection": "first_angle"}},
 

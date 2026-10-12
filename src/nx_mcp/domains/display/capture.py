@@ -27,6 +27,13 @@ put back (NX stores them in the part), which ``marks_part_modified`` (true only 
 capture set the flag; a part modified before stays so) and a warning report.
 ``hidden_sketches`` counts the sketches and datums blanked for the capture only.
 
+``sheet`` (a sheet ref or name of the shown part) captures that drawing sheet: it is
+opened for the capture only and the part's previous sheet or model view comes back
+(``kit.drawing.on_sheet``), so no ``nx_activate_drawing_sheet`` is needed first. Without
+``sheet`` the capture shows what the part displays; when that is the model view of a part
+with drawing sheets, an ``NX_NOTE`` names them (benchmark bench3p: a capture of a part
+with a sheet silently returned the model view).
+
 Natural forms: ``background`` defaults to ``color`` when ``color`` is given (else white)
 and takes ``black``; ``color`` takes 0..1 or 0..255 components (any above 1: 0..255).
 
@@ -41,6 +48,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
@@ -48,7 +56,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, PathTo, Range, Vec3
+from nx_mcp.core.types import REF_PATTERN, Doc, PathTo, Range, RefKind, Text, Vec3
 from nx_mcp.domains.display.common import Camera, camera_row
 from nx_mcp.kit import capture, display, drawing, files
 from nx_mcp.kit.result import Row
@@ -57,6 +65,10 @@ Pixels = Annotated[int, Range(ge=128, le=4096)]
 SHADED = ("shaded", "shaded_with_edges", "studio")  # styles a Studio capture renders
 Rgb = Annotated[tuple[float, float, float], Doc("RGB 0..1 or 0..255")]
 Background = Literal["white", "black", "original", "transparent", "color"]
+# One string (a ref sh:N pins the part, a name is looked up in it): a union of the two
+# string forms would double the listed schema of this directly listed core tool.
+SheetArg = Annotated[str, Text(128), RefKind("drawing_sheet"), Doc("Sheet ref/name to capture")]
+LISTED_SHEETS = 5
 
 
 class ImageInfo(TypedDict):
@@ -125,11 +137,48 @@ def _studio_over(tx, temp, width, height, style, background, color):
     return size
 
 
+def _sheet(tx, part, value):
+    """The drawing sheet of the shown ``part`` that ``value`` names (ref or name, any case)."""
+    text = str(value).strip()
+    sheets = list(getattr(part, "DrawingSheets", None) or [])
+    if re.match(REF_PATTERN, text):
+        found = tx.resolve(text, "drawing_sheet")
+        if any(int(x.Tag) == int(found.Tag) for x in sheets):
+            return found
+        fail("NX_WRONG_OWNER", f"{text} is not a drawing sheet of the captured part",
+             field="/sheet")  # fmt: skip
+    named = [x for x in sheets if str(x.Name).casefold() == text.casefold()]
+    if not named:
+        fail(
+            "NX_NOT_FOUND",
+            f"The part has no drawing sheet named {text!r}",
+            field="/sheet",
+            hint="Pass a sheet ref (sh:N) or a name from details.sheets",
+            details={"sheets": [tx.ref(x, "drawing_sheet") for x in sheets[:20]]},
+        )
+    return named[0]
+
+
+def _sheets_note(tx, part) -> None:
+    """Name the drawing sheets a model-view capture of ``part`` leaves out."""
+    with contextlib.suppress(Exception):
+        sheets = list(getattr(part, "DrawingSheets", None) or [])
+        if sheets:
+            rows = [tx.ref(x, "drawing_sheet") for x in sheets[:LISTED_SHEETS]]
+            names = ", ".join(f"{r['name']} ({r['id']})" for r in rows)
+            tx.warn(
+                "NX_NOTE",
+                f"Captured the model view; the part also has drawing sheet(s) {names}: "
+                "pass sheet to capture one",
+            )
+
+
 def _summary(a, say):
     what = "Render" if a.get("quality") == "studio" else "Capture"
+    shown = f"sheet {say('sheet')}" if a.get("sheet") else "the view"
     if a.get("overwrite") and a.get("path"):
-        return f"{what} the view over {say('path')}"
-    return f"{what} the view" + (f" to {say('path')}" if a.get("path") else "")
+        return f"{what} {shown} over {say('path')}"
+    return f"{what} {shown}" + (f" to {say('path')}" if a.get("path") else "")
 
 
 @tool(
@@ -150,7 +199,7 @@ def nx_capture_view(
     overwrite: bool = False,
     inline: bool | None = None,
     view_from: Vec3 | None = None,
-    up: Vec3 | None = None,
+    up: tuple[float, float, float] | None = None,  # a direction like view_from
     fit: bool | None = None,
     hide_sketches: bool = True,
     width: Pixels = 1024,
@@ -159,9 +208,10 @@ def nx_capture_view(
     color: Rgb | None = None,
     style: Literal["current", "shaded", "shaded_with_edges", "wireframe", "studio"] = "current",
     lighting: Annotated[int, Range(ge=1, le=5)] | None = None,
+    sheet: SheetArg | None = None,
 ) -> CaptureData:
-    """PNG of the shown view or sheet, saved to path or captures/. Inline image only with
-    inline=true or no path. view_from/up aim it. Sheets: window size."""
+    """PNG of the shown view or a sheet, to path or captures/; inline only with inline=true
+    or no path. view_from/up aim it."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
     if up is not None and view_from is None:
@@ -187,23 +237,24 @@ def nx_capture_view(
         )
     with tx.checks():
         part = display.shown_part(tx)
-        sheet = display.sheet_shown(part)
-        if sheet and style != "current":
+        wanted = _sheet(tx, part, sheet) if sheet is not None else None
+        on_sheet = wanted is not None or display.sheet_shown(part)
+        if on_sheet and style != "current":
             fail(
                 "NX_UNSUPPORTED_OPTION",
                 "A drawing sheet is captured as displayed; use style=current",
                 field="/style",
             )
-        if sheet and aim is not None:
+        if on_sheet and aim is not None:
             fail("NX_UNSUPPORTED_OPTION", "A drawing sheet has no 3D camera", field="/view_from")
-        if sheet and quality == "studio":
+        if on_sheet and quality == "studio":
             fail(
                 "NX_UNSUPPORTED_OPTION",
                 "Studio drops a drawing sheet's view geometry: capture sheets with "
                 "quality=viewport (the window size)",
                 field="/quality",
             )
-        if (fit or aim is not None) and not sheet:
+        if (fit or aim is not None) and not on_sheet:
             display.shown_part(tx, work=True)  # the kept camera is restored in the work part
         if replacing and files.png_size(Path(str(path))) is None:
             fail(
@@ -212,61 +263,20 @@ def nx_capture_view(
                 field="/path",
             )
     exact = tx.given("width") or tx.given("height")
-    why = "a drawing sheet" if sheet else "a wireframe view"
     root = Path(tx.workspace.root)
     target = Path(path) if path else root / "captures" / f"view-{uuid.uuid4().hex[:12]}.png"
     temp = tx.files.stage(target, replace=overwrite)
     out: CaptureData = {"quality": quality, "requested": [width, height]}
-    if sheet:
-        current = drawing.current(part)
-        if current is not None:
-            out["sheet"] = tx.ref(current, "drawing_sheet")
-        view = part.Views.WorkView
-        if fit:
-            view.Fit()
-    else:
-        view = part.ModelingViews.WorkView
-        if fit or aim is not None:
-            tx.display.keep_camera()
-        if aim is not None:
-            now = display.camera(tx, view)
-            display.set_camera(tx, view, aim, now["origin"], now["scale"])
-        if fit:
-            view.Fit()
-            view.UpdateDisplay()
-        out["camera"] = camera_row(display.camera(tx, view))
-        tx.frame = "display_part_absolute"
     was_modified = bool(part.IsModified)
-    chosen = None if style == "current" else style
-    hide = display.capture_clutter(tx, part) if hide_sketches and not sheet else []
-    with tx.scratch() if hide else contextlib.nullcontext():
-        try:
-            for obj in hide:
-                obj.Blank()
-            if hide:
-                view.UpdateDisplay()
-            if quality == "studio":
-                size = capture.studio_png(
-                    tx, temp, width, height, style=chosen, background=backdrop,
-                    color=rgb, lighting=lighting,
-                )  # fmt: skip
-            else:
-                size = capture.viewport_png(
-                    tx, temp, width, height, style=chosen, background=backdrop, color=rgb
-                )
-                shown = chosen or out.get("camera", {}).get("style")
-                if exact and list(size) != [width, height] and not sheet and shown in SHADED:
-                    studio = _studio_over(tx, temp, width, height, chosen, backdrop, rgb)
-                    if studio is not None:
-                        size, out["quality"] = studio, "studio"
-                    else:
-                        why = "NX's Studio render failed, so the view"
-        finally:
-            for obj in hide:  # the scratch undo restores them too (and the modified flag)
-                with contextlib.suppress(Exception):
-                    obj.Unblank()
-    if hide:
-        view.UpdateDisplay()
+    shown = drawing.on_sheet(tx, wanted, part) if wanted is not None else contextlib.nullcontext()
+    with shown:  # a sheet asked for: opened for the capture, the previous display comes back
+        size, why = _render(
+            tx, part, out, temp, on_sheet=on_sheet, fit=fit, aim=aim, quality=quality,
+            style=style, backdrop=backdrop, rgb=rgb, lighting=lighting,
+            hide_sketches=hide_sketches, exact=exact, width=width, height=height,
+        )  # fmt: skip
+    if not on_sheet:
+        _sheets_note(tx, part)
     if tx.display.kept:
         tx.display.restore()  # the fitted camera goes back: the engineer's view is unchanged
     published = tx.files.publish()[0]  # with overwrite: atomic replace of the old PNG
@@ -291,7 +301,6 @@ def nx_capture_view(
             "marks_part_modified": not was_modified and bool(part.IsModified),
             "resolution": list(size),
             "style": style,
-            "hidden_sketches": len(hide),
             "image": {
                 "path": meta["path"],
                 "sha256": meta["sha256"],
@@ -303,3 +312,60 @@ def nx_capture_view(
         }
     )
     return out
+
+
+def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop, rgb,
+            lighting, hide_sketches, exact, width, height):  # fmt: skip
+    """Write the shown sheet or model view to ``temp``: ``(size, what was captured)``."""
+    why = "a drawing sheet" if on_sheet else "a wireframe view"
+    if on_sheet:
+        current = drawing.current(part)
+        if current is not None:
+            out["sheet"] = tx.ref(current, "drawing_sheet")
+        view = part.Views.WorkView
+        if fit:
+            view.Fit()
+    else:
+        view = part.ModelingViews.WorkView
+        if fit or aim is not None:
+            tx.display.keep_camera()
+        if aim is not None:
+            now = display.camera(tx, view)
+            display.set_camera(tx, view, aim, now["origin"], now["scale"])
+        if fit:
+            view.Fit()
+            view.UpdateDisplay()
+        out["camera"] = camera_row(display.camera(tx, view))
+        tx.frame = "display_part_absolute"
+    chosen = None if style == "current" else style
+    hide = display.capture_clutter(tx, part) if hide_sketches and not on_sheet else []
+    out["hidden_sketches"] = len(hide)
+    with tx.scratch() if hide else contextlib.nullcontext():
+        try:
+            for obj in hide:
+                obj.Blank()
+            if hide:
+                view.UpdateDisplay()
+            if quality == "studio":
+                size = capture.studio_png(
+                    tx, temp, width, height, style=chosen, background=backdrop,
+                    color=rgb, lighting=lighting,
+                )  # fmt: skip
+            else:
+                size = capture.viewport_png(
+                    tx, temp, width, height, style=chosen, background=backdrop, color=rgb
+                )
+                shown = chosen or out.get("camera", {}).get("style")
+                if exact and list(size) != [width, height] and not on_sheet and shown in SHADED:
+                    studio = _studio_over(tx, temp, width, height, chosen, backdrop, rgb)
+                    if studio is not None:
+                        size, out["quality"] = studio, "studio"
+                    else:
+                        why = "NX's Studio render failed, so the view"
+        finally:
+            for obj in hide:  # the scratch undo restores them too (and the modified flag)
+                with contextlib.suppress(Exception):
+                    obj.Unblank()
+    if hide:
+        view.UpdateDisplay()
+    return size, why

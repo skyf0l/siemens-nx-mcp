@@ -10,6 +10,7 @@ from tests.unit.parts_files.support import call
 
 
 def test_create_part_loads_activates_and_reports_units(nx, root):
+    nx.session.Parts.remove(nx.part)  # solo: the agent's only part
     ok = call(nx, tools.nx_create_part, path="proj/base.prt", units="in")
     assert ok.ok and ok.mutation_outcome == "committed", ok
     part = nx.session.Parts.Work
@@ -113,8 +114,12 @@ def test_activate_part_sets_work_and_display(nx):
     work_only = call(nx, tools.nx_activate_part, part=ref, display=False)
     assert work_only.ok and work_only.data["work"] and not work_only.data["display"]
     assert nx.session.Parts.Display is b
-    both = call(nx, tools.nx_activate_part, part=ref)
+    tab = call(nx, tools.nx_activate_part, part=ref)  # two agent parts: b's tab stays active
+    assert tab.ok and not tab.data["display"] and tab.data["work"], tab  # a: work as before
+    assert nx.session.Parts.Display is b and nx.session.displayed() == [b, a]
+    both = call(nx, tools.nx_activate_part, part=ref, display=True)
     assert both.data["display"] and nx.session.Parts.Display is a
+    assert nx.session.displayed() == [a, b]  # a's own tab, b's tab kept
     none = call(nx, tools.nx_activate_part, part=ref, work=False, display=False)
     assert none.error["field"] == "/work" and none.mutation_outcome == "not_started"
     stale = call(nx, tools.nx_activate_part, part="p:999999")
@@ -484,11 +489,11 @@ def test_open_reuses_a_loaded_part_spelled_differently(nx, root):
 
 # ---- usability: units block, part refs, save to the part's own file ----
 def test_the_units_block_follows_the_part_the_call_activates(nx):
-    inch = call(nx, tools.nx_create_part, path="u/inch1.prt", units="in")
+    inch = call(nx, tools.nx_create_part, path="u/inch1.prt", units="in", display=True)
     assert inch.units["length"] == "in" and inch.data["units"] == "in"
-    mm = call(nx, tools.nx_create_part, path="u/mm1.prt")
+    mm = call(nx, tools.nx_create_part, path="u/mm1.prt", display=True)
     assert mm.units["length"] == "mm" and mm.data["units"] == "mm"
-    back = call(nx, tools.nx_activate_part, part=inch.data["part"]["id"])
+    back = call(nx, tools.nx_activate_part, part=inch.data["part"]["id"], display=True)
     assert back.units["length"] == "in"
     listed = call(nx, tools.nx_list_parts, active_only=True)
     assert listed.units["length"] == listed.data["items"][0]["units"] == "in"

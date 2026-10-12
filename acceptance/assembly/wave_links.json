@@ -14,7 +14,7 @@
   {"call": "nx_save_part", "setup": true, "args": {}},
   {"call": "nx_create_part", "setup": true, "save": "pb", "args": {"path": "$run/wl/wl_b.prt", "units": "mm"}},
   {"call": "nx_save_part", "setup": true, "args": {"part": "$pb.data.part.id"}},
-  {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$part", "units": "mm", "display": true}},
   {"call": "nx_create_component", "setup": true, "save": "A", "args": {"part": "$part", "path": "$run/wl/wl_a.prt", "name": "A"}},
   {"call": "nx_create_component", "setup": true, "save": "B", "args": {"part": "$part", "path": "$run/wl/wl_b.prt", "name": "B", "pose": {"translation": [100, 0, 0], "rotation": [[0, -1, 0], [1, 0, 0], [0, 0, 1]]}}},
   {"call": "nx_find_geometry", "setup": true, "save": "Atop", "args": {"owner": "$A.data.component.id", "kind": "face", "geometry_type": "plane", "normal": [0, 0, 1], "order": "highest", "axis": "z", "limit": 1}},

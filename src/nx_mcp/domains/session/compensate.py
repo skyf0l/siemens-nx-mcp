@@ -1,27 +1,35 @@
-"""Undo by deletion (compensating delete v1) for ``nx_undo_operation`` and
+"""Undo without NX's undo (the compensating undo, v2) for ``nx_undo_operation`` and
 ``nx_restore_checkpoint`` (domains/session/history.py).
 
 NX keeps one linear undo list for the whole session: undoing an operation of part A with
 NX's undo also reverts everything any part did after it. When other parts' work came
-after A's operations, the undo of A instead deletes what those operations created, which
-leaves every other part untouched. Only a narrow case qualifies (else the undo is
+after A's operations (or a save, load or close cut NX's history), the undo of A instead
+compensates them: it deletes what they created and sets back the values they changed,
+which leaves every other part untouched. Only a narrow case qualifies (else the undo is
 refused and says why):
 
-- every undone operation is a committed call whose receipt created features (with their
-  bodies and expressions) and nothing else: nothing deleted, changed or consumed, no
-  sketch, curve, point or other kind;
+- every undone operation is a committed call that either
+  - created features (with their bodies and expressions) and nothing else: nothing
+    deleted, changed or consumed, no sketch, curve, point or other kind (drawing views,
+    sheets and their annotations that NX refreshed after the model changed count as
+    derived, not as changed), or
+  - set values its tool can set back (a ``@restorer`` hook: ``nx_set_attributes``,
+    ``nx_set_expression``, ``nx_set_name``) and kept the before-values in its history
+    entry (``restore``), and those values still read what the operation set (a later
+    change of the same value is refused: ``NX_DEPENDENCY_ORDER``);
 - every created object is still in A (a ref that went stale counts only when a later
   operation's receipt says it deleted the object: ``missing``);
 - no feature outside the set depends on one of them (``GetChildren``, recursively).
 
-The deletion runs through the feature deleter (``@deleter("feature")``) under the
+Values are set back first (newest operation first), each verified by its restorer. The
+deletion then runs through the feature deleter (``@deleter("feature")``) under the
 undo's own mark and is verified on snapshots: every created feature is gone and nothing
 else of A vanished except their bodies and expressions; otherwise the call fails and the
-kernel rolls the deletion back. An expression NX keeps (still in use) is reported. NX
-may renumber the journal identifiers of later features: anchors are re-checked
+kernel rolls everything back. An expression NX keeps (still in use) is reported. NX may
+renumber the journal identifiers of later features: anchors are re-checked
 (``References.recheck_anchors``). The undo's own history entry is marked
 ``compensation`` (``core/marks.py``): it is never undone itself, so no later undo brings
-the deleted objects back.
+the deleted objects or the changed values back.
 """
 
 from __future__ import annotations
@@ -32,9 +40,13 @@ from typing import Any
 
 from nx_mcp.core.catalogue import hooks
 from nx_mcp.core.errors import NXError, fail
+from nx_mcp.core.types import SHEET_KINDS
 from nx_mcp.kit import readback
 
 CREATED_KINDS = frozenset({"feature", "body", "expression"})
+# Objects NX refreshes when the model changes (a feature's drawing views update): a
+# change to them is derived from the created features, not work of its own.
+DERIVED_KINDS = SHEET_KINDS
 UNDO_TOOLS = frozenset({"nx_undo_operation", "nx_restore_checkpoint", "nx_redo_operation"})
 LISTED = 10
 
@@ -57,6 +69,9 @@ class Plan:
     missing: list = field(default_factory=list)  # refs a later operation already deleted
     rows: dict = field(default_factory=dict)  # feature tag -> ref (read-back messages)
     kinds: dict = field(default_factory=dict)  # kind -> count of created objects found
+    # (operation id, restorer, before-values) of the operations whose values are set
+    # back, newest first
+    restores: list = field(default_factory=list)
 
 
 def _record(services, entry: dict) -> dict:
@@ -89,18 +104,58 @@ def _tag(obj) -> int | None:
         return None
 
 
-def _creates(entry: dict, record: dict) -> list:
-    """The created rows of a create-only operation, else a Refusal."""
+def _committed(entry: dict, record: dict) -> None:
     operation, tool = entry["operation_id"], entry.get("method") or ""
     if tool in UNDO_TOOLS or record.get("state") != "committed" or record.get("reverted_by"):
         raise Refusal(
             "NX_UNSUPPORTED_OPTION",
-            f"{operation} ({tool}) is not a committed operation that created objects",
+            f"{operation} ({tool}) is not a committed operation that created objects or set values",
             {"operation_id": operation},
         )
+
+
+def _own_changes(changes: dict, name: str) -> list:
+    """``changes[name]`` without the derived objects NX refreshed (drawing views...)."""
+    rows = changes.get(name) or []
+    if name != "modified":
+        return list(rows)
+    return [r for r in rows if not (isinstance(r, dict) and r.get("kind") in DERIVED_KINDS)]
+
+
+def restorer_of(entry: dict):
+    """``(restorer, before-values)`` when ``entry``'s values can be set back, else None."""
+    data = entry.get("restore")
+    restore = hooks("restorer").get(str(entry.get("method") or ""))
+    return (restore, data) if data is not None and restore is not None else None
+
+
+def _restorable(tx, entry: dict, record: dict, restore, data) -> None:
+    """Refuse an operation whose values cannot be set back now (it deleted objects, or
+    its values changed since)."""
+    _committed(entry, record)
+    operation, tool = entry["operation_id"], entry.get("method") or ""
+    if _changes(record).get("deleted"):
+        raise Refusal(
+            "NX_UNSUPPORTED_OPTION",
+            f"{operation} ({tool}) deleted objects: setting its values back does not bring "
+            "them back",
+            {"operation_id": operation, "changes": ["deleted"]},
+        )
+    try:
+        restore(tx, data, apply=False)
+    except NXError as error:
+        raise Refusal(
+            error.code, f"{operation} ({tool}): {error.message}", {"operation_id": operation}
+        ) from None
+
+
+def _creates(entry: dict, record: dict) -> list:
+    """The created rows of a create-only operation, else a Refusal."""
+    operation, tool = entry["operation_id"], entry.get("method") or ""
+    _committed(entry, record)
     changes = _changes(record)
     created = list(changes.get("created") or [])
-    other = [k for k in ("deleted", "modified", "stale_refs") if changes.get(k)]
+    other = [k for k in ("deleted", "modified", "stale_refs") if _own_changes(changes, k)]
     if other or not created:
         what = ", ".join(other) if other else "created nothing"
         raise Refusal(
@@ -148,7 +203,13 @@ def plan(tx, candidates: list, later: list) -> Plan:
     result = Plan()
     gone_later: set | None = None
     for entry in candidates:
-        for row in _creates(entry, _record(services, entry)):
+        record = _record(services, entry)
+        found = restorer_of(entry)
+        if found is not None:  # values set back (a created expression is the restorer's)
+            _restorable(tx, entry, record, *found)
+            result.restores.insert(0, (str(entry["operation_id"]), *found))
+            continue
+        for row in _creates(entry, record):
             ref, kind = str(row.get("id") or ""), row.get("kind")
             try:
                 obj = tx.resolve(ref)
@@ -209,11 +270,22 @@ def _present(part, obj) -> bool:
 
 
 def run(tx, plan: Plan) -> dict[str, Any]:
-    """Delete the planned features and verify; raises (the kernel rolls back) when NX did
-    not delete them or deleted more."""
+    """Set the planned values back, then delete the planned features, and verify; raises
+    (the kernel rolls back) when a value does not read back or NX did not delete them or
+    deleted more."""
     services = tx.services
     part = tx.part
     key = services.part_key(part)
+    restored = []
+    note = tx.history_note  # a restorer may run a tool's own code, which notes values
+    for _operation, restore, data in plan.restores:  # newest first
+        try:
+            restored.append(restore(tx, data, apply=True))
+        except NXError as error:
+            # tx.checks marks a refusal unchanged; earlier restores changed the model
+            setattr(error, "unchanged", False)  # noqa: B010  # so the kernel rolls back
+            raise
+    tx.history_note = note
     before = services.snapshot(part)
     if plan.features:
         hooks("deleter")["feature"](tx, list(plan.features))
@@ -233,6 +305,8 @@ def run(tx, plan: Plan) -> dict[str, Any]:
     readback.expect(not alive, "deleted", f"NX did not delete {', '.join(alive)}", objects=alive)
     kept = [ref for obj, ref in plan.expressions if _present(part, obj)]
     out: dict[str, Any] = {"deleted": len(vanished), "kinds": dict(plan.kinds)}
+    if restored:
+        out["restored"] = restored
     if plan.missing:
         out["missing"] = list(plan.missing)
     if kept:

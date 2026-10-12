@@ -2,9 +2,11 @@
 (tool-surface 3.9).
 
 Pairs are distinct body pairs (component occurrences included, nested ones too). A
-bounding-box broad phase clears pairs whose boxes are farther apart than the
-clearance without native work, so ``max_pairs`` limits only the native checks; the
-result reports how many pairs it skipped that way. A pair at zero distance runs NX's
+bounding-box broad phase skips pairs whose boxes are farther apart than the clearance
+without native work, so ``max_pairs`` limits only the native checks; the result reports
+how many pairs it skipped that way (``skipped_pairs``, ``counts.skipped`` and
+``skipped_reason``). ``counts`` classifies the natively checked pairs only: a skipped
+pair is never counted as ``clear``. A pair at zero distance runs NX's
 solid interference, whose temporary interference bodies give the overlap volume and
 are always rolled back (``tx.scratch``). NX 2406 findings kept here:
 
@@ -39,6 +41,10 @@ MAX_PAIRS = 10000
 CONTACT = 1e-7  # part units: at or below this minimum distance a pair touches
 MAX_CLOSEUPS = 8
 FLAGGED = ("penetration", "contact", "below_clearance")
+SKIPPED_REASON = (
+    "not checked: their bounding boxes are farther apart than the clearance ({clearance:g}), "
+    "so they cannot touch; include_clear=true checks and lists every pair"
+)
 Objects = Annotated[list[Annotated[str, RefTo("body", "feature", "component")]], Items(2, 500)]
 MaxPairs = Annotated[int, Range(ge=1, le=MAX_PAIRS), Doc("Native pair checks allowed")]
 Clearance = Annotated[Length, Doc("Minimum clearance, part units; 0 = interference only")]
@@ -53,8 +59,9 @@ class Pair(TypedDict, total=False):
     overlap_box: dict[str, list[float]]
 
 
-class InterferenceData(TypedDict):
+class _InterferenceData(TypedDict):
     pairs: list[Pair]
+    # pairs per classification, natively checked ones only; skipped: not checked
     counts: dict[str, int]
     bodies: int
     pair_count: int
@@ -62,6 +69,10 @@ class InterferenceData(TypedDict):
     skipped_pairs: int
     clearance: float
     skipped_sheet_bodies: list[result.Row]
+
+
+class InterferenceData(_InterferenceData, total=False):
+    skipped_reason: str  # why skipped pairs were not checked (with skipped_pairs > 0)
 
 
 def _envelope_gap(a, b):
@@ -149,7 +160,8 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
             hint=f"Select smaller groups or raise max_pairs (at most {MAX_PAIRS})",
             details={"pairs": len(pairs), "native_pairs": len(checked), "max_pairs": max_pairs},
         )
-    counts = {"penetration": 0, "contact": 0, "below_clearance": 0, "clear": skipped}
+    # Skipped pairs are not counted as clear: only a native check classifies a pair.
+    counts = {"penetration": 0, "contact": 0, "below_clearance": 0, "clear": 0, "skipped": skipped}
     reports = []
     for index, (a, b) in enumerate(checked):
         tx.checkpoint(index, len(checked))
@@ -173,7 +185,7 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
             if box is not None:
                 pair["overlap_box"] = box
         reports.append(pair)
-    return {
+    out: InterferenceData = {
         "pairs": reports,
         "counts": counts,
         "bodies": len(found),
@@ -183,6 +195,9 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
         "clearance": clearance,
         "skipped_sheet_bodies": list(sheets),
     }
+    if skipped:
+        out["skipped_reason"] = SKIPPED_REASON.format(clearance=clearance)
+    return out
 
 
 def _is_sheet(body) -> bool:

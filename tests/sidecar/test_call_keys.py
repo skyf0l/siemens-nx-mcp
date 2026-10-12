@@ -2,8 +2,8 @@
 
 The sidecar path is the source of truth for what an agent's ``part`` reaches NX with:
 inside ``nx_invoke``/``nx_invoke_read`` arguments, and on the direct core tools, whose
-strict listed schemas leave it out (the agent listing has no room) while the server
-takes it (``validate_input=False``; Claude Code sends such a key, checked live in P5).
+listed schemas name ``part`` on the seven ref-less ones (benchmark bench3p: agents trust
+a strict schema over the instructions). The proxy pops it as a call key before gate 1.
 A changing call gets ``expires_at`` (the ghost guard) unless the agent gave one.
 """
 
@@ -75,20 +75,31 @@ def test_the_ref_less_core_tools_are_the_seven_the_instructions_name():
     specs = catalogue.load()
     found = {n for n in surface.CORE_TOOLS if n in specs and ref_less(specs[n])}
     assert found == REF_LESS
+    assert found == {
+        n for n in surface.CORE_TOOLS if n in specs and surface.takes_part_key(specs[n])
+    }
     text = surface.AGENT_INSTRUCTIONS
     assert "core tools included" in text and '{"part": "housing", ...}' in text
+    assert "leave part out" not in text
     assert "nx_list_parts" in text and "agent" not in text.split("When two or more")[1]
 
 
-async def test_listing_stays_strict_and_within_budget(tmp_path, every_tool_tested):
-    """Option (b'): no ``part`` property in the listing, which keeps 14,991 characters;
-    a bare property on the seven would cost 175 more (15,166 > 15,000)."""
+async def test_the_ref_less_core_tools_list_part_within_budget(tmp_path, every_tool_tested):
+    """Listed ``part``: the strict schemas name it, so agents pass it."""
     tools = await make(tmp_path, AsyncMock()).list_tools()
     assert listing_size(tools) <= AGENT_LISTING
     for tool in tools:
+        properties = tool.inputSchema.get("properties", {})
         if tool.name in REF_LESS:
             assert tool.inputSchema["additionalProperties"] is False
-            assert "part" not in tool.inputSchema["properties"]
+            assert properties["part"] == {
+                "type": "string",
+                "description": "File name of the target part; needed when 2+ parts are loaded",
+            }
+        elif tool.name != "nx_open_part":
+            assert "part" not in properties, tool.name
+    full = {t.name: t for t in await make(tmp_path, AsyncMock(), "full").list_tools()}
+    assert "part" in full["nx_check_model"].inputSchema["properties"]
 
 
 @pytest.mark.parametrize("name", sorted(REF_LESS))

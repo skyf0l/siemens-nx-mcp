@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sketch/sketch_dimensions.json",
-  "scenario_sha256": "70316696c3f1083862e58c73fbed1508e40e897c9ec12f7afea517cb0b6afa7c",
+  "scenario_sha256": "513755f95175de34eeb109b6f6f0872bcd858c3a076bf1657772aa7faff3c2c9",
   "domain": "sketch",
   "covers": {
     "nx_create_sketch_dimensions": [
@@ -21,7 +21,7 @@
   "sources": {
     "nx_create_sketch_dimensions": "5db43b597d55f53a4de00639156a318d29a05b69294727a2214198bf1c6f079a"
   },
-  "recorded": "2026-10-11T19:35:55Z",
+  "recorded": "2026-10-12T04:29:57Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

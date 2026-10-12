@@ -15,8 +15,9 @@ import re
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
+from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Json, Ref, Text, forbid_extra
 from nx_mcp.kit import readback, result
@@ -477,8 +478,13 @@ def nx_set_attributes(
             targets.append((obj, existing, _plan(tx, wants, existing, dropping, label)))
     now = tx.nx.Update.Option.Now
     items: list[SetRow] = []
-    for obj, existing, planned in targets:
+    restore: list[dict[str, Any]] = []  # per object: touched titles' rows before/after
+    for (obj, existing, planned), ref in zip(targets, refs, strict=True):
         tx.checkpoint()
+        titles = [w.name for w in planned] + [n for n in delete if n.casefold() not in seen]
+        restore.append(
+            {"object": ref, "titles": titles, "before": _title_rows(tx, existing, titles)}
+        )
         deleted = []
         for name in delete:
             info = _own(existing, name)
@@ -527,7 +533,79 @@ def nx_set_attributes(
         items.append(
             {"object": _row_of(tx, obj), "attributes": rows, "created": created, "deleted": deleted}
         )
+        restore[-1]["after"] = _title_rows(tx, after, titles)
+    tx.note_restore({"items": restore})
     return {"items": items}
+
+
+def _title_rows(tx, existing: dict, titles: list[str]) -> dict:
+    """``{title: own row or None}`` of ``titles`` (the before/after of a compensation)."""
+    out = {}
+    for title in titles:
+        info = _own(existing, title)
+        out[title] = _row(tx, info) if info is not None else None
+    return out
+
+
+def _same(row, want) -> bool:
+    if row is None or want is None:
+        return row is None and want is None
+    if row["type"] != want["type"]:
+        return False
+    if row["type"] == "number":
+        return math.isclose(float(row["value"]), float(want["value"]), rel_tol=1e-9, abs_tol=1e-12)
+    return row["value"] == want["value"]
+
+
+def _show(row) -> str:
+    return "absent" if row is None else repr(row["value"])
+
+
+@restorer("nx_set_attributes")
+def _restore_attributes(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the attributes an ``nx_set_attributes`` set or deleted (the compensating
+    undo): titles it created are deleted, the others get their previous type and value.
+    Refused when one of them changed since, or was not a plain value."""
+    said = []
+    for item in data["items"]:
+        ref = item["object"]
+        obj = _target(tx, ref, "/objects/0") if ref else tx.part
+        label = ref or file_name(tx.part)
+        current = _title_rows(tx, _existing(obj), item["titles"])
+        values, drop = [], []
+        for title in item["titles"]:
+            before, after, now = item["before"][title], item["after"][title], current[title]
+            if not _same(now, after):
+                fail(
+                    "NX_DEPENDENCY_ORDER",
+                    f"Attribute {title} of {label} changed since: it is {_show(now)}, the "
+                    f"operation left it {_show(after)}",
+                    details={"object": label, "name": title, "value": now},
+                )
+            if before is not None and before["type"] not in TYPES:
+                fail("NX_UNSUPPORTED_OPTION",
+                     f"Attribute {title} of {label} was a {before['type']} value",
+                     details={"object": label, "name": title})  # fmt: skip
+            if _same(now, before):
+                continue
+            if before is None or (now is not None and now["type"] != before["type"]):
+                drop.append(title)
+            if before is not None:
+                value = {"name": title, "value": before["value"], "type": before["type"]}
+                if before.get("category"):
+                    value["category"] = before["category"]
+                values.append(value)
+            said.append(f"{title} of {label} " + ("removed" if before is None
+                        else f"back to {before['value']!r}"))  # fmt: skip
+        if apply and (values or drop):
+            nx_set_attributes(
+                tx, objects=[ref] if ref else None, values=values or None, delete=drop or None
+            )
+            got = _title_rows(tx, _existing(obj), item["titles"])
+            wrong = [t for t in item["titles"] if not _same(got[t], item["before"][t])]
+            readback.expect(not wrong, "attributes", f"{', '.join(wrong)} of {label} did not "
+                            "read back their previous values", names=wrong)  # fmt: skip
+    return "; ".join(said) or "the attributes (unchanged)"
 
 
 def _verify(row: AttributeRow, want: _Want) -> None:

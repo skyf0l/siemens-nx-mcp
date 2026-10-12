@@ -26,7 +26,7 @@
    "expect": {"ok": true, "warnings": {"contains": {"code": "NX_NOTE"}}, "warnings.0.message": {"matches": "^Explosion E1 is displayed"},
               "data.min": {"close": [50, 0, 0], "tol": 1e-06}, "data.max": {"close": [60, 10, 20], "tol": 1e-06}}},
 
-  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mda/mda_front.prt", "units": "mm"}},
+  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mda/mda_front.prt", "units": "mm", "display": true}},
   {"call": "nx_create_primitive", "setup": true, "save": "fblk", "args": {"shape": "block", "length": 40, "width": 20, "height": 10, "part": "mda_front"}},
 
   {"call": "nx_get_explosion", "args": {"explosion": "$ex.data.explosion.id", "limit": 50},
@@ -48,7 +48,7 @@
   {"call": "nx_list_parts", "args": {},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
 
-  {"call": "nx_activate_part", "setup": true, "args": {"part": "$asm.data.part.id"}},
+  {"call": "nx_activate_part", "setup": true, "args": {"part": "$asm.data.part.id", "display": true}},
   {"call": "nx_get_explosion", "args": {"explosion": "$ex.data.explosion.id"},
    "intent": "Acceptance: the explosion is still shown in the displayed assembly",
    "expect": {"data.views": {"count": 1}}},
@@ -56,7 +56,7 @@
    "intent": "Acceptance: bounds of a background part's body while an exploded assembly is displayed: no explosion warning",
    "expect": {"ok": true, "part.file": "mda_front.prt", "warnings": {"count": 0},
               "data.min": {"close": [0, 0, 0], "tol": 1e-06}, "data.max": {"close": [40, 20, 10], "tol": 1e-06}}},
-  {"call": "nx_activate_part", "setup": true, "args": {"part": "$front.data.part.id"}},
+  {"call": "nx_activate_part", "setup": true, "args": {"part": "$front.data.part.id", "display": true}},
   {"call": "nx_list_parts", "args": {},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
 

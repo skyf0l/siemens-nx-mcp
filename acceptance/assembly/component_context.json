@@ -13,7 +13,7 @@
   {"call": "nx_save_part", "setup": true, "args": {}},
   {"call": "nx_create_part", "setup": true, "save": "pq", "args": {"path": "$run/cc/cc_plate.prt", "units": "mm"}},
   {"call": "nx_save_part", "setup": true, "args": {"part": "$pq.data.part.id"}},
-  {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$part", "units": "mm", "display": true}},
   {"call": "nx_create_component", "setup": true, "save": "P", "args": {"part": "$part", "path": "$run/cc/cc_pin.prt", "name": "P"}},
   {"call": "nx_create_component", "setup": true, "save": "Q", "args": {"part": "$part", "path": "$run/cc/cc_plate.prt", "name": "Q", "pose": {"translation": [100, 0, 0], "rotation": [[0, -1, 0], [1, 0, 0], [0, 0, 1]]}}},
   {"call": "nx_find_geometry", "setup": true, "save": "Pb", "args": {"owner": "$P.data.component.id", "kind": "body", "limit": 1}},

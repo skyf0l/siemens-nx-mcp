@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import TypedDict
 
 from nx_mcp.core import marks as undo_marks
-from nx_mcp.core import target as targets
 from nx_mcp.core.errors import classify, fail
 from nx_mcp.kit import files, parts, result
 
@@ -174,55 +173,21 @@ def note_updated(tx, updated) -> None:
     )
 
 
-def replacement(tx, target):
-    """The loaded part to display instead of ``target`` before it closes: another
-    top-level part of the agent's (``Services.owns``), not one of ``target``'s
-    components; parts without sheet metal first, then the one a call worked in last
-    (``core/busy.py``). None when there is none."""
-    services = tx.services
-    nested = {int(p.Tag) for p in _component_parts(target)}
-    entries = (
-        services.part_activity().get("parts", {}) if hasattr(services, "part_activity") else {}
-    )
-
-    def recent(part) -> float:
-        with contextlib.suppress(Exception):
-            return float((entries.get(services.part_key(part)) or {}).get("at") or 0.0)
-        return 0.0
-
-    candidates = []
-    for part in targets.roots(services):
-        with contextlib.suppress(Exception):
-            if parts.same_part(part, target) or int(part.Tag) in nested:
-                continue
-            if services.owns(part) and parts.file_of(part):
-                candidates.append(part)
-    candidates.sort(key=lambda p: (parts.has_sheet_metal(p), -recent(p)))
-    return candidates[0] if candidates else None
-
-
-def _component_parts(part) -> list:
-    out = []
-    for component, _names in parts.components(part):
-        prototype = getattr(component, "Prototype", None)
-        if prototype is not None and hasattr(prototype, "Tag"):
-            out.append(prototype)
-    return out
-
-
-def _display_instead(tx, target):
-    """Display another agent part in place of the displayed ``target`` (undo marks kept,
-    ``parts.activate``); the part shown, or None when there is no other part. A
-    sheet-metal part is shown in Sheet Metal (recorded there), so the close does not
-    re-enter Modeling on it and open NX's Sheet Metal warning."""
-    other = replacement(tx, target)
-    if other is None:
+def _tab_back(tx, target):
+    """After the active tab's part closed, NX has no display part: activate the most
+    recently active remaining tab (``parts.tabs``; undo marks kept, no Sheet Metal
+    dialog, ``parts.activate``). The part shown, or None when no tab is left. Another
+    part never takes the closed part's place in a tab."""
+    session_parts = tx.session.Parts
+    if session_parts.Display is not None:
         return None
-    parts.activate(tx, other)
-    session = tx.session
-    if str(session.ApplicationName or "") != parts.SHEET_METAL_APP and parts.has_sheet_metal(other):
-        session.ApplicationSwitchImmediate(parts.SHEET_METAL_APP)
-    return other
+    for part in parts.tabs(session_parts):
+        with contextlib.suppress(Exception):
+            if parts.same_part(part, target) or not parts.file_of(part):
+                continue
+            parts.activate(tx, part)
+            return part
+    return None
 
 
 def _path(services, part) -> str:
@@ -235,12 +200,12 @@ def _path(services, part) -> str:
 def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = True) -> dict:
     """Close ``target`` (saving it first when asked); returns closed rows and counts.
 
-    With ``retain`` (default) NX keeps every undo mark (``CloseRetainUndoMarks``): NX
-    allows it for a part that is not displayed, so a displayed target is first replaced
-    on the display by another agent part (:func:`replacement`). Without one, or without
-    ``retain`` (a cleanup inside a call that fails), the plain ``Close`` drops every NX
-    undo mark. ``undo_marks`` in the result says which (``kept``/``dropped``). With
-    ``barrier`` a kept-marks close ends every part's agent undo there
+    With ``retain`` (default) NX keeps every undo mark (``CloseRetainUndoMarks``, also
+    for a displayed part); without it (a cleanup inside a call that fails) the plain
+    ``Close`` drops every NX undo mark. ``undo_marks`` in the result says which
+    (``kept``/``dropped``). The part's NX tab closes with it; when it was the active tab,
+    the most recently active remaining tab comes back (``displayed``, :func:`_tab_back`).
+    With ``barrier`` a kept-marks close ends every part's agent undo there
     (``core/marks.close_barrier``): undoing across it would load the part again.
 
     NX may unload unused prototypes with it: every part that disappeared is
@@ -257,12 +222,8 @@ def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = T
     audit = verified_save(tx, target) if save else None
     keep_marks = getattr(target, "CloseRetainUndoMarks", None) if retain else None
     shown = None
-    if parts.same_part(tx.session.Parts.Display, target):
-        if keep_marks is not None:
-            shown = _display_instead(tx, target)
-            if shown is None:
-                keep_marks = None  # the last part on display: NX's plain close
-    else:
+    active = parts.same_part(tx.session.Parts.Display, target)
+    if not active:
         parts.keep_sheet_metal(tx)
     whole = tx.nx.BasePart.CloseWholeTree.FalseValue
     modified = tx.nx.BasePart.CloseModified.CloseModified
@@ -279,6 +240,8 @@ def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = T
         with contextlib.suppress(Exception):
             services.forget_parts(gone)
     closed = [row for tag, (row, _key, _path) in before.items() if tag not in remaining]
+    if active:
+        shown = _tab_back(tx, target)
     if keep_marks is not None and barrier:
         paths = [path for tag, (_row, _key, path) in before.items() if tag not in remaining]
         method = getattr(getattr(tx, "spec", None), "name", None) or "nx_close_part"

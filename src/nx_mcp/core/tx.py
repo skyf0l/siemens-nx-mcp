@@ -490,6 +490,17 @@ class Tx:
         # nx_open_part made or reused): the busy-part table's stream (core/busy.py).
         self.worked_in: Any = None
 
+    def note_restore(self, data: dict) -> None:
+        """Keep the before-values of what this call changes in its undo-history entry
+        (``history_note["restore"]``): a compensating undo sets them back through the
+        tool's ``@restorer`` hook. Only a top-level call's entry carries them (a batch
+        step's values are not restored by compensation)."""
+        if self.parent is not None:
+            return
+        note = dict(self.history_note or {})
+        note["restore"] = data
+        self.history_note = note
+
     # -- NX access ------------------------------------------------------------
     @property
     def nx(self):

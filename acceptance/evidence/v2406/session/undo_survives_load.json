@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/undo_survives_load.json",
-  "scenario_sha256": "e89cbafc9b1edd6e64160458ff3b38687b2f9b2d336d301bb6b405bc7ef3cf86",
+  "scenario_sha256": "9b6c4add9bf6b702dd97d85e47bc4a201251c095b8c171b947722667c5be6193",
   "domain": "session",
   "covers": {
     "nx_undo_operation": [],
@@ -12,12 +12,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_undo_operation": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863",
-    "nx_create_checkpoint": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863",
-    "nx_list_checkpoints": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863",
-    "nx_restore_checkpoint": "e8208872661a9575fa6dd263936fa54d959460993a1063f97a6a2eeccd299863"
+    "nx_undo_operation": "99450b90806927475a05ae89cec058678c6b6f157dbc7066076e3b3d1b7c6a9f",
+    "nx_create_checkpoint": "99450b90806927475a05ae89cec058678c6b6f157dbc7066076e3b3d1b7c6a9f",
+    "nx_list_checkpoints": "99450b90806927475a05ae89cec058678c6b6f157dbc7066076e3b3d1b7c6a9f",
+    "nx_restore_checkpoint": "99450b90806927475a05ae89cec058678c6b6f157dbc7066076e3b3d1b7c6a9f"
   },
-  "recorded": "2026-10-11T19:35:15Z",
+  "recorded": "2026-10-12T04:32:33Z",
   "passed": true,
   "checks": 42,
   "failed_checks": 0,

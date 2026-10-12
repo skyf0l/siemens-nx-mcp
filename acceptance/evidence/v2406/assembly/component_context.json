@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/component_context.json",
-  "scenario_sha256": "2c37b491cc09c033587c0e2db0037a348f0a8286d0dcd336e24676992bb0e713",
+  "scenario_sha256": "21df728ec2df7d7701f6ffb4fd07016f3140a359d13f903d69dda3802bc7b413",
   "domain": "assembly",
   "covers": {
     "nx_create_reference_set": [],
@@ -16,7 +16,7 @@
     "nx_create_reference_set": "853ffca0de2905ac7ce1fc1f263fd08601aa7f17e643771188ab7f2205def4c3",
     "nx_create_wave_link": "89e34ff6c53a4e5fb866f92604da3a9ed15ccb265150db33eec5d22ce250dccf"
   },
-  "recorded": "2026-10-11T16:41:56Z",
+  "recorded": "2026-10-12T04:58:37Z",
   "passed": true,
   "checks": 33,
   "failed_checks": 0,

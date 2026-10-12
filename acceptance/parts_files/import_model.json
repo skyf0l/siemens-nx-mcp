@@ -5,7 +5,7 @@
   "steps": [
     {"call": "nx_open_part", "setup": true, "args": {"path": "$fixture"}},
     {"call": "nx_export_model", "setup": true, "args": {"path": "$run/im/block.step", "format": "step"}},
-    {"call": "nx_create_part", "setup": true, "save": "target", "args": {"path": "$part"}},
+    {"call": "nx_create_part", "setup": true, "save": "target", "args": {"path": "$part", "display": true}},
     {"call": "nx_import_model", "args": {"part": "$part", "path": "$run/im/block.step", "format": "step"},
      "expect": {"mutation_outcome": "committed", "data.body_count": 1, "data.components_created": 0,
                 "data.target": "work_part", "data.flatten": true, "data.bodies": {"count": 1},

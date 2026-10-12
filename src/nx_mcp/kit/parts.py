@@ -2,7 +2,9 @@
 
     part = parts.loaded(tx, path)                  # the loaded part of this file, or None
     parts.check_new_name(tx, path)                 # NX_ALREADY_EXISTS / NX_NAME_CONFLICT
-    parts.activate(tx, part, work=True, display=True)  # keeps NX undo marks (show)
+    parts.activate(tx, part, work=True, display=True)  # its own NX tab, undo marks kept
+    active = parts.present(tx, part, display=None)  # tab policy of create/open/activate
+    parts.explicit(tx, part)                       # loaded by a call of its own
     for component, names in parts.components(part): ...
     with parts.saving(tx, part) as updated:        # drawing preview data survives the save
         part.Save(...)                             # updated: views it brought up to date
@@ -22,10 +24,23 @@ NX 2406 findings encoded here:
   resets the whole undo list whenever a live mark is older than the first display of
   the shown or hidden part (measured on NX 2406), and a plain ``Close`` of any part
   drops every mark too. ``show`` is the one display switch:
-  ``SetActiveDisplayRetainUndoMarks(ReplaceExisting, SameAsDisplay)`` keeps every mark
-  at the same cost (107-391 ms) and also makes the part the work part. Loads go
-  through ``OpenBase`` or ``FileNew(MakeDisplayedPart=False)``, which leave the
-  display and work parts as they were.
+  ``SetActiveDisplayRetainUndoMarks(AllowAdditional, SameAsDisplay)`` keeps every mark
+  and also makes the part the work part. Loads go through ``OpenBase`` or
+  ``FileNew(MakeDisplayedPart=False)``, which leave the display and work parts as they
+  were.
+- Tabs (NX 2406, tabs probe): ``AllowAdditional`` shows each part in its own NX window
+  tab and never replaces the part of another tab; for a part that has a tab it only
+  activates that tab (63-92 ms; a new tab 0.2-0.9 s). ``Parts.GetDisplayedParts`` lists
+  the tabs, the active one (``Parts.Display``) first, then the most recently active. A
+  drawing sheet stays open in its tab. ``CloseRetainUndoMarks`` of a part closes its tab
+  with the marks kept; closing the active tab leaves NX with no display part
+  (``UG_APP_NOPART``) until a tab is activated again. NX's application stays one per
+  session across tab switches.
+- ``present`` is the tab policy of nx_create_part, nx_open_part and nx_activate_part:
+  while the part is the agent's only one (rule G's count) its tab stays active as
+  before; with two or more agent parts loaded the part gets its tab but the tab active
+  before comes back (nx_create_part does not display it at all), unless the call asks
+  (``display`` true).
 - NX remembers an application per part: the one last entered with
   ``ApplicationSwitchImmediate`` while it was displayed (a new part keeps its
   template's Modeling). From no displayed part (``UG_APP_NOPART``, after the
@@ -253,15 +268,30 @@ def keeping_application(tx):
 
 
 def show(nx, parts, part) -> None:
-    """Display ``part`` (and make it the work part) keeping NX's undo marks: the only
-    display switch of NX MCP (a grep test forbids any other)."""
+    """Show ``part`` in its own NX window tab, or activate the tab it has, and make it
+    the work part, keeping NX's undo marks: the only display switch of NX MCP (a grep
+    test forbids any other). The part of another tab is never replaced."""
     result = parts.SetActiveDisplayRetainUndoMarks(
         part,
-        nx.DisplayPartOption.ReplaceExisting,
+        nx.DisplayPartOption.AllowAdditional,
         nx.PartDisplayPartWorkPartOption.SameAsDisplay,
     )
     for status in result if isinstance(result, tuple) else (result,):
         _dispose(status)
+
+
+def tabs(session_parts) -> list:
+    """The parts NX shows in window tabs, the active one first, then the most recently
+    active (``Parts.GetDisplayedParts``; the display part alone where NX has no tabs)."""
+    shown: list = []
+    getter = getattr(session_parts, "GetDisplayedParts", None)
+    if getter is not None:
+        with contextlib.suppress(Exception):
+            shown = [p for p in getter() or [] if p is not None]
+    display = getattr(session_parts, "Display", None)
+    if display is not None and not any(same_part(p, display) for p in shown):
+        shown.insert(0, display)
+    return shown
 
 
 def _display_in_sheet_metal(tx, part) -> None:
@@ -317,6 +347,72 @@ def activate(tx, part, *, work: bool = True, display: bool = True) -> None:
         keep_sheet_metal(tx)
     if work and parts.Work != part:
         parts.SetWork(part)
+
+
+def crowded(tx, part=None) -> bool:
+    """Whether two or more agent parts are loaded, ``part`` included (rule G's count,
+    ``core/target.agent_parts``: created, opened or granted; never the engineer's)."""
+    from nx_mcp.core import target as targets
+
+    services = getattr(tx, "services", None)
+    if services is None:
+        return False
+    try:
+        agents = targets.agent_parts(services)
+    except Exception:
+        return False
+    extra = part is not None and not any(same_part(p, part) for p in agents)
+    return len(agents) + int(extra) >= 2
+
+
+def present(tx, part, *, work: bool = True, display: bool | None = None) -> bool:
+    """Show ``part`` as nx_open_part and nx_activate_part ask; True when its tab is left
+    active (then it is also the work part when ``work``).
+
+    ``display`` False: no tab (the work part only, as ``activate``). True: its tab, left
+    active. None (the default): its tab, left active while it is the agent's only part;
+    else the tab active before comes back with its work part, so a call never takes the
+    engineer's (or another agent's) tab once two or more agent parts are loaded."""
+    if display is False:
+        activate(tx, part, work=work, display=False)
+        return False
+    session_parts = tx.session.Parts
+    before, before_work = session_parts.Display, session_parts.Work
+    keep = display is True or not crowded(tx, part)
+    activate(tx, part, work=work, display=True)
+    if keep or before is None or same_part(before, part):
+        return True
+    activate(tx, before, work=False)  # the tab active before comes back
+    if before_work is not None and not same_part(session_parts.Work, before_work):
+        with contextlib.suppress(Exception):
+            if can_be_work(tx, before_work):
+                session_parts.SetWork(before_work)
+    return False
+
+
+EXPLICIT = "_explicit_parts"  # Services attribute: keys of parts loaded by a call of their own
+
+
+def explicit(tx, part) -> None:
+    """Record that a call created or opened ``part`` by name (nx_create_part,
+    nx_open_part, an import's new part): closing an assembly never unloads it."""
+    services = getattr(tx, "services", None)
+    if services is None or part is None:
+        return
+    with contextlib.suppress(Exception):
+        services.__dict__.setdefault(EXPLICIT, set()).add(services.part_key(part))
+
+
+def is_explicit(tx, part) -> bool:
+    """Whether a call of its own created or opened ``part`` (:func:`explicit`); a part an
+    assembly's load or a component call brought in is not."""
+    services = getattr(tx, "services", None)
+    if services is None:
+        return False
+    try:
+        return services.part_key(part) in services.__dict__.get(EXPLICIT, ())
+    except Exception:
+        return False
 
 
 def components(part) -> list:

@@ -451,3 +451,20 @@ def test_component_and_trace_deleters_and_listers(nx):
     assert made.ok
     patterns = hooks("lister")["component_pattern"](nx.tx, None, None)
     assert patterns[0][2]["type"] == "linear" and patterns[0][2]["details"]["count"] == 2
+
+
+def test_get_explosion_defaults_to_the_shown_or_only_explosion(nx):
+    none = run(nx, "nx_get_explosion", part="asm")
+    assert none.error["code"] == "NX_NOT_FOUND" and none.error["field"] == "/explosion", none
+    first = explosion(nx, "E1", display=False)
+    only = run(nx, "nx_get_explosion", part="asm")
+    assert only.ok and only.data["explosion"]["id"] == first, only
+    second = explosion(nx, "E2")  # shown in the work view
+    shown = run(nx, "nx_get_explosion", part="asm")
+    assert shown.ok and shown.data["explosion"]["id"] == second, shown
+    assert run(nx, "nx_set_explosion_display", part="asm").ok  # the assembled state: none shown
+    several = run(nx, "nx_get_explosion", part="asm")
+    assert several.error["code"] == "NX_INVALID_ARGUMENT", several
+    assert several.mutation_outcome == "not_applicable"
+    listed = [r["id"] for r in several.error["details"]["explosions"]]
+    assert listed == [first, second] and "2 explosions" in several.error["message"]

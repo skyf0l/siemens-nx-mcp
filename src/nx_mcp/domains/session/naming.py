@@ -15,8 +15,8 @@ from __future__ import annotations
 import re
 from typing import Annotated, TypedDict
 
-from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.catalogue import restorer, tool
+from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Ref, Text
 from nx_mcp.kit import readback
@@ -86,6 +86,7 @@ def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: 
         kind = _kind(tx, object, obj)
         if kind != "component":  # a component lives in the assembly, not as its body
             tx.resolve(object, work_part=True)
+    before = str(getattr(obj, "Name", "") or "")
     obj.SetName(name)
     stored = str(getattr(obj, "Name", "") or "")
     readback.expect(
@@ -95,9 +96,38 @@ def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: 
         requested=name,
     )
     _forget_anchor(tx, object)
+    tx.note_restore({"object": object, "kind": kind, "before": before, "after": stored})
     return {
         "object": tx.ref(obj, kind),
         "name": stored or name,
         "requested": name,
         "references": "preserved",
     }
+
+
+@restorer("nx_set_name")
+def _restore_name(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set the name an ``nx_set_name`` replaced back (the compensating undo): refused when
+    the object was renamed again since."""
+    ref, before, after = data["object"], str(data["before"]), str(data["after"])
+    obj = tx.resolve(ref)
+    now = str(getattr(obj, "Name", "") or "")
+    if now.casefold() != after.casefold():
+        fail(
+            "NX_DEPENDENCY_ORDER",
+            f"{ref} was renamed since: it is {now!r}, the operation named it {after!r}",
+            details={"object": ref, "name": now},
+        )
+    if apply:
+        if before:
+            obj.SetName(before)
+        else:  # NX 2406 ignores SetName(""); UF removes the name (measured)
+            with native():
+                tx.uf.Obj.DeleteName(obj.Tag)
+        stored = str(getattr(obj, "Name", "") or "")
+        back = stored.casefold() == before.casefold()
+        readback.expect(back, "name", f"{ref} reads {stored!r}, not {before!r}", name=stored)
+        _forget_anchor(tx, ref)
+    if not before:
+        return f"the name of {ref} removed (it had none)"
+    return f"the name of {ref} back to {before!r}"

@@ -269,6 +269,8 @@ class Session:
         self.Parts.Work = self.Parts.Display = None
         self.Parts.SetDisplay = self._set_display
         self.Parts.SetActiveDisplayRetainUndoMarks = self._set_display_retain
+        self.Parts.GetDisplayedParts = self.displayed
+        self.tabs: list = []  # NX window tabs, the most recently active first
         self.Parts.SetWork = self._set_work
         self.calls: list = []
         self.strict_work = False
@@ -318,11 +320,27 @@ class Session:
         part = next(p for p in self.Parts if int(p.Tag) == int(tag))
         self.Parts.Work = part
 
-    def show(self, part, *, retain: bool) -> None:
+    def displayed(self) -> list:
+        """``Parts.GetDisplayedParts``: the loaded parts with a window tab, the active
+        one (``Parts.Display``) first, then the most recently active."""
+        loaded = list(self.Parts)
+        shown = [p for p in self.tabs if any(p is q for q in loaded)]
+        display = self.Parts.Display
+        if display is not None:
+            shown = [display] + [p for p in shown if p is not display]
+        return shown
+
+    def show(self, part, *, retain: bool, additional: bool = False) -> None:
         """Display ``part`` and make it the work part, with NX's mark rule (class doc).
         A part displayed before the fake tracked it (created displayed) counts as shown
-        before every mark."""
+        before every mark. ``additional`` (``DisplayPartOption.AllowAdditional``): the
+        part gets its own tab (or its tab is activated); else it replaces the active
+        tab's part."""
         old = self.Parts.Display
+        tabs = self.displayed()
+        if not additional and old is not None:
+            tabs = [p for p in tabs if p is not old]
+        self.tabs = [part] + [p for p in tabs if p is not part]
         if old is not None:
             self.first_shown.setdefault(id(old), 0)
         self.first_shown.setdefault(id(part), self.last_mark)
@@ -338,8 +356,8 @@ class Session:
         self.show(part, retain=False)
         return None, NS(Dispose=Mock())
 
-    def _set_display_retain(self, part, *_):
-        self.show(part, retain=True)
+    def _set_display_retain(self, part, option=None, *_):
+        self.show(part, retain=True, additional=option not in (None, 0, "ReplaceExisting"))
         return "Ok", NS(Dispose=Mock())
 
     def SetUndoMark(self, *_):

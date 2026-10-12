@@ -12,10 +12,12 @@ See ``exploded.py`` for the NX 2406 post-transform and trace-refresh rules.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Annotated, Any, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
+from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     ComponentRef,
@@ -305,6 +307,41 @@ def nx_edit_explosion(
     }
 
 
+def _work_view_explosion(tx, found: list):
+    """The explosion of ``found`` the call's part shows in its model work view, or None."""
+    with contextlib.suppress(Exception):
+        part = tx.part
+        if drawing.current(part) is not None or drawing.work_view_is_drawing(part):
+            return None
+        tag = int(tx.uf.Assem.AskViewExplosion(part.ModelingViews.WorkView.Tag) or 0)
+        return next((e for e in found if int(e.Tag) == tag), None) if tag else None
+    return None
+
+
+def _default(tx):
+    """The explosion a call without ``explosion`` reads: the part's only one, else the one
+    its model work view shows (also in a part that is not displayed: NX 2406 answers
+    ``AskViewExplosion`` for a background part's work view); several (none shown) or none
+    are refused with the list."""
+    found = list(tx.part.ComponentAssembly.Explosions)
+    if len(found) == 1:
+        return found[0]
+    shown = _work_view_explosion(tx, found)
+    if shown is not None:
+        return shown
+    rows = [tx.ref(e, "explosion") for e in found[:20]]
+    if not found:
+        fail("NX_NOT_FOUND", f"{file_name(tx.part)} has no explosion", field="/explosion",
+             hint="Create one with nx_create_explosion")  # fmt: skip
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"{file_name(tx.part)} has {len(found)} explosions and none is shown: pass explosion",
+        field="/explosion",
+        hint="Pass explosion as an id from details.explosions",
+        details={"explosions": rows},
+    )
+
+
 class GetExplosionData(TypedDict):
     explosion: result.Row
     components: list[ExplodedRow]
@@ -316,7 +353,9 @@ class GetExplosionData(TypedDict):
 @tool(
     effect="read",
     label="Get explosion",
-    summary="Get explosion {explosion}",
+    summary=lambda a, say: (
+        f"Get explosion {say('explosion')}" if a.get("explosion") else "Get the explosion"
+    ),
     keywords=("explosion info", "exploded poses", "explosion components", "trace lines"),
     requires=("work_part", "assembly"),
     cost="light",
@@ -325,14 +364,15 @@ class GetExplosionData(TypedDict):
 def nx_get_explosion(
     tx: Tx,
     *,
-    explosion: common.ExplosionId,
+    explosion: Annotated[common.ExplosionId, Doc("Default: the shown or only one")] | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> GetExplosionData:
     """Read the exploded and assembled poses of an explosion's components, paged, nested ones
     included. Also lists the views showing it and its trace lines. Geometry reads stay at
     assembled positions."""
-    ex = common.explosion(tx, explosion)
+    with tx.checks():
+        ex = common.explosion(tx, explosion) if explosion is not None else _default(tx)
     selected, page = result.page(list(exploded.tree(ex).values()), offset, limit)
     part = tx.part
     return {

@@ -5,7 +5,7 @@
     {"call": "nx_create_part", "args": {"path": "$part", "units": "mm"},
      "expect": {"mutation_outcome": "committed", "data.units": "mm", "units.length": "mm", "data.work": true, "data.display": true,
                 "data.part.kind": "part", "data.path": {"matches": "^smoke/.+\\.prt$"}}},
-    {"call": "nx_create_part", "save": "inch", "args": {"path": "$run/pf_create_in.prt", "units": "in"},
+    {"call": "nx_create_part", "save": "inch", "args": {"path": "$run/pf_create_in.prt", "units": "in", "display": true},
      "expect": {"mutation_outcome": "committed", "data.units": "in", "units.length": "in", "data.work": true,
                 "data.part.name": {"matches": "(?i)^pf_create_in$"}}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$run", "active_only": true},

@@ -517,7 +517,7 @@ def test_redo_finds_its_part_and_its_calls_inherit_it():
 def test_default_policies():
     specs = catalogue.load()
     expect = {
-        "nx_create_extrude": ("refs", "work", False),
+        "nx_create_revolve": ("refs", "work", False),
         "nx_measure_mass": ("assembly", "none", False),
         "nx_capture_view": ("display", "display", True),
         "nx_get_camera": ("any", "none", False),  # NX's displayed view (P6 audit)

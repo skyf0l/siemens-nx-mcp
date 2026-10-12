@@ -753,7 +753,8 @@
    "call": "nx_edit_assembly_constraint",
    "args": {
     "constraint": "$A.data.component.id",
-    "suppressed": true
+    "suppressed": true,
+    "part": "$part"
    },
    "expect": {
     "error.category": "wrong_kind",

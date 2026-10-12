@@ -113,9 +113,24 @@ def area(tx, faces):
         props = part.MeasureManager.NewFaceProperties(found[0], found[1], ACCURACY, faces)
     try:
         with native(default="NX_ERROR"):
-            return float(props.Area) * k**2
+            return float(props.Area) * (k * _shown_units_slip(tx)) ** 2
     finally:
         props.Dispose()
+
+
+def _shown_units_slip(tx) -> float:
+    """``NewFaceProperties`` of a work part that is not displayed: NX 2406 answers in the
+    work part's units but labels them the displayed part's (an inch part worked quietly
+    beside a displayed mm part read 6 mm^2 for 6 in^2, live 2026-10-12). The factor that
+    turns such a reading into the requested units; 1 when the part is displayed."""
+    shown = getattr(getattr(tx.session, "Parts", None), "Display", None)
+    part = tx.part
+    if shown is None or part is None or int(shown.Tag) == int(part.Tag):
+        return 1.0
+    try:
+        return units.MM_PER[units.part_units(tx)] / units.MM_PER[units.part_units(tx, shown)]
+    except Exception:  # an unknown display: keep NX's reading
+        return 1.0
 
 
 # ---------------------------------------------------------------------------

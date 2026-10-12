@@ -32,6 +32,8 @@ from pydantic import ValidationError
 from nx_mcp.core import catalogue, evidence
 from nx_mcp.core.catalogue import CatalogueError
 from nx_mcp.core.errors import NXError
+from nx_mcp.core.types import RefKind
+from nx_mcp.core.validate import unwrap
 from nx_mcp.sidecar import artifacts, gateways, schema
 from nx_mcp.sidecar.proxy import CatalogueProxy, failure, result
 
@@ -70,15 +72,17 @@ AGENT_INSTRUCTIONS = (
     "keeps extrude, revolve, hole, pattern, blend and chamfer values driven by the expression. "
     "Options match in any case or spacing ('Through All'). When two or more parts are loaded, "
     "add the target part's file name to the arguments of every call without refs, the listed "
-    'core tools included (their schemas leave part out): {"part": "housing", ...}; '
-    "nx_list_parts lists them."
+    'core tools included: {"part": "housing", ...}; nx_list_parts lists them.'
 )
 # The ref-less core tools (nx_list_components, nx_list_objects, nx_get_model_summary,
-# nx_find_geometry, nx_check_model, nx_capture_view, nx_undo_operation) take ``part``
-# directly although their strict listed schemas leave it out (the agent listing has no
-# room for it): the server does not validate input against them (install:
-# validate_input=False) and the proxy pops the call keys before gate 1. Claude Code sends
-# a key a schema leaves out (checked live in phase P5).
+# nx_find_geometry, nx_check_model, nx_capture_view, nx_undo_operation) list ``part`` in
+# their schemas: agents trust a strict schema over the instructions (benchmark bench3p:
+# with ``part`` left out, none of four builders passed it to a core tool, one gave up a
+# capture). The proxy pops it as a call key before gate 1; the kernel resolves it (gate 3t).
+PART_KEY = {
+    "type": "string",
+    "description": "File name of the target part; needed when 2+ parts are loaded",
+}
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
 # nx_find_tools: default rows for one query and per query of ``queries``; a query with more
 # words than this, or joining tasks (``,`` ``;`` ``+`` "and" "then"), earns a hint to split
@@ -104,9 +108,20 @@ def tool_annotations(effect: str, name: str, label: str | None = None) -> ToolAn
         readOnlyHint=effect == "read",
         # MCP: destructiveHint means something only for tools that are not read-only.
         destructiveHint=None if effect == "read" else effect in ("model", "session"),
-        idempotentHint=effect == "read" or verb == "set",
+        # false is MCP's default: left out, which keeps the agent listing small.
+        idempotentHint=True if effect == "read" or verb == "set" else None,
         openWorldHint=False,
     )
+
+
+def takes_part_key(spec) -> bool:
+    """A tool that acts on a loaded part and can be called without references: the
+    ``part`` call key picks its part when two or more are loaded (rule G)."""
+    if spec.runs != "nx" or spec.target in ("none", "creates", "any"):
+        return False
+    if spec.target.startswith("arg:"):
+        return False
+    return not any(p.required and RefKind in unwrap(p.hint)[1] for p in spec.params.values())
 
 
 class Surface:
@@ -150,13 +165,16 @@ class Surface:
         ]
 
     def catalogue_tool(self, spec) -> Tool:
+        input_schema = schema.narrow_variants(
+            schema.input_schema(spec), spec, self.proxy.variants(spec)
+        )
+        if spec.name in CORE_TOOLS and takes_part_key(spec):
+            input_schema["properties"]["part"] = dict(PART_KEY)
         return Tool(
             name=spec.name,
             title=spec.label,
             description=spec.description,
-            inputSchema=schema.narrow_variants(
-                schema.input_schema(spec), spec, self.proxy.variants(spec)
-            ),
+            inputSchema=input_schema,
             annotations=tool_annotations(spec.effect, spec.name),
         )
 

@@ -15,11 +15,11 @@
   "sources": {
     "nx_set_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3",
     "nx_get_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3",
-    "nx_capture_view": "e853b8895a410b44f86bfbaa25c6d6105eded3bb3ecb29f5a61d2a6ccc006450",
+    "nx_capture_view": "e7a5550a1a2a487f1bf71d7ebfb552698dff1be819367d734f0d0ebf67863406",
     "nx_restore_display": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f",
     "nx_save_presentation": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f"
   },
-  "recorded": "2026-10-11T19:40:30Z",
+  "recorded": "2026-10-11T20:49:38Z",
   "passed": true,
   "checks": 63,
   "failed_checks": 0,

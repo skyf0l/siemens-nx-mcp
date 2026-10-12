@@ -16,7 +16,14 @@ from nx_mcp.sidecar import schema
 from nx_mcp.workspace import Workspace
 
 CHARS_PER_TOKEN = 3.8
-AGENT_LISTING = 15_000
+# 15,000 until 2026-10-12; raised to list ``part`` on the seven ref-less core tools
+# (sidecar/server.py PART_KEY, 7 x 103 characters) and ``sheet`` on nx_capture_view. In
+# benchmark bench3p agents trusted the strict schemas over the instruction sentence: with
+# ``part`` left out, none of four builders passed it to a core tool (one gave up a
+# capture, one routed through nx_invoke_read, the judge closed parts to capture). The raise
+# is kept small by dropping text the listing repeated: the offset/limit descriptions
+# ("First row to return", "Rows per page") and idempotentHint false (MCP's default).
+AGENT_LISTING = 15_300  # 15,244 on 2026-10-12
 # Full profile cap (tool-surface 2.2): a mean per listed tool, so the cap does not have to
 # move each time a tool is added. 157 tools averaged 798.5 characters on 2026-10-10 (name +
 # description + input schema, with the 87-character call keys operation_id and intent on

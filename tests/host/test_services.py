@@ -41,7 +41,7 @@ class FakeSession:
 
 NXOPEN = NS(
     Session=NS(MarkVisibility=NS(Visible=1, Invisible=0)),
-    DisplayPartOption=NS(ReplaceExisting=0),
+    DisplayPartOption=NS(AllowAdditional=1, ReplaceExisting=0),
     PartDisplayPartWorkPartOption=NS(SameAsDisplay=0),
 )
 

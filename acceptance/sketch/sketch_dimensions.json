@@ -80,7 +80,7 @@
        "second": "$g.data.curves.8.curve.id", "value": 3}]},
      "expect": {"error.field": "/dimensions/0/second", "error.message": {"contains": "parallel"}}},
     {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$s2.data.items.0.id"}},
-    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sketch_dimensions_inch.prt", "units": "in"}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sketch_dimensions_inch.prt", "units": "in", "display": true}},
     {"call": "nx_create_sketch", "setup": true, "save": "ik", "args": {"part": "sketch_dimensions_inch", "placement": {"principal": "xy"}}},
     {"call": "nx_create_sketch_curves", "setup": true, "save": "ic",
      "args": {"sketch": "$ik.data.sketch.id", "curves": [{"type": "line", "start": [0, 0], "end": [1, 0]}]}},

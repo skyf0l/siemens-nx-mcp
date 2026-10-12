@@ -271,8 +271,8 @@ SHEET_KINDS = frozenset(
     {"drawing_sheet", "drawing_view", "annotation", "dimension", "drawing_table"}
 )
 Name = Annotated[str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_ .\-]{0,63}$"), Doc("Object name")]
-Offset = Annotated[int, Range(ge=0, le=1_000_000), Doc("First row to return")]
-PageLimit = Annotated[int, Range(ge=1, le=200), Doc("Rows per page")]
+Offset = Annotated[int, Range(ge=0, le=1_000_000)]
+PageLimit = Annotated[int, Range(ge=1, le=200)]
 
 
 @dataclass(frozen=True, init=False)

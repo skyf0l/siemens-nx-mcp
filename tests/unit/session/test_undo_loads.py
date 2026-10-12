@@ -67,10 +67,10 @@ def test_create_without_display_keeps_the_work_part_display_part_and_marks(nx):
 
 
 def test_a_shown_new_part_keeps_the_marks_but_undo_stops_at_its_load(nx):
-    """Solo default (display true): as before, nothing before the load can be undone."""
+    """Display true: as before, nothing before the load can be undone."""
     delete(nx, "A(1)", "op_delete_a1")
     cp = run(nx, "nx_create_checkpoint", label="before b").data["checkpoint_id"]
-    ok = run(nx, "nx_create_part", path="b.prt")
+    ok = run(nx, "nx_create_part", path="b.prt", display=True)
     assert ok.ok and ok.data["work"] and ok.data["display"]
     assert nx.session.shown == [("retain", nx.session.Parts.Work)]
     history = services(nx).history
@@ -148,7 +148,7 @@ def test_no_barrier_without_anything_to_protect(nx):
 
 
 def test_a_save_in_a_call_expires_marks_as_saved_or_closed(nx):
-    run(nx, "nx_create_part", path="s.prt")
+    run(nx, "nx_create_part", path="s.prt", display=True)
     owned = nx.session.Parts.Work
     for name in ("S(1)", "S(2)"):
         f = Feature(name)

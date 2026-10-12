@@ -447,6 +447,9 @@ def _suppress(tx, values, on):
     requires=("work_part", "no_active_sketch", "assembly"),
     cost="heavy",
     example={"components": ["o:4"], "suppressed": False, "reference_set": "MODEL"},
+    # NX 2406 replaces or makes unique only in the displayed assembly (a background one:
+    # "unexpected NULL pointer" or the old part kept, live 2026-10-12).
+    display_bound=("/replace_with", "/make_unique"),
 )
 def nx_edit_component(
     tx: Tx,

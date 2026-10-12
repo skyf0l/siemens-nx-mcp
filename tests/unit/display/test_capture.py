@@ -311,3 +311,34 @@ def test_nothing_is_hidden_while_a_sketch_is_active():
     assert (
         ok.ok and ok.data["hidden_sketches"] == 0 and nx.captures[0].blanked == [False, False, True]
     )
+
+
+def test_sheet_captures_a_sheet_of_a_part_showing_its_model_and_brings_the_model_back():
+    nx = display_nx()
+    sheet = nx.sheet("SHT1")
+    model = run(nx, "nx_capture_view")
+    assert model.ok and "camera" in model.data and "sheet" not in model.data
+    note = next(w["message"] for w in model.warnings if w["code"] == "NX_NOTE")
+    assert "drawing sheet(s) SHT1" in note and "pass sheet" in note
+    ok = run(nx, "nx_capture_view", sheet="sht1")  # by name, any case
+    assert ok.ok and ok.mutation_outcome == "not_applicable", ok
+    assert ok.data["sheet"]["name"] == "SHT1" and "camera" not in ok.data
+    assert not [w for w in ok.warnings if w["code"] == "NX_NOTE"]
+    assert nx.part.DrawingSheets.CurrentDrawingSheet is None  # the model view is back
+    assert not nx.drawing_work_view
+    by_ref = run(nx, "nx_capture_view", sheet=nx.ref_of(sheet, "drawing_sheet"))
+    assert by_ref.ok and by_ref.data["sheet"]["name"] == "SHT1"
+    missing = run(nx, "nx_capture_view", sheet="SHT9")
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/sheet"
+    assert missing.mutation_outcome == "not_started"
+    styled = run(nx, "nx_capture_view", sheet="SHT1", style="shaded")
+    assert styled.error["field"] == "/style"
+
+
+def test_sheet_reopens_the_sheet_that_was_shown_before():
+    nx = display_nx()
+    first = show_sheet(nx, "SHT1")
+    nx.sheet("SHT2")
+    ok = run(nx, "nx_capture_view", sheet="SHT2")
+    assert ok.ok and ok.data["sheet"]["name"] == "SHT2", ok
+    assert nx.part.DrawingSheets.CurrentDrawingSheet is first

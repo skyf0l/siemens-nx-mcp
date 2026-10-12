@@ -26,7 +26,7 @@ import math
 import re
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import hooks, tool
+from nx_mcp.core.catalogue import hooks, restorer, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import MM_PER_IN, Doc, FeatureRef, Items, Pose, Text, forbid_extra
@@ -845,6 +845,7 @@ def nx_set_expression(
         existing = expr.find(tx, name)
         number, unit = _formula_value(existing, formula, units)
     text = formula if number is None else number_text(number)
+    before = str(existing.RightHandSide) if existing is not None else None
     try:
         exp = _set(tx, existing, name, text, unit)
     except NXError as error:
@@ -858,6 +859,7 @@ def nx_set_expression(
     value = expr.value(tx, exp)
     if number is not None:
         readback.expect_close(value, number, "value")
+    tx.note_restore({"name": str(exp.Name), "before": before, "after": str(exp.RightHandSide)})
     return {
         "expression": tx.ref(exp, kind="expression"),
         "formula": str(exp.RightHandSide),
@@ -866,6 +868,47 @@ def nx_set_expression(
         "created": existing is None,
         "features": driven_features(tx, [exp]),
     }
+
+
+@restorer("nx_set_expression")
+def _restore_expression(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the formula an ``nx_set_expression`` replaced, or delete the expression it
+    created (the compensating undo); refused when the formula changed since, or when a
+    created expression is in use."""
+    name, before, after = str(data["name"]), data.get("before"), str(data["after"])
+    exp = expr.find(tx, name)
+    if exp is None:
+        fail("NX_NOT_FOUND", f"Expression {name} no longer exists", details={"name": name})
+    now = str(exp.RightHandSide)
+    if now.strip() != after.strip():
+        fail(
+            "NX_DEPENDENCY_ORDER",
+            f"{name} changed since: it reads {now!r}, the operation set {after!r}",
+            details={"name": name, "formula": now},
+        )
+    if before is None:
+        users = [str(e.Name) for e in expr.dependents(exp)] + [
+            str(r.get("name")) for r in driven_features(tx, [exp])
+        ]
+        if users:
+            fail(
+                "NX_DEPENDENCY_ORDER",
+                f"{name}, which the operation created, is used by {', '.join(users[:5])}",
+                details={"name": name, "used_by": users[:20]},
+            )
+        if apply:
+            with native(default="NX_DEPENDENCY_ORDER"):
+                tx.part.Expressions.Delete(exp)
+            readback.expect(expr.find(tx, name) is None, "deleted", f"{name} is still present")
+        return f"expression {name} deleted (the operation created it)"
+    if apply:
+        expr.set_formula(tx, exp, str(before))
+        update(tx)
+        solve_driven_sketch(tx, [exp])
+        got = str(exp.RightHandSide)
+        readback.expect(got.strip() == str(before).strip(), "formula",
+                        f"{name} reads {got!r}, not {before!r}", formula=got)  # fmt: skip
+    return f"{name} back to {before}"
 
 
 def _formula_value(existing, formula, units) -> tuple[float | None, str | None]:

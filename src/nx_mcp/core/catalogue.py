@@ -87,7 +87,7 @@ Domain = Literal[
     "sketch",
 ]
 DOMAINS = frozenset(typing.get_args(Domain))
-HOOKS = ("lister", "deleter", "definition", "refresher", "sheet")
+HOOKS = ("lister", "deleter", "definition", "refresher", "sheet", "restorer")
 TARGETS = ("refs", "assembly", "sheet", "display", "any", "creates", "none", "resolver")
 SWITCHES = ("none", "work", "display")
 _DOMAIN_PACKAGE = "nx_mcp.domains."
@@ -157,8 +157,10 @@ class ToolSpec:
     # implies switch ``display``) or the variant values that do, ``/<param>[/<key>]``
     # pointers to arguments that do when given and not false (``working_in`` handlers: a
     # reference set's ``/component``; a path sketch's ``/placement/path``; a preview's
-    # ``/capture``), and ``kind:<ref kind>`` for calls whose references name an object of
-    # that kind (``nx_delete_objects`` of an explosion: ``kind:explosion``).
+    # ``/capture``), ``/<param>/<key>=<value>`` for an argument with that string value
+    # (an extrude's ``/end/type=through_all``), and ``kind:<ref kind>`` for calls whose
+    # references name an object of that kind (``nx_delete_objects`` of an explosion:
+    # ``kind:explosion``).
     display_bound: bool | tuple[str, ...] = False
 
     def switch_for(self, args: Mapping, kinds=()) -> str:
@@ -170,7 +172,9 @@ class ToolSpec:
             if self.variants is not None and self.variant_of(args) in self.display_bound:
                 return "display"
             for item in self.display_bound:
-                if item.startswith("/") and _pointed(args, item) not in (None, False):
+                pointer, eq, wanted = item.partition("=")
+                value = _pointed(args, pointer) if item.startswith("/") else None
+                if (value == wanted) if eq else value not in (None, False):
                     return "display"
                 if item.startswith("kind:") and item[5:] in kinds:
                     return "display"
@@ -789,6 +793,15 @@ def definition(feature_type: str):
 def refresher(kind: str):
     """Refresh managed annotations of ``kind`` (``nx_update_annotations``, gate 13)."""
     return _hook("refresher", kind)
+
+
+def restorer(tool_name: str):
+    """Set back what a committed call of ``tool_name`` changed, from the before-values it
+    put in its undo-history entry (``tx.history_note["restore"]``): the compensating undo
+    (``domains/session/compensate.py``). ``fn(tx, data, *, apply) -> str``: with
+    ``apply`` false it only checks (raises ``NXError`` when the values changed since);
+    with ``apply`` true it restores and verifies. Returns what it sets back."""
+    return _hook("restorer", tool_name)
 
 
 def sheet_locator(kind: str):

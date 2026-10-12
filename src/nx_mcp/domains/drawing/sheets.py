@@ -326,10 +326,19 @@ def nx_activate_drawing_sheet(
                 "Drawing sheets show in the display part: make the work part the display part",
                 hint="Activate it with nx_activate_part",
             )
+    was_modified = bool(getattr(part, "IsModified", False))
     if target is None:
         drawing.close_sheets(tx, part)
     else:
         drawing.open_sheet(tx, target, part)
+    if not was_modified and bool(getattr(part, "IsModified", False)):
+        # Opening or leaving a sheet changes no model data; NX may still flag the part.
+        tx.warn(
+            "NX_NOTE",
+            "NX marked the part modified when the sheet display changed; the model and "
+            "drawing are unchanged (close it with save false to leave the file as it is). "
+            "nx_capture_view with sheet captures a sheet without activating it",
+        )
     stale = drawing.out_of_date(v for s in part.DrawingSheets for v in s.GetDraftingViews())
     if stale:
         names = ", ".join(str(v.Name) for v in stale[:5])

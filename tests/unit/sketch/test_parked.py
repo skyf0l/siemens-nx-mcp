@@ -216,3 +216,20 @@ def test_undoing_a_batch_that_finished_the_parked_sketch_parks_it_again():
     assert batch.ok and not parking.open_in(services(nx), nx.part), batch
     assert run(nx, "nx_undo_operation").ok
     assert parking.parked(services(nx), nx.part) is nx.part.Sketches[-1]
+
+
+def test_finishing_a_background_parts_sketch_never_turns_the_shown_view():
+    """The finish reorients the view only on the displayed part (NX 2406 raised a General
+    Fault Exception finishing an inch part's sketch while a mm part was displayed)."""
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.domains.sketch import sketches
+
+    nx, a, b = two()
+    seen = []
+    session = nx.session
+    for owner, expected in ((b, False), (a, True)):
+        sk = NS(OwningPart=owner, Deactivate=lambda r, _u: seen.append(r))
+        tx = NS(nx=nx.nx, session=NS(Parts=session.Parts, ActiveSketch=None))
+        sketches._deactivate(tx, sk)
+        assert seen[-1] is expected

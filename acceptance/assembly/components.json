@@ -72,7 +72,7 @@
               "data.component.rotation": {"close": [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "tol": 1e-9}}},
   {"call": "nx_set_component_pose", "args": {"component": "$B.data.component.id", "mode": "absolute", "translation": [0, 0, 0], "rotation": [[2, 0, 0], [0, 1, 0], [0, 0, 1]]},
    "expect": {"error.category": "invalid_argument", "error.field": "/rotation", "mutation_outcome": "not_started"}},
-  {"call": "nx_set_component_pose", "args": {"component": "$asm.data.part.id", "mode": "absolute", "translation": [0, 0, 0]},
+  {"call": "nx_set_component_pose", "args": {"component": "$asm.data.part.id", "mode": "absolute", "translation": [0, 0, 0], "part": "$part"},
    "expect": {"error.category": "wrong_kind", "mutation_outcome": "not_started"}},
   {"call": "nx_edit_component", "args": {"components": ["$B.data.component.id"], "name": "B2", "reference_set": "SOLID"},
    "expect": {"mutation_outcome": "committed", "data.components.0.name": "B2", "data.components.0.reference_set": "SOLID",

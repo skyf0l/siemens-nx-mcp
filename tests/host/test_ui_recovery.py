@@ -573,6 +573,8 @@ def _panel():
     panel.label, panel.hwnd = 2, 3
     panel.radios = {"auto": 11, "ask": 13}
     panel.run_once, panel.run_auto, panel.decline, panel.open_log = 4, 5, 6, 7
+    panel.show_part, panel.parts = 8, 9
+    panel._parts_rows = []
     return panel
 
 
@@ -588,13 +590,13 @@ def test_panel_update_sets_title_radios_and_card_buttons():
     panel = _panel()
     panel.update("text", "NX MCP — Agent is waiting", "ask", "ask")
     shown = dict(c.args for c in panel.user.ShowWindow.call_args_list)
-    assert shown == {4: 5, 5: 5, 6: 5, 7: 0}  # the card's three answers replace Open log
+    assert shown == {4: 5, 5: 5, 6: 5, 7: 0, 8: 0}  # the answers replace Open log, Show part
     checks = {c.args[0]: c.args[2] for c in panel.user.SendMessageW.call_args_list}
     assert checks == {11: 0, 13: 1}
     panel.user.ShowWindow.reset_mock()
     panel.update("▶  14:32:05  Extrude\n✓  14:32:01  Sketch", "NX MCP — Auto", "auto", None)
     shown = dict(c.args for c in panel.user.ShowWindow.call_args_list)
-    assert shown == {4: 0, 5: 0, 6: 0, 7: 5}
+    assert shown == {4: 0, 5: 0, 6: 0, 7: 5, 8: 5}
     calls = [c.args for c in panel.user.SetWindowTextW.call_args_list]
     assert (3, "NX MCP — Auto") in calls
     assert (2, "▶  14:32:05  Extrude\n✓  14:32:01  Sketch") in calls

@@ -133,6 +133,9 @@ def _principal(vector):
     cost="heavy",
     previewable=True,
     example={"sketch": "s:3", "end": "10 mm", "direction": "-z"},
+    # NX 2406 refuses a through-all extrude in a part that is not displayed ("Incorrect
+    # object for this operation", live 2026-10-12); distance and until-face limits work.
+    display_bound=("/end/type=through_all", "/start/type=through_all"),
 )
 def nx_create_extrude(
     tx: Tx,

@@ -39,7 +39,7 @@ ResultId = Annotated[
 ]
 # A pointer without its leading "/" ("data/curves") is read as "/data/curves".
 Pointer = Annotated[str, Text(512), Doc("JSON pointer from omitted, e.g. /data/items/3")]
-Limit = Annotated[int, Range(ge=1, le=100), Doc("Rows per page")]
+Limit = Annotated[int, Range(ge=1, le=100)]
 Detail = Annotated[
     Literal["compact", "full"], Doc("compact cuts nested arrays to 20 items; full returns all")
 ]

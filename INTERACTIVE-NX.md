@@ -98,9 +98,11 @@ during a step is named in the step's result and in the activity log. The agent
 never clicks a dialog: it asks you to answer it.
 
 When you change the model between two agent steps (a feature, an expression,
-Ctrl+Z, hide/show, another display part), the next agent step notices it and
+Ctrl+Z, hide/show, opening or closing a part), the next agent step notices it and
 the panel shows `✎  14:32:40  You changed the model — agent will re-read its
-references`. Only then are the agent's references and checkpoints dropped: your
+references`; the log line adds what changed (NX's undo marks or the loaded parts)
+and never names a part. Clicking another tab or **Show part** alone is not a
+change. Only then are the agent's references and checkpoints dropped: your
 changes have no operation receipt and must never be undone by a later agent
 rollback. If you changed nothing, the agent continues where it was.
 
@@ -131,7 +133,8 @@ Picking Ask me first while the agent works pauses after the current step.
 `control` section reports `mode` (`auto` or `ask`), `mode_label` (`Auto` or
 `Ask me first`), `busy` (you are in an NX command or dialog), `waiting` (steps
 waiting for your answer), `activity`, the step `running` now and `queue` (the steps
-waiting for NX, and how long the oldest has waited). No tool changes the
+waiting for NX at the moment of the read, also while a step runs, and how long the
+oldest has waited). No tool changes the
 mode: the agent asks you in chat when it needs another one.
 
 The mode you pick is kept when the bridge restarts in the same NX session
@@ -178,6 +181,36 @@ show it. Permissions last until NX closes or the bridge restarts. Saving the
 part under a new name (File > Save As) withdraws it. In the development loop
 (`NX_MCP_DEV=1`) there is no checkbox and no restriction.
 
+## NX tabs and "Parts in use"
+
+Every part the agent shows opens in its **own NX window tab**; the agent never
+replaces the part in your tab. While the agent has a single part, creating,
+opening or activating it shows its tab as before. Once two or more agent parts are
+loaded (several agents, or one agent with several parts), your active tab stays
+active: a new part is only loaded, an opened or activated part gets its tab in the
+background (unless the agent asks with `display: true`), and drawing, capture,
+camera and Sheet Metal steps work in the part's own tab and bring your tab back
+when they end. A drawing sheet stays open in its part's tab. Closing a part closes
+its tab; when it was the active tab, the tab you had before comes back. NX's undo
+list survives all of it.
+
+Closing an assembly unloads only the component parts that assembly brought in
+(its open, or a component step that loaded the file). Parts created or opened by
+name, by the agent or by you, stay loaded until someone closes them.
+
+Below the activity list, **Parts in use** lists the agent's parts, one line each:
+
+```
+cover.prt  ·  in a tab  ·  modified  ·  14:32:05 Extrude "profile" 10 mm
+bolt.prt  ·  background  ·  saved  ·  14:31:50 Create thread M6
+```
+
+(`shown`: the active tab; `in a tab`; `background`: loaded without a tab;
+`modified` / `saved` / `new`: never saved.) Your own parts are never listed. Select
+a line and click **Show part** (or double-click it) to bring that part's tab to the
+front; while you are in an NX command the panel asks you to finish it first. The
+list refreshes after every agent step and scrolls when long.
+
 ## Checking the panel by hand
 
 The automated tests cannot open a real NX command dialog. After an update,
@@ -199,6 +232,8 @@ check once in graphical NX:
    switch to Auto** and **Not now**; try each, and 60 s without an answer.
 7. Pick **Auto** again: NX is usable at once and the next step runs without a
    card.
+8. Let two agents work: your tab stays active, each agent part appears in
+   **Parts in use**, and **Show part** brings its tab to the front.
 
 ## Development loop (never for production work)
 

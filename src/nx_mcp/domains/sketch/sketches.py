@@ -404,10 +404,15 @@ def nx_create_sketch(
 
 
 def _deactivate(tx, sk):
-    """Finish the active sketch ``sk`` with a model update and read it back."""
+    """Finish the active sketch ``sk`` with a model update and read it back. The view is
+    reoriented only when the sketch's part is displayed: a background part's finish
+    never turns the shown part's view (NX 2406 raised a General Fault Exception on such a
+    finish of an inch part while a mm part was displayed)."""
     nx = tx.nx
+    shown = ksketch.same(tx.session.Parts.Display, getattr(sk, "OwningPart", None))
+    reorient = nx.Sketch.ViewReorient.TrueValue if shown else nx.Sketch.ViewReorient.FalseValue
     with native(default="NX_UPDATE_FAILED"):
-        sk.Deactivate(nx.Sketch.ViewReorient.TrueValue, nx.Sketch.UpdateLevel.Model)
+        sk.Deactivate(reorient, nx.Sketch.UpdateLevel.Model)
     readback.expect(tx.session.ActiveSketch is None, "deactivated")
 
 

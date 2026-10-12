@@ -15,7 +15,7 @@ the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). A step wi
 ``"direct": true`` calls a listed core tool as its own MCP tool (compact result). A step with
 ``"call": "engineer"`` and ``"args": {"code": ...}`` plays the engineer: it runs the
 Python snippet in NX through the bridge's development tool (``NX_MCP_DEV=1``; names as
-``scripts/dev_python.py``) and then lets the interactive host check its mark
+``scripts/dev_python.py``; ``$run`` in the code is the run directory) and then lets the interactive host check its mark
 fingerprint as it does before every agent call, so the edit becomes an engineer change
 (an undo-history barrier) and never an agent operation. ``expect``
 values take ``$name...`` strings the same way (other ``$`` text such as ``$~C`` stays).
@@ -326,6 +326,14 @@ async def engineer_edit(args: dict) -> dict:
     return {"ok": True, "data": {"noticed": noticed, "stdout": result.get("stdout", "")}}
 
 
+def engineer_args(args: Any, special: dict) -> Any:
+    """An engineer snippet sees ``$run`` (inside its code) as the run directory."""
+    code = args.get("code") if isinstance(args, dict) else None
+    if not isinstance(code, str) or "$run" not in special:
+        return args
+    return {**args, "code": code.replace("$run", special["$run"])}
+
+
 def _digest(result: Any) -> str:
     return sha256(json.dumps(result, sort_keys=True, ensure_ascii=False, default=str).encode())
 
@@ -355,7 +363,7 @@ async def run_steps(session, steps: list[dict], special: dict, *, label: str, ec
         intent = step.get("intent") or f"Acceptance {label}, step {index}"
         try:
             if tool == ENGINEER:
-                outcome = await engineer_edit(args)
+                outcome = await engineer_edit(engineer_args(args, special))
             else:
                 outcome = await call_tool(
                     session,
@@ -641,15 +649,21 @@ async def loaded_parts(session) -> list[dict] | None:
     return rows
 
 
-def blocking_parts(rows: list[dict] | None, workspace: Path) -> list[str]:
+def blocking_parts(
+    rows: list[dict] | None, workspace: Path, *, beside_engineer: bool = False
+) -> list[str]:
     """Paths of loaded parts a scenario must not start beside: the agent's own parts left
     loaded (gate 3t counts them, so steps without refs would need ``part``) and any part
-    outside ``<workspace>/smoke/`` (the engineer's). Unknown (``None``): none."""
+    outside ``<workspace>/smoke/`` (the engineer's). ``beside_engineer`` (``run
+    --beside-engineer``): the engineer's parts (not owned) do not block; rule G never
+    counts them, and the run never closes, saves or displays a part it did not load.
+    Unknown (``None``): none."""
     smoke = Path(workspace) / "smoke"
     return [
         str(row.get("path"))
         for row in rows or []
-        if row.get("owned") or not _inside(row.get("path"), smoke, workspace)
+        if row.get("owned")
+        or (not beside_engineer and not _inside(row.get("path"), smoke, workspace))
     ]
 
 
@@ -840,7 +854,14 @@ def write_run_log(workspace: Path, log: dict) -> Path:
     return path
 
 
-async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDENCE) -> int:
+async def run(
+    names,
+    *,
+    workspace: Path,
+    owner: str,
+    evidence_root: Path = EVIDENCE,
+    beside_engineer: bool = False,
+) -> int:
     paths = scenario_files(names)
     for path in paths:
         load_scenario(path)  # Format errors stop the run before NX is touched.
@@ -866,7 +887,9 @@ async def run(names, *, workspace: Path, owner: str, evidence_root: Path = EVIDE
             for path in paths:
                 lock.refresh()
                 print(f"{relative(path)}")
-                blocking = blocking_parts(await loaded_parts(session), workspace)
+                blocking = blocking_parts(
+                    await loaded_parts(session), workspace, beside_engineer=beside_engineer
+                )
                 if blocking:
                     print(
                         "  REFUSED: close these loaded parts before running scenarios "
@@ -1012,6 +1035,11 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument(
         "--evidence", type=Path, default=EVIDENCE, help="evidence root (acceptance/evidence)"
     )
+    run_parser.add_argument(
+        "--beside-engineer",
+        action="store_true",
+        help="run while the engineer's own parts are loaded (never touched)",
+    )
     call_parser = sub.add_parser("call", help="run ad-hoc steps (no evidence)")
     call_parser.add_argument("file", nargs="?", help="JSON list of steps")
     call_parser.add_argument("--inline", help="JSON list of steps")
@@ -1040,6 +1068,7 @@ def main(argv: list[str] | None = None) -> int:
                 workspace=workspace,
                 owner=args.owner,
                 evidence_root=args.evidence.resolve(),
+                beside_engineer=args.beside_engineer,
             )
         )
     if bool(args.file) == bool(args.inline):

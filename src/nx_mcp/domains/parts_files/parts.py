@@ -6,21 +6,28 @@ the agent's; saving or closing any other part needs the engineer's grant
 no grant can help there. NX names parts by file basename, so a new file name a
 loaded part already uses is refused before NX acts (``NX_NAME_CONFLICT``).
 
-Closing an assembly also closes the component parts it leaves unused that the agent
-created or opened (``unload_components``, default true): NX 2406 unloads prototypes
-the assembly loaded itself, but keeps parts loaded on their own (a cover and a bolt the
-agent created before assembling them stayed loaded after the kit closed, round 2). A
-component part is kept (``kept_components`` with the reason) when the agent did not
-create or open it, another loaded assembly uses it, it was the work or display part
-before the call, it has unsaved changes (never saved or discarded implicitly), or a call
-worked in it after the assembly was loaded, within the busy time (``core/busy.py``).
+Closing an assembly also closes the component parts only the assembly brought in
+(``unload_components``, default true): parts its open or its component calls loaded.
+A part a call created or opened by name (nx_create_part, nx_open_part, an import's new
+part: ``kit.parts.explicit``) stays loaded until it is closed itself, and so does every
+part the engineer loaded. A component part is kept (``kept_components`` with the reason)
+when it was created or opened by name, the agent did not load it, another loaded
+assembly uses it, it was the work or display part before the call, it has unsaved
+changes (never saved or discarded implicitly), or a call worked in it after the assembly
+was loaded, within the busy time (``core/busy.py``).
+
+Tabs (``kit.parts.present``): every part NX MCP displays gets its own NX window tab; no
+call replaces the part of another tab. While the agent has one part loaded, create, open
+and activate leave its tab active as before; with two or more agent parts loaded,
+nx_create_part does not display the new part and nx_open_part / nx_activate_part give it
+its tab but bring the tab active before back, unless the call passes ``display`` true.
 
 Parallel agents (phase P4, ``core/busy.py``): with two or more of the agent's parts
 loaded, ``nx_close_part`` refuses (``NX_PART_BUSY``) a part a call changed within 300 s
 while the last call worked in another loaded part; ``force`` closes anyway, and a close
 right after working in the part never needs it. A save of such a part only warns. A
-close keeps NX's undo marks (``_saving.close_part``: another agent part is displayed
-first when the part is shown); undo does not cross it.
+close keeps NX's undo marks (``_saving.close_part``; closing the active tab brings the
+most recently active remaining tab back); undo does not cross it.
 
 Parts are named by ref, workspace path or file name (``LoadedPart``) wherever a loaded
 part is meant: close, save, activate. ``nx_activate_part`` only shows a part: calls
@@ -59,6 +66,7 @@ SaveAsPath = Annotated[
     str, Doc("New .prt to save as; omit to save in place"), PathTo("replace", ".prt")
 ]
 REF_HINT = "Use the part's current ref from nx_list_parts; a reopened part gets a new ref"
+TAB_DOC = "true: keep its tab active; false: no tab (default: active if sole agent part)"
 
 
 class PartData(TypedDict):
@@ -72,6 +80,7 @@ class PartData(TypedDict):
 class OpenData(PartData, total=False):
     already_loaded: bool
     components_loaded: int
+    modified_on_load: bool  # true: NX marked the part modified while loading it
 
 
 class PartRow(TypedDict):
@@ -214,9 +223,11 @@ def _check_active(tx, part, *, work: bool, display: bool) -> None:
         readback.expect(parts.same_part(session_parts.Display, part), "display_part")
 
 
-def new_part(tx, target: Path, units: str, *, display: bool = True):
+def new_part(tx, target: Path, units: str, *, display: bool | None = True):
     """Create and load a new part at ``target`` (NX writes it on first save); with
-    ``display`` make it the work and display part, else leave both as they were.
+    ``display`` show it in its own NX tab as the work and display part, else leave both
+    as they were. ``display`` None: shown only while it is the agent's only part
+    (``kit.parts.crowded``). The part counts as created by name (``kit.parts.explicit``).
 
     ``FileNew`` never displays the part itself (``MakeDisplayedPart`` false): a
     displaying ``FileNew`` drops every NX undo mark, ``parts.activate`` keeps them. The
@@ -249,6 +260,8 @@ def new_part(tx, target: Path, units: str, *, display: bool = True):
         readback.expect(
             parts.same_file(parts.file_of(part), target), "path", actual=parts.file_of(part)
         )
+        if display is None:
+            display = not parts.crowded(tx, part)
         if display:
             parts.activate(tx, part)
         actual = kit_units.part_units(tx, part)
@@ -258,6 +271,7 @@ def new_part(tx, target: Path, units: str, *, display: bool = True):
         if part is not None:
             _discard(tx, part)
         raise
+    parts.explicit(tx, part)
     return part
 
 
@@ -267,7 +281,7 @@ def new_part(tx, target: Path, units: str, *, display: bool = True):
     label="Create part",
     summary=lambda a, say: (
         f"Create part {say('path')} in {a.get('units') or 'mm'}"
-        + ("" if a.get("display", True) else ", not displayed")
+        + (", not displayed" if a.get("display") is False else "")
     ),
     keywords=(
         "new part",
@@ -287,11 +301,14 @@ def nx_create_part(
     *,
     path: PartPath,
     units: Units = "mm",
-    display: Annotated[bool, Doc("false: only load it; work and display parts stay")] = True,
+    display: Annotated[
+        bool, Doc("Show it in its own NX tab (default: only while no other agent part is loaded)")
+    ]
+    | None = None,
 ) -> PartData:
-    """Create a new workspace part, load it and make it the work and display part (display
-    false: only load it). Missing folders are created; the file is written by the first
-    save."""
+    """Create a new workspace part and load it, shown in its own NX tab as the work part.
+    With other agent parts loaded it is not shown unless display is true. Missing folders
+    are created; the file is written by the first save."""
     target = Path(path)
     with tx.checks():
         parts.check_new_name(tx, target)
@@ -315,17 +332,18 @@ def nx_open_part(
     *,
     path: Annotated[str, Doc("Workspace .prt path"), PathTo("read", ".prt")],
     work: bool = True,
-    display: bool = True,
+    display: bool | None = None,
     load_components: Annotated[bool, Doc("Fully load every component prototype")] = False,
 ) -> OpenData:
-    """Open a workspace .prt, or reuse it if already loaded, and make it the work and display
-    part as asked. A reopened part gets a new ref."""
+    """Open a workspace .prt, or reuse it if loaded, as the work part in its own NX tab.
+    With other agent parts loaded, only display true leaves that tab active. A reopened
+    part gets a new ref."""
     source = Path(path)
     with tx.checks():
         part = parts.loaded(tx, source)
         if part is None:
             parts.check_new_name(tx, source)
-        if work and not display:
+        if work and display is False:
             parts.check_work_only(tx, part)
     already = part is not None
     if part is None:
@@ -335,14 +353,31 @@ def nx_open_part(
             with contextlib.suppress(Exception):
                 status.Dispose()
     tx.worked_in = part
-    parts.activate(tx, part, work=work, display=display)
+    parts.explicit(tx, part)
+    active = parts.present(tx, part, work=work, display=display)
     loaded_count = parts.load_components(tx, part) if load_components else None
-    _check_active(tx, part, work=work, display=display)
+    _check_active(tx, part, work=work and (active or display is False), display=active)
     _report_units(tx)
     out: OpenData = {**_state(tx, part), "already_loaded": already}
     if loaded_count is not None:
         out["components_loaded"] = loaded_count
+    if not already and bool(getattr(part, "IsModified", False)):
+        _note_modified_on_load(tx, part, out)
     return out
+
+
+def _note_modified_on_load(tx, part, out: OpenData) -> None:
+    """NX can mark a part modified while loading it (an update on load: assembly
+    constraints solved again, component positions or drawing views brought up to date);
+    the open itself changed nothing. Said, never refused (benchmark bench3p: a kit read
+    modified:true right after its open)."""
+    out["modified_on_load"] = True
+    tx.warn(
+        "NX_NOTE",
+        f"NX marked {Path(str(parts.file_of(part))).name} modified "
+        "while loading it (NX updated it on load); this call changed nothing. Save it to "
+        "keep NX's update, or close it with save false to leave the file as it is",
+    )
 
 
 @tool(
@@ -366,18 +401,19 @@ def nx_activate_part(
     *,
     part: LoadedPart,
     work: bool = True,
-    display: bool = True,
+    display: Annotated[bool, Doc(TAB_DOC)] | None = None,
 ) -> PartData:
-    """Show a loaded part on screen: make it the display and/or work part. Only for display:
-    calls target their part by refs or the part key, never by activation."""
-    if not (work or display):
+    """Show a loaded part in its own NX tab as the work part. With other agent parts loaded
+    the active tab stays unless display is true. Only for display: calls target their part
+    by refs or the part key, never by activation."""
+    if not work and display is False:
         fail("NX_INVALID_ARGUMENT", "Set work or display (or both)", field="/work")
     with tx.checks():
         target = loaded_part(tx, part)
-        if work and not display:
+        if work and display is False:
             parts.check_work_only(tx, target)
-    parts.activate(tx, target, work=work, display=display)
-    _check_active(tx, target, work=work, display=display)
+    active = parts.present(tx, target, work=work, display=display)
+    _check_active(tx, target, work=work and (active or display is False), display=active)
     _report_units(tx)
     return _state(tx, target)
 
@@ -582,14 +618,14 @@ def nx_close_part(
     save: Annotated[bool, Doc("true saves first, false discards changes; required if modified")]
     | None = None,
     unload_components: Annotated[
-        bool, Doc("Also close the unused, unmodified component parts the agent loaded")
+        bool, Doc("Also close the unused, unmodified component parts only it brought in")
     ] = True,
     force: Force = False,
 ) -> CloseData:
     """Close one loaded part by ref, workspace path or file name (never implicitly the work
     part). With unsaved changes, save (true or false) is required. Refused while a loaded
-    assembly uses it, or while another agent may be working in it (force); its unused
-    component parts the agent loaded close too."""
+    assembly uses it, or while another agent may be working in it (force). Unused parts
+    only it brought in close too."""
     with tx.checks():
         target = loaded_part(tx, part)
         field = "/part"
@@ -634,8 +670,7 @@ def nx_close_part(
     if closed["undo_marks"] == "dropped" and had_undo:
         tx.warn(
             "NX_NOTE",
-            "NX's plain close dropped every undo mark (no other agent part to display in its "
-            "place): earlier operations can no longer be undone",
+            "NX's plain close dropped every undo mark: earlier operations can no longer be undone",
         )
     if prototypes:
         unloaded, kept = _unload_unused(tx, prototypes, active, since)
@@ -679,10 +714,11 @@ def _created(tx, part) -> bool:
 
 
 def _unload_unused(tx, prototypes, active, since: float = 0.0) -> tuple[list, list]:
-    """Close the component parts a closed assembly left unused that the agent loaded;
-    ``(closed rows, kept rows with the reason)``. Sub-assemblies go before their parts.
-    A part a call worked in after ``since`` (the assembly's load) within the busy time is
-    kept (``core/busy.py``)."""
+    """Close the component parts a closed assembly left unused that only the assembly
+    brought in; ``(closed rows, kept rows with the reason)``. Sub-assemblies go before
+    their parts. A part created or opened by name (``kit.parts.is_explicit``) is kept, and
+    so is a part a call worked in after ``since`` (the assembly's load) within the busy
+    time (``core/busy.py``)."""
     loaded = {int(p.Tag) for p in tx.session.Parts}
     pending = [p for p in prototypes if int(p.Tag) in loaded]
     unloaded: list = []
@@ -698,6 +734,8 @@ def _unload_unused(tx, prototypes, active, since: float = 0.0) -> tuple[list, li
             reason = None
             if not _created(tx, part):
                 reason = "not created or opened by the agent"
+            elif parts.is_explicit(tx, part):
+                reason = "created or opened by name: it stays loaded until closed itself"
             elif tag in active:
                 reason = "work or display part before the close"
             elif parts.dependents(tx, part):

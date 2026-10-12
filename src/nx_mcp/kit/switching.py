@@ -19,9 +19,10 @@ NX 2406 findings encoded here (probe_display, judge S1/S2):
 - ``uf.Assem.SetWorkPartQuietly`` makes any loaded part the work part without touching
   the UI (about 0 ms; graphics and navigator keep the display part): ``quiet``. It must
   be undone before control goes back to the engineer, so ``restore`` always runs.
-- ``kit.parts.activate`` is the display switch (``display`` mode: keeps NX's undo
-  marks, no Sheet Metal dialog, 140-190 ms round trip, two repaints). Camera, current
-  sheet and undo marks survive the round trip.
+- ``kit.parts.activate`` is the display switch (``display`` mode: the target's own NX
+  window tab, keeps NX's undo marks, no Sheet Metal dialog); ``restore`` re-activates
+  the tab that was active (63-92 ms once the tab exists). The engineer's part is never
+  replaced in its tab; camera, current sheet and undo marks survive the round trip.
 - The NX application is one per session and sticky across display switches: a call
   that needs Sheet Metal enters it on the target (``application``), and ``restore``
   puts the previous application back unless that would show NX's blocking Sheet Metal

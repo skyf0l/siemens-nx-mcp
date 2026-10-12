@@ -6,7 +6,7 @@
     {"call": "nx_save_part", "setup": true, "args": {}},
     {"call": "nx_create_part", "setup": true, "save": "g_pf_ea_plate", "args": {"path": "$run/ea/parts/pf_ea_plate.prt"}},
     {"call": "nx_save_part", "setup": true, "args": {"part": "$g_pf_ea_plate.data.part.id"}},
-    {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$run/ea/pf_ea_asm.prt"}},
+    {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$run/ea/pf_ea_asm.prt", "display": true}},
     {"call": "nx_create_component", "setup": true, "args": {"part": "pf_ea_asm", "path": "$run/ea/parts/pf_ea_blk.prt", "name": "BLK1"}},
     {"call": "nx_create_component", "setup": true,
      "args": {"part": "pf_ea_asm", "path": "$run/ea/parts/pf_ea_blk.prt", "name": "BLK2", "pose": {"translation": [50, 0, 0]}}},

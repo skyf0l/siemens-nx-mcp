@@ -7,7 +7,7 @@
   {"call": "nx_create_primitive", "save": "blkc", "args": {"shape": "block", "length": 40, "width": 20, "height": 10},
    "intent": "Acceptance: one part loaded, no part key: the work part as before, no part reported",
    "expect": {"mutation_outcome": "committed", "data.volume": {"close": 8000, "tol": 1e-06}}},
-  {"call": "nx_create_part", "save": "plate", "args": {"path": "$run/mp/mp_plate_p0.prt", "units": "mm"},
+  {"call": "nx_create_part", "save": "plate", "args": {"path": "$run/mp/mp_plate_p0.prt", "units": "mm", "display": true},
    "intent": "Acceptance: the load that brings two parts says that calls without refs now take part",
    "expect": {"mutation_outcome": "committed",
               "warnings": {"contains": {"code": "NX_NOTE", "message": "2 parts are loaded: calls without refs now take part"}}}},

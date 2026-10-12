@@ -658,14 +658,17 @@ the same arguments in another part is `NX_IDEMPOTENCY_CONFLICT` naming that part
 **Call keys.** `part` and `expires_at` travel inside `arguments`, like `operation_id`.
 The kernel takes them out before gate 1 (`split_call_keys`) unless the tool has a
 parameter of that name, and validates them (`NX_INVALID_ARGUMENT`, field `/part` or
-`/expires_at`). No schema grows: they are not schema properties, and the strict listed
-schemas of the core tools leave them out (the `agent` listing has no room: 14,991 of
-15,000 characters). The server does not validate input against the listed schemas
-(`validate_input=False`) and the proxy forwards both keys untouched (`proxy.call`);
-Claude Code sends such a key (checked live in phase P5). The agent instructions
-(`server.AGENT_INSTRUCTIONS`) say: "When two or more parts are loaded, add the target
-part's file name to the arguments of every call without refs, the listed core tools
-included (their schemas leave part out)".
+`/expires_at`). Catalogue schemas do not list them. The seven ref-less core tools listed
+directly in the `agent` profile list `part` (`server.PART_KEY`: "File name of the target
+part; needed when 2+ parts are loaded"): in benchmark bench3p agents trusted the strict
+schemas over the instruction sentence, and with `part` left out none of four builders
+passed it to a core tool. The listing cap rose to 15,300 characters for it (15,244
+measured; the offset/limit descriptions and `idempotentHint: false` were dropped to keep
+the raise small). The server does not validate input against the listed schemas
+(`validate_input=False`) and the proxy forwards both keys untouched (`proxy.call`). The
+agent instructions (`server.AGENT_INSTRUCTIONS`) say: "When two or more parts are loaded,
+add the target part's file name to the arguments of every call without refs, the listed
+core tools included".
 
 | Key | Forms | Errors |
 |---|---|---|
@@ -748,17 +751,26 @@ target current itself, by `spec.switch_for(args, kinds)`:
   `any` read: without `part` it lists every checkpoint and the work part's depth).
 - NX's undo is linear, so the undo of part A uses `UndoToMark` only while nothing else
   lies between A's undone operations and the top of NX's list. Interleaving:
-  - other parts' operations in between do not end A's history: the undo deletes what A's
-    operations created instead (compensating delete v1, `data.compensated`), or refuses
-    with `NX_CROSS_PART` naming the operations and parts in the way
-    (`details.in_the_way`) and why deletion does not qualify. v1 qualifies only committed
-    receipts that created features with their bodies and expressions and nothing else
-    (no sketch, nothing deleted or changed), every created object still found by its
-    live ref, and no feature outside the set among their `GetChildren`; the deletion is
-    verified on snapshots and the kernel rolls it back otherwise. Created expressions NX
-    keeps are reported; anchors are re-checked (`References.recheck_anchors`). The
-    deletion enters the history as a `compensation` entry: never undone itself, it
-    blocks NX's undo of every older entry, of every part;
+  - other parts' operations in between do not end A's history: the undo compensates A's
+    operations instead (compensating undo v2, `data.compensated`), or refuses with
+    `NX_CROSS_PART` naming the operations and parts in the way (`details.in_the_way`),
+    why compensation does not qualify, and how to fix forward (`nx_delete_objects`, or
+    setting the value back with the tool that set it). An operation qualifies when its
+    committed receipt created features with their bodies and expressions and nothing
+    else (no sketch, nothing deleted; drawing views, sheets and annotations NX refreshed
+    count as derived, not as changed: benchmark bench3p refused a sphere for them), every
+    created object still found by its live ref, and no feature outside the set among
+    their `GetChildren`; or when its tool has a `@restorer` hook (`nx_set_attributes`,
+    `nx_set_expression`, `nx_set_name`) and the call kept its before-values in its
+    history entry (`tx.note_restore`, top-level calls only), and those values still read
+    what the operation set (else `NX_DEPENDENCY_ORDER`). Values are set back first
+    (newest first: a created attribute or expression is deleted, an empty feature name
+    is removed through UF `Obj.DeleteName` as NX ignores `SetName("")`), each verified
+    (`data.restored`); the deletion then runs and is verified on snapshots, and the
+    kernel rolls everything back otherwise. Created expressions NX keeps are reported;
+    anchors are re-checked (`References.recheck_anchors`). The compensation enters the
+    history as a `compensation` entry: never undone itself, it blocks NX's undo of every
+    older entry, of every part;
   - loads by a `file` or `session` call and kept-marks closes are barriers that end
     every part's history (`part_loaded`, `part_closed`): undoing across them would unload
     or reload the part;
@@ -769,8 +781,11 @@ target current itself, by `spec.switch_for(args, kinds)`:
     revision moves.
 - `nx_undo_operation(operation=...)` undoes one own operation (its part from the
   history, so no `part` is needed; `NX_DEPENDENCY_ORDER` while later operations of the
-  part follow it, unless by deletion); `mode: "delete_created"` always undoes by deletion
-  (across loads too, never across the engineer barrier). A restore undoes the
+  part follow it, unless compensated); `mode: "compensate"` (`"delete_created"`, its v1
+  name, is the same) always compensates, across loads, closes and saves that cut NX's
+  history too, never across the engineer barrier. An undo refused at such a cut
+  (`NX_NOT_FOUND`) says in its hint whether the operations qualify ("Repeat with mode
+  compensate...") or how to fix forward. A restore undoes the
   checkpoint's part's operations since by the same rules. The redo list is per part: new
   work in a part ends that part's items only (`kernel._record`).
 - Previews compare `Services.part_revision`: the kernel bumps the target and touched
@@ -784,43 +799,86 @@ older than the first display of the shown or hidden part, and so do a load that 
 the part (`FileNew` with `MakeDisplayedPart`, `OpenBaseDisplay`), a save and a plain
 `Close`. NX MCP therefore loads without display (`FileNew` with `MakeDisplayedPart`
 false, `OpenBase`, `AddComponent`) and switches the display only through
-`kit.parts.show` (`SetActiveDisplayRetainUndoMarks(ReplaceExisting, SameAsDisplay)`,
-same cost; the sheet-metal scratch routine too, whose scratch part closes with
+`kit.parts.show` (`SetActiveDisplayRetainUndoMarks(AllowAdditional, SameAsDisplay)`;
+the sheet-metal scratch routine too, whose scratch part closes with
 `CloseRetainUndoMarks`); a grep test forbids every other switch. Undoing to a mark set
 before a load unloads that part again, so a load by a `file` or `session` call is a
-barrier (`{mark: None, load: [paths]}`). Parallel agents create their
-parts with `nx_create_part(display: false)`, which only loads the part (work and display
-parts stay). A model call that loads a part (a component from a file, an import into a
+barrier (`{mark: None, load: [paths]}`). With two or more agent parts loaded
+`nx_create_part` only loads the new part (work and display parts stay; tabs below). A model call that loads a part (a component from a file, an import into a
 new part) needs no barrier: undoing it unloads that part, which the session tools forget
 and name in an `NX_NOTE`. A mark that went away says why (`expired_reason`):
 `saved_or_closed`, `part_loaded`, `display_reset` (a display switch outside NX MCP
 dropped the marks), `mark_evicted` (NX dropped its oldest marks, with an `NX_NOTE`),
 `part_closed`, `engineer_change`, `undone_past`.
 
+**NX window tabs (`kit.parts.show`, `present`; tabs probe on NX 2406).** Every part NX
+MCP displays gets its own NX window tab (`DisplayPartOption.AllowAdditional`); for a part
+that has a tab the same call only activates it. No call ever replaces the part of
+another tab, so the engineer's model is never swapped out of its window.
+
+| fact (NX 2406.9160, measured) | value |
+|---|---|
+| undo marks | kept through new tabs, tab re-activation, quiet work, tab closes and a display from no part |
+| cost | new tab 0.2-0.9 s; re-activating a tab 63-92 ms (cheaper than the old replace, 136-240 ms); from no display part 0.3-0.5 s |
+| tab list | `Parts.GetDisplayedParts()`: the active tab (`Parts.Display`) first, then the most recently active (`kit.parts.tabs`) |
+| drawings | a sheet stays open in its tab; `CurrentDrawingSheet` reads None while another tab is active and comes back with the tab |
+| application | one per session, sticky across tab switches (the Sheet Metal rules of `kit.parts` apply unchanged) |
+| close | `CloseRetainUndoMarks` closes the part's tab, marks kept, also for the active or only tab; closing the active tab leaves NX with no display part until a tab is activated |
+| dialogs | none |
+
+- **Display-bound calls** (gate 4s `display` mode) activate the target's tab, run, and
+  re-activate the tab that was active (`Switch.restore`), so the engineer's tab comes back
+  and the target keeps its tab (and its open sheet) for the next drawing call.
+- **create / open / activate** (`kit.parts.present`): while the part is the agent's only
+  part (rule G's count, never the engineer's parts) its tab is left active, as before. With
+  two or more agent parts loaded, `nx_create_part` does not display the new part,
+  `nx_open_part` and `nx_activate_part` give the part its tab and re-activate the tab that
+  was active (and its work part); `display: true` leaves the part's tab active, `false`
+  gives it no tab.
+- **Closing the active tab** re-activates the most recently active remaining tab
+  (`_saving._tab_back`, through `kit.parts.activate`: a sheet-metal part comes back in
+  Sheet Metal, no dialog); `data.displayed` names it. No other part takes a closed part's
+  place in a tab.
+- **Explicit loads** (`kit.parts.explicit`): a part `nx_create_part`, `nx_open_part` or an
+  import's new part loaded by name is recorded; closing an assembly never unloads it
+  (below).
+
 **Busy parts, closes and parked sketches (phase P4).**
 
-- **Busy table** (`core/busy.py`, `Services.part_activity()`): a committed changing call
-  (`model`, `file`, `session`) stamps the parts it worked in for 300 s
-  (`BUSY_SECONDS`): its target, the parts its batch children changed, the part
-  `nx_create_part`/`nx_open_part` made or reused (`tx.worked_in`), else the first part it
-  loaded; loads also stamp `loaded_at`. Reads and `view` effects (captures, cameras,
-  highlights) stamp nothing. The *stream* is the part the last changing call worked in.
-- **Close.** While two or more agent parts are loaded, `nx_close_part` of a part stamped
-  within 300 s is refused (`NX_PART_BUSY`, `details.last_call_part`) while the stream is
-  another loaded part. A close right after working in the part (the stream is that part)
-  and a run of closes need nothing; `force: true` closes anyway. `nx_save_part` of such a
-  part only warns (`NX_NOTE`). Without identity, when agents call at the same time, an
-  agent's own close right after another agent's call is refused too (force closes it),
-  and a close right after the owner's own call passes.
-- **Kept marks.** `nx_close_part` closes with `CloseRetainUndoMarks`, which NX allows
-  only for a part that is not displayed, so a displayed part is first replaced on the
-  display by another agent part (parts without sheet metal first, then the part worked
-  in last; `data.displayed`). Without another agent part the plain `Close` drops every
-  mark (`data.undo_marks: dropped`, an `NX_NOTE` when there was history). A kept-marks
-  close is a `close` barrier (above): undoing across it loads the part again (seen live).
-  In-call cleanups (a failed create or import, a clone) keep the plain close.
-- **Assembly close** keeps a component a call worked in after the assembly's load
-  (`kept_components`, reason `in use`).
+- **Busy table** (`core/busy.py`, `Services.part_activity()`): a committed call stamps
+  the parts it worked in (`at`: its target, the parts its batch children changed, the
+  part `nx_create_part`/`nx_open_part` made or reused, `tx.worked_in`, else the first
+  part it loaded; loads also stamp `loaded_at`). A `model` or `session` call, the new
+  part of `nx_create_part` and a part a call without target loaded also stamp
+  `changed_at`; `nx_save_part` stamps `saved_at`, and so does `nx_open_part` for a part
+  it loaded from its file (it matches the file); `file` calls (saves, exports) never
+  change a part. Reads and `view` effects (captures, cameras, highlights) stamp nothing.
+  The *stream* is the part the last changing or file call worked in.
+- **Close.** A part is busy while it holds unsaved changes from the last 300 s
+  (`BUSY_SECONDS`): `changed_at` within 300 s and after its last `saved_at`. While two or
+  more agent parts are loaded, `nx_close_part` of a busy part is refused (`NX_PART_BUSY`,
+  `details.last_call_part`, `details.last_change`; the hint says to save it first or
+  force) while the stream is another loaded part. A close of a saved part (benchmark
+  bench3p: 4 of 4 forced closes followed the agent's own save while another agent's call
+  came last), a close right after working in the part (the stream is that part) and a
+  run of closes need nothing; `force: true` closes anyway. `nx_save_part` of a busy part
+  only warns (`NX_NOTE`). Without identity, when agents call at the same time, an agent's
+  own close of an unsaved part right after another agent's call is refused too (save
+  first, or force), and a close right after the owner's own call passes. The protection
+  that stays: a part another call changed and nobody saved is never closed silently.
+- **Kept marks.** `nx_close_part` closes with `CloseRetainUndoMarks` (`data.undo_marks:
+  kept`), displayed or not; closing the active tab brings the most recently active
+  remaining tab back (`data.displayed`). Only an NX without the call drops every mark
+  (`dropped`, an `NX_NOTE` when there was history). A kept-marks close is a `close`
+  barrier (above): undoing across it loads the part again (seen live). In-call cleanups (a
+  failed create or import, a clone) keep the plain close.
+- **Assembly close: the precise unload rule.** Closing an assembly unloads only component
+  parts the assembly itself brought in (its open, `load_components`, or a component call
+  that loaded the file) and only when nothing else uses them. It keeps
+  (`kept_components` with the reason) a part created or opened by name (`created or
+  opened by name`), a part the agent did not load, a part another loaded assembly uses, the
+  work or display part, a part with unsaved changes, and a component a call worked in after
+  the assembly's load (`in use`). No part nobody asked to close is closed.
 - **Parked sketches** (`core/parking.py`): no sketch is active between calls.
   `nx_create_sketch` without `finish` deactivates its sketch at the end of the call
   (model update, no view change) and parks it as its part's open sketch (`active` and
@@ -842,15 +900,33 @@ it; a group of read lines never mixes parts). A queued call whose client gave up
 shown or run, and the activity log gets one line for it: `Skipped [b.prt] Extrude ...:
 the agent stopped waiting`. A declined (`NX_CONTROL_DECLINED`) or unanswered
 (`NX_CONTROL_PAUSED`) call gets only a panel notice for 30 s, no activity-log line.
+A development snippet (`nx_dev_python`, the runner's engineer step) names no part.
+
+**Panel "Parts in use" and engineer changes (`interactive.py`, `activity.py`).** Below
+the activity list the panel lists the agent's loaded parts (created, opened or granted;
+never the engineer's own), one line each: file, `shown` (the active tab), `in a tab` or
+`background`, `modified` / `saved` / `new`, and the last agent step in it with its time
+(`activity.touch`, `part_line`). The list scrolls (2 to 6 lines high at the 560x300
+minimum); "Show part" or a double click activates that part's tab (`kit.parts.activate`,
+an engineer action, refused with a notice while the engineer is in an NX command). It
+refreshes after every call. An engineer change is a change of NX's undo marks (newest
+mark or count) or of the loaded parts between two agent calls (`_edit_changes`); a
+display, work part or tab change alone (a tab click, "Show part") is no edit and keeps
+every agent's undo history. The ENGINEER log line says what changed
+(`(changed: the number of NX undo marks)`) and names no part. `control.queue` in
+`nx_get_status` counts the calls waiting for the UI thread at the moment of the read,
+also when the status is answered from the running call's snapshot.
 
 **Limits.**
 
 - One NX undo stack for the session, shared by all agents: NX keeps about 180 marks
   (181 measured on NX 2406) and drops the oldest first, so with N agents working each
   has an undo depth of about 180/N; evicted marks are reported as `mark_evicted`.
-- An engineer's display switch in the NX UI can drop every mark (`display_reset`).
-- A display-bound call on a background part flickers: NX displays the part and switches
-  back (two repaints, timings above).
+- An engineer's display switch in the NX UI can drop every mark (`display_reset`); a
+  tab click was not measured (NX MCP never clicks).
+- A display-bound call on a background part shows its tab briefly and re-activates the
+  engineer's (two tab switches, 63-92 ms each once the tab exists).
+- An import into a new part (`new_part_path`) still leaves the new part's tab active.
 - Two agents in one part share its history: undo, checkpoints and the busy rule see one
   part, not two callers.
 - `uf.Assem.SetWorkPartQuietly` is undocumented; `NX_MCP_SWITCH=display` is the
@@ -890,11 +966,10 @@ other name lists are deleted. What holds today:
   name or its `part` call key, else the work part while at most one agent part is
   loaded; the kernel switches NX to that part for the call and back (3.4). The seven
   ref-less core tools (`nx_list_components`, `nx_list_objects`, `nx_get_model_summary`,
-  `nx_find_geometry`, `nx_check_model`, `nx_capture_view`, `nx_undo_operation`) take
-  `part` although their listed schemas leave it out: a listed `part` property would cost
-  175 characters on the seven (bare) or 287 (with `maxLength`), and the agent listing has
-  9 left of 15,000. `Tx.target` carries the resolved target; `tx.call` passes it to the
-  calls a redo repeats.
+  `nx_find_geometry`, `nx_check_model`, `nx_capture_view`, `nx_undo_operation`) list
+  `part` in their schemas (`server.takes_part_key`, `PART_KEY`; see Call keys).
+  `Tx.target` carries the resolved target; `tx.call` passes it to the calls a redo
+  repeats.
 - **Receipts (gate 7 before gate 2).** Repeating a finished call with the same `operation_id`
   and arguments replays its envelope; different arguments are `NX_IDEMPOTENCY_CONFLICT`, a
   running one `NX_OUTCOME_UNKNOWN`. A call an undo or restore reverted runs again (receipt
@@ -1008,7 +1083,7 @@ and fails above the cap (`-s` prints the measured values).
 |---|---|---|
 | Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 167 tools (163 + 4 gateways), 160,373 chars, mean 960.3 |
 | Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 693, max 2,435 |
-| `agent` profile listing | 15,000 chars (about 4K tokens) | 14,991 chars |
+| `agent` profile listing | 15,300 chars (about 4K tokens; 15,000 before `part` was listed on the seven ref-less core tools) | 15,244 chars |
 | `nx_find_tools` page of 10 rows | 1,400 chars | at most 1,371 |
 | `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,057 chars per tool |
 | Compact result before `result_id` paging | 4,000 chars | |

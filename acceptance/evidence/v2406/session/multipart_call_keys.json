@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/multipart_call_keys.json",
-  "scenario_sha256": "315d4f02b54cf3e1684babde7815dc4c1a9e1a69d791a4a0f6e78e669309fe93",
+  "scenario_sha256": "0a3fd4188fc94e892c8495a02a41c6058f32df5d86e2a0e1a5add414dc0b347a",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-11T18:41:33Z",
+  "recorded": "2026-10-11T20:45:19Z",
   "passed": true,
-  "checks": 37,
+  "checks": 43,
   "failed_checks": 0,
   "steps": [
     {
@@ -70,55 +70,69 @@
     },
     {
       "index": 9,
-      "call": "nx_check_model",
+      "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 10,
-      "call": "nx_create_primitive",
+      "call": "nx_list_components",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
       "index": 11,
-      "call": "nx_undo_operation",
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_create_primitive",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 12,
+      "index": 13,
       "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
-      "checks": 4
-    },
-    {
-      "index": 13,
-      "call": "nx_measure_mass",
-      "setup": false,
-      "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 14,
       "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 15,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 16,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
       "call": "nx_get_status",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 16,
+      "index": 18,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,

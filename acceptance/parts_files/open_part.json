@@ -9,12 +9,12 @@
                 "data.path": {"matches": "parts_files_open_part_parts_files_block_mm\\.prt$"}}},
     {"call": "nx_list_objects", "args": {"kind": "body"},
      "expect": {"page.total": 1}},
-    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/pf_open_other.prt"}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/pf_open_other.prt", "display": true}},
     {"call": "nx_open_part", "args": {"path": "$fixture", "display": false},
      "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/display", "mutation_outcome": "not_started"}},
     {"call": "nx_open_part", "args": {"path": "$fixture", "work": false, "display": false},
      "expect": {"data.already_loaded": true, "data.work": false, "data.display": false}},
-    {"call": "nx_open_part", "args": {"path": "$fixture", "load_components": true},
+    {"call": "nx_open_part", "args": {"path": "$fixture", "load_components": true, "display": true},
      "expect": {"data.already_loaded": true, "data.display": true, "data.components_loaded": 0}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
      "expect": {"page.total": 2}},
@@ -41,7 +41,7 @@
      "expect": {"error.category": "stale_reference", "mutation_outcome": "not_started",
                 "error.hint": {"matches": "nx_list_parts"},
                 "error.details.loaded_parts.0.kind": "part"}},
-    {"call": "nx_activate_part", "args": {"part": "$again.data.part.id"},
+    {"call": "nx_activate_part", "args": {"part": "$again.data.part.id", "display": true},
      "expect": {"mutation_outcome": "committed", "data.work": true, "data.display": true}}
   ]
 }

@@ -315,11 +315,18 @@ What an agent needs:
   engineer opened). With two or more it needs `part`, else `NX_AMBIGUOUS_PART` (the hint
   lists the files). The load that brings the second part says so (`NX_NOTE` "2 parts are
   loaded: calls without refs now take part"). There is no mode and no time window.
-- Never activate a part to target it: `nx_activate_part` only shows a part. Parallel
-  agents create their parts with `nx_create_part(display: false)`.
+- Never activate a part to target it: `nx_activate_part` only shows a part.
+- Tabs: every part NX MCP shows gets its own NX window tab; no call replaces the part of
+  another tab. With two or more agent parts loaded, `nx_create_part` does not display the
+  new part, and `nx_open_part` / `nx_activate_part` give the part its tab but keep the
+  active tab (`display: true` leaves the part's tab active, `false` gives it no tab).
+  Closing the active tab brings the previously active tab back (`data.displayed`).
+- Closing an assembly unloads only component parts it brought in itself; parts created
+  or opened by name stay loaded until closed (`kept_components`, reason `created or
+  opened by name`).
 - The kernel makes the part current for the call (a model call on a background part
   runs there while the display stays; drawing, capture, camera, explosion and Sheet
-  Metal calls show it for the call) and restores the engineer's display, work part and
+  Metal calls work in the part's own tab) and restores the engineer's tab, work part and
   application afterwards. A restore NX refused is an `NX_UPDATE_WARNING`; drawing views
   of a part that is not displayed refresh later (`NX_NOTE`).
 - `envelope.part` (1.6) names the part when `part` was given or two or more parts are
@@ -347,7 +354,7 @@ parameter (`nx_activate_part`, `nx_save_part`, `nx_close_part`) stays its argume
 | `NX_WRONG_PART_CONTEXT` | `part` contradicts the refs or the call's own object; NX refused to make the part current (not started) |
 | `NX_NOT_FOUND`, `NX_PATH_OUTSIDE_WORKSPACE`, `NX_INVALID_ARGUMENT` | `part` names no loaded part, a path outside the workspace, or is malformed (field `/part`) |
 | `NX_CALL_EXPIRED` | The call's `expires_at` passed, or its client closed the connection, before NX ran it: not started, no receipt |
-| `NX_PART_BUSY` | `nx_close_part` of a part another call stream changed within 300 s; `force: true` closes |
+| `NX_PART_BUSY` | `nx_close_part` of a part with unsaved changes from the last 300 s while another call stream came last; a saved part closes; `force: true` closes |
 | `NX_CROSS_PART` | An undo or restore that other parts' later work blocks and that deletion cannot replace (`details.in_the_way`) |
 | `NX_IDEMPOTENCY_CONFLICT` | The same `operation_id` and arguments in another part |
 
@@ -375,7 +382,10 @@ Core tools listed directly in the `agent` profile (most-used, mostly read):
 `nx_get_status`, `nx_get_operation`, `nx_get_result`, `nx_list_parts`,
 `nx_open_part`, `nx_list_components`, `nx_list_objects`, `nx_get_model_summary`,
 `nx_find_geometry`, `nx_measure_distance`, `nx_check_model`, `nx_capture_view`,
-`nx_undo_operation`, `nx_download_file`.
+`nx_undo_operation`, `nx_download_file`. The seven that act on a part without refs
+(`nx_list_components`, `nx_list_objects`, `nx_get_model_summary`, `nx_find_geometry`,
+`nx_check_model`, `nx_capture_view`, `nx_undo_operation`) list the `part` call key in
+their schemas ("File name of the target part; needed when 2+ parts are loaded").
 
 ### 2.2 Token cost
 
@@ -385,7 +395,7 @@ the catalogue test, which fails above budget.
 | Item | Today | Target |
 |---|---|---|
 | Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | At most 1,040 characters per listed tool on average, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included: 167 listed tools (163 + 4 gateways) average 960.3 (160,373 characters, about 42K tokens). A mean rather than a total, so adding tools does not move the cap; the per-tool caps (1,200, 2,500 for unions, median 700; measured median 693) still bound each definition. The full profile is opt-in for clients that load schemas on demand; the default `agent` profile stays at 15K |
-| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,000 characters (14,991 measured), about 4K tokens |
+| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,300 characters (15,244 measured), about 4K tokens |
 | One discovery call (10 rows) | full descriptions, 1-3K tokens | name + summary + effect rows, about 300 tokens |
 | Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call; each entry at most 200 characters over the tool's definition (1,057 characters, about 280 tokens, per tool measured) |
 | Typical modeling task (find 4 tools, fetch 4 schemas, 10 calls) | about 8-10K tokens of tool metadata | about 5K tokens |
@@ -413,7 +423,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_run_batch` | 1-100 batchable calls under one undo mark; `"$2.data.feature"` refers to an earlier step's result | `operations[1..100]: {tool, arguments}` | model |
 | `nx_preview_changes` | Apply 1-25 previewable calls, report before/after bounds, volume, health and an optional image, then roll back | `operations[1..25], capture=false` | session |
 | `nx_finish_preview` | Re-apply a preview in its own part (the preview names it) if no call changed that part since, or discard it; a refused accept keeps the preview, a finished or closed-part one says what happened | `preview_id, action: accept/discard` | model |
-| `nx_undo_operation` | Undo the target part's last agent operations (never the engineer's, never other parts' work); refs of objects that remain stay valid. The history ends at a part load by a file or session call (undoing across it would unload that part), a retained close, the engineer's edit, a save or close, or a mark NX evicted: the refusal names it (`details.reason`); a part an undone call loaded is unloaded again (`NX_NOTE`). When other parts' operations came after the undone ones, NX's undo would revert them: the undo deletes what create-only feature calls made instead (`data.compensated`, `missing`, `kept_expressions`, `renumbered`), else `NX_CROSS_PART` names them (`details.in_the_way`). `operation` undoes one own operation (its part from the history; `NX_DEPENDENCY_ORDER` while later operations of the part follow it); `mode: "delete_created"` always undoes by deletion (across loads too, never across the engineer's edits). `data.redo` lists the undone calls as `{tool, arguments, complete}` (no `operation_id`; `complete: false` = the receipt cut long text or file content) and `redo_depth` how many `nx_redo_operation` can repeat in that part: repeat them with it or with `nx_invoke` | `steps=1, operation?, mode?` | model |
+| `nx_undo_operation` | Undo the target part's last agent operations (never the engineer's, never other parts' work); refs of objects that remain stay valid. The history ends at a part load by a file or session call (undoing across it would unload that part), a retained close, the engineer's edit, a save or close, or a mark NX evicted: the refusal names it (`details.reason`); a part an undone call loaded is unloaded again (`NX_NOTE`). When other parts' operations came after the undone ones, NX's undo would revert them: the undo compensates instead, deleting what create-only feature calls made and setting back the values `nx_set_attributes`, `nx_set_expression` and `nx_set_name` changed (`data.compensated`, `restored`, `missing`, `kept_expressions`, `renumbered`; a value changed since is `NX_DEPENDENCY_ORDER`), else `NX_CROSS_PART` names them (`details.in_the_way`) with a fix-forward hint. `operation` undoes one own operation (its part from the history; `NX_DEPENDENCY_ORDER` while later operations of the part follow it); `mode: "compensate"` (`"delete_created"` is the same) always compensates (across loads, closes and saves too, never across the engineer's edits); a refusal at such a cut says whether the operation qualifies. `data.redo` lists the undone calls as `{tool, arguments, complete}` (no `operation_id`; `complete: false` = the receipt cut long text or file content) and `redo_depth` how many `nx_redo_operation` can repeat in that part: repeat them with it or with `nx_invoke` | `steps=1, operation?, mode?` | model |
 | `nx_redo_operation` | Repeat the target part's calls an undo or a checkpoint restore reverted, next first (the one part with calls to redo when no `part` is given), each as its own operation under its original `operation_id` with its receipt arguments (new refs, new receipt linked to the reverted run under `previous`; `data.results` gives each call's `data` and `changes`); new committed work in the part or an engineer edit ends its redo list, a part close drops that part's entries; a call whose receipt cut its arguments is refused (`NX_UNSUPPORTED_OPTION`: repeat it with `nx_invoke`); a failing step undoes the steps redone | `steps=1` | session |
 | `nx_create_checkpoint` | In-session undo checkpoint (expires on save, part close, a later part load, an undo past it or an engineer edit) | `label?` | session |
 | `nx_list_checkpoints` | Checkpoints (with `part`: that part's) and the target part's undo depth (no `part`: the work part's); an expired one stays listed with `expired_reason`: `saved_or_closed`, `undone_past`, `part_loaded` (a part was loaded after it: restoring would unload it), `display_reset` (a display switch outside NX MCP dropped NX's marks), `mark_evicted` (NX keeps about 180 undo marks for the session), `engineer_change` or `part_closed` | — | read |
@@ -431,7 +441,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_upload_file` | Upload one chunk of a new workspace file | `path, data_base64, offset, total_size, sha256` | file |
 | `nx_download_file` | Metadata, inline PNG, or base64 chunk of a workspace file | `path, delivery: metadata/image/chunk, offset?, length?` | read |
 | `nx_create_part` | New part file, loaded and made work and display part; `display: false` only loads it (work and display part stay: parallel agents) | `path, units: mm/in, display=true` | file |
-| `nx_open_part` | Open or reuse a part; optionally load all components | `path, work=true, display=true, load_components=false` | session |
+| `nx_open_part` | Open or reuse a part; optionally load all components. A part NX marks modified while loading it is reported (`modified_on_load`, `NX_NOTE`), never refused | `path, work=true, display=true, load_components=false` | session |
 | `nx_activate_part` | Show a loaded part: make it the display and/or work part. Only for display: calls target their part by refs or the `part` key, never by activation | `part` (ref, workspace path or file name), `work, display` | session |
 | `nx_list_parts` | Loaded parts with modified state, paged | `path_prefix?, modified?, active_only=false, Page` | read |
 | `nx_save_part` | Save a part in place, or save as a new workspace path. Drawing views NX flags out of date are updated first (so the part never reopens with "(Out of Date)" sheets), listed in `updated_views` with an `NX_NOTE`. With two or more agent parts loaded, saving a part a call worked in within 300 s while the last call worked in another part adds an `NX_NOTE` (another agent may be working in it) | `part?` (ref, workspace path or file name), `path?` (path = save as, never overwrites) | file |
@@ -543,7 +553,7 @@ listed with `nx_list_objects` (3.9).
 | `nx_create_reference_set` | Custom reference set from bodies, curves, datums, sketches, components; with `component`, in that component's part | `name, objects[1..1000], component?` | model |
 | `nx_create_explosion` | Named explosion at assembled positions; `placements` move components at once. Shown in the modeling work view (and fitted) unless `display=false`; `views` says where it is shown (while a drawing sheet is open nothing is shown, with an `NX_NOTE`) | `name, placements?` (as in `nx_edit_explosion`), `display=true` | model |
 | `nx_edit_explosion` | Set exploded poses or reset components; assembled poses never change; shown in the work view as for `nx_create_explosion`; `updated_views` lists the drawing views showing it that followed | `explosion, placements?: [{component, offset?: Vec3 (from the inherited pose) \| pose?: Pose}][..1000], reset_components?, display=true` | model |
-| `nx_get_explosion` | Exploded and assembled poses, paged | `explosion, Page` | read |
+| `nx_get_explosion` | Exploded and assembled poses, paged; `explosion` defaults to the part's only explosion, else the one its work view shows (several, none shown: `NX_INVALID_ARGUMENT` listing them) | `explosion?, Page` | read |
 | `nx_set_explosion_display` | Show an explosion (or assembled state) in the model view, a drawing view or a saved model view | `explosion?: Ref (null = assembled), drawing_view?, model_view?` | model |
 | `nx_create_explosion_trace` | Trace line between two component edges | `explosion, start_edge, end_edge, start_percent=0, end_percent=0, start_direction?, end_direction?` | model |
 | `nx_edit_explosion_trace` | Change trace anchors and offsets | `trace, start_percent?, end_percent?, start_offset?, end_offset?` | model |
@@ -571,7 +581,7 @@ Note: components are removed with `nx_delete_objects`.
 | `nx_analyze_faces` | Sampled normals, curvature and optional draft angles, grouped per face (`faces: [{face, samples}]`) | `faces, samples_per_axis=5, pull_direction?, minimum_draft?` | read |
 | `nx_analyze_curve` | Sampled positions, tangents, curvature, knots | `curve, samples=20` | read |
 | `nx_check_continuity` | G0/G1/G2 pass/fail between two edges or curves: `surface` samples two sheet boundary edges along their length, `curve` compares them at their nearest ends (`junction`) | `first, second: edge/curve, mode: auto/surface/curve, tolerances?: {position, angle, curvature}, samples=20` | read |
-| `nx_check_interference` | Interference and clearance between two objects or across groups or the whole assembly; highlight the result with `nx_set_highlight` | `objects?: Ref[2..500] (omit = whole assembly), clearance=0, max_pairs=500, include_clear=false, include_contact=true` | read |
+| `nx_check_interference` | Interference and clearance between two objects or across groups or the whole assembly; highlight the result with `nx_set_highlight`. `counts` classifies natively checked pairs only: pairs the bounding-box test skipped are `counts.skipped` with `skipped_reason`, never `clear` | `objects?: Ref[2..500] (omit = whole assembly), clearance=0, max_pairs=500, include_clear=false, include_contact=true` | read |
 | `nx_export_inspection_report` | ZIP with clearance results, captures and section images | `path, objects?, clearance, max_pairs, section_planes?: Plane[..6], capture=true` | file |
 
 While an explosion is shown in the work view, the `nx_measure_*` tools, `nx_find_geometry`,
@@ -583,7 +593,7 @@ While an explosion is shown in the work view, the `nx_measure_*` tools, `nx_find
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
 | `nx_create_drawing_sheet` | New sheet, from a template or a standard size | `name?, size: a0/a1/a2/a3/a4 or {width, height}, scale=1, units: mm/in, projection: first_angle/third_angle, template?` | model |
-| `nx_activate_drawing_sheet` | Open a sheet, or return to modeling with `sheet=null`; an `NX_NOTE` names the views NX flags out of date (`nx_update_annotations`, `nx_export_drawing` and `nx_save_part` update them) | `sheet?` | session |
+| `nx_activate_drawing_sheet` | Open a sheet, or return to modeling with `sheet=null`; an `NX_NOTE` names the views NX flags out of date (`nx_update_annotations`, `nx_export_drawing` and `nx_save_part` update them), another says so if NX flagged the part modified (measured on NX 2406: opening or leaving a sheet does not) | `sheet?` | session |
 | `nx_create_drawing_view` | Place a view at a verified sheet point; `type` selects the variant. A projected view takes `orientation` (the view to show: the side follows the parent's axes and the sheet's projection angle; an orientation that does not project from the parent, or a contradicting `direction`, is refused with `details.projects`) or `direction` (the side of the parent on the sheet). Derived views keep the parent scale; broken and break_out cut the parent in place | `type: base{sheet?, orientation, body?, explosion?, position, scale?}`, `projected{parent, orientation? \| direction?: right/left/top/bottom, spacing?}`, `section{parent, cut: edge, cut_point: start/end/center, arrow_direction, step_direction?, position}` (`half_section` + `bend`, `stepped_section` + `cuts`, `revolved_section` + `rotation`), `detail{parent, center: Point3, radius, position, scale?}`, `auxiliary{parent, hinge, position}`, `broken{parent, breaks, axis, gap?}`, `break_out{parent, center, radius, depth}`, `flat_pattern{sheet, flat_pattern, position}` | model |
 | `nx_edit_drawing_view` | Position, scale and display style; projected views made from it follow a scale change and keep their gap (`rescaled`) | `view, position?, scale?, style?: {hidden_lines, smooth_edges, shading, ...}` | model |
 | `nx_get_drawing_view` | Type, orientation, parent, actual scale, sheet `position` (the reference point) and `center` (the border centre), border `bounds`, containment, overlapping views, style | `view` | read |
@@ -630,7 +640,7 @@ Note: an existing sheet-metal feature is edited with
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_capture_view` | PNG of the current view or sheet, saved to `path` or `captures/`; inline only with `inline=true` or without `path`; `quality=studio` renders with lighting. Omitted `width`/`height` take the graphics window's size; given ones are honoured: when the window differs, a shaded model view is rendered again at the exact size by Studio capture (`quality` then says `studio`), a wireframe view or a drawing sheet keeps the window size with an `NX_APPROXIMATED` warning. The camera, style and lighting are put back | `quality: viewport/studio, path?, overwrite=false (replace an existing PNG at path), inline?, view_from?: Vec3, up?, fit?, hide_sketches=true, width=1024, height=768, background?: white/original/transparent/color/black, color?, style: current/shaded/shaded_with_edges/wireframe/studio, lighting?` | view |
+| `nx_capture_view` | PNG of the current view or sheet, saved to `path` or `captures/`; inline only with `inline=true` or without `path`; `quality=studio` renders with lighting. Omitted `width`/`height` take the graphics window's size; given ones are honoured: when the window differs, a shaded model view is rendered again at the exact size by Studio capture (`quality` then says `studio`), a wireframe view or a drawing sheet keeps the window size with an `NX_APPROXIMATED` warning. The camera, style and lighting are put back. `sheet` (ref or name) captures that drawing sheet: opened for the capture only, the previous sheet or model view comes back (no `nx_activate_drawing_sheet` first); a model-view capture of a part with sheets names them in an `NX_NOTE` | `quality: viewport/studio, path?, overwrite=false (replace an existing PNG at path), inline?, view_from?: Vec3, up?, fit?, hide_sketches=true, width=1024, height=768, background?: white/original/transparent/color/black, color?, style: current/shaded/shaded_with_edges/wireframe/studio, lighting?, sheet?` | view |
 | `nx_get_camera` | Displayed view, camera matrix, scale, style | — | read |
 | `nx_set_camera` | Named orientation, explicit camera, and/or fit | `orientation?: top/front/right/back/left/bottom/isometric/trimetric, rotation?: Mat3, origin?, scale?, fit=false` | view |
 | `nx_set_visibility` | Show, hide or isolate objects, or all datums | `objects?` or `datums=true`, `mode: show/hide/isolate` | view |

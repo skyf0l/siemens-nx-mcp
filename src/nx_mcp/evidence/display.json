@@ -2,10 +2,10 @@
   "nx_capture_view": {
     "v2406": {
       "checks": 63,
-      "recorded": "2026-10-11T19:40:30Z",
+      "recorded": "2026-10-11T20:49:38Z",
       "scenario": "acceptance/display/natural_args.json",
       "scenario_sha256": "6bfa825f650a57dd8c2dfada2efdc2092bdbaec98e0b30c9b9e8beb8d0e2a69f",
-      "source_sha256": "e853b8895a410b44f86bfbaa25c6d6105eded3bb3ecb29f5a61d2a6ccc006450",
+      "source_sha256": "e7a5550a1a2a487f1bf71d7ebfb552698dff1be819367d734f0d0ebf67863406",
       "variants": []
     }
   },

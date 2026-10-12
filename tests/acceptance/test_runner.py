@@ -709,6 +709,14 @@ async def test_an_engineer_step_runs_its_snippet_through_the_development_bridge(
     assert method == "nx_dev_python" and "x = 1" in code and "_check_engineer_change" in code
 
 
+def test_an_engineer_snippet_sees_run_as_the_run_directory():
+    """``$run`` inside an engineer step's code is the run directory, as in arguments."""
+    args = {"code": "path = r'$run\\tp\\a.prt'"}
+    got = runner.engineer_args(args, {"$run": "C:\\ws\\smoke\\r1"})
+    assert got["code"] == "path = r'C:\\ws\\smoke\\r1\\tp\\a.prt'"
+    assert runner.engineer_args(args, {}) is args
+
+
 async def test_a_direct_step_calls_the_listed_core_tool_itself():
     """``"direct": true``: the core tool as its own MCP tool, arguments as given."""
     from types import SimpleNamespace

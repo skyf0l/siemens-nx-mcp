@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import contextlib
 
-from nx_mcp.kit import drawing
+from nx_mcp.kit import drawing, parts
 
 NOTE = (
     "Explosion {name} is displayed: positions here are the assembled (unexploded) ones, "
@@ -29,12 +29,16 @@ NOTE = (
 
 
 def shown(tx):
-    """The explosion shown in the model work view when the call's part (``tx.part``: the
-    work part, or the part a read is bound to) is the displayed assembly; None otherwise
-    (no explosion, a drawing sheet shown, a part in the background, or any NX refusal)."""
+    """The explosion shown in the model work view of the call's part (``tx.part``: the
+    work part, or the part a read is bound to) when that part has an NX window tab (the
+    displayed assembly, or one in a background tab: each tab keeps its own view); None
+    otherwise (no explosion, a drawing sheet shown, a part without a tab, or any NX
+    refusal)."""
     with contextlib.suppress(Exception):
-        part = tx.session.Parts.Display
-        if part is None or int(part.Tag) != int(tx.part.Tag):
+        part = next(
+            (p for p in parts.tabs(tx.session.Parts) if int(p.Tag) == int(tx.part.Tag)), None
+        )
+        if part is None:
             return None
         if drawing.current(part) is not None or drawing.work_view_is_drawing(part):
             return None

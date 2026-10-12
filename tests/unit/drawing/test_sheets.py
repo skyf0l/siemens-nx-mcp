@@ -148,3 +148,27 @@ def test_activate_takes_a_sheet_name_and_lists_the_sheets_of_an_unknown_one():
     bad = run(nx, "nx_activate_drawing_sheet", sheet="Sheet1")
     assert bad.error["category"] == "not_found" and bad.error["field"] == "/sheet"
     assert [s["name"] for s in bad.error["details"]["sheets"]] == ["SHT1", "Detail"]
+
+
+def test_activate_says_so_when_nx_flags_the_part_modified_on_a_read_only_visit():
+    nx = drawing_nx()
+    sheet = nx.make_sheet()
+    nx.part.IsModified = False
+    clean = run(nx, "nx_activate_drawing_sheet", sheet=sheet.ref)
+    assert clean.ok and not [w for w in clean.warnings if "marked the part" in w["message"]]
+    plain = type(sheet).Open
+
+    def flagging(self):
+        plain(self)
+        nx.part.IsModified = True
+
+    type(sheet).Open = flagging
+    try:
+        assert run(nx, "nx_activate_drawing_sheet").ok
+        nx.part.IsModified = False
+        flagged = run(nx, "nx_activate_drawing_sheet", sheet=sheet.ref)
+    finally:
+        type(sheet).Open = plain
+    assert flagged.ok, flagged
+    note = next(w["message"] for w in flagged.warnings if "marked the part" in w["message"])
+    assert "unchanged" in note and "nx_capture_view with sheet" in note

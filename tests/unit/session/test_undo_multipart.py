@@ -152,7 +152,7 @@ def test_an_interleaved_create_only_operation_is_undone_by_deletion():
     deleted = {r["kind"] for r in undo.changes["deleted"]}
     assert deleted == {"feature", "body"} and undo.changes["references"] == "listed"
     assert made.data["feature"]["id"] in undo.changes["stale_refs"]
-    assert any("Undone by deleting what it created" in w["message"] for w in undo.warnings)
+    assert any("deleted what it created" in w["message"] for w in undo.warnings)
     assert "op_b_block_1 (nx_create_test_block in b.prt)" in undo.warnings[0]["message"]
     # The undo by deletion stays in the history and is never undone itself.
     assert history(nx) == [("op_b_block_1", False), ("op_a_undo_1", True)]
@@ -307,7 +307,7 @@ def test_delete_created_reaches_across_a_load_but_never_across_the_engineer():
     assert refused.error["code"] == "NX_NOT_FOUND" and refused.error["details"]["reason"] == (
         "part_loaded"
     )
-    assert "mode delete_created" in refused.error["hint"]
+    assert "mode compensate" in refused.error["hint"]
     ok = run(nx, "nx_undo_operation", part="a", mode="delete_created")
     assert ok.ok and ok.data["compensated"] and counts(a) == [(0, 0)]
     block(nx, "a", "op_a_block_2")

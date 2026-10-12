@@ -237,9 +237,9 @@ Read the exploded and assembled poses of an explosion's components, paged, neste
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `explosion` | string | required | Explosion id 'ex:N', not its name |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `explosion` | string | optional | Default: the shown or only one |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_list_components`
 
@@ -252,8 +252,8 @@ List the work part's component occurrences depth first, a page at a time. Rows: 
 | `name_contains` | string | optional | Case-insensitive name filter |
 | `suppressed` | boolean | optional | Only suppressed (true) or unsuppressed (false) |
 | `include_poses` | boolean | `false` |  |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_set_component_pose`
 
@@ -294,7 +294,7 @@ No arguments.
 
 **Capture view** · effect `view` · NX 2406: tested; 63 checks in `acceptance/display/natural_args.json`
 
-PNG of the shown view or sheet, saved to path or captures/. Inline image only with inline=true or no path. view_from/up aim it. Sheets: window size.
+PNG of the shown view or a sheet, to path or captures/; inline only with inline=true or no path. view_from/up aim it.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -303,7 +303,7 @@ PNG of the shown view or sheet, saved to path or captures/. Inline image only wi
 | `overwrite` | boolean | `false` |  |
 | `inline` | boolean | optional |  |
 | `view_from` | Point3 | optional | Direction [x, y, z] |
-| `up` | Point3 | optional | Direction [x, y, z] |
+| `up` | Point3 | optional |  |
 | `fit` | boolean | optional |  |
 | `hide_sketches` | boolean | `true` |  |
 | `width` | integer | `1024` |  |
@@ -312,6 +312,7 @@ PNG of the shown view or sheet, saved to path or captures/. Inline image only wi
 | `color` | Point3 | optional | RGB 0..1 or 0..255 |
 | `style` | `current` \| `shaded` \| `shaded_with_edges` \| `wireframe` \| `studio` | `"current"` |  |
 | `lighting` | integer | optional |  |
+| `sheet` | string | optional | Sheet ref/name to capture |
 
 ### `nx_create_section_view`
 
@@ -721,8 +722,8 @@ List model edges a drawing view draws visible, longest lines first. Sheet start,
 | `view` | string or string | required | View ref v:N, or name 'TOP@1' |
 | `geometry_type` | `any` \| `line` \| `circle` | `"any"` |  |
 | `orientation` | `any` \| `horizontal` \| `vertical` | `"any"` |  |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_update_annotations`
 
@@ -877,8 +878,8 @@ Check feature errors/warnings, suppression, unloaded components, unsolved constr
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `scope` | `part` \| `assembly` | `"part"` | assembly adds loaded components |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_create_anchor`
 
@@ -924,8 +925,8 @@ Find faces/edges/bodies by type, normal, radius, role. parallel: edges along an 
 | `axis` | `x` \| `y` \| `z` | optional |  |
 | `parallel` | `x` \| `y` \| `z` \| `xy` \| `yz` \| `xz` | optional |  |
 | `tolerance` | number | `0.001` |  |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_find_holes`
 
@@ -938,8 +939,8 @@ Find holes (bores grouped by axis) with diameters, form, length, through and end
 | `owner` | string | optional | body/feature/component |
 | `diameter` | number or string | optional | Part units, or '10 mm'/'0.5 in' |
 | `through` | boolean | optional | Only through (true) or blind (false) holes |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_get_model_summary`
 
@@ -950,8 +951,8 @@ Summarise the work part: counts, bounds and health, or one page of its features,
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `section` | `overview` \| `components` \| `features` \| `expressions` \| `sketches` | `"overview"` |  |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_list_objects`
 
@@ -966,8 +967,8 @@ List work-part objects of one kind by owner, name or type, paged. Feature parame
 | `name_contains` | string | optional | Name substring, any case |
 | `type` | string | optional | e.g. cylinder, solid |
 | `include` | `adjacency` \| `views` | optional |  |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_measure_angle`
 
@@ -1517,8 +1518,8 @@ List NX library materials with category, density, mechanical and thermal data (n
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `query` | string | optional | Name or category words, e.g. 'steel', 'abs plastic' |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_list_thread_sizes`
 
@@ -1530,8 +1531,8 @@ List NX thread standards, a standard's sizes, or one size's rows (diameters, tap
 | --- | --- | --- | --- |
 | `standard` | string | optional | e.g. 'Metric Coarse', 'UNC' |
 | `size` | string | optional | e.g. 'M6 x 1.0' or 'M6' |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `50` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `50` |  |
 
 ### `nx_set_current_feature`
 
@@ -1603,27 +1604,27 @@ No arguments.
 
 ### `nx_activate_part`
 
-**Activate part** · effect `session` · NX 2406: tested; 79 checks in `acceptance/parts_files/multipart_close.json`
+**Activate part** · effect `session` · NX 2406: tested; 77 checks in `acceptance/parts_files/multipart_close.json`
 
-Show a loaded part on screen: make it the display and/or work part. Only for display: calls target their part by refs or the part key, never by activation.
+Show a loaded part in its own NX tab as the work part. With other agent parts loaded the active tab stays unless display is true. Only for display: calls target their part by refs or the part key, never by activation.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `work` | boolean | `true` |  |
-| `display` | boolean | `true` |  |
+| `display` | boolean | optional | true: keep its tab active; false: no tab (default: active if sole agent part) |
 
 ### `nx_close_part`
 
-**Close part** · effect `session` · NX 2406: tested; 79 checks in `acceptance/parts_files/multipart_close.json`
+**Close part** · effect `session` · NX 2406: tested; 77 checks in `acceptance/parts_files/multipart_close.json`
 
-Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Refused while a loaded assembly uses it, or while another agent may be working in it (force); its unused component parts the agent loaded close too.
+Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Refused while a loaded assembly uses it, or while another agent may be working in it (force). Unused parts only it brought in close too.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `save` | boolean | optional | true saves first, false discards changes; required if modified |
-| `unload_components` | boolean | `true` | Also close the unused, unmodified component parts the agent loaded |
+| `unload_components` | boolean | `true` | Also close the unused, unmodified component parts only it brought in |
 | `force` | boolean | `false` | Close even if another agent may be working in it |
 
 ### `nx_create_directory`
@@ -1640,13 +1641,13 @@ Create a workspace folder and its missing parents. An existing folder succeeds w
 
 **Create part** · effect `file` · NX 2406: tested; 36 checks in `acceptance/parts_files/create_part.json`
 
-Create a new workspace part, load it and make it the work and display part (display false: only load it). Missing folders are created; the file is written by the first save.
+Create a new workspace part and load it, shown in its own NX tab as the work part. With other agent parts loaded it is not shown unless display is true. Missing folders are created; the file is written by the first save.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | New workspace .prt path |
 | `units` | `mm` \| `in` | `"mm"` |  |
-| `display` | boolean | `true` | false: only load it; work and display parts stay |
+| `display` | boolean | optional | Show it in its own NX tab (default: only while no other agent part is loaded) |
 
 ### `nx_download_file`
 
@@ -1739,8 +1740,8 @@ List a workspace folder one page at a time: files with size and SHA-256, and sub
 | --- | --- | --- | --- |
 | `path` | string | `""` | Workspace path |
 | `prefix` | string | optional | Only names starting with this text |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_list_parts`
 
@@ -1753,20 +1754,20 @@ List the loaded parts: file, units, work/display state, modified flag and owned 
 | `path_prefix` | string | optional | Workspace-relative or absolute path start |
 | `modified` | boolean | optional | Only modified (true) or unmodified (false) parts |
 | `active_only` | boolean | `false` | Only the work and display parts |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_open_part`
 
 **Open part** · effect `session` · NX 2406: tested; 40 checks in `acceptance/parts_files/open_part.json`
 
-Open a workspace .prt, or reuse it if already loaded, and make it the work and display part as asked. A reopened part gets a new ref.
+Open a workspace .prt, or reuse it if loaded, as the work part in its own NX tab. With other agent parts loaded, only display true leaves that tab active. A reopened part gets a new ref.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | Workspace .prt path |
 | `work` | boolean | `true` |  |
-| `display` | boolean | `true` |  |
+| `display` | boolean | optional |  |
 | `load_components` | boolean | `false` | Fully load every component prototype |
 
 ### `nx_save_part`
@@ -1894,8 +1895,8 @@ Page or expand a stored result by result_id without repeating the call or reachi
 | --- | --- | --- | --- |
 | `result_id` | string | required | result_id of a result that cut arrays or text (see omitted) |
 | `field` | string | `""` | JSON pointer from omitted, e.g. /data/items/3 |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 | `detail` | `compact` \| `full` | `"compact"` | compact cuts nested arrays to 20 items; full returns all |
 
 ### `nx_get_status`
@@ -1978,7 +1979,7 @@ Undo the part's last steps operations, or one own operation; never others' work.
 | --- | --- | --- | --- |
 | `steps` | integer | `1` | Operations to undo |
 | `operation` | string | optional | Own operation_id to undo |
-| `mode` | `delete_created` | optional | Delete what they made, no NX undo |
+| `mode` | `compensate` \| `delete_created` | optional | No NX undo: delete what they made, set values back |
 
 ## sheet_metal
 
@@ -2070,8 +2071,8 @@ Read the sheet-metal facts of the work part's bodies, or of one body. Rows give 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `body` | string | optional | Ref b:N; default: all |
-| `offset` | integer | `0` | First row to return |
-| `limit` | integer | `20` | Rows per page |
+| `offset` | integer | `0` |  |
+| `limit` | integer | `20` |  |
 
 ### `nx_get_sheet_metal_defaults`
 

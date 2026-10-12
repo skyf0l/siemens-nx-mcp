@@ -138,7 +138,7 @@ def test_work_older_than_the_busy_time_does_not_block(nx):
     block(nx, "b")
     entries = services(nx).part_activity()["parts"]
     for entry in entries.values():
-        entry["at"] -= busy.BUSY_SECONDS + 1
+        entry["changed_at"] -= busy.BUSY_SECONDS + 1
     assert call(nx, tools.nx_close_part, part="a", save=False).ok
 
 
@@ -176,18 +176,20 @@ def test_saving_a_busy_part_only_warns(nx):
 # Closes keep NX's undo marks
 
 
-def test_a_displayed_part_closes_keeping_marks_after_another_part_is_shown(nx):
-    create(nx, "mc/a.prt")
-    b = create(nx, "mc/b.prt", display=False)
+def test_the_active_tab_closes_keeping_marks_and_the_previous_tab_comes_back(nx):
+    create(nx, "mc/a.prt", display=True)  # its own tab, the fixture's part keeps its tab
+    create(nx, "mc/b.prt", display=False)
     made = block(nx, "b")
     checkpoint = call(nx, NS(spec=catalogue.load()["nx_create_checkpoint"]), part="b")
     assert checkpoint.ok, checkpoint
     assert nx.session.Parts.Display.Name == "a"
+    assert [p.Name for p in nx.session.displayed()] == ["a", "work"]
     marks = dict(nx.session.marks)
     closed = call(nx, tools.nx_close_part, part="a", save=False, force=True)
     assert closed.ok and closed.data["undo_marks"] == "kept", closed
-    assert closed.data["displayed"]["id"] == b.data["part"]["id"]
-    assert nx.session.Parts.Display.Name == "b" and nx.session.shown[-1][0] == "retain"
+    assert closed.data["displayed"]["id"] == nx.ref_of(nx.part, "part")
+    assert nx.session.Parts.Display is nx.part and nx.session.shown[-1][0] == "retain"
+    assert nx.session.displayed() == [nx.part]  # b never got a tab
     assert set(marks) <= set(nx.session.marks)  # NX dropped none
     history = services(nx).history
     assert history[-1]["close"] == ["a.prt"] and history[-1]["mark"] is None
@@ -202,18 +204,31 @@ def test_a_displayed_part_closes_keeping_marks_after_another_part_is_shown(nx):
     assert made.ok
 
 
-def test_the_last_displayed_part_closes_with_the_plain_close_and_says_so(nx):
+def test_the_last_tab_closes_keeping_marks_and_leaves_no_display_part(nx):
     nx.session.Parts.remove(nx.part)
     create(nx, "mc/a.prt")
     block(nx, "a")
+    marks = dict(nx.session.marks)
+    closed = call(nx, tools.nx_close_part, part="a", save=False)
+    assert closed.ok and closed.data["undo_marks"] == "kept", closed
+    assert "displayed" not in closed.data and nx.session.Parts.Display is None
+    assert set(marks) <= set(nx.session.marks)
+    assert not any("dropped every undo mark" in w["message"] for w in closed.warnings)
+
+
+def test_a_close_without_the_retaining_call_drops_the_marks_and_says_so(nx):
+    nx.session.Parts.remove(nx.part)
+    create(nx, "mc/a.prt")
+    block(nx, "a")
+    part = next(p for p in nx.session.Parts if p.Name == "a")
+    part.CloseRetainUndoMarks = None  # an NX without the call
     closed = call(nx, tools.nx_close_part, part="a", save=False)
     assert closed.ok and closed.data["undo_marks"] == "dropped", closed
-    assert "displayed" not in closed.data
     assert any("dropped every undo mark" in w["message"] for w in closed.warnings)
 
 
 def test_a_background_part_closes_keeping_marks_without_a_display_change(nx):
-    create(nx, "mc/a.prt")
+    create(nx, "mc/a.prt", display=True)
     create(nx, "mc/b.prt", display=False)
     block(nx, "a")
     shown = len(nx.session.shown)
@@ -227,12 +242,9 @@ def test_a_background_part_closes_keeping_marks_without_a_display_change(nx):
 
 
 def test_an_assembly_close_keeps_a_component_a_call_worked_in_after_its_load(nx):
-    create(nx, "mc/early.prt", display=False)
-    create(nx, "mc/late.prt", display=False)
-    create(nx, "mc/asm.prt")
+    early, late = nx.new_part("mc/early.prt"), nx.new_part("mc/late.prt")  # brought in
+    create(nx, "mc/asm.prt", display=True)
     asm = next(p for p in nx.session.Parts if p.Name == "asm")
-    early = next(p for p in nx.session.Parts if p.Name == "early")
-    late = next(p for p in nx.session.Parts if p.Name == "late")
     nx.attach(asm, early)
     nx.attach(asm, late)
     _keeps_prototypes(asm)
@@ -246,6 +258,29 @@ def test_an_assembly_close_keeps_a_component_a_call_worked_in_after_its_load(nx)
     assert "late" in loaded(nx) and "early" not in loaded(nx)
 
 
+def test_an_assembly_close_keeps_parts_created_or_opened_by_name(nx, root):
+    """Precise unload rule: only parts the assembly brought in close with it."""
+    create(nx, "mc/cover.prt", display=False)  # created by name: stays
+    bolt = nx.new_part("mc/bolt.prt")
+    bolt.Save()
+    opened = call(nx, tools.nx_open_part, path="mc/bolt.prt")  # opened by name: stays
+    assert opened.ok and opened.data["already_loaded"], opened
+    pulled = nx.new_part("mc/washer.prt")  # loaded only by the assembly
+    create(nx, "mc/kit.prt", display=True)
+    kit = next(p for p in nx.session.Parts if p.Name == "kit")
+    for name in ("cover", "bolt"):
+        nx.attach(kit, next(p for p in nx.session.Parts if p.Name == name))
+    nx.attach(kit, pulled)
+    _keeps_prototypes(kit)
+    closed = call(nx, tools.nx_close_part, part="kit", save=False)
+    assert closed.ok, closed
+    assert [r["name"] for r in closed.data["unloaded_components"]] == ["washer"]
+    kept = {r["part"]["name"]: r["reason"] for r in closed.data["kept_components"]}
+    assert set(kept) == {"cover", "bolt"}
+    assert all(reason.startswith("created or opened by name") for reason in kept.values())
+    assert {"cover", "bolt"} <= set(loaded(nx)) and "washer" not in loaded(nx)
+
+
 # ---------------------------------------------------------------------------
 # File names on activate and save; basename collisions
 
@@ -253,7 +288,7 @@ def test_an_assembly_close_keeps_a_component_a_call_worked_in_after_its_load(nx)
 def test_activate_and_save_take_file_names_like_close(nx, root):
     create(nx, "mc/a.prt")
     create(nx, "mc/b.prt", display=False)
-    shown = call(nx, tools.nx_activate_part, part="b")
+    shown = call(nx, tools.nx_activate_part, part="b", display=True)
     assert shown.ok and shown.data["display"] and shown.data["part"]["name"] == "b", shown
     saved = call(nx, tools.nx_save_part, part="a.prt")
     assert saved.ok and saved.data["path"] == "mc/a.prt", saved
@@ -280,27 +315,20 @@ def test_a_taken_file_name_suggests_a_unique_one_and_never_offers_the_part(nx, r
     assert again.error["details"]["suggested_path"] == "mc/a_3.prt"
 
 
-def test_the_replacement_display_prefers_a_part_without_sheet_metal(nx, monkeypatch):
-    from nx_mcp.domains.parts_files import _saving
+def test_the_tab_that_comes_back_after_a_close_is_shown_in_sheet_metal(nx, monkeypatch):
     from nx_mcp.kit import parts as kparts
 
-    create(nx, "mc/a.prt")
-    create(nx, "mc/bent.prt", display=False)
-    create(nx, "mc/plain.prt", display=False)
-    block(nx, "bent")  # the part worked in last, but with sheet metal
+    create(nx, "mc/bent.prt", display=True)
+    create(nx, "mc/a.prt", display=True)
     real = kparts.has_sheet_metal
     monkeypatch.setattr(kparts, "has_sheet_metal", lambda p: p is not None and (
         p.Name == "bent" or real(p)))  # fmt: skip
+    assert [p.Name for p in nx.session.displayed()] == ["a", "bent", "work"]
     closed = call(nx, tools.nx_close_part, part="a", save=False, force=True)
-    assert closed.ok and closed.data["displayed"]["name"] == "plain", closed
-    calls = [c for c in nx.session.calls if c[0] == "ApplicationSwitchImmediate"]
-    assert calls == []  # a part without sheet metal stays in its application
-    only = next(p for p in nx.session.Parts if p.Name == "plain")
-    nx.session.Parts.remove(nx.part)  # only the sheet-metal part is left to show
-    shown = _saving._display_instead(NS(services=services(nx), session=nx.session, nx=nx.nx,
-                                        workspace=services(nx).workspace), only)  # fmt: skip
-    assert shown.Name == "bent" and nx.session.Parts.Display is shown
-    assert ("ApplicationSwitchImmediate", "UG_APP_SBSM") in nx.session.calls
+    assert closed.ok and closed.data["displayed"]["name"] == "bent", closed
+    assert nx.session.Parts.Display.Name == "bent"  # the most recently active tab
+    assert ("ApplicationSwitchImmediate", "UG_APP_SBSM") in nx.session.calls  # no dialog
+    assert [p.Name for p in nx.session.displayed()] == ["bent", "work"]
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,9 @@ Standard library only: the NX-side control panel imports this. Each entry says
 what ran (the request summary), what it created, and what happened to the
 model when it failed. Read-only steps are grouped so they do not push model
 changes out of the short panel history. While two or more parts are loaded, every
-step names the part file it acted on first (``[cover.prt] Extrude ...``).
+step names the part file it acted on first (``[cover.prt] Extrude ...``). Engineer and
+NX event lines name no part. ``touch``/``last_in`` keep the last agent step per part
+file for the panel's "Parts in use" lines (``part_line``).
 """
 
 from __future__ import annotations
@@ -71,6 +73,7 @@ class Entry:
     label: str = "ENGINEER"  # the log column of a note
     mark: str = "✎"  # the panel mark of a note
     part: str | None = None  # the target part's file (two or more parts loaded)
+    detail: str | None = None  # a note's detail, written to the log only
 
     @property
     def shown(self) -> str:
@@ -81,6 +84,22 @@ class Entry:
 def with_part(part: str | None, summary: str) -> str:
     """``[cover.prt] Extrude ...``: a step's line names its part when it is known."""
     return f"[{part}] {summary}" if part else summary
+
+
+SHOWN = {"shown": "shown", "tab": "in a tab", "background": "background"}
+
+
+def part_line(row: dict[str, Any]) -> str:
+    """One "Parts in use" line: ``cover.prt  ·  shown  ·  modified  ·  12:03:04 Extrude``
+    (``row``: file, shown, state, and last/at/ok of the last agent step, if any)."""
+    head = f"{row.get('file')}  ·  {SHOWN.get(row.get('shown') or '', row.get('shown'))}"
+    head += f"  ·  {row.get('state')}"
+    last, at = row.get("last"), row.get("at")
+    if not last or not isinstance(at, (int, float)):
+        return _clip(head)
+    clock = time.strftime("%H:%M:%S", time.localtime(at))
+    failed = "" if row.get("ok", True) else " (failed)"
+    return _clip(f"{head}  ·  {clock} {last}{failed}")
 
 
 def _clip(text: str, width: int = LINE_WIDTH) -> str:
@@ -128,6 +147,7 @@ class Activity:
     log_path: Path | None = None
     keep: int = 50
     entries: deque = field(default_factory=deque)
+    last_by_part: dict = field(default_factory=dict)  # part file -> its last agent step
 
     def record(
         self,
@@ -179,15 +199,28 @@ class Activity:
             self.entries.popleft()
         return entry
 
-    def engineer_change(self, at: float | None = None) -> Entry:
-        """The engineer changed the model between two agent steps."""
+    def engineer_change(self, at: float | None = None, detail: str | None = None) -> Entry:
+        """The engineer changed the model between two agent steps; ``detail`` (what
+        changed: NX's undo marks, the loaded parts) goes to the log line. No part: the
+        host cannot tell which part an engineer edit was in."""
         return self._note(
             Entry(
                 started=time.time() if at is None else at,
                 summary=ENGINEER_CHANGE,
                 note=ENGINEER_CHANGE,
+                detail=f"changed: {detail}" if detail else None,
             )
         )
+
+    def touch(self, part: str | None, summary: str | None, *, started, ok: bool = True) -> None:
+        """Remember an agent step as the last one in ``part`` (a file name; None: no
+        part known, nothing kept)."""
+        if part and summary:
+            self.last_by_part[part.casefold()] = {"last": summary, "at": started, "ok": ok}
+
+    def last_in(self, part: str) -> dict[str, Any]:
+        """``{last, at, ok}`` of the last agent step in ``part``, or ``{}``."""
+        return dict(self.last_by_part.get(str(part).casefold(), {}))
 
     def nx_dialog(self, text: str, at: float | None = None) -> Entry:
         """NX opened a modal dialog: NX and every call wait for a person to answer it."""
@@ -268,6 +301,8 @@ class Activity:
         stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry.started))
         if entry.note:
             text = f"{stamp}  {entry.label}  {entry.note}"
+            if entry.detail:
+                text += f" ({entry.detail})"
         elif entry.ok:
             made = f" → {entry.created}" if entry.created else ""
             text = f"{stamp}  OK      {entry.shown}{made}  ({entry.duration:.1f} s)"

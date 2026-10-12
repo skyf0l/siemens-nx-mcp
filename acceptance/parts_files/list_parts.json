@@ -5,7 +5,7 @@
     {"call": "nx_create_part", "setup": true, "save": "a", "args": {"path": "$run/lp/pf_list_a.prt"}},
     {"call": "nx_save_part", "setup": true, "args": {}},
     {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lp/pf_list_b.prt", "units": "in"}},
-    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lq/pf_list_c.prt"}},
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lq/pf_list_c.prt", "display": true}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
      "expect": {"mutation_outcome": "not_applicable", "page.total": 3,
                 "data.items": {"contains": {"units": "in", "owned": true, "work": false}}}},

@@ -2,20 +2,20 @@
   "nx_check_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-11T19:36:04Z",
+      "recorded": "2026-10-12T04:40:18Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "22141aeeddded727cda639fdb354715f453caea2cdc1a8de6e755065a6f31b61",
+      "source_sha256": "9b86d9fc3b4b7291a0ceacb6d45f567eb28e007b00725d496fd586031bac0317",
       "variants": []
     }
   },
   "nx_create_sketch": {
     "v2406": {
       "checks": 26,
-      "recorded": "2026-10-11T19:36:11Z",
+      "recorded": "2026-10-12T04:40:27Z",
       "scenario": "acceptance/sketch/sketch_one_call.json",
       "scenario_sha256": "28aec7087dac04c4c4c1a36938f9c6a2fcaf4dc91e16a02d186545bb865e1d9e",
-      "source_sha256": "22141aeeddded727cda639fdb354715f453caea2cdc1a8de6e755065a6f31b61",
+      "source_sha256": "9b86d9fc3b4b7291a0ceacb6d45f567eb28e007b00725d496fd586031bac0317",
       "variants": [
         "on",
         "path",
@@ -146,20 +146,20 @@
   "nx_finish_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-11T19:36:04Z",
+      "recorded": "2026-10-12T04:40:18Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "22141aeeddded727cda639fdb354715f453caea2cdc1a8de6e755065a6f31b61",
+      "source_sha256": "9b86d9fc3b4b7291a0ceacb6d45f567eb28e007b00725d496fd586031bac0317",
       "variants": []
     }
   },
   "nx_get_sketch": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-11T19:36:04Z",
+      "recorded": "2026-10-12T04:40:18Z",
       "scenario": "acceptance/sketch/sketch_natural_args.json",
       "scenario_sha256": "7186337e5d694670c2e8a1191ebea5b9134441c19934545d8d49403e562a8e77",
-      "source_sha256": "22141aeeddded727cda639fdb354715f453caea2cdc1a8de6e755065a6f31b61",
+      "source_sha256": "9b86d9fc3b4b7291a0ceacb6d45f567eb28e007b00725d496fd586031bac0317",
       "variants": []
     }
   }

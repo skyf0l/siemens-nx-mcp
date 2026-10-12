@@ -119,6 +119,23 @@ def test_area_is_reported_in_part_units_and_disposed():
         measure.area(nx.tx, [])
 
 
+@pytest.mark.parametrize(
+    ("units", "shown", "reading", "want"),
+    [("in", "Millimeters", 1.0, 1.0), ("mm", "Inches", 645.16**2, 645.16)],
+)
+def test_area_of_a_part_beside_a_displayed_part_of_other_units(units, shown, reading, want):
+    """A work part that is not displayed: NX 2406 answers in its units but labels them the
+    displayed part's (live: an inch sheet of 6 in^2 read 6 mm^2)."""
+    nx = fake_nx(units=units)
+    nx.part.MeasureManager = NS(NewFaceProperties=lambda *a: NS(Area=reading, Dispose=lambda: None))
+    nx.part.UnitCollection = NS(FindObject=lambda name: name)
+    unit = getattr(nx.nx.BasePart.Units, shown)
+    nx.session.Parts.Display = NS(Tag=987654, PartUnits=unit)
+    assert measure.area(nx.tx, [nx.face()]) == pytest.approx(want)
+    nx.session.Parts.Display = nx.part  # displayed: NX's reading is the requested units
+    assert measure.area(nx.tx, [nx.face()]) == pytest.approx(reading / 645.16 ** (units == "in"))
+
+
 def test_exact_bounds_project_the_wcs_aligned_box():
     nx = fake_nx()
     # A box aligned to a WCS rotated 90 degrees about z: x along +y, y along -x.

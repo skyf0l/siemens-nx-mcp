@@ -31,7 +31,20 @@ them):
 
 While two or more parts are loaded, the running line, the card and every activity
 line name the target part's file first (``[cover.prt] Extrude ...``); with one part
-the lines are as they were. A queued call whose client gave up (closed its socket, or
+the lines are as they were. A development snippet (``nx_dev_python``, also the acceptance
+runner's engineer step) has no target part: its lines name none.
+
+"Parts in use" (below the activity list): one line per agent part (created, opened or
+granted; never the engineer's own): file, shown (the active NX tab), tab or background,
+modified / saved / new, and the last agent step in it with its time. The list scrolls;
+"Show part" (or a double click) activates that part's NX tab (``kit.parts.activate``,
+undo marks kept): an engineer action, never an agent's. The list refreshes after each
+call (``publish``).
+
+An engineer change (``_check_engineer_change``) is a change of NX's undo marks or of the
+loaded parts between two agent calls; a display, work part or tab change alone (the
+engineer clicking a tab, "Show part") is not an edit and leaves the agents' undo
+history alone. The ENGINEER log line says what changed. A queued call whose client gave up (closed its socket, or
 its ``expires_at`` passed) is answered NX_CALL_EXPIRED and never shown or run; the
 activity log notes it (``Skipped ...: the agent stopped waiting``).
 
@@ -72,6 +85,7 @@ MODES = ("auto", "ask")
 MODE_LABELS = {"auto": "Auto", "ask": "Ask me first"}
 MODE_ALIASES = {"manual": "ask"}  # the old name of Ask me first
 STATUS_TOOL = "nx_get_status"  # the status read (domains/session/status.py)
+DEV_PYTHON = "nx_dev_python"  # a development snippet: no target part
 
 # Panel window messages: the bridge's listening socket has a connection
 # (WSAAsyncSelect), and "tick again now" (posted by the host itself).
@@ -106,6 +120,29 @@ def _display_changed(before, now):
         return before[4] != now[4]
     except (IndexError, TypeError):
         return False
+
+
+FINGERPRINT_PARTS = ("NX's newest undo mark", "the number of NX undo marks", "the loaded parts")
+
+
+def _edit_changes(before, now):
+    """What an engineer edit changed between two ``model_fingerprint`` values: NX's undo
+    marks or the loaded parts (``FINGERPRINT_PARTS``). A display, work part or tab change
+    alone is no edit (empty list). An unknown fingerprint counts as a change."""
+    if before is None or now is None:
+        return ["an unknown NX state"]
+    if not isinstance(before, tuple) or not isinstance(now, tuple) or len(before) != len(now):
+        return [] if before == now else ["the model"]
+    if len(now) < 5:
+        return [] if before == now else ["the model"]
+    return [name for i, name in enumerate(FINGERPRINT_PARTS) if before[i] != now[i]]
+
+
+def _envelope(error):
+    """The catalogue envelope a failed call carries (``details.envelope``), or None."""
+    details = getattr(error, "details", None)
+    envelope = details.get("envelope") if isinstance(details, dict) else None
+    return envelope if isinstance(envelope, dict) else None
 
 
 def _running_tail(method):
@@ -192,6 +229,9 @@ def nx_main_window():
 
 # Panel control IDs.
 ID_STOP, ID_DECLINE, ID_OPEN_LOG, ID_GRANT, ID_RUN_ONCE, ID_RUN_AUTO = 103, 104, 105, 106, 107, 108
+ID_SHOW_PART, ID_PARTS = 109, 110
+LBN_DBLCLK = 2  # a double click on a "Parts in use" line
+PARTS_ROWS = (2, 6)  # "Parts in use" list height in lines: at least, at most
 ID_MODES = {111: "auto", 113: "ask"}
 ANSWERS = {ID_RUN_ONCE: "run_once", ID_RUN_AUTO: "run_auto", ID_DECLINE: "decline"}
 
@@ -302,6 +342,12 @@ class ControlPanel:
         # (a part the agent neither created nor opened). BS_CHECKBOX, hidden until
         # needed; the host owns the checked state (show_grant).
         self.grant = control("BUTTON", "", 0x40010002, ID_GRANT)
+        # "Parts in use": the agent's parts, one line each; LBS_NOTIFY (double click),
+        # WS_VSCROLL (a long list scrolls), LBS_NOINTEGRALHEIGHT (exact layout height).
+        self.parts_label = control("STATIC", "Parts in use", 0x50000000)
+        self.parts = control("LISTBOX", "", 0x50A00101, ID_PARTS)
+        self.show_part = control("BUTTON", "Show part", 0x50010000, ID_SHOW_PART)
+        self._parts_rows: list = []
         # The request card's answers replace "Open log" while the agent waits for
         # one. Stop sits apart so it is not hit by mistake.
         self.run_once = control("BUTTON", "Run once", 0x40010000, ID_RUN_ONCE)
@@ -320,6 +366,9 @@ class ControlPanel:
                 *self.radios.values(),
                 self.label,
                 self.grant,
+                self.parts_label,
+                self.parts,
+                self.show_part,
                 self.run_once,
                 self.run_auto,
                 self.decline,
@@ -365,15 +414,24 @@ class ControlPanel:
         move(self.radios["ask"], 144, 8, 124, 24, True)
         # The grant checkbox row is reserved only while it shows (show_grant).
         grant_row = 28 if getattr(self, "_grant", None) is not None else 0
-        list_height = buttons - grant_row - 8 - 38
+        area = buttons - grant_row - 8 - 38
+        line = max(self.line_height, 1)
+        low, high = PARTS_ROWS
+        rows = max(low, min(high, len(getattr(self, "_parts_rows", ()) or ()) or low))
+        parts_height = min(rows * line + 6, max(low * line + 6, area // 3))
+        list_height = max(line * 3, area - parts_height - 22)
         move(self.label, 12, 38, right - 12, list_height, True)
+        top = 38 + list_height + 4
+        move(self.parts_label, 12, top, right - 12, 18, True)
+        move(self.parts, 12, top + 18, right - 12, parts_height, True)
         move(self.grant, 12, buttons - 28, right - 12, 22, True)
         move(self.run_once, 12, buttons, 110, 28, True)
         move(self.run_auto, 128, buttons, 170, 28, True)
         move(self.decline, 304, buttons, 110, 28, True)
         move(self.open_log, 12, buttons, 110, 28, True)
+        move(self.show_part, 128, buttons, 110, 28, True)
         move(self.stop, right - 130, buttons, 130, 28, True)
-        self.host.panel_rows = max(3, min(40, list_height // max(self.line_height, 1)))
+        self.host.panel_rows = max(3, min(40, list_height // line))
 
     def _message(self, hwnd, msg, wp, lp):
         try:
@@ -393,6 +451,12 @@ class ControlPanel:
                     self.host.open_log_requested = True
                 elif ident == ID_GRANT:
                     self.host.grant_toggle_requested = True
+                elif ident == ID_SHOW_PART or (
+                    ident == ID_PARTS and (int(wp) >> 16) & 0xFFFF == LBN_DBLCLK
+                ):
+                    key = self.selected_part()
+                    if key is not None:
+                        self.host.show_part_requested = key
                 elif ident == ID_STOP:
                     self.host.stop_requested = True
                 return 0
@@ -429,6 +493,7 @@ class ControlPanel:
             self.user.ShowWindow(self.run_auto, 5 if card else 0)
             self.user.ShowWindow(self.decline, 5 if card else 0)
             self.user.ShowWindow(self.open_log, 0 if card else 5)
+            self.user.ShowWindow(self.show_part, 0 if card else 5)
         # Paint only this panel before native work. Never pump arbitrary NX
         # messages here: that would permit reentrant modeling calls.
         self.user.UpdateWindow(self.label)
@@ -448,6 +513,31 @@ class ControlPanel:
         self.user.SetWindowTextW(self.grant, f"Allow agent to change {grant['name'][:60]}")
         self.user.SendMessageW(self.grant, 0xF1, 1 if grant["granted"] else 0, 0)  # BM_SETCHECK
         self.user.ShowWindow(self.grant, 5)
+
+    def show_parts(self, rows):
+        """Fill "Parts in use" with ``[(part key, line)]``, keeping the selected part."""
+        rows = list(rows)
+        if rows == self._parts_rows:
+            return
+        selected = self.selected_part()
+        resize = (len(rows) != len(self._parts_rows)) and hasattr(self, "_client")
+        self._parts_rows = rows
+        send = self.user.SendMessageW
+        send(self.parts, 0x0184, 0, 0)  # LB_RESETCONTENT
+        for _key, text in rows or [(None, "No agent part is loaded")]:
+            buffer = ctypes.create_unicode_buffer(text)
+            send(self.parts, 0x0180, 0, ctypes.cast(buffer, ctypes.c_void_p).value)  # LB_ADDSTRING
+        index = next((i for i, (key, _t) in enumerate(rows) if key == selected), -1)
+        if index >= 0:
+            send(self.parts, 0x0186, index, 0)  # LB_SETCURSEL
+        if resize:
+            self._layout(*self._client)
+
+    def selected_part(self):
+        """The part key of the selected "Parts in use" line, or None."""
+        index = int(self.user.SendMessageW(self.parts, 0x0188, 0, 0))  # LB_GETCURSEL
+        rows = self._parts_rows
+        return rows[index][0] if 0 <= index < len(rows) else None
 
     def wake(self):
         """Ask for another tick as soon as NX dispatches messages again."""
@@ -480,6 +570,8 @@ class InteractiveHost:
     notice_until = None
     open_log_requested = False
     grant_toggle_requested = False
+    show_part_requested = None  # the part key whose tab the engineer asked to show
+    _parts_lines = ()  # "Parts in use": [(part key, line)] as last published
     current_summary = None
     current_part = None  # the running call's target file (two or more parts loaded)
     current_intent = None
@@ -683,6 +775,8 @@ class InteractiveHost:
             from nx_mcp.domains.session import status
 
             services = self.services
+            # The queue as it is now (the snapshot's dates from the call's start).
+            snapshot = {**snapshot, "queue": self._queue_state()}
             return status.envelope_from_snapshot(
                 snapshot,
                 params,
@@ -696,6 +790,10 @@ class InteractiveHost:
 
     def publish(self):
         state = self._refresh_snapshot()
+        try:
+            self._parts_lines = self.parts_lines()
+        except Exception as exc:
+            self.last_error = "Parts in use: " + str(exc)
         self._refresh_panel()
         temp = self.state_dir / "ui-state.tmp"
         temp.write_text(json.dumps(state))
@@ -725,6 +823,12 @@ class InteractiveHost:
 
     def _refresh_panel(self):
         self.panel.update(*self.panel_state())
+        show_parts = getattr(self.panel, "show_parts", None)
+        if show_parts is not None:
+            try:
+                show_parts(list(self._parts_lines))
+            except Exception as exc:
+                self.last_error = "Panel parts: " + str(exc)
         show_grant = getattr(self.panel, "show_grant", None)
         if show_grant is not None:
             try:
@@ -757,6 +861,97 @@ class InteractiveHost:
             if allow
             else f"The agent may no longer change {name}."
         )
+
+    # -- "Parts in use" ----------------------------------------------------------------
+
+    def parts_in_use(self):
+        """The agent's loaded parts for the panel, in NX's order: ``{key, file, shown
+        (shown / tab / background), state (modified / saved / new), last, at, ok}``;
+        UI thread only. Never the engineer's own parts (``core/target.counts``)."""
+        from nx_mcp.core import target
+        from nx_mcp.kit import parts as kit_parts
+
+        services = self.services
+        session_parts = self.session.Parts
+        tabs = kit_parts.tabs(session_parts)
+        display = getattr(session_parts, "Display", None)
+        rows = []
+        for part in list(services.parts() or []):
+            try:
+                if not target.counts(services, part):
+                    continue
+                key = services.part_key(part)
+                file = target.file_name(part)
+                full = str(getattr(part, "FullPath", "") or "")
+            except Exception:
+                continue
+            if kit_parts.same_part(part, display):
+                shown = "shown"
+            elif any(kit_parts.same_part(part, t) for t in tabs):
+                shown = "tab"
+            else:
+                shown = "background"
+            if bool(getattr(part, "IsModified", False)):
+                state = "modified"
+            else:
+                state = "saved" if full and Path(full).is_file() else "new"
+            last = self.activity.last_in(file)
+            rows.append({"key": key, "file": file, "shown": shown, "state": state, **last})
+        return rows
+
+    def parts_lines(self):
+        """``[(part key, line)]`` of "Parts in use" (``activity.part_line``)."""
+        from nx_mcp.activity import part_line
+
+        return [(row["key"], part_line(row)) for row in self.parts_in_use()]
+
+    def _show_part(self, key):
+        """The engineer clicked "Show part": activate that part's NX tab (undo marks
+        kept, no Sheet Metal dialog). Never while the engineer is in an NX command."""
+        from types import SimpleNamespace
+
+        from nx_mcp.core import target
+        from nx_mcp.kit import parts as kit_parts
+
+        part = target.part_by_key(self.services, key)
+        if part is None:
+            self._set_notice("That part is no longer loaded.")
+        elif self.engineer_busy():
+            self._set_notice("Finish your NX command first, then click Show part again.")
+        else:
+            services = self.services
+            tx = SimpleNamespace(
+                session=self.session,
+                nx=self.nx,
+                uf=getattr(services, "uf", None),
+                workspace=getattr(services, "workspace", None),
+                services=services,
+            )
+            try:
+                kit_parts.activate(tx, part)
+                self._set_notice(f"Showing {target.file_name(part)} in its NX tab.")
+            except Exception as exc:
+                self._set_notice(f"NX did not show {target.file_name(part)}: {exc}")
+        try:
+            self._parts_lines = self.parts_lines()
+        except Exception as exc:
+            self.last_error = "Parts in use: " + str(exc)
+
+    def _panel_part(self, result):
+        """The part file a call worked in, for "Parts in use": ``envelope.part`` (two or
+        more parts loaded), else the agent's only part; None when unknown."""
+        envelope = result if isinstance(result, dict) else None
+        row = envelope.get("part") if isinstance(envelope, dict) else None
+        file = row.get("file") if isinstance(row, dict) else None
+        if isinstance(file, str) and file:
+            return file
+        try:
+            from nx_mcp.core import target
+
+            agents = target.agent_parts(self.services)
+            return target.file_name(agents[0]) if len(agents) == 1 else None
+        except Exception:
+            return None
 
     def _set_notice(self, text):
         self.notice = text
@@ -797,9 +992,13 @@ class InteractiveHost:
 
     def _target_file(self, method, params):
         """The target part's file of a call while two or more parts are loaded, else
-        None; a courtesy that never fails a call (``dispatch.target_file``)."""
+        None; a courtesy that never fails a call (``dispatch.target_file``). A
+        development snippet (``nx_dev_python``) acts anywhere: None, never the work part."""
         try:
             from nx_mcp.host.dispatch import target_file
+
+            if method == DEV_PYTHON:
+                return None
 
             return target_file(self.services, method, params)
         except Exception:
@@ -1091,11 +1290,13 @@ class InteractiveHost:
         if not self._has_fingerprint:
             return False  # No agent call yet: no references or checkpoints to protect.
         now = self.model_fingerprint()
-        if now is not None and now == self._fingerprint:
+        changed = _edit_changes(self._fingerprint, now)
+        if not changed:
+            self._fingerprint = now  # a display, work part or tab change: no edit
             return False
         self._invalidate_references(_display_changed(self._fingerprint, now))
         try:
-            self.activity.engineer_change()
+            self.activity.engineer_change(detail=", ".join(changed))
         except Exception as exc:
             self.last_error = "Activity history: " + str(exc)
         return True
@@ -1139,6 +1340,7 @@ class InteractiveHost:
     # -- execution -------------------------------------------------------------
 
     def execute(self, method, params):
+        from nx_mcp.core import catalogue
         from nx_mcp.host import dispatch
 
         if threading.get_ident() != self.thread:
@@ -1229,6 +1431,13 @@ class InteractiveHost:
                     error=error,
                     part=self._ran_in(result, error),
                 )
+                if catalogue.get(method) is not None:
+                    self.activity.touch(
+                        self._panel_part(result if result is not None else _envelope(error)),
+                        self.current_summary,
+                        started=self.current_started_at,
+                        ok=error is None,
+                    )
             except Exception as exc:
                 self.last_error = "Activity history: " + str(exc)
             self.running_method = None
@@ -1366,6 +1575,9 @@ class InteractiveHost:
             if self.grant_toggle_requested:
                 self.grant_toggle_requested = False
                 self._toggle_grant()
+            if self.show_part_requested is not None:
+                key, self.show_part_requested = self.show_part_requested, None
+                self._show_part(key)
             self._apply_answer()
             self._let_bridge_run(ARRIVAL_BUDGET)
             ran = self._schedule()

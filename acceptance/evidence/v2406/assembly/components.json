@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/components.json",
-  "scenario_sha256": "75cae101baa590f435f241cafe4b738ccdc86fdc676f1c9b56c656763d66c8fd",
+  "scenario_sha256": "ac3395d2c22b55a9591868a4ff546d32d0ed54da1975311b9cbe40c6c4bc975a",
   "domain": "assembly",
   "covers": {
     "nx_create_component": [],
@@ -16,13 +16,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component": "819211439b25600bfbdfff21899b2eb5c002d9100c14436a1d29e278b35c373f",
-    "nx_list_components": "819211439b25600bfbdfff21899b2eb5c002d9100c14436a1d29e278b35c373f",
-    "nx_set_component_pose": "819211439b25600bfbdfff21899b2eb5c002d9100c14436a1d29e278b35c373f",
-    "nx_edit_component": "819211439b25600bfbdfff21899b2eb5c002d9100c14436a1d29e278b35c373f",
+    "nx_create_component": "9d0ff867eecd65686b8fcffd7045862f0d32864ca735babbe438764c9ed8e882",
+    "nx_list_components": "9d0ff867eecd65686b8fcffd7045862f0d32864ca735babbe438764c9ed8e882",
+    "nx_set_component_pose": "9d0ff867eecd65686b8fcffd7045862f0d32864ca735babbe438764c9ed8e882",
+    "nx_edit_component": "9d0ff867eecd65686b8fcffd7045862f0d32864ca735babbe438764c9ed8e882",
     "nx_create_reference_set": "853ffca0de2905ac7ce1fc1f263fd08601aa7f17e643771188ab7f2205def4c3"
   },
-  "recorded": "2026-10-11T16:42:03Z",
+  "recorded": "2026-10-12T04:58:42Z",
   "passed": true,
   "checks": 145,
   "failed_checks": 0,
