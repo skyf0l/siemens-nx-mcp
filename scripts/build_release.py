@@ -106,8 +106,8 @@ def main():
             "source_date_epoch": int(epoch),
             "python": "3.12",
             "platform": "win_amd64",
-            "upstream": "https://github.com/DreamEnding/NX_MCP",
-            "fork": "https://github.com/xuio/NX_MCP",
+            "repository": "https://github.com/skyf0l/siemens-nx-mcp",
+            "based_on": ["https://github.com/DreamEnding/NX_MCP", "https://github.com/xuio/NX_MCP"],
         }
         (bundle / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
         files = {

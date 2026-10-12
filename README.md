@@ -4,13 +4,16 @@ Let an AI assistant (Claude Code, Codex or any MCP client) model, inspect and dr
 Siemens NX on Windows: parts, sketches, features, assemblies, drawings, sheet metal,
 measurements and exports. You keep working in NX while the agent works next to you.
 
-Supported: NX 2406 and NX 2606. The full list of tools is in [docs/tools.md](docs/tools.md).
+Tested on NX 2406. NX 2606 can host it, but its tools are not validated yet. The full
+list of tools is in [docs/tools.md](docs/tools.md).
 
 ## 1. Install
 
-You need Python 3.10 or newer. In a terminal, in this folder:
+You need Git and Python 3.10 or newer. In a terminal:
 
 ```powershell
+git clone https://github.com/skyf0l/siemens-nx-mcp.git
+cd siemens-nx-mcp
 python -m venv .venv
 .venv\Scripts\pip install -e .
 ```
@@ -22,7 +25,7 @@ This creates `.venv\Scripts\nx-mcp.exe`, the program your AI client starts.
 **NX 2406:** tell NX where the add-on is, once, then start NX as usual:
 
 ```powershell
-setx UGII_USER_DIR "C:\path\to\NX_MCP\nx_app"
+setx UGII_USER_DIR "C:\path\to\siemens-nx-mcp\nx_app"
 ```
 
 (If you already use `UGII_USER_DIR`, add the `nx_app` folder to your `custom_dirs.dat`
@@ -37,20 +40,20 @@ each time you start NX.
 **Claude Code:**
 
 ```powershell
-claude mcp add nx --scope user -- "C:\path\to\NX_MCP\.venv\Scripts\nx-mcp.exe"
+claude mcp add nx --scope user -- "C:\path\to\siemens-nx-mcp\.venv\Scripts\nx-mcp.exe"
 ```
 
 **Codex:**
 
 ```powershell
-codex mcp add nx -- "C:\path\to\NX_MCP\.venv\Scripts\nx-mcp.exe"
+codex mcp add nx -- "C:\path\to\siemens-nx-mcp\.venv\Scripts\nx-mcp.exe"
 ```
 
 or add to `%USERPROFILE%\.codex\config.toml`:
 
 ```toml
 [mcp_servers.nx]
-command = 'C:\path\to\NX_MCP\.venv\Scripts\nx-mcp.exe'
+command = 'C:\path\to\siemens-nx-mcp\.venv\Scripts\nx-mcp.exe'
 tool_timeout_sec = 300
 ```
 
