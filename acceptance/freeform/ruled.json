@@ -1,0 +1,341 @@
+{
+ "covers": {
+  "nx_create_ruled": [
+   "parameter",
+   "arc_length"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "flat",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 10,
+      "start_angle": 0,
+      "end_angle": 90
+     },
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 90
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "low",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      100,
+      0,
+      0
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 90
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "high",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      100,
+      0,
+      30
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 90
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sq0",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      200,
+      0,
+      0
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sq1",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      200,
+      0,
+      30
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "Two concentric quarter arcs r 10 and r 20: a quarter annulus, pi/4 (400 - 100)",
+   "args": {
+    "first": "$flat.data.curves.0.id",
+    "second": "$flat.data.curves.1.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": true,
+    "data.faces": 1,
+    "data.area": {
+     "close": 235.61945,
+     "tol": 0.001
+    },
+    "data.alignment": "parameter",
+    "data.volume": null,
+    "data.gaps.first": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.gaps.second": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.bounds.min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.bounds.max": {
+     "close": [
+      20,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "Arc r 20 at z 0 to arc r 20 at z 30: a quarter cylinder patch, pi/2 * 20 * 30",
+   "args": {
+    "first": [
+     "$low.data.curves.0.id"
+    ],
+    "second": "$high.data.curves.0.id",
+    "alignment": "arc_length"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.alignment": "arc_length",
+    "data.area": {
+     "close": 942.4778,
+     "tol": 0.1
+    },
+    "data.gaps.first": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.gaps.second": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.bounds.min": {
+     "close": [
+      100,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      120,
+      20,
+      30
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "Two closed 20 x 20 squares 30 apart: a ruled solid block",
+   "args": {
+    "first": [
+     "$sq0.data.curves.0.id",
+     "$sq0.data.curves.1.id",
+     "$sq0.data.curves.2.id",
+     "$sq0.data.curves.3.id"
+    ],
+    "second": [
+     "$sq1.data.curves.0.id",
+     "$sq1.data.curves.1.id",
+     "$sq1.data.curves.2.id",
+     "$sq1.data.curves.3.id"
+    ],
+    "solid": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": false,
+    "data.volume": {
+     "close": 12000,
+     "tol": 0.001
+    },
+    "data.area": {
+     "close": 3200,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "The same squares as a sheet: an open tube, 4 faces of 20 x 30",
+   "args": {
+    "first": [
+     "$sq0.data.curves.0.id",
+     "$sq0.data.curves.1.id",
+     "$sq0.data.curves.2.id",
+     "$sq0.data.curves.3.id"
+    ],
+    "second": [
+     "$sq1.data.curves.0.id",
+     "$sq1.data.curves.1.id",
+     "$sq1.data.curves.2.id",
+     "$sq1.data.curves.3.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": true,
+    "data.faces": 4,
+    "data.area": {
+     "close": 2400,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "args": {
+    "first": "$low.data.curves.0.id",
+    "second": "$high.data.curves.0.id",
+    "solid": true
+   },
+   "expect": {
+    "error.field": "/solid",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "args": {
+    "first": "$low.data.curves.0.id",
+    "second": "$low.data.curves.0.id"
+   },
+   "expect": {
+    "error.field": "/second/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

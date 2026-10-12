@@ -6,8 +6,8 @@ purpose and rationale. Scope: the public tool surface (names, arguments,
 results, errors, profiles) of the catalogue-based re-architecture. Names and
 arguments change freely: no aliases, no backwards compatibility.
 
-**Summary.** The catalogue has **163 catalogue tools** in 10 domains (3.13), reached in the
-agent profile through 4 gateway tools (2.1). Errors use 22 categories and 71 codes (1.8).
+**Summary.** The catalogue has **176 catalogue tools** in 12 domains (3.13), reached in the
+agent profile through 4 gateway tools (2.1). Errors use 22 categories and 72 codes (1.8).
 Code layout and the kernel are specified in [architecture.md](architecture.md). The
 recommended agent profile costs about 4K tokens.
 
@@ -392,7 +392,7 @@ parameter (`nx_activate_part`, `nx_save_part`, `nx_close_part`) stays its argume
 
 | Profile | Listed directly | Reached through gateway | Use |
 |---|---|---|---|
-| `agent` (default, recommended) | 4 gateway tools + 14 core tools | all 163 catalogue tools | Any MCP client; smallest context, read-only gateway can be auto-approved |
+| `agent` (default, recommended) | 4 gateway tools + 14 core tools | all 176 catalogue tools | Any MCP client; smallest context, read-only gateway can be auto-approved |
 | `full` | the 4 gateways and every catalogue tool tested on the connected build, with `readOnlyHint`/`destructiveHint` from `effect` | none needed | Clients with native deferred tool search (they index names and load schemas on demand) |
 
 Gateway tools (always listed):
@@ -420,10 +420,10 @@ the catalogue test, which fails above budget.
 
 | Item | Today | Target |
 |---|---|---|
-| Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | At most 1,040 characters per listed tool on average, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included: 167 listed tools (163 + 4 gateways) average 960.3 (160,373 characters, about 42K tokens). A mean rather than a total, so adding tools does not move the cap; the per-tool caps (1,200, 2,500 for unions, median 700; measured median 693) still bound each definition. The full profile is opt-in for clients that load schemas on demand; the default `agent` profile stays at 15K |
-| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,300 characters (15,244 measured), about 4K tokens |
+| Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | At most 1,040 characters per listed tool on average, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included: 180 listed tools (176 + 4 gateways) average 977.6 (175,970 characters, about 46K tokens). A mean rather than a total, so adding tools does not move the cap; the per-tool caps (1,200, 2,500 for unions, median 700; measured median 699) still bound each definition. The full profile is opt-in for clients that load schemas on demand; the default `agent` profile stays at 15K |
+| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,300 characters (15,251 measured), about 4K tokens |
 | One discovery call (10 rows) | full descriptions, 1-3K tokens | name + summary + effect rows, about 300 tokens |
-| Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call; each entry at most 200 characters over the tool's definition (1,057 characters, about 280 tokens, per tool measured) |
+| Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call; each entry at most 200 characters over the tool's definition (1,071 characters, about 280 tokens, per tool measured) |
 | Typical modeling task (find 4 tools, fetch 4 schemas, 10 calls) | about 8-10K tokens of tool metadata | about 5K tokens |
 
 ---
@@ -683,26 +683,28 @@ Note: section views are edited with `nx_edit_section_view` and deleted with
 
 ### 3.13 Count
 
-The catalogue (`nx_mcp.core.catalogue`) has 163 tools; the 4 gateway tools of 2.1 are
+The catalogue (`nx_mcp.core.catalogue`) has 176 tools; the 4 gateway tools of 2.1 are
 served by the sidecar outside it.
 
 | Domain | Tools |
 |---|---|
-| assembly | 20 |
+| assembly | 23 |
 | display | 11 |
 | drawing | 20 |
-| freeform | 6 |
-| inspection | 18 |
+| freeform | 9 |
+| inspection | 20 |
 | modeling | 39 |
+| motion | 1 |
+| optimization | 4 |
 | parts_files | 16 |
 | session | 16 |
 | sheet_metal | 6 |
 | sketch | 11 |
-| **Total** | **163** |
+| **Total** | **176** |
 
-Effects of the 163: 91 model, 41 read, 14 file, 9 session, 8 view.
+Effects of the 176: 99 model, 45 read, 15 file, 9 session, 8 view.
 
-Added after the design and listed only in the [tool reference](../tools.md): `nx_create_component_mirror`, `nx_create_emboss_body`, `nx_create_extract`, `nx_create_helix`, `nx_create_primitive` (block, cylinder, cone or sphere solid; a block combines with one target body), `nx_create_rib`, `nx_create_tube`, `nx_create_wave_link`, `nx_export_expressions`, `nx_get_attributes`, `nx_import_expressions`, `nx_list_materials`, `nx_list_view_edges` (the model edges a drawing view draws, with sheet coordinates), `nx_measure_section`, `nx_set_attributes`.
+Added after the design and listed only in the [tool reference](../tools.md): `nx_create_component_mirror`, `nx_create_emboss_body`, `nx_create_extract`, `nx_create_helix`, `nx_create_primitive` (block, cylinder, cone or sphere solid; a block combines with one target body), `nx_create_rib`, `nx_create_tube`, `nx_create_wave_link`, `nx_export_expressions`, `nx_get_attributes`, `nx_import_expressions`, `nx_list_materials`, `nx_list_view_edges` (the model edges a drawing view draws, with sheet coordinates), `nx_measure_section`, `nx_set_attributes`; freeform `nx_create_offset_surface`, `nx_create_n_sided_surface`, `nx_create_ruled`; weight and centre of gravity `nx_measure_assembly_mass`, `nx_export_mass_report`, `nx_set_component_mass`, `nx_create_component_group`, `nx_list_component_groups`; the `motion` domain `nx_run_motion_sweep` (an assembly range-of-motion and clearance sweep without the Motion solver); the `optimization` domain (topology optimization) `nx_create_topology_study`, `nx_create_topology_condition`, `nx_run_topology_study`, `nx_get_topology_study`.
 
 Biggest merges: sketch curves and constraints (32 → 11), inventories into
 `nx_list_objects` (15 → 1), drawing views (5 → 1), drawing dimensions (4 → 1),

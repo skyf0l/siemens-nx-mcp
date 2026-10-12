@@ -6,6 +6,7 @@ The caps are on what an agent reads: the ``tools/list`` payload of each profile,
 
 import json
 import statistics
+import typing
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,7 +24,7 @@ CHARS_PER_TOKEN = 3.8
 # capture, one routed through nx_invoke_read, the judge closed parts to capture). The raise
 # is kept small by dropping text the listing repeated: the offset/limit descriptions
 # ("First row to return", "Rows per page") and idempotentHint false (MCP's default).
-AGENT_LISTING = 15_300  # 15,244 on 2026-10-12
+AGENT_LISTING = 15_300  # 15,251 on 2026-10-12 (12 domains in the find domain enum)
 # Full profile cap (tool-surface 2.2): a mean per listed tool, so the cap does not have to
 # move each time a tool is added. 157 tools averaged 798.5 characters on 2026-10-10 (name +
 # description + input schema, with the 87-character call keys operation_id and intent on
@@ -35,8 +36,12 @@ AGENT_LISTING = 15_300  # 15,244 on 2026-10-12
 # schemas on demand; the default agent profile keeps its 15,000 total.
 FULL_MEAN_PER_TOOL = 1040
 FIND_PAGE = 1_400
+# The empty-query overview lists every domain (about 120 characters each) rather than a
+# page of ten tool rows: 1,400 until 2026-10-12, when motion and optimization made 12
+# domains and 1,557 characters; 1,650 leaves about 6% headroom.
+OVERVIEW_PAGE = 1_650
 SCHEMA_PER_TOOL = 900
-MEDIAN_DEFINITION = 700
+MEDIAN_DEFINITION = 700  # 699 over 176 tools on 2026-10-12
 DEFINITION_CAP, UNION_CAP = 1_200, 2_500
 # A schema entry adds example, requires and evidence to the tool definition.
 SCHEMA_OVERHEAD = SCHEMA_PER_TOOL - MEDIAN_DEFINITION
@@ -139,8 +144,12 @@ async def test_a_page_of_ten_discovery_rows_fits(tmp_path, every_tool_tested, qu
     text = result.content[0].text
     print(f"find {query!r}: {len(text)} chars")
     data = result.structuredContent["data"]
-    assert len(data["tools"] if query else data["domains"]) <= 10  # empty: domain overview
-    assert len(text) <= FIND_PAGE
+    if query:
+        assert len(data["tools"]) <= 10
+        assert len(text) <= FIND_PAGE
+    else:  # the domain overview: one row per domain
+        assert len(data["domains"]) <= len(typing.get_args(catalogue.Domain))
+        assert len(text) <= OVERVIEW_PAGE
 
 
 async def test_schema_fetch_adds_little_to_each_definition(tmp_path, every_tool_tested):

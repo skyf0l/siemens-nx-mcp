@@ -176,6 +176,25 @@ def test_activate_application_refusals():
     assert "nx_activate_part" in bad.error["hint"]
 
 
+def test_an_unlicensed_application_is_refused_before_nx_switches():
+    """Entering an application the seat cannot license opens NX's blocking "License Not
+    Available" dialog: the license is asked first (a query, no checkout)."""
+    nx = sm_nx(application="modeling")
+    app = App(nx)
+    asked = []
+    nx.session.LicenseManager = type(
+        "LM", (), {"CheckPresence": staticmethod(lambda f: asked.append(f) or False)}
+    )()
+    bad = run(nx, "nx_activate_application", application="sheet_metal")
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE", bad
+    assert bad.mutation_outcome == "not_started" and app.calls == []
+    assert asked == ["nx_sheet_metal"] and bad.error["details"]["license"] == "nx_sheet_metal"
+    # Already in Modeling: nothing to enter, so nothing to license; the refusal follows
+    # the argument, so the tool itself is not refused for the rest of the session.
+    stay = run(nx, "nx_activate_application", application="modeling")
+    assert stay.ok and stay.data["changed"] is False and asked == ["nx_sheet_metal"]
+
+
 @pytest.mark.parametrize("what", ["body", "feature"])
 def test_a_sheet_metal_part_never_switches_back_to_modeling(what):
     """NX 2406 opens a blocking modal warning when a part with sheet-metal features enters

@@ -15,8 +15,8 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
   `errors.py`, `references.py`, `receipts.py`, `evidence.py`, `summary.py`.
 - `kit/`: shared NX know-how (builders, select, sketch, drawing, readback, ...).
 - `domains/<domain>/`: every public tool, one `@tool` function each (session,
-  parts_files, sketch, modeling, freeform, assembly, inspection, drawing,
-  sheet_metal, display).
+  parts_files, sketch, modeling, freeform, assembly, motion, inspection, drawing,
+  sheet_metal, display, optimization).
 - `host/dispatch.py` -> `core/kernel.py`, with `host/services.py` (`NXServices`).
   Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406 startup app; `nx_app/journals/start_2406.py`
   plays the same bootstrap), `nx_app/journals/start_2606.py` (2606),

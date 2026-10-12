@@ -1,0 +1,794 @@
+{
+ "covers": {
+  "nx_measure_assembly_mass": [],
+  "nx_export_mass_report": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/aw_hull.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "hull",
+   "args": {
+    "part": "aw_hull",
+    "length": 2000,
+    "width": 1000,
+    "height": 400
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "setup": true,
+   "args": {
+    "part": "aw_hull",
+    "bodies": [
+     "$hull.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "AW_HULL_500",
+      "density": 500
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "aw_hull"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/aw_engine.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "engine",
+   "args": {
+    "part": "aw_engine",
+    "length": 400,
+    "width": 300,
+    "height": 300
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "setup": true,
+   "args": {
+    "part": "aw_engine",
+    "bodies": [
+     "$engine.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "AW_STEEL",
+      "density": 7850
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "aw_engine"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/aw_tank.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "tank",
+   "args": {
+    "part": "aw_tank",
+    "length": 500,
+    "width": 400,
+    "height": 200
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "setup": true,
+   "args": {
+    "part": "aw_tank",
+    "bodies": [
+     "$tank.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "AW_WATER",
+      "density": 1000
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "aw_tank"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/aw_battery.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "aw_battery"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/aw_drive.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "args": {
+    "part": "aw_drive",
+    "path": "$run/aw_engine.prt",
+    "name": "ENGINE"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "aw_drive"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "HULL",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_hull.prt",
+    "name": "HULL",
+    "pose": {
+     "translation": [
+      0,
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "DRIVE_PORT",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_drive.prt",
+    "name": "DRIVE_PORT",
+    "pose": {
+     "translation": [
+      100,
+      150,
+      400
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "ENGINE_STBD",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_engine.prt",
+    "name": "ENGINE_STBD",
+    "pose": {
+     "translation": [
+      100,
+      550,
+      400
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "TANK",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_tank.prt",
+    "name": "TANK",
+    "pose": {
+     "translation": [
+      800,
+      300,
+      400
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "BATTERY",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_battery.prt",
+    "name": "BATTERY",
+    "pose": {
+     "translation": [
+      1500,
+      500,
+      400
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "reference": {
+     "origin": [
+      0,
+      500,
+      0
+     ]
+    },
+    "inertia": true
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.total.mass": {
+     "close": 1005.2,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      608.3963390370076,
+      500.0,
+      408.73458018304814
+     ],
+     "tol": 1e-06
+    },
+    "data.total.reference_cog": {
+     "close": [
+      608.3963390370076,
+      0.0,
+      408.73458018304814
+     ],
+     "tol": 1e-06
+    },
+    "data.total.inertia.0.0": {
+     "close": 99459643.71932617,
+     "tol": 0.01
+    },
+    "data.total.inertia.0.2": {
+     "close": 55707719.85674493,
+     "tol": 0.01
+    },
+    "data.total.inertia.2.2": {
+     "close": 325313468.231861,
+     "tol": 0.01
+    },
+    "data.total.principal_moments.0": {
+     "close": 86466591.06385973,
+     "tol": 0.01
+    },
+    "data.total.reference_inertia.0.0": {
+     "close": 267392333.33333334,
+     "tol": 0.01
+    },
+    "data.total.reference_inertia.0.2": {
+     "close": -194258000.0,
+     "tol": 0.01
+    },
+    "data.row_count": 5,
+    "data.rows": {
+     "contains": {
+      "path": "DRIVE_PORT/ENGINE",
+      "material": "AW_STEEL",
+      "source": "material"
+     }
+    },
+    "data.units.length": "mm",
+    "data.units.mass": "kg",
+    "warnings.0.code": "NX_NOTE",
+    "warnings.0.message": {
+     "matches": "BATTERY"
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "reference": {
+     "origin": [
+      0,
+      500,
+      0
+     ]
+    },
+    "items": [
+     {
+      "component": "$BATTERY.data.component.id",
+      "mass": 60,
+      "center": [
+       100,
+       50,
+       80
+      ],
+      "frame": "component"
+     },
+     {
+      "name": "FUEL",
+      "mass": 150,
+      "center": [
+       1050,
+       500,
+       500
+      ],
+      "group": "fuel"
+     }
+    ],
+    "groups": {
+     "propulsion": [
+      "ENGINE*"
+     ],
+     "hull": [
+      "$HULL.data.component.id"
+     ]
+    },
+    "what_if": [
+     {
+      "name": "crew",
+      "mass": 80,
+      "center": [
+       1500,
+       700,
+       800
+      ]
+     },
+     {
+      "name": "move stbd",
+      "component": "$ENGINE_STBD.data.component.id",
+      "offset": [
+       0,
+       -400,
+       0
+      ]
+     },
+     {
+      "name": "no fuel",
+      "item": "FUEL",
+      "remove": true
+     }
+    ]
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 1215.2,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      711.8663594470046,
+      502.46872942725474,
+      423.5187623436471
+     ],
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "contains": {
+      "name": "HULL",
+      "group": "hull"
+     }
+    },
+    "data.rows.5.name": "FUEL",
+    "data.rows.5.group": "fuel",
+    "data.rows.0.name": "BATTERY",
+    "data.rows.0.source": "override",
+    "data.rows.0.center_of_gravity": {
+     "close": [
+      1600,
+      550,
+      480
+     ],
+     "tol": 1e-06
+    },
+    "data.groups.0.name": "propulsion",
+    "data.groups.0.mass": {
+     "close": 565.2,
+     "tol": 1e-06
+    },
+    "data.groups.0.center_of_gravity": {
+     "close": [
+      300,
+      500,
+      550
+     ],
+     "tol": 1e-06
+    },
+    "data.groups": {
+     "count": 4
+    },
+    "data.what_if.mass": {
+     "close": 1145.2,
+     "tol": 1e-06
+    },
+    "data.what_if.mass_change": {
+     "close": -70,
+     "tol": 1e-06
+    },
+    "data.what_if.center_of_gravity": {
+     "close": [
+      722.6336011177086,
+      417.88333915473277,
+      439.80090813831646
+     ],
+     "tol": 1e-06
+    },
+    "data.what_if.reference_cog.1": {
+     "close": -82.11666084526723,
+     "tol": 1e-06
+    },
+    "data.what_if.changes.2.mass": {
+     "close": -150,
+     "tol": 1e-06
+    },
+    "data.skipped": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "items": [
+     {
+      "component": "$DRIVE_PORT.data.component.id",
+      "mass": 350
+     }
+    ],
+    "what_if": [
+     {
+      "name": "drive out",
+      "component": "$DRIVE_PORT.data.component.id",
+      "remove": true
+     }
+    ]
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 1072.6,
+     "tol": 1e-06
+    },
+    "data.row_count": 5,
+    "data.total.center_of_gravity": {
+     "close": [
+      589.0173410404625,
+      487.4324072347567,
+      417.6114115234011
+     ],
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "contains": {
+      "name": "DRIVE_PORT",
+      "source": "override"
+     }
+    },
+    "data.what_if.mass": {
+     "close": 722.6,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "exclude": [
+     "$TANK.data.component.id"
+    ],
+    "group_by": "part"
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 965.2,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      590.0953170327393,
+      500.0,
+      404.95234148363033
+     ],
+     "tol": 1e-06
+    },
+    "data.skipped.0.reason": "excluded",
+    "data.groups": {
+     "contains": {
+      "name": "aw_engine",
+      "rows": 2
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "components": [
+     "$ENGINE_STBD.data.component.id"
+    ]
+   },
+   "expect": {
+    "data.row_count": 1,
+    "data.total.mass": {
+     "close": 282.6,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      300,
+      700,
+      550
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_edit_component",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "components": [
+     "$TANK.data.component.id"
+    ],
+    "suppressed": true
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 965.2,
+     "tol": 1e-06
+    },
+    "data.skipped.0.reason": "suppressed"
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "include_suppressed": true
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 1005.2,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      608.3963390370076,
+      500.0,
+      408.73458018304814
+     ],
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "contains": {
+      "name": "TANK",
+      "suppressed": true
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "what_if": [
+     {
+      "name": "bad",
+      "mass": 10
+     }
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/what_if/0/center"
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "items": [
+     {
+      "component": "$BATTERY.data.component.id",
+      "mass": 60
+     }
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/items/0/center"
+   }
+  },
+  {
+   "call": "nx_export_mass_report",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_weights.csv",
+    "report_args": {
+     "group_by": "top_component",
+     "reference": {
+      "origin": [
+       0,
+       500,
+       0
+      ]
+     },
+     "items": [
+      {
+       "component": "$BATTERY.data.component.id",
+       "mass": 60,
+       "center": [
+        1600,
+        550,
+        480
+       ]
+      }
+     ],
+     "what_if": [
+      {
+       "name": "crew",
+       "mass": 80,
+       "center": [
+        1500,
+        700,
+        800
+       ]
+      }
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.row_count": 4,
+    "data.total.mass": {
+     "close": 1025.2,
+     "tol": 1e-06
+    },
+    "data.overwritten": false,
+    "data.path": {
+     "matches": "aw_weights\\.csv$"
+    }
+   }
+  },
+  {
+   "call": "nx_download_file",
+   "args": {
+    "path": "$run/aw_weights.csv",
+    "delivery": "text"
+   },
+   "expect": {
+    "data.text": {
+     "matches": "^﻿?section,name,path,part,group,source,material,density_kg_m3,volume,mass_kg"
+    }
+   }
+  },
+  {
+   "call": "nx_download_file",
+   "args": {
+    "path": "$run/aw_weights.csv",
+    "delivery": "text"
+   },
+   "expect": {
+    "data.text": {
+     "contains": "component,ENGINE,DRIVE_PORT/ENGINE,aw_engine,DRIVE_PORT,material,AW_STEEL,7850,36000000,282.6,"
+    }
+   }
+  },
+  {
+   "call": "nx_download_file",
+   "args": {
+    "path": "$run/aw_weights.csv",
+    "delivery": "text"
+   },
+   "expect": {
+    "data.text": {
+     "contains": "\r\ntotal,TOTAL,,,,,,,,1025.2,,"
+    }
+   }
+  },
+  {
+   "call": "nx_download_file",
+   "args": {
+    "path": "$run/aw_weights.csv",
+    "delivery": "text"
+   },
+   "expect": {
+    "data.text": {
+     "contains": "what_if_total,WHAT-IF TOTAL,,,,,,,,1105.2,"
+    }
+   }
+  },
+  {
+   "call": "nx_export_mass_report",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_weights.csv"
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_export_mass_report",
+   "args": {
+    "part": "$part",
+    "path": "$run/aw_weights.csv",
+    "overwrite": true
+   },
+   "expect": {
+    "data.overwritten": true,
+    "data.row_count": 4,
+    "data.total.mass": {
+     "close": 965.2,
+     "tol": 1e-06
+    }
+   }
+  }
+ ]
+}

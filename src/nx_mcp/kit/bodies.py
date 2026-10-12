@@ -5,6 +5,7 @@
     bodies.scope(tx, "auto")           # work-part bodies (+ occurrences when an assembly)
     bodies.occurrences(component)      # [] when it or a parent is suppressed or unloaded
     bodies.solids(found, field)        # NX_WRONG_GEOMETRY for a sheet body
+    bodies.measurable(found, scoped=True)  # (kept, skipped): no empty or topology results
     bodies.faulty(tx, found)           # tags UF body consistency faults (self-intersecting)
     bodies.expect_sound(tx, made, known=...)  # after a build: consistency faults fail
     bodies.scale_note(tx, made)        # warning text when the bodies span over 10 m
@@ -113,6 +114,39 @@ def solids(found, field=None, what="solid bodies"):
     if sheets:
         fail("NX_WRONG_GEOMETRY", f"This check needs {what}; a sheet body was given", field=field)
     return found
+
+
+TOPOLOGY_FEATURE = "TopologyOptimizationFeature"
+
+
+def faceless(body) -> bool:
+    """True for a body without faces (False when NX cannot tell)."""
+    try:
+        return len(list(body.GetFaces() or [])) == 0
+    except Exception:
+        return False
+
+
+def topology_result(body) -> bool:
+    """True for a body a Topology Optimization feature owns: its result, a faceless copy of
+    the design space until solved, then the optimized shape (NX 2406). It sits beside the
+    design space body, so counting both counts the part twice."""
+    try:
+        features = list(body.GetFeatures() or [])
+    except Exception:
+        return False
+    return any(type(f).__name__ == TOPOLOGY_FEATURE for f in features)
+
+
+def measurable(found, scoped: bool) -> tuple[list, list]:
+    """``(kept, skipped)``: faceless bodies (NX refuses to measure them: 875004 "Unknown
+    feature type") and, for a ``scoped`` set (the part or assembly rather than chosen
+    bodies), topology optimization results are skipped."""
+    kept: list = []
+    skipped: list = []
+    for body in found:
+        (skipped if faceless(body) or (scoped and topology_result(body)) else kept).append(body)
+    return kept, skipped
 
 
 def require(found, field=None):

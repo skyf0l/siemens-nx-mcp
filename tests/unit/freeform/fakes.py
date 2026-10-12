@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from types import SimpleNamespace as NS
 
+from tests.kit.fake import FakeSection
 from tests.kit.objects import Body, Edge, Face, Object, point
 from tests.unit.modeling.fakes import feature, modeling_nx
 
@@ -158,6 +159,50 @@ def freeform_nx(units="mm"):
     )
     nx.part.CreateRegionPoint = lambda p, body: NS(kind="region", point=p, body=body)
     nx.nx.Features.StudioSpline = StudioSpline
+
+    # ---- interior face samples (offset read-back): a face with ``at(u, v)`` -> point -----
+    plain_props = nx.uf.Modeling.AskFaceProps
+
+    def face_props(tag, uv):
+        f = objects[tag]
+        if not hasattr(f, "at"):
+            return plain_props(tag, uv)
+        return (f.at(*uv), [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], list(f.normal), 0, 0)
+
+    nx.uf.Modeling.AskFaceProps = face_props
+
+    # ---- offset surface face sets and the license query ----------------------------------
+    nx.face_sets = []
+
+    def empty_face_set():
+        made_set = NS(Offset=NS(RightHandSide=None), FaceCollector=None)
+        nx.face_sets.append(made_set)
+        return made_set
+
+    nx.part.FaceSetOffsets = NS(CreateEmptyFaceSet=empty_face_set)
+    nx.licenses = {"nx_freeform_1": True}
+    nx.license_queries = []
+
+    def check_presence(name):
+        nx.license_queries.append(name)
+        return nx.licenses.get(name, False)
+
+    nx.session.LicenseManager = NS(CheckPresence=check_presence)
+
+    # ---- builders whose own sections are filled (ruled, N-sided) -----------------------
+    make_builder = nx.builder
+
+    def builder(kind, *args):
+        b = make_builder(kind, *args)
+        own = {
+            "RuledBuilder": ("FirstSection", "SecondSection"),
+            "NSidedSurfaceBuilder": ("OuterLoop",),
+        }
+        for name in own.get(kind, ()):
+            object.__setattr__(b, name, FakeSection())
+        return b
+
+    nx.builder = builder
 
     # ---- Studio Spline builder: the committed curve is the polyline ----------------------
     def spline_commit(b):

@@ -1,0 +1,911 @@
+{
+ "covers": {
+  "nx_run_motion_sweep": [
+   "constraint"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/link/ml_ground.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_ground",
+    "shape": "block",
+    "origin": [
+     -15,
+     -10,
+     -5
+    ],
+    "length": 130,
+    "width": 20,
+    "height": 5
+   },
+   "save": "g_b"
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_ground",
+    "shape": "cylinder",
+    "origin": [
+     0,
+     0,
+     -6
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$g_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_ground",
+    "shape": "cylinder",
+    "origin": [
+     100,
+     0,
+     -6
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$g_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "ml_ground"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/link/ml_crank.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_crank",
+    "shape": "block",
+    "origin": [
+     -10,
+     -6,
+     0
+    ],
+    "length": 60,
+    "width": 12,
+    "height": 5
+   },
+   "save": "ml_crank_b"
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_crank",
+    "shape": "cylinder",
+    "origin": [
+     0,
+     0,
+     -1
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$ml_crank_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_crank",
+    "shape": "cylinder",
+    "origin": [
+     40,
+     0,
+     -1
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$ml_crank_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "ml_crank"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/link/ml_coupler.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_coupler",
+    "shape": "block",
+    "origin": [
+     -10,
+     -6,
+     0
+    ],
+    "length": 140,
+    "width": 12,
+    "height": 5
+   },
+   "save": "ml_coupler_b"
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_coupler",
+    "shape": "cylinder",
+    "origin": [
+     0,
+     0,
+     -1
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$ml_coupler_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_coupler",
+    "shape": "cylinder",
+    "origin": [
+     120,
+     0,
+     -1
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$ml_coupler_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "ml_coupler"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/link/ml_rocker.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_rocker",
+    "shape": "block",
+    "origin": [
+     -10,
+     -6,
+     0
+    ],
+    "length": 100,
+    "width": 12,
+    "height": 5
+   },
+   "save": "ml_rocker_b"
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_rocker",
+    "shape": "cylinder",
+    "origin": [
+     0,
+     0,
+     -1
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$ml_rocker_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "ml_rocker",
+    "shape": "cylinder",
+    "origin": [
+     80,
+     0,
+     -1
+    ],
+    "diameter": 6,
+    "height": 7,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$ml_rocker_b.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "ml_rocker"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "G",
+   "args": {
+    "part": "$part",
+    "path": "$run/link/ml_ground.prt",
+    "name": "GROUND"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "K",
+   "args": {
+    "part": "$part",
+    "path": "$run/link/ml_crank.prt",
+    "name": "CRANK",
+    "pose": {
+     "translation": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      [
+       6.123233995736766e-17,
+       -1.0,
+       0
+      ],
+      [
+       1.0,
+       6.123233995736766e-17,
+       0
+      ],
+      [
+       0,
+       0,
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "R",
+   "args": {
+    "part": "$part",
+    "path": "$run/link/ml_rocker.prt",
+    "name": "ROCKER",
+    "pose": {
+     "translation": [
+      100,
+      0,
+      0
+     ],
+     "rotation": [
+      [
+       0.1692305936713948,
+       -0.9855764841784869,
+       0
+      ],
+      [
+       0.9855764841784869,
+       0.1692305936713948,
+       0
+      ],
+      [
+       0,
+       0,
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "L",
+   "args": {
+    "part": "$part",
+    "path": "$run/link/ml_coupler.prt",
+    "name": "COUPLER",
+    "pose": {
+     "translation": [
+      0,
+      40,
+      5
+     ],
+     "rotation": [
+      [
+       0.9461537291142631,
+       -0.3237176561189914,
+       0
+      ],
+      [
+       0.3237176561189914,
+       0.9461537291142631,
+       0
+      ],
+      [
+       0,
+       0,
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "gA",
+   "args": {
+    "owner": "$G.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "gD",
+   "args": {
+    "owner": "$G.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     100,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "kA",
+   "args": {
+    "owner": "$K.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "kB",
+   "args": {
+    "owner": "$K.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0,
+     40,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "lB",
+   "args": {
+    "owner": "$L.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     0,
+     40,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "lC",
+   "args": {
+    "owner": "$L.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     113.53844749371159,
+     78.84611873427897,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rD",
+   "args": {
+    "owner": "$R.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     100,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rC",
+   "args": {
+    "owner": "$R.data.component.id",
+    "limit": 1,
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     113.53844749371159,
+     78.84611873427897,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "kS",
+   "args": {
+    "owner": "$K.data.component.id",
+    "limit": 1,
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rS",
+   "args": {
+    "owner": "$R.data.component.id",
+    "limit": 1,
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0.9855764841784869,
+     -0.1692305936713948,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "gF",
+   "args": {
+    "owner": "$G.data.component.id",
+    "limit": 1,
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     -1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "fix",
+    "component": "$G.data.component.id"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "concentric",
+    "component": "$K.data.component.id",
+    "geometry": "$kA.data.items.0.id",
+    "target_component": "$G.data.component.id",
+    "target_geometry": "$gA.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "concentric",
+    "component": "$R.data.component.id",
+    "geometry": "$rD.data.items.0.id",
+    "target_component": "$G.data.component.id",
+    "target_geometry": "$gD.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "concentric",
+    "component": "$L.data.component.id",
+    "geometry": "$lB.data.items.0.id",
+    "target_component": "$K.data.component.id",
+    "target_geometry": "$kB.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "concentric",
+    "component": "$L.data.component.id",
+    "geometry": "$lC.data.items.0.id",
+    "target_component": "$R.data.component.id",
+    "target_geometry": "$rC.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "angle",
+    "component": "$K.data.component.id",
+    "geometry": "$kS.data.items.0.id",
+    "target_component": "$G.data.component.id",
+    "target_geometry": "$gF.data.items.0.id",
+    "value": 90
+   },
+   "save": "crank"
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "constraint",
+    "constraint": "$crank.data.constraint.id",
+    "start": 30,
+    "end": 150,
+    "steps": 12,
+    "pairs": [
+     {
+      "a": "$K.data.component.id",
+      "b": "$R.data.component.id"
+     }
+    ],
+    "track": [
+     {
+      "component": "$L.data.component.id",
+      "point": [
+       56.769224,
+       59.423059,
+       7.5
+      ]
+     },
+     {
+      "component": "$R.data.component.id",
+      "axis": [
+       0,
+       0,
+       1
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "data.joint": "constraint",
+    "data.unit": "deg",
+    "data.values": {
+     "count": 13
+    },
+    "data.restored": true,
+    "data.moved": {
+     "count": 3
+    },
+    "data.stopped": null,
+    "data.angles.0.angles.0": {
+     "close": 30.202471,
+     "tol": 0.0001
+    },
+    "data.angles.0.angles.6": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.angles.0.angles.12": {
+     "close": -24.989136,
+     "tol": 0.0001
+    },
+    "data.angles.0.min": {
+     "close": -24.989136,
+     "tol": 0.0001
+    },
+    "data.angles.0.max": {
+     "close": 30.202471,
+     "tol": 0.0001
+    },
+    "data.angles.0.travel": {
+     "close": 55.191607,
+     "tol": 0.0002
+    },
+    "data.points.0.path.0": {
+     "close": [
+      18.69776,
+      47.476808,
+      7.5
+     ],
+     "tol": 0.0001
+    },
+    "data.points.0.path.12": {
+     "close": [
+      90.11018,
+      42.87295,
+      7.5
+     ],
+     "tol": 0.0001
+    },
+    "data.clearances.0.distances.0": {
+     "close": 76.698729,
+     "tol": 0.0001
+    },
+    "data.clearances.0.distances.6": {
+     "close": 86.394235,
+     "tol": 0.0001
+    },
+    "data.clearances.0.min": {
+     "close": 49.602374,
+     "tol": 0.0001
+    },
+    "data.clearances.0.min_value": {
+     "close": 150,
+     "tol": 1e-09
+    },
+    "data.clearances.0.first_violation": null
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "constraint",
+    "constraint": "$crank.data.constraint.id",
+    "start": 30,
+    "end": 190
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/end",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_edit_assembly_constraint",
+   "setup": true,
+   "args": {
+    "constraint": "$crank.data.constraint.id",
+    "suppressed": true
+   }
+  },
+  {
+   "call": "nx_create_assembly_constraint",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "type": "angle",
+    "component": "$R.data.component.id",
+    "geometry": "$rS.data.items.0.id",
+    "target_component": "$G.data.component.id",
+    "target_geometry": "$gF.data.items.0.id",
+    "value": 80.25691282921025
+   },
+   "save": "rocker"
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "constraint",
+    "constraint": "$rocker.data.constraint.id",
+    "start": 90,
+    "end": 140,
+    "steps": 10,
+    "track": [
+     {
+      "component": "$K.data.component.id",
+      "axis": [
+       0,
+       0,
+       1
+      ]
+     },
+     {
+      "component": "$R.data.component.id",
+      "axis": [
+       0,
+       0,
+       1
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "data.values": {
+     "count": 8
+    },
+    "data.reached": {
+     "close": [
+      90,
+      125
+     ],
+     "tol": 1e-09
+    },
+    "data.stopped.index": 8,
+    "data.stopped.value": {
+     "close": 130,
+     "tol": 1e-09
+    },
+    "data.stopped.limit": {
+     "close": 128.682187,
+     "tol": 0.01
+    },
+    "data.stopped.constraints": {
+     "count_kind": {
+      "assembly_constraint": 3
+     }
+    },
+    "data.angles.0.angles.0": {
+     "close": 18.087392,
+     "tol": 0.0001
+    },
+    "data.angles.0.angles.6": {
+     "close": 85.983608,
+     "tol": 0.0001
+    },
+    "data.angles.0.angles.7": {
+     "close": 105.566888,
+     "tol": 0.001
+    },
+    "data.angles.1.angles.0": {
+     "close": 9.743087,
+     "tol": 0.0001
+    },
+    "data.angles.1.travel": {
+     "close": 35,
+     "tol": 0.0001
+    },
+    "data.restored": true
+   }
+  },
+  {
+   "call": "nx_list_components",
+   "args": {
+    "part": "$part",
+    "include_poses": true,
+    "name_contains": "CRANK"
+   },
+   "expect": {
+    "data.items.0.rotation.0": {
+     "close": [
+      0,
+      -1,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  }
+ ]
+}

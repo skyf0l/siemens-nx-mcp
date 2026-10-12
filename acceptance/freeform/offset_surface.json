@@ -1,0 +1,284 @@
+{
+ "covers": {
+  "nx_create_offset_surface": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "diameter": 40,
+    "height": 30
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "caps",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "save": "out",
+   "intent": "A cylindrical patch r 20 offset 5 outward: an r 25 sheet, every sample 5 away",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "distance": 5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": true,
+    "data.bodies": {
+     "count": 1
+    },
+    "data.faces": 1,
+    "data.area": {
+     "close": 4712.38898,
+     "tol": 0.01
+    },
+    "data.sets.0.distance": 5,
+    "data.sets.0.faces": 1,
+    "data.sets.0.measured_min": {
+     "close": 5,
+     "tol": 0.0001
+    },
+    "data.sets.0.measured_max": {
+     "close": 5,
+     "tol": 0.0001
+    },
+    "data.sets.0.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.bounds.min": {
+     "close": [
+      -25,
+      -25,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      25,
+      25,
+      30
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "args": {
+    "owner": "$out.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "radius": 25
+   },
+   "expect": {
+    "data.items": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "intent": "Laminate inside the skin: -5 goes against the outward normal (r 15)",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "distance": "-5 mm"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 2827.43339,
+     "tol": 0.01
+    },
+    "data.sets.0.measured_max": {
+     "close": 5,
+     "tol": 0.0001
+    },
+    "data.sets.0.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.bounds.max": {
+     "close": [
+      15,
+      15,
+      30
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "laminate",
+    "formula": "6",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "intent": "An expression drives the distance (laminate thickness)",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "distance": "laminate"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sets.0.measured_min": {
+     "close": 6,
+     "tol": 0.0001
+    },
+    "data.bounds.max": {
+     "close": [
+      26,
+      26,
+      30
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "intent": "Two face sets, each its own distance: top cap +2, bottom cap +3",
+   "args": {
+    "sets": [
+     {
+      "faces": [
+       "$caps.data.items.0.id"
+      ],
+      "distance": 2
+     },
+     {
+      "faces": [
+       "$caps.data.items.1.id"
+      ],
+      "distance": 3
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bodies": {
+     "count": 2
+    },
+    "data.area": {
+     "close": 2513.27412,
+     "tol": 0.01
+    },
+    "data.sets.0.measured_max": {
+     "close": 2,
+     "tol": 0.0001
+    },
+    "data.sets.1.measured_max": {
+     "close": 3,
+     "tol": 0.0001
+    },
+    "data.bounds.min.2": {
+     "close": -3,
+     "tol": 0.0001
+    },
+    "data.bounds.max.2": {
+     "close": 32,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "distance": 0
+   },
+   "expect": {
+    "error.field": "/distance",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "args": {
+    "sets": [
+     {
+      "faces": [
+       "$side.data.items.0.id"
+      ],
+      "distance": 1
+     },
+     {
+      "faces": [
+       "$side.data.items.0.id"
+      ],
+      "distance": 2
+     }
+    ]
+   },
+   "expect": {
+    "error.field": "/sets/1/faces/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.field": "/distance",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

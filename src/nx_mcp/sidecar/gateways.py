@@ -68,6 +68,7 @@ SYNONYMS = {
     "bevel": ("chamfer",),
     "drill": ("hole",),
     "bore": ("hole",),
+    "center": ("centre",),  # "center of gravity": the mass tools' "centre of gravity"
 }
 WEIGHTS = {"name": 8, "keyword": 4, "variant": 4, "label": 4, "description": 1}
 SYNONYM, PREFIX = 0.75, 0.5  # a synonym or a word's prefix ranks below the word itself
@@ -98,6 +99,12 @@ KEY_TOOLS = {
     "freeform": ("nx_create_spline", "nx_create_bridge_surface", "nx_create_thicken"),
     "inspection": ("nx_list_objects", "nx_find_geometry", "nx_measure_mass"),
     "modeling": ("nx_create_extrude", "nx_create_revolve", "nx_create_blend", "nx_set_expression"),
+    "motion": ("nx_run_motion_sweep",),
+    "optimization": (
+        "nx_create_topology_study",
+        "nx_create_topology_condition",
+        "nx_run_topology_study",
+    ),
     "parts_files": ("nx_create_part", "nx_open_part", "nx_save_part"),
     "session": ("nx_get_status", "nx_undo_operation", "nx_run_batch"),
     "sheet_metal": ("nx_create_sheet_metal_feature", "nx_export_flat_pattern"),
@@ -164,6 +171,14 @@ DOMAIN_WORDS = {
     "surface": "freeform",
     "feature": "modeling",
     "model": "modeling",
+    "motion": "motion",
+    "hinge": "motion",
+    "linkage": "motion",
+    "swing": "motion",
+    "kinematic": "motion",
+    "optimization": "optimization",
+    "optimize": "optimization",
+    "lightweight": "optimization",
 }
 
 

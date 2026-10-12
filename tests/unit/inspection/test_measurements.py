@@ -84,6 +84,30 @@ def test_mass_rejects_sheets_and_empty_parts():
     assert bad.error["code"] == "NX_WRONG_GEOMETRY"
 
 
+def test_mass_skips_empty_and_topology_result_bodies():
+    """NX 2406: a Topology Optimization feature owns a result body beside the design
+    space, faceless until solved (measuring it fails 875004 "Unknown feature type")."""
+    nx = inspection_nx()
+    design = nx.block(10, 20, 30)
+    result = nx.block(10, 20, 30)
+    study = type("TopologyOptimizationFeature", (), {})()
+    result.GetFeatures = lambda: [study]
+    result.GetFaces = lambda: []  # unsolved
+    ok = run(nx, "nx_measure_mass")
+    assert ok.ok, ok
+    assert [r["body"]["id"] for r in ok.data["bodies"]] == [design.ref]
+    assert ok.data["volume"] == pytest.approx(6000)
+    assert "Skipped 1 empty or topology result body" in ok.warnings[0]["message"]
+    alone = run(nx, "nx_measure_mass", bodies=[result.ref])
+    assert alone.error["code"] == "NX_NOT_FOUND"
+    solved = nx.block(5, 20, 30)
+    solved.GetFeatures = lambda: [study]
+    scoped = run(nx, "nx_measure_mass")  # the part: its design space, not the result too
+    assert [r["body"]["id"] for r in scoped.data["bodies"]] == [design.ref]
+    chosen = run(nx, "nx_measure_mass", bodies=[solved.ref])  # a solved result, by ref
+    assert chosen.ok and chosen.data["volume"] == pytest.approx(3000) and not chosen.warnings
+
+
 def test_bounds_conservative_exact_and_wcs_refusal():
     nx = inspection_nx()
     a = nx.block(10, 10, 10)

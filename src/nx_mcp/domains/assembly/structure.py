@@ -16,6 +16,7 @@ import contextlib
 from nx_mcp.core.errors import fail, native
 from nx_mcp.kit import builders, display, geom, parts, readback
 from nx_mcp.kit import pose as kpose
+from nx_mcp.kit.kinematics import pose  # an occurrence's (t, R): shared with motion
 
 
 def root(part):
@@ -35,12 +36,6 @@ def is_direct_child(part, component) -> bool:
 def paths(part) -> dict:
     """``{tag: [names from the root]}`` of every occurrence of ``part``."""
     return {int(c.Tag): names for c, names in parts.components(part)}
-
-
-def pose(component):
-    """``(translation, row-major rotation)`` of an occurrence in assembly coordinates."""
-    position, matrix = component.GetPosition()
-    return geom.xyz(position), [list(map(float, row)) for row in geom.rows(matrix)]
 
 
 def move(tx, component, target, *, check="pose"):

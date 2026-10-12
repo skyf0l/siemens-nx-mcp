@@ -2,10 +2,10 @@
   "nx_activate_application": {
     "v2406": {
       "checks": 21,
-      "recorded": "2026-10-12T07:53:54Z",
+      "recorded": "2026-10-12T14:58:57Z",
       "scenario": "acceptance/sheet_metal/activate_application.json",
       "scenario_sha256": "6c2ad7b5d1e34f8627ef7b7ec884c94cd815c5ead0fe195b4e77c14e9b4e155a",
-      "source_sha256": "e18492dab45b57be7f45068f9e94b274d02611a3b22a33521aeadf6a0ddd35fb",
+      "source_sha256": "0f4f8a4688f1d6de14726c025031f5188edd87e56e0aa7cf7172742ec7df9d62",
       "variants": []
     }
   },

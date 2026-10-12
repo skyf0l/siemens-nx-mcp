@@ -81,6 +81,8 @@ Domain = Literal[
     "freeform",
     "inspection",
     "modeling",
+    "motion",
+    "optimization",
     "parts_files",
     "session",
     "sheet_metal",

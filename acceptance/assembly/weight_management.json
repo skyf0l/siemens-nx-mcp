@@ -1,0 +1,502 @@
+{
+ "covers": {
+  "nx_set_component_mass": [],
+  "nx_create_component_group": [],
+  "nx_list_component_groups": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/wm_engine.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "eng",
+   "args": {
+    "part": "wm_engine",
+    "length": 400,
+    "width": 300,
+    "height": 300
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "setup": true,
+   "args": {
+    "part": "wm_engine",
+    "bodies": [
+     "$eng.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "WM_STEEL",
+      "density": 7850
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "wm_engine"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/wm_battery.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "wm_battery"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "ENGINE",
+   "args": {
+    "part": "$part",
+    "path": "$run/wm_engine.prt",
+    "name": "ENGINE",
+    "pose": {
+     "translation": [
+      100,
+      150,
+      400
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "BATTERY",
+   "args": {
+    "part": "$part",
+    "path": "$run/wm_battery.prt",
+    "name": "BATTERY",
+    "pose": {
+     "translation": [
+      1500,
+      500,
+      400
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "save": "bat",
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "mass": 60,
+    "center": [
+     100,
+     50,
+     80
+    ],
+    "frame": "component"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mass": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "data.center_of_gravity": {
+     "close": [
+      1600,
+      550,
+      480
+     ],
+     "tol": 1e-06
+    },
+    "data.level": "occurrence",
+    "data.previous": null,
+    "data.cleared": false,
+    "changes.modified.0.kind": "component"
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 342.6,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      527.6707530647985,
+      343.7828371278459,
+      537.7408056042032
+     ],
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "contains": {
+      "name": "BATTERY",
+      "source": "asserted_component"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "part": "$part",
+    "operation": "$bat.operation_id"
+   },
+   "intent": "Acceptance: undo the asserted battery mass"
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 282.6,
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "contains": {
+      "name": "BATTERY",
+      "source": "none"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "mass": 60,
+    "center": [
+     1600,
+     550,
+     480
+    ]
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "mass": 350,
+    "level": "part"
+   },
+   "expect": {
+    "data.mass": {
+     "close": 350,
+     "tol": 1e-06
+    },
+    "data.level": "part",
+    "data.part": "wm_engine.prt",
+    "data.center_of_gravity": null
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 410,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      490.2439024390244,
+      336.5853658536585,
+      539.7560975609756
+     ],
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "contains": {
+      "name": "ENGINE",
+      "source": "asserted_part"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "mass": 360,
+    "center": [
+     300,
+     300,
+     600
+    ],
+    "level": "part"
+   },
+   "expect": {
+    "data.previous.mass": {
+     "close": 350,
+     "tol": 1e-06
+    },
+    "data.center_of_gravity": {
+     "close": [
+      300,
+      300,
+      600
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "components": [
+     "$ENGINE.data.component.id"
+    ]
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 360,
+     "tol": 1e-06
+    },
+    "data.total.center_of_gravity": {
+     "close": [
+      300,
+      300,
+      600
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "level": "part",
+    "clear": true
+   },
+   "expect": {
+    "data.cleared": true,
+    "data.previous.mass": {
+     "close": 360,
+     "tol": 1e-06
+    },
+    "data.mass": null
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "level": "part",
+    "clear": true
+   },
+   "expect": {
+    "data.cleared": false,
+    "warnings.0.code": "NX_NO_EFFECT"
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 342.6,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "clear": true,
+    "mass": 1
+   },
+   "expect": {
+    "error.field": "/clear",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id"
+   },
+   "expect": {
+    "error.field": "/mass",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_component_group",
+   "args": {
+    "part": "$part",
+    "name": "Propulsion",
+    "components": [
+     "$ENGINE.data.component.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.group.name": "Propulsion",
+    "data.group.count": 1,
+    "data.group.members.0.name": "ENGINE",
+    "data.replaced": false
+   }
+  },
+  {
+   "call": "nx_create_component_group",
+   "args": {
+    "part": "$part",
+    "name": "PROPULSION",
+    "components": [
+     "$BATTERY.data.component.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_component_group",
+   "args": {
+    "part": "$part",
+    "name": "Electrical",
+    "components": [
+     "$BATTERY.data.component.id"
+    ]
+   },
+   "expect": {
+    "data.group.count": 1
+   }
+  },
+  {
+   "call": "nx_create_component_group",
+   "args": {
+    "part": "$part",
+    "name": "propulsion",
+    "components": [
+     "$ENGINE.data.component.id",
+     "$BATTERY.data.component.id"
+    ],
+    "replace": true
+   },
+   "expect": {
+    "data.replaced": true,
+    "data.group.count": 2,
+    "data.group.name": "Propulsion"
+   }
+  },
+  {
+   "call": "nx_create_component_group",
+   "args": {
+    "part": "$part",
+    "name": "AllComponents",
+    "components": [
+     "$ENGINE.data.component.id"
+    ]
+   },
+   "expect": {
+    "error.field": "/name",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_list_component_groups",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.items": {
+     "count": 2
+    },
+    "data.items.0.name": "Propulsion",
+    "data.items.0.count": 2,
+    "data.items.1.name": "Electrical",
+    "data.items.0.system": false
+   }
+  },
+  {
+   "call": "nx_list_component_groups",
+   "args": {
+    "part": "$part",
+    "include_system": true,
+    "with_members": false
+   },
+   "expect": {
+    "data.items": {
+     "count": 6
+    },
+    "data.items.0.system": true,
+    "data.items.0.members": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "group_by": "component_group"
+   },
+   "expect": {
+    "data.groups": {
+     "count": 2
+    },
+    "data.groups.0.name": "Propulsion",
+    "data.groups.0.rows": 1,
+    "data.groups.0.mass": {
+     "close": 282.6,
+     "tol": 1e-06
+    },
+    "data.groups.1.name": "Electrical",
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  }
+ ]
+}

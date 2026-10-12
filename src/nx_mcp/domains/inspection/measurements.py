@@ -225,6 +225,12 @@ def nx_measure_mass(
     kg*unit^2 about the centre of gravity."""
     common.note_exploded(tx)
     found = kbodies.solids(common.target_bodies(tx, bodies, scope), field="/bodies")
+    found, skipped = kbodies.measurable(found, scoped=bodies is None)
+    if skipped:
+        tx.warn("NX_NOTE", f"Skipped {len(skipped)} empty or topology result bod"
+                f"{'y' if len(skipped) == 1 else 'ies'} (an unsolved study's result is empty; "
+                "pass a solved result's body to measure it)")  # fmt: skip
+    kbodies.require(found, field="/bodies")
     rows: list[BodyVolume] = []
     area: float | None = 0.0
     for body in found:

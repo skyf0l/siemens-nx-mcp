@@ -36,6 +36,16 @@
       ]
     }
   },
+  "nx_create_component_group": {
+    "v2406": {
+      "checks": 60,
+      "recorded": "2026-10-12T14:35:08Z",
+      "scenario": "acceptance/assembly/weight_management.json",
+      "scenario_sha256": "e057939726922aa8771515ee2d6d605160e9ece2e3a722d7ee894c131db365d6",
+      "source_sha256": "d90f8d46b0db16fcbc7c149f08c1fb3bad7c8e52d0f68c0e639da311a019065f",
+      "variants": []
+    }
+  },
   "nx_create_component_mirror": {
     "v2406": {
       "checks": 20,
@@ -186,6 +196,16 @@
       "variants": []
     }
   },
+  "nx_list_component_groups": {
+    "v2406": {
+      "checks": 60,
+      "recorded": "2026-10-12T14:35:08Z",
+      "scenario": "acceptance/assembly/weight_management.json",
+      "scenario_sha256": "e057939726922aa8771515ee2d6d605160e9ece2e3a722d7ee894c131db365d6",
+      "source_sha256": "d90f8d46b0db16fcbc7c149f08c1fb3bad7c8e52d0f68c0e639da311a019065f",
+      "variants": []
+    }
+  },
   "nx_list_components": {
     "v2406": {
       "checks": 145,
@@ -193,6 +213,16 @@
       "scenario": "acceptance/assembly/components.json",
       "scenario_sha256": "ac3395d2c22b55a9591868a4ff546d32d0ed54da1975311b9cbe40c6c4bc975a",
       "source_sha256": "8a8160b8a0804e184740df686c7baa68173d8218d9390a106b0a843d0986fea9",
+      "variants": []
+    }
+  },
+  "nx_set_component_mass": {
+    "v2406": {
+      "checks": 60,
+      "recorded": "2026-10-12T14:35:08Z",
+      "scenario": "acceptance/assembly/weight_management.json",
+      "scenario_sha256": "e057939726922aa8771515ee2d6d605160e9ece2e3a722d7ee894c131db365d6",
+      "source_sha256": "d90f8d46b0db16fcbc7c149f08c1fb3bad7c8e52d0f68c0e639da311a019065f",
       "variants": []
     }
   },

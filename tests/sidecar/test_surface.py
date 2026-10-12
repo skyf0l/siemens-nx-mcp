@@ -566,6 +566,20 @@ def _top3(query):
         ("create assembly component", ["nx_create_component"]),
         ("drawing sheet views", ["nx_create_drawing_sheet"]),
         ("block body dimensions", ["nx_create_primitive"]),
+        # freeform, weight, motion and optimization tools (2026-10-12)
+        ("offset surface", ["nx_create_offset_surface"]),
+        ("fill hole surface", ["nx_create_n_sided_surface"]),
+        ("ruled surface", ["nx_create_ruled"]),
+        ("weight and centre of gravity report", ["nx_measure_assembly_mass"]),
+        ("center of gravity", ["nx_measure_assembly_mass", "nx_measure_mass"]),
+        ("export mass report", ["nx_export_mass_report"]),
+        ("assert component mass", ["nx_set_component_mass"]),
+        ("component group", ["nx_create_component_group", "nx_list_component_groups"]),
+        ("rudder swing clearance", ["nx_run_motion_sweep"]),
+        ("hinge range of motion", ["nx_run_motion_sweep"]),
+        ("steering linkage", ["nx_run_motion_sweep"]),
+        ("topology optimization bracket", ["nx_create_topology_study"]),
+        ("lightweight bracket", ["nx_create_topology_study", "nx_run_topology_study"]),
     ],
 )
 def test_find_puts_the_expected_tools_in_the_top_three(query, expected):

@@ -1,0 +1,451 @@
+{
+ "covers": {
+  "nx_create_n_sided_surface": [
+   "trimmed",
+   "triangular"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sq0",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sq1",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      30
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "setup": true,
+   "save": "tube",
+   "args": {
+    "first": [
+     "$sq0.data.curves.0.id",
+     "$sq0.data.curves.1.id",
+     "$sq0.data.curves.2.id",
+     "$sq0.data.curves.3.id"
+    ],
+    "second": [
+     "$sq1.data.curves.0.id",
+     "$sq1.data.curves.1.id",
+     "$sq1.data.curves.2.id",
+     "$sq1.data.curves.3.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rim",
+   "args": {
+    "owner": "$tube.data.bodies.0.id",
+    "kind": "edge",
+    "parallel": "xy",
+    "order": "highest",
+    "axis": "z",
+    "limit": 4
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c0",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      100,
+      0,
+      0
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 180
+     },
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 180,
+      "end_angle": 360
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c1",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      100,
+      0,
+      30
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 180
+     },
+     {
+      "type": "arc",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 20,
+      "start_angle": 180,
+      "end_angle": 360
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "setup": true,
+   "save": "round",
+   "args": {
+    "first": [
+     "$c0.data.curves.0.id",
+     "$c0.data.curves.1.id"
+    ],
+    "second": [
+     "$c1.data.curves.0.id",
+     "$c1.data.curves.1.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "lip",
+   "args": {
+    "owner": "$round.data.bodies.0.id",
+    "kind": "edge",
+    "order": "highest",
+    "axis": "z",
+    "limit": 2
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "intent": "Close the 4-edge 20 x 20 opening of a square tube: a flat patch, no gap",
+   "args": {
+    "boundary": [
+     "$rim.data.items.0.id",
+     "$rim.data.items.1.id",
+     "$rim.data.items.2.id",
+     "$rim.data.items.3.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "trimmed",
+    "data.sheet": true,
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.area": {
+     "close": 400,
+     "tol": 0.01
+    },
+    "data.boundary": {
+     "count": 4
+    },
+    "data.bounds.min": {
+     "close": [
+      -10,
+      -10,
+      30
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      10,
+      10,
+      30
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "intent": "The same opening with triangular patches (one per side)",
+   "args": {
+    "boundary": [
+     "$rim.data.items.0.id",
+     "$rim.data.items.1.id",
+     "$rim.data.items.2.id",
+     "$rim.data.items.3.id"
+    ],
+    "type": "triangular"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "triangular",
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.area": {
+     "close": 400,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "args": {
+    "boundary": [
+     "$rim.data.items.0.id",
+     "$rim.data.items.1.id",
+     "$rim.data.items.2.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/boundary",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "args": {
+    "boundary": [
+     "$sq0.data.curves.0.id",
+     "$sq0.data.curves.1.id",
+     "$sq0.data.curves.2.id",
+     "$sq0.data.curves.3.id"
+    ],
+    "continuity": "g1",
+    "type": "triangular"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/boundary/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "save": "dome",
+   "intent": "Cap the round tube r 20 (two half-circle edges) tangent to its wall: a triangular G1 patch on the rim, 0.5 deg",
+   "args": {
+    "boundary": [
+     "$lip.data.items.0.id",
+     "$lip.data.items.1.id"
+    ],
+    "type": "triangular",
+    "continuity": "g1",
+    "tolerance": 0.01
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.continuity": "g1",
+    "data.boundary": {
+     "count": 2
+    },
+    "data.gap": {
+     "close": 0.00114,
+     "tol": 0.0005
+    },
+    "data.boundary.0.angle": {
+     "close": 0,
+     "tol": 0.5
+    },
+    "data.boundary.1.angle": {
+     "close": 0,
+     "tol": 0.5
+    }
+   }
+  },
+  {
+   "call": "nx_check_continuity",
+   "intent": "The dome edge against the tube rim: G0 and G1 within 0.5 deg",
+   "args": {
+    "first": "$dome.data.boundary.0.edge.id",
+    "second": "$lip.data.items.0.id",
+    "mode": "surface",
+    "tolerances": {
+     "position": 0.002,
+     "angle": 0.5
+    }
+   },
+   "expect": {
+    "data.g0": true,
+    "data.g1": true,
+    "data.gap": {
+     "close": 0.00104,
+     "tol": 0.0005
+    },
+    "data.angle": {
+     "close": 0,
+     "tol": 0.5
+    }
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "intent": "At the default 0.001 mm tolerance: still on the rim and tangent (NX may bulge it far; the tool then warns)",
+   "args": {
+    "boundary": [
+     "$lip.data.items.0.id",
+     "$lip.data.items.1.id"
+    ],
+    "type": "triangular",
+    "continuity": "g1"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.boundary.0.angle": {
+     "close": 0,
+     "tol": 0.5
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.002
+    }
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "intent": "A closed loop of four sketch curves: a flat 20 x 20 patch at z 0",
+   "args": {
+    "boundary": [
+     "$sq0.data.curves.0.id",
+     "$sq0.data.curves.2.id",
+     "$sq0.data.curves.1.id",
+     "$sq0.data.curves.3.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.area": {
+     "close": 400,
+     "tol": 0.01
+    },
+    "data.bounds.min": {
+     "close": [
+      -10,
+      -10,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      10,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "args": {
+    "boundary": [
+     "$lip.data.items.0.id",
+     "$lip.data.items.1.id"
+    ],
+    "continuity": "g1"
+   },
+   "expect": {
+    "error.field": "/continuity",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

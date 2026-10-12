@@ -3,13 +3,13 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `4b2bb566988320df79b62155a88b482290f65488d2d4751c22b8e668f37a5796`.
+Canonical SHA-256 (catalogue evidence): `846f9b17fe93ff82c6612d17def8344fdf930393f264903761713ab47b05a193`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 162 |
+| Native-tested | 175 |
 | Experimental | 1 |
 
 ## Catalogue tools
@@ -38,6 +38,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_chamfer | Native-tested | modeling | model | v2406: all variants; 8 checks in acceptance/modeling/tangent_chain.json |
 | nx_create_checkpoint | Native-tested | session | session | v2406: tested; 41 checks in acceptance/session/undo_survives_load.json |
 | nx_create_component | Native-tested | assembly | model | v2406: all variants; 38 checks in acceptance/assembly/new_component.json |
+| nx_create_component_group | Native-tested | assembly | model | v2406: tested; 60 checks in acceptance/assembly/weight_management.json |
 | nx_create_component_mirror | Native-tested | assembly | model | v2406: tested; 20 checks in acceptance/assembly/component_mirror.json |
 | nx_create_component_pattern | Native-tested | assembly | model | v2406: tested; 85 checks in acceptance/assembly/patterns.json |
 | nx_create_datum_axis | Native-tested | modeling | model | v2406: all variants; 23 checks in acceptance/modeling/datum_axis.json |
@@ -62,13 +63,16 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_loft | Native-tested | modeling | model | v2406: tested; 19 checks in acceptance/modeling/loft_options.json |
 | nx_create_mesh_surface | Native-tested | freeform | model | v2406: tested; 27 checks in acceptance/freeform/mesh_surface.json |
 | nx_create_mirror | Native-tested | modeling | model | v2406: all variants; 23 checks in acceptance/modeling/pattern_unite.json |
+| nx_create_n_sided_surface | Native-tested | freeform | model | v2406: all variants; 39 checks in acceptance/freeform/n_sided_surface.json |
 | nx_create_note | Native-tested | drawing | model | v2406: tested; 23 checks in acceptance/drawing/inch_units.json |
+| nx_create_offset_surface | Native-tested | freeform | model | v2406: tested; 35 checks in acceptance/freeform/offset_surface.json |
 | nx_create_part | Native-tested | parts_files | file | v2406: tested; 35 checks in acceptance/parts_files/create_part.json |
 | nx_create_pattern | Native-tested | modeling | model | v2406: all variants; 23 checks in acceptance/modeling/pattern_unite.json |
 | nx_create_primitive | Native-tested | modeling | model | v2406: all variants; 34 checks in acceptance/modeling/primitives.json |
 | nx_create_reference_set | Native-tested | assembly | model | v2406: tested; 145 checks in acceptance/assembly/components.json |
 | nx_create_revolve | Native-tested | modeling | model | v2406: tested; 28 checks in acceptance/modeling/revolve.json |
 | nx_create_rib | Native-tested | modeling | model | v2406: all variants; 28 checks in acceptance/modeling/rib.json |
+| nx_create_ruled | Native-tested | freeform | model | v2406: all variants; 30 checks in acceptance/freeform/ruled.json |
 | nx_create_scale | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/scale_general.json |
 | nx_create_section_view | Native-tested | display | view | v2406: tested; 50 checks in acceptance/display/sections.json |
 | nx_create_sew | Native-tested | freeform | model | v2406: tested; 40 checks in acceptance/freeform/sew_thicken.json |
@@ -86,6 +90,8 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_sweep | Native-tested | modeling | model | v2406: tested; 25 checks in acceptance/modeling/sweep.json |
 | nx_create_thicken | Native-tested | freeform | model | v2406: tested; 40 checks in acceptance/freeform/sew_thicken.json |
 | nx_create_thread | Native-tested | modeling | model | v2406: tested; 48 checks in acceptance/modeling/thread_natural_args.json |
+| nx_create_topology_condition | Native-tested | optimization | model | v2406: all variants; 30 checks in acceptance/optimization/conditions.json |
+| nx_create_topology_study | Native-tested | optimization | model | v2406: tested; 48 checks in acceptance/optimization/bracket.json |
 | nx_create_transform | Native-tested | modeling | model | v2406: tested; 20 checks in acceptance/modeling/transform.json |
 | nx_create_trim_body | Native-tested | modeling | model | v2406: all variants; 19 checks in acceptance/modeling/trim_body.json |
 | nx_create_trim_sheet | Native-tested | freeform | model | v2406: tested; 22 checks in acceptance/freeform/trim_sheet.json |
@@ -113,6 +119,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_export_expressions | Native-tested | modeling | file | v2406: tested; 70 checks in acceptance/modeling/expression_files.json |
 | nx_export_flat_pattern | Native-tested | sheet_metal | file | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_export_inspection_report | Native-tested | inspection | file | v2406: tested; 23 checks in acceptance/inspection/interference_sheets.json |
+| nx_export_mass_report | Native-tested | inspection | file | v2406: tested; 69 checks in acceptance/inspection/assembly_weight.json |
 | nx_export_model | Native-tested | parts_files | file | v2406: iges, jt, parasolid, step, stl (untested: step_ap242); 40 checks in acceptance/parts_files/export_model.json |
 | nx_export_profile | Native-tested | parts_files | file | v2406: tested; 38 checks in acceptance/parts_files/export_profile.json |
 | nx_find_geometry | Native-tested | inspection | read | v2406: tested; 78 checks in acceptance/inspection/holes_and_words.json |
@@ -135,9 +142,11 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_get_sheet_metal_defaults | Native-tested | sheet_metal | read | v2406: tested; 25 checks in acceptance/sheet_metal/flat_pattern_axes.json |
 | nx_get_sketch | Native-tested | sketch | read | v2406: tested; 54 checks in acceptance/sketch/sketch_natural_args.json |
 | nx_get_status | Native-tested | session | read | v2406: tested; 50 checks in acceptance/session/status_operations.json |
+| nx_get_topology_study | Native-tested | optimization | read | v2406: tested; 48 checks in acceptance/optimization/bracket.json |
 | nx_import_expressions | Native-tested | modeling | model | v2406: all variants; 70 checks in acceptance/modeling/expression_files.json |
 | nx_import_model | Native-tested | parts_files | model | v2406: dxf_dwg, iges, parasolid, step, stl (untested: catia_v5); 39 checks in acceptance/parts_files/import_model.json |
 | nx_list_checkpoints | Native-tested | session | read | v2406: tested; 41 checks in acceptance/session/undo_survives_load.json |
+| nx_list_component_groups | Native-tested | assembly | read | v2406: tested; 60 checks in acceptance/assembly/weight_management.json |
 | nx_list_components | Native-tested | assembly | read | v2406: tested; 145 checks in acceptance/assembly/components.json |
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 23 checks in acceptance/parts_files/list_files.json |
 | nx_list_materials | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
@@ -146,6 +155,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_list_thread_sizes | Native-tested | modeling | read | v2406: tested; 48 checks in acceptance/modeling/thread_natural_args.json |
 | nx_list_view_edges | Native-tested | drawing | read | v2406: tested; 56 checks in acceptance/drawing/view_edges_bounds.json |
 | nx_measure_angle | Native-tested | inspection | read | v2406: tested; 68 checks in acceptance/inspection/measure.json |
+| nx_measure_assembly_mass | Native-tested | inspection | read | v2406: tested; 69 checks in acceptance/inspection/assembly_weight.json |
 | nx_measure_bounds | Native-tested | inspection | read | v2406: tested; 68 checks in acceptance/inspection/measure.json |
 | nx_measure_distance | Native-tested | inspection | read | v2406: tested; 68 checks in acceptance/inspection/measure.json |
 | nx_measure_mass | Native-tested | inspection | read | v2406: tested; 68 checks in acceptance/inspection/measure.json |
@@ -158,11 +168,14 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_restore_checkpoint | Native-tested | session | model | v2406: tested; 41 checks in acceptance/session/undo_survives_load.json |
 | nx_restore_display | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
 | nx_run_batch | Native-tested | session | model | v2406: tested; 43 checks in acceptance/session/run_batch.json |
+| nx_run_motion_sweep | Native-tested | motion | read | v2406: all variants; 38 checks in acceptance/motion/steering_linkage.json |
+| nx_run_topology_study | Native-tested | optimization | model | v2406: tested; 48 checks in acceptance/optimization/bracket.json |
 | nx_save_part | Native-tested | parts_files | file | v2406: tested; 18 checks in acceptance/session/refs_survive_undo_save.json |
 | nx_save_presentation | Native-tested | display | file | v2406: tested; 30 checks in acceptance/display/presentation.json |
 | nx_set_appearance | Native-tested | display | view | v2406: tested; 69 checks in acceptance/display/natural_values.json |
 | nx_set_attributes | Native-tested | parts_files | model | v2406: tested; 181 checks in acceptance/parts_files/attributes.json |
 | nx_set_camera | Native-tested | display | view | v2406: tested; 54 checks in acceptance/display/view_directions.json |
+| nx_set_component_mass | Native-tested | assembly | model | v2406: tested; 60 checks in acceptance/assembly/weight_management.json |
 | nx_set_component_pose | Native-tested | assembly | model | v2406: all variants; 145 checks in acceptance/assembly/components.json |
 | nx_set_current_feature | Native-tested | modeling | model | v2406: tested; 18 checks in acceptance/modeling/current_feature.json |
 | nx_set_explosion_display | Native-tested | assembly | model | v2406: tested; 139 checks in acceptance/assembly/explosions.json |

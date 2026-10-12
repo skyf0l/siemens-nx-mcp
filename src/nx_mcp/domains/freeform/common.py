@@ -6,7 +6,7 @@ from typing import TypedDict
 
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.types import Point3
-from nx_mcp.kit import curve, measure, readback, result, select, units
+from nx_mcp.kit import curve, licenses, measure, readback, result, select, units
 
 # At most this many bodies are measured for a failure diagnostic.
 MAX_DIAGNOSED = 20
@@ -96,6 +96,15 @@ def point_gap(tx, obj, point) -> float | None:
         return curve.point_distance(tx, obj, point)[0]
     except NXError:
         return None
+
+
+FREEFORM_LICENSE = "nx_freeform_1"  # basic freeform: offset surface, N-sided, ruled
+
+
+def licensed(tx, feature: str = FREEFORM_LICENSE) -> None:
+    """``NX_LICENSE_UNAVAILABLE`` before any builder when the seat lacks ``feature``
+    (``kit.licenses``; NX cannot tell: the builder decides)."""
+    licenses.require(tx, (feature,), f"This NX seat has no {feature} license for this command")
 
 
 def explain(error: NXError, hint: str, **details) -> NXError:

@@ -77,7 +77,7 @@ SaveAsPath = Annotated[
     str, Doc("New .prt to save as; omit to save in place"), PathTo("replace", ".prt")
 ]
 REF_HINT = "Use the part's current ref from nx_list_parts; a reopened part gets a new ref"
-TAB_DOC = "Show it in its own NX tab; never needed: calls reach it by part"
+TAB_DOC = "Show it in its own NX tab; calls never need it"
 
 
 class PartData(TypedDict):
@@ -459,9 +459,8 @@ def nx_activate_part(
     force: Force = False,
 ) -> PartData:
     """Show a loaded part in its own NX tab for the engineer. Not needed to work in it:
-    calls reach a part by refs or the part key. Never takes the engineer's active tab:
-    the part's tab then stays behind it, and the reply says so. Never the engineer's part;
-    another agent's only with force."""
+    calls reach parts by refs or the part key. Never takes the engineer's active tab (the
+    reply says so) or part; another agent's part only with force."""
     if not work and display is False:
         fail("NX_INVALID_ARGUMENT", "Set work or display (or both)", field="/work")
     with tx.checks():

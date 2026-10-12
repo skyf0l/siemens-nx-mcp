@@ -69,6 +69,16 @@
       "variants": []
     }
   },
+  "nx_export_mass_report": {
+    "v2406": {
+      "checks": 69,
+      "recorded": "2026-10-12T14:35:04Z",
+      "scenario": "acceptance/inspection/assembly_weight.json",
+      "scenario_sha256": "20a02d0e72c276e0dab0ac386a686b9c67434c4f4cac9a73d515ceb38faf238d",
+      "source_sha256": "948a84150dd0cab57a6c02e2be62872a1599045f50d05bacbb2b83d920777b53",
+      "variants": []
+    }
+  },
   "nx_find_geometry": {
     "v2406": {
       "checks": 78,
@@ -112,40 +122,50 @@
   "nx_measure_angle": {
     "v2406": {
       "checks": 68,
-      "recorded": "2026-10-11T15:52:59Z",
+      "recorded": "2026-10-12T14:54:12Z",
       "scenario": "acceptance/inspection/measure.json",
       "scenario_sha256": "ef3d06401f61bfa9c670c0d464ff52690eda4a64d65fdd4b222fbde97dddf3bb",
-      "source_sha256": "96577910ad33a1a84b352724cd971cb6ea3baa2eae12f89af01ca374639a6d84",
+      "source_sha256": "9c8bf856dc579b6aeb36e948c868c8d48554205b98a3e16d5021fea9ac2ded9d",
+      "variants": []
+    }
+  },
+  "nx_measure_assembly_mass": {
+    "v2406": {
+      "checks": 69,
+      "recorded": "2026-10-12T14:35:04Z",
+      "scenario": "acceptance/inspection/assembly_weight.json",
+      "scenario_sha256": "20a02d0e72c276e0dab0ac386a686b9c67434c4f4cac9a73d515ceb38faf238d",
+      "source_sha256": "948a84150dd0cab57a6c02e2be62872a1599045f50d05bacbb2b83d920777b53",
       "variants": []
     }
   },
   "nx_measure_bounds": {
     "v2406": {
       "checks": 68,
-      "recorded": "2026-10-11T15:52:59Z",
+      "recorded": "2026-10-12T14:54:12Z",
       "scenario": "acceptance/inspection/measure.json",
       "scenario_sha256": "ef3d06401f61bfa9c670c0d464ff52690eda4a64d65fdd4b222fbde97dddf3bb",
-      "source_sha256": "96577910ad33a1a84b352724cd971cb6ea3baa2eae12f89af01ca374639a6d84",
+      "source_sha256": "9c8bf856dc579b6aeb36e948c868c8d48554205b98a3e16d5021fea9ac2ded9d",
       "variants": []
     }
   },
   "nx_measure_distance": {
     "v2406": {
       "checks": 68,
-      "recorded": "2026-10-11T15:52:59Z",
+      "recorded": "2026-10-12T14:54:12Z",
       "scenario": "acceptance/inspection/measure.json",
       "scenario_sha256": "ef3d06401f61bfa9c670c0d464ff52690eda4a64d65fdd4b222fbde97dddf3bb",
-      "source_sha256": "96577910ad33a1a84b352724cd971cb6ea3baa2eae12f89af01ca374639a6d84",
+      "source_sha256": "9c8bf856dc579b6aeb36e948c868c8d48554205b98a3e16d5021fea9ac2ded9d",
       "variants": []
     }
   },
   "nx_measure_mass": {
     "v2406": {
       "checks": 68,
-      "recorded": "2026-10-11T15:52:59Z",
+      "recorded": "2026-10-12T14:54:12Z",
       "scenario": "acceptance/inspection/measure.json",
       "scenario_sha256": "ef3d06401f61bfa9c670c0d464ff52690eda4a64d65fdd4b222fbde97dddf3bb",
-      "source_sha256": "96577910ad33a1a84b352724cd971cb6ea3baa2eae12f89af01ca374639a6d84",
+      "source_sha256": "9c8bf856dc579b6aeb36e948c868c8d48554205b98a3e16d5021fea9ac2ded9d",
       "variants": []
     }
   },
@@ -162,10 +182,10 @@
   "nx_measure_wall_thickness": {
     "v2406": {
       "checks": 68,
-      "recorded": "2026-10-11T15:52:59Z",
+      "recorded": "2026-10-12T14:54:12Z",
       "scenario": "acceptance/inspection/measure.json",
       "scenario_sha256": "ef3d06401f61bfa9c670c0d464ff52690eda4a64d65fdd4b222fbde97dddf3bb",
-      "source_sha256": "96577910ad33a1a84b352724cd971cb6ea3baa2eae12f89af01ca374639a6d84",
+      "source_sha256": "9c8bf856dc579b6aeb36e948c868c8d48554205b98a3e16d5021fea9ac2ded9d",
       "variants": []
     }
   },

@@ -1,0 +1,517 @@
+{
+ "covers": {
+  "nx_run_motion_sweep": [
+   "revolute",
+   "slider"
+  ]
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/hinge/mh_frame.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "mh_frame",
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 200,
+    "width": 100,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "mh_frame"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/hinge/mh_lid.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "mh_lid",
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     10
+    ],
+    "length": 200,
+    "width": 100,
+    "height": 5
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "mh_lid"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$run/hinge/mh_stop.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "mh_stop",
+    "shape": "block",
+    "origin": [
+     0,
+     110,
+     10
+    ],
+    "length": 200,
+    "width": 20,
+    "height": 50
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "mh_stop"
+   }
+  },
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "F",
+   "args": {
+    "part": "$part",
+    "path": "$run/hinge/mh_frame.prt",
+    "name": "FRAME"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "L",
+   "args": {
+    "part": "$part",
+    "path": "$run/hinge/mh_lid.prt",
+    "name": "LID"
+   }
+  },
+  {
+   "call": "nx_create_component",
+   "setup": true,
+   "save": "S",
+   "args": {
+    "part": "$part",
+    "path": "$run/hinge/mh_stop.prt",
+    "name": "STOP"
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "revolute",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      100,
+      15
+     ],
+     "direction": [
+      -1,
+      0,
+      0
+     ]
+    },
+    "start": 0,
+    "end": 110,
+    "steps": 11,
+    "pairs": [
+     {
+      "a": "$L.data.component.id",
+      "b": "$S.data.component.id"
+     }
+    ],
+    "track": [
+     {
+      "component": "$L.data.component.id",
+      "point": [
+       100,
+       0,
+       15
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "mutation_outcome": "not_applicable",
+    "data.unit": "deg",
+    "data.values": {
+     "count": 12
+    },
+    "data.reached": {
+     "close": [
+      0,
+      110
+     ],
+     "tol": 1e-09
+    },
+    "data.moved": {
+     "count": 1
+    },
+    "data.moved.0.name": "LID",
+    "data.restored": true,
+    "data.points.0.path.9": {
+     "close": [
+      100,
+      100,
+      115
+     ],
+     "tol": 0.0001
+    },
+    "data.points.0.path.11": {
+     "close": [
+      100,
+      134.202014,
+      108.969262
+     ],
+     "tol": 0.0001
+    },
+    "data.clearances.0.distances.0": {
+     "close": 10,
+     "tol": 0.0001
+    },
+    "data.clearances.0.distances.9": {
+     "close": 10,
+     "tol": 0.0001
+    },
+    "data.clearances.0.distances.10": {
+     "close": 2.03391,
+     "tol": 0.0001
+    },
+    "data.clearances.0.distances.11": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.clearances.0.first_violation.index": 11,
+    "data.clearances.0.limit": {
+     "close": 102.516379,
+     "tol": 0.002
+    },
+    "data.clearances.0.clear_range": {
+     "close": [
+      0,
+      102.516379
+     ],
+     "tol": 0.002
+    },
+    "data.clearances.0.min": {
+     "close": 0,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "hinge",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      100,
+      15
+     ],
+     "direction": [
+      -1,
+      0,
+      0
+     ]
+    },
+    "start": 0,
+    "end": 110,
+    "steps": 11,
+    "pairs": [
+     {
+      "a": "$L.data.component.id",
+      "b": "$S.data.component.id"
+     }
+    ],
+    "min_clearance": 5
+   },
+   "expect": {
+    "ok": true,
+    "data.joint": "revolute",
+    "data.min_clearance": {
+     "close": 5,
+     "tol": 1e-09
+    },
+    "data.clearances.0.first_violation.index": 10,
+    "data.clearances.0.limit": {
+     "close": 96.301957,
+     "tol": 0.002
+    }
+   }
+  },
+  {
+   "call": "nx_list_components",
+   "args": {
+    "part": "$part",
+    "include_poses": true,
+    "name_contains": "LID"
+   },
+   "expect": {
+    "data.items.0.translation": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.items.0.rotation.1": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "slider",
+    "moving": [
+     "$S.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      0,
+      0
+     ],
+     "direction": [
+      0,
+      -1,
+      0
+     ]
+    },
+    "start": 0,
+    "end": 20,
+    "steps": 4,
+    "pairs": [
+     {
+      "a": "$S.data.component.id",
+      "b": "$L.data.component.id"
+     },
+     {
+      "a": "$S.data.component.id",
+      "b": "$F.data.component.id"
+     }
+    ],
+    "track": [
+     {
+      "component": "$S.data.component.id",
+      "point": [
+       0,
+       110,
+       10
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "data.joint": "slider",
+    "data.unit": "mm",
+    "data.points.0.path.4": {
+     "close": [
+      0,
+      90,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.clearances.0.distances": {
+     "close": [
+      10,
+      5,
+      0,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.clearances.0.first_violation.index": 2,
+    "data.clearances.0.limit": {
+     "close": 9.99,
+     "tol": 0.002
+    },
+    "data.clearances.1.distances.1": {
+     "close": 5,
+     "tol": 0.0001
+    },
+    "data.restored": true
+   }
+  },
+  {
+   "call": "nx_list_components",
+   "args": {
+    "part": "$part",
+    "include_poses": true,
+    "name_contains": "STOP"
+   },
+   "expect": {
+    "data.items.0.translation": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "revolute",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "start": 0,
+    "end": 90
+   },
+   "expect": {
+    "ok": false,
+    "error.category": "invalid_argument",
+    "error.field": "/axis",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "revolute",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      100,
+      15
+     ],
+     "direction": [
+      -1,
+      0,
+      0
+     ]
+    },
+    "start": 30,
+    "end": 30
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/end",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "revolute",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      100,
+      15
+     ],
+     "direction": [
+      -1,
+      0,
+      0
+     ]
+    },
+    "start": 0,
+    "end": 90,
+    "pairs": [
+     {
+      "a": "$L.data.component.id",
+      "b": "$L.data.component.id"
+     }
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/pairs/0",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "constraint",
+    "constraint": "$L.data.component.id",
+    "start": 0,
+    "end": 90
+   },
+   "expect": {
+    "ok": false,
+    "error.category": "wrong_kind",
+    "mutation_outcome": "not_applicable"
+   }
+  }
+ ]
+}

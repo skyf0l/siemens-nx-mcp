@@ -171,9 +171,10 @@ def wcs_is_absolute(tx, tol=1e-8):
 
 
 def inertia(tx, bodies, accuracy=ACCURACY):
-    """``{"mass", "center", "inertia", "principal"}`` of solid bodies with their densities.
+    """``{"mass", "volume", "center", "inertia", "principal"}`` of solid bodies with their
+    densities.
 
-    ``mass`` is kg, ``center`` the centre of gravity (absolute, part units), ``inertia``
+    ``mass`` is kg, ``volume`` part units^3, ``center`` the centre of gravity (absolute, part units), ``inertia``
     the 3x3 tensor about the centre of gravity in absolute axes and ``principal`` the
     principal moments, both kg * (part unit)^2. UF reports kg and metres in WCS axes
     (centroidal moments at 12-14, products at 19-21, principal moments at 31-33).
@@ -205,6 +206,7 @@ def inertia(tx, bodies, accuracy=ACCURACY):
     tensor = geom.matmul(geom.matmul(r, tensor_wcs), geom.transpose(r))
     return {
         "mass": m[2],
+        "volume": m[1] * to_part**3,
         "center": center,
         "inertia": [[v * k2 for v in row] for row in tensor],
         "principal": [v * k2 for v in m[31:34]],

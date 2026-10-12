@@ -37,9 +37,11 @@ core/          NX-free: types, validate, catalogue, summary, errors, kernel, tx,
                receipts, evidence
 kit/           shared NX helpers: geom, args, units, builders, select, sketch, drawing, explode,
                expr, readback, result, bodies, capture, curve, display, facts, features, files,
-               measure, model, parts, pose, positioning, snapshots, surface
-domains/       session, parts_files, sketch, modeling, freeform, assembly, inspection, drawing,
-               sheet_metal, display: one package each, one @tool function per tool
+               kinematics, licenses, massprops, measure, model, parts, pose, positioning,
+               snapshots, surface, switching
+domains/       session, parts_files, sketch, modeling, freeform, assembly, motion, inspection,
+               drawing, sheet_metal, display, optimization: one package each, one @tool
+               function per tool
 host/          NX side: dispatch (bridge call -> kernel), services (NXServices)
 sidecar/       MCP server: profiles, schema generation, proxy, gateways, artifacts, HTTP
 acceptance/    scenario runner and evidence writer
@@ -206,7 +208,7 @@ start, and `dev_reload.py` prints the error. The checks:
 
 | Module | Responsibility |
 |---|---|
-| `errors.py` | Table of 22 categories and 71 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
+| `errors.py` | Table of 22 categories and 72 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
 | `target.py` | Gate 3t (pure): the call keys (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), `part_from_text`, `agent_parts`, the two-parts note (`census`, `load_note`), `roots`, `resolve` and `refuse_other_part` (3.4) |
 | `switching.py` | Gate 4s: `enter(...)` returns the call's `Bound` (`check`, `defers`, `leave`), `repair`, `deferred`; drives `kit.switching.Switch` through `Services.switch` (3.4) |
@@ -290,13 +292,16 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `expr` | `create(tx, name, formula, units)`, `set_formula`, `value`, `alias(feature, "distance")` (semantic parameter names), `bind` |
 | `readback` | `expect(ok, check, **actual)`, `expect_close(actual, wanted, check, tol=None)` (scalar or vector, scaled tolerance), `expect_same_direction`, `expect_on_plane`. Each raises `verification_failed` with `details.check` |
 | `result` | `rows(tx, objs, kind)`, `page(rows, page)`, `measured(value, "length")`, `rename(tx, obj, name)` (returns the name as NX normalised it) |
-| `bodies` | Which bodies a call covers: `of(tx, obj)` (body, feature, component occurrence bodies), `scope(tx, "auto")`, `occurrences(component)`, `solids(found, field)` |
+| `bodies` | Which bodies a call covers: `of(tx, obj)` (body, feature, component occurrence bodies), `scope(tx, "auto")`, `occurrences(component)`, `solids(found, field)`, `measurable(found, scoped)` (faceless bodies and, in a scope, topology optimization results are skipped) |
 | `capture` | `studio_png(tx, path, w, h, style=...)` (Studio Image Capture at the exact pixel size) and `viewport_png(tx, path, w, h)` (rasterises the graphics window at its own size; returns the actual size) |
 | `curve` | UF `Eval` on curves and edges: `ends`, `point_at`, `closest`, `min_distance`, `point_distance` |
 | `display` | Display state of the displayed part: `shown_part`, `model_view`, `camera`/`set_camera`, styles, appearance, datums, dynamic sections, and the `Snapshots` behind `restore_id` |
 | `facts` | `edge(tx, edge)` (line/arc data), `face_point(tx, face)` (a point inside a trimmed face), `on_object` |
 | `features` | The feature timeline as the Part Navigator shows it (`timeline`, `internal`) and each feature's state (`states`) |
 | `files` | Workspace files: `metadata(path, root)` (`{path, size, sha256}`), `write_new`, `temp_path`, `png_size` |
+| `kinematics` | Assembly motion shared by assembly and motion: `pose(component)`, `place`, `drive(tx, constraint, value)` (solve a driven constraint), `gap` (minimum distance and witness points), `carry`, `angle_about` |
+| `licenses` | `served(tx, features)`, `require(tx, features, message, strict=, by_argument=)`: `LicenseManager.CheckPresence` (a query: no checkout, no dialog) before work whose missing license would open NX's blocking "License Not Available" dialog; refuses with `NX_LICENSE_UNAVAILABLE` |
+| `massprops` | Weight and centre-of-gravity bookkeeping: `entry`, `combine`, reference `frame`s (LCG/TCG/VCG), NX weight-management assertions (`asserted`, `assert_weight`, `clear_weight`) and component `groups` |
 | `measure` | `mass`, `volume`, `bounds`, `area`, `length`, `inertia` in work-part units; `wcs` is the displayed part's WCS (UF reports in it; NX refuses `WCS` of a part that is not displayed) |
 | `model` | `update(tx, mark=None)`: the NX model update inside the call's undo mark (errors → `NX_UPDATE_FAILED`) |
 | `switching` | `Switch(tx, part, mode, application=None).enter()` / `.restore()`: gate 4s's NX primitives. `work`: `Parts.SetWork` for the display part or a component prototype under it, else `uf.Assem.SetWorkPartQuietly` (any loaded part, no UI change, about 0 ms); `display`: `parts.activate` (undo marks kept, no Sheet Metal dialog) and the application the tool needs (`sheet_metal`). `restore` puts back the display part, the work part (through the previous work component when there was one) and the application (not Modeling for a shown part with sheet-metal features: NX's blocking warning); on failure it forces the home state (`SetWorkPartQuietly(display)` + `SetWork(display)`) and returns the warning text instead of raising. `clean`, `retry()`, `primitive`, `timings` |
@@ -1160,9 +1165,10 @@ and fails above the cap (`-s` prints the measured values).
 
 | Item | Cap | Measured |
 |---|---|---|
-| Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 167 tools (163 + 4 gateways), 160,373 chars, mean 960.3 |
-| Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 693, max 2,435 |
-| `agent` profile listing | 15,300 chars (about 4K tokens; 15,000 before `part` was listed on the seven ref-less core tools) | 15,244 chars |
-| `nx_find_tools` page of 10 rows | 1,400 chars | at most 1,371 |
-| `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,057 chars per tool |
+| Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 180 tools (176 + 4 gateways), 175,970 chars, mean 977.6 |
+| Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 699, max 2,463 |
+| `agent` profile listing | 15,300 chars (about 4K tokens; 15,000 before `part` was listed on the seven ref-less core tools) | 15,251 chars |
+| `nx_find_tools` page of 10 rows | 1,400 chars | at most 1,358 |
+| `nx_find_tools` domain overview (empty query, one row per domain) | 1,650 chars (1,400 until motion and optimization made 12 domains) | 1,557 chars |
+| `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,071 chars per tool |
 | Compact result before `result_id` paging | 4,000 chars | |

@@ -3,6 +3,7 @@
     f = facts.edge(tx, edge)        # {"kind": "line"/"arc"/"other", "start", "end", ...}
     p = facts.face_point(tx, face)  # a point inside a trimmed face, clear of holes
     q = facts.on_object(tx, obj)    # edge midpoint or interior face point
+    s = facts.interior_samples(tx, face, 3)  # [(point, unit normal)] inside a face
 
 Points are work-part coordinates in part units; edges are evaluated through
 ``kit.curve`` (UF ``Eval``). NX 2406 findings encoded here:
@@ -78,6 +79,27 @@ def face_point(tx, face, steps=8):
         if all(0 < a < 1 and 0 < b < 1 and inside(a, b) for a, b in near):
             return at(fu, fv)
     return at(*(interior or samples)[0])
+
+
+def interior_samples(tx, face, steps=3) -> list[tuple[list[float], list[float]]]:
+    """``[(point, unit normal)]`` at the centres of a ``steps`` x ``steps`` UV grid cell
+    layout of a face; points outside the trimmed face are skipped. The normal is UF
+    ``AskFaceProps``' (NX 2406: it follows the face sense, outward on a solid)."""
+    modeling = tx.uf.Modeling
+    u0, u1, v0, v1 = (float(v) for v in modeling.AskFaceUvMinmax(face.Tag))
+    out = []
+    for i in range(steps):
+        for j in range(steps):
+            uv = [u0 + (u1 - u0) * (i + 0.5) / steps, v0 + (v1 - v0) * (j + 0.5) / steps]
+            props = modeling.AskFaceProps(face.Tag, uv)
+            point = _xyz(props[0])
+            if int(modeling.AskPointContainment(point, face.Tag)) != FACE_INSIDE:
+                continue
+            normal = _xyz(props[5])
+            size = geom.norm(normal)
+            if size > 1e-12:
+                out.append((point, [v / size for v in normal]))
+    return out
 
 
 def is_edge(obj):

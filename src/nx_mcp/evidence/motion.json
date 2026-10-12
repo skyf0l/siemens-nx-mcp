@@ -1,0 +1,16 @@
+{
+  "nx_run_motion_sweep": {
+    "v2406": {
+      "checks": 38,
+      "recorded": "2026-10-12T14:08:43Z",
+      "scenario": "acceptance/motion/steering_linkage.json",
+      "scenario_sha256": "ac63941c25a9ea6831d5f905cd8ecc2be25c1a8954879f9ee0cbc0ae5bf772d3",
+      "source_sha256": "8a108fd074f4c9b3d173cb30a07bb88fc68fee3f98e21e3e684357dda213182f",
+      "variants": [
+        "constraint",
+        "revolute",
+        "slider"
+      ]
+    }
+  }
+}

@@ -38,9 +38,11 @@ DOMAINS = [
     "freeform",
     "sheet_metal",
     "assembly",
+    "motion",
     "drawing",
     "inspection",
     "display",
+    "optimization",
 ]
 
 
