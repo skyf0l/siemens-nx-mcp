@@ -22,18 +22,17 @@ This creates `.venv\Scripts\nx-mcp.exe`, the program your AI client starts.
 
 ## 2. Start NX with the MCP add-on
 
-**NX 2406:** tell NX where the add-on is, once, then start NX as usual:
+Start NX, press **Alt+F8** (Play Journal) and run `nx_app\journals\start_2406.py`
+from this folder (`start_2606.py` for NX 2606). A small **NX MCP** panel opens: the
+add-on runs until you close NX. Do this each time you start NX.
+
+Optional, to start it automatically with NX 2406: run this once, then restart NX.
 
 ```powershell
 setx UGII_USER_DIR "C:\path\to\siemens-nx-mcp\nx_app"
 ```
 
-(If you already use `UGII_USER_DIR`, add the `nx_app` folder to your `custom_dirs.dat`
-instead.) When NX starts, a small **NX MCP** panel opens: the add-on is running.
-
-**NX 2606**, or an NX 2406 started without the step above: in NX, press **Alt+F8**
-(Play Journal) and run `nx_app\journals\start_2606.py` (or `start_2406.py`). Do this
-each time you start NX.
+If you already use `UGII_USER_DIR`, add the `nx_app` folder to `custom_dirs.dat` instead.
 
 ## 3. Connect your AI client
 
@@ -85,7 +84,7 @@ More about the panel: [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 | --- | --- |
 | The agent says NX is not running | Start NX (step 2) and check that the NX MCP panel is open |
 | The agent says NX is blocked by a dialog | Answer the dialog in NX; the agent never clicks NX dialogs |
-| No NX MCP panel in NX 2406 | Check `UGII_USER_DIR` (step 2), restart NX, or play `start_2406.py` |
+| No NX MCP panel | Play the journal again (step 2); with the optional auto-start, check `UGII_USER_DIR` and restart NX |
 | **nx** is not connected in the client | Check the path to `nx-mcp.exe` and that step 1 finished |
 
 ## Settings (optional)
