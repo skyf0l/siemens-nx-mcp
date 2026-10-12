@@ -161,15 +161,17 @@ def test_a_load_makes_the_new_part_busy_and_the_stream(nx):
     assert refused.error["code"] == "NX_PART_BUSY", refused
 
 
-def test_saving_a_busy_part_only_warns(nx):
+def test_saving_a_busy_part_never_warns_and_ends_its_busy_state(nx):
     create(nx, "mc/a.prt")
     create(nx, "mc/b.prt", display=False)
     block(nx, "a")
-    block(nx, "b")
+    block(nx, "b")  # the last call worked in b: a's save is its agent's own (bench3t)
     saved = call(nx, tools.nx_save_part, part="a")
     assert saved.ok, saved
     notes = [w["message"] for w in saved.warnings]
-    assert any("another agent" in n and "a.prt" in n for n in notes), notes
+    assert not any("another agent" in n or "busy" in n for n in notes), notes
+    closed = call(nx, tools.nx_close_part, part="a", save=False)
+    assert closed.ok, closed  # saved: not busy, although the stream is b
 
 
 # ---------------------------------------------------------------------------
@@ -194,8 +196,8 @@ def test_the_active_tab_closes_keeping_marks_and_the_previous_tab_comes_back(nx)
     history = services(nx).history
     assert history[-1]["close"] == ["a.prt"] and history[-1]["mark"] is None
     undo = call(nx, NS(spec=catalogue.load()["nx_undo_operation"]), part="b")
-    assert undo.error["code"] == "NX_NOT_FOUND", undo
-    assert undo.error["details"]["reason"] == "part_closed"
+    assert undo.ok and undo.data["compensated"] is True, undo  # across the close (bench3t)
+    assert any("no longer reaches it" in w["message"] for w in undo.warnings), undo.warnings
     assert "a" not in loaded(nx)  # never loaded again
     listed = call(nx, NS(spec=catalogue.load()["nx_list_checkpoints"]), part="b")
     (row,) = listed.data["checkpoints"]
@@ -297,7 +299,7 @@ def test_activate_and_save_take_file_names_like_close(nx, root):
     unknown = call(nx, tools.nx_activate_part, part="nope")
     assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.error["field"] == "/part"
     assert unknown.mutation_outcome == "not_started"
-    assert "only for display" in tools.nx_activate_part.spec.description.lower()
+    assert "not needed to work in it" in tools.nx_activate_part.spec.description.lower()
 
 
 def test_a_taken_file_name_suggests_a_unique_one_and_never_offers_the_part(nx, root):

@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/sketch/multipart_display.json",
-  "scenario_sha256": "f2df033801506356c12594a55d0aaafacb313c79e1acde40fd1f62de98c69481",
+  "scenario_sha256": "653325c9d04b78af51d971b1593377edacdb378c4a6bb5bee981925bb0d3d797",
   "domain": "sketch",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-11T19:27:59Z",
+  "recorded": "2026-10-12T07:42:34Z",
   "passed": true,
-  "checks": 38,
+  "checks": 40,
   "failed_checks": 0,
   "steps": [
     {
@@ -21,118 +21,125 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_create_primitive",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
-      "call": "nx_create_sketch",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
       "index": 5,
-      "call": "nx_create_sketch_curves",
+      "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 6,
-      "call": "nx_list_parts",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 7,
-      "call": "nx_create_sketch_constraints",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 8,
-      "call": "nx_list_parts",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 9,
-      "call": "nx_get_sketch",
-      "setup": false,
-      "passed": true,
-      "checks": 9
-    },
-    {
-      "index": 10,
-      "call": "nx_edit_sketch_curves",
-      "setup": false,
-      "passed": true,
-      "checks": 6
-    },
-    {
-      "index": 11,
-      "call": "nx_list_parts",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 12,
-      "call": "nx_get_sketch",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
-      "index": 13,
-      "call": "nx_finish_sketch",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 14,
-      "call": "nx_create_sketch",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 15,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 16,
+      "index": 7,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 10,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 11,
       "call": "nx_edit_sketch_curves",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
+      "index": 12,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 14,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
       "index": 17,
+      "call": "nx_edit_sketch_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 18,
       "call": "nx_finish_sketch",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,

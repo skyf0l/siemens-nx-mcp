@@ -18,6 +18,11 @@ NX 2406 findings encoded here:
   (deactivated with a model update, ``core/parking.py``) and ``editing`` activates it
   for each call. ``open_sketch`` is the part's open sketch: NX's active one, else the
   parked one.
+- ``Sketch.Activate`` in a part that is not displayed (a quiet work part, or a part in
+  a background NX tab) raised a General Fault Exception, then NX died, for a sketch
+  with a dimension or an offset annotation; geometric constraints alone survived. Every
+  tool that activates an existing sketch (``editing``, finishing a parked one) is
+  ``display_bound``: its part is displayed for the call and the shown tab comes back.
 """
 
 from __future__ import annotations

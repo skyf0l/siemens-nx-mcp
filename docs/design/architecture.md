@@ -639,10 +639,14 @@ explains the feature; other sections point here.
 4. **A ref-less call without `part`** counts the agent's loaded parts (`agent_parts`):
    the rows `nx_list_parts` marks `owned` (created, opened when not already loaded, or
    granted by the engineer on the panel), components included, never a part the engineer
-   opened and did not grant. With 0 or 1 the call acts on the work part, exactly as before.
-   With 2 or more it is `NX_AMBIGUOUS_PART`: `details.loaded_parts` (at most 10, the work
-   part last), `details.count`, and a hint that lists the files with the neutral example
-   `{"part": "<file name>"}` (for `nx_create_component`: the assembly's file name).
+   opened and did not grant. With 0 or 1 the call acts on the work part, exactly as before,
+   except that with 1 it acts on that part when the work part is the engineer's (the
+   engineer tab guard below keeps the engineer's part displayed and work while the agent
+   works in its own; gate 4s switches to it). With 2 or more it is `NX_AMBIGUOUS_PART`:
+   "N agent parts are loaded (and M of the engineer's) ..." with `details.loaded_parts`
+   (at most 10, the work part last), `details.count`, and a hint that lists the files
+   with the neutral example `{"part": "<file name>"}` (for `nx_create_component`: the
+   assembly's file name).
 
 There is no hidden mode and no time window: the rule reads only what is loaded now.
 `any` tools (NX-global reads) are never ambiguous; `none` and `creates` tools, and a call
@@ -688,7 +692,7 @@ target current itself, by `spec.switch_for(args, kinds)`:
 |---|---|---|
 | `none` | reads; `none`, `creates`, `any` and `arg:` targets | No NX call. A target that is not the work part is bound (`Services.bound`): `tx.part`, `Services.work_part()`, units, `requires` and sheets follow it; `tx.scratch` makes it the work part quietly for its block |
 | `work` | model tools (the default) | The target becomes the work part: `Parts.SetWork` for the display part or a component prototype under it, else `uf.Assem.SetWorkPartQuietly` (any loaded part, no UI change); the display never moves |
-| `display` | `view` effects, the `display` and `drawing` domains, `interactive`, `application:sheet_metal`, explicit `switch="display"` tools (explosions, trace lines, WAVE links, model exports, `nx_update_assembly`, ...), and `display_bound` variants, arguments and ref kinds (`nx_create_sketch` `/placement/path`, `nx_create_reference_set` `/component`, `nx_delete_objects` of `kind:explosion`, `kind:section_view` and drafting kinds, `nx_preview_changes` `capture=true`) | The target is displayed (`kit.parts.activate`: undo marks kept, no Sheet Metal dialog) and made the work part, and the application the tool needs (Sheet Metal) is entered |
+| `display` | `view` effects, the `display` and `drawing` domains, `interactive`, `application:sheet_metal`, explicit `switch="display"` tools (explosions, trace lines, WAVE links, model exports, `nx_update_assembly`, ...), the tools that activate an existing sketch (below), and `display_bound` variants, arguments and ref kinds (`nx_create_sketch` `/placement/path`, `nx_create_reference_set` `/component`, `nx_delete_objects` of `kind:explosion`, `kind:section_view` and drafting kinds, `nx_preview_changes` `capture=true`) | The target is displayed (`kit.parts.activate`: undo marks kept, no Sheet Metal dialog) and made the work part, and the application the tool needs (Sheet Metal) is entered |
 
 - **No switch and no NX call** when the target is the work part, when it is the display
   part and the call did not name it with `part` (or the mode is `display`: a work
@@ -782,10 +786,15 @@ target current itself, by `spec.switch_for(args, kinds)`:
 - `nx_undo_operation(operation=...)` undoes one own operation (its part from the
   history, so no `part` is needed; `NX_DEPENDENCY_ORDER` while later operations of the
   part follow it, unless compensated); `mode: "compensate"` (`"delete_created"`, its v1
-  name, is the same) always compensates, across loads, closes and saves that cut NX's
-  history too, never across the engineer barrier. An undo refused at such a cut
-  (`NX_NOT_FOUND`) says in its hint whether the operations qualify ("Repeat with mode
-  compensate...") or how to fix forward. A restore undoes the
+  name, is the same) always compensates, never across the engineer barrier. The default
+  treats every block of NX's undo by other work alike (benchmark bench3t: another
+  agent's close refused it while other agents' later work compensated it): when a load,
+  a close or an evicted mark cut NX's history after the operations (`history.CROSSABLE`:
+  `part_loaded`, `part_closed`, `mark_evicted`; not the part's own save, which stays
+  `NX_NOT_FOUND` with the offer), it compensates when they qualify (`_compensable`; the
+  `NX_UPDATE_WARNING` says "NX's undo no longer reaches it (...)"), else it refuses with
+  `NX_NOT_FOUND` and the hint (why compensation does not qualify, how to fix forward).
+  It never crosses the engineer barrier. A restore undoes the
   checkpoint's part's operations since by the same rules. The redo list is per part: new
   work in a part ends that part's items only (`kernel._record`).
 - Previews compare `Services.part_revision`: the kernel bumps the target and touched
@@ -803,9 +812,10 @@ false, `OpenBase`, `AddComponent`) and switches the display only through
 the sheet-metal scratch routine too, whose scratch part closes with
 `CloseRetainUndoMarks`); a grep test forbids every other switch. Undoing to a mark set
 before a load unloads that part again, so a load by a `file` or `session` call is a
-barrier (`{mark: None, load: [paths]}`). With two or more agent parts loaded
-`nx_create_part` only loads the new part (work and display parts stay; tabs below). A model call that loads a part (a component from a file, an import into a
-new part) needs no barrier: undoing it unloads that part, which the session tools forget
+barrier (`{mark: None, load: [paths]}`). With two or more agent parts loaded, or while
+the engineer's part is displayed, `nx_create_part` only loads the new part (work and
+display parts stay; tabs below). A model call that loads a part (a component from a
+file, an import into a new part) needs no barrier: undoing it unloads that part, which the session tools forget
 and name in an `NX_NOTE`. A mark that went away says why (`expired_reason`):
 `saved_or_closed`, `part_loaded`, `display_reset` (a display switch outside NX MCP
 dropped the marks), `mark_evicted` (NX dropped its oldest marks, with an `NX_NOTE`),
@@ -829,12 +839,50 @@ another tab, so the engineer's model is never swapped out of its window.
 - **Display-bound calls** (gate 4s `display` mode) activate the target's tab, run, and
   re-activate the tab that was active (`Switch.restore`), so the engineer's tab comes back
   and the target keeps its tab (and its open sheet) for the next drawing call.
-- **create / open / activate** (`kit.parts.present`): while the part is the agent's only
-  part (rule G's count, never the engineer's parts) its tab is left active, as before. With
-  two or more agent parts loaded, `nx_create_part` does not display the new part,
-  `nx_open_part` and `nx_activate_part` give the part its tab and re-activate the tab that
-  was active (and its work part); `display: true` leaves the part's tab active, `false`
-  gives it no tab.
+- **Sketch activation is display-bound** (NX 2406 crash): `Sketch.Activate` of an existing
+  sketch with a dimension or an offset annotation in a part that is not displayed (quiet
+  work part, or its own background tab) raised a General Fault Exception, then NX died.
+  So every tool that activates an existing sketch runs with its part displayed, whatever
+  the sketch holds: `display_bound=True` for the curve, edit, constraint, dimension,
+  corner, copy and projection tools, `nx_finish_sketch` and `nx_check_sketch`;
+  `nx_get_sketch` when `include` has geometry or status (constraints alone never
+  activate); `nx_import_model` into a `sketch`. Gate 11 no longer re-activates a sketch of
+  a part that is not displayed. `nx_create_sketch` creates, activates and parks a new
+  sketch in the background safely. A sweep of every scenario beside a displayed
+  engineer part (`run --beside-engineer`) found no other crasher; it made
+  `nx_export_flat_pattern` display-bound (NX's export makes the display part work) and
+  `nx_get_sheet_metal` a `work` switch (NX answers in the work part's units), and gate 3t
+  pins the part of a wrong-kind ref or an anchor it cannot resolve, never falling back to
+  the engineer's work part.
+- **The engineer tab guard** (`kit.parts.engineer_tab`, `present`; benchmark bench3t:
+  all 12 `nx_create_part` calls of four agents passed `display: true` and the engineer's
+  tab was lost for 5 min 19 s; the first agent part would have taken it without
+  `display` too, as `crowded()` counts agent parts only). Agents never take over the
+  engineer's active tab: while the displayed part is the engineer's (not created, opened
+  or granted to the agent, `Services.owns`), `nx_create_part`, `nx_open_part`,
+  `nx_activate_part`, an import into a new part and a clone with `activate` never leave
+  an agent part active and never change the work part, whatever `display` and `work`
+  say. `display: true` (and `nx_activate_part` by default) gives the part its own tab
+  behind the engineer's (`tab_behind`: shown, then the engineer's tab and work part
+  re-activated, 0.2-0.9 s for a new tab); otherwise the part stays in the background
+  without a tab (an import runs in the new part's tab, then gives the engineer's back).
+  `data.display` and `data.work` are false, and an `NX_NOTE` says where the part is and
+  that calls reach it with `"part": "<file>"` (`shown_note`); the read-back checks the
+  engineer's tab is still the active one (`active_tab`). Ref-less calls then reach the
+  agent's only part (rule G above). An `nx_open_part` of a part the engineer has
+  displayed (already loaded) leaves it as it is.
+- **create / open / activate without an engineer part displayed** (`kit.parts.present`):
+  while the part is the agent's only part (rule G's count) its tab is left active, as
+  before. With two or more agent parts loaded, `nx_create_part` does not display the new
+  part, `nx_open_part` and `nx_activate_part` give the part its tab and re-activate the
+  tab that was active (and its work part); `display: true` leaves the part's tab active,
+  `false` gives it no tab. `work: true` with `display: false` makes the part the work part
+  only where NX allows it (the display part or a component under it); elsewhere it is
+  no longer refused (bench3t: a read-only `nx_open_part(display=false, work=true)` was
+  `NX_WRONG_PART_CONTEXT`): the work part stays and the note says how calls reach the
+  part. Whenever the part ends neither active nor work part, the same note says so
+  (bench3t: `nx_activate_part` with its defaults replied `work: false, display: false`
+  and nothing else).
 - **Closing the active tab** re-activates the most recently active remaining tab
   (`_saving._tab_back`, through `kit.parts.activate`: a sheet-metal part comes back in
   Sheet Metal, no dialog); `data.displayed` names it. No other part takes a closed part's
@@ -861,8 +909,10 @@ another tab, so the engineer's model is never swapped out of its window.
   force) while the stream is another loaded part. A close of a saved part (benchmark
   bench3p: 4 of 4 forced closes followed the agent's own save while another agent's call
   came last), a close right after working in the part (the stream is that part) and a
-  run of closes need nothing; `force: true` closes anyway. `nx_save_part` of a busy part
-  only warns (`NX_NOTE`). Without identity, when agents call at the same time, an agent's
+  run of closes need nothing; `force: true` closes anyway. `nx_save_part` never warns: a
+  save loses no one's work and ends the part's busy state (benchmark bench3t: 14 notes on
+  agents' saves of their own parts, keyed on the session-wide last call, all false).
+  Without identity, when agents call at the same time, an agent's
   own close of an unsaved part right after another agent's call is refused too (save
   first, or force), and a close right after the owner's own call passes. The protection
   that stays: a part another call changed and nobody saved is never closed silently.
@@ -915,7 +965,11 @@ display, work part or tab change alone (a tab click, "Show part") is no edit and
 every agent's undo history. The ENGINEER log line says what changed
 (`(changed: the number of NX undo marks)`) and names no part. `control.queue` in
 `nx_get_status` counts the calls waiting for the UI thread at the moment of the read,
-also when the status is answered from the running call's snapshot.
+also when the status is answered from the running call's snapshot; `control.waiting` is
+that count and `control.busy` agrees with it (true while a call runs or waits, the
+engineer is in an NX command or a card waits; `activity` `queued` between two ticks).
+The engineer-only and card-only counts are `engineer_busy` and `waiting_for_answer`
+(benchmark bench3t read `busy: false, waiting: 0` next to `queue.waiting: 4`).
 
 **Limits.**
 
@@ -926,7 +980,8 @@ also when the status is answered from the running call's snapshot.
   tab click was not measured (NX MCP never clicks).
 - A display-bound call on a background part shows its tab briefly and re-activates the
   engineer's (two tab switches, 63-92 ms each once the tab exists).
-- An import into a new part (`new_part_path`) still leaves the new part's tab active.
+- Without an engineer part displayed, an import into a new part (`new_part_path`)
+  still leaves the new part's tab active.
 - Two agents in one part share its history: undo, checkpoints and the busy rule see one
   part, not two callers.
 - `uf.Assem.SetWorkPartQuietly` is undocumented; `NX_MCP_SWITCH=display` is the

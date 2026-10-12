@@ -24,6 +24,7 @@
               "data.origin": {"close": [200, 200], "tol": 1e-06}, "data.sheet.name": "SHT1", "data.associations": 2}},
 
   {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mdr/mdr_front.prt", "units": "mm", "display": true}},
+  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('mdr_front') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at mdr_front.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
   {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 40, "width": 20, "height": 10, "part": "mdr_front"}},
   {"call": "nx_create_drawing_sheet", "setup": true, "save": "sh2", "args": {"part": "$part.data.part.id", "name": "SHT2", "size": "a4", "projection": "first_angle"}},
 
@@ -45,14 +46,14 @@
    "expect": {"ok": true, "part.file": "drawing_multipart_display_drawing_block_mm.prt", "data.type": "VerticalDimension",
               "data.value": {"close": 50, "tol": 1e-09}, "data.origin": {"close": [200, 200], "tol": 1e-06},
               "data.sheet.name": "SHT1", "data.associations": 2}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
 
   {"call": "nx_edit_annotation", "args": {"annotation": "$note.data.annotation.id", "position": [60, 50], "name": "BG_NOTE"},
    "intent": "Acceptance: a sheet note of the background drawing part moved",
    "expect": {"mutation_outcome": "committed", "part.file": "drawing_multipart_display_drawing_block_mm.prt",
               "data.position": {"close": [60, 50], "tol": 1e-06}, "data.name": "BG_NOTE", "data.frame": "sheet"}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
   {"call": "nx_list_objects", "args": {"part": "$part.data.part.id", "kind": "annotation", "name_contains": "BG_NOTE"},
    "intent": "Acceptance: the moved note reads back at its new position",
@@ -68,7 +69,7 @@
    "intent": "Acceptance: only the kept note is left (with the view's two automatic center marks)",
    "expect": {"page.total": 3, "data.items.0.id": "$note.data.annotation.id", "data.items.0.type": "Note",
               "data.items.1.type": "CenterMark", "data.items.2.type": "CenterMark"}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
 
   {"call": "nx_delete_objects", "args": {"objects": ["$sh2.data.sheet.id"]},
@@ -77,7 +78,7 @@
               "data.deleted.0.kind": "drawing_sheet"}},
   {"call": "nx_list_objects", "args": {"part": "$part.data.part.id", "kind": "drawing_sheet"},
    "expect": {"page.total": 1, "data.items.0.id": "$sh.data.sheet.id"}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "intent": "Acceptance: the engineer's display and work part are back",
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}}
  ]

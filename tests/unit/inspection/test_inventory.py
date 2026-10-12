@@ -74,6 +74,10 @@ def test_drawing_sheets_and_views_are_listed_through_their_hooks():
     assert views.ok and [r["name"] for r in views.data["items"]] == ["Top@1"], views
     with_views = run(nx, "nx_list_objects", kind="drawing_sheet", include="views")
     assert [v["name"] for v in with_views.data["items"][0]["details"]["views"]] == ["Top@1"]
+    assert sheets.data["items"][0]["details"]["active"] in (True, False)  # displayed: known
+    nx.session.Parts.Display = None  # a part in the background: NX names no current sheet
+    hidden = run(nx, "nx_list_objects", kind="drawing_sheet")
+    assert hidden.ok and hidden.data["items"][0]["details"]["active"] is None, hidden
 
 
 def _adjacent(body):

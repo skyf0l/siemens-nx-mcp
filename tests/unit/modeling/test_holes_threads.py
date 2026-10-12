@@ -375,6 +375,7 @@ def end_faces(nx, cyl, *ends, far=10.0):
     for end in ends:
         e = nx.edge((3, 0, end.origin[2]), (3, 0, end.origin[2]))
         e.GetFaces = lambda end=end: [cyl, end]
+        end.GetEdges = lambda e=e: [e]  # a cap within the radius: both ends free
         edges.append(e)
     rim = nx.edge((3, 0, far), (3, 0, far))
     rim.GetFaces = lambda: [cyl]
@@ -471,3 +472,59 @@ def test_custom_internal_spec_off_the_table_or_the_bore_is_noted(table):
                   spec={"pitch": 1, "major_diameter": 6, "minor_diameter": 5.6})  # fmt: skip
     notes = [w["message"] for w in shallow.warnings]
     assert any("M6 x 1.0 has minor diameter 4.891" in n for n in notes), notes
+
+
+def bolt_nx(radius=3.0, head=5.0):
+    """A shaft of ``radius`` from z=0 (its free tip cap) to z=20, where it meets the
+    underside of a ``head``-radius cylinder (a shoulder reaching beyond the shaft)."""
+    nx, body, _cyl, _start = thread_nx()
+    shaft = nx.remember(nx.face(normal=(0, 0, 1), kind="cylinder", body=body))
+    shaft.radius = radius
+    tip = nx.face(normal=(0, 0, -1), origin=(0, 0, 0), body=body)
+    shoulder = nx.face(normal=(0, 0, 1), origin=(0, 0, 20), body=body)
+
+    def ring(r, z, *faces):
+        edge = nx.edge((r, 0, z), (r, 0, z), body=body, linear=False)
+        edge.GetFaces = lambda: list(faces)
+        return edge
+
+    tip_edge, root_edge = ring(radius, 0, shaft, tip), ring(radius, 20, shaft, shoulder)
+    shaft.GetEdges = lambda: [tip_edge, root_edge]
+    tip.GetEdges = lambda: [tip_edge]
+    shoulder.GetEdges = lambda: [root_edge, ring(head, 20, shoulder)]
+    return nx, shaft, tip, shoulder
+
+
+MANUAL_M6 = {"pitch": 1, "major_diameter": 6, "minor_diameter": 4.9}
+
+
+def test_thread_starts_at_the_free_end_without_start_face():
+    # A bolt: the shaft's tip is a cap within its radius, the head's underside reaches
+    # beyond it, so the thread starts at the tip and runs to the head.
+    nx, shaft, tip, shoulder = bolt_nx()
+    ok = run(nx, "nx_create_thread", face=shaft.ref, spec=MANUAL_M6)
+    assert ok.ok, ok
+    assert nx.last("ThreadBuilder").StartObject.Value is tip
+    assert ok.data["start_face"]["id"] == tip.ref and ok.data["length"] == 20
+    # Both ends free (a plain rod) or both meeting larger faces: still ambiguous.
+    rod, rod_shaft, *_ = bolt_nx(head=3.0)
+    both = run(rod, "nx_create_thread", face=rod_shaft.ref, spec=MANUAL_M6)
+    assert both.error["field"] == "/start_face" and len(both.error["details"]["candidates"]) == 2
+    assert "both free" in both.error["message"]
+
+
+def test_bore_thread_starts_at_its_opening_not_its_flat_floor():
+    # The same faces as a blind bore (face sense reversed): the cap is its flat floor and
+    # the face reaching beyond the radius is the opening the tap enters from.
+    nx, bore, floor, opening = bolt_nx(radius=2.5)
+    plain = nx.uf.Modeling.AskFaceData
+
+    def reversed_bore(tag):
+        data = plain(tag)
+        return (*data[:6], -1) if tag == bore.Tag else data
+
+    nx.uf.Modeling.AskFaceData = reversed_bore
+    ok = run(nx, "nx_create_thread", face=bore.ref, spec=MANUAL_M6)
+    assert ok.ok, ok
+    assert nx.last("ThreadBuilder").StartObject.Value is opening
+    assert ok.data["start_face"]["id"] == opening.ref

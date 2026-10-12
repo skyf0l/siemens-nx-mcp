@@ -20,12 +20,12 @@
   "sources": {
     "nx_create_drawing_sheet": "dec5aa0138809a6be257305a84b4dbed60b00fd43fded62ae441341efbadeb49",
     "nx_activate_drawing_sheet": "dec5aa0138809a6be257305a84b4dbed60b00fd43fded62ae441341efbadeb49",
-    "nx_create_drawing_view": "7188339071cb5de6d3f373d7962259cea674405afcb334d5e65afebb745d0f20",
-    "nx_edit_drawing_view": "7188339071cb5de6d3f373d7962259cea674405afcb334d5e65afebb745d0f20",
-    "nx_get_drawing_view": "7188339071cb5de6d3f373d7962259cea674405afcb334d5e65afebb745d0f20",
+    "nx_create_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75",
+    "nx_edit_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75",
+    "nx_get_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75",
     "nx_export_drawing": "457c07bd8c84511e5676c9ebc84fd489367cb934685cf4fee64c4ab0962f8f61"
   },
-  "recorded": "2026-10-11T20:58:40Z",
+  "recorded": "2026-10-12T07:50:50Z",
   "passed": true,
   "checks": 76,
   "failed_checks": 0,

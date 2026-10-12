@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/parallel_fixes.json",
-  "scenario_sha256": "6f0bba48bdedc5499e104f5a37dda2b85c550dd897045e6fb3439ffd9dd7cde9",
+  "scenario_sha256": "3520695fab8cfb52bdc603569c34e429b10b2fcd8379929bde45132ca91d2e52",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-11T20:46:41Z",
+  "recorded": "2026-10-12T05:58:33Z",
   "passed": true,
-  "checks": 95,
+  "checks": 92,
   "failed_checks": 0,
   "steps": [
     {
@@ -266,10 +266,10 @@
     },
     {
       "index": 37,
-      "call": "nx_undo_operation",
+      "call": "nx_create_primitive",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 38,
@@ -280,63 +280,63 @@
     },
     {
       "index": 39,
-      "call": "nx_create_primitive",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 40,
       "call": "nx_close_part",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 41,
+      "index": 40,
       "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 41,
+      "call": "nx_create_primitive",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
       "index": 42,
-      "call": "nx_create_primitive",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 43,
       "call": "nx_close_part",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 44,
+      "index": 43,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 45,
+      "index": 44,
       "call": "nx_create_primitive",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 46,
+      "index": 45,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 47,
+      "index": 46,
       "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 47,
+      "call": "nx_create_component",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -357,90 +357,83 @@
     },
     {
       "index": 50,
-      "call": "nx_create_component",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 51,
       "call": "nx_check_interference",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 52,
+      "index": 51,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 52,
+      "call": "nx_create_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 1
     },
     {
       "index": 53,
-      "call": "nx_create_explosion",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 54,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 55,
+      "index": 54,
       "call": "nx_create_explosion",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 56,
+      "index": 55,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 57,
+      "index": 56,
       "call": "nx_set_explosion_display",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 58,
+      "index": 57,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 59,
+      "index": 58,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 60,
+      "index": 59,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 61,
+      "index": 60,
       "call": "nx_open_part",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 62,
+      "index": 61,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,

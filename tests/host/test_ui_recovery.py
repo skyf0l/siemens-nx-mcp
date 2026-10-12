@@ -692,8 +692,10 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
     assert status["data"]["control"] == {
         "mode": "auto",
         "mode_label": "Auto",
-        "busy": False,
+        "busy": True,  # a call runs
         "waiting": 0,
+        "engineer_busy": False,
+        "waiting_for_answer": 0,
         "activity": "running",
         "running": "nx_test_busy",
         "queue": {"waiting": 0, "oldest_seconds": None},

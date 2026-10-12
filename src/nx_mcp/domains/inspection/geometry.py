@@ -7,7 +7,9 @@
 owner anchor, that ``nx_resolve_reference`` re-evaluates after edits or a reopen.
 Without ``order``, ``nearest`` is used when ``near`` is given, else ``lowest``.
 A feature owner limits the candidates to the feature's own faces or edges
-(``Feature.GetFaces``/``GetEdges``), not every face of its bodies. ``normal`` also
+(``Feature.GetFaces``/``GetEdges``), not every face of its bodies; a face owner gives its
+edges (``kind: edge`` only, as ``nx_list_objects`` lists them), its selector a face handle
+anchor. ``normal`` also
 takes an axis word (``+z``, ``-x``, ``top`` = ``+z``, ``bottom`` = ``-z``).
 ``parallel`` keeps the line edges along an axis (either sense) or parallel to a principal
 plane (``xy``: across z), within ``tolerance`` as for ``normal``: ``parallel: 'z'`` gives
@@ -84,6 +86,11 @@ OwnerRef = Annotated[
     str, Text(400), RefKind("body", "feature", "component"),
     Doc("body/feature/component"),
 ]  # fmt: skip
+# nx_find_geometry also takes a face: its edges (as nx_list_objects lists them).
+FIND_OWNER_KINDS = (*common.TARGET_KINDS, "face")
+FindOwnerRef = Annotated[
+    str, Text(400), RefKind(*FIND_OWNER_KINDS), Doc("body/feature/component; face: its edges")
+]
 AnchorText = Annotated[str, Text(400), Doc("Anchor '@...' from nx_create_anchor or a result row")]
 
 
@@ -245,20 +252,33 @@ def _check_rule(kind, geometry_type, normal, radius, near, order, role=None, lin
         )
 
 
-def _owner(tx, owner):
+def _owner(tx, owner, kinds=common.TARGET_KINDS):
     if owner is None:
         return None, None
-    obj = resolve_owner(tx, owner, common.TARGET_KINDS)
+    obj = resolve_owner(tx, owner, kinds)
     return obj, tx.kind_of(obj)
 
 
+def _check_face_owner(owner_kind, kind) -> None:
+    """A face owner gives its edges only."""
+    if owner_kind == "face" and kind != "edge":
+        fail(
+            "NX_WRONG_KIND",
+            f"A face owner lists its edges, not {PLURAL[kind]}",
+            field="/owner",
+            hint='Use kind "edge" for its edges; for faces, give its body or feature as owner',
+        )
+
+
 def _candidates(tx, kind, owner_obj):
-    """Faces or edges of the owner (a feature: only its own) or of every body in scope;
+    """Faces or edges of the owner (a feature: only its own; a face: its edges) or of every
+    body in scope;
     for ``body``, the owner's bodies (a component's occurrences) or every body in scope."""
     if kind == "body":
         return bodies.of(tx, owner_obj) if owner_obj is not None else bodies.scope(tx, "auto")
-    if owner_obj is not None and tx.kind_of(owner_obj) == "feature":
-        found = [owner_obj]  # Feature.GetFaces/GetEdges: the feature's faces, not its bodies'
+    if owner_obj is not None and tx.kind_of(owner_obj) in ("feature", "face"):
+        # Feature.GetFaces/GetEdges: the feature's own, not its bodies'; a face's edges.
+        found = [owner_obj]
     elif owner_obj is not None:
         found = bodies.of(tx, owner_obj)
     else:
@@ -377,6 +397,9 @@ def _body_facts(tx, body, row):
 def _anchor_of(tx, obj, kind):
     if kind == "component":
         return f"@{_part_path(tx)}:{obj.JournalIdentifier}"
+    if kind == "face":  # a persistent handle, as nx_create_anchor makes
+        with native():
+            return f"@{_part_path(tx)}:face={tx.uf.Tag.AskHandleFromTag(obj.Tag)}"
     return tx.ref(obj, kind=kind).get("anchor")
 
 
@@ -408,7 +431,7 @@ def _part_path(tx):
 def nx_find_geometry(
     tx: Tx,
     *,
-    owner: OwnerRef | None = None,
+    owner: FindOwnerRef | None = None,
     kind: Literal["face", "edge", "body"] = "face",
     geometry_type: GeometryType = "any",
     normal: Normal | None = None,
@@ -439,7 +462,8 @@ def nx_find_geometry(
     lined = parallel is not None
     geometry_type = implied_type(kind, geometry_type, normal, radius, role, lined)
     _check_rule(kind, geometry_type, normal, radius, near, order, role, lined)
-    owner_obj, owner_kind = _owner(tx, owner)
+    owner_obj, owner_kind = _owner(tx, owner, FIND_OWNER_KINDS)
+    _check_face_owner(owner_kind, kind)
     ranked = search(
         tx,
         owner_obj=owner_obj,
@@ -830,7 +854,11 @@ def _selector_owner(tx, selector):
     if anchor is None:
         return None
     kind = selector.get("owner_kind")
-    obj, found_kind = _resolve_jid(tx, anchor, "/selector")
+    match = _HANDLE_ANCHOR.match(anchor)
+    if match:
+        obj, found_kind = _resolve_handle(tx, match, "/selector")
+    else:
+        obj, found_kind = _resolve_jid(tx, anchor, "/selector")
     if kind and found_kind != kind:
         fail("NX_STALE_REFERENCE", "The selector's owner changed kind", field="/selector")
     return obj

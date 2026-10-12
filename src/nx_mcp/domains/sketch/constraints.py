@@ -520,6 +520,7 @@ class ConstraintsData(TypedDict):
         "relation",
     ),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants=CONSTRAINT_TYPES,
     cost="light",
     batchable=True,
@@ -1002,6 +1003,7 @@ def _check_value(kind, value, field):
     summary="Dimension sketch {sketch}: {dimensions}",
     keywords=("dimension", "sketch dimension", "length", "radius", "angle", "distance", "driving"),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants=DIMENSION_TYPES,
     cost="light",
     batchable=True,

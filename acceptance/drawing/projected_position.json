@@ -1,0 +1,26 @@
+{
+  "covers": {
+    "nx_create_drawing_view": ["projected"],
+    "nx_list_view_edges": []
+  },
+  "fixture": "fixtures/drawing_block_mm.prt",
+  "part": null,
+  "steps": [
+    {"call": "nx_open_part", "setup": true, "save": "part", "args": {"path": "$fixture"}},
+    {"call": "nx_create_drawing_sheet", "setup": true, "save": "sh",
+     "args": {"name": "SHT1", "size": "a3", "projection": "third_angle"}},
+    {"call": "nx_create_drawing_view", "setup": true, "save": "front",
+     "args": {"type": "base", "sheet": "$sh.data.sheet.id", "orientation": "front", "position": [120, 150]}},
+    {"call": "nx_create_drawing_view",
+     "args": {"type": "projected", "parent": "$front.data.view.id", "direction": "top", "position": [110, 110]},
+     "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/position", "mutation_outcome": "not_started",
+                "error.message": {"contains": "y must be more than the parent's y = 150"},
+                "error.hint": {"contains": "spacing"}}},
+    {"call": "nx_create_drawing_view",
+     "args": {"type": "projected", "parent": "$front.data.view.id", "direction": "top", "position": [120, 230]},
+     "expect": {"mutation_outcome": "committed", "data.orientation": "top",
+                "data.position.1": {"close": 230, "tol": 1e-6}}},
+    {"call": "nx_list_view_edges", "args": {"view": "$front.data.view.id"},
+     "expect": {"ok": true, "page.limit": 50}}
+  ]
+}

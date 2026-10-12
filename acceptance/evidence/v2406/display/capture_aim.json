@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/capture_aim.json",
-  "scenario_sha256": "62d96b8cbe91b5f769522b1d785a66d58d2c2837237167b25bc34a62c57b5038",
+  "scenario_sha256": "7bd06a1e1c702962a717d3eaec68318509293cf99440668cfd10d93d88027090",
   "domain": "display",
   "covers": {
     "nx_capture_view": [],
@@ -13,9 +13,9 @@
     "nx_capture_view": "e7a5550a1a2a487f1bf71d7ebfb552698dff1be819367d734f0d0ebf67863406",
     "nx_get_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3"
   },
-  "recorded": "2026-10-11T20:49:23Z",
+  "recorded": "2026-10-12T07:53:18Z",
   "passed": true,
-  "checks": 29,
+  "checks": 31,
   "failed_checks": 0,
   "steps": [
     {
@@ -27,94 +27,94 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_set_camera",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 11
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_get_appearance",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 12,
+      "index": 13,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 13,
-      "call": "nx_capture_view",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
       "index": 14,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 15,
@@ -125,6 +125,13 @@
     },
     {
       "index": 16,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,

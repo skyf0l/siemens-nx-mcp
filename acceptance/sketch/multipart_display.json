@@ -4,6 +4,7 @@
  "fixture": null,
  "steps": [
   {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/mds/mds_front.prt", "units": "mm"}},
+  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('mds_front') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at mds_front.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
   {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
   {"call": "nx_create_part", "setup": true, "save": "back", "args": {"path": "$run/mds/mds_back.prt", "units": "mm", "display": false}},
   {"call": "nx_create_sketch", "setup": true, "save": "sk", "args": {"part": "mds_back", "placement": {"principal": "xy"}, "name": "BG_PICKS"}},
@@ -15,7 +16,7 @@
     {"type": "line", "start": [60, -5], "end": [60, 5]},
     {"type": "line", "start": [55, 0], "end": [65, 0]},
     {"type": "line", "start": [55, 3], "end": [58, 3]}]}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "intent": "Acceptance: the sketch in the background part left the engineer's display and work part alone",
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
 
@@ -24,7 +25,7 @@
     {"type": "concentric", "curves": ["$c.data.curves.2.curve.id", "$c.data.curves.3.curve.id"]}]},
    "intent": "Acceptance: coincident and concentric (point picks) in a sketch of the background part",
    "expect": {"mutation_outcome": "committed", "part.file": "mds_back.prt", "data.constraints": {"count": 2}}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
   {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["geometry"]},
    "intent": "Acceptance: the second line starts at the first one's end; the small circle is centred on the big one",
@@ -41,7 +42,7 @@
    "expect": {"mutation_outcome": "committed", "part.file": "mds_back.prt",
               "data.edits.0.curves.0.start": {"close": [55, 0], "tol": 1e-06}, "data.edits.0.curves.0.end": {"close": [60, 0], "tol": 1e-06},
               "data.edits.1.curves.0.start": {"close": [55, 3], "tol": 1e-06}, "data.edits.1.curves.0.end": {"close": [60, 3], "tol": 1e-06}}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
   {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["geometry"]},
    "intent": "Acceptance: the trimmed line ends at the boundary x = 60, the extended one reaches it",
@@ -64,7 +65,7 @@
               "data.edits.1.curves.0.start": {"close": [55, 3], "tol": 1e-06}, "data.edits.1.curves.0.end": {"close": [60, 3], "tol": 1e-06}}},
   {"call": "nx_finish_sketch", "args": {"sketch": "$xz.data.sketch.id"},
    "expect": {"mutation_outcome": "committed", "data.curve_count": 3}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "intent": "Acceptance: the engineer's display and work part are back",
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}}
  ]

@@ -18,9 +18,9 @@
   "sources": {
     "nx_create_assembly_constraint": "06e2e416e1e4ca970a6a35f3aee427ef8b0c078e4583bc58d1596706bbedf899",
     "nx_create_explosion": "dbdd0b6ecc5de5d7319a320de3ce4eef6ce5e979244c8bd2b99adb7390adde63",
-    "nx_create_component_pattern": "87249c6bce0cf8346746b47feb74ef9fb9bbf03a2278f885fe53157c821be7e2"
+    "nx_create_component_pattern": "3efda5d3d8bf69d3125a414ec0d1bf8b98cc5944ff975a0a16e4d74aa4296661"
   },
-  "recorded": "2026-10-11T20:50:05Z",
+  "recorded": "2026-10-12T07:47:25Z",
   "passed": true,
   "checks": 50,
   "failed_checks": 0,

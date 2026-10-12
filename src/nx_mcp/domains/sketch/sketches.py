@@ -406,8 +406,8 @@ def nx_create_sketch(
 def _deactivate(tx, sk):
     """Finish the active sketch ``sk`` with a model update and read it back. The view is
     reoriented only when the sketch's part is displayed: a background part's finish
-    never turns the shown part's view (NX 2406 raised a General Fault Exception on such a
-    finish of an inch part while a mm part was displayed)."""
+    never turns the shown part's view (the tools that activate a sketch display its part,
+    ``kit.sketch``)."""
     nx = tx.nx
     shown = ksketch.same(tx.session.Parts.Display, getattr(sk, "OwningPart", None))
     reorient = nx.Sketch.ViewReorient.TrueValue if shown else nx.Sketch.ViewReorient.FalseValue
@@ -442,6 +442,7 @@ def _finish_summary(a, say):
     summary=_finish_summary,
     keywords=("finish sketch", "exit sketch", "deactivate sketch", "close sketch", "end sketch"),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     cost="light",
     batchable=True,
     previewable=True,
@@ -572,6 +573,11 @@ def _solver_status(tx, sk):
         return common.status_row(tx, editing, ksketch.status(tx, editing))
 
 
+def _activates(services, part, args) -> bool:
+    """Geometry and status activate the sketch (solver), constraints alone do not."""
+    return bool(set(args.get("include") or INCLUDE) & {"geometry", "status"})
+
+
 @tool(
     switch="work",
     effect="read",
@@ -579,6 +585,7 @@ def _solver_status(tx, sk):
     summary="Read sketch {sketch}",
     keywords=("sketch info", "sketch curves", "sketch constraints", "degrees of freedom", "solver"),
     requires=("work_part",),
+    display_bound=(_activates,),  # activates the sketch for geometry and status: shown
     cost="light",
     example={"sketch": "s:3", "include": ["geometry", "status"]},
 )
@@ -646,7 +653,6 @@ class ConflictData(TypedDict, total=False):
 
 
 @tool(
-    switch="work",
     effect="read",
     label="Check sketch conflicts",
     summary="Find conflicts in sketch {sketch}",
@@ -660,6 +666,7 @@ class ConflictData(TypedDict, total=False):
         "constraint conflict",
     ),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     cost="heavy",
     example={"sketch": "s:3"},
 )

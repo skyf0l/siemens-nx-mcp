@@ -17,11 +17,11 @@
   "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "3e1a302c54377c138084d314fb950c018169f9c402047ddfbbe187f7917b03b4",
-    "nx_export_flat_pattern": "91b353a4116fe7ff6d0a0f3fe3e058ab6edfa971a7cb103dd0dd437339d6346e",
-    "nx_get_sheet_metal": "bef2201d624ee81b6909ceac97a42d6033630a6403f7ec257f07ab0d28637153",
+    "nx_export_flat_pattern": "d148430c523270bb5b98030e73505e276b4781818c8ecaa96085d60c3e69c793",
+    "nx_get_sheet_metal": "95a0511ea3b5bef12af2c1ee901d3bde2d5424d217901961aa0f065f85125285",
     "nx_set_sheet_metal_defaults": "8feb8b93e0b1ec75591e417b068b5a04b337abdbec9063935cc156cb506d3604"
   },
-  "recorded": "2026-10-10T23:39:59Z",
+  "recorded": "2026-10-12T07:54:50Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,

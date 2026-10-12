@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/bracket.json",
-  "scenario_sha256": "db5d2ca94580bfc630c3f61a7072117e88f92d88ded99bb0a27df33adee52e99",
+  "scenario_sha256": "b6d35877bfa92c95ae2da54bfd84613fe7fa14d69e51ed1dc49897b7de991633",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_feature": [
@@ -16,12 +16,12 @@
   "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_metal_feature": "3e1a302c54377c138084d314fb950c018169f9c402047ddfbbe187f7917b03b4",
-    "nx_get_sheet_metal": "bef2201d624ee81b6909ceac97a42d6033630a6403f7ec257f07ab0d28637153",
-    "nx_export_flat_pattern": "91b353a4116fe7ff6d0a0f3fe3e058ab6edfa971a7cb103dd0dd437339d6346e"
+    "nx_get_sheet_metal": "95a0511ea3b5bef12af2c1ee901d3bde2d5424d217901961aa0f065f85125285",
+    "nx_export_flat_pattern": "d148430c523270bb5b98030e73505e276b4781818c8ecaa96085d60c3e69c793"
   },
-  "recorded": "2026-10-10T23:39:22Z",
+  "recorded": "2026-10-12T07:54:12Z",
   "passed": true,
-  "checks": 62,
+  "checks": 64,
   "failed_checks": 0,
   "steps": [
     {
@@ -33,108 +33,108 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_activate_application",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_set_sheet_metal_defaults",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
       "checks": 7
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 12,
+      "index": 13,
       "call": "nx_get_sheet_metal",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 13,
+      "index": 14,
       "call": "nx_get_sheet_metal",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 14,
+      "index": 15,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 15,
+      "index": 16,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 16,
-      "call": "nx_find_geometry",
-      "setup": true,
-      "passed": true,
-      "checks": 0
     },
     {
       "index": 17,
@@ -145,45 +145,45 @@
     },
     {
       "index": 18,
-      "call": "nx_create_drawing_sheet",
+      "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 19,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 20,
+      "index": 21,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
       "checks": 2
-    },
-    {
-      "index": 23,
-      "call": "nx_export_flat_pattern",
-      "setup": false,
-      "passed": true,
-      "checks": 4
     },
     {
       "index": 24,
@@ -204,7 +204,7 @@
       "call": "nx_export_flat_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 27,
@@ -218,38 +218,45 @@
       "call": "nx_export_flat_pattern",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 29,
       "call": "nx_export_flat_pattern",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 30,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 31,
       "call": "nx_edit_feature",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 31,
+      "index": 32,
       "call": "nx_export_flat_pattern",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 32,
+      "index": 33,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 33,
+      "index": 34,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,

@@ -399,7 +399,7 @@ def nx_create_drawing_view(
     direction: Annotated[
         Literal["right", "left", "top", "bottom"],
         Aliases(DIRECTION_ALIASES),
-        Doc("Projected: the side of the parent on the sheet"),
+        Doc("Projected: side of the parent on the sheet; position must lie on that side"),
     ]
     | None = None,
     spacing: Annotated[float, Range(gt=0), Doc("Gap between borders")] | None = None,
@@ -622,9 +622,17 @@ def _create_projected(tx, parent_ref, direction, orientation, spacing, position)
         if position is not None:
             free = float(position[k])
             if not 0 <= free <= limit or sign * (free - center[k]) <= 0:
-                fail("NX_INVALID_ARGUMENT",
-                     f"position must lie {direction} of the parent and on the sheet",
-                     field="/position", details={"parent_position": center})  # fmt: skip
+                axis, bound = "xy"[k], "more than" if sign > 0 else "less than"
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    f"A {direction} projected view's position {axis} must be {bound} the "
+                    f"parent's {axis} = {center[k]:g} and on the sheet (0 to {limit:g}); "
+                    f"got {free:g}",
+                    field="/position",
+                    hint=f"Only position {axis} counts (the view stays aligned with the "
+                    "parent); or omit position and give spacing, the gap between borders",
+                    details={"parent_position": center, "sheet_size": drawing.size(sheet)},
+                )
         else:
             reach = facing + sign * gap
             if not 0 <= reach <= limit:

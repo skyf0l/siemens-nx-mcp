@@ -483,6 +483,7 @@ def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
         "sketch curve",
     ),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants=CURVE_TYPES,
     cost="light",
     batchable=True,
@@ -873,6 +874,7 @@ EDITORS = {
     summary="Edit {edits} in sketch {sketch}",
     keywords=("trim", "extend", "move line", "construction line", "delete curve", "reshape"),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants=EDIT_TYPES,
     cost="light",
     batchable=True,

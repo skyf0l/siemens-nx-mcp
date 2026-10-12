@@ -4,6 +4,7 @@
   "part": null,
   "steps": [
     {"call": "nx_create_part", "setup": true, "save": "blk", "args": {"path": "$run/act/pf_act_blk.prt"}},
+    {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('pf_act_blk') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at pf_act_blk.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
     {"call": "nx_save_part", "setup": true, "args": {}},
     {"call": "nx_create_part", "setup": true, "save": "asm", "args": {"path": "$run/act/pf_act_asm.prt", "display": true}},
     {"call": "nx_create_component", "setup": true, "args": {"part": "pf_act_asm", "path": "$run/act/pf_act_blk.prt", "name": "BLK"}},
@@ -19,7 +20,9 @@
     {"call": "nx_open_part", "setup": true, "save": "fx", "args": {"path": "$fixture", "display": true}},
     {"call": "nx_list_objects", "setup": true, "save": "bodies", "args": {"part": "$fixture", "kind": "body"}},
     {"call": "nx_activate_part", "args": {"part": "$asm.data.part.id", "display": false},
-     "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/display", "mutation_outcome": "not_started"}},
+     "intent": "Acceptance: work without display outside the displayed assembly is no longer refused (bench3t): the work part stays and a note says how calls reach the part",
+     "expect": {"mutation_outcome": "committed", "data.work": false, "data.display": false,
+                "warnings.0.message": {"matches": "pf_act_asm[.]prt is loaded .* Calls reach it with \"part\": \"pf_act_asm[.]prt\""}}},
     {"call": "nx_activate_part", "args": {"part": "$asm.data.part.id", "work": false, "display": true},
      "expect": {"mutation_outcome": "committed", "data.display": true}},
     {"call": "nx_activate_part", "args": {"part": "$fx.data.part.id", "work": false, "display": false},

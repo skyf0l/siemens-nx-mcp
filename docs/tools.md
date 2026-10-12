@@ -67,13 +67,13 @@ Mirror direct components of the work part across a plane into new components. Ea
 
 **Pattern component** · effect `model` · NX 2406: tested; 85 checks in `acceptance/assembly/patterns.json`
 
-Pattern a direct component linearly (one or two directions) or about an axis. Counts include the seed (at most 100). Circular angle is the step, or with span=true first to last (360: full circle); data.angle is the step. associative=false: independent copies.
+Pattern a direct component linearly (one or two directions) or about an axis. Counts include the seed (at most 100). Circular angle is the step, or with span=true first to last (360: full circle); data.angle is the step. associative=false: plain copies, no pattern object.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `component` | string | required | Ref: component |
 | `layout` | object {linear} or object {circular} | required |  |
-| `associative` | boolean | `true` | NX pattern (true) or independent copies |
+| `associative` | boolean | `true` | NX pattern (true) or plain copies, no pattern object |
 
 ### `nx_create_explosion`
 
@@ -131,7 +131,7 @@ Create a reference set of exactly these bodies, curves, datums or sketches (or c
 
 ### `nx_create_wave_link`
 
-**Create WAVE link** · effect `model` · NX 2406: tested (all variants); 71 checks in `acceptance/assembly/wave_links.json`
+**Create WAVE link** · effect `model` · NX 2406: tested (all variants); 73 checks in `acceptance/assembly/wave_links.json`
 
 WAVE link bodies, faces, curves, datums or sketches of one component into another's part. From the displayed assembly, target names the receiving component (else the work part, a component part, gets it). Faces: one edge-connected set. Sources: occurrences, part objects or (body) components.
 
@@ -292,7 +292,7 @@ No arguments.
 
 ### `nx_capture_view`
 
-**Capture view** · effect `view` · NX 2406: tested; 63 checks in `acceptance/display/natural_args.json`
+**Capture view** · effect `view` · NX 2406: tested; 65 checks in `acceptance/display/natural_args.json`
 
 PNG of the shown view or a sheet, to path or captures/; inline only with inline=true or no path. view_from/up aim it.
 
@@ -316,7 +316,7 @@ PNG of the shown view or a sheet, to path or captures/; inline only with inline=
 
 ### `nx_create_section_view`
 
-**Create section view** · effect `view` · NX 2406: tested; 48 checks in `acceptance/display/sections.json`
+**Create section view** · effect `view` · NX 2406: tested; 50 checks in `acceptance/display/sections.json`
 
 Cut the model view with a section plane, {origin, normal} or 'xz' + offset; the model is unchanged. The normal's side is hidden (hidden_side). Saved with the part until nx_delete_objects (remove_with). One active at a time.
 
@@ -329,7 +329,7 @@ Cut the model view with a section plane, {origin, normal} or 'xz' + offset; the 
 
 ### `nx_edit_section_view`
 
-**Edit section view** · effect `view` · NX 2406: tested; 48 checks in `acceptance/display/sections.json`
+**Edit section view** · effect `view` · NX 2406: tested; 50 checks in `acceptance/display/sections.json`
 
 Move a section plane, switch its cap, or enable/disable it. A plane with only origin or normal keeps the other; offset shifts along the normal.
 
@@ -354,7 +354,7 @@ Read blank state, colour and transparency of objects; bodies list their faces to
 
 ### `nx_get_camera`
 
-**Get camera** · effect `read` · NX 2406: tested; 52 checks in `acceptance/display/view_directions.json`
+**Get camera** · effect `read` · NX 2406: tested; 54 checks in `acceptance/display/view_directions.json`
 
 Read the displayed view: camera rotation, origin, scale and rendering style, or the shown drawing sheet. origin is what nx_set_camera takes back; view is a named view or custom, view_angle the degrees off the nearest.
 
@@ -373,7 +373,7 @@ Undo a display change by restore_id ('last' or none: the newest; newest first), 
 
 ### `nx_save_presentation`
 
-**Save view and appearance to JSON** · effect `file` · NX 2406: tested; 28 checks in `acceptance/display/presentation.json`
+**Save view and appearance to JSON** · effect `file` · NX 2406: tested; 30 checks in `acceptance/display/presentation.json`
 
 Save the camera, active section and every body and component's appearance to a new .json file. Never overwrites; nx_restore_display(presentation=...) applies it again.
 
@@ -395,7 +395,7 @@ Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) o
 
 ### `nx_set_camera`
 
-**Set camera: orient, zoom, fit view** · effect `view` · NX 2406: tested; 52 checks in `acceptance/display/view_directions.json`
+**Set camera: orient, zoom, fit view** · effect `view` · NX 2406: tested; 54 checks in `acceptance/display/view_directions.json`
 
 Orient (orientation, view_from or rotation), pan, zoom or fit the model view; returns restore_id. NX iso looks from (1,-1,1); view_from [-1,-1,1] shows a min-X front.
 
@@ -558,7 +558,7 @@ Place a drawing view at a verified sheet point; broken and break_out cut the par
 | `orientation` | `top` \| `front` \| `back` \| `right` \| `left` \| `bottom` \| `isometric` | optional |  |
 | `body` | Ref | optional | Ref: body |
 | `explosion` | Ref | optional | Ref: explosion |
-| `direction` | `right` \| `left` \| `top` \| `bottom` | optional | Projected: the side of the parent on the sheet |
+| `direction` | `right` \| `left` \| `top` \| `bottom` | optional | Projected: side of the parent on the sheet; position must lie on that side |
 | `spacing` | Number | optional | Gap between borders |
 | `hinge` | Ref | optional | Ref: edge |
 | `cut` | Ref | optional | Ref: edge |
@@ -715,7 +715,7 @@ Read a drawing view: type, orientation, parent, position, scale and border. Also
 
 **List view edges** · effect `read` · NX 2406: tested; 56 checks in `acceptance/drawing/view_edges_bounds.json`
 
-List model edges a drawing view draws visible, longest lines first. Sheet start, end, center, length and orientation.
+List model edges a drawing view draws visible, longest lines first, then circles (geometry_type circle: holes). Sheet start, end, center, length and orientation.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -723,7 +723,7 @@ List model edges a drawing view draws visible, longest lines first. Sheet start,
 | `geometry_type` | `any` \| `line` \| `circle` | `"any"` |  |
 | `orientation` | `any` \| `horizontal` \| `vertical` | `"any"` |  |
 | `offset` | integer | `0` |  |
-| `limit` | integer | `20` |  |
+| `limit` | integer | `50` |  |
 
 ### `nx_update_annotations`
 
@@ -914,7 +914,7 @@ Find faces/edges/bodies by type, normal, radius, role. parallel: edges along an 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `owner` | string | optional | body/feature/component |
+| `owner` | string | optional | body/feature/component; face: its edges |
 | `kind` | `face` \| `edge` \| `body` | `"face"` |  |
 | `geometry_type` | `any` \| `plane` \| `cylinder` \| `cone` \| `circle` \| `line` | `"any"` |  |
 | `normal` | array[3] of number or string | optional | [x,y,z] or +z, -x, top... |
@@ -1390,7 +1390,7 @@ Thread a cylindrical face, or several (faces: one thread each). spec: a table si
 | `face` | string | optional | Cylindrical face: a bore or a shaft |
 | `faces` | array[1-50] of string | optional | Several faces, one thread each |
 | `spec` | object {standard, size, method, engagement} or object {pitch, major_diameter, minor_diameter, angle, starts} | required |  |
-| `start_face` | string | optional | Planar end it starts at; default each face's only one |
+| `start_face` | string | optional | Planar end; default the only one, else a shaft's free end or bore's opening |
 | `length` | Length or `full` | optional | Default 'full': the whole face |
 | `detailed` | boolean | `false` | Helical geometry instead of a symbolic thread |
 | `hand` | `right` \| `left` | `"right"` |  |
@@ -1604,19 +1604,19 @@ No arguments.
 
 ### `nx_activate_part`
 
-**Activate part** · effect `session` · NX 2406: tested; 77 checks in `acceptance/parts_files/multipart_close.json`
+**Activate part** · effect `session` · NX 2406: tested; 81 checks in `acceptance/parts_files/multipart_close.json`
 
-Show a loaded part in its own NX tab as the work part. With other agent parts loaded the active tab stays unless display is true. Only for display: calls target their part by refs or the part key, never by activation.
+Show a loaded part in its own NX tab for the engineer. Not needed to work in it: calls reach a part by refs or the part key. Never takes the engineer's active tab: the part's tab then stays behind it, and the reply says so.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `work` | boolean | `true` |  |
-| `display` | boolean | optional | true: keep its tab active; false: no tab (default: active if sole agent part) |
+| `display` | boolean | optional | Show it in its own NX tab; never needed: calls reach it by part |
 
 ### `nx_close_part`
 
-**Close part** · effect `session` · NX 2406: tested; 77 checks in `acceptance/parts_files/multipart_close.json`
+**Close part** · effect `session` · NX 2406: tested; 81 checks in `acceptance/parts_files/multipart_close.json`
 
 Close one loaded part by ref, workspace path or file name (never implicitly the work part). With unsaved changes, save (true or false) is required. Refused while a loaded assembly uses it, or while another agent may be working in it (force). Unused parts only it brought in close too.
 
@@ -1639,15 +1639,15 @@ Create a workspace folder and its missing parents. An existing folder succeeds w
 
 ### `nx_create_part`
 
-**Create part** · effect `file` · NX 2406: tested; 36 checks in `acceptance/parts_files/create_part.json`
+**Create part** · effect `file` · NX 2406: tested; 35 checks in `acceptance/parts_files/create_part.json`
 
-Create a new workspace part and load it, shown in its own NX tab as the work part. With other agent parts loaded it is not shown unless display is true. Missing folders are created; the file is written by the first save.
+Create a new workspace part and load it. Calls reach it by part (its file name) without showing it; it never takes the engineer's active NX tab. Missing folders are created; the file is written by the first save.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | New workspace .prt path |
 | `units` | `mm` \| `in` | `"mm"` |  |
-| `display` | boolean | optional | Show it in its own NX tab (default: only while no other agent part is loaded) |
+| `display` | boolean | optional | Show it in its own NX tab; never needed: calls reach it by part |
 
 ### `nx_download_file`
 
@@ -1677,7 +1677,7 @@ Copy the saved work part and its component files to a new .zip or clone folder. 
 
 ### `nx_export_model`
 
-**Export model** · effect `file` · NX 2406: tested: iges, jt, parasolid, step, stl (untested: step_ap242); 38 checks in `acceptance/parts_files/export_model.json`
+**Export model** · effect `file` · NX 2406: tested: iges, jt, parasolid, step, stl (untested: step_ap242); 40 checks in `acceptance/parts_files/export_model.json`
 
 Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only); the suffix picks the format. Unsaved changes are exported; the part is never saved. Work part = display part.
 
@@ -1716,7 +1716,7 @@ Read user attributes of the work part or of parts, bodies, faces, features and c
 
 ### `nx_import_model`
 
-**Import model** · effect `model` · NX 2406: tested: dxf_dwg, iges, parasolid, step, stl (untested: catia_v5); 37 checks in `acceptance/parts_files/import_model.json`
+**Import model** · effect `model` · NX 2406: tested: dxf_dwg, iges, parasolid, step, stl (untested: catia_v5); 39 checks in `acceptance/parts_files/import_model.json`
 
 Import a CAD file into the work part, or into a new part (new_part_path) made work part. STEP, IGES, Parasolid .x_t/.x_b, STL (facet bodies), DXF/DWG (curves; target sketch puts them in a finished sketch), CATIA V5; the path suffix picks the format.
 
@@ -1745,7 +1745,7 @@ List a workspace folder one page at a time: files with size and SHA-256, and sub
 
 ### `nx_list_parts`
 
-**List loaded parts** · effect `read` · NX 2406: tested; 17 checks in `acceptance/parts_files/list_parts.json`
+**List loaded parts** · effect `read` · NX 2406: tested; 19 checks in `acceptance/parts_files/list_parts.json`
 
 List the loaded parts: file, units, work/display state, modified flag and owned (the agent may save or change it).
 
@@ -1759,9 +1759,9 @@ List the loaded parts: file, units, work/display state, modified flag and owned 
 
 ### `nx_open_part`
 
-**Open part** · effect `session` · NX 2406: tested; 40 checks in `acceptance/parts_files/open_part.json`
+**Open part** · effect `session` · NX 2406: tested; 42 checks in `acceptance/parts_files/open_part.json`
 
-Open a workspace .prt, or reuse it if loaded, as the work part in its own NX tab. With other agent parts loaded, only display true leaves that tab active. A reopened part gets a new ref.
+Open a workspace .prt, or reuse it if loaded. Calls reach it by part (its file name) without showing it; it never takes the engineer's active NX tab. A reopened part gets a new ref.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1813,7 +1813,7 @@ Upload a new workspace file: text as content, or bytes as base64 chunks in order
 
 ### `nx_activate_application`
 
-**Activate application** · effect `session` · NX 2406: tested; 19 checks in `acceptance/sheet_metal/activate_application.json`
+**Activate application** · effect `session` · NX 2406: tested; 21 checks in `acceptance/sheet_metal/activate_application.json`
 
 Switch NX to the Modeling or Sheet Metal application for the displayed work part. Sheet-metal features need sheet_metal; a part with them cannot go back to modeling. For drawings use nx_activate_drawing_sheet, not this tool.
 
@@ -1823,7 +1823,7 @@ Switch NX to the Modeling or Sheet Metal application for the displayed work part
 
 ### `nx_cancel_operation`
 
-**Cancel operation** · effect `session` · NX 2406: tested; 48 checks in `acceptance/session/status_operations.json`
+**Cancel operation** · effect `session` · NX 2406: tested; 50 checks in `acceptance/session/status_operations.json`
 
 Ask a running call (nx_run_batch or another multi-step tool) to stop at its next step; it then rolls back. One native NX call is never interrupted; check the outcome with nx_get_operation.
 
@@ -1833,7 +1833,7 @@ Ask a running call (nx_run_batch or another multi-step tool) to stop at its next
 
 ### `nx_create_checkpoint`
 
-**Create checkpoint** · effect `session` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
+**Create checkpoint** · effect `session` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
 Set an in-session undo checkpoint in the work part (restore by id or label). A save, part close, later part load or undo past it expires it; disk saves are never rolled back.
 
@@ -1877,7 +1877,7 @@ Accept re-applies exactly the previewed calls under one undo mark; discard drops
 
 ### `nx_get_operation`
 
-**Get operation** · effect `read` · NX 2406: tested; 48 checks in `acceptance/session/status_operations.json`
+**Get operation** · effect `read` · NX 2406: tested; 50 checks in `acceptance/session/status_operations.json`
 
 Durable state of an earlier changing call by its operation_id: running (with progress), committed, failed or unknown. Answers while NX is busy or down; unknown never authorizes a blind retry.
 
@@ -1901,7 +1901,7 @@ Page or expand a stored result by result_id without repeating the call or reachi
 
 ### `nx_get_status`
 
-**Get NX status** · effect `read` · NX 2406: tested; 48 checks in `acceptance/session/status_operations.json`
+**Get NX status** · effect `read` · NX 2406: tested; 50 checks in `acceptance/session/status_operations.json`
 
 NX build, bridge state, panel mode, work and display part, workspace root and rules. Also the running operation; answers while NX runs a step (from a snapshot) and when the bridge is down. Panel mode: auto or ask (Ask me first); only the engineer changes it.
 
@@ -1911,7 +1911,7 @@ NX build, bridge state, panel mode, work and display part, workspace root and ru
 
 ### `nx_list_checkpoints`
 
-**List checkpoints** · effect `read` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
+**List checkpoints** · effect `read` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
 List this session's checkpoints (with part: that part's) and the part's undo depth. Expired ones show available=false and expired_reason (undone_past, saved_or_closed, part_loaded, display_reset, mark_evicted, engineer_change or part_closed).
 
@@ -1940,7 +1940,7 @@ Repeat the part's agent calls an undo or checkpoint restore reverted, next first
 
 ### `nx_restore_checkpoint`
 
-**Restore checkpoint** · effect `model` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
+**Restore checkpoint** · effect `model` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
 Roll the checkpoint's part back to it (id or label), undoing its agent operations since; it stays restorable. Refused when expired, or when other parts' later work is in the way. Refs of objects that remain stay valid; save to persist.
 
@@ -1971,7 +1971,7 @@ Rename an object of the work part (feature, body, sketch, component) by its ref.
 
 ### `nx_undo_operation`
 
-**Undo operation** · effect `model` · NX 2406: tested; 42 checks in `acceptance/session/undo_survives_load.json`
+**Undo operation** · effect `model` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
 Undo the part's last steps operations, or one own operation; never others' work. nx_redo_operation repeats them.
 

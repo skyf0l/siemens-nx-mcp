@@ -16,9 +16,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_sketch_curves": "b7d1862b43d0e51eac0bada728dccb4eb0790178afa0e917462d01821c1aed87"
+    "nx_edit_sketch_curves": "f9633f1fc09d8724cb434738d1098d71468f61a1cf744754354f9641c740b67f"
   },
-  "recorded": "2026-10-11T19:30:32Z",
+  "recorded": "2026-10-12T07:42:24Z",
   "passed": true,
   "checks": 32,
   "failed_checks": 0,

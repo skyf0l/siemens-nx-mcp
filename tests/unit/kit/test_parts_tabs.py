@@ -3,8 +3,9 @@ tab and no call replaces the part of another tab (tabs probe, NX 2406).
 
 ``show`` is ``SetActiveDisplayRetainUndoMarks(AllowAdditional)``: a new tab, or the
 part's tab activated, undo marks kept. ``present`` is the policy of nx_create_part,
-nx_open_part and nx_activate_part: with two or more agent parts loaded the tab active
-before comes back unless the call asks for the part's tab (``display`` true).
+nx_open_part and nx_activate_part: while the engineer's part is shown no agent part is
+left active (the engineer tab guard); else, with two or more agent parts loaded, the tab
+active before comes back unless the call asks for the part's tab (``display`` true).
 """
 
 from __future__ import annotations
@@ -59,36 +60,64 @@ def test_closing_a_tab_part_removes_its_tab_and_the_active_one_leaves_no_display
     assert nx.session.Parts.Display is None and parts.tabs(nx.session.Parts) == [engineer]
 
 
-def test_the_agents_only_part_keeps_its_tab_active():
+def test_the_agents_only_part_keeps_its_tab_active_when_no_engineer_part_is_shown():
     nx, tx, engineer = setup()
+    nx.session.Parts.Display = nx.session.Parts.Work = None  # NX shows no part
     a = new(nx, "a.prt")
     assert not parts.crowded(tx, a)  # the engineer's part never counts
-    assert parts.present(tx, a) is True
-    assert nx.session.Parts.Display is a and parts.tabs(nx.session.Parts) == [a, engineer]
+    shown = parts.present(tx, a)
+    assert shown.active and shown.work and shown.kept is None
+    assert nx.session.Parts.Display is a and parts.tabs(nx.session.Parts)[0] is a
+
+
+def test_the_engineer_tab_guard_never_leaves_an_agent_part_active():
+    """bench3t: 12 of 12 creates passed display true and took the engineer's tab for
+    5 min 19 s; the first agent part took it even without display."""
+    nx, tx, engineer = setup()
+    assert parts.engineer_tab(tx) is engineer
+    a, b = new(nx, "a.prt"), new(nx, "b.prt")
+    calls = len(nx.session.shown)
+    for display in (None, False):  # the agent's only part, or not: background, no tab
+        shown = parts.present(tx, a, display=display)
+        assert not shown.active and not shown.work and shown.engineer and shown.kept is engineer
+    assert len(nx.session.shown) == calls and parts.tabs(nx.session.Parts) == [engineer]
+    shown = parts.present(tx, b, display=True)  # its own tab, behind the engineer's
+    assert not shown.active and shown.engineer
+    assert nx.session.Parts.Display is engineer and nx.session.Parts.Work is engineer
+    assert parts.tabs(nx.session.Parts) == [engineer, b] and parts.has_tab(tx, b)
+    note = parts.shown_note(tx, b, shown)
+    assert note.startswith("The engineer's work.prt stays the active NX tab; b.prt is loaded "
+                           "in its own NX tab behind it") and '"part": "b.prt"' in note  # fmt: skip
+    assert "in the background" in parts.shown_note(tx, a, parts.present(tx, a))
 
 
 def test_with_two_agent_parts_the_tab_active_before_comes_back():
     nx, tx, engineer = setup()
+    mine = new(nx, "mine.prt")
+    parts.show(nx.nx, nx.session.Parts, mine)  # an agent part is shown: no guard
+    assert parts.engineer_tab(tx) is None
     a, b = new(nx, "a.prt"), new(nx, "b.prt")
     assert parts.crowded(tx, b)
-    assert parts.present(tx, b) is False
-    assert nx.session.Parts.Display is engineer and nx.session.Parts.Work is engineer
-    assert parts.tabs(nx.session.Parts) == [engineer, b]  # b has its own tab
-    assert parts.present(tx, a, display=True) is True  # the call asks for it
-    assert nx.session.Parts.Display is a and parts.tabs(nx.session.Parts) == [a, engineer, b]
+    shown = parts.present(tx, b)
+    assert not shown.active and shown.kept is mine and not shown.engineer
+    assert nx.session.Parts.Display is mine and nx.session.Parts.Work is mine
+    assert parts.tabs(nx.session.Parts) == [mine, b, engineer]  # b has its own tab
+    assert parts.present(tx, a, display=True).active  # the call asks for it
+    assert nx.session.Parts.Display is a and parts.tabs(nx.session.Parts)[:3] == [a, mine, b]
     calls = len(nx.session.shown)
-    assert parts.present(tx, b, display=False) is False and len(nx.session.shown) == calls
+    assert not parts.present(tx, b, display=False).active and len(nx.session.shown) == calls
 
 
-def test_present_gives_back_the_work_part_too():
+def test_the_guard_leaves_the_engineers_work_component_alone():
     nx, tx, engineer = setup()
     component = new(nx, "c.prt")
     nx.attach(engineer, component)
     nx.session.Parts.SetWork(component)  # the engineer edits a component in context
     a, b = new(nx, "a.prt"), new(nx, "b.prt")
-    assert parts.present(tx, b) is False
+    assert not parts.present(tx, b, display=True).active
     assert nx.session.Parts.Display is engineer and nx.session.Parts.Work is component
-    assert a in nx.session.Parts
+    assert not parts.present(tx, a, display=False).work  # work too stays the engineer's
+    assert nx.session.Parts.Work is component and a in nx.session.Parts
 
 
 def test_a_display_bound_switch_works_in_the_targets_tab_and_gives_the_engineers_back():

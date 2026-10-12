@@ -22,7 +22,9 @@ counts them); with one, every call behaves as before.
   forced closes were of parts their agent had just saved while another agent's call came
   last), and a run of closes (once a part closes, the stream names a part that is gone)
   close. ``force`` closes anyway.
-- ``nx_save_part`` of such a part saves with a note (``note``).
+- ``nx_save_part`` never warns: a save loses no one's work and ends the part's busy
+  state. The stream says nothing about who saves (benchmark bench3t: 14 save notes
+  keyed on the session-wide last call, every one on the agent's own part, all false).
 - Closing an assembly keeps a component part that a call worked in (saves included)
   within ``BUSY_SECONDS`` after the assembly was loaded (``component_reason``);
   components the assembly's own calls loaded are not busy themselves.
@@ -193,19 +195,6 @@ def refuse(services, part, *, field: str = "/part") -> None:
         hint=f"If {name} is your own part, save it first (a saved part closes) or repeat "
         "the call with force: true; otherwise leave it to the agent working in it",
         details=found,
-    )
-
-
-def note(services, part) -> str | None:
-    """The save warning for a part :func:`facts` would refuse to close, else None."""
-    found = facts(services, part)
-    if found is None:
-        return None
-    return (
-        f"{found['part']} was changed {found['changed_seconds_ago']:.0f} s ago "
-        f"({found['last_change']['tool']}) while the last call worked in "
-        f"{found['last_call_part']}: if another agent is working in it, this saved its "
-        "current state"
     )
 
 

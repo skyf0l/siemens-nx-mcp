@@ -408,3 +408,26 @@ def test_parallel_keeps_line_edges_along_an_axis_or_a_plane_and_reruns():
     assert circle.error["field"] == "/parallel"
     word = run(nx, "nx_find_geometry", kind="edge", parallel="up")
     assert word.error["category"] == "invalid_argument"
+
+
+def test_face_owner_gives_the_faces_edges_and_a_handle_selector():
+    # As nx_list_objects {kind: edge, owner: face}: the face's own edges, re-resolvable.
+    nx = inspection_nx()
+    body = nx.block(40, 20, 10)
+    top = _top(nx, body)
+    rim = [e for e in body.edges if all(v.Z == 10 for v in e.GetVertices())]
+    top.GetEdges = lambda: rim
+    ok = run(nx, "nx_find_geometry", owner=top.ref, kind="edge", parallel="x", order="highest",
+             axis="y")  # fmt: skip
+    assert ok.ok and ok.page["total"] == 2, ok
+    assert {i["id"] for i in ok.data["items"]} <= {e.ref for e in rim}
+    selector = json.loads(ok.data["selector"])
+    assert selector["owner"] == f"@work.prt:face=RM{top.Tag} R{top.Tag}"
+    assert selector["owner_kind"] == "face"
+    again = run(nx, "nx_resolve_reference", selector=ok.data["selector"])
+    assert again.data["object"]["id"] == ok.data["items"][0]["id"], again
+    faces = run(nx, "nx_find_geometry", owner=top.ref, kind="face")
+    assert faces.error["code"] == "NX_WRONG_KIND" and faces.error["field"] == "/owner"
+    assert 'kind "edge"' in faces.error["hint"]
+    holes = run(nx, "nx_find_holes", owner=top.ref)
+    assert holes.error["code"] == "NX_WRONG_KIND"

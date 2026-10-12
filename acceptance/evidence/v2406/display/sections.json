@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/sections.json",
-  "scenario_sha256": "dc528db6e6e8b8b479d239730e9c8df4a0ff5b55731c944840d4b4057c2375ed",
+  "scenario_sha256": "baea18bab7aa9e27e8df97478a3b56a2f6ffd05db383397edee2b4b220624106",
   "domain": "display",
   "covers": {
     "nx_create_section_view": [],
@@ -13,9 +13,9 @@
     "nx_create_section_view": "418386ebf87e88879ae5d4851d963c9616d63dedef4c19eb18321ba827288302",
     "nx_edit_section_view": "418386ebf87e88879ae5d4851d963c9616d63dedef4c19eb18321ba827288302"
   },
-  "recorded": "2026-10-11T19:30:25Z",
+  "recorded": "2026-10-12T07:53:42Z",
   "passed": true,
-  "checks": 48,
+  "checks": 50,
   "failed_checks": 0,
   "steps": [
     {
@@ -27,94 +27,94 @@
     },
     {
       "index": 2,
-      "call": "nx_list_objects",
-      "setup": true,
+      "call": "engineer",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 3,
-      "call": "nx_set_camera",
+      "call": "nx_list_objects",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 4,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_create_section_view",
       "setup": false,
       "passed": true,
       "checks": 14
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_create_section_view",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_edit_section_view",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 10,
-      "call": "nx_capture_view",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
       "index": 11,
-      "call": "nx_edit_section_view",
+      "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
       "index": 12,
+      "call": "nx_edit_section_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 13,
+      "index": 14,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 14,
-      "call": "nx_edit_section_view",
-      "setup": false,
-      "passed": true,
-      "checks": 2
     },
     {
       "index": 15,
@@ -132,20 +132,27 @@
     },
     {
       "index": 17,
+      "call": "nx_edit_section_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
       "call": "nx_create_section_view",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 19,
+      "index": 20,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

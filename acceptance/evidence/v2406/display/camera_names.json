@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/camera_names.json",
-  "scenario_sha256": "e8903a79ca29e7262a479ec702a23244a94c4a2598d8d7d2e5a3f2cdabca1546",
+  "scenario_sha256": "87eab572ce58e9ffa6b265b25634f922369a1ae2dc0a389d84996e09cc0ad662",
   "domain": "display",
   "covers": {
     "nx_set_camera": [],
@@ -13,9 +13,9 @@
     "nx_set_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3",
     "nx_get_camera": "1f0326d9255bca00d83872b1d430287e7249fae84862721819a061f4ed04f5e3"
   },
-  "recorded": "2026-10-11T19:40:15Z",
+  "recorded": "2026-10-12T07:53:14Z",
   "passed": true,
-  "checks": 16,
+  "checks": 18,
   "failed_checks": 0,
   "steps": [
     {
@@ -27,59 +27,59 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_create_extrude",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
       "checks": 3
-    },
-    {
-      "index": 9,
-      "call": "nx_set_camera",
-      "setup": false,
-      "passed": true,
-      "checks": 2
     },
     {
       "index": 10,
@@ -90,6 +90,13 @@
     },
     {
       "index": 11,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,

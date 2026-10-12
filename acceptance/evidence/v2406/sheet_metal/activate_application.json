@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/activate_application.json",
-  "scenario_sha256": "b513cbd7c999e5f18090dad36e7a91d49d28ce4fc581273df491fbbb8b1efea4",
+  "scenario_sha256": "6c2ad7b5d1e34f8627ef7b7ec884c94cd815c5ead0fe195b4e77c14e9b4e155a",
   "domain": "sheet_metal",
   "covers": {
     "nx_activate_application": []
@@ -11,9 +11,9 @@
   "sources": {
     "nx_activate_application": "e18492dab45b57be7f45068f9e94b274d02611a3b22a33521aeadf6a0ddd35fb"
   },
-  "recorded": "2026-10-11T15:21:27Z",
+  "recorded": "2026-10-12T07:53:54Z",
   "passed": true,
-  "checks": 19,
+  "checks": 21,
   "failed_checks": 0,
   "steps": [
     {
@@ -25,42 +25,42 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 6,
-      "call": "nx_create_sheet_metal_feature",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
       "index": 7,
-      "call": "nx_activate_application",
+      "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -70,18 +70,18 @@
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 2
-    },
-    {
-      "index": 9,
-      "call": "nx_create_sheet_metal_feature",
-      "setup": false,
-      "passed": true,
       "checks": 3
     },
     {
-      "index": 10,
+      "index": 9,
       "call": "nx_activate_application",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -91,10 +91,17 @@
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 12,
+      "call": "nx_activate_application",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,

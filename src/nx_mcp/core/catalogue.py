@@ -158,20 +158,27 @@ class ToolSpec:
     # pointers to arguments that do when given and not false (``working_in`` handlers: a
     # reference set's ``/component``; a path sketch's ``/placement/path``; a preview's
     # ``/capture``), ``/<param>/<key>=<value>`` for an argument with that string value
-    # (an extrude's ``/end/type=through_all``), and ``kind:<ref kind>`` for calls whose
+    # (an extrude's ``/end/type=through_all``), ``kind:<ref kind>`` for calls whose
     # references name an object of that kind (``nx_delete_objects`` of an explosion:
-    # ``kind:explosion``).
-    display_bound: bool | tuple[str, ...] = False
+    # ``kind:explosion``), and a predicate ``fn(services, part, args) -> bool`` asked at
+    # gate 4s for a target that is not displayed (``nx_get_sketch`` reading geometry or
+    # status activates its sketch); a predicate that raises counts as True.
+    display_bound: bool | tuple[Any, ...] = False
 
-    def switch_for(self, args: Mapping, kinds=()) -> str:
+    def switch_for(self, args: Mapping, kinds=(), *, services=None, part=None) -> str:
         """The switch mode of a call: ``display`` for a display-bound variant, given
-        display-bound argument or reference kind (``kinds``: the kinds its refs name)."""
+        display-bound argument or reference kind (``kinds``: the kinds its refs name), or
+        a predicate that holds for the target ``part`` (asked only with ``services``)."""
         if self.display_bound is True:
             return "display"
         if self.display_bound:
             if self.variants is not None and self.variant_of(args) in self.display_bound:
                 return "display"
             for item in self.display_bound:
+                if callable(item):
+                    if services is not None and _holds(item, services, part, args):
+                        return "display"
+                    continue
                 pointer, eq, wanted = item.partition("=")
                 value = _pointed(args, pointer) if item.startswith("/") else None
                 if (value == wanted) if eq else value not in (None, False):
@@ -231,6 +238,14 @@ def _pointed(args: Mapping, pointer: str):
             return None
         value = value.get(key)
     return value
+
+
+def _holds(predicate: Callable, services, part, args: Mapping) -> bool:
+    """A ``display_bound`` predicate's answer; one that raises means display (safe)."""
+    try:
+        return bool(predicate(services, part, args))
+    except Exception:
+        return True
 
 
 _REGISTRY: dict[str, ToolSpec] = {}
@@ -663,7 +678,8 @@ def _target_rules(
         unknown = [
             v
             for v in display_bound
-            if v not in variant_values
+            if not callable(v)
+            and v not in variant_values
             and not (v.startswith("/") and v.strip("/").split("/")[0] in params)
             and not (v.startswith("kind:") and v[5:] in KINDS)
         ]

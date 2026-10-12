@@ -4,6 +4,7 @@
   "part": "new",
   "steps": [
     {"call": "nx_open_part", "setup": true, "args": {"path": "$fixture"}},
+    {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('parts_files_import_model_parts_files_block') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at the opened fixture (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
     {"call": "nx_export_model", "setup": true, "args": {"path": "$run/im/block.step", "format": "step"}},
     {"call": "nx_create_part", "setup": true, "save": "target", "args": {"path": "$part", "display": true}},
     {"call": "nx_import_model", "args": {"part": "$part", "path": "$run/im/block.step", "format": "step"},

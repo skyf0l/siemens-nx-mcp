@@ -142,15 +142,14 @@ def test_saving_refuses_an_active_sketch(nx):
 
 def test_work_without_display_only_inside_the_display_assembly(nx):
     asm, blk, other = nx.new_part("asm.prt"), nx.new_part("blk.prt"), nx.new_part("other.prt")
-    nx.session.Parts.Display = asm
+    nx.session.Parts.Display = nx.session.Parts.Work = asm
     nx.attach(asm, blk)
     assert parts.can_be_work(nx.tx, asm) and parts.can_be_work(nx.tx, blk)
     assert not parts.can_be_work(nx.tx, other)
-    parts.check_work_only(nx.tx, blk)
-    with pytest.raises(NXError) as caught:
-        parts.check_work_only(nx.tx, other)
-    assert caught.value.code == "NX_WRONG_PART_CONTEXT" and caught.value.field == "/display"
-    with pytest.raises(NXError):
-        parts.check_work_only(nx.tx, None)  # a part not loaded yet is no component
+    shown = parts.present(nx.tx, blk, display=False)  # a component: NX takes it as work
+    assert shown.work and not shown.active and nx.session.Parts.Work is blk
+    nx.session.Parts.SetWork(asm)
+    shown = parts.present(nx.tx, other, display=False)  # elsewhere: never refused (bench3t)
+    assert not shown.work and shown.kept is asm and nx.session.Parts.Work is asm
     nx.session.Parts.Display = None
-    parts.check_work_only(nx.tx, None)  # nothing displayed: any part may become work part
+    assert parts.can_be_work(nx.tx, other)  # nothing displayed: any part may become work part

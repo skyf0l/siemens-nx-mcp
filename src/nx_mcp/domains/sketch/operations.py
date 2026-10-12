@@ -246,6 +246,7 @@ def _chamfer(tx, sk, a, b, d1, d2):
     },
     keywords=("sketch fillet", "sketch chamfer", "round corner", "corner", "trim corner"),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants="kind",
     required_by={"fillet": ("radius",), "chamfer": ("distance",)},
     cost="light",
@@ -478,6 +479,7 @@ def _mirror(tx, sk, inputs, mirror_line):
     },
     keywords=("offset curve", "mirror curve", "sketch offset", "sketch mirror", "copy curves"),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants="mode",
     required_by={"offset": ("distance",), "mirror": ("mirror_line",)},
     cost="light",
@@ -642,6 +644,7 @@ def _projection_summary(a, say):
     summary=_projection_summary,
     keywords=("project curve", "project edge", "intersection curve", "include geometry", "sketch"),
     requires=("work_part",),
+    display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
     variants="mode",
     cost="light",
     batchable=True,

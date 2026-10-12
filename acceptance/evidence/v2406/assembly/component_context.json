@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/component_context.json",
-  "scenario_sha256": "21df728ec2df7d7701f6ffb4fd07016f3140a359d13f903d69dda3802bc7b413",
+  "scenario_sha256": "885f089eab0897c536bca330fdb36619f23ff557b3d8c730157cb0aba86b1621",
   "domain": "assembly",
   "covers": {
     "nx_create_reference_set": [],
@@ -16,9 +16,9 @@
     "nx_create_reference_set": "853ffca0de2905ac7ce1fc1f263fd08601aa7f17e643771188ab7f2205def4c3",
     "nx_create_wave_link": "89e34ff6c53a4e5fb866f92604da3a9ed15ccb265150db33eec5d22ce250dccf"
   },
-  "recorded": "2026-10-12T04:58:37Z",
+  "recorded": "2026-10-12T07:47:29Z",
   "passed": true,
-  "checks": 33,
+  "checks": 35,
   "failed_checks": 0,
   "steps": [
     {
@@ -86,10 +86,10 @@
     },
     {
       "index": 10,
-      "call": "nx_create_component",
-      "setup": true,
+      "call": "engineer",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 11,
@@ -100,7 +100,7 @@
     },
     {
       "index": 12,
-      "call": "nx_find_geometry",
+      "call": "nx_create_component",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -128,31 +128,31 @@
     },
     {
       "index": 16,
-      "call": "nx_create_wave_link",
-      "setup": false,
+      "call": "nx_find_geometry",
+      "setup": true,
       "passed": true,
-      "checks": 4
+      "checks": 0
     },
     {
       "index": 17,
-      "call": "nx_list_parts",
+      "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
       "index": 18,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 19,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 19,
-      "call": "nx_create_wave_link",
-      "setup": false,
-      "passed": true,
-      "checks": 3
     },
     {
       "index": 20,
@@ -170,17 +170,17 @@
     },
     {
       "index": 22,
-      "call": "nx_create_reference_set",
+      "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 23,
       "call": "nx_create_reference_set",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 24,
@@ -194,24 +194,31 @@
       "call": "nx_create_reference_set",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 26,
+      "call": "nx_create_reference_set",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 27,
+      "index": 28,
       "call": "nx_edit_component",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 28,
+      "index": 29,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,

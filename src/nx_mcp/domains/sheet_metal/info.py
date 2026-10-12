@@ -47,6 +47,7 @@ def body_row(tx, body) -> BodyRow:
 
 
 @tool(
+    switch="work",  # NX 2406 answers in the work part's units: a bound read got mm for inch
     effect="read",
     label="Get sheet metal",
     summary=lambda a, say: (

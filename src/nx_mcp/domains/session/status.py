@@ -61,24 +61,40 @@ class QueueData(TypedDict):
 class ControlData(TypedDict):
     mode: str  # the NX MCP panel mode: auto or ask
     mode_label: str  # the panel's name for the mode: Auto or Ask me first
-    busy: bool  # the engineer is in an NX command or dialog
-    waiting: int  # agent calls waiting for the engineer's answer (Ask me first)
-    activity: str  # running, waiting_for_answer, waiting_for_engineer_command or idle
+    busy: bool  # NX is not free: an agent call runs or waits, or the engineer is busy
+    waiting: int  # agent calls waiting for NX now (queue.waiting)
+    engineer_busy: bool  # the engineer is in an NX command or dialog
+    waiting_for_answer: int  # of those, calls waiting for the engineer's answer (Ask me first)
+    activity: str  # running, waiting_for_answer, waiting_for_engineer_command, queued or idle
     running: str | None  # the agent call running now
     queue: QueueData  # every agent call waiting for NX (status reads never wait)
 
 
 def control_data(status: dict) -> ControlData:
-    """The control section from the interactive host's status (or its snapshot)."""
+    """The control section from the interactive host's status (or its snapshot).
+
+    One count of waiting calls (``waiting`` = ``queue.waiting``, sampled when the status
+    is read) and one ``busy`` that agrees with it: benchmark bench3t read ``busy: false,
+    waiting: 0`` next to ``queue.waiting: 4`` (``busy`` then meant the engineer only and
+    ``waiting`` the Ask me first card only; both are kept under their own names)."""
     mode = str(status.get("mode") or "")
+    queue = _queue(status.get("queue"))
+    engineer_busy = bool(status.get("engineer_busy"))
+    answer = int(status.get("waiting_for_engineer") or 0)
+    running = status.get("running_method") or None
+    activity = str(status.get("activity") or "idle")
+    if activity == "idle" and queue["waiting"]:
+        activity = "queued"  # calls queued between two UI-thread ticks
     return {
         "mode": mode,
         "mode_label": MODE_LABELS.get(mode, mode),
-        "busy": bool(status.get("engineer_busy")),
-        "waiting": int(status.get("waiting_for_engineer") or 0),
-        "activity": str(status.get("activity") or "idle"),
-        "running": status.get("running_method") or None,
-        "queue": _queue(status.get("queue")),
+        "busy": bool(running) or queue["waiting"] > 0 or engineer_busy or answer > 0,
+        "waiting": max(queue["waiting"], answer),
+        "engineer_busy": engineer_busy,
+        "waiting_for_answer": answer,
+        "activity": activity,
+        "running": running,
+        "queue": queue,
     }
 
 

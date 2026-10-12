@@ -12,7 +12,9 @@ verified against the new files; ``nx-project-manifest.json`` records them.
 A clone puts back the display and work part it found: an assembly that is not displayed
 (gate 4s: the quiet work part) is never displayed by it. ``activate`` leaves the copy
 as the work part, which a call on a switched part cannot (the kernel gives the engineer's
-display and work part back after it): refused there before anything is copied.
+display and work part back after it): refused there before anything is copied. Under the
+engineer tab guard (``kit.parts.present``) the copy gets its own tab behind the
+engineer's instead, with a note.
 """
 
 from __future__ import annotations
@@ -161,8 +163,8 @@ def nx_export_assembly(
                 "the part NX shows: NX MCP gives the engineer's display and work part back "
                 "after this call",
                 field="/activate",
-                hint="Clone without activate, then open the copy with nx_open_part (or "
-                "activate this assembly with nx_activate_part first)",
+                hint="Clone without activate, then open the copy with nx_open_part: calls "
+                "reach it by part",
             )
         sources, occurrences = _sources(tx, part)
     if format == "zip":
@@ -302,8 +304,10 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
             "file_count": len(manifest),
             "component_count": len(parts.components(copy)),
         }
-        if activate:
-            parts.activate(tx, copy)
+        if activate:  # the engineer tab guard: a tab behind the engineer's (present)
+            presented = parts.present(tx, copy, display=True)
+            if not presented.active:
+                tx.warn("NX_NOTE", parts.shown_note(tx, copy, presented))
             out["part"] = tx.ref(copy, "part")
         else:
             _close_new(tx, originals, destination)

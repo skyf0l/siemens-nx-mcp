@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/save_part.json",
-  "scenario_sha256": "cfbba4574fe2f162ea1c6581adb86c1d7a7918d44c2387656694fe455659be91",
+  "scenario_sha256": "ab86bfd6c7fae6b2835efd470d8f174a485145c4b7362d35b81f71e4e9848c21",
   "domain": "parts_files",
   "covers": {
     "nx_save_part": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_save_part": "6763d25a5e6efcf67185ae8918712cb52b0fde8852b079433514792ea402d7a6"
+    "nx_save_part": "3449a63d46e99591793561d09bf8cd60e7a3599662a7b865173ca6dde3cdbf9d"
   },
-  "recorded": "2026-10-11T20:55:31Z",
+  "recorded": "2026-10-12T06:06:25Z",
   "passed": true,
-  "checks": 45,
+  "checks": 47,
   "failed_checks": 0,
   "steps": [
     {
@@ -25,56 +25,56 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_create_datum_plane",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 8,
-      "call": "nx_list_parts",
-      "setup": false,
-      "passed": true,
-      "checks": 4
-    },
-    {
       "index": 9,
-      "call": "nx_save_part",
+      "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 4
@@ -88,24 +88,24 @@
     },
     {
       "index": 11,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 12,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 12,
+      "index": 13,
       "call": "nx_create_datum_plane",
       "setup": true,
       "passed": true,
       "checks": 0
-    },
-    {
-      "index": 13,
-      "call": "nx_save_part",
-      "setup": false,
-      "passed": true,
-      "checks": 2
     },
     {
       "index": 14,
@@ -116,17 +116,17 @@
     },
     {
       "index": 15,
-      "call": "nx_list_files",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 16,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
     },
     {
       "index": 17,
@@ -147,38 +147,45 @@
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 20,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 23,
+      "index": 24,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 24,
+      "index": 25,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,

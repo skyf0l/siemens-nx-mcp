@@ -128,6 +128,12 @@ def test_projected_spacing_is_the_gap_between_the_borders_and_position_is_honour
         assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
     assert "right" in run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
                           direction="rigth").error["message"]  # fmt: skip
+    # A top view placed below its parent: the message names the coordinate and the bound.
+    below = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref,
+                direction="top", position=[110, 110])  # fmt: skip
+    assert below.error["field"] == "/position" and below.mutation_outcome == "not_started"
+    assert "y must be more than the parent's y = 200" in below.error["message"], below
+    assert "spacing" in below.error["hint"] and below.error["details"]["parent_position"]
 
 
 def test_overlapping_views_are_reported_and_warned():

@@ -127,7 +127,7 @@
   "nx_create_hole": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T10:04:34Z",
+      "recorded": "2026-10-12T05:38:59Z",
       "scenario": "acceptance/modeling/thread_natural_args.json",
       "scenario_sha256": "7a663ed4a7403defe2606d7a6460cd0df6b19cdddddfb25a2b2989a6b693d634",
       "source_sha256": "7f0b80b9282d1586d1aa400fcba64ff77da11ddd5ccd53fb77bcd3cd1856d4d2",
@@ -198,10 +198,10 @@
   "nx_create_revolve": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-11T08:10:47Z",
+      "recorded": "2026-10-12T07:45:48Z",
       "scenario": "acceptance/modeling/revolve.json",
       "scenario_sha256": "618ba3582e1395fd95601f41865b7921438d54ba75137c74caf38845da55352e",
-      "source_sha256": "85e73e3cc1b9054683663494c9dcff6e8f14b6d701158f47b547271c582c5da6",
+      "source_sha256": "297e8f8cdbb35d9faab87ec45b73782f8034e5ad864711b87a7621eb8e40a9b2",
       "variants": []
     }
   },
@@ -241,20 +241,20 @@
   "nx_create_sweep": {
     "v2406": {
       "checks": 20,
-      "recorded": "2026-10-11T08:11:01Z",
+      "recorded": "2026-10-12T07:46:03Z",
       "scenario": "acceptance/modeling/sweep.json",
       "scenario_sha256": "f654782ae112debb1d210683d91cb64e14ecc5d148db0619dfb02153c61eada4",
-      "source_sha256": "85e73e3cc1b9054683663494c9dcff6e8f14b6d701158f47b547271c582c5da6",
+      "source_sha256": "297e8f8cdbb35d9faab87ec45b73782f8034e5ad864711b87a7621eb8e40a9b2",
       "variants": []
     }
   },
   "nx_create_thread": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T10:04:34Z",
+      "recorded": "2026-10-12T05:38:59Z",
       "scenario": "acceptance/modeling/thread_natural_args.json",
       "scenario_sha256": "7a663ed4a7403defe2606d7a6460cd0df6b19cdddddfb25a2b2989a6b693d634",
-      "source_sha256": "fa98a7deed3685bdc9ffbef1cbd7088f2a867b95de33abfd035cd1f62fd93ed8",
+      "source_sha256": "c659e615d1d798144ecade5837df6b885b1a09cb70f63a68e8eb27f5a08b52be",
       "variants": []
     }
   },
@@ -380,10 +380,10 @@
   "nx_list_thread_sizes": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-11T10:04:34Z",
+      "recorded": "2026-10-12T05:38:59Z",
       "scenario": "acceptance/modeling/thread_natural_args.json",
       "scenario_sha256": "7a663ed4a7403defe2606d7a6460cd0df6b19cdddddfb25a2b2989a6b693d634",
-      "source_sha256": "fa98a7deed3685bdc9ffbef1cbd7088f2a867b95de33abfd035cd1f62fd93ed8",
+      "source_sha256": "c659e615d1d798144ecade5837df6b885b1a09cb70f63a68e8eb27f5a08b52be",
       "variants": []
     }
   },

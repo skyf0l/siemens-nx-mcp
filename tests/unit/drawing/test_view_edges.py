@@ -47,6 +47,7 @@ def test_visible_edges_come_longest_first_with_sheet_geometry():
     assert items[3]["center"] == [150.0, 150.0]
     assert ok.data["scale"] == 2.0 and ok.data["units"] == "mm"
     assert ok.page["total"] == 4 and ok.mutation_outcome == "not_applicable"
+    assert ok.page["limit"] == 50  # a part's hole edges fit one page (20 made agents page)
 
 
 def test_view_edges_filter_by_type_and_orientation_and_take_a_view_name():

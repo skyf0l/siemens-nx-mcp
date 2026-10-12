@@ -17,7 +17,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing import title_blocks, views
 from nx_mcp.domains.drawing.common import DETAIL, attribute, update
 from nx_mcp.domains.drawing.tables import all_tables, cells
-from nx_mcp.kit import builders, drawing
+from nx_mcp.kit import builders, display, drawing
 
 # ---- gate 9: the sheet an annotation, dimension or table lies on ----------------------------
 
@@ -128,15 +128,20 @@ def _origin(obj):
 
 @lister("drawing_sheet")
 def list_sheets(tx, owner, owner_kind):
+    """``active`` is None for a part in the background: NX 2406 reports no current sheet
+    for a part that is not displayed (its tab keeps the open sheet)."""
     _whole_part(owner)
     current = drawing.current(tx.part)
+    shown = display.same(tx.session.Parts.Display, tx.part)
     return [
         (
             s,
             "drawing_sheet",
             {
                 "details": {
-                    "active": current is not None and int(current.Tag) == int(s.Tag),
+                    "active": (current is not None and int(current.Tag) == int(s.Tag))
+                    if shown
+                    else None,
                     "size": drawing.size(s),
                     "scale": _sheet_scale(s),
                 }

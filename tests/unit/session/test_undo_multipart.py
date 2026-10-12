@@ -303,13 +303,10 @@ def test_delete_created_reaches_across_a_load_but_never_across_the_engineer():
         {"mark": None, "part_id": "part_x", "operation_id": "op_load", "method": "nx_open_part",
          "load": ["c.prt"]}
     )  # fmt: skip
-    refused = run(nx, "nx_undo_operation", part="a")
-    assert refused.error["code"] == "NX_NOT_FOUND" and refused.error["details"]["reason"] == (
-        "part_loaded"
-    )
-    assert "mode compensate" in refused.error["hint"]
-    ok = run(nx, "nx_undo_operation", part="a", mode="delete_created")
-    assert ok.ok and ok.data["compensated"] and counts(a) == [(0, 0)]
+    ok = run(nx, "nx_undo_operation", part="a")  # the default compensates across the load
+    assert ok.ok and ok.data["compensated"] and counts(a) == [(0, 0)], ok
+    assert any("part_loaded" not in w["message"] and "c.prt was loaded" in w["message"]
+               for w in ok.warnings), ok.warnings  # fmt: skip
     block(nx, "a", "op_a_block_2")
     services(nx).engineer_changed()
     for mode in (None, "delete_created"):
@@ -319,6 +316,21 @@ def test_delete_created_reaches_across_a_load_but_never_across_the_engineer():
             "engineer_change"
         )
     assert counts(a) == [(1, 1)]
+
+
+def test_the_default_undo_of_several_steps_compensates_across_a_close():
+    nx, a, b = two()
+    block(nx, "a", "op_a_block_1")
+    services(nx).history.append(
+        {"mark": None, "part_id": "part_x", "operation_id": "op_close", "method": "nx_close_part",
+         "close": ["c.prt"]}
+    )  # fmt: skip
+    block(nx, "a", "op_a_block_2")  # NX's undo reaches this one only
+    both = run(nx, "nx_undo_operation", part="a", steps=2)
+    assert both.ok and both.data["compensated"], both
+    assert both.data["undone"] == ["op_a_block_1", "op_a_block_2"] and counts(a) == [(0, 0)]
+    too_many = run(nx, "nx_undo_operation", part="a", steps=1)
+    assert too_many.error["code"] == "NX_NOT_FOUND", too_many
 
 
 # ---------------------------------------------------------------------------

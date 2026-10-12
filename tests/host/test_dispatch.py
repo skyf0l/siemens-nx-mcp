@@ -170,6 +170,7 @@ def test_inherited_update_error_is_dropped_with_the_new_sketch_deactivated(rig):
     rig.e.nx.Sketch = NS(ViewReorient=NS(FalseValue=False), UpdateLevel=NS(Model="model"))
     rig.part.Features.append(stale)
     rig.session.ActiveSketch = Sketch()
+    rig.session.ActiveSketch.OwningPart = rig.session.Parts.Display = rig.part
     services = rig.e
     assert services.feature_errors(rig.part, {}, mark=None) == []
     assert calls == [("deactivate", "model"), ("activate", False)]
@@ -182,3 +183,6 @@ def test_inherited_update_error_is_dropped_with_the_new_sketch_deactivated(rig):
     rig.session.ActiveSketch.Deactivate = keep
     failed = services.feature_errors(rig.part, {}, mark=None)
     assert failed and failed[0]["message"] == "a real error" and calls[-1][0] == "activate"
+    rig.session.ActiveSketch.OwningPart = NS(Tag=4242)  # a part not displayed: NX 2406
+    count = len(calls)  # faults activating a sketch there (kit.sketch): no re-activation
+    assert services.feature_errors(rig.part, {}, mark=None) and len(calls) == count

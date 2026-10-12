@@ -3,6 +3,7 @@
   "part": null,
   "steps": [
     {"call": "nx_create_part", "setup": true, "save": "a", "args": {"path": "$run/lp/pf_list_a.prt"}},
+    {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('pf_list_a') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at pf_list_a.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
     {"call": "nx_save_part", "setup": true, "args": {}},
     {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lp/pf_list_b.prt", "units": "in"}},
     {"call": "nx_create_part", "setup": true, "args": {"path": "$run/lq/pf_list_c.prt", "display": true}},

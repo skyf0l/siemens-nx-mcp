@@ -107,15 +107,16 @@ def test_open_part_loads_components_and_refuses_a_clashing_basename(nx, root):
 def test_activate_part_sets_work_and_display(nx):
     a, b = nx.new_part("a.prt"), nx.new_part("b.prt")
     ref = nx.ref_of(a, "part")
-    outside = call(nx, tools.nx_activate_part, part=ref, display=False)
-    assert outside.error["code"] == "NX_WRONG_PART_CONTEXT" and outside.error["field"] == "/display"
-    assert outside.mutation_outcome == "not_started" and nx.session.Parts.Work is b
+    outside = call(nx, tools.nx_activate_part, part=ref, display=False)  # never refused
+    assert outside.ok and not outside.data["work"] and nx.session.Parts.Work is b, outside
+    assert any('"part": "a.prt"' in w["message"] for w in outside.warnings), outside.warnings
     nx.attach(b, a)  # a component of the display part may be the work part alone
     work_only = call(nx, tools.nx_activate_part, part=ref, display=False)
     assert work_only.ok and work_only.data["work"] and not work_only.data["display"]
     assert nx.session.Parts.Display is b
     tab = call(nx, tools.nx_activate_part, part=ref)  # two agent parts: b's tab stays active
     assert tab.ok and not tab.data["display"] and tab.data["work"], tab  # a: work as before
+    assert not tab.warnings, tab  # a is the work part: nothing to say
     assert nx.session.Parts.Display is b and nx.session.displayed() == [b, a]
     both = call(nx, tools.nx_activate_part, part=ref, display=True)
     assert both.data["display"] and nx.session.Parts.Display is a

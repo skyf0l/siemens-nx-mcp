@@ -3,7 +3,8 @@
     part = parts.loaded(tx, path)                  # the loaded part of this file, or None
     parts.check_new_name(tx, path)                 # NX_ALREADY_EXISTS / NX_NAME_CONFLICT
     parts.activate(tx, part, work=True, display=True)  # its own NX tab, undo marks kept
-    active = parts.present(tx, part, display=None)  # tab policy of create/open/activate
+    shown = parts.present(tx, part, display=None)  # tab policy of create/open/activate
+    engineer = parts.engineer_tab(tx)              # the engineer's displayed part, or None
     parts.explicit(tx, part)                       # loaded by a call of its own
     for component, names in parts.components(part): ...
     with parts.saving(tx, part) as updated:        # drawing preview data survives the save
@@ -36,7 +37,11 @@ NX 2406 findings encoded here:
   with the marks kept; closing the active tab leaves NX with no display part
   (``UG_APP_NOPART``) until a tab is activated again. NX's application stays one per
   session across tab switches.
-- ``present`` is the tab policy of nx_create_part, nx_open_part and nx_activate_part:
+- ``present`` is the tab policy of nx_create_part, nx_open_part and nx_activate_part.
+  The engineer tab guard first: while the displayed part is the engineer's
+  (``engineer_tab``: not created, opened or granted to the agent), an agent part is
+  never left active and the work part never changes, whatever ``display`` says
+  (``display`` true: its own tab behind the engineer's, ``tab_behind``). Otherwise,
   while the part is the agent's only one (rule G's count) its tab stays active as
   before; with two or more agent parts loaded the part gets its tab but the tab active
   before comes back (nx_create_part does not display it at all), unless the call asks
@@ -199,20 +204,6 @@ def can_be_work(tx, part) -> bool:
     return any(same_part(getattr(c, "Prototype", None), part) for c, _ in components(display))
 
 
-def check_work_only(tx, part, *, field: str | None = "/display") -> None:
-    """Refuse work-without-display for a part outside the display part's assembly
-    (NX 2406: "Part or occurrence is not a descendant of the root part"). ``part``
-    None is a part not loaded yet, hence no component of the display part."""
-    if tx.session.Parts.Display is None or (part is not None and can_be_work(tx, part)):
-        return
-    fail(
-        "NX_WRONG_PART_CONTEXT",
-        "Only the display part or one of its components can be the work part",
-        field=field,
-        hint="Display the part too (display=true)",
-    )
-
-
 SHEET_METAL_APP = "UG_APP_SBSM"
 SHEET_METAL_FEATURES = ("SB_", "FLAT_PATTERN", "FLAT_SOLID")
 SCRATCH_TEMPLATE = "model-plain-1-mm-template.prt"
@@ -365,29 +356,113 @@ def crowded(tx, part=None) -> bool:
     return len(agents) + int(extra) >= 2
 
 
-def present(tx, part, *, work: bool = True, display: bool | None = None) -> bool:
-    """Show ``part`` as nx_open_part and nx_activate_part ask; True when its tab is left
-    active (then it is also the work part when ``work``).
+def engineer_tab(tx):
+    """The displayed part when it is the engineer's (loaded by the engineer: not created,
+    opened or granted to the agent, ``Services.owns``), else None: no display part, an
+    agent part, or services that cannot tell. While it is set, no call leaves an agent
+    part active (the engineer tab guard, :func:`present`)."""
+    display = tx.session.Parts.Display
+    services = getattr(tx, "services", None)
+    if display is None or services is None:
+        return None
+    try:
+        return None if services.owns(display) else display
+    except Exception:
+        return None
 
-    ``display`` False: no tab (the work part only, as ``activate``). True: its tab, left
-    active. None (the default): its tab, left active while it is the agent's only part;
-    else the tab active before comes back with its work part, so a call never takes the
-    engineer's (or another agent's) tab once two or more agent parts are loaded."""
-    if display is False:
-        activate(tx, part, work=work, display=False)
-        return False
+
+def has_tab(tx, part) -> bool:
+    """Whether ``part`` has its own NX window tab (active or not)."""
+    return any(same_part(p, part) for p in tabs(tx.session.Parts))
+
+
+def tab_behind(tx, part) -> None:
+    """Give ``part`` its own NX tab (or keep the one it has) while the tab active before
+    stays active with its work part: show it, then re-activate that tab (63-92 ms)."""
     session_parts = tx.session.Parts
     before, before_work = session_parts.Display, session_parts.Work
+    activate(tx, part, work=False)
+    if before is None or same_part(before, part):
+        return
+    give_back(tx, before, before_work)
+
+
+def give_back(tx, display, work=None) -> None:
+    """Re-activate ``display``'s tab and put ``work`` back as its work part when NX takes
+    it (the display part or a component under it)."""
+    session_parts = tx.session.Parts
+    if not same_part(session_parts.Display, display):
+        activate(tx, display, work=False)
+    if work is not None and not same_part(session_parts.Work, work):
+        with contextlib.suppress(Exception):
+            if can_be_work(tx, work):
+                session_parts.SetWork(work)
+
+
+class Presented:
+    """What :func:`present` did: ``active`` (its tab is the active one, so it is the
+    display part), ``work`` (it is the work part), ``kept`` (the display part that stayed
+    active instead, None when ``part`` is active or nothing is displayed) and
+    ``engineer`` (``kept`` is the engineer's part: the guard applied)."""
+
+    def __init__(self, active: bool, work: bool, kept=None, engineer: bool = False) -> None:
+        self.active, self.work, self.kept, self.engineer = active, work, kept, engineer
+
+
+def present(tx, part, *, work: bool = True, display: bool | None = None) -> Presented:
+    """Show ``part`` as nx_open_part and nx_activate_part ask.
+
+    The engineer tab guard comes first: while the display part is the engineer's
+    (:func:`engineer_tab`), an agent part is never left active and the work part never
+    changes, whatever ``display`` and ``work`` say: ``display`` true gives the part its
+    own tab behind the engineer's (:func:`tab_behind`), else it stays in the background.
+    Calls reach it by their ``part`` key; the kernel switches to it for each call.
+
+    Otherwise ``display`` False: no tab; the work part when ``work`` and NX takes it
+    (the display part or a component under it; else the work part stays). True: its tab,
+    left active. None (the default): its tab, left active while it is the agent's only
+    part; else the tab active before comes back with its work part, so a call never takes
+    another agent's tab once two or more agent parts are loaded."""
+    engineer = engineer_tab(tx)
+    if engineer is not None and not same_part(engineer, part):
+        if display is True:
+            tab_behind(tx, part)
+        return Presented(False, False, engineer, True)
+    session_parts = tx.session.Parts
+    before, before_work = session_parts.Display, session_parts.Work
+    if display is False:
+        made = work and can_be_work(tx, part)
+        if made:
+            activate(tx, part, work=True, display=False)
+        kept = None if before is None or same_part(before, part) else before
+        return Presented(same_part(before, part), made, kept)
     keep = display is True or not crowded(tx, part)
     activate(tx, part, work=work, display=True)
     if keep or before is None or same_part(before, part):
-        return True
-    activate(tx, before, work=False)  # the tab active before comes back
-    if before_work is not None and not same_part(session_parts.Work, before_work):
-        with contextlib.suppress(Exception):
-            if can_be_work(tx, before_work):
-                session_parts.SetWork(before_work)
-    return False
+        return Presented(True, work)
+    give_back(tx, before, before_work)  # the tab active before comes back
+    return Presented(False, same_part(session_parts.Work, part), before)
+
+
+def shown_note(tx, part, presented: Presented) -> str:
+    """The note of a create, open or activate that left ``part`` out of the active tab:
+    where it is and how calls reach it."""
+    from nx_mcp.core.target import file_name
+
+    name = file_name(part)
+    kept = file_name(presented.kept) if presented.kept is not None else None
+    where = "in its own NX tab behind it" if has_tab(tx, part) else "in the background"
+    head = (
+        f"The engineer's {kept} stays the active NX tab"
+        if presented.engineer
+        else f"{kept} stays the active NX tab"
+        if kept
+        else "No NX tab is active"
+    )
+    return (
+        f"{head}; {name} is loaded {where}. Calls reach it with "
+        f'"part": "{name}" (no display or activation needed)'
+    )
 
 
 EXPLICIT = "_explicit_parts"  # Services attribute: keys of parts loaded by a call of their own

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/list_drawing_objects.json",
-  "scenario_sha256": "4700356db600d3bc9737fde0370915cad1df27d11728ea93a561293f94294249",
+  "scenario_sha256": "febe8eeb49bb9207ec70550c35ff1c04a4f684333dbb41367d9e971fa9f96f00",
   "domain": "inspection",
   "covers": {
     "nx_list_objects": []
@@ -11,9 +11,9 @@
   "sources": {
     "nx_list_objects": "d314cb2ff9eafcf6a25313ac7b841aa2bf3694f72db2ae1b51548a717194e4fa"
   },
-  "recorded": "2026-10-11T15:52:54Z",
+  "recorded": "2026-10-12T07:49:29Z",
   "passed": true,
-  "checks": 17,
+  "checks": 19,
   "failed_checks": 0,
   "steps": [
     {
@@ -25,69 +25,76 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_find_geometry",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_create_drawing_sheet",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_create_drawing_view",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_create_note",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_create_drawing_dimension",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

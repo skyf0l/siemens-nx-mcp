@@ -106,6 +106,7 @@ def _valid_dxf(data: bytes) -> bool:
     summary=lambda a, say: f"Export flat pattern to {say('path')}",
     keywords=("dxf", "trumpf geo", "flat pattern export", "blank", "laser cutting", "unfold"),
     requires=("work_part", "no_active_sketch"),
+    display_bound=True,  # NX 2406's export makes the display part work: shown part only
     cost="heavy",
     example={"flat_pattern": "f:12", "path": "out/bracket.dxf"},
 )

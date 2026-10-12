@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/multipart_batch.json",
-  "scenario_sha256": "66a3301280f4d0284f09190b0d7c676269c60cfc92ee98dcd29d30a5323d96f3",
+  "scenario_sha256": "b18f2e830742c5cc8cdd44ec0c5d7955b7aa24792815a3fc65dc1d8f29761bdb",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-11T19:07:04Z",
+  "recorded": "2026-10-12T05:58:02Z",
   "passed": true,
-  "checks": 50,
+  "checks": 52,
   "failed_checks": 0,
   "steps": [
     {
@@ -21,21 +21,21 @@
     },
     {
       "index": 2,
-      "call": "nx_create_primitive",
-      "setup": true,
+      "call": "engineer",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 3,
-      "call": "nx_create_part",
+      "call": "nx_create_primitive",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 4,
-      "call": "nx_create_primitive",
+      "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -49,87 +49,87 @@
     },
     {
       "index": 6,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
       "call": "nx_run_batch",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_run_batch",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_measure_mass",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 12,
-      "call": "nx_run_batch",
-      "setup": false,
-      "passed": true,
-      "checks": 4
     },
     {
       "index": 13,
-      "call": "nx_list_objects",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 14,
       "call": "nx_run_batch",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 15,
+      "index": 14,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 1
+    },
+    {
+      "index": 15,
+      "call": "nx_run_batch",
+      "setup": false,
+      "passed": true,
+      "checks": 4
     },
     {
       "index": 16,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 17,
-      "call": "nx_run_batch",
+      "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 18,
@@ -143,59 +143,66 @@
       "call": "nx_run_batch",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 20,
+      "call": "nx_run_batch",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 21,
       "call": "nx_preview_changes",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_finish_preview",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 23,
+      "index": 24,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 24,
+      "index": 25,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 25,
+      "index": 26,
       "call": "nx_preview_changes",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 26,
+      "index": 27,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 27,
+      "index": 28,
       "call": "nx_finish_preview",
       "setup": false,
       "passed": true,

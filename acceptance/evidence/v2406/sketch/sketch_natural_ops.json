@@ -30,13 +30,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sketch_constraints": "5db43b597d55f53a4de00639156a318d29a05b69294727a2214198bf1c6f079a",
-    "nx_create_sketch_dimensions": "5db43b597d55f53a4de00639156a318d29a05b69294727a2214198bf1c6f079a",
-    "nx_create_sketch_copy": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
-    "nx_create_sketch_corner": "4c17776025d293ba7a85d01313651476726554a5cb4019ae015896a1cdb8abfb",
-    "nx_edit_sketch_curves": "b7d1862b43d0e51eac0bada728dccb4eb0790178afa0e917462d01821c1aed87"
+    "nx_create_sketch_constraints": "89c71cf948d54310a7c0b37aabb2cdcb633fe0bb1552d1e306ba23c39142f5e8",
+    "nx_create_sketch_dimensions": "89c71cf948d54310a7c0b37aabb2cdcb633fe0bb1552d1e306ba23c39142f5e8",
+    "nx_create_sketch_copy": "7f2a4ed0cdff3783ab723c27719e85548143ece6d50252b3fbe1bb9a596fe0c6",
+    "nx_create_sketch_corner": "7f2a4ed0cdff3783ab723c27719e85548143ece6d50252b3fbe1bb9a596fe0c6",
+    "nx_edit_sketch_curves": "f9633f1fc09d8724cb434738d1098d71468f61a1cf744754354f9641c740b67f"
   },
-  "recorded": "2026-10-11T19:36:10Z",
+  "recorded": "2026-10-12T07:43:19Z",
   "passed": true,
   "checks": 52,
   "failed_checks": 0,

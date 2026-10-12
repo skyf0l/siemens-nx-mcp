@@ -123,7 +123,7 @@ def test_two_or_more_parts_make_ref_less_calls_ambiguous():
     r = run(nx, "nx_create_primitive", **BLOCK)  # no part key, no refs
     assert r.error["code"] == "NX_AMBIGUOUS_PART" and r.mutation_outcome == "not_started", r
     assert _count(nx) == 0 and r.error["details"]["count"] == 3
-    message = "3 parts are loaded and nx_create_primitive has no refs that pick one"
+    message = "3 agent parts are loaded and nx_create_primitive has no refs that pick one"
     assert r.error["message"] == message
     files = [row["file"] for row in r.error["details"]["loaded_parts"]]
     assert files == ["plate.prt", "bolt.prt", "work.prt"]  # the work part last
@@ -173,6 +173,37 @@ def test_engineer_parts_are_not_counted():
     assert r.error["code"] == "NX_AMBIGUOUS_PART" and r.error["details"]["count"] == 2, r
     files = {row["file"] for row in r.error["details"]["loaded_parts"]}
     assert files == {"work.prt", "plate.prt"} and "housing.prt" not in r.error["hint"]
+    # bench3t: "4 parts are loaded" while 6 were; the engineer's are said apart
+    message = "2 agent parts are loaded (and 1 of the engineer's) and nx_create_primitive"
+    assert r.error["message"].startswith(message), r.error["message"]
+
+
+def test_a_ref_less_call_takes_the_agents_only_part_when_the_work_part_is_the_engineers():
+    """The engineer tab guard keeps the engineer's part displayed and work: the agent's
+    only part is still the target of its ref-less calls (switched to by gate 4s)."""
+    nx = _block_nx()
+    s = services(nx)
+    s.foreign.add(s.part_key(nx.part))  # the work part is the engineer's
+    plate = _second(nx)  # the agent's only part, in the background
+    r = run(nx, "nx_create_primitive", **BLOCK)
+    assert r.ok and r.part == {"id": _ref(nx, plate), "file": "plate.prt", "from": "only"}, r
+    assert nx.session.Parts.Work is nx.part  # the switch came back
+
+
+def test_anchors_and_unknown_refs_never_land_in_the_engineers_work_part():
+    """An anchor gate 3t cannot resolve (a body ``#n`` anchor the handler resolves) pins
+    the part its path names; an unknown ref goes to the agent's part, not the engineer's
+    work part (inspection/holes_and_words beside the engineer)."""
+    nx = _block_nx()
+    s = services(nx)
+    s.foreign.add(s.part_key(nx.part))  # the work part is the engineer's
+    plate = _second(nx)  # the agent's only part, in the background
+    spec = catalogue.load()["nx_find_geometry"]
+    checked = spec.check({"owner": "@plate.prt:BLOCK(1)#0"})
+    found = target.resolve(spec, checked, s)
+    assert found.part is plate and found.source == "refs"
+    checked = spec.check({"owner": "b:999999"})
+    assert target.resolve(spec, checked, s).part is plate
 
 
 def _parts_nx():
@@ -196,7 +227,7 @@ def test_the_load_that_brings_two_parts_carries_a_note():
     engineer = _parts_nx()
     services(engineer).foreign.add(services(engineer).part_key(engineer.part))
     mine = run(engineer, "nx_create_part", path="mine.prt", display=False)
-    assert mine.ok and not _notes(mine), mine
+    assert mine.ok and not [n for n in _notes(mine) if "parts are loaded" in n["message"]], mine
 
 
 def test_two_parts_and_no_hint_is_ambiguous_listing_the_files():
@@ -336,6 +367,20 @@ def test_a_read_naming_the_refs_part_that_is_not_the_work_part_runs_there():
     assert r.ok and r.data["feature"]["id"] == made.data["feature"]["id"], r
     assert r.part == {"id": _ref(nx, nx.part), "file": "work.prt", "from": "part"}
     assert nx.session.Parts.Work is plate and not nx.session.calls  # a read never switches
+
+
+def test_a_ref_of_another_kind_still_pins_its_part():
+    """A body ref where a feature is wanted: the call runs in the body's part (in the
+    background) and the handler says wrong kind, not wrong part (assembly/patterns)."""
+    nx = _block_nx()
+    plate = _second(nx)
+    body = nx.block(1, 1, 1)
+    _show(nx, plate)
+    spec = catalogue.load()["nx_get_feature"]
+    checked = spec.check({"feature": body.ref})
+    assert target.resolve(spec, checked, services(nx)).part is nx.part
+    r = run(nx, "nx_get_feature", feature=body.ref)
+    assert r.error["code"] == "NX_WRONG_KIND" and r.part["file"] == "work.prt", r
 
 
 def test_part_contradicting_the_refs_is_wrong_part_context():
@@ -527,7 +572,7 @@ def test_default_policies():
         "nx_close_part": ("arg:part", "none", False),
         "nx_list_parts": ("none", "none", False),
         "nx_list_materials": ("any", "none", False),
-        "nx_get_sketch": ("refs", "work", False),
+        "nx_check_sketch": ("refs", "display", True),  # activates the sketch (kit.sketch)
         "nx_finish_preview": ("resolver", "work", False),
     }
     for name, (policy, switch, bound) in expect.items():

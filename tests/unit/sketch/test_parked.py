@@ -7,6 +7,7 @@ is active; a parked sketch blocks only its own part's model tools, as before.
 
 from __future__ import annotations
 
+from types import SimpleNamespace as NS
 from typing import TypedDict
 
 import pytest
@@ -51,6 +52,8 @@ def two():
     work, display = session_parts.Work, session_parts.Display
     b = Part(nx.session, services(nx).root / "b.prt")
     session_parts.Work, session_parts.Display = work, display
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)  # tab switches
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
     return nx, nx.part, b
 
 
@@ -218,10 +221,80 @@ def test_undoing_a_batch_that_finished_the_parked_sketch_parks_it_again():
     assert parking.parked(services(nx), nx.part) is nx.part.Sketches[-1]
 
 
+ACTIVATING = (
+    "nx_create_sketch_curves", "nx_edit_sketch_curves", "nx_create_sketch_constraints",
+    "nx_create_sketch_dimensions", "nx_create_sketch_corner", "nx_create_sketch_copy",
+    "nx_create_sketch_projection", "nx_finish_sketch", "nx_check_sketch",
+)  # fmt: skip
+
+
+@pytest.mark.parametrize("name", ACTIVATING)
+def test_every_tool_that_activates_an_existing_sketch_is_display_bound(name):
+    """NX 2406 died (General Fault Exception) activating a sketch with a dimension or an
+    offset annotation in a part that was not displayed: whatever the sketch holds, the
+    tools that activate one display its part (kit.sketch)."""
+    assert catalogue.get(name).switch_for({}) == "display"
+
+
+def test_get_sketch_displays_only_when_it_activates_the_sketch():
+    spec, hidden = catalogue.get("nx_get_sketch"), {"services": object(), "part": "b"}
+    assert spec.switch_for({"include": ["constraints"]}, **hidden) == "work"
+    for include in (None, ["geometry"], ["status"], ["constraints", "status"]):
+        assert spec.switch_for({"include": include}, **hidden) == "display"
+    import_spec = catalogue.get("nx_import_model")
+    assert import_spec.switch_for({"target": "sketch", "sketch": "s:1"}) == "display"
+    assert import_spec.switch_for({"target": "work_part"}) == "work"
+
+
+def test_an_offset_copy_in_a_background_parts_sketch_runs_displayed_then_gives_it_back():
+    nx, a, b = two()
+    made = run(nx, "nx_create_sketch", placement="xy", part="work", curves=RECT)
+    assert made.ok, made
+    ref, base = made.data["sketch"]["id"], made.data["curves"][0]["id"]
+    parts = nx.session.Parts
+    parts.Display = parts.Work = b  # the engineer now looks at b: work.prt is background
+    log = services(nx).switch_log
+    assert run(nx, "nx_get_sketch", sketch=ref, include=["constraints"]).ok
+    assert (log()[-1]["mode"], log()[-1]["primitive"]) == ("work", "quiet")
+    (sketch,) = list(a.Sketches)
+    shown = []
+
+    def offset(builder):
+        shown.append(parts.Display)
+        d = float(builder.Distance.RightHandSide)
+        flipped = bool(builder.ReverseOffsetDirectionOfChain.calls)
+        nx.line(sketch, (0, -d if flipped else d, 0), (30, -d if flipped else d, 0))
+
+    nx.on_commit("SketchOffsetBuilder", offset)
+    copy = run(nx, "nx_create_sketch_copy", sketch=ref, curves=[base], mode="offset", distance=3)
+    assert copy.ok and copy.part["file"] == "work.prt", copy
+    assert shown == [a]  # NX activated the sketch with its part displayed
+    assert (log()[-1]["mode"], log()[-1]["primitive"]) == ("display", "display")
+    assert (parts.Display, parts.Work) == (b, b)  # the engineer's tab is back
+    done = run(nx, "nx_finish_sketch", part="work")  # the part's parked sketch, by default
+    assert done.ok and done.data["was_active"] is True, done
+    assert log()[-1]["mode"] == "display" and (parts.Display, parts.Work) == (b, b)
+
+
+def test_a_display_bound_predicate_is_asked_only_for_a_hidden_target_and_fails_safe():
+    import dataclasses
+
+    spec = catalogue.get("nx_finish_sketch")
+    asked = []
+
+    def boom(services, part, args):
+        asked.append(part)
+        raise RuntimeError("cannot tell")
+
+    bound = dataclasses.replace(spec, display_bound=(boom,))
+    assert bound.switch_for({}) == spec.switch  # no services: not asked
+    assert bound.switch_for({}, services=object(), part="b") == "display"  # raised: safe
+    assert asked == ["b"]
+
+
 def test_finishing_a_background_parts_sketch_never_turns_the_shown_view():
     """The finish reorients the view only on the displayed part (NX 2406 raised a General
     Fault Exception finishing an inch part's sketch while a mm part was displayed)."""
-    from types import SimpleNamespace as NS
 
     from nx_mcp.domains.sketch import sketches
 

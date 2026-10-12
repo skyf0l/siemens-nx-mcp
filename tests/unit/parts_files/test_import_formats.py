@@ -437,6 +437,21 @@ def test_stl_into_a_new_part(fx, root, ugii):
     assert Path(fx.session.Parts.Work.FullPath) == root / "imp" / "mesh.prt"
 
 
+def test_an_import_into_a_new_part_gives_the_engineers_tab_back(fx, root, ugii):
+    from tests.kit.kernel import services
+
+    engineer = fx.session.Parts.Display
+    services(fx).foreign.add(services(fx).part_key(engineer))  # the engineer's part
+    put(root, "a.stl", neutral_files.stl([BOX]))
+    ok = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl", target="new_part",
+              new_part_path="imp/mesh.prt")  # fmt: skip
+    assert ok.ok and ok.data["facet_bodies"] == 1, ok
+    assert fx.session.Parts.Display is engineer and fx.session.Parts.Work is engineer
+    mesh = next(p for p in fx.session.Parts if p.Name == "mesh")
+    assert fx.session.displayed() == [engineer, mesh]  # its own tab, behind the engineer's
+    assert any("stays the active NX tab" in w["message"] for w in ok.warnings), ok.warnings
+
+
 def test_import_sources_can_be_uploaded():
     from nx_mcp.domains.parts_files import workspace
 

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/status_operations.json",
-  "scenario_sha256": "14869af6f92f2dc95e36c46c59a52fdb522ff363cedfa106acccb3ada3e31e1d",
+  "scenario_sha256": "3556beaa3bb5e83d96596961462b7cbb56a1a5e5721e21cf1fc2d36e0e1e6775",
   "domain": "session",
   "covers": {
     "nx_get_status": [],
@@ -11,13 +11,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_status": "f1ffc72588a8b4660f82f17bc67919c41b9550c7bcc685dbd227d440cc4e1dd9",
-    "nx_get_operation": "f1ffc72588a8b4660f82f17bc67919c41b9550c7bcc685dbd227d440cc4e1dd9",
-    "nx_cancel_operation": "f1ffc72588a8b4660f82f17bc67919c41b9550c7bcc685dbd227d440cc4e1dd9"
+    "nx_get_status": "9a811e3622e9c6066d3350210ef5e448e17a38f20f65474457be13a33749373e",
+    "nx_get_operation": "9a811e3622e9c6066d3350210ef5e448e17a38f20f65474457be13a33749373e",
+    "nx_cancel_operation": "9a811e3622e9c6066d3350210ef5e448e17a38f20f65474457be13a33749373e"
   },
-  "recorded": "2026-10-11T19:35:12Z",
+  "recorded": "2026-10-12T05:58:36Z",
   "passed": true,
-  "checks": 48,
+  "checks": 50,
   "failed_checks": 0,
   "steps": [
     {
@@ -29,42 +29,42 @@
     },
     {
       "index": 2,
-      "call": "nx_get_status",
+      "call": "engineer",
       "setup": false,
       "passed": true,
-      "checks": 17
+      "checks": 2
     },
     {
       "index": 3,
       "call": "nx_get_status",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 17
     },
     {
       "index": 4,
-      "call": "nx_get_operation",
+      "call": "nx_get_status",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 2
     },
     {
       "index": 5,
       "call": "nx_get_operation",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 4
     },
     {
       "index": 6,
       "call": "nx_get_operation",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 7
     },
     {
       "index": 7,
-      "call": "nx_cancel_operation",
+      "call": "nx_get_operation",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -74,17 +74,24 @@
       "call": "nx_cancel_operation",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 3
     },
     {
       "index": 9,
+      "call": "nx_cancel_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 10,
       "call": "nx_get_operation",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_get_operation",
       "setup": false,
       "passed": true,

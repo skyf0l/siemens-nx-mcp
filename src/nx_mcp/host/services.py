@@ -500,7 +500,7 @@ class NXServices(Services):
         sketch = None
         with contextlib.suppress(Exception):
             sketch = self.session.ActiveSketch
-        if failed and sketch is not None:
+        if failed and sketch is not None and self._shown(sketch):
             reorient = self.nx.Sketch.ViewReorient.FalseValue
             try:
                 sketch.Deactivate(reorient, self.nx.Sketch.UpdateLevel.Model)
@@ -512,6 +512,15 @@ class NXServices(Services):
             finally:
                 sketch.Activate(reorient)
         return failed
+
+    def _shown(self, sketch) -> bool:
+        """Whether the sketch's part is displayed: NX 2406 faults activating a sketch
+        elsewhere (``kit.sketch``), so the re-activation of :meth:`feature_errors` is
+        skipped there."""
+        try:
+            return int(sketch.OwningPart.Tag) == int(self.session.Parts.Display.Tag)
+        except Exception:
+            return False
 
     def _drop_inherited_errors(self, part, before: dict, mark) -> None:
         """Update new features that report errors once, dropping inherited messages.

@@ -4,6 +4,7 @@
  "fixture": null,
  "steps": [
   {"call": "nx_create_part", "setup": true, "save": "cover", "args": {"path": "$run/mp/mp_cover_p0.prt", "units": "mm"}},
+  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('mp_cover_p0') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at mp_cover_p0.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
   {"call": "nx_create_primitive", "save": "blkc", "args": {"shape": "block", "length": 40, "width": 20, "height": 10},
    "intent": "Acceptance: one part loaded, no part key: the work part as before, no part reported",
    "expect": {"mutation_outcome": "committed", "data.volume": {"close": 8000, "tol": 1e-06}}},
@@ -35,7 +36,7 @@
    "intent": "Acceptance: refs of the work part pin it",
    "expect": {"ok": true, "part.file": "mp_plate_p0.prt", "part.from": "refs"}},
   {"call": "nx_get_status", "args": {"include": ["parts"]},
-   "expect": {"data.parts.loaded": 2, "data.parts.agent_loaded": 2}},
+   "expect": {"data.parts.agent_loaded": 2}},
 
   {"call": "nx_get_model_summary", "args": {"part": "mp_plate_p0"},
    "intent": "Acceptance: part by file name without .prt",

@@ -202,3 +202,14 @@ def test_sheet_metal_features_refuse_before_any_builder_outside_sheet_metal():
               parameters={"edges": [body.edges[0].ref], "length": 20})  # fmt: skip
     assert bad.error["code"] == "NX_WRONG_APPLICATION" and bad.mutation_outcome == "not_started"
     assert nx.builders == [] and nx.session.ApplicationName == "UG_APP_MODELING"
+
+
+def test_background_sheet_metal_calls_make_their_part_current_in_nx():
+    """Beside a displayed engineer part (crash sweep): NX 2406's flat-pattern export made
+    the display part the work part (the call was undone), and the sheet-metal manager
+    answered a bound read in the work part's units (2.032 mm for a 0.08 in sheet)."""
+    from nx_mcp.core import catalogue
+
+    specs = catalogue.load()
+    assert specs["nx_export_flat_pattern"].switch_for({}) == "display"
+    assert specs["nx_get_sheet_metal"].switch_for({}) == "work"

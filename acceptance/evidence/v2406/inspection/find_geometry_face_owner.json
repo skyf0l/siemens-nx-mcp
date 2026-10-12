@@ -1,0 +1,78 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/find_geometry_face_owner.json",
+  "scenario_sha256": "1e8ef8d2f6874d3a7df578e304b87e372600b3ef1a4995536dda51282600462b",
+  "domain": "inspection",
+  "covers": {
+    "nx_find_geometry": [],
+    "nx_resolve_reference": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_find_geometry": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
+    "nx_resolve_reference": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862"
+  },
+  "recorded": "2026-10-12T05:38:21Z",
+  "passed": true,
+  "checks": 14,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

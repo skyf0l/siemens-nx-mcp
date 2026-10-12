@@ -393,6 +393,7 @@ class ThreadReadback(TypedDict):
 class ThreadItem(TypedDict):
     feature: result.Row
     face: result.Row
+    start_face: result.Row
     length: float
 
 
@@ -408,6 +409,7 @@ class ThreadData(TypedDict, total=False):
     size: str | None
     engagement: str | None
     length: float
+    start_face: result.Row
     threads: Annotated[list[ThreadItem], Doc("Several faces: one thread feature each")]
 
 
@@ -560,15 +562,37 @@ def _end_faces(tx, target, axis) -> list:
     return list(found.values())
 
 
-def _start_face(tx, target, axis, field="/face"):
+def _is_cap(tx, end, axis_point, axis, radius) -> bool:
+    """Whether a planar end lies within the cylinder's radius: a free end cap (or a bore's
+    flat floor), not a shoulder or an outer face reaching beyond the cylinder."""
+    reach = radius * (1 + 1e-6) + 1e-9
+    for edge in end.GetEdges():
+        for vertex in edge.GetVertices():
+            off = geom.sub(geom.xyz(vertex), axis_point)
+            along = geom.dot(off, axis)
+            if geom.dot(off, off) - along * along > reach * reach:
+                return False
+    return True
+
+
+def _start_face(tx, target, cylinder, field="/face"):
+    """The planar end a thread starts at, when the call names none: the only end, else of
+    two ends where exactly one is a cap within the radius, a shaft's cap (its free end; the
+    other meets a shoulder) or a bore's other end (its opening; the cap is a flat floor)."""
+    axis_point, axis, radius, internal = cylinder
     ends = _end_faces(tx, target, axis)
     if len(ends) == 1:
         return ends[0]
+    if len(ends) == 2:
+        caps = [f for f in ends if _is_cap(tx, f, axis_point, axis, radius)]
+        if len(caps) == 1:
+            return next(f for f in ends if f is not caps[0]) if internal else caps[0]
     which = "" if field == "/face" else f" {field[1:]}"
     fail(
         "NX_INVALID_ARGUMENT",
         f"Give start_face: the cylinder{which} has {len(ends) or 'no'} planar end face"
-        + ("s" if len(ends) != 1 else ""),
+        + ("s" if len(ends) != 1 else "")
+        + (", both free or both meeting larger faces" if len(ends) == 2 else ""),
         field="/start_face",
         hint="Pass the planar face at the end the thread starts from"
         + (" (one of details.candidates)" if ends else ""),
@@ -597,10 +621,11 @@ def _plan(tx, ref, field, start_face, length, fit) -> dict:
         fail("NX_WRONG_GEOMETRY", "Select a cylindrical face", field=field)
     radius, axis = float(data[4]), geom.unit([float(v) for v in data[2]])
     internal = float(data[6]) < 0
+    axis_point = [float(v) for v in data[1]]
     _check_fit(tx, target, internal, 2 * radius, fit, field=field)
     body = target.GetBody()
     if start_face is None:
-        start = _start_face(tx, target, axis, field)
+        start = _start_face(tx, target, (axis_point, axis, radius, internal), field)
     else:
         start = select.one(tx, start_face, "face", field="/start_face")
         if int(start.GetBody().Tag) != int(body.Tag):
@@ -694,7 +719,9 @@ def nx_create_thread(
     faces: Annotated[list[FaceRef], Items(1, 50), Doc("Several faces, one thread each")]
     | None = None,
     spec: TableSpec | ManualSpec,
-    start_face: Annotated[FaceRef, Doc("Planar end it starts at; default each face's only one")]
+    start_face: Annotated[
+        FaceRef, Doc("Planar end; default the only one, else a shaft's free end or bore's opening")
+    ]
     | None = None,
     length: Annotated[Length | Literal["full"], Doc("Default 'full': the whole face")]
     | None = None,
@@ -753,12 +780,14 @@ def nx_create_thread(
         common.changed(volume, measure.volume(tx, body), "less" if detailed else "same",
                        check="volume" if len(bodies) == 1 else f"volume[{i}]")  # fmt: skip
     engagement = row.get("RadialEngage") if row is not None else None
-    data: ThreadData = {**out, **made[0][1], "engagement": engagement, "length": plans[0]["span"]}
+    data: ThreadData = {**out, **made[0][1], "engagement": engagement, "length": plans[0]["span"],
+                        "start_face": tx.ref(plans[0]["start"], kind="face")}  # fmt: skip
     if len(plans) > 1:
         data["threads"] = [
             {
                 "feature": tx.ref(f, kind="feature"),
                 "face": tx.ref(p["face"], kind="face"),
+                "start_face": tx.ref(p["start"], kind="face"),
                 "length": p["span"],
             }  # fmt: skip
             for p, (f, _got) in zip(plans, made, strict=True)

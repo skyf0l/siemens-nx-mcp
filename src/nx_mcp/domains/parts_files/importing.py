@@ -472,6 +472,7 @@ def _format_of(a: dict) -> str:
     ),  # fmt: skip
     variants="format",
     requires=("no_active_sketch",),
+    display_bound=("/sketch",),  # activates the sketch (kit.sketch): its part is shown
     cost="long",
     invalidates="deleted",
     new_part="new_part_path",
@@ -530,9 +531,14 @@ def nx_import_model(
     loaded_before = {int(p.Tag) for p in tx.session.Parts}
     previous = (tx.session.Parts.Work, tx.session.Parts.Display)
     folder = root / "imports" / (tx.operation_id or "import")
+    # The engineer tab guard (kit.parts.present): the import runs in the new part's own
+    # tab, then the engineer's tab comes back with its work part.
+    engineer = parts.engineer_tab(tx) if new_part_path is not None else None
     try:
         if new_part_path is not None:
-            new_part(tx, Path(new_part_path), "mm")
+            made_part = new_part(tx, Path(new_part_path), "mm", display=engineer is None)
+            if engineer is not None:
+                parts.activate(tx, made_part)
         part = tx.part
         units = kit_units.part_units(tx)
         opts: dict = dict(options)
@@ -556,6 +562,10 @@ def nx_import_model(
     except BaseException:
         _undo_import(tx, loaded_before if new_part_path else None, previous, folder)
         raise
+    if engineer is not None:
+        parts.give_back(tx, engineer, previous[0])
+        guarded = parts.Presented(False, False, engineer, True)
+        tx.warn("NX_NOTE", parts.shown_note(tx, part, guarded))
     bodies, curves = made["bodies"], made["curves"]
     return {
         "part": tx.ref(part, "part"),

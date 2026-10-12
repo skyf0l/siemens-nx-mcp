@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/export_assembly.json",
-  "scenario_sha256": "200a983797805cb8712ce5b0edcc523d6370676023534a694c9ce2ee54a01e41",
+  "scenario_sha256": "fad9a3727de0c23505d9fb4d9e3244b8293cbb2dec7720467239cb3ece48caec",
   "domain": "parts_files",
   "covers": {
     "nx_export_assembly": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_assembly": "cbbcf3b19c0d7287fdc9b3bcd08823fb6bd1826656f9888e83dd09177d6ba3fb"
+    "nx_export_assembly": "be264c3e6407ec69f530ca518207997500d5106b6fd546a4feaa23999b82582d"
   },
-  "recorded": "2026-10-12T04:37:27Z",
+  "recorded": "2026-10-12T06:04:46Z",
   "passed": true,
-  "checks": 42,
+  "checks": 44,
   "failed_checks": 0,
   "steps": [
     {
@@ -28,35 +28,35 @@
     },
     {
       "index": 2,
-      "call": "nx_save_part",
-      "setup": true,
+      "call": "engineer",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 2
     },
     {
       "index": 3,
-      "call": "nx_create_part",
+      "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 4,
-      "call": "nx_save_part",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 5,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
+      "index": 5,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
       "index": 6,
-      "call": "nx_create_component",
+      "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
@@ -77,38 +77,38 @@
     },
     {
       "index": 9,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
       "call": "nx_export_assembly",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_save_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "nx_export_assembly",
       "setup": false,
       "passed": true,
       "checks": 7
     },
     {
-      "index": 12,
+      "index": 13,
       "call": "nx_download_file",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 13,
-      "call": "nx_export_assembly",
-      "setup": false,
-      "passed": true,
-      "checks": 2
     },
     {
       "index": 14,
@@ -129,25 +129,25 @@
       "call": "nx_export_assembly",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 2
     },
     {
       "index": 17,
-      "call": "nx_list_files",
+      "call": "nx_export_assembly",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 18,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 19,
-      "call": "nx_list_parts",
+      "call": "nx_list_files",
       "setup": false,
       "passed": true,
       "checks": 1
@@ -161,31 +161,31 @@
     },
     {
       "index": 21,
-      "call": "nx_export_assembly",
+      "call": "nx_list_parts",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 22,
-      "call": "nx_list_parts",
+      "call": "nx_export_assembly",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
       "index": 23,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
       "call": "nx_activate_part",
       "setup": true,
       "passed": true,
       "checks": 0
-    },
-    {
-      "index": 24,
-      "call": "nx_export_assembly",
-      "setup": false,
-      "passed": true,
-      "checks": 2
     },
     {
       "index": 25,
@@ -210,6 +210,13 @@
     },
     {
       "index": 28,
+      "call": "nx_export_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,

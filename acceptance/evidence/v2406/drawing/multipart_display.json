@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/multipart_display.json",
-  "scenario_sha256": "8ed01770df9802cb9affb0c606dccb1317dc3aa3285e75c4adeec2de8a1e6d7b",
+  "scenario_sha256": "67fd05bca2a61b0ddb8028636938f7fff6d63c4c04dcaf6fedd3b91a230a2ea1",
   "domain": "drawing",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-12T05:03:52Z",
+  "recorded": "2026-10-12T07:52:26Z",
   "passed": true,
-  "checks": 71,
+  "checks": 73,
   "failed_checks": 0,
   "steps": [
     {
@@ -98,111 +98,118 @@
     },
     {
       "index": 13,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
       "call": "nx_create_primitive",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 14,
+      "index": 15,
       "call": "nx_create_drawing_sheet",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 15,
+      "index": 16,
       "call": "nx_get_drawing_view",
       "setup": false,
       "passed": true,
       "checks": 9
     },
     {
-      "index": 16,
+      "index": 17,
       "call": "nx_list_view_edges",
       "setup": false,
       "passed": true,
       "checks": 9
     },
     {
-      "index": 17,
+      "index": 18,
       "call": "nx_get_dimension",
       "setup": false,
       "passed": true,
       "checks": 7
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 19,
+      "index": 20,
       "call": "nx_edit_annotation",
       "setup": false,
       "passed": true,
       "checks": 5
     },
     {
-      "index": 20,
+      "index": 21,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
       "checks": 4
-    },
-    {
-      "index": 23,
-      "call": "nx_list_objects",
-      "setup": false,
-      "passed": true,
-      "checks": 1
     },
     {
       "index": 24,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 1
     },
     {
       "index": 25,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 26,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 26,
+      "index": 27,
       "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 27,
+      "index": 28,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 28,
+      "index": 29,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,

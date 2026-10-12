@@ -17,10 +17,12 @@ Other parts' operations in between: the undo compensates A's operations instead
 (``domains/session/compensate.py``: deletes what create-only operations made, nothing
 depending on it, and sets back the values ``nx_set_attributes``, ``nx_set_expression``
 and ``nx_set_name`` changed, all verified), or it is refused with ``NX_CROSS_PART``
-naming the operations and parts in the way and how to fix forward. ``mode``
-``compensate`` (``delete_created`` is the same) always compensates, also across part
-loads, closes and saves that cut NX's history (never across the engineer's edits); a
-refusal at such a cut says when the operations qualify. ``operation`` undoes one named
+naming the operations and parts in the way and how to fix forward. A load or a close
+that cut NX's history after them (another agent's close, say), or marks NX evicted, are
+handled the same way: the default undo compensates when the operations qualify, else
+it refuses with ``NX_NOT_FOUND`` and a hint (``_compensable``); it never crosses the
+engineer's edits. ``mode`` ``compensate`` (``delete_created`` is the same) always
+compensates. ``operation`` undoes one named
 own operation (``NX_DEPENDENCY_ORDER`` while later operations of the part follow it,
 unless compensated). A compensating undo stays in the history as a ``compensation``
 entry that is never undone itself.
@@ -683,6 +685,28 @@ def _offer(tx: Tx, history: list, key, ops: list, end: dict | None) -> str:
     )
 
 
+# Cuts of NX's history the default undo compensates across: other agents' later loads and
+# closes, or marks NX evicted for their work. Never the engineer's edits, and never the
+# part's own save (``saved_or_closed``: the agent's own decision; mode compensate does).
+CROSSABLE = ("part_loaded", "part_closed", "mark_evicted")
+
+
+def _compensable(tx: Tx, history: list, ops: list, end: dict | None) -> bool:
+    """Whether the default undo compensates ``ops`` (oldest first), which NX's undo no
+    longer reaches: the cut ``end`` is a load, a close or an evicted mark (never the
+    engineer's edits, never a save) and they qualify (``compensate.plan``). Benchmark bench3t: a
+    close by another agent refused the default undo while other agents' later work
+    compensated it; both compensate now."""
+    if not ops or end is None or _why_ended(end)[0] not in CROSSABLE:
+        return False
+    start = next((i for i, h in enumerate(history) if h is ops[0]), 0)
+    try:
+        compensate.plan(tx, ops, history[start:])
+    except compensate.Refusal:
+        return False
+    return True
+
+
 def _not_found(file: str, end: dict | None, older: bool, other: bool, offer: str = "") -> None:
     reason, why = _why_ended(end) if end is not None else (None, "")
     if end is not None:
@@ -723,11 +747,18 @@ def _too_many(steps: int, depth: int, end: dict | None, field: str = "/steps") -
 
 def _choose(
     tx: Tx, history: list, key, file: str, steps: int, operation: str | None, mode: str | None
-) -> list:
-    """The part's operations to undo, oldest first (refusals inside ``tx.checks``)."""
+) -> tuple[list, dict | None]:
+    """``(the part's operations to undo, oldest first; the cut)``: the cut is the entry
+    that ends NX's undo before them when the default undo compensates across it
+    (:func:`_compensable`), else None. Refusals inside ``tx.checks``."""
     services = tx.services
     ops, end = _reach(history, key) if mode in COMPENSATE else _walk(services, history, key)
     if operation is None:
+        if steps > len(ops) and mode not in COMPENSATE:
+            reached = _reach(history, key)[0]
+            wanted = list(reversed(reached[:steps]))
+            if len(reached) >= steps and _compensable(tx, history, wanted, end):
+                return wanted, end
         if not ops:
             reached = _reach(history, key)[0]
             other = any(undo_marks.barrier(h) is None for h in history)
@@ -735,7 +766,7 @@ def _choose(
             _not_found(file, end, bool(reached), other, offer)
         if steps > len(ops):
             _too_many(steps, len(ops), end)
-        return list(reversed(ops[:steps]))
+        return list(reversed(ops[:steps])), None
     found = next((h for h in history if h.get("operation_id") == operation and _own(h, key)), None)
     if found is None:
         fail(
@@ -751,6 +782,8 @@ def _choose(
     if not any(h is found for h in ops):
         reason, why = _why_ended(end) if end is not None else ("mark_evicted", "")
         reached = _reach(history, key)[0]
+        if any(h is found for h in reached) and _compensable(tx, history, [found], end):
+            return [found], end
         fail(
             "NX_NOT_FOUND",
             f"{operation} can no longer be undone with NX's undo: the history of {file} ends "
@@ -773,7 +806,7 @@ def _choose(
             "delete only what it created and set back only the values it set",
             details={"later": [str(h["operation_id"]) for h in reversed(ops[:index])]},
         )
-    return [found]
+    return [found], None
 
 
 @tool(
@@ -803,20 +836,26 @@ def nx_undo_operation(
         if operation is not None and tx.given("steps"):
             fail("NX_INVALID_ARGUMENT", "Pass steps or operation, not both", field="/operation",
                  hint="operation undoes that one operation; steps the part's last ones")  # fmt: skip
-        undone = _choose(tx, history, key, file, steps, operation, mode)
+        undone, cut = _choose(tx, history, key, file, steps, operation, mode)
         what = (
             f"{undone[0]['operation_id']} ({undone[0].get('method')})"
             if len(undone) == 1
             else f"{len(undone)} operations of {file} from {undone[0]['operation_id']}"
         )
-        how, start, plan, blockers = _plan(tx, history, undone, mode=mode, what=what)
+        chosen = "compensate" if cut is not None else mode
+        how, start, plan, blockers = _plan(tx, history, undone, mode=chosen, what=what)
     by = tx.operation_id or ""
     extra: dict = {}
     if how == "nx":
         redo, references = _nx_undo(tx, undone[0]["mark"], start, undone, by)
     else:
         assert plan is not None
-        redo, extra = _delete_created(tx, plan, start, undone, by, _why_deleted(services, blockers))
+        why = (
+            f"NX's undo no longer reaches it ({_why_ended(cut)[1]})"
+            if cut is not None
+            else _why_deleted(services, blockers)
+        )
+        redo, extra = _delete_created(tx, plan, start, undone, by, why)
         references = "listed"
     last = undone[-1]
     out: UndoData = {

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/import_model.json",
-  "scenario_sha256": "03d5841eddad24e5004c5f2e9500106e2d6c5fc8069d9e8f3e2b6552120b3034",
+  "scenario_sha256": "7145ccdf820e333cf558b3d219cd629bcb790a4d8ad945cd954926a74fd525de",
   "domain": "parts_files",
   "covers": {
     "nx_import_model": [
@@ -11,11 +11,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_import_model": "058251e255c5188050dfadf8570cb3b7c56898c4dcf7476165696e5054d46ea0"
+    "nx_import_model": "73723446f5dfb8e574e88f6f0dfb75a86b3eab310c8e1679ad10fc09dd3fee24"
   },
-  "recorded": "2026-10-12T04:38:54Z",
+  "recorded": "2026-10-12T07:58:37Z",
   "passed": true,
-  "checks": 37,
+  "checks": 39,
   "failed_checks": 0,
   "steps": [
     {
@@ -27,87 +27,87 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_export_model",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_import_model",
       "setup": false,
       "passed": true,
       "checks": 8
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 7,
+      "index": 8,
       "call": "nx_import_model",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_import_model",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 10,
+      "index": 11,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "nx_upload_file",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 12,
-      "call": "nx_import_model",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
       "index": 13,
       "call": "nx_import_model",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 14,
@@ -135,10 +135,17 @@
       "call": "nx_import_model",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 18,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,

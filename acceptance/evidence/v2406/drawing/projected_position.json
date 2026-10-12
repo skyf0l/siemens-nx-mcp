@@ -1,0 +1,66 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/projected_position.json",
+  "scenario_sha256": "8482378f6a97799b81f5364bf4f117208d26d4a3a0907e177a89b71d1d3e21e9",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_view": [
+      "projected"
+    ],
+    "nx_list_view_edges": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75",
+    "nx_list_view_edges": "1bb526f8ffe71d41cb312801b20134963f6df3e48a311ef5c1814e03cc6b7789"
+  },
+  "recorded": "2026-10-12T05:38:36Z",
+  "passed": true,
+  "checks": 10,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

@@ -65,10 +65,10 @@ def nx_list_view_edges(
     geometry_type: Literal["any", "line", "circle"] = "any",
     orientation: Literal["any", "horizontal", "vertical"] = "any",
     offset: Offset = 0,
-    limit: PageLimit = 20,
+    limit: PageLimit = 50,
 ) -> ViewEdgesData:
-    """List model edges a drawing view draws visible, longest lines first. Sheet start, end,
-    center, length and orientation."""
+    """List model edges a drawing view draws visible, longest lines first, then circles
+    (geometry_type circle: holes). Sheet start, end, center, length and orientation."""
     shown, sheet = view_of(tx, view)
     sh = drawing.Sheet(tx, sheet)
     rows = []

@@ -72,11 +72,29 @@ def test_status_reads_the_panel_mode_and_filters_sections(monkeypatch):
         "mode_label": "Auto",
         "busy": False,
         "waiting": 0,
+        "engineer_busy": False,
+        "waiting_for_answer": 0,
         "activity": "idle",
         "running": None,
         "queue": {"waiting": 0, "oldest_seconds": None},
     }
     assert ok.data["bridge"]["interactive"] is True
+
+
+def test_status_counts_agree_while_calls_wait(monkeypatch):
+    """bench3t: busy false and waiting 0 next to queue.waiting 4 (busy meant the engineer
+    only, waiting the Ask me first card only)."""
+    nx = fake_nx()
+    status = panel_status() | {"queue": {"waiting": 4, "oldest_seconds": 0.0}}
+    monkeypatch.setattr(services(nx), "control_status", lambda: status, raising=False)
+    control = run(nx, "nx_get_status", include=["control"]).data["control"]
+    assert control["busy"] is True and control["waiting"] == 4 == control["queue"]["waiting"]
+    assert control["activity"] == "queued" and control["engineer_busy"] is False
+    assert control["waiting_for_answer"] == 0
+    status.update(engineer_busy=True, queue={"waiting": 0, "oldest_seconds": None})
+    control = run(nx, "nx_get_status", include=["control"]).data["control"]
+    assert control["busy"] and control["engineer_busy"] and control["waiting"] == 0
+    assert control["activity"] == "idle"
 
 
 def test_status_without_a_work_part():

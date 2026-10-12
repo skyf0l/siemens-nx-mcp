@@ -152,14 +152,29 @@ def test_an_operation_behind_another_parts_close_is_offered_and_done_by_compensa
         {"mark": None, "part_id": "part_x", "operation_id": "op_close", "method": "nx_close_part",
          "close": ["c.prt"]}
     )  # fmt: skip
-    refused = run(nx, "nx_undo_operation", part="a", operation="op_a_attr_1")
-    assert refused.error["code"] == "NX_NOT_FOUND", refused
-    assert "mode compensate" in refused.error["hint"]
-    assert "set back the values it set" in refused.error["hint"]
-    plain = run(nx, "nx_undo_operation", part="a")
-    assert "mode compensate" in plain.error["hint"]
-    done = run(nx, "nx_undo_operation", part="a", operation="op_a_attr_1", mode="compensate")
+    # The default undo compensates across another part's close, as it does across other
+    # parts' later work (bench3t: the close refused, the later work compensated).
+    done = run(nx, "nx_undo_operation", part="a", operation="op_a_attr_1")
     assert done.ok and done.data["compensated"] and attributes(nx.a) == {}, done
+    assert any("c.prt was closed after it" in w["message"] for w in done.warnings), done
+
+
+def test_an_operation_behind_a_close_that_cannot_be_compensated_is_refused_with_the_hint(nx):
+    from tests.kit.objects import Feature
+
+    old = Feature("OLD")
+    old.OwningPart, old.IsOccurrence, old.Suppressed = nx.a, False, False
+    nx.a.Features.append(old)
+    ref = nx.ref_of(old, "feature")
+    assert run(nx, "nx_delete_objects", operation_id="op_a_delete_1", objects=[ref]).ok
+    services(nx).history.append(
+        {"mark": None, "part_id": "part_x", "operation_id": "op_close", "method": "nx_close_part",
+         "close": ["c.prt"]}
+    )  # fmt: skip
+    refused = run(nx, "nx_undo_operation", part="a")
+    assert refused.error["code"] == "NX_NOT_FOUND", refused
+    assert refused.error["details"]["reason"] == "part_closed"
+    assert "cannot be compensated either" in refused.error["hint"]
 
 
 def test_an_operation_that_qualifies_for_nothing_gets_the_fix_forward_hint(nx):

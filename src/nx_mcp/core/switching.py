@@ -215,7 +215,10 @@ def enter(spec, args, target, services, *, explicit: bool, nested: bool = False)
     if target is None or target.source == "arg":
         return bound  # no target, or the tool's own part argument: the handler's part
     display, work = shown(services)
-    mode = spec.switch_for(args, getattr(target, "kinds", ()))
+    hidden = not same(services, target.part, display)  # predicates ask only then
+    mode = spec.switch_for(
+        args, getattr(target, "kinds", ()), services=services if hidden else None, part=target.part
+    )
     if mode == "work" and configured_mode() == "display":
         mode = "display"
     if nested:

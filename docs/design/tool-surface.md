@@ -315,12 +315,22 @@ What an agent needs:
   engineer opened). With two or more it needs `part`, else `NX_AMBIGUOUS_PART` (the hint
   lists the files). The load that brings the second part says so (`NX_NOTE` "2 parts are
   loaded: calls without refs now take part"). There is no mode and no time window.
-- Never activate a part to target it: `nx_activate_part` only shows a part.
+- Never activate or display a part to target it: calls reach a part by refs or `part`,
+  and `nx_activate_part` only shows a part to the engineer.
 - Tabs: every part NX MCP shows gets its own NX window tab; no call replaces the part of
-  another tab. With two or more agent parts loaded, `nx_create_part` does not display the
-  new part, and `nx_open_part` / `nx_activate_part` give the part its tab but keep the
-  active tab (`display: true` leaves the part's tab active, `false` gives it no tab).
-  Closing the active tab brings the previously active tab back (`data.displayed`).
+  another tab. **Agents never take the engineer's active tab**: while the displayed part
+  is the engineer's, `nx_create_part`, `nx_open_part`, `nx_activate_part` (and an import
+  into a new part, a clone with `activate`) leave the engineer's tab and work part active
+  whatever `display` and `work` say; `display: true` (and `nx_activate_part` by default)
+  gives the part its own tab behind it, else it stays in the background; `data.display`
+  and `data.work` are false and an `NX_NOTE` says where the part is and how calls reach
+  it (`"part": "<file>"`). A call without refs or `part` then acts on the agent's only
+  part. Without an engineer part displayed: with two or more agent parts loaded,
+  `nx_create_part` does not display the new part, and `nx_open_part` / `nx_activate_part`
+  give the part its tab but keep the active tab (`display: true` leaves the part's tab
+  active, `false` gives it no tab; `work: true` without display becomes the work part only
+  where NX allows it, never a refusal). Closing the active tab brings the previously
+  active tab back (`data.displayed`).
 - Closing an assembly unloads only component parts it brought in itself; parts created
   or opened by name stay loaded until closed (`kept_components`, reason `created or
   opened by name`).
@@ -334,7 +344,12 @@ What an agent needs:
   refs, its own `part`, else the batch's part), a step result in another part carries
   `part`, and one undo mark rolls back every part.
 - Undo, redo and checkpoints act per part; the engineer's edits end every part's undo
-  history.
+  history. When other work blocks NX's undo (other parts' later operations, a load, a
+  close or evicted marks), the default undo compensates when the operations
+  qualify, else it refuses with a hint; it never crosses the engineer's edits.
+- `nx_get_status` `control`: `waiting` = `queue.waiting` (agent calls waiting for NX) and
+  `busy` agrees with it; `engineer_busy` and `waiting_for_answer` are the engineer-only
+  and Ask me first counts.
 
 **Call keys inside `arguments`**, like `operation_id`. They are not schema properties,
 also not in the strict listed schemas of the core tools, which take them all the same
@@ -350,7 +365,7 @@ parameter (`nx_activate_part`, `nx_save_part`, `nx_close_part`) stays its argume
 
 | Code | When |
 |---|---|
-| `NX_AMBIGUOUS_PART` | A call without refs and without `part` while two or more agent parts are loaded (`details.loaded_parts`, `details.count`); refs in several parts that do not decide; two loaded parts share the file name in `part` |
+| `NX_AMBIGUOUS_PART` | A call without refs and without `part` while two or more agent parts are loaded ("N agent parts are loaded (and M of the engineer's)", `details.loaded_parts`, `details.count`); refs in several parts that do not decide; two loaded parts share the file name in `part` |
 | `NX_WRONG_PART_CONTEXT` | `part` contradicts the refs or the call's own object; NX refused to make the part current (not started) |
 | `NX_NOT_FOUND`, `NX_PATH_OUTSIDE_WORKSPACE`, `NX_INVALID_ARGUMENT` | `part` names no loaded part, a path outside the workspace, or is malformed (field `/part`) |
 | `NX_CALL_EXPIRED` | The call's `expires_at` passed, or its client closed the connection, before NX ran it: not started, no receipt |
@@ -440,11 +455,11 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_create_directory` | Create a workspace directory (idempotent) | `path` | file |
 | `nx_upload_file` | Upload one chunk of a new workspace file | `path, data_base64, offset, total_size, sha256` | file |
 | `nx_download_file` | Metadata, inline PNG, or base64 chunk of a workspace file | `path, delivery: metadata/image/chunk, offset?, length?` | read |
-| `nx_create_part` | New part file, loaded and made work and display part; `display: false` only loads it (work and display part stay: parallel agents) | `path, units: mm/in, display=true` | file |
-| `nx_open_part` | Open or reuse a part; optionally load all components. A part NX marks modified while loading it is reported (`modified_on_load`, `NX_NOTE`), never refused | `path, work=true, display=true, load_components=false` | session |
-| `nx_activate_part` | Show a loaded part: make it the display and/or work part. Only for display: calls target their part by refs or the `part` key, never by activation | `part` (ref, workspace path or file name), `work, display` | session |
+| `nx_create_part` | New part file, loaded; calls reach it by `part` without showing it. Shown as work and display part only while it is the agent's only part and no engineer part is displayed (1.10); never takes the engineer's active tab (`display: true` then gives it a tab behind it) | `path, units: mm/in, display?` | file |
+| `nx_open_part` | Open or reuse a part; optionally load all components. Calls reach it by `part` without showing it; never takes the engineer's active tab (1.10). A part NX marks modified while loading it is reported (`modified_on_load`, `NX_NOTE`), never refused | `path, work=true, display?, load_components=false` | session |
+| `nx_activate_part` | Show a loaded part to the engineer in its own tab. Not needed to work in it: calls target their part by refs or the `part` key, never by activation. While the engineer's part is displayed the tab stays behind it and an `NX_NOTE` says so (1.10) | `part` (ref, workspace path or file name), `work, display` | session |
 | `nx_list_parts` | Loaded parts with modified state, paged | `path_prefix?, modified?, active_only=false, Page` | read |
-| `nx_save_part` | Save a part in place, or save as a new workspace path. Drawing views NX flags out of date are updated first (so the part never reopens with "(Out of Date)" sheets), listed in `updated_views` with an `NX_NOTE`. With two or more agent parts loaded, saving a part a call worked in within 300 s while the last call worked in another part adds an `NX_NOTE` (another agent may be working in it) | `part?` (ref, workspace path or file name), `path?` (path = save as, never overwrites) | file |
+| `nx_save_part` | Save a part in place, or save as a new workspace path. Drawing views NX flags out of date are updated first (so the part never reopens with "(Out of Date)" sheets), listed in `updated_views` with an `NX_NOTE`. A save never warns about other agents (it loses no one's work and ends the part's busy state) | `part?` (ref, workspace path or file name), `path?` (path = save as, never overwrites) | file |
 | `nx_close_part` | Close one loaded part, never implicitly the work part (refused while a loaded assembly uses it). With two or more agent parts loaded, a part a changing call worked in within 300 s is refused (`NX_PART_BUSY`) while the last changing call worked in another loaded part; `force` closes anyway (a close right after working in the part never needs it). NX keeps its undo marks (`data.undo_marks: kept`; a displayed part is first replaced on the display by another agent part, `data.displayed`); undo stops at the close. Closing an assembly also closes the component parts it leaves unused that the agent created or opened; `kept_components` names the ones kept, with the reason (not the agent's, used by another loaded assembly, work or display part before the call, unsaved changes, in use: a call worked in it after the assembly was loaded) | `part` (ref, workspace path or file name), `save?` (required when the part has unsaved changes), `unload_components=true`, `force=false` | session |
 | `nx_export_assembly` | Copy the saved assembly with all loaded prototypes as a ZIP package or as a renamed clone folder | `path, format: zip/clone, prefix? (clone), activate=false` | file |
 | `nx_export_model` | Export the work part or bodies to a neutral format; the file is read back (schema, units, solids). STEP always sets its schema explicitly (AP214 for `step`, AP242 for `step_ap242`, which needs its own license) | `path, format?: step/step_ap242/stl/iges/parasolid/jt (default from the suffix, never step_ap242), bodies?, options?` (STL only) | file |

@@ -17,8 +17,9 @@ reads included), then the parent call's part (a redo's own calls), then the work
 One rule, no mode and no hidden state: a call without refs and without ``part`` acts on
 the work part while at most one of the agent's parts is loaded (:func:`agent_parts`:
 the loaded parts the agent created or opened, or the engineer granted, components
-included: the rows ``nx_list_parts`` marks ``owned``); with two or more it is
-``NX_AMBIGUOUS_PART`` listing them. ``envelope.part`` names the target (its file) when
+included: the rows ``nx_list_parts`` marks ``owned``), or on the agent's only part when
+the work part is the engineer's (the engineer tab guard keeps it there); with two or
+more it is ``NX_AMBIGUOUS_PART`` listing them. ``envelope.part`` names the target (its file) when
 ``part`` was given or two or more parts are loaded; the call that brings the agent's
 count to two carries a note (:func:`load_note`).
 
@@ -383,6 +384,29 @@ def owner_of(services, obj, kind: str | None, policy: str):
     return services.owning_part(obj)
 
 
+def _anchor_part(services, ref: str):
+    """The loaded part an anchor names (``@<part path>:...``) when the anchor itself does
+    not resolve here (a body ``#n`` or handle anchor the handler resolves), else None."""
+    if not ref.startswith("@"):
+        return None
+    for part in services.parts() or []:
+        with contextlib.suppress(Exception):
+            if ref.casefold().startswith("@" + str(services.part_path(part)).casefold() + ":"):
+                return part
+    return None
+
+
+def _named(services, ref: str, kinds):
+    """The object ``ref`` names. A ref of another kind still pins its part, so the handler
+    reports the kind there (not a wrong part when that part works in the background)."""
+    try:
+        return services.references.resolve(ref, kinds)
+    except NXError as error:
+        if error.code != "NX_WRONG_KIND":
+            raise
+        return services.references.resolve(ref, ())
+
+
 def pinned_parts(services, checked, policy: str) -> dict:
     """``{part_key: (part, [fields], {kinds}, {holder keys})}`` for every resolvable
     reference argument, in argument order (an unknown or stale ref is the handler's to
@@ -394,12 +418,15 @@ def pinned_parts(services, checked, policy: str) -> dict:
         if not isinstance(value, str) or value.startswith("$"):
             continue
         try:
-            obj = services.references.resolve(value, kinds)
+            obj = _named(services, value, kinds)
             kind = _kind_of(services, obj, kinds, value)
             owner = owner_of(services, obj, kind, policy)
             key = services.part_key(owner)
         except Exception:
-            continue
+            obj, kind, owner = None, None, _anchor_part(services, value)
+            if owner is None:
+                continue
+            key = services.part_key(owner)
         entry = pinned.setdefault(key, (owner, [], set(), set()))
         entry[1].append(pointer(path))
         entry[2].add(kind)
@@ -447,6 +474,9 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
     if policy == "any":  # an NX-global read: any loaded part will do, never ambiguous
         work = services.work_part()
         chosen = part_from_text(services, part) if part is not None else work or loaded[0]
+        mine = agent_parts(services, loaded) if part is None else []
+        if len(mine) == 1 and work is not None and not counts(services, work):
+            chosen = mine[0]  # the engineer's work part: the agent's only part (as _fallback)
         return _target(services, chosen, "any", count, "/part" if part is not None else None)
     explicit = part_from_text(services, part) if part is not None else None
     if explicit is not None and getattr(spec.target_resolver, "yields_to_part", False):
@@ -523,8 +553,8 @@ def _by_refs(spec, services, loaded, pinned, explicit, checked, parent) -> Targe
             details={"parts": listed[:LISTED]},
         )
     if parent is None and _named_refs(checked):  # unknown or stale refs: the handler says so
-        work = services.work_part()
-        if work is not None:
+        work = services.work_part()  # (in the agent's part, never the engineer's)
+        if work is not None and (counts(services, work) or not agent_parts(services, loaded)):
             return _target(services, work, "work", count)
     return _fallback(spec, services, loaded, parent)
 
@@ -555,6 +585,10 @@ def _fallback(spec, services, loaded: list, parent) -> Target | None:
         )
     mine = agent_parts(services, loaded)
     work = services.work_part()
+    if len(mine) == 1 and work is not None and not counts(services, work):
+        # the engineer tab guard keeps the engineer's part displayed and work: the
+        # agent's only part is still its target (gate 4s switches to it)
+        return _target(services, mine[0], "only", count)
     if len(mine) <= 1:  # at most one of the agent's parts: the work part, as before
         chosen = work if work is not None else next(iter(roots(services)), None)
         source = "only" if count <= 1 else "work"
@@ -572,9 +606,12 @@ def _fallback(spec, services, loaded: list, parent) -> Target | None:
             f"Add the target part's file name to the arguments, e.g. {EXAMPLE}; loaded: "
             f"{names} (nx_list_parts lists them)"
         )
+    others = count - len(mine)
     fail(
         "NX_AMBIGUOUS_PART",
-        f"{len(mine)} parts are loaded and {spec.name} has no refs that pick one",
+        f"{len(mine)} agent parts are loaded"
+        + (f" (and {others} of the engineer's)" if others > 0 else "")
+        + f" and {spec.name} has no refs that pick one",
         hint=hint,
         details={"loaded_parts": rows(services, ordered), "count": len(mine)},
     )

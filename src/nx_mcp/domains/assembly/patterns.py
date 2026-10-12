@@ -326,11 +326,14 @@ def nx_create_component_pattern(
     *,
     component: ComponentRef,
     layout: Linear | Circular,
-    associative: Annotated[bool, Doc("NX pattern (true) or independent copies")] = True,
+    associative: Annotated[
+        bool, Doc("NX pattern (true) or plain copies, no pattern object")
+    ] = True,
 ) -> PatternData:
     """Pattern a direct component linearly (one or two directions) or about an axis. Counts
     include the seed (at most 100). Circular angle is the step, or with span=true first to last
-    (360: full circle); data.angle is the step. associative=false: independent copies."""
+    (360: full circle); data.angle is the step. associative=false: plain copies, no pattern
+    object."""
     lay = _layout(tx, layout)
     with tx.checks():
         seed = common.component(tx, component, "/component", unsuppressed=True)

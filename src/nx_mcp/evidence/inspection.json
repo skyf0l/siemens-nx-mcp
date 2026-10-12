@@ -52,10 +52,10 @@
   "nx_create_anchor": {
     "v2406": {
       "checks": 78,
-      "recorded": "2026-10-11T15:52:40Z",
+      "recorded": "2026-10-12T07:49:11Z",
       "scenario": "acceptance/inspection/holes_and_words.json",
       "scenario_sha256": "94b52e0207c2abf3895924978e1db8524eef808d7437316eca2a46ffaae96b6a",
-      "source_sha256": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
+      "source_sha256": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
       "variants": []
     }
   },
@@ -72,20 +72,20 @@
   "nx_find_geometry": {
     "v2406": {
       "checks": 78,
-      "recorded": "2026-10-11T15:52:40Z",
+      "recorded": "2026-10-12T07:49:11Z",
       "scenario": "acceptance/inspection/holes_and_words.json",
       "scenario_sha256": "94b52e0207c2abf3895924978e1db8524eef808d7437316eca2a46ffaae96b6a",
-      "source_sha256": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
+      "source_sha256": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
       "variants": []
     }
   },
   "nx_find_holes": {
     "v2406": {
       "checks": 78,
-      "recorded": "2026-10-11T15:52:40Z",
+      "recorded": "2026-10-12T07:49:11Z",
       "scenario": "acceptance/inspection/holes_and_words.json",
       "scenario_sha256": "94b52e0207c2abf3895924978e1db8524eef808d7437316eca2a46ffaae96b6a",
-      "source_sha256": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
+      "source_sha256": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
       "variants": []
     }
   },
@@ -172,10 +172,10 @@
   "nx_resolve_reference": {
     "v2406": {
       "checks": 78,
-      "recorded": "2026-10-11T15:52:40Z",
+      "recorded": "2026-10-12T07:49:11Z",
       "scenario": "acceptance/inspection/holes_and_words.json",
       "scenario_sha256": "94b52e0207c2abf3895924978e1db8524eef808d7437316eca2a46ffaae96b6a",
-      "source_sha256": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
+      "source_sha256": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
       "variants": []
     }
   }

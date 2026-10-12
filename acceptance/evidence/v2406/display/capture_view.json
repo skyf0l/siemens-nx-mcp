@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/capture_view.json",
-  "scenario_sha256": "3bf9304b5f463bfd44aa6c88632d9028659919c622fa5f42d06d7d64e665c57c",
+  "scenario_sha256": "0f0f5ef8f85d9cba6778283f3bdc872384706ed6451426a4d96fb62b4081ba50",
   "domain": "display",
   "covers": {
     "nx_capture_view": []
@@ -11,9 +11,9 @@
   "sources": {
     "nx_capture_view": "e7a5550a1a2a487f1bf71d7ebfb552698dff1be819367d734f0d0ebf67863406"
   },
-  "recorded": "2026-10-11T20:49:28Z",
+  "recorded": "2026-10-12T07:53:25Z",
   "passed": true,
-  "checks": 87,
+  "checks": 89,
   "failed_checks": 0,
   "steps": [
     {
@@ -25,202 +25,209 @@
     },
     {
       "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
       "call": "nx_set_camera",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 3,
+      "index": 4,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 14
     },
     {
-      "index": 4,
+      "index": 5,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 5,
+      "index": 6,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 7
     },
     {
-      "index": 6,
+      "index": 7,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
       "checks": 1
-    },
-    {
-      "index": 7,
-      "call": "nx_capture_view",
-      "setup": false,
-      "passed": true,
-      "checks": 2
     },
     {
       "index": 8,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 2
     },
     {
       "index": 9,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 10,
-      "call": "nx_capture_view",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
       "index": 11,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 12,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 13,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 2
     },
     {
       "index": 14,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 4
     },
     {
       "index": 15,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 7
     },
     {
       "index": 16,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 17,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 3
     },
     {
       "index": 18,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 19,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 20,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 21,
       "call": "nx_create_drawing_sheet",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_create_drawing_view",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_activate_drawing_sheet",
       "setup": true,
       "passed": true,
       "checks": 0
-    },
-    {
-      "index": 23,
-      "call": "nx_capture_view",
-      "setup": false,
-      "passed": true,
-      "checks": 5
     },
     {
       "index": 24,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 25,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 3
     },
     {
       "index": 26,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 27,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 27,
+      "index": 28,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 28,
+      "index": 29,
       "call": "nx_set_camera",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 29,
+      "index": 30,
       "call": "nx_activate_drawing_sheet",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 30,
+      "index": 31,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,

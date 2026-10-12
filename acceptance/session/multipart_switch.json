@@ -4,6 +4,7 @@
  "fixture": null,
  "steps": [
   {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/ms/ms_front.prt", "units": "mm"}},
+  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('ms_front') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at ms_front.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
   {"call": "nx_create_primitive", "setup": true, "save": "fblk", "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
   {"call": "nx_create_part", "setup": true, "save": "back", "args": {"path": "$run/ms/ms_back.prt", "units": "mm", "display": false}},
 
@@ -11,7 +12,7 @@
    "intent": "Acceptance: a model call on the background part runs there (quiet work part)",
    "expect": {"mutation_outcome": "committed", "data.volume": {"close": 4500, "tol": 1e-06},
               "part.file": "ms_back.prt", "part.from": "part"}},
-  {"call": "nx_list_parts", "args": {},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "intent": "Acceptance: the display and the work part never moved",
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}},
               "page.total": 2}},

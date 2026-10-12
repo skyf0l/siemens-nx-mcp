@@ -13,13 +13,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_find_holes": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
-    "nx_find_geometry": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
+    "nx_find_holes": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
+    "nx_find_geometry": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
     "nx_list_objects": "d314cb2ff9eafcf6a25313ac7b841aa2bf3694f72db2ae1b51548a717194e4fa",
-    "nx_resolve_reference": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971",
-    "nx_create_anchor": "f3a232f09c8d80e7ce3f038129f91960bd96c861c9f8e38fb5788677d50be971"
+    "nx_resolve_reference": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862",
+    "nx_create_anchor": "a01a97a4c4e283b1e923d595c70dd45b6c0260d876b8b78038ea303f446f8862"
   },
-  "recorded": "2026-10-11T15:52:40Z",
+  "recorded": "2026-10-12T07:49:11Z",
   "passed": true,
   "checks": 78,
   "failed_checks": 0,
