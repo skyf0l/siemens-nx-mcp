@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/wrap.json",
-  "scenario_sha256": "aebd512e311cf8ac24896f23be72dd8e533dd70a85156ae36fd48cca40423775",
+  "scenario_sha256": "1eecaae9d0f5f97f8cfd8f0a9ff97807de4957f6ccffdabcec24906859b3727d",
   "domain": "modeling",
   "covers": {
     "nx_create_wrap_geometry": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_create_wrap_geometry": "f686be8df06f34d437fd50bb42587b16b29c25eb8cfb2ce0afac1cbe9ef8cc0c"
   },
-  "recorded": "2026-10-13T07:23:53Z",
+  "recorded": "2026-10-13T08:00:15Z",
   "passed": true,
   "checks": 12,
   "failed_checks": 0,

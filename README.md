@@ -1,11 +1,15 @@
 # NX MCP Server
 
 Let an AI assistant (Claude Code, Codex or any MCP client) model, inspect and draw in
-Siemens NX on Windows: parts, sketches, features, assemblies, drawings, sheet metal,
-measurements and exports. You keep working in NX while the agent works next to you.
+Siemens NX on Windows: parts, sketches, curves, features, freeform surfaces, sheet
+metal, assemblies (arrangements, weight and centre of gravity), motion, topology
+optimization and strength checks, measurements and surface analysis, drawings, part
+families and exports (STEP, PDF, DXF/DWG and more). You keep working in NX while the
+agent works next to you.
 
-Tested on NX 2406. NX 2606 can host it, but its tools are not validated yet. The full
-list of tools is in [docs/tools.md](docs/tools.md).
+Tested on NX 2406. NX 2606 can host it, but until it is tested there it offers only
+the tools that read or change the view. The full list of tools (205) is in
+[docs/tools.md](docs/tools.md).
 
 ## 1. Install
 
@@ -66,15 +70,22 @@ environment variable (milliseconds, e.g. `300000`) for Claude Code.
 
 ## Working together in NX
 
-- The agent works only in parts it created or opened. It never closes or saves your
-  parts, and it does not take over the part you are looking at.
+- The agent works in parts it created or opened. It never closes your parts, and
+  changes or saves one only after you tick **Allow agent to change <part>** on the
+  panel.
+- It does not take over the part you are looking at: while your part is on screen,
+  its parts open in the background or in a tab behind yours.
 - The **NX MCP** panel shows what the agent is doing and lists its parts
   (**Show part** brings one up).
-  - **Auto** (default): the agent's steps run while you work; a step waits while you
-    are in an NX command or dialog.
+  - **Auto** (default): the agent's steps run while you work. A step that changes
+    something waits while you are in an NX command or dialog (at most 2 minutes);
+    reads run at once.
   - **Ask me first**: every agent step waits for your OK.
-- Several agents can work in the same NX at once, each in its own files.
-- Files go in the workspace folder `C:\Users\<you>\NX_MCP_WORKSPACE`.
+- Several agents can work in the same NX at once, each in its own parts; one agent
+  does not close or bring up another's parts.
+- Files go in the workspace folder `C:\Users\<you>\NX_MCP_WORKSPACE`; the agent reads
+  and writes files only there. Its `.nx-mcp` subfolder holds the activity log and NX
+  MCP's own state.
 
 More about the panel: [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 
@@ -82,8 +93,11 @@ More about the panel: [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 
 | Problem | Fix |
 | --- | --- |
-| The agent says NX is not running | Start NX (step 2) and check that the NX MCP panel is open |
+| The agent says NX is not running | Start NX (step 2) and check that the NX MCP panel is open. NX takes a while to start; the panel appears once NX's main window is up |
 | The agent says NX is blocked by a dialog | Answer the dialog in NX; the agent never clicks NX dialogs |
+| The agent says you are busy in NX (`NX_UI_BUSY`) | Finish or cancel your NX command, then let the agent retry |
+| The agent says a part is yours (`NX_PART_NOT_GRANTED`) | Tick **Allow agent to change <part>** on the panel if you want it to |
+| The agent says a licence is missing (`NX_LICENSE_UNAVAILABLE`) | Some tools need extra NX licences. NX refuses them with this error, nothing is changed, and the agent stops offering that tool until NX restarts |
 | No NX MCP panel | Play the journal again (step 2); with the optional auto-start, check `UGII_USER_DIR` and restart NX |
 | **nx** is not connected in the client | Check the path to `nx-mcp.exe` and that step 1 finished |
 
@@ -96,7 +110,7 @@ Codex), and for NX where noted.
 | --- | --- |
 | `NX_MCP_WORKSPACE` | Another workspace folder. Set the same value for NX and the client |
 | `NX_MCP_SURFACE` | `full` shows every NX tool to the client directly (more context, fewer steps); default `agent` |
-| `NX_MCP_BRIDGE_DESCRIPTOR` | Only for a non-standard setup (e.g. batch NX): the bridge file NX writes |
+| `NX_MCP_BRIDGE_DESCRIPTOR` | Only for a non-standard setup: the bridge file NX writes (for NX, `NX_MCP_UI_DESCRIPTOR` sets where it writes it) |
 
 ## For developers
 

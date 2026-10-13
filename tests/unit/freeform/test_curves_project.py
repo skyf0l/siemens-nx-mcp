@@ -3,8 +3,8 @@
 import pytest
 
 from tests.kit import run
-from tests.unit.freeform.curves_fakes import curves_nx, made
 from tests.unit.freeform.fakes import curve
+from tests.unit.freeform.support import curves_nx, made
 
 P = "ProjectCurveBuilder"
 C = "CombinedProjectionBuilder"

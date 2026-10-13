@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/text.json",
-  "scenario_sha256": "096dae900b81ba1ca4accb3d2c102ebed73a4628b02b7c88aef34d725990760f",
+  "scenario_sha256": "018d8f6bdc9f7e2344be1d153fa4b1b57a79722140532abce4cd437b41de8eb2",
   "domain": "modeling",
   "covers": {
     "nx_create_text": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_create_text": "c43c5f23bad4e95a98fb6f2760db6a966a3f7a8930cf1c2350e25c2cdb13dec5"
   },
-  "recorded": "2026-10-13T07:23:15Z",
+  "recorded": "2026-10-13T08:00:13Z",
   "passed": true,
   "checks": 22,
   "failed_checks": 0,

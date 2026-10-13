@@ -3,8 +3,8 @@
 import pytest
 
 from tests.kit import NXException, point, run
-from tests.unit.freeform.curves_fakes import curves_nx, made
 from tests.unit.freeform.fakes import curve
+from tests.unit.freeform.support import curves_nx, made
 
 OFF = "OffsetCurveBuilder"
 LOOP = [[0, 50, 20], [100, 50, 20], [100, 0, 20], [0, 0, 20], [0, 50, 20]]

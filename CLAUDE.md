@@ -12,8 +12,13 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 
 - `core/`: NX-free. `catalogue.py` (`@tool`, `ToolSpec`, registry and its rules),
   `types.py`, `validate.py`, `kernel.py` (one gate order for every call), `tx.py`,
-  `errors.py`, `references.py`, `receipts.py`, `evidence.py`, `summary.py`.
-- `kit/`: shared NX know-how (builders, select, sketch, drawing, readback, ...).
+  `errors.py`, `references.py`, `receipts.py`, `evidence.py`, `summary.py`; several
+  parts: `target.py` (gate 3t), `switching.py` (gate 4s), `marks.py`, `busy.py`,
+  `parking.py`.
+- `kit/`: shared NX know-how, one module per subject (architecture.md 1.4): args, bodies,
+  builders, capture, curve, display, drawing, explode, expr, facts, features, files, geom,
+  kinematics, licenses, massprops, measure, model, parts, pose, positioning, readback,
+  result, select, sketch, snapshots, surface, switching, units.
 - `domains/<domain>/`: every public tool, one `@tool` function each (session,
   parts_files, sketch, modeling, freeform, assembly, motion, inspection, drawing,
   sheet_metal, display, optimization).
@@ -41,8 +46,12 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 3. Unit test in `tests/unit/<d>/` on `tests/kit/` (it runs the real kernel).
 4. Acceptance scenario `acceptance/<d>/<name>.json` covering every variant with
    numeric `expect` checks; run it on live NX, then `python -m nx_mcp.acceptance fold`.
-5. Regenerate `docs/capability-matrix.md` and `docs/tools.md`
-   (`scripts/generate_capability_matrix.py`, `scripts/generate_tool_reference.py`).
+5. Regenerate `docs/capability-matrix.md`, `docs/tools.md` and the budget table in
+   `docs/design/architecture.md` (`scripts/generate_capability_matrix.py`,
+   `scripts/generate_tool_reference.py`, `scripts/generate_budget_table.py`); never edit
+   them by hand. Budgets (`tests/sidecar/test_budget.py`) catch bloat, never a rule an
+   agent needs: description 500 characters (first sentence 120), field 120, tool
+   definition 1,600 (3,000 for unions).
 
 ## Agent rules
 
@@ -71,7 +80,9 @@ ticks the host. Keep that line first. In an NX started without `nx_app`, play
 main interpreter, which outlives the journal; without the line it runs in a
 sub-interpreter unloaded on return), it calls the same bootstrap's `play()` and only
 reports "already running" when the startup app or an earlier play hosts the bridge.
-Never hold NX's main loop in a long-running journal: NX work that needs the loop
+The bootstrap imports the NXOpen namespaces tools use once at start
+(`interactive.NXOPEN_NAMESPACES`); a tool needing another namespace asks the orchestrator
+to add it. Never hold NX's main loop in a long-running journal: NX work that needs the loop
 (first Modeling start, first PDF export) then freezes NX (the old resident 2406
 journals did exactly that and were removed).
 
@@ -81,7 +92,8 @@ journals did exactly that and were removed).
 python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX 2406
 python scripts/dev_lock.py acquire --owner <agent>                    # before any NX use
 python scripts/dev_reload.py --wait-ready        # reload host code; exit 1 prints the traceback
-python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay scenarios
+python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay scenarios (takes the lock)
+python -m nx_mcp.acceptance run <domain> --beside-engineer --owner <agent>  # with engineer parts loaded
 python -m nx_mcp.acceptance call --inline '[...]' --owner <agent>     # ad-hoc calls, no evidence
 python scripts/dev_python.py "print(dir(NXOpen.Features.HoleFeatureBuilder))"  # probe NXOpen
 python -m nx_mcp.acceptance fold                 # rebuild src/nx_mcp/evidence/*.json
@@ -98,7 +110,7 @@ hung NX with `taskkill //IM ugraf.exe //F`. Check results with measurements,
 ```powershell
 python -m pip install -e ".[dev]"
 python -m pre_commit install --install-hooks
-python -m pre_commit run --all-files     # ruff, format, matrix and tool-reference checks
+python -m pre_commit run --all-files     # ruff, format, generated-doc checks, pytest, mypy
 python -m pytest -q -p no:cacheprovider -m "not real_nx" --basetemp .pytest-tmp
 python -m mypy src/nx_mcp
 ```

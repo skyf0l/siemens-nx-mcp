@@ -6,7 +6,7 @@ import pytest
 
 from nx_mcp.core import evidence
 from tests.kit import run
-from tests.unit.freeform.curves_fakes import curves_nx, made, rectangle_x
+from tests.unit.freeform.support import curves_nx, made, rectangle_x
 
 T = "SectionCurveBuilder"
 
