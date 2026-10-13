@@ -231,19 +231,44 @@ def _warn_views(tx, out, sheet):
                 "nx_edit_drawing_table position (see bounds)")  # fmt: skip
 
 
+def grid_extent(out):
+    """``[x0, y0, x1, y1]`` of a grid table on its sheet: NX's bounds, else the cells from
+    the anchor (a title block's position is its bottom-right corner, a revision table's its
+    top-left corner)."""
+    if out.get("bounds") is not None:
+        return list(out["bounds"])
+    x, y = out["position"]
+    wide = sum(c.get("width", 0.0) for c in out.get("columns") or [])
+    tall = float(out.get("row_height") or 0.0) * len(out.get("rows") or [])
+    if out.get("kind") == "title_block":
+        return [x - wide, y, x, y + tall]
+    return [x, y - tall, x + wide, y]
+
+
 def _warn_off_sheet(tx, out, sheet):
-    """Warn when a grid table's origin is off the sheet or its columns run past the edge."""
+    """Warn when a grid table runs past an edge of its sheet (its extent, not its anchor)."""
     _warn_views(tx, out, sheet)
-    position, columns = out.get("position"), out.get("columns") or []
-    if position is None or sheet is None:
+    if out.get("position") is None or sheet is None:
         return
     length, height = drawing.size(sheet)
-    right = position[0] + sum(c.get("width", 0.0) for c in columns)
-    if position[0] < 0 or right > length or not 0 <= position[1] <= height:
+    x0, y0, x1, y1 = grid_extent(out)
+    tol = 1e-6 * max(length, height)
+    past = [
+        f"{axis}={value:g}"
+        for axis, value, off in (
+            ("x", x0, x0 < -tol),
+            ("x", x1, x1 > length + tol),
+            ("y", y0, y0 < -tol),
+            ("y", y1, y1 > height + tol),
+        )
+        if off
+    ]
+    if past:
         tx.warn(
             "NX_UPDATE_WARNING",
-            f"The table at {position} reaches x={right:g}, past the {length:g} x {height:g} "
-            "sheet: move it with position",
+            f"The table at {out['position']} reaches {', '.join(past)}, past the {length:g} x "
+            f"{height:g} sheet (extent {[round(v, 6) for v in (x0, y0, x1, y1)]}): move it "
+            "with position",
         )
 
 

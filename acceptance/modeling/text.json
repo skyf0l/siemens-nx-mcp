@@ -1,0 +1,319 @@
+{
+ "covers": {
+  "nx_create_text": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "NX",
+    "plane": "xy",
+    "origin": [
+     5,
+     2,
+     0
+    ],
+    "height": 10
+   },
+   "expect": {
+    "data.curves": 2,
+    "data.min": {
+     "close": [
+      5,
+      2,
+      0
+     ],
+     "tol": 0.01
+    },
+    "data.max": {
+     "close": [
+      23.2538,
+      12,
+      0
+     ],
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "NX",
+    "plane": "xz",
+    "origin": [
+     0,
+     50,
+     0
+    ],
+    "height": 10,
+    "anchor": "middle_center"
+   },
+   "expect": {
+    "data.curves": 2,
+    "data.min": {
+     "close": [
+      -9.1269,
+      0,
+      -5
+     ],
+     "tol": 0.01
+    },
+    "data.max": {
+     "close": [
+      9.1269,
+      0,
+      5
+     ],
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "plate",
+   "args": {
+    "origin": [
+     0,
+     100,
+     0
+    ],
+    "length": 40,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$plate.data.bodies.0.id",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "AB",
+    "plane": "$top.data.items.0.id",
+    "origin": [
+     5,
+     105,
+     10
+    ],
+    "height": 8,
+    "font": "Arial",
+    "style": "bold",
+    "relief": {
+     "kind": "engrave",
+     "depth": 1,
+     "target": "$plate.data.bodies.0.id"
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7918.5317738734175,
+     "tol": 0.01
+    },
+    "data.bodies": {
+     "count": 1
+    },
+    "data.min.2": {
+     "close": 10,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$plate.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.max": {
+     "close": [
+      40,
+      120,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top2",
+   "args": {
+    "owner": "$plate.data.bodies.0.id",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "order": "highest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "7",
+    "plane": "$top2.data.items.0.id",
+    "origin": [
+     30,
+     105,
+     10
+    ],
+    "height": 8,
+    "relief": {
+     "kind": "emboss",
+     "depth": 2,
+     "target": "$plate.data.bodies.0.id"
+    }
+   },
+   "expect": {
+    "data.bodies": {
+     "count": 1
+    },
+    "data.volume": {
+     "close": 7949.227982506015,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$plate.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.max.2": {
+     "close": 12,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "drum",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "diameter": 40,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rim",
+   "args": {
+    "owner": "$drum.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "circle",
+    "order": "lowest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "AB",
+    "path": [
+     "$rim.data.items.0.id"
+    ],
+    "height": 5,
+    "anchor": "bottom_center"
+   },
+   "expect": {
+    "data.curves": 5,
+    "data.min": {
+     "close": [
+      74.883,
+      -9.296,
+      0
+     ],
+     "tol": 0.01
+    },
+    "data.max": {
+     "close": [
+      81.449,
+      8.817,
+      0
+     ],
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "pedge",
+   "args": {
+    "owner": "$plate.data.bodies.0.id",
+    "kind": "edge",
+    "geometry_type": "line",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "AB",
+    "path": [
+     "$pedge.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/path",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_text",
+   "args": {
+    "text": "NX",
+    "plane": "xy",
+    "font": "NoSuchFontXyz"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/font",
+    "mutation_outcome": "rolled_back"
+   }
+  }
+ ]
+}

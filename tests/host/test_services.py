@@ -330,3 +330,24 @@ def test_an_undo_revives_refs_of_objects_it_brought_back(tmp_path):
         refs.resolve(ref, ("face",))
     s.retire_undone(s.parts())
     assert refs.resolve(ref, ("face",)) is consumed
+
+
+def test_release_drafting_sketch_deactivates_only_a_drafting_sketch(tmp_path):
+    s = services(tmp_path)
+    s.nx = NS(
+        **vars(NXOPEN), Sketch=NS(ViewReorient=NS(FalseValue=False), UpdateLevel=NS(Model="m"))
+    )
+    calls = []
+
+    def deactivate(*args):
+        calls.append(args)
+        s.session.ActiveSketch = None
+
+    s.session.ActiveSketch = None
+    assert s.release_drafting_sketch() is False
+    model = NS(IsDraftingSketch=False, Deactivate=deactivate)
+    s.session.ActiveSketch = model
+    assert s.release_drafting_sketch() is False and s.session.ActiveSketch is model
+    s.session.ActiveSketch = NS(IsDraftingSketch=True, Deactivate=deactivate)
+    assert s.release_drafting_sketch() is True
+    assert s.session.ActiveSketch is None and calls == [(False, "m")]

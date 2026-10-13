@@ -1062,6 +1062,10 @@ other name lists are deleted. What holds today:
   (`services.redo_steps`) gets the calls an undo or restore reverted; the kernel drops a
   part's items when a new model call of that part enters the undo history,
   `engineer_changed` empties it, and a part close drops that part's entries.
+  Retention: a background thread started at host start deletes receipts older than 7 days
+  and all but the 20,000 newest (never a running one, which has a `running/<id>` marker
+  that host start reads instead of every receipt); a pruned `operation_id` reads as
+  `unknown` and runs again, since replay is meant for recent retries.
 - **Sheet units (gate 9)** come from the referenced sheet or view, a new sheet's `units`, the
   current sheet, else part units; handlers get `tx.sheet` and `tx.units`.
 - **View rollback.** `view` handlers record what they change with `tx.display.keep*`; a failure
@@ -1193,13 +1197,13 @@ caps in the test, never the table:
 |---|---|---|
 | `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,340 + 15 per domain = 15,520 (12 domains) | 15,358 (about 4.0K tokens) |
 | `agent` server instructions (once per session) | 1,600 | 1,395 |
-| Full listing (name + description + input schema, call keys included) | mean 1,040 per listed tool | mean 984.1 over 180 tools (177,132, about 46.6K tokens) |
-| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,409 (121 plain tools), 2,746 (55 unions) |
-| Tool definition drift (75th percentile per kind) | plain 970, union 1,860 | plain 866, union 1,739.5 |
-| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 385, 90th percentile 1,461 (max 1,812) |
-| `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 333 (1,557 in all) |
-| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 194, mean 74.5 |
-| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,541 (about 3.3K tokens) |
+| Full listing (name + description + input schema, call keys included) | mean 1,040 per listed tool | mean 1,030.9 over 209 tools (215,460, about 56.7K tokens) |
+| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,478 (138 plain tools), 2,746 (67 unions) |
+| Tool definition drift (75th percentile per kind) | plain 970, union 1,860 | plain 934.8, union 1,722 |
+| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 385, 90th percentile 1,482.5 (max 1,784) |
+| `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 333 (1,558 in all) |
+| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 194, mean 78 |
+| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,548 (about 3.3K tokens) |
 
 <!-- END budget table -->
 

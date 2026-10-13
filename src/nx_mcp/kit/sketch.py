@@ -23,6 +23,10 @@ NX 2406 findings encoded here:
   with a dimension or an offset annotation; geometric constraints alone survived. Every
   tool that activates an existing sketch (``editing``, finishing a parked one) is
   ``display_bound``: its part is displayed for the call and the shown tab comes back.
+- Opening a drawing sheet from the modeling display re-activates that sheet's last sheet
+  sketch (``IsDraftingSketch``), also in NX's own UI. It is not a model sketch the agent
+  opened: :func:`release_drafting_sketch` deactivates it quietly (gate 4 and the drawing
+  tools do), a model sketch is left alone.
 """
 
 from __future__ import annotations
@@ -106,6 +110,17 @@ def open_sketch(tx):
     """The open sketch of the work part: NX's active sketch, else the parked one."""
     active = tx.session.ActiveSketch
     return active if active is not None else _parked(tx)
+
+
+def release_drafting_sketch(session, nx) -> bool:
+    """Deactivate the active sketch when it is a drafting (sheet) sketch NX re-activated
+    on opening a sheet: no view change, model update level. A model sketch is left
+    alone. Returns whether one was deactivated."""
+    active = getattr(session, "ActiveSketch", None)
+    if active is None or not bool(getattr(active, "IsDraftingSketch", False)):
+        return False
+    active.Deactivate(nx.Sketch.ViewReorient.FalseValue, nx.Sketch.UpdateLevel.Model)
+    return True
 
 
 def same(a, b) -> bool:

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/table_usability.json",
-  "scenario_sha256": "95aed5736898228876139ab9a7e95721b7241d6aa9fded1c7800edbdec32b0db",
+  "scenario_sha256": "ebceecbf168a02d290e1913a80cd0dcee2235825485e36c79d7ce5724908bbb8",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_table": [
@@ -9,20 +9,21 @@
       "title_block"
     ],
     "nx_edit_drawing_table": [
-      "revision"
+      "revision",
+      "title_block"
     ],
     "nx_get_drawing_table": []
   },
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82",
-    "nx_edit_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82",
-    "nx_get_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82"
+    "nx_create_drawing_table": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
+    "nx_edit_drawing_table": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
+    "nx_get_drawing_table": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b"
   },
-  "recorded": "2026-10-12T11:00:11Z",
+  "recorded": "2026-10-13T06:41:39Z",
   "passed": true,
-  "checks": 19,
+  "checks": 24,
   "failed_checks": 0,
   "steps": [
     {
@@ -65,24 +66,31 @@
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 7,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
       "call": "nx_get_drawing_table",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 8,
+      "index": 9,
       "call": "nx_create_drawing_table",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 9,
+      "index": 10,
       "call": "nx_create_balloons",
       "setup": false,
       "passed": true,

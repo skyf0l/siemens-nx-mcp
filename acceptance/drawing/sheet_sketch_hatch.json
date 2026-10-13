@@ -1,0 +1,439 @@
+{
+ "covers": {
+  "nx_create_sheet_sketch": [
+   "line",
+   "polyline",
+   "arc",
+   "circle",
+   "rectangle"
+  ],
+  "nx_create_hatch": []
+ },
+ "part": null,
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "topv",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_sketch",
+   "save": "sk",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "name": "LAYOUT",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       260,
+       40
+      ],
+      "corner2": [
+       380,
+       70
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       260,
+       55
+      ],
+      "end": [
+       380,
+       55
+      ]
+     },
+     {
+      "type": "circle",
+      "center": [
+       330,
+       150
+      ],
+      "radius": 15
+     },
+     {
+      "type": "arc",
+      "center": [
+       60,
+       60
+      ],
+      "radius": 20,
+      "start_angle": 0,
+      "end_angle": 90
+     },
+     {
+      "type": "polyline",
+      "points": [
+       [
+        20,
+        100
+       ],
+       [
+        60,
+        100
+       ],
+       [
+        60,
+        130
+       ]
+      ]
+     }
+    ]
+   },
+   "intent": "Acceptance: layout curves placed and read back in sheet coordinates",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.curves": {
+     "count": 9
+    },
+    "data.curves.0.start": {
+     "close": [
+      260,
+      40
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.2.end": {
+     "close": [
+      260,
+      70
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.5.type": "circle",
+    "data.curves.5.radius": {
+     "close": 15,
+     "tol": 1e-06
+    },
+    "data.curves.5.center": {
+     "close": [
+      330,
+      150
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.6.start": {
+     "close": [
+      80,
+      60
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.6.end": {
+     "close": [
+      60,
+      80
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.8.end": {
+     "close": [
+      60,
+      130
+     ],
+     "tol": 1e-06
+    },
+    "data.loops": {
+     "count": 5
+    },
+    "data.bounds": {
+     "close": [
+      20,
+      40,
+      380,
+      165
+     ],
+     "tol": 1e-06
+    },
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_sketch",
+   "save": "lam",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       260,
+       90
+      ],
+      "corner2": [
+       380,
+       100
+      ]
+     },
+     {
+      "type": "rectangle",
+      "corner1": [
+       260,
+       100
+      ],
+      "corner2": [
+       380,
+       110
+      ]
+     }
+    ]
+   },
+   "intent": "Acceptance: two laminate layers as separate closed rectangles",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.curves": {
+     "count": 8
+    },
+    "data.curves.7.start": {
+     "close": [
+      260,
+      110
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_hatch",
+   "save": "x1",
+   "args": {
+    "boundary": [
+     "$lam.data.curves.0.curve.id",
+     "$lam.data.curves.1.curve.id",
+     "$lam.data.curves.2.curve.id",
+     "$lam.data.curves.3.curve.id"
+    ],
+    "pattern": "steel",
+    "angle": 30,
+    "spacing": 3
+   },
+   "intent": "Acceptance: lower layer crosshatched at 30 deg, 3 mm",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.pattern": "steel",
+    "data.angle": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.spacing": {
+     "close": 3,
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      260,
+      90,
+      380,
+      100
+     ],
+     "tol": 0.001
+    },
+    "data.center": {
+     "close": [
+      320,
+      95
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_hatch",
+   "save": "x2",
+   "args": {
+    "boundary": [
+     "$lam.data.curves.4.curve.id",
+     "$lam.data.curves.5.curve.id",
+     "$lam.data.curves.6.curve.id",
+     "$lam.data.curves.7.curve.id"
+    ],
+    "angle": 150,
+    "spacing": "1.5 mm"
+   },
+   "intent": "Acceptance: upper layer crosshatched the other way, tighter",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.pattern": "iron",
+    "data.angle": {
+     "close": 150,
+     "tol": 1e-06
+    },
+    "data.spacing": {
+     "close": 1.5,
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      260,
+      100,
+      380,
+      110
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_hatch",
+   "save": "fill",
+   "args": {
+    "boundary": [
+     "$sk.data.curves.5.curve.id"
+    ],
+    "type": "area_fill",
+    "material": "solid"
+   },
+   "intent": "Acceptance: a circle filled solid",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "area_fill",
+    "data.material": "solid",
+    "data.angle": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      315,
+      135,
+      345,
+      165
+     ],
+     "tol": 0.001
+    },
+    "data.center": {
+     "close": [
+      330,
+      150
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_hatch",
+   "args": {
+    "boundary": [
+     "$sk.data.curves.0.curve.id",
+     "$sk.data.curves.1.curve.id",
+     "$sk.data.curves.2.curve.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/boundary"
+   }
+  },
+  {
+   "call": "nx_create_hatch",
+   "args": {
+    "boundary": [
+     "$sk.data.curves.6.curve.id"
+    ],
+    "type": "area_fill",
+    "spacing": 2
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/spacing"
+   }
+  },
+  {
+   "call": "nx_create_sheet_sketch",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       10,
+       10
+      ],
+      "corner2": [
+       10,
+       40
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/curves/0/corner2"
+   }
+  },
+  {
+   "call": "nx_create_note",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "text": [
+     "LAMINATE 2 PLY"
+    ],
+    "origin": [
+     260,
+     120
+    ]
+   },
+   "intent": "Acceptance: drawing tools keep working after a sheet sketch",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      260,
+      120
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "path": "$run/sheet_sketch_hatch.png"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

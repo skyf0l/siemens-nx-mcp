@@ -11,7 +11,9 @@ Repeating an operation_id replays the finished call, except a committed call tha
 ``nx_undo_operation`` or ``nx_restore_checkpoint`` reverted: it runs again, and its
 new receipt links the reverted run (``previous``).
 ``store`` needs ``get(op_id)``, ``put(record)`` and ``path(op_id)``; running receipts
-from an earlier session are turned into ``unknown`` by the store's ``recover()``.
+from an earlier session are turned into ``unknown`` by the store's ``recover()``, which
+reads the ``running/`` markers only and starts the retention pruner
+(:class:`OperationStore`: ``RETENTION_DAYS``, ``MAX_RECEIPTS``).
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ import hashlib
 import json
 import os
 import re
+import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -178,12 +182,35 @@ def previous_run(existing: dict) -> dict | None:
     return run
 
 
+RETENTION_DAYS = 7  # receipts older than this (by mtime) are pruned
+MAX_RECEIPTS = 20_000  # at most this many receipts are kept: the newest by mtime
+PRUNE_PAUSE_EVERY = 500  # deletions between short pauses of the background pruner
+_prune_lock = threading.Lock()  # one pruner per process (a dev reload runs recover again)
+
+
 class OperationStore:
-    """Durable receipts as JSON files. No NXOpen calls; safe for sidecar status queries."""
+    """Durable receipts as JSON files. No NXOpen calls; safe for sidecar status queries.
+
+    A receipt in state ``running`` also has an empty marker ``running/<operation_id>``
+    (written before the receipt, removed after the receipt leaves ``running``), so
+    :meth:`recover` reads the in-flight operations only, never the whole history.
+    Receipts written before the markers existed have none: they are finished, or running
+    receipts of a session that crashed under the older version. Those keep ``running``
+    (a repeat is ``NX_OUTCOME_UNKNOWN``, as for any unknown outcome) until retention
+    prunes them; no one-time full scan is made at start.
+
+    Retention (:meth:`prune`): receipts older than ``RETENTION_DAYS`` and all but the
+    ``MAX_RECEIPTS`` newest are deleted by a daemon thread :meth:`recover` starts;
+    receipts with a running marker are never pruned. A pruned receipt reads as
+    ``unknown`` in :meth:`get`, so repeating a pruned operation_id runs the call again:
+    idempotent replay is meant for recent retries, not for week-old calls.
+    """
 
     def __init__(self, root):
         self.root = Path(root) / ".nx-mcp" / "operations"
         self.root.mkdir(parents=True, exist_ok=True)
+        self.running = self.root / "running"  # in-flight markers, made on first use
+        self.pruner: threading.Thread | None = None
 
     def path(self, operation_id):
         problem = operation_id_problem(operation_id)
@@ -192,6 +219,8 @@ class OperationStore:
         return self.root / (operation_id + ".json")
 
     def get(self, operation_id):
+        """The receipt, or an ``unknown`` record when there is none (never written, or
+        pruned by retention: :meth:`prune`)."""
         path = self.path(operation_id)
         if not path.exists():
             return {
@@ -207,23 +236,136 @@ class OperationStore:
 
     def put(self, record):
         path = self.path(record["operation_id"])
+        marker = self.running / record["operation_id"]
+        running = record.get("state") == "running"
+        if running and not marker.exists():  # before the receipt: a crash leaves a marker
+            self.running.mkdir(exist_ok=True)
+            marker.touch()
         temp = path.with_suffix(".tmp")
         with temp.open("w", encoding="utf-8") as f:
             json.dump(record, f, ensure_ascii=False, allow_nan=False)
             f.flush()
             os.fsync(f.fileno())
         os.replace(temp, path)
+        if not running:  # after the receipt; recover drops a marker left behind
+            with contextlib.suppress(OSError):
+                marker.unlink(missing_ok=True)
 
-    def recover(self, session_id):
-        for path in self.root.glob("*.json"):
-            record = json.loads(path.read_text(encoding="utf-8"))
-            if record.get("state") == "running" and record.get("session_id") != session_id:
-                record.update(
-                    state="unknown",
-                    mutation_outcome="unknown",
-                    reason="NX process restarted before final receipt; manual reconciliation required.",
-                )
-                self.put(record)
+    def recover(self, session_id, *, prune: bool = True) -> None:
+        """Turn the running receipts of other sessions into ``unknown``. Reads the
+        ``running/`` markers and the receipts they name only (cost follows the in-flight
+        operations, not the history), then starts the background :meth:`prune`
+        (``prune=False``: not). Never raises."""
+        try:
+            names = os.listdir(self.running) if self.running.is_dir() else []
+        except OSError:
+            names = []
+        for name in names:
+            with contextlib.suppress(Exception):
+                self._recover_one(name, session_id)
+        if prune:
+            self.start_pruning()
+
+    def _recover_one(self, name: str, session_id) -> None:
+        try:
+            record = json.loads((self.root / (name + ".json")).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            record = None
+        if not isinstance(record, dict) or record.get("state") != "running":
+            (self.running / name).unlink(missing_ok=True)  # finished or gone: stale marker
+        elif record.get("session_id") != session_id:
+            record.update(
+                state="unknown",
+                mutation_outcome="unknown",
+                reason="NX process restarted before final receipt; manual reconciliation required.",
+            )
+            self.put(record)
+
+    def start_pruning(self) -> threading.Thread | None:
+        """Run :meth:`prune` in a daemon thread (NX's main thread never waits for it);
+        None while another pruner of this process runs."""
+        if not _prune_lock.acquire(blocking=False):
+            return None
+
+        def run() -> None:
+            try:
+                self.prune()
+            finally:
+                _prune_lock.release()
+
+        try:
+            thread = threading.Thread(target=run, name="nx-mcp-receipt-prune", daemon=True)
+            thread.start()
+        except Exception:
+            _prune_lock.release()
+            return None
+        self.pruner = thread
+        return thread
+
+    def prune(
+        self,
+        *,
+        now: float | None = None,
+        max_age_days: float = RETENTION_DAYS,
+        max_count: int = MAX_RECEIPTS,
+        pause: float = 0.01,
+    ) -> int:
+        """Delete the receipts older than ``max_age_days`` and all but the ``max_count``
+        newest (by mtime), with their ``.cancel`` flags, and ``.tmp`` files older than
+        ``max_age_days``; never a receipt with a running marker. Reads directory
+        entries only (no receipt is parsed), keeps a file rewritten since the scan
+        (concurrent ``put``), never raises. Returns the number of files deleted."""
+        deleted = 0
+        with contextlib.suppress(Exception):
+            now = time.time() if now is None else now
+            cutoff = now - max_age_days * 86400
+            receipts: list[tuple[float, str]] = []  # (mtime, operation_id)
+            extras: list[tuple[float, str, str]] = []  # (mtime, operation_id, file name)
+            with os.scandir(self.root) as entries:
+                for entry in entries:
+                    stem, _, suffix = entry.name.rpartition(".")
+                    if suffix not in ("json", "cancel", "tmp") or not stem:
+                        continue
+                    with contextlib.suppress(OSError):
+                        if not entry.is_file():
+                            continue
+                        mtime = entry.stat().st_mtime
+                        if suffix == "json":
+                            receipts.append((mtime, stem))
+                        else:
+                            extras.append((mtime, stem, entry.name))
+            receipts.sort(reverse=True)  # newest first
+            doomed = {
+                stem: mtime
+                for i, (mtime, stem) in enumerate(receipts)
+                if mtime < cutoff or i >= max_count
+            }
+            files = [(stem + ".json", mtime) for stem, mtime in doomed.items()]
+            files += [
+                (name, mtime)
+                for mtime, stem, name in extras
+                if mtime < cutoff or (stem in doomed and name.endswith(".cancel"))
+            ]
+            for name, mtime in files:
+                if self._delete(name, mtime):
+                    deleted += 1
+                    if pause and deleted % PRUNE_PAUSE_EVERY == 0:
+                        time.sleep(pause)  # let NX's Python thread have the interpreter
+        return deleted
+
+    def _delete(self, name: str, scanned: float) -> bool:
+        """Delete one file of the store unless its operation is running or the file
+        changed since the scan (``put`` writes the marker before a running receipt)."""
+        try:
+            path = self.root / name
+            if (self.running / name.rpartition(".")[0]).exists():
+                return False
+            if path.stat().st_mtime > scanned:
+                return False
+            path.unlink()
+            return True
+        except OSError:
+            return False
 
 
 class Receipts:

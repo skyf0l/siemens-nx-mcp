@@ -12,8 +12,10 @@ NX 2406 (probed live):
 - Builders take typed ``Null`` arguments (``Study.Null``, not None). Support, mass-target
   and shape-constraint builders commit but return None; ``GetAllOptimizationConstraints``
   never lists the mass target, so it is read back as the feature's Kilogram expression.
-- A linear-statics solve needs every support and load referenced by a subcase (the study's
-  default subcase starts empty); the condition and run tools add them.
+- A linear-statics solve needs every support and load referenced by a subcase (NX puts a
+  new one in the active subcase only); the condition and run tools add them.
+- ``Study.RunAnalysis`` is refused on a topology study ("Operation cannot be performed while
+  in a task environment", in the task and out): see analysis.py.
 - Keep-in/out faces that do not touch fail ("Selected faces are not connected"): one region
   per face. The feature owns a result body from the start, empty until solved.
 - Expressions are written in their own NX units (Newton, PressureNewtonPerSquareMilliMeter,
@@ -25,10 +27,11 @@ NX 2406 (probed live):
 from __future__ import annotations
 
 import contextlib
+import importlib
 from typing import TypedDict
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import licenses, result, select, units
+from nx_mcp.kit import geom, licenses, result, select, units
 
 # Either feature unlocks Topology Optimization for Designers (NXOpen.xml license notes).
 LICENSES = ("des_top_opt", "sc_des_topol_opt")
@@ -37,6 +40,16 @@ LICENSE_HINT = (
     "des_top_opt, a Simcenter token add-on)"
 )
 TYPE_NAME = "TopologyOptimizationFeature"
+
+
+def ds(tx):
+    """``NXOpen.DesignSimulation``: a submodule NX imports only on demand (a fresh NX session
+    lacks the attribute until something imports it)."""
+    module = getattr(tx.nx, "DesignSimulation", None)
+    if module is None:
+        with native():
+            module = importlib.import_module(tx.nx.__name__ + ".DesignSimulation")
+    return module
 
 
 class StudyRow(TypedDict):
@@ -103,21 +116,28 @@ def all_of(study, getter: str) -> list:
         return list(getattr(study, getter)() or [])
 
 
-@contextlib.contextmanager
-def task(tx, feature=None):
-    """Inside NX's Topology Optimization task environment; yields its active feature.
-
-    ``feature`` edits an existing study, else NX creates a new feature. A failure inside
-    cancels the task (NX discards its changes) before the kernel's rollback.
-    """
-    environment = tx.session.TopologyOptimizationTaskEnvironment
+def outside_task(tx) -> None:
+    """``NX_WRONG_APPLICATION`` while NX is in a Topology Optimization task (the engineer's)."""
     with native():
-        if environment.ActiveFeature is not None:
+        if tx.session.TopologyOptimizationTaskEnvironment.ActiveFeature is not None:
             fail(
                 "NX_WRONG_APPLICATION",
                 "NX is already in a Topology Optimization task",
                 hint="Ask the engineer to finish the Topology Optimization task in NX",
             )
+
+
+@contextlib.contextmanager
+def task(tx, feature=None, keep=True):
+    """Inside NX's Topology Optimization task environment; yields its active feature.
+
+    ``feature`` edits an existing study, else NX creates a new feature. A failure inside
+    cancels the task (NX discards its changes) before the kernel's rollback; so does the
+    end of the block without ``keep`` (a solve whose results are read, then dropped).
+    """
+    environment = tx.session.TopologyOptimizationTaskEnvironment
+    outside_task(tx)
+    with native():
         if feature is not None:
             environment.SetFeatureToEdit(feature)
         environment.Enter()
@@ -134,6 +154,8 @@ def task(tx, feature=None):
             environment.Exit()
         raise
     with native():
+        if not keep:
+            environment.SetCancelled()
         environment.Exit()
 
 
@@ -158,12 +180,23 @@ UNIT_FACTORS = {
         "PressureMegaPascal": 1.0,
         "PressurePascal": 1e-6,
         "PressurePoundForcePerSquareInch": 0.00689475729,
+        "StressMilliNewtonPerSquareMilliMeter": 1e-3,  # material tables (kPa)
+        "StressNewtonPerSquareMilliMeter": 1.0,
+        "StressPoundForcePerSquareInch": 0.00689475729,
+    },
+    "acceleration": {  # mm/s^2
+        "MeterPerSquareSecond": 1e3,  # the study's gravity, also in inch parts
+        "MilliMeterPerSquareSecond": 1.0,
+        "InchPerSquareSecond": 25.4,
+        "FootPerSquareSecond": 304.8,
     },
     "mass": {"Kilogram": 1.0, "Gram": 1e-3, "PoundMass": 0.45359237},
     "length": {"MilliMeter": 1.0, "Inch": 25.4, "Meter": 1000.0, "CentiMeter": 10.0},
 }  # fmt: skip
 SI_UNITS = {"force": "Newton", "pressure": "PressureNewtonPerSquareMilliMeter",
-            "mass": "Kilogram", "length": "MilliMeter"}  # fmt: skip
+            "mass": "Kilogram", "length": "MilliMeter",
+            "acceleration": "MilliMeterPerSquareSecond"}  # fmt: skip
+G_MM = 9806.65  # mm/s^2 in one standard g
 
 
 def _unit_name(expression) -> str:
@@ -200,34 +233,163 @@ def length(tx, expression, value):
     drive(tx, expression, float(value) * units.MM_PER[units.part_units(tx)], "length")
 
 
-def target_mass(feature) -> float | None:
-    """The study's mass target in kg: NX lists no mass-target object, so it is the
-    feature's one mass expression (the target's ``Mass``)."""
+def mass_expressions(feature) -> list:
+    """The feature's mass expressions: NX lists no mass-target object, so the target's
+    ``Mass`` is the feature's (last) mass expression."""
     try:
         expressions = list(feature.GetExpressions() or [])
     except Exception:
-        return None
-    masses = [e for e in expressions if _unit_name(e) in UNIT_FACTORS["mass"]]
+        return []
+    return [e for e in expressions if _unit_name(e) in UNIT_FACTORS["mass"]]
+
+
+def target_mass(feature) -> float | None:
+    """The study's mass target in kg (``mass_expressions``)."""
+    masses = mass_expressions(feature)
     return value_of(masses[-1], "mass") if masses else None
 
 
-def design_faces(tx, refs, field, body):
-    """Faces of the work part's design space ``body`` (``wrong_owner`` for others)."""
+def design_faces(tx, refs, field, body, others=()):
+    """Faces of the design space ``body`` or of ``others`` (the study's scenery bodies);
+    ``NX_WRONG_OWNER`` for faces of any other body."""
     faces = select.faces(tx, refs, field)
+    allowed = {int(body.Tag), *(int(b.Tag) for b in others)}
     for i, face in enumerate(faces):
         owner = face.GetBody() if hasattr(face, "GetBody") else None
-        if owner is not None and int(owner.Tag) != int(body.Tag):
-            fail("NX_WRONG_OWNER", "Select faces of the design space body", field=f"{field}/{i}")
+        if owner is not None and int(owner.Tag) not in allowed:
+            fail(
+                "NX_WRONG_OWNER",
+                "Select faces of the design space" + (" or a scenery body" if others else " body"),
+                field=f"{field}/{i}",
+            )
     return faces
 
 
+def scenery_bodies(study) -> list:
+    """The bodies of the study's scenery bodies (non-design bodies that carry load)."""
+    return [s.Body for s in all_of(study, "GetAllSceneryBodies")]
+
+
 def result_bodies(feature, study=None) -> list:
-    """The solved result: the feature's bodies other than its design space body (NX 2406
-    lists the design body under the feature too, solved or not)."""
+    """The solved result: the feature's bodies other than its design space and scenery
+    bodies (NX 2406 lists the design body under the feature too, solved or not)."""
     try:
         bodies = list(feature.GetBodies() or [])
     except Exception:
         return []
     study = study if study is not None else active_study(feature)
-    designs = {int(d.Body.Tag) for d in all_of(study, "GetAllDesignSpaces")}
-    return [b for b in bodies if int(b.Tag) not in designs]
+    inputs = {int(d.Body.Tag) for d in all_of(study, "GetAllAnalysisBodies")}
+    inputs |= {int(d.Body.Tag) for d in all_of(study, "GetAllDesignSpaces")}
+    return [b for b in bodies if int(b.Tag) not in inputs]
+
+
+# MPa per NX result stress unit: results come in the part's base units, kg/(mm*s^2) = kPa
+# in mm parts (live: 162061 for a 162 MPa peak) and lbm/(in*s^2) in inch parts.
+STRESS_UNITS = {"mm": 1e-3, "in": 1.7858e-5}
+
+
+class CasePeaks(TypedDict):
+    name: str
+    max_stress: float | None
+    max_displacement: float | None
+
+
+def _where(location) -> list[float] | None:
+    """``geom.xyz`` of a result location; None when NX gives none."""
+    try:
+        return geom.xyz(location)
+    except Exception:
+        return None
+
+
+def peaks(tx, study) -> tuple[list[CasePeaks], dict]:
+    """Solved results per load case (NX subcase order) over every analysis body: max von
+    Mises stress (MPa) and displacement (part units); plus the overall peaks with the
+    point (part units) where each occurs (``stress_at``, ``displacement_at``)."""
+    kinds = ds(tx).AnalysisBodySubcaseResults.ResultType
+    names = [str(getattr(c, "Name", "") or "") for c in all_of(study, "GetAllSubcases")]
+    scale = {"s": STRESS_UNITS[units.part_units(tx)], "u": 1.0}
+    cases: dict[int, dict] = {}
+    top: dict = {}
+    for body in all_of(study, "GetAllAnalysisBodies"):
+        results = getattr(body, "Results", None)
+        if results is None:
+            continue
+        try:
+            found = list(results.GetSubcaseResults() or [])
+        except Exception:
+            continue
+        for i, case in enumerate(found):
+            row = cases.setdefault(i, {})
+            for key, kind in (("u", kinds.Displacement), ("s", kinds.StressVonMises)):
+                try:
+                    if not case.HasResults(kind):
+                        continue
+                    location, value = case.GetMaxMagnitudeAndLocation(kind)
+                except Exception:
+                    continue
+                value = float(value) * scale[key]
+                row[key] = max(row.get(key, value), value)
+                if value >= top.get(key, (float("-inf"), None))[0]:
+                    top[key] = (value, _where(location))
+    rows: list[CasePeaks] = [
+        {
+            "name": names[i] if i < len(names) else f"Subcase {i + 1}",
+            "max_stress": cases[i].get("s"),
+            "max_displacement": cases[i].get("u"),
+        }
+        for i in sorted(cases)
+    ]
+    overall = {
+        "max_stress": top["s"][0] if "s" in top else None,
+        "stress_at": top["s"][1] if "s" in top else None,
+        "max_displacement": top["u"][0] if "u" in top else None,
+        "displacement_at": top["u"][1] if "u" in top else None,
+    }
+    return rows, overall
+
+
+def yield_strength(tx, material) -> float | None:
+    """The material's yield strength in MPa (its property table), None when it has none."""
+    if material is None:
+        return None
+    try:
+        value, unit = material.GetPropTable().GetBaseScalarWithDataPropertyValue("YieldStrength")
+        value = float(value)
+    except Exception:
+        return None
+    name = str(getattr(unit, "Name", "") or "")
+    factor = UNIT_FACTORS["pressure"].get(name)
+    if factor is None:
+        try:
+            collection = tx.part.UnitCollection
+            wanted = collection.FindObject(SI_UNITS["pressure"])
+            return float(collection.Convert(unit, wanted, value)) or None
+        except Exception:
+            return None
+    return value * factor or None
+
+
+def uncovered(study) -> bool:
+    """Whether a load case lacks a support or a load (``cover_subcases`` would add them)."""
+    groups = [{int(x.Tag) for x in all_of(study, g)}
+              for g in ("GetAllAnalysisConstraints", "GetAllAnalysisLoads")]  # fmt: skip
+    for case in all_of(study, "GetAllSubcases"):
+        have = {int(x.Tag) for x in list(case.GetReferences() or [])}
+        if any(not have & group for group in groups):
+            return True
+    return False
+
+
+def cover_subcases(study) -> None:
+    """Every load case gets a support and a load (NX: "Each subcase should have at least one
+    constraint and one load"): one without supports takes every support, one without loads
+    every load (NX's default case starts empty; a study made in NX's dialog may lack some)."""
+    supports = all_of(study, "GetAllAnalysisConstraints")
+    loads = all_of(study, "GetAllAnalysisLoads")
+    for case in all_of(study, "GetAllSubcases"):
+        have = {int(x.Tag) for x in list(case.GetReferences() or [])}
+        for group in (supports, loads):
+            if not any(int(x.Tag) in have for x in group):
+                for item in group:
+                    case.AddReference(item)

@@ -5,7 +5,8 @@
    "title_block"
   ],
   "nx_edit_drawing_table": [
-   "revision"
+   "revision",
+   "title_block"
   ],
   "nx_get_drawing_table": []
  },
@@ -131,8 +132,41 @@
      "close": 7,
      "tol": 0.1
     },
+    "data.bounds.2": {
+     "close": 415,
+     "tol": 0.5
+    },
+    "data.bounds.0": {
+     "close": 315,
+     "tol": 0.5
+    },
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$tb.data.table.id",
+    "kind": "title_block",
+    "position": [
+     80,
+     30
+    ]
+   },
+   "intent": "Acceptance: a bottom-right anchored title block moved too far left is warned at its left edge",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      80,
+      30
+     ],
+     "tol": 0.001
+    },
     "warnings.0.message": {
-     "contains": "reaches x=515"
+     "contains": "reaches x=-20"
     }
    }
   },

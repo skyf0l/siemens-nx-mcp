@@ -1,0 +1,330 @@
+{
+ "covers": {
+  "nx_create_section_curves": [
+   "plane",
+   "parallel",
+   "radial"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 50,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "diameter": 40,
+    "height": 30,
+    "origin": [
+     200,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "intent": "Block 100 x 50 x 20 cut at x 50: a 50 x 20 rectangle",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "method": "plane",
+    "plane": {
+     "origin": [
+      50,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 4,
+    "data.length": {
+     "close": 140,
+     "tol": 0.0001
+    },
+    "data.stations": {
+     "count": 1
+    },
+    "data.stations.0.count": 4,
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "changes.created": {
+     "count_kind": {
+      "feature": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "intent": "Stations every 20 from x 10: five rectangles",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "method": "parallel",
+    "plane": {
+     "origin": [
+      10,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      0,
+      0
+     ]
+    },
+    "count": 5,
+    "spacing": 20
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 20,
+    "data.length": {
+     "close": 700,
+     "tol": 0.0001
+    },
+    "data.stations": {
+     "count": 5
+    },
+    "data.stations.4.origin": {
+     "close": [
+      90,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.stations.4.count": 4,
+    "data.stations.4.length": {
+     "close": 140,
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "intent": "Waterlines downward: z 15, 10, 5 (negative spacing)",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "method": "parallel",
+    "plane": {
+     "origin": [
+      0,
+      0,
+      15
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    },
+    "count": 3,
+    "spacing": -5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 12,
+    "data.length": {
+     "close": 900,
+     "tol": 0.0001
+    },
+    "data.stations.2.origin": {
+     "close": [
+      0,
+      0,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.stations.2.length": {
+     "close": 300,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "intent": "Radial planes every 30 deg about the cylinder axis: 40 x 30 rectangles",
+   "args": {
+    "objects": [
+     "$cyl.data.bodies.0.id"
+    ],
+    "method": "radial",
+    "plane": {
+     "origin": [
+      200,
+      0,
+      0
+     ],
+     "normal": [
+      0,
+      1,
+      0
+     ]
+    },
+    "axis": {
+     "origin": [
+      200,
+      0,
+      0
+     ],
+     "direction": [
+      0,
+      0,
+      1
+     ]
+    },
+    "count": 4,
+    "angle": 30
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 16,
+    "data.length": {
+     "close": 560,
+     "tol": 0.0001
+    },
+    "data.stations.1.normal": {
+     "close": [
+      -0.5,
+      0.8660254,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.stations.3.count": 4,
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "intent": "Radial about z through the block centre at -60 deg: a slanted cut",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "method": "radial",
+    "plane": {
+     "origin": [
+      50,
+      25,
+      0
+     ],
+     "normal": [
+      0,
+      1,
+      0
+     ]
+    },
+    "axis": {
+     "origin": [
+      50,
+      25,
+      0
+     ],
+     "direction": [
+      0,
+      0,
+      1
+     ]
+    },
+    "count": 2,
+    "angle": -60
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 8,
+    "data.stations.0.length": {
+     "close": 240,
+     "tol": 0.0001
+    },
+    "data.stations.1.length": {
+     "close": 155.470054,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "args": {
+    "objects": [
+     "$cyl.data.bodies.0.id"
+    ],
+    "method": "radial",
+    "plane": "xy",
+    "axis": "z",
+    "count": 3,
+    "angle": 30
+   },
+   "expect": {
+    "error.field": "/plane",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_section_curves",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "method": "parallel",
+    "plane": "yz",
+    "count": 3
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

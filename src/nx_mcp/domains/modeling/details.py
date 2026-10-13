@@ -8,7 +8,9 @@ swapping the faces; builders get a 0.001 mm distance tolerance; a draft needs
 its faces on the stationary face's body. Both take the edges given (a dumb rule): a chamfer
 or blend of part of a tangent-continuous chain (the straight top edges of a plate with
 rounded corners, without the arcs) stops in a step, so the left-out chain edges are
-reported, or added with ``chain``.
+reported, or added with ``chain``. A shell's alternate thickness (``FaceThicknesses``,
+one expression collector set per zone) grows outward for a positive value whatever
+``DefaultThicknessFlip`` says, so an inward shell sends it negated.
 """
 
 from __future__ import annotations
@@ -306,11 +308,56 @@ def nx_create_chamfer(
     return out
 
 
+class ThicknessZone(TypedDict):
+    faces: FaceList
+    thickness: Annotated[Length, Doc("This zone's wall thickness, > 0")]
+
+
+forbid_extra(ThicknessZone)
+
+
+def _own_faces(faces, target, field):
+    for i, f in enumerate(faces):
+        if int(f.GetBody().Tag) != int(target.Tag):
+            fail("NX_WRONG_OWNER", "The faces must belong to body", field=f"{field}/{i}",
+                 hint="Find the faces with nx_find_geometry owner=<body>")  # fmt: skip
+
+
+def _zone_rhs(thickness, outward: bool) -> str:
+    """An alternate thickness as NX takes it: NX 2406 grows a zone's wall outward for a
+    positive value whatever ``DefaultThicknessFlip`` says, so an inward shell negates it."""
+    text = expr.rhs(thickness)
+    return text if outward else f"-({text})"
+
+
+def _zones(tx, alternate, target, removed) -> list:
+    """``[(faces, thickness)]`` of the alternate-thickness zones, checked: faces of
+    ``target``, none removed, none in two zones."""
+    zones, seen = [], {int(f.Tag) for f in removed}
+    for k, zone in enumerate(alternate or []):
+        field = f"/alternate/{k}"
+        if float(zone["thickness"]) <= 0:
+            fail("NX_INVALID_ARGUMENT", "thickness must be positive", field=field + "/thickness")
+        faces = select.faces(tx, zone["faces"], field + "/faces")
+        _own_faces(faces, target, field + "/faces")
+        for i, f in enumerate(faces):
+            if int(f.Tag) in seen:
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    "A face is removed or in another zone already",
+                    field=f"{field}/faces/{i}",
+                    hint="Give each face one thickness; removed faces take none",
+                )
+            seen.add(int(f.Tag))
+        zones.append((faces, zone["thickness"]))
+    return zones
+
+
 @tool(
     effect="model",
     label="Shell body",
     summary="Shell {body} {thickness}",
-    keywords=("shell", "hollow", "wall thickness", "thin wall", "open box"),
+    keywords=("shell", "hollow", "wall thickness", "thin wall", "open box", "alternate thickness"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -323,17 +370,21 @@ def nx_create_shell(
     thickness: Length,
     remove_faces: Annotated[FaceList, Doc("Faces to open; omit for a closed hollow")] | None = None,
     outward: Annotated[bool, Doc("Grow the wall outside the original faces")] = False,
+    alternate: Annotated[
+        list[ThicknessZone], Items(1, 20), Doc("Faces whose wall takes its own thickness")
+    ]
+    | None = None,
 ) -> common.FeatureData:
-    """Hollow a solid body to a wall thickness, opening the removed faces."""
+    """Hollow a solid body to a wall thickness, opening the removed faces. alternate gives
+    listed faces their own wall thickness (laminate zones); the others take thickness."""
     if float(thickness) <= 0:
         fail("NX_INVALID_ARGUMENT", "thickness must be positive", field="/thickness",
              hint="Send e.g. 'thickness': '2 mm'; outward grows the wall outside")  # fmt: skip
-    target = common.solid(tx, body)
-    faces = select.faces(tx, remove_faces or [], "/remove_faces")
-    for i, f in enumerate(faces):
-        if int(f.GetBody().Tag) != int(target.Tag):
-            fail("NX_WRONG_OWNER", "Removed faces must belong to body", field=f"/remove_faces/{i}",
-                 hint="Find the faces with nx_find_geometry owner=<body>")  # fmt: skip
+    with tx.checks():
+        target = common.solid(tx, body)
+        faces = select.faces(tx, remove_faces or [], "/remove_faces")
+        _own_faces(faces, target, "/remove_faces")
+        zones = _zones(tx, alternate, target, faces)
     before = measure.volume(tx, target)
     with builders.build(tx, tx.part.Features.CreateShellBuilder, None) as b:
         b.Tolerance = units.part_tolerance(tx)
@@ -342,6 +393,14 @@ def nx_create_shell(
         b.DefaultThicknessFlip = not outward
         if faces:
             b.RemovedFacesCollector = builders.collector(tx, faces, "Face")
+        for zone_faces, zone_thickness in zones:
+            group = tx.part.CreateExpressionCollectorSet(
+                builders.collector(tx, zone_faces, "Face"),
+                _zone_rhs(zone_thickness, outward),
+                "",
+                0,
+            )
+            b.FaceThicknesses.Append(group)
         feature = b.commit()
     out = common.result_of(tx, feature, [target])
     common.changed(before, out["volume"], "differs" if outward else "less")

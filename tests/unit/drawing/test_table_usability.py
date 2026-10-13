@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from nx_mcp.core.errors import NXError
-from nx_mcp.domains.drawing import hole_callouts, title_blocks
+from nx_mcp.domains.drawing import hole_callouts, tables, title_blocks
 from tests.kit import run
 from tests.kit.objects import Object, point
 from tests.unit.drawing.fakes import Attributes, drawing_nx, make_view
@@ -148,6 +148,16 @@ def test_a_table_past_the_sheet_edge_is_warned_and_row_heights_are_read_back():
     assert edit.data["row_height"] == pytest.approx(9) and not edit.warnings
     # A given row height is kept: NX 2406 would size the row to its text otherwise.
     assert nx.grid.fits and all(6 not in m for m in nx.grid.fits.values())
+
+
+def test_a_title_block_extends_left_and_up_from_its_bottom_right_anchor():
+    # NX's bounds win; without them the cells run from the anchor its kind defines.
+    block = {"kind": "title_block", "position": [415, 30], "columns": [{"width": 40},
+             {"width": 60}], "row_height": 7, "rows": [["PART", "BLOCK"]]}  # fmt: skip
+    assert tables.grid_extent(block) == pytest.approx([315, 30, 415, 37])
+    revision = {**block, "kind": "revision"}
+    assert tables.grid_extent(revision) == pytest.approx([415, 23, 515, 30])
+    assert tables.grid_extent({**block, "bounds": [1, 2, 3, 4]}) == [1, 2, 3, 4]
 
 
 def test_a_table_without_a_row_height_keeps_nx_auto_sized_rows():

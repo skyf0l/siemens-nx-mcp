@@ -1,0 +1,208 @@
+{
+ "covers": {
+  "nx_create_projected_curve": [
+   "face_normal",
+   "vector"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 50,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ln",
+   "args": {
+    "points": [
+     [
+      10,
+      10,
+      50
+     ],
+     [
+      90,
+      40,
+      50
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "intent": "A line 30 above the top face projected along its normal",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ],
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "along": "face_normal"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 85.440037,
+     "tol": 0.0001
+    },
+    "data.curves.0.start": {
+     "close": [
+      10,
+      10,
+      20
+     ],
+     "tol": 0.0001
+    },
+    "data.curves.0.end": {
+     "close": [
+      90,
+      40,
+      20
+     ],
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.ray_gap": {
+     "equals": null
+    }
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "intent": "Along [1,0,-1] onto the xy plane: shifted 50 in x",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ],
+    "plane": "xy",
+    "along": "vector",
+    "direction": [
+     1,
+     0,
+     -1
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 85.440037,
+     "tol": 0.0001
+    },
+    "data.curves.0.start": {
+     "close": [
+      60,
+      10,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.ray_gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "intent": "Both sides along +z onto a whole body: copies on the top and the bottom face",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ],
+    "faces": [
+     "$blk.data.bodies.0.id"
+    ],
+    "along": "vector",
+    "direction": "z",
+    "both_sides": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 2,
+    "data.length": {
+     "close": 170.880075,
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.ray_gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ],
+    "plane": "xy",
+    "along": "vector"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

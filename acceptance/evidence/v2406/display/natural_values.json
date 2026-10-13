@@ -14,14 +14,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_section_view": "8355174e2f40b36f7fd4da16e6ffda5c72026f9542fd50783a9a21aeda46421e",
-    "nx_edit_section_view": "8355174e2f40b36f7fd4da16e6ffda5c72026f9542fd50783a9a21aeda46421e",
+    "nx_create_section_view": "1d42cfa5bca247214e51f9648b504a61e055ddca6abcde8b67cf723e1baa4f9b",
+    "nx_edit_section_view": "1d42cfa5bca247214e51f9648b504a61e055ddca6abcde8b67cf723e1baa4f9b",
     "nx_set_appearance": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
     "nx_get_appearance": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
     "nx_set_visibility": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
-    "nx_restore_display": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f"
+    "nx_restore_display": "4cc8fb4213369df2d46cf0442868734571a92a4291f5dae2d7315361dffa252c"
   },
-  "recorded": "2026-10-12T09:50:49Z",
+  "recorded": "2026-10-13T07:34:15Z",
   "passed": true,
   "checks": 69,
   "failed_checks": 0,

@@ -245,6 +245,12 @@ class KitServices(Services):
             ),
         }
 
+    def release_drafting_sketch(self):
+        """Like the host: ``kit.sketch.release_drafting_sketch`` on the fake session."""
+        from nx_mcp.kit import sketch
+
+        return sketch.release_drafting_sketch(self.fake.session, self.fake.nx)
+
     def owns(self, part):
         """Every part is the agent's, except those a test put in ``foreign`` (the
         engineer's own parts: never counted by gate 3t)."""

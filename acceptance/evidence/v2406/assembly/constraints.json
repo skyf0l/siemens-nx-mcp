@@ -19,10 +19,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_assembly_constraint": "06e2e416e1e4ca970a6a35f3aee427ef8b0c078e4583bc58d1596706bbedf899",
-    "nx_edit_assembly_constraint": "06e2e416e1e4ca970a6a35f3aee427ef8b0c078e4583bc58d1596706bbedf899"
+    "nx_create_assembly_constraint": "ffd0feaf22ce875ed76e4128e0a8ba805512f747a067835fbf26f6b94424a3ba",
+    "nx_edit_assembly_constraint": "ffd0feaf22ce875ed76e4128e0a8ba805512f747a067835fbf26f6b94424a3ba"
   },
-  "recorded": "2026-10-12T04:58:46Z",
+  "recorded": "2026-10-13T07:25:36Z",
   "passed": true,
   "checks": 82,
   "failed_checks": 0,

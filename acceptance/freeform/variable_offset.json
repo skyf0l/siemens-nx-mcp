@@ -1,0 +1,435 @@
+{
+ "covers": {
+  "nx_create_variable_offset": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      20,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap2",
+   "args": {
+    "points": [
+     [
+      0,
+      10,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac2",
+   "args": {
+    "points": [
+     [
+      20,
+      0,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "primary": [
+     [
+      "$ap1.data.curve.id"
+     ],
+     [
+      "$ap2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$ac1.data.curve.id"
+     ],
+     [
+      "$ac2.data.curve.id"
+     ]
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "fa",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face"
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "intent": "Offsets 1, 2, 3, 4 at the plate's corners (NX's order, reported): each corner + offset x normal lies on the sheet",
+   "args": {
+    "face": "$fa.data.items.0.id",
+    "distances": [
+     1,
+     2,
+     3,
+     4
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "linear",
+    "data.sheet": true,
+    "data.points": {
+     "count": 4
+    },
+    "data.points.0.point": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.points.0.distance": 1,
+    "data.points.0.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.points.1.point": {
+     "close": [
+      0,
+      10,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.points.2.point": {
+     "close": [
+      20,
+      10,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.points.3.point": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.points.3.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.area": {
+     "close": 201.4106,
+     "tol": 0.01
+    },
+    "data.bounds.min": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      20,
+      10,
+      4
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "intent": "Laminate zones: 1 along y 2, 3 along y 8, linear between and beyond: z 0.3333..3.6667",
+   "args": {
+    "face": "$fa.data.items.0.id",
+    "distances": [
+     1,
+     1,
+     3,
+     3
+    ],
+    "points": [
+     [
+      5,
+      2,
+      0
+     ],
+     [
+      15,
+      2,
+      0
+     ],
+     [
+      15,
+      8,
+      0
+     ],
+     [
+      5,
+      8,
+      0
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.points.0.point": {
+     "close": [
+      5,
+      2,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.points.2.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.area": {
+     "close": 210.8185,
+     "tol": 0.01
+    },
+    "data.bounds.min.2": {
+     "close": 0.33333,
+     "tol": 0.0002
+    },
+    "data.bounds.max.2": {
+     "close": 3.66667,
+     "tol": 0.0002
+    }
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "intent": "Cubic blend, one corner below the face (-1) and one at 0",
+   "args": {
+    "face": "$fa.data.items.0.id",
+    "distances": [
+     -1,
+     0,
+     2,
+     3
+    ],
+    "method": "cubic"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "cubic",
+    "data.points.0.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.points.1.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.bounds.min.2": {
+     "close": -1,
+     "tol": 0.001
+    },
+    "data.bounds.max.2": {
+     "close": 3,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     30,
+     0
+    ],
+    "length": 20,
+    "width": 10,
+    "height": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "normal": "+z"
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "intent": "A solid's top face offset 2 at every corner: a sheet at z 7, area 200",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "distances": [
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": true,
+    "data.area": {
+     "close": 200,
+     "tol": 0.01
+    },
+    "data.bounds.min": {
+     "close": [
+      0,
+      30,
+      7
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      20,
+      40,
+      7
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "args": {
+    "face": "$fa.data.items.0.id",
+    "distances": [
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.field": "/distances",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "args": {
+    "face": "$fa.data.items.0.id",
+    "distances": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "points": [
+     [
+      5,
+      2,
+      3
+     ],
+     [
+      15,
+      2,
+      0
+     ],
+     [
+      15,
+      8,
+      0
+     ],
+     [
+      5,
+      8,
+      0
+     ]
+    ]
+   },
+   "expect": {
+    "error.field": "/points/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

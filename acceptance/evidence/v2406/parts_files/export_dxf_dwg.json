@@ -1,0 +1,128 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/export_dxf_dwg.json",
+  "scenario_sha256": "b4c911d9988be3d981b30a6f345a9000cd2e9ffb343c11bd21282158ec96049b",
+  "domain": "parts_files",
+  "covers": {
+    "nx_export_model": [
+      "dxf",
+      "dwg"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_export_model": "c588c2006abd70c010dabac2245d24b85483395eeb3c143e5f81b37aaedac6a7"
+  },
+  "recorded": "2026-10-13T06:45:53Z",
+  "passed": true,
+  "checks": 45,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "index": 4,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 5,
+      "call": "nx_create_transform",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 8,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 12,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

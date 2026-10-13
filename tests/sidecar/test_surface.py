@@ -611,7 +611,7 @@ def _top3(query):
         ("list edges", ["nx_list_objects", "nx_find_geometry"]),
         ("new assembly part", ["nx_create_part"]),
         ("assembly constraints status", ["nx_list_objects"]),
-        ("edges in drawing view", ["nx_find_geometry"]),
+        ("edges in drawing view", ["nx_list_view_edges"]),  # nx_find_geometry refuses views
         ("redo", ["nx_redo_operation", "nx_undo_operation"]),
         # pump-cover round 2 misses (2026-10-11)
         ("pocket", ["nx_create_extrude"]),

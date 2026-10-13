@@ -1,0 +1,303 @@
+{
+ "covers": {
+  "nx_create_swept_volume": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     0,
+     50,
+     0
+    ],
+    "diameter": 4,
+    "height": 6
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "s1",
+   "args": {
+    "shape": "block",
+    "origin": [
+     -10,
+     40,
+     -3
+    ],
+    "length": 70,
+    "width": 20,
+    "height": 6
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "s2",
+   "args": {
+    "shape": "block",
+    "origin": [
+     -10,
+     40,
+     -3
+    ],
+    "length": 70,
+    "width": 70,
+    "height": 6
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "s3",
+   "args": {
+    "shape": "block",
+    "origin": [
+     -10,
+     40,
+     -3
+    ],
+    "length": 70,
+    "width": 20,
+    "height": 6
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "p50",
+   "args": {
+    "points": [
+     [
+      0,
+      50,
+      0
+     ],
+     [
+      50,
+      50,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "pl",
+   "args": {
+    "points": [
+     [
+      0,
+      50,
+      0
+     ],
+     [
+      20,
+      50,
+      0
+     ],
+     [
+      20,
+      75,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "pfar",
+   "args": {
+    "points": [
+     [
+      0,
+      90,
+      0
+     ],
+     [
+      30,
+      90,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "A d4 cutter (z 0..6) swept 50 along x cuts the block (z -3..3): (4 pi + 4 x 50) x 3 = 637.699 removed",
+   "args": {
+    "tool": "$cyl.data.bodies.0.id",
+    "path": [
+     "$p50.data.curve.id"
+    ],
+    "targets": [
+     "$s1.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.operation": "subtract",
+    "data.volume_before": {
+     "close": 8400,
+     "tol": 0.01
+    },
+    "data.volume": {
+     "close": 7762.301,
+     "tol": 0.01
+    },
+    "data.swept": {
+     "close": 637.699,
+     "tol": 0.01
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "Envelope of an L motion 20 + 25: intersect keeps 3 x (4 x 45 + 4 pi - 4 (1 - pi/4)) = 575.124",
+   "args": {
+    "tool": "$cyl.data.bodies.0.id",
+    "path": [
+     "$pl.data.curve.id"
+    ],
+    "targets": [
+     "$s2.data.bodies.0.id"
+    ],
+    "operation": "intersect"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.operation": "intersect",
+    "data.volume": {
+     "close": 575.124,
+     "tol": 0.01
+    },
+    "data.swept": {
+     "close": 575.124,
+     "tol": 0.01
+    },
+    "data.bounds.min": {
+     "close": [
+      -2,
+      48,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      22,
+      77,
+      3
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "A 30 line far from the tool moves it 30 from where it stands: (4 pi + 120) x 3 = 397.699 at x -2..32",
+   "args": {
+    "tool": "$cyl.data.bodies.0.id",
+    "path": [
+     "$pfar.data.curve.id"
+    ],
+    "targets": [
+     "$s3.data.bodies.0.id"
+    ],
+    "operation": "intersect",
+    "tolerance": 0.01
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 397.699,
+     "tol": 0.01
+    },
+    "data.bounds.min": {
+     "close": [
+      -2,
+      48,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      32,
+      52,
+      3
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "A block is no cylindrical or revolved tool: NX refuses, with the hint",
+   "args": {
+    "tool": "$s3.data.bodies.0.id",
+    "path": [
+     "$p50.data.curve.id"
+    ],
+    "targets": [
+     "$s1.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "A 0.001 mm tolerance (it hung NX for over 10 minutes) is refused before NX",
+   "args": {
+    "tool": "$cyl.data.bodies.0.id",
+    "path": [
+     "$p50.data.curve.id"
+    ],
+    "targets": [
+     "$s1.data.bodies.0.id"
+    ],
+    "tolerance": 0.001
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/tolerance",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

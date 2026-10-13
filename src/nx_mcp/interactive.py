@@ -193,10 +193,12 @@ NXOPEN_NAMESPACES = (
     "NXOpen.GeometricUtilities",
     "NXOpen.GeometricAnalysis",
     "NXOpen.Annotations",
+    "NXOpen.DesignSimulation",
     "NXOpen.Assemblies",
     "NXOpen.Display",
     "NXOpen.Drawings",
     "NXOpen.Gateway",
+    "NXOpen.PartFamily",
     "NXOpen.Positioning",
     "NXOpen.Preferences",
 )

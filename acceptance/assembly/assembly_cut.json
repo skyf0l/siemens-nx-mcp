@@ -1,0 +1,31 @@
+{
+ "covers": {
+  "nx_create_assembly_cut": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cut_deck.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"part": "cut_deck", "length": 400, "width": 300, "height": 10}},
+  {"call": "nx_save_part", "setup": true, "args": {"part": "cut_deck"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cut_trunk.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"part": "cut_trunk", "length": 100, "width": 80, "height": 60}},
+  {"call": "nx_save_part", "setup": true, "args": {"part": "cut_trunk"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_component", "setup": true, "save": "DECK", "args": {"part": "$part", "path": "$run/cut_deck.prt", "name": "DECK"}},
+  {"call": "nx_create_component", "setup": true, "save": "TRUNK", "args": {"part": "$part", "path": "$run/cut_trunk.prt", "name": "TRUNK", "pose": {"translation": [150, 110, -20]}}},
+  {"call": "nx_create_assembly_cut",
+   "args": {"part": "$part", "targets": ["$DECK.data.component.id"], "tools": ["$DECK.data.component.id"]},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/tools/0", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_assembly_cut", "save": "cut",
+   "args": {"part": "$part", "targets": ["$DECK.data.component.id"], "tools": ["$TRUNK.data.component.id"]},
+   "expect": {"mutation_outcome": "committed", "data.feature.kind": "feature",
+              "data.targets": {"count": 1}, "data.targets.0.component.name": "DECK",
+              "data.targets.0.volume_before": {"close": 1200000, "tol": 1e-6},
+              "data.targets.0.volume_after": {"close": 1120000, "tol": 1e-6},
+              "data.targets.0.removed": {"close": 80000, "tol": 1e-6},
+              "data.tools.0.name": "TRUNK", "data.bodies": {"count": 1}}},
+  {"call": "nx_check_model", "args": {"part": "$part"},
+   "expect": {"ok": true}}
+ ]
+}

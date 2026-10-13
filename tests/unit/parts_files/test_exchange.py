@@ -173,7 +173,7 @@ def test_export_suffix_must_match_the_format(nx, root, fmt, path):
 
 def test_unknown_format_and_foreign_options_are_refused(nx):
     nx.new_part("w.prt")
-    bad = call(nx, exchange.nx_export_model, part="w", path="a.dxf", format="dxf")
+    bad = call(nx, exchange.nx_export_model, part="w", path="a.dxf", format="obj")
     assert bad.error["category"] == "invalid_argument"
     opts = call(
         nx,

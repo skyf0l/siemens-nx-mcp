@@ -40,7 +40,7 @@ from nx_mcp.core.types import (
     convert_quantity,
     forbid_extra,
 )
-from nx_mcp.domains.modeling import common
+from nx_mcp.domains.modeling import common, sync_relate
 from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, select
 from nx_mcp.kit import pose as kpose
 
@@ -866,6 +866,8 @@ def nx_edit_faces(
             a["mirror"] = select.plane(tx, mirror, "/plane")[1:]
         if action == "resize":
             _resize_targets(tx, selected, diameter)
+        if action not in ("offset", "resize"):  # their builders need Modeling only
+            sync_relate.require_synchronous(tx, f"nx_edit_faces {action}", by_argument=True)
     before = measure.volume(tx, body)
     count = len(body.GetFaces())
     with builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:

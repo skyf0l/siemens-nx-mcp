@@ -1,0 +1,172 @@
+{
+  "format": 2,
+  "scenario": "acceptance/optimization/environment.json",
+  "scenario_sha256": "af4ec229be7f789eb9716aa4ad03ce95c4ee3da239314353d661e9fa15cb9585",
+  "domain": "optimization",
+  "covers": {
+    "nx_create_topology_environment": [
+      "acceleration",
+      "scenery",
+      "connection"
+    ],
+    "nx_create_topology_condition": [
+      "fixed",
+      "force",
+      "pressure"
+    ],
+    "nx_get_topology_study": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_topology_environment": "9aefa43c4c5ac1ad1365fab5d7b77033ac8b232d9128e4b8e0dc1263719d5e00",
+    "nx_create_topology_condition": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033",
+    "nx_get_topology_study": "da3b6f2c790e0f0c08a8236db222f0b64a988bbf685dd603071dc0d09443fb57"
+  },
+  "recorded": "2026-10-13T06:58:37Z",
+  "passed": true,
+  "checks": 44,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_material",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 8,
+      "call": "nx_create_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_get_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "index": 19,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

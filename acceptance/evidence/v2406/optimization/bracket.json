@@ -16,12 +16,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_topology_study": "85bc4c584eca6f034ceee8e27b2cd9e8e5aafae376fdcb8c0d436002ce184595",
-    "nx_create_topology_condition": "170880fe1253341043946368d90953d487df2e74f856abb438d4e21dd996d307",
-    "nx_run_topology_study": "6164eb2ad16c776abd2680f42c631d2fee7a214d589a69c7c631009119ba318d",
-    "nx_get_topology_study": "f07847fca7611ee14c458eea264f5ebe255cded747e8dab222a4044c0729b6b4"
+    "nx_create_topology_study": "e1c734530d3f1d1a5dc01ef52ff980233acf6fe6b50dd5a153ead8987eca5a2a",
+    "nx_create_topology_condition": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033",
+    "nx_run_topology_study": "9fa54822e575162800431d7c9b4c25e06a0b22aacf0a5383ed048fadd8989080",
+    "nx_get_topology_study": "da3b6f2c790e0f0c08a8236db222f0b64a988bbf685dd603071dc0d09443fb57"
   },
-  "recorded": "2026-10-12T15:08:35Z",
+  "recorded": "2026-10-13T07:36:28Z",
   "passed": true,
   "checks": 48,
   "failed_checks": 0,

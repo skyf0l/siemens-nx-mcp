@@ -6,6 +6,9 @@
                                    #  "min", "max"}
     neutral.parasolid_facts(data)  # {"format": "text"/"binary", "schema": "SCH_..."}
     neutral.jt_facts(data)         # {"version", "units", "shapes", "triangles", "min", "max"}
+    neutral.dxf_model_facts(data)  # {"version", "units", "entities", "solids", "faces",
+                                   #  "meshes", "min", "max"} (block references expanded)
+    neutral.dwg_facts(data)        # {"version": "AC1018", "units": None} (header only)
 
 Every reader takes the file's bytes and raises ``ValueError`` when the content is not
 that format (or is truncated). Coordinates are the file's own, in ``units`` (an STL
@@ -17,7 +20,9 @@ files are always in metres; only their header is read.
 
 from __future__ import annotations
 
+import contextlib
 import lzma
+import math
 import re
 import struct
 import zlib
@@ -298,6 +303,143 @@ def parasolid_facts(data: bytes) -> dict:
         "schema": schema.group(1) if schema else None,
         "units": "m",
     }
+
+
+# --- DXF / DWG (3D model export) -----------------------------------------------------
+
+
+DXF_UNITS = {1: "in", 2: "ft", 4: "mm", 5: "cm", 6: "m", 13: "um"}
+DXF_POINTS = ("3DFACE", "VERTEX", "LINE", "POINT", "SOLID")
+DXF_DEPTH = 8  # nested block references followed
+
+
+def _dxf_records(data: bytes) -> tuple[dict, list, dict]:
+    """``(header, entities, blocks)``: entities as ``(type, {code: [values]})``."""
+    if data.startswith(b"AutoCAD Binary DXF"):
+        raise ValueError("binary DXF is not read")
+    lines = data.decode("latin-1").lstrip("\ufeff").splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if len(lines) % 2:
+        raise ValueError("odd number of lines (truncated group)")
+    try:
+        pairs = [(int(lines[i]), lines[i + 1].strip()) for i in range(0, len(lines), 2)]
+    except ValueError:
+        raise ValueError("a group code is not an integer") from None
+    if not pairs or pairs[-1] != (0, "EOF"):
+        raise ValueError("no EOF marker (truncated?)")
+    header: dict[str, str] = {}
+    entities: list = []
+    blocks: dict[str, dict] = {}
+    section = var = None
+    record: tuple | None = None
+    block: dict | None = None
+    for code, value in pairs:
+        if code == 0:
+            record = None
+            if value == "SECTION":
+                section = "?"
+            elif value == "ENDSEC":
+                section = None
+            elif section == "BLOCKS" and value == "BLOCK":
+                block = {"name": None, "base": [0.0, 0.0, 0.0], "items": []}
+                record = ("BLOCK", {})
+            elif section == "BLOCKS" and value == "ENDBLK":
+                if block is not None and block["name"]:
+                    blocks[block["name"]] = block
+                block = None
+            elif section == "ENTITIES":
+                record = (value, {})
+                entities.append(record)
+            elif section == "BLOCKS" and block is not None:
+                record = (value, {})
+                block["items"].append(record)
+            continue
+        if code == 2 and section == "?":
+            section = value
+        elif section == "HEADER":
+            if code == 9:
+                var = value
+            elif var in ("$ACADVER", "$INSUNITS"):
+                header[var] = value
+        elif record is not None:
+            if record[0] == "BLOCK" and block is not None:
+                if code == 2:
+                    block["name"] = value
+                elif code in (10, 20, 30):
+                    with contextlib.suppress(ValueError):
+                        block["base"][code // 10 - 1] = float(value)
+            else:
+                record[1].setdefault(code, []).append(value)
+    return header, entities, blocks
+
+
+def _dxf_float(values: dict, code: int, default: float) -> float:
+    try:
+        return float(values.get(code, [default])[0])
+    except ValueError:
+        return default
+
+
+def _dxf_expand(items, blocks, place, counts, points, depth=0) -> bool:
+    """Count ``items`` (block references expanded) and collect their vertices through
+    ``place``; False when a reference cannot be placed exactly (extruded, missing)."""
+    exact = True
+    for kind, values in items:
+        if kind == "INSERT":
+            block = blocks.get((values.get(2) or [""])[0])
+            normal = [_dxf_float(values, c, d) for c, d in ((210, 0.0), (220, 0.0), (230, 1.0))]
+            if block is None or depth >= DXF_DEPTH or normal != [0.0, 0.0, 1.0]:
+                counts[kind] = counts.get(kind, 0) + 1
+                exact = False
+                continue
+            at = [_dxf_float(values, c, 0.0) for c in (10, 20, 30)]
+            scale = [_dxf_float(values, c, 1.0) for c in (41, 42, 43)]
+            angle = math.radians(_dxf_float(values, 50, 0.0))
+            cos, sin, base = math.cos(angle), math.sin(angle), block["base"]
+
+            def inner(p, at=at, scale=scale, cos=cos, sin=sin, base=base):
+                x, y, z = ((p[i] - base[i]) * scale[i] for i in range(3))
+                return place([at[0] + cos * x - sin * y, at[1] + sin * x + cos * y, at[2] + z])
+
+            exact &= _dxf_expand(block["items"], blocks, inner, counts, points, depth + 1)
+            continue
+        counts[kind] = counts.get(kind, 0) + 1
+        if kind in DXF_POINTS:
+            for base in (10, 11, 12, 13):
+                if base in values:
+                    points.append(place([_dxf_float(values, base + 10 * k, 0.0)
+                                         for k in range(3)]))  # fmt: skip
+    return exact
+
+
+def dxf_model_facts(data: bytes) -> dict:
+    """Version, units, entity counts (block references expanded), solids (3DSOLID/BODY),
+    faces (3DFACE), meshes and vertex bounds of an ASCII DXF file."""
+    header, entities, blocks = _dxf_records(data)
+    if not entities:
+        raise ValueError("no entities in the ENTITIES section")
+    counts: dict[str, int] = {}
+    points: list = []
+    exact = _dxf_expand(entities, blocks, lambda p: p, counts, points)
+    low, high = _box(points) if exact else (None, None)
+    return {
+        "version": header.get("$ACADVER", "AC1009"),
+        "units": DXF_UNITS.get(int(float(header.get("$INSUNITS", "0") or 0))),
+        "entities": counts,
+        "solids": sum(counts.get(k, 0) for k in ("3DSOLID", "BODY")),
+        "faces": counts.get("3DFACE", 0),
+        "meshes": sum(counts.get(k, 0) for k in ("POLYLINE", "MESH")),
+        "min": low,
+        "max": high,
+    }
+
+
+def dwg_facts(data: bytes) -> dict:
+    """The AC10xx version code of a DWG file (its content is not read)."""
+    if not re.match(rb"AC10\d\d", data[:6]) or len(data) < 0x100:
+        raise ValueError("not a DWG file (no AC10xx header)")
+    return {"version": data[:6].decode("ascii"), "units": None}
 
 
 # --- JT ------------------------------------------------------------------------------

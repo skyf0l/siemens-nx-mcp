@@ -1,0 +1,38 @@
+{
+ "covers": {
+  "nx_create_interpart_link": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/ip_master.prt", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"part": "ip_master", "name": "deck_len", "formula": "250", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"part": "ip_master", "name": "hatch_n", "formula": "3", "units": "unitless"}},
+  {"call": "nx_save_part", "setup": true, "args": {"part": "ip_master"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_interpart_link", "save": "link",
+   "args": {"part": "$part", "source_part": "ip_master", "expressions": [{"source": "deck_len", "name": "len"}, {"source": "hatch_n"}]},
+   "expect": {"mutation_outcome": "committed", "data.items": {"count": 2},
+              "data.items.0.expression.name": "len", "data.items.0.value": {"close": 250, "tol": 1e-9},
+              "data.items.0.units": "mm",
+              "data.items.0.source.part": "ip_master.prt", "data.items.0.source.value": {"close": 250, "tol": 1e-9},
+              "data.items.1.expression.name": "hatch_n", "data.items.1.value": {"close": 3, "tol": 1e-9}}},
+  {"call": "nx_create_primitive", "save": "blk",
+   "args": {"part": "$part", "length": "len", "width": 10, "height": 10},
+   "expect": {"mutation_outcome": "committed", "data.volume": {"close": 25000, "tol": 1e-6}}},
+  {"call": "nx_create_interpart_link",
+   "args": {"part": "$part", "source_part": "ip_master", "expressions": [{"source": "missing_one"}]},
+   "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/expressions/0/source", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_interpart_link",
+   "args": {"part": "$part", "source_part": "ip_master", "expressions": [{"source": "deck_len", "name": "len"}]},
+   "expect": {"error.code": "NX_NAME_CONFLICT", "mutation_outcome": "not_started"}},
+  {"call": "nx_set_expression", "args": {"part": "ip_master", "name": "deck_len", "formula": "300"},
+   "expect": {"data.value": {"close": 300, "tol": 1e-9}}},
+  {"call": "nx_update_model", "args": {"part": "$part"},
+   "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_list_objects", "args": {"part": "$part", "kind": "expression", "name_contains": "len"},
+   "expect": {"data.items.0.name": "len", "data.items.0.details.value": {"close": 300, "tol": 1e-9}}},
+  {"call": "nx_find_geometry", "args": {"part": "$part", "kind": "body"},
+   "expect": {"data.items.0.volume": {"close": 30000, "tol": 1e-6}}}
+ ]
+}

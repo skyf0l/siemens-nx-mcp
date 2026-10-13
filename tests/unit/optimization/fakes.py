@@ -16,7 +16,7 @@ from tests.kit.objects import NXException, Object
 from tests.unit.modeling.fakes import feature, modeling_nx, new_body
 
 NONE_COMMITS = ("AnalysisConstraintBuilder", "OptimizationConstraintBuilder",
-                "ShapeConstraintBuilder")  # fmt: skip
+                "ShapeConstraintBuilder", "ConnectionBuilder", "EnvironmentLoadBuilder")  # fmt: skip
 LISTS = {
     "DesignSpaceBuilder": "designs",
     "ConstructionBodyBuilder": "regions",
@@ -24,6 +24,9 @@ LISTS = {
     "AnalysisLoadBuilder": "loads",
     "OptimizationConstraintBuilder": "targets",
     "ShapeConstraintBuilder": "shapes",
+    "SceneryBodyBuilder": "scenery",
+    "ConnectionBuilder": "connections",
+    "EnvironmentLoadBuilder": "environment",
 }
 
 
@@ -49,20 +52,29 @@ UNITS = {
     "AnalysisLoadBuilder": {"Force": "Newton", "Pressure": "PressureNewtonPerSquareMilliMeter"},
     "OptimizationConstraintBuilder": {"Mass": "Kilogram"},
     "ShapeConstraintBuilder": {"MinimumDiameter": "MilliMeter"},
+    "SceneryBodyBuilder": {},
+    "ConnectionBuilder": {},
+    "EnvironmentLoadBuilder": {"GravityMagnitude": "MeterPerSquareSecond"},  # also inch parts
+    "SubcaseManager": {},
 }
 INCH = {"MilliMeter": "Inch", "Newton": "PoundForce",
         "PressureNewtonPerSquareMilliMeter": "PressurePoundForcePerSquareInch"}  # fmt: skip
 
 
 class Subcase:
-    def __init__(self):
-        self.refs = []
+    def __init__(self, name="Default Subcase", refs=()):
+        self.Name = name
+        self.refs = list(refs)
+        self.Tag = Object().Tag
 
     def AddReference(self, item):
         self.refs.append(item)
 
     def GetReferences(self):
         return list(self.refs)
+
+    def RemoveReference(self, item):
+        self.refs.remove(item)
 
 
 class Study(Object):
@@ -76,16 +88,24 @@ class Study(Object):
         self.optimized = []
         self.runs = 0
         self.subcase = Subcase()
+        self.subcases = [self.subcase]
+        self.scenery, self.connections, self.environment = [], [], []
 
     def _builder(self, kind):
         b = self.nx.builder(kind, None)
         object.__setattr__(b, "study", self)
+        if kind == "SubcaseManager":
+            items = SubcaseList(Subcase(c.Name, c.refs) for c in self.subcases)
+            object.__setattr__(b, "SubcaseList", items)
+            object.__setattr__(b, "CreateSubcase", lambda: Subcase("Subcase"))
         mm = self.nx.part.PartUnits == "mm"
         for member, unit in UNITS[kind].items():
             getattr(b, member).Units = NS(Name=unit if mm else INCH.get(unit, unit))
         return b
 
     def __getattr__(self, name):
+        if name == "CreateSubcaseManager":
+            return lambda: self._builder("SubcaseManager")
         if name.startswith("Create") and name.endswith("Builder"):
             return lambda *_a: self._builder(name[len("Create") :])
         raise AttributeError(name)
@@ -94,7 +114,16 @@ class Study(Object):
         return list(self.designs)
 
     def GetAllAnalysisBodies(self):
-        return list(self.designs)
+        return list(self.designs) + list(self.scenery)
+
+    def GetAllSceneryBodies(self):
+        return list(self.scenery)
+
+    def GetAllConnections(self):
+        return list(self.connections)
+
+    def GetAllEnvironmentLoads(self):
+        return list(self.environment)
 
     def GetAllAnalysisConstraints(self):
         return list(self.supports)
@@ -106,7 +135,7 @@ class Study(Object):
         return []  # NX 2406 lists no mass target (it is a feature expression)
 
     def GetAllSubcases(self):
-        return [self.subcase]
+        return list(self.subcases)
 
     def RunOptimization(self):
         self.runs += 1
@@ -120,21 +149,47 @@ class Study(Object):
         body = new_body(self.nx, list(design.box), volume=design.volume * self.nx.solve_fraction)
         self.optimized = [body]
         self.owner.bodies = [b for b in self.owner.bodies if b is not self.copy] + [body]
-        results = NS(
-            GetSubcaseResults=lambda: [
-                NS(
-                    HasResults=lambda kind: True,
-                    GetMaxMagnitudeAndLocation=lambda kind: (
-                        NS(X=0, Y=0, Z=0),
-                        self.nx.peaks[str(kind).rsplit(".", 1)[-1].rstrip(">")],
-                    ),
-                )
-            ]
-        )
-        self.designs[0].Results = results
+        self.designs[0].Results = results(self.nx, len(self.GetAllSubcases()))
+
+    def RunAnalysis(self):  # NX 2406 refuses it on a topology study
+        raise NXException(3520201, "Operation cannot be performed while in a task environment")
 
     def GetOptimizedBodies(self):
         return list(self.optimized)
+
+
+class SubcaseList(list):
+    """NX's SubcaseItemList: the manager starts with the study's subcases."""
+
+    @property
+    def Length(self):
+        return len(self)
+
+    def FindItem(self, i):
+        return self[i]
+
+    def Append(self, item):
+        self.append(item)
+
+    def Erase(self, item, *_option):
+        self.remove(item)
+
+
+def results(nx, count):
+    """Analysis body results: one subcase result per load case; ``nx.case_peaks[i]`` (else
+    ``nx.peaks``) maps a result type name to its max magnitude, at ``nx.peak_at``."""
+
+    def case(i):
+        peaks = nx.case_peaks[i] if i < len(nx.case_peaks) else nx.peaks
+        return NS(
+            HasResults=lambda kind: True,
+            GetMaxMagnitudeAndLocation=lambda kind: (
+                NS(**dict(zip("XYZ", nx.peak_at, strict=True))),
+                peaks[str(kind).rsplit(".", 1)[-1].rstrip(">")],
+            ),
+        )
+
+    return NS(GetSubcaseResults=lambda: [case(i) for i in range(count)])
 
 
 class TaskEnvironment:
@@ -160,6 +215,7 @@ class TaskEnvironment:
 
     def SetCancelled(self):
         self.cancelled = True
+        self.log.append("Cancel")
 
     def Exit(self):
         self.log.append("Exit")
@@ -225,9 +281,28 @@ def _commit(nx, kind):
             )
         elif kind == "OptimizationConstraintBuilder":
             made = NS(Type=_set(b, "Type"), Mass=NS(Value=float(b.Mass.RightHandSide)))
+        elif kind == "SceneryBodyBuilder":
+            (body,), _kw = b.Bodies.Add.calls[-1]
+            made = NS(Body=body, Material=nx.body_material, Results=None, Tag=Object().Tag,
+                      MaterialDefinition=_set(b, "MaterialDefinition"))  # fmt: skip
+        elif kind == "ConnectionBuilder":
+            made = NS(Type=_set(b, "Type"), bodies=(b.SelectBody1.Value, b.SelectBody2.Value))
+        elif kind == "EnvironmentLoadBuilder":
+            study.environment.clear()  # one gravity per study; disabled = none
+            if _set(b, "GravityEnabled"):
+                study.environment.append(
+                    NS(Magnitude=b.GravityMagnitude, Direction=_set(b, "GravityDirection"))
+                )
+            return None
+        elif kind == "SubcaseManager":
+            study.subcases = list(b.SubcaseList)
+            study.subcase = study.subcases[0] if study.subcases else None
+            return study
         else:
             made = NS(Type=_set(b, "Type"), builder=b)
         getattr(study, LISTS[kind]).append(made)
+        if kind in ("AnalysisConstraintBuilder", "AnalysisLoadBuilder") and study.subcases:
+            study.subcases[0].refs.append(made)  # NX 2406 fills the active case itself
         if kind == "OptimizationConstraintBuilder":
             study.owner.expressions.append(b.Mass)
         # NX 2406 returns None from these commits (the objects exist all the same).
@@ -245,8 +320,10 @@ def topo_nx(units="mm", licensed=True):
     nx.solve_fraction = 0.4
     nx.solve_error = None
     nx.peaks = {"Displacement": 0.12, "StressVonMises": 85000.0}  # kPa (mm base units)
+    nx.case_peaks = []
+    nx.peak_at = (0.0, 10.0, 10.0)
     nx.gap = 0.0
-    for kind in ("StudyBuilder", *LISTS):
+    for kind in ("StudyBuilder", "SubcaseManager", *LISTS):
         nx.on_commit(kind, _commit(nx, kind))
         nx.lacks(kind, "GetCommittedObjects")
     nx.edits = []
@@ -257,7 +334,17 @@ def topo_nx(units="mm", licensed=True):
 
     nx.part.Expressions.EditWithUnits = edit_with_units
     nx.part.UnitCollection = NS(FindObject=lambda name: NS(Name=name))
-    library = {"Aluminum_6061": NS(Name="Aluminum_6061"), "Steel": NS(Name="Steel")}
+
+    def table(strength):
+        def value(name):
+            if name != "YieldStrength" or strength is None:
+                raise NXException(3940050, "The material property is missing.")
+            return strength, NS(Name="PressureNewtonPerSquareMilliMeter")
+
+        return lambda: NS(GetBaseScalarWithDataPropertyValue=value)
+
+    library = {"Aluminum_6061": NS(Name="Aluminum_6061", GetPropTable=table(None)),
+               "Steel": NS(Name="Steel", GetPropTable=table(250.0))}  # fmt: skip
     nx.loaded_materials = {}
     nx.body_material = library["Steel"]  # every body's assigned material (None: none)
 

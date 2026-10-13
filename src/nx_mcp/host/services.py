@@ -27,6 +27,7 @@ from nx_mcp.core.references import PREFIX, Counter, References, Row
 from nx_mcp.core.tx import Services
 from nx_mcp.kit import builders, display, drawing, expr, units
 from nx_mcp.kit import parts as kit_parts
+from nx_mcp.kit import sketch as kit_sketch
 
 APPLICATIONS = {
     "UG_APP_MODELING": "modeling",
@@ -345,6 +346,12 @@ class NXServices(Services):
             name = str(self.session.ApplicationName or "")
             state["application"] = APPLICATIONS.get(name, name.lower())
         return state
+
+    def release_drafting_sketch(self) -> bool:
+        """Gate 4 ``no_active_sketch``: deactivate an active drafting (sheet) sketch that
+        NX re-activated on opening a sheet (``kit.sketch.release_drafting_sketch``); a
+        model sketch stays active. Returns whether one was deactivated."""
+        return kit_sketch.release_drafting_sketch(self.session, self.nx)
 
     def _held(self, table: dict, part) -> bool:
         return table.get(self.part_key(part)) == _path_key(part)

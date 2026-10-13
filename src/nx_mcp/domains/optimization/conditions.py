@@ -6,6 +6,12 @@ by vector in N, pressure in MPa), ``ConstructionBodyBuilder`` (keep-in / keep-ou
 grown into a region ``thickness`` deep, or separate bodies) or ``ShapeConstraintBuilder``
 (planar symmetry, minimum member size, extrude along a vector). Inch parts get lbf and
 psi expressions holding the same values.
+
+Load cases are NX subcases (``CreateSubcaseManager``: its ``SubcaseList`` starts with the
+study's subcases; ``CreateSubcase`` + ``Append``, renaming an item renames the subcase). A
+support or load without ``load_case`` joins every existing case; with one it joins that case
+only. A new case starts with the supports every case shares; the first one named takes over
+NX's "Default Subcase" while that holds no load.
 """
 
 from __future__ import annotations
@@ -25,6 +31,7 @@ from nx_mcp.core.types import (
     Length,
     Range,
     RefTo,
+    Text,
 )
 from nx_mcp.domains.optimization import common
 from nx_mcp.kit import builders, readback, result, select, units
@@ -45,9 +52,10 @@ class ConditionData(TypedDict):
     faces: int
     supports: int
     loads: int
+    load_case: str | None
 
 
-def _check(kind, faces, bodies, thickness, magnitude, direction, planes, size):
+def _check(kind, faces, bodies, thickness, magnitude, direction, planes, size, load_case):
     """Cross-field rules the schema cannot say, before NX is touched."""
     takes = {
         "faces": kind in (*SUPPORTS, "force", "pressure", *REGIONS),
@@ -57,10 +65,11 @@ def _check(kind, faces, bodies, thickness, magnitude, direction, planes, size):
         "direction": kind in ("force", "extrude"),
         "planes": kind == "symmetry",
         "size": kind == "member_size",
+        "load_case": kind in (*SUPPORTS, "force", "pressure"),
     }
     given = {
         "faces": faces, "bodies": bodies, "thickness": thickness, "magnitude": magnitude,
-        "direction": direction, "planes": planes, "size": size,
+        "direction": direction, "planes": planes, "size": size, "load_case": load_case,
     }  # fmt: skip
     for field, value in given.items():
         if value is not None and not takes[field]:
@@ -89,14 +98,62 @@ def committed(b):
     return made
 
 
-def _in_subcases(study, made):
-    """A new support or load joins every subcase (NX solves only referenced ones)."""
-    for case in common.all_of(study, "GetAllSubcases"):
-        case.AddReference(made)
+def _named(study, name):
+    key = name.strip().casefold()
+    return [c for c in common.all_of(study, "GetAllSubcases") if str(c.Name).casefold() == key]
+
+
+def _new_case(tx, study, name):
+    """Make load case ``name``: NX's default case while it holds no load, else a new case
+    with the supports every case shares."""
+    cases = common.all_of(study, "GetAllSubcases")
+    loads = {int(x.Tag) for x in common.all_of(study, "GetAllAnalysisLoads")}
+    refs = [list(c.GetReferences() or []) for c in cases]
+    with builders.build(tx, study.CreateSubcaseManager) as b:
+        items = b.SubcaseList
+        if len(cases) == 1 and not any(int(x.Tag) in loads for x in refs[0]):
+            items.FindItem(0).Name = name
+        else:
+            tags = [{int(y.Tag) for y in r} for r in refs]
+            shared = [x for x in refs[0] if int(x.Tag) not in loads
+                      and all(int(x.Tag) in t for t in tags)]  # fmt: skip
+            item = b.CreateSubcase()
+            item.Name = name
+            item.IncludedInOptimization = True
+            for x in shared:
+                item.AddReference(x)
+            items.Append(item)  # NX 2406: CreateSubcase does not list the item
+        b.commit()
+    made = _named(study, name)
+    readback.expect(len(made) == 1, "load_case", f"NX made no load case {name!r}")
+    return made[0]
+
+
+def _holds(case, item) -> bool:
+    return any(int(x.Tag) == int(item.Tag) for x in list(case.GetReferences() or []))
+
+
+def _join(tx, study, made, load_case):
+    """A new support or load joins its load case, else every case (NX solves only the
+    referenced ones). NX 2406 puts a new one in the active case itself: a named case takes
+    it out of the others first."""
+    cases = common.all_of(study, "GetAllSubcases")
+    if load_case is None:
+        for case in cases:
+            if not _holds(case, made):
+                case.AddReference(made)
+        return
+    for case in cases:
+        if _holds(case, made) and str(case.Name).casefold() != load_case.strip().casefold():
+            case.RemoveReference(made)
+    found = _named(study, load_case)
+    target = found[0] if found else _new_case(tx, study, load_case)
+    if not _holds(target, made):
+        target.AddReference(made)
 
 
 def _support(tx, study, kind, faces):
-    DS = tx.nx.DesignSimulation
+    DS = common.ds(tx)
     with builders.build(tx, study.CreateAnalysisConstraintBuilder, DS.AnalysisConstraint.Null) as b:
         b.Type = getattr(DS.AnalysisConstraintBuilder.ConstraintType, SUPPORTS[kind])
         builders.fill(tx, b.SelectFace, faces, "Face")
@@ -104,10 +161,8 @@ def _support(tx, study, kind, faces):
 
 
 def _load(tx, study, kind, faces, magnitude, vector):
-    options = tx.nx.DesignSimulation.AnalysisLoadBuilder
-    with builders.build(
-        tx, study.CreateAnalysisLoadBuilder, tx.nx.DesignSimulation.AnalysisLoad.Null
-    ) as b:
+    options = common.ds(tx).AnalysisLoadBuilder
+    with builders.build(tx, study.CreateAnalysisLoadBuilder, common.ds(tx).AnalysisLoad.Null) as b:
         if kind == "force":
             b.Type = options.AnalysisLoadType.Force
             b.ForceType = options.AnalysisLoadForceType.ByVector
@@ -129,9 +184,9 @@ def _regions(tx, study, design, kind, faces, bodies, thickness):
 
 
 def _region(tx, study, design, kind, faces, bodies, thickness):
-    options = tx.nx.DesignSimulation.ConstructionBodyBuilder
+    options = common.ds(tx).ConstructionBodyBuilder
     with builders.build(
-        tx, study.CreateConstructionBodyBuilder, tx.nx.DesignSimulation.ConstructionBody.Null
+        tx, study.CreateConstructionBodyBuilder, common.ds(tx).ConstructionBody.Null
     ) as b:
         b.DesignSpace = design
         b.Method = getattr(options.MethodOption, REGIONS[kind])
@@ -158,9 +213,9 @@ def _plane(tx, value, field):
 
 
 def _shape(tx, study, design, kind, planes, size, vector):
-    S = tx.nx.DesignSimulation.ShapeConstraintBuilder
+    S = common.ds(tx).ShapeConstraintBuilder
     with builders.build(
-        tx, study.CreateShapeConstraintBuilder, tx.nx.DesignSimulation.ShapeConstraint.Null
+        tx, study.CreateShapeConstraintBuilder, common.ds(tx).ShapeConstraint.Null
     ) as b:
         b.DesignSpace = design
         if kind == "symmetry":
@@ -224,17 +279,23 @@ def nx_create_topology_condition(
     *,
     study: FeatureRef,
     kind: Kind,
-    faces: Annotated[list[FaceRef], Items(1, 100), Doc("Design space faces")] | None = None,
+    faces: Annotated[
+        list[FaceRef], Items(1, 100), Doc("Design space faces; supports, loads: or scenery")
+    ]
+    | None = None,
     bodies: Annotated[list[BodyRef], Items(1, 20), Doc("keep_in/out: region bodies")] | None = None,
     thickness: Annotated[Length, Doc("keep_in/out depth from faces; 5 mm")] | None = None,
     magnitude: Annotated[float, Range(gt=0, le=1e9), Doc("force N; pressure MPa")] | None = None,
     direction: Annotated[Direction, Doc("force or extrude direction")] | None = None,
     planes: Annotated[list[SymmetryPlane], Items(1, 2)] | None = None,
     size: Annotated[Length, Doc("member_size: minimum diameter")] | None = None,
+    load_case: Annotated[str, Text(40), Doc("Support/load: its load case (made if new); omit: all")]
+    | None = None,
 ) -> ConditionData:
     """Add a support, load, keep-in/out region or shape constraint to a topology study.
-    Pressure acts along the face normal; a keep-in grows thickness into the body."""
-    _check(kind, faces, bodies, thickness, magnitude, direction, planes, size)
+    Pressure acts along the face normal; keep-in grows thickness into the body. Gravity,
+    scenery bodies, bonds: nx_create_topology_environment."""
+    _check(kind, faces, bodies, thickness, magnitude, direction, planes, size, load_case)
     with tx.checks():
         feature = common.feature_of(tx, study)
         found = common.active_study(feature)
@@ -242,7 +303,8 @@ def nx_create_topology_condition(
         if not designs:
             fail("NX_NOT_FOUND", "The study has no design space", field="/study")
         body = designs[0].Body
-        picked = common.design_faces(tx, faces, "/faces", body) if faces else []
+        scenery = common.scenery_bodies(found) if kind not in REGIONS else []
+        picked = common.design_faces(tx, faces, "/faces", body, scenery) if faces else []
         others = select.bodies(tx, bodies, "/bodies") if bodies else []
         for i, other in enumerate(others):
             if int(other.Tag) == int(body.Tag):
@@ -267,7 +329,7 @@ def nx_create_topology_condition(
             fresh = [x for x in common.all_of(current, getter) if int(x.Tag) not in known]
             readback.expect(len(fresh) == 1, "committed", "NX made no " + kind, count=len(fresh))
             with native():
-                _in_subcases(current, fresh[0])
+                _join(tx, current, fresh[0], load_case)
         elif kind in REGIONS:
             made = _regions(tx, current, design, kind, picked, others, thickness)
             readback.expect(all(m is not None for m in made), "committed")
@@ -285,4 +347,5 @@ def nx_create_topology_condition(
         "faces": len(picked),
         "supports": supports,
         "loads": loads,
+        "load_case": load_case,
     }

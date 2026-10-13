@@ -99,7 +99,7 @@ def nx_create_topology_study(
             fail("NX_WRONG_GEOMETRY", "The design space must be a solid", field="/design_space")
         common.require_license(tx)
         own = _own_material(tx, body) if material is None else None
-    DS = tx.nx.DesignSimulation
+    DS = common.ds(tx)
     with common.task(tx) as feature:
         with builders.build(tx, feature.CreateStudyBuilder, DS.Study.Null) as b:
             if name:

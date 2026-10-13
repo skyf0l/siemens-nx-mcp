@@ -61,7 +61,7 @@ def test_create_refusals():
     )  # fmt: skip
     assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.mutation_outcome == "rolled_back"
     env = nx.session.TopologyOptimizationTaskEnvironment
-    assert env.log == ["Enter", "Exit"] and env.ActiveFeature is None
+    assert env.log == ["Enter", "Cancel", "Exit"] and env.ActiveFeature is None
     assert not [f for f in nx.part.Features if hasattr(f, "GetAllStudies")]
 
 
@@ -176,7 +176,7 @@ def test_condition_failure_in_the_task_cancels_and_rolls_back():
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 3520100
     assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0
     env = nx.session.TopologyOptimizationTaskEnvironment
-    assert env.log[-2:] == ["Enter", "Exit"] and env.ActiveFeature is None
+    assert env.log[-3:] == ["Enter", "Cancel", "Exit"] and env.ActiveFeature is None
 
 
 def test_run_reports_fraction_peaks_and_kept_faces():

@@ -1,0 +1,182 @@
+{
+ "covers": {
+  "nx_create_wrap_geometry": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "length": 10,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "origin": [
+     30,
+     0,
+     0
+    ],
+    "length": 10,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_wrap_geometry",
+   "save": "w0",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id",
+     "$b.data.bodies.0.id"
+    ],
+    "close_gaps": "no_offset",
+    "tolerance": 0.01
+   },
+   "expect": {
+    "data.inputs_volume": {
+     "close": 2000,
+     "tol": 1e-06
+    },
+    "data.volume": {
+     "close": 4000,
+     "tol": 0.01
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$w0.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.max": {
+     "close": [
+      40,
+      10,
+      10
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_wrap_geometry",
+   "save": "w1",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id",
+     "$b.data.bodies.0.id"
+    ],
+    "offset": 1
+   },
+   "expect": {
+    "data.volume": {
+     "close": 6079.152133682997,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$w1.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      -1.0135,
+      -1.0135,
+      -1.0135
+     ],
+     "tol": 0.001
+    },
+    "data.max": {
+     "close": [
+      41.0135,
+      11.0135,
+      11.0135
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_wrap_geometry",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "offset": 1,
+    "close_gaps": "beveled"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1671.119000613833,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id",
+     "$b.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 2000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_wrap_geometry",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "offset": -1
+   },
+   "expect": {
+    "error.field": "/offset",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

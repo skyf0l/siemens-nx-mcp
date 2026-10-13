@@ -1,0 +1,366 @@
+{
+ "covers": {
+  "nx_create_centerline": [
+   "bolt_circle"
+  ],
+  "nx_set_view_sectioning": []
+ },
+ "part": "new",
+ "fixture": null,
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 100,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1,
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      80,
+      50,
+      20
+     ],
+     [
+      50,
+      80,
+      20
+     ],
+     [
+      20,
+      50,
+      20
+     ],
+     [
+      50,
+      20,
+      20
+     ]
+    ],
+    "form": "simple",
+    "diameter": 8,
+    "depth": {
+     "type": "distance",
+     "value": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     80,
+     50,
+     20
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     50,
+     80,
+     20
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h3",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     20,
+     50,
+     20
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h4",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     50,
+     20,
+     20
+    ],
+    "limit": 1,
+    "radius": 4
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "topv",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     140,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "half",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     340,
+     220
+    ],
+    "scale": 0.5
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "sec",
+   "args": {
+    "type": "section",
+    "parent": "$topv.data.view.id",
+    "cut": "$h1.data.items.0.id",
+    "cut_point": "center",
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     140,
+     70
+    ]
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "save": "bolt",
+   "args": {
+    "view": "$topv.data.view.id",
+    "kind": "bolt_circle",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id",
+     "$h3.data.items.0.id",
+     "$h4.data.items.0.id"
+    ]
+   },
+   "intent": "Acceptance: a full bolt circle through four holes on a 30 mm pitch radius",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.radius": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.center": {
+     "close": [
+      170,
+      200
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$half.data.view.id",
+    "kind": "bolt_circle",
+    "objects": [
+     "$h2.data.items.0.id",
+     "$h3.data.items.0.id",
+     "$h4.data.items.0.id"
+    ]
+   },
+   "intent": "Acceptance: three holes in a half-scale view give the same model radius",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.radius": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.center": {
+     "close": [
+      355,
+      220
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$topv.data.view.id",
+    "kind": "bolt_circle",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/objects"
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$sec.data.view.id",
+    "kind": "bolt_circle",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id",
+     "$h3.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_GEOMETRY",
+    "mutation_outcome": "not_started",
+    "error.field": "/objects/0"
+   }
+  },
+  {
+   "call": "nx_set_view_sectioning",
+   "args": {
+    "view": "$sec.data.view.id",
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "mode": "non_sectioned"
+   },
+   "intent": "Acceptance: the block drawn whole in its section view",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mode": "non_sectioned",
+    "data.cut": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_view_sectioning",
+   "args": {
+    "view": "$sec.data.view.id",
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "mode": "default"
+   },
+   "intent": "Acceptance: the view's own rule cuts the block again",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.cut": {
+     "count": 1
+    },
+    "data.cut.0.id": "$blk.data.bodies.0.id"
+   }
+  },
+  {
+   "call": "nx_set_view_sectioning",
+   "args": {
+    "view": "$topv.data.view.id",
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "mode": "non_sectioned"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "mutation_outcome": "not_started",
+    "error.field": "/view"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "path": "$run/bolt_circle_sheet.png"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

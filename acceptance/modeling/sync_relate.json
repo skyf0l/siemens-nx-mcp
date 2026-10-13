@@ -1,0 +1,653 @@
+{
+ "covers": {
+  "nx_edit_face_relation": [
+   "coaxial",
+   "coplanar",
+   "parallel",
+   "perpendicular",
+   "symmetric",
+   "tangent"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "length": 40,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     30,
+     12,
+     0
+    ],
+    "diameter": 6,
+    "height": 10,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$a.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "c",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     30,
+     10,
+     20
+    ],
+    "diameter": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "shape": "block",
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "length": 20,
+    "width": 20,
+    "height": 15
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "d",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     50,
+     0
+    ],
+    "length": 30,
+    "width": 20,
+    "height": 10,
+    "x_direction": [
+     0.984807753012208,
+     0.17364817766693033,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "shape": "sphere",
+    "origin": [
+     110,
+     10,
+     30
+    ],
+    "diameter": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     30,
+     12,
+     5
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "owner": "$c.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     30,
+     10,
+     25
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$hole.data.items.0.id",
+    "relation": "coaxial",
+    "to": "$cyl.data.items.0.id"
+   },
+   "expect": {
+    "data.angle": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.volume": {
+     "close": 7717.256661176919,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hole",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     30,
+     10,
+     5
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_measure_distance",
+   "args": {
+    "first": "$hole.data.items.0.id",
+    "second": "$cyl.data.items.0.id"
+   },
+   "expect": {
+    "data.distance": {
+     "close": 10.198039027185569,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "atop",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     20,
+     10,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "btop",
+   "args": {
+    "owner": "$b.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     110,
+     10,
+     15
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$atop.data.items.0.id",
+    "relation": "coplanar",
+    "to": "$btop.data.items.0.id"
+   },
+   "expect": {
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.volume": {
+     "close": 11575.884991765379,
+     "tol": 1e-06
+    },
+    "data.volume_change": {
+     "close": 3858.62833058846,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.max": {
+     "close": [
+      40,
+      20,
+      15
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ax",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     40,
+     10,
+     7.5
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "dpar",
+   "args": {
+    "owner": "$d.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     27.8,
+     65,
+     5
+    ],
+    "limit": 1,
+    "normal": [
+     0.984807753012208,
+     0.17364817766693033,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$ax.data.items.0.id",
+    "relation": "parallel",
+    "to": "$dpar.data.items.0.id"
+   },
+   "expect": {
+    "data.angle": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.volume": {
+     "close": 11575.884991765379,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_angle",
+   "args": {
+    "first": "$ax.data.items.0.id",
+    "second": "$dpar.data.items.0.id"
+   },
+   "expect": {
+    "data.angle": {
+     "close": 0,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "a0",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     0,
+     10,
+     7.5
+    ],
+    "limit": 1,
+    "normal": [
+     -1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "dperp",
+   "args": {
+    "owner": "$d.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     11.3,
+     72.3,
+     5
+    ],
+    "limit": 1,
+    "normal": [
+     -0.17364817766693033,
+     0.984807753012208,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$a0.data.items.0.id",
+    "relation": "perpendicular",
+    "to": "$dperp.data.items.0.id",
+    "through": [
+     0,
+     10,
+     7.5
+    ]
+   },
+   "expect": {
+    "data.angle": {
+     "close": 90,
+     "tol": 0.001
+    },
+    "data.volume": {
+     "close": 11575.884991765379,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_angle",
+   "args": {
+    "first": "$a0.data.items.0.id",
+    "second": "$dperp.data.items.0.id"
+   },
+   "expect": {
+    "data.angle": {
+     "close": 90,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bx",
+   "args": {
+    "owner": "$b.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     120,
+     10,
+     7.5
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "b0",
+   "args": {
+    "owner": "$b.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     100,
+     10,
+     7.5
+    ],
+    "limit": 1,
+    "normal": [
+     -1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$bx.data.items.0.id",
+    "relation": "symmetric",
+    "to": "$b0.data.items.0.id",
+    "plane": {
+     "origin": [
+      115,
+      0,
+      0
+     ],
+     "normal": [
+      1,
+      0,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.volume": {
+     "close": 9000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "btop",
+   "args": {
+    "owner": "$b.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     115,
+     10,
+     15
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "sph",
+   "args": {
+    "owner": "$e.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "any",
+    "order": "nearest",
+    "near": [
+     110,
+     10,
+     25
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$btop.data.items.0.id",
+    "relation": "tangent",
+    "to": "$sph.data.items.0.id"
+   },
+   "expect": {
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.volume": {
+     "close": 15000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_distance",
+   "args": {
+    "first": "$btop.data.items.0.id",
+    "second": "$sph.data.items.0.id"
+   },
+   "expect": {
+    "data.distance": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$btop.data.items.0.id",
+    "relation": "coplanar",
+    "to": "$atop.data.items.0.id",
+    "plane": "yz"
+   },
+   "expect": {
+    "error.field": "/plane",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$btop.data.items.0.id",
+    "relation": "tangent",
+    "to": "$sph.data.items.0.id",
+    "through": [
+     0,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.field": "/through",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$btop.data.items.0.id",
+    "relation": "coaxial",
+    "to": "$cyl.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/face",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$btop.data.items.0.id",
+    "relation": "tangent",
+    "to": "$atop.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

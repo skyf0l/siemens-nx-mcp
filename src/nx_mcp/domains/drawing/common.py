@@ -11,7 +11,7 @@ from typing import Annotated
 
 from nx_mcp.core.errors import fail
 from nx_mcp.core.types import REF_PATTERN, Doc, Range, RefKind, Text
-from nx_mcp.kit import drawing, facts, geom, parts, select
+from nx_mcp.kit import drawing, facts, geom, parts, select, sketch
 from nx_mcp.kit.args import choice as choice  # natural option spellings
 
 DETAIL = "NX_MCP_DETAIL_V1"  # managed detail-view boundary (parent handle, center, radius)
@@ -132,6 +132,13 @@ def uf_types(tx):
     """The ``NXOpen.UF`` module (structs such as ``Drf.Object``)."""
     tx.uf  # noqa: B018 - imports NXOpen.UF on first use
     return tx.nx.UF
+
+
+def quiet_sheet_sketch(tx):
+    """Deactivate a drafting sketch NX re-activated on opening a sheet (NX 2406 activates a
+    sheet's last sheet sketch whenever the sheet is opened from the modeling display); a
+    model sketch is left alone. Returns whether one was deactivated."""
+    return sketch.release_drafting_sketch(tx.session, tx.nx)
 
 
 def update(tx):

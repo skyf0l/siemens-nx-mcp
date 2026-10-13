@@ -1,0 +1,85 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/part_family.json",
+  "scenario_sha256": "9376554fc42596fd71cd97adce391eddbb6e50280f67397f139b0cea3678e724",
+  "domain": "parts_files",
+  "covers": {
+    "nx_create_part_family": [],
+    "nx_get_part_family": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_part_family": "44d1c73795362ecee6b59388a42cb052f2df76b0ba2385074781d43e5062e7ad",
+    "nx_get_part_family": "44d1c73795362ecee6b59388a42cb052f2df76b0ba2385074781d43e5062e7ad"
+  },
+  "recorded": "2026-10-13T07:17:55Z",
+  "passed": true,
+  "checks": 29,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_get_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 3,
+      "call": "nx_create_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 4,
+      "call": "nx_get_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 5,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 7,
+      "call": "nx_create_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_get_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

@@ -8,7 +8,10 @@ Parasolid (``ParasolidExporter``, ``DisplayedPart``) read ``InputFile`` only for
 unmodified part; STL (``StlCreator``) tessellates the loaded bodies. JT
 (``PvtransManager.CreateJtCreator``, monolithic) is refused for a modified part: NX 2406
 writes edited bodies as last saved (a moved body stays where it was saved), new bodies
-as they are. The translator writes into
+as they are. DXF/DWG (``DexManager.CreateDxfdwgCreator``, model data exported 3D, display
+part, ``FileSaveFlag`` false) writes faceted faces (3DFACE in a block placed by one
+INSERT, NX 2406) and needs the ``ug_to_dxf`` license (asked before NX). The translator
+writes into
 ``.nx-mcp/staging``; the file is read back (``neutral``: schema, units, solids or
 triangles, extent against the bodies) and published without overwriting anything.
 STEP AP242 needs its own NX license; without it NX 2406 raises "Interrupt" (code 2) for
@@ -36,7 +39,7 @@ from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, BodyRef, Doc, Items, Length, PathTo
 from nx_mcp.domains.parts_files import _saving, neutral
-from nx_mcp.kit import args, files, measure, parts, readback, result
+from nx_mcp.kit import args, files, licenses, measure, parts, readback, result
 from nx_mcp.kit import units as kit_units
 
 LOG_TAIL = 4000
@@ -48,6 +51,8 @@ SUFFIXES = {
     "iges": (".igs", ".iges"),
     "parasolid": (".x_t", ".x_b"),
     "jt": (".jt",),
+    "dxf": (".dxf",),
+    "dwg": (".dwg",),
 }
 ALL_SUFFIXES = tuple(dict.fromkeys(s for group in SUFFIXES.values() for s in group))
 # NX 2406 raises "Interrupt" (code 2) when the STEP AP242 translator license is missing
@@ -59,6 +64,8 @@ SYSLOG_TAIL = 65536
 # An unmodified part is translated by the external step242 job, which writes nothing then.
 AP242_HINT = "STEP AP242 needs its own NX translator license; use format step (AP214)"
 JT_RELATIVE_TOL = 0.005  # JT tessellation tolerance relative to the model size
+DXF_RELATIVE_TOL = 0.03  # DXF facet sag relative to the model size (coarse NX facets)
+DXF_LICENSE = "ug_to_dxf"  # the NX-to-DXF/DWG translator feature
 
 
 class ExportOptions(TypedDict, total=False):
@@ -71,12 +78,12 @@ class ExportOptions(TypedDict, total=False):
 
 # Option keys each format accepts (only STL has any).
 FORMAT_OPTIONS = {"stl": frozenset(ExportOptions.__annotations__)}
-ExportFormat = Literal["step", "step_ap242", "stl", "iges", "parasolid", "jt"]
+ExportFormat = Literal["step", "step_ap242", "stl", "iges", "parasolid", "jt", "dxf", "dwg"]
 # The format a path suffix names when ``format`` is omitted (never step_ap242: it needs
 # its own license and is chosen explicitly).
 INFERRED: dict[str, ExportFormat] = {
     ".step": "step", ".stp": "step", ".stl": "stl", ".igs": "iges", ".iges": "iges",
-    ".x_t": "parasolid", ".x_b": "parasolid", ".jt": "jt",
+    ".x_t": "parasolid", ".x_b": "parasolid", ".jt": "jt", ".dxf": "dxf", ".dwg": "dwg",
 }  # fmt: skip
 FORMAT_DOC = (
     "Default: from the path suffix (.step/.stp: AP214); AP242 needs the STEP AP242 translator "
@@ -167,7 +174,16 @@ def _format_of(a: dict) -> str:
     effect="file",
     label="Export model",
     summary=lambda a, say: f"Export {_format_of(a).upper()} {say('path')}",
-    keywords=("export step", "ap242", "stl", "iges", "parasolid x_t", "jt", "neutral format"),
+    keywords=(
+        "export step",
+        "ap242",
+        "stl",
+        "iges",
+        "parasolid x_t",
+        "jt",
+        "3d dxf dwg",
+        "neutral format",
+    ),
     variants="format",
     requires=("work_part", "no_active_sketch"),
     cost="long",
@@ -182,8 +198,9 @@ def nx_export_model(
     options: ExportOptions | None = None,
 ) -> ExportData:
     """Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp
-    (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only); the suffix
-    picks the format. Unsaved changes are exported; the part is never saved. A part named by
+    (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only), DXF .dxf/DWG
+    .dwg (3D model data; drawing sheets: nx_export_drawing); the suffix picks the format.
+    Unsaved changes are exported; the part is never saved. A part named by
     part is displayed for the export, then the tab shown before comes back."""
     target = Path(path)
     suffix = target.suffix.lower()
@@ -235,6 +252,9 @@ def nx_export_model(
                 hint="Save the part (nx_save_part) first, or export step, parasolid, iges or "
                 "stl, which write the unsaved state",
             )
+        if format in ("dxf", "dwg"):
+            licenses.require(tx, (DXF_LICENSE,), "DXF/DWG export needs the NX DXF/DWG "
+                             "translator license (ug_to_dxf)", by_argument=True)  # fmt: skip
         settings = _export_settings(format)
     modified = bool(part.IsModified)
     file_before = _saving.fingerprint(parts.file_of(part))
@@ -301,6 +321,8 @@ def _export_settings(format: str) -> Path | None:
         return _settings("STEP214UG", "ugstep214.def", code="NX_EXPORT_FAILED")
     if format == "iges":
         return _settings("IGES", "igesexport.def", code="NX_EXPORT_FAILED")
+    if format in ("dxf", "dwg"):
+        return _settings("DXFDWG", "dxfdwg.def", code="NX_EXPORT_FAILED")
     return None
 
 
@@ -379,6 +401,27 @@ def _jt_writer(tx, builder, format, part, selected, settings, temp, opts):
     builder.OutputJtFile = str(temp)
 
 
+def _dxf_writer(tx, builder, format, part, selected, settings, temp, opts):
+    # 3D model data (not drawings): solids and surfaces of the display part, from memory.
+    kinds = tx.nx.DxfdwgCreator
+    builder.SettingsFile = str(settings)
+    builder.ExportData = kinds.ExportDataOption.Modeling
+    builder.ExportAs = kinds.ExportAsOption.ThreeD
+    builder.ExportFrom = kinds.ExportFromOption.DisplayPart
+    builder.OutputFileType = (
+        kinds.OutputFileTypeOption.Dwg if format == "dwg" else kinds.OutputFileTypeOption.Dxf
+    )
+    builder.InputFile = parts.file_of(part)
+    _select(tx, builder.ExportSelectionBlock, selected)
+    builder.LayerMask = "1-256"
+    builder.ObjectTypes.Solids = True
+    builder.ObjectTypes.Surfaces = True
+    builder.ObjectTypes.Curves = False
+    builder.OutputFile = str(temp)
+    builder.FileSaveFlag = False
+    builder.ProcessHoldFlag = True
+
+
 def _dex(name):
     return lambda tx: getattr(tx.session.DexManager, name)()
 
@@ -391,6 +434,8 @@ WRITERS = {
     "parasolid": (_dex("CreateParasolidExporter"), _parasolid_writer),
     "stl": (_dex("CreateStlCreator"), _stl_writer),
     "jt": (lambda tx: tx.session.PvtransManager.CreateJtCreator(), _jt_writer),
+    "dxf": (_dex("CreateDxfdwgCreator"), _dxf_writer),
+    "dwg": (_dex("CreateDxfdwgCreator"), _dxf_writer),
 }
 READERS = {
     "step": neutral.step_facts,
@@ -399,6 +444,8 @@ READERS = {
     "parasolid": neutral.parasolid_facts,
     "stl": neutral.stl_facts,
     "jt": neutral.jt_facts,
+    "dxf": neutral.dxf_model_facts,
+    "dwg": neutral.dwg_facts,
 }
 
 
@@ -454,6 +501,21 @@ def _verify(tx, format, facts, exported, selected, target, opts, log) -> dict:
             triangles=facts["triangles"],
             tolerances=opts["_tolerances"],
         )
+    elif format == "dxf":
+        if not (facts["solids"] or facts["faces"] or facts["meshes"]):
+            fail(
+                "NX_INCOMPLETE_RESULT",
+                "The DXF file holds no solids, faces or meshes",
+                details={"entities": facts["entities"], "translator_log": _tail(log)},
+            )
+        report.update(
+            schema=facts["version"],
+            solids=facts["solids"],
+            surfaces=facts["faces"] + facts["meshes"],
+            shapes=sum(facts["entities"].values()),
+        )
+    elif format == "dwg":
+        report.update(schema=facts["version"], encoding="binary")
     else:  # jt
         if not facts["shapes"]:
             fail("NX_INCOMPLETE_RESULT", "The JT file holds no shapes")
@@ -485,6 +547,8 @@ def _check_extent(tx, format, facts, exported, opts) -> dict:
         tol += opts["_tolerances"]["chordal"]
     elif format == "jt":
         tol += JT_RELATIVE_TOL * size
+    elif format == "dxf":  # NX 2406 facets: a 20 mm cylinder's box is 0.22 mm short
+        tol += DXF_RELATIVE_TOL * size
     if format == "iges" and not exact:
         ok = True  # control points and a conservative box do not bound each other
     elif format == "iges" or not exact:

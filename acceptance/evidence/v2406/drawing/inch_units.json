@@ -22,13 +22,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75",
-    "nx_create_drawing_dimension": "0699669fe983d0a821907c2556dcdf4bdd180769ce82dc7c1d54a5ed06657812",
-    "nx_create_note": "1a66948978b69ed36b75bd905deac252f32ea881ec3a87e0439dedb6977daab3",
-    "nx_create_drawing_table": "499f1daef2518c7d9b8c99e81ad3b59b4b38b515d24fcd62415980fc08038a82",
-    "nx_create_drawing_sheet": "dec5aa0138809a6be257305a84b4dbed60b00fd43fded62ae441341efbadeb49"
+    "nx_create_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
+    "nx_create_drawing_dimension": "8651746931d38990280d8a4732397f4462a181f01ffa2814efcefb6435abf1e1",
+    "nx_create_note": "8ff12626101bc3c3d799e95c8768dff8a3c8620ebf445abe2b4b38b901a8d5a0",
+    "nx_create_drawing_table": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
+    "nx_create_drawing_sheet": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074"
   },
-  "recorded": "2026-10-12T14:57:20Z",
+  "recorded": "2026-10-13T07:31:11Z",
   "passed": true,
   "checks": 23,
   "failed_checks": 0,

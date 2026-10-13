@@ -7,7 +7,7 @@ from typing import TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import FeatureRef
-from nx_mcp.domains.optimization import common
+from nx_mcp.domains.optimization import common, environment
 from nx_mcp.kit import measure, result
 
 LOAD_TYPES = ("Force", "BearingLoad", "Pressure", "Torque", "Acceleration",
@@ -21,6 +21,12 @@ class Item(TypedDict):
     faces: int
 
 
+class LoadCase(TypedDict):
+    name: str
+    supports: int
+    loads: int
+
+
 class StudyInfo(TypedDict):
     study: result.Row
     name: str
@@ -30,6 +36,10 @@ class StudyInfo(TypedDict):
     target_mass: float | None
     supports: list[Item]
     loads: list[Item]
+    load_cases: list[LoadCase]
+    acceleration: environment.Acceleration | None
+    scenery: list[result.Row]
+    connections: int
     quality: int | None
     solved: bool
     mass_fraction: float | None
@@ -55,9 +65,23 @@ def _items(tx, study, getter, enum, names) -> list[Item]:
     return out
 
 
+def _cases(study) -> list[LoadCase]:
+    supports = {int(x.Tag) for x in common.all_of(study, "GetAllAnalysisConstraints")}
+    loads = {int(x.Tag) for x in common.all_of(study, "GetAllAnalysisLoads")}
+    rows: list[LoadCase] = []
+    for case in common.all_of(study, "GetAllSubcases"):
+        try:
+            refs = {int(x.Tag) for x in list(case.GetReferences() or [])}
+        except Exception:
+            refs = set()
+        rows.append({"name": str(getattr(case, "Name", "") or ""),
+                     "supports": len(refs & supports), "loads": len(refs & loads)})  # fmt: skip
+    return rows
+
+
 def describe(tx, feature) -> StudyInfo:
     """One study's definition and solve state."""
-    DS = tx.nx.DesignSimulation
+    DS = common.ds(tx)
     study = common.active_study(feature)
     designs = common.all_of(study, "GetAllDesignSpaces")
     design = designs[0] if designs else None
@@ -86,6 +110,10 @@ def describe(tx, feature) -> StudyInfo:
         "loads": _items(
             tx, study, "GetAllAnalysisLoads", DS.AnalysisLoadBuilder.AnalysisLoadType, LOAD_TYPES
         ),
+        "load_cases": _cases(study),
+        "acceleration": environment.acceleration_of(tx, study),
+        "scenery": result.rows(tx, common.scenery_bodies(study), "body"),
+        "connections": len(common.all_of(study, "GetAllConnections")),
         "quality": int(study.StudyQuality) if hasattr(study, "StudyQuality") else None,
         "solved": solved,
         "mass_fraction": fraction if solved else None,
@@ -105,7 +133,8 @@ def describe(tx, feature) -> StudyInfo:
 )
 def nx_get_topology_study(tx: Tx, *, study: FeatureRef | None = None) -> StudyList:
     """List the work part's topology optimization studies, or describe one. Rows: design
-    space, material, mass and target (kg), supports, loads, quality, solved result."""
+    space, material, mass and target (kg), supports, loads, load cases, acceleration (g),
+    scenery bodies, connections, quality, solved result."""
     if study is not None:
         return {"items": [describe(tx, common.feature_of(tx, study))]}
     return {"items": [describe(tx, f) for f in common.studies(tx)]}

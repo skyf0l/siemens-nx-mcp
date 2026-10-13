@@ -96,6 +96,8 @@ class AnnotationData(TypedDict, total=False):
     text: list[str]
     leader: dict
     symbol: dict
+    center: Annotated[list[float], Doc("bolt_circle: its center on the sheet")]
+    radius: Annotated[float, Doc("bolt_circle: its radius in the model (part units)")]
 
 
 def note_text_head(text):
@@ -198,8 +200,18 @@ def nx_create_note(
         "center_mark": "Center marks on {objects} in {view}",
         "axis": "Axis centerline in {view}",
         "between_edges": "Centerline between 2 edges in {view}",
+        "bolt_circle": "Bolt circle through {objects} in {view}",
     },
-    keywords=("center mark", "centerline", "axis line", "symmetry line", "hole center"),
+    keywords=(
+        "center mark",
+        "centerline",
+        "axis line",
+        "symmetry line",
+        "hole center",
+        "bolt circle",
+        "pitch circle",
+        "PCD",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     variants="kind",
     cost="light",
@@ -211,24 +223,30 @@ def nx_create_centerline(
     tx: Tx,
     *,
     view: DrawingViewRef,
-    kind: Literal["center_mark", "axis", "between_edges"],
+    kind: Literal["center_mark", "axis", "between_edges", "bolt_circle"],
     objects: Annotated[
         list[EdgeOrFace],
         Items(1, 50),
         Doc(
-            "center_mark: circular edges; axis: 1 cylindrical/conical face; between_edges: 2 lines"
+            "center_mark: circular edges; axis: 1 cylindrical/conical face; between_edges: 2 "
+            "lines; bolt_circle: 3+ hole edges"
         ),
     ],
 ) -> AnnotationData:
-    """Create center marks on circular edges, an axis line on a cylindrical or conical face, or a
-    centerline between two edges. Circles must be seen along their axis; the two edges must
-    look parallel in the view."""
+    """Create center marks, an axis line, a centerline between edges or a bolt circle. Kinds:
+    center_mark on circular edges; axis on a cylindrical or conical face; between_edges on two
+    edges that look parallel; bolt_circle through 3+ hole edges on one circle (center, radius
+    read back). Circles must be seen along their axis."""
     args.distinct("/objects", objects, "objects")
     wanted = {"axis": 1, "between_edges": 2}.get(kind)
     if wanted and len(objects) != wanted:
         fail("NX_INVALID_ARGUMENT", f"{kind} takes {wanted} object(s)", field="/objects")
+    if kind == "bolt_circle" and len(objects) < 3:
+        fail("NX_INVALID_ARGUMENT", "bolt_circle takes 3 or more hole edges", field="/objects")
     if kind == "center_mark":
         return _center_marks(tx, view, objects)
+    if kind == "bolt_circle":
+        return _bolt_circle(tx, view, objects)
     return _centerline(tx, view, kind, objects)
 
 
@@ -282,6 +300,79 @@ def _center_marks(tx, view_ref, refs):
             "annotations": marks,
             "sheet": tx.ref(sheet, "drawing_sheet"),
             "origins": origins,
+        }
+
+
+def circle_through(points):
+    """``(center, radius)`` of the circle through three 2D points, or None when they are
+    collinear."""
+    (ax, ay), (bx, by), (cx, cy) = points[:3]
+    d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+    span = max(abs(v) for v in (ax - bx, ay - by, ax - cx, ay - cy, bx - cx, by - cy))
+    if abs(d) <= 1e-9 * max(1.0, span) ** 2:
+        return None
+    a2, b2, c2 = ax * ax + ay * ay, bx * bx + by * by, cx * cx + cy * cy
+    ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d
+    uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d
+    return [ux, uy], ((ax - ux) ** 2 + (ay - uy) ** 2) ** 0.5
+
+
+def _bolt_circle(tx, view_ref, refs):
+    """A full bolt-circle centerline through the centers of 3+ holes (NX ``Through3Points``),
+    read back with UF ``Drf.AskCenterlineInfo`` (its arc: center and radius on the sheet)."""
+    with tx.checks():
+        view, sheet = drawing.view(tx, view_ref)
+        edges = [geometry(tx, r, ("edge",), f"/objects/{i}") for i, r in enumerate(refs)]
+        arcs = []
+        for i, edge in enumerate(edges):
+            f = facts.edge(tx, edge)
+            if f["kind"] != "arc":
+                fail("NX_WRONG_GEOMETRY", "A bolt circle needs circular hole edges",
+                     field=f"/objects/{i}")  # fmt: skip
+            true_shape(view, f, f"/objects/{i}")
+            arcs.append(f)
+        centers = [drawing.to_sheet(tx, view, f["center"]) for f in arcs]
+        circle = circle_through(centers)
+        if circle is None:
+            fail("NX_INVALID_ARGUMENT", "The first three hole centers lie on one line in the "
+                 "view: a bolt circle needs them on a circle", field="/objects")  # fmt: skip
+        center, radius = circle
+        for i, c in enumerate(centers[3:], start=3):
+            off = abs(((c[0] - center[0]) ** 2 + (c[1] - center[1]) ** 2) ** 0.5 - radius)
+            if off > 1e-4 * max(1.0, radius):
+                fail("NX_INVALID_ARGUMENT", f"Hole {i} lies {off:.4g} off the circle through "
+                     "the first three holes", field=f"/objects/{i}")  # fmt: skip
+    A = tx.nx.Annotations
+    part = tx.part
+    with drawing.on_sheet(tx, sheet, part) as sh:
+        factory = part.Annotations.Centerlines.CreateBoltCircleCenterlineBuilder
+        with builders.build(tx, factory, A.BoltCircleCenterline.Null) as b:
+            b.Type = A.CircleCenterlineBuilder.Types.Through3Points
+            b.FullCircle = True
+            for edge in edges:
+                b.Locations.Add(edge, view, tx.nx.Point3d(*curve.point_at(tx, edge, 0.5)))
+            obj = commit(b, "bolt circle")
+        update(tx)
+        _form, _point, info = tx.uf.Drf.AskCenterlineInfo(obj.Tag)
+        arc = list(info.ArcInfo)[0]
+        got_center = sh.to_sheet(list(arc.ArcCenter))
+        got_radius = float(arc.Radius) / sh.scale
+        tol = 1e-4 * max(1.0, radius, *map(abs, center))
+        readback.expect(
+            geom.dist([*got_center, 0.0], [*center, 0.0]) <= tol
+            and abs(got_radius - radius) <= tol,
+            "circle",
+            "The bolt circle is not the circle through the hole centers",
+            center=got_center,
+            radius=got_radius,
+        )
+        scale = drawing.scale(tx, view)
+        return {
+            "annotation": tx.ref(obj, "annotation"),
+            "sheet": tx.ref(sheet, "drawing_sheet"),
+            "origin": got_center,
+            "center": got_center,
+            "radius": got_radius / scale * sh.scale,
         }
 
 

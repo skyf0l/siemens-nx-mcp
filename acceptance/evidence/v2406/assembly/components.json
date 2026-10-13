@@ -16,13 +16,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component": "8a8160b8a0804e184740df686c7baa68173d8218d9390a106b0a843d0986fea9",
-    "nx_list_components": "8a8160b8a0804e184740df686c7baa68173d8218d9390a106b0a843d0986fea9",
-    "nx_set_component_pose": "8a8160b8a0804e184740df686c7baa68173d8218d9390a106b0a843d0986fea9",
-    "nx_edit_component": "8a8160b8a0804e184740df686c7baa68173d8218d9390a106b0a843d0986fea9",
+    "nx_create_component": "378a94d07c24b033d04aa30c93730d08927a7cf4d2412256c15f5f5f5d19e26c",
+    "nx_list_components": "378a94d07c24b033d04aa30c93730d08927a7cf4d2412256c15f5f5f5d19e26c",
+    "nx_set_component_pose": "378a94d07c24b033d04aa30c93730d08927a7cf4d2412256c15f5f5f5d19e26c",
+    "nx_edit_component": "378a94d07c24b033d04aa30c93730d08927a7cf4d2412256c15f5f5f5d19e26c",
     "nx_create_reference_set": "853ffca0de2905ac7ce1fc1f263fd08601aa7f17e643771188ab7f2205def4c3"
   },
-  "recorded": "2026-10-12T10:53:16Z",
+  "recorded": "2026-10-13T07:25:20Z",
   "passed": true,
   "checks": 145,
   "failed_checks": 0,

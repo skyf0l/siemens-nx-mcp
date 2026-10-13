@@ -1,0 +1,118 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/section_inertia.json",
+  "scenario_sha256": "0464f173b3e728887c9309f84fa1d7dd010c05077f01925516633f9d948b9acf",
+  "domain": "inspection",
+  "covers": {
+    "nx_measure_section_inertia": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_measure_section_inertia": "e751fcb5104d10995a34de9e06d6de5e1e6cf73a3bf51830ecd40c536412e168"
+  },
+  "recorded": "2026-10-13T07:28:06Z",
+  "passed": true,
+  "checks": 43,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 17
+    },
+    {
+      "index": 7,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 8,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 9,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_measure_section_inertia",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

@@ -13,9 +13,9 @@
   "sources": {
     "nx_get_appearance": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
     "nx_set_appearance": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
-    "nx_restore_display": "81697ceec58edc9c80e64c620b8cc2de95fa408c6e587ed1e28732d60f80445f"
+    "nx_restore_display": "4cc8fb4213369df2d46cf0442868734571a92a4291f5dae2d7315361dffa252c"
   },
-  "recorded": "2026-10-10T23:31:36Z",
+  "recorded": "2026-10-13T07:33:40Z",
   "passed": true,
   "checks": 53,
   "failed_checks": 0,

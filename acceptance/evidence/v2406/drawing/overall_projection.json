@@ -17,11 +17,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_view": "30be3ba47fe51a0a494d85a146d2848ef7246a090d2138e45779c04425799d75",
-    "nx_create_drawing_dimension": "0699669fe983d0a821907c2556dcdf4bdd180769ce82dc7c1d54a5ed06657812",
-    "nx_list_view_edges": "1bb526f8ffe71d41cb312801b20134963f6df3e48a311ef5c1814e03cc6b7789"
+    "nx_create_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
+    "nx_create_drawing_dimension": "8651746931d38990280d8a4732397f4462a181f01ffa2814efcefb6435abf1e1",
+    "nx_list_view_edges": "ab89f20fdc3251ababbc064df758393c01ba2a01d41639ce8a1a0374de9a8e1b"
   },
-  "recorded": "2026-10-12T10:58:57Z",
+  "recorded": "2026-10-13T07:31:33Z",
   "passed": true,
   "checks": 40,
   "failed_checks": 0,

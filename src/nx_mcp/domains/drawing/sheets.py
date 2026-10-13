@@ -116,7 +116,7 @@ def _summary(args, say):
     effect="model",
     label="Create drawing sheet",
     summary=_summary,
-    keywords=("drawing", "new sheet", "drafting", "title block", "border", "paper size"),
+    keywords=("drawing sheet", "new sheet", "drafting", "title block", "border", "paper size"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     invalidates="deleted",

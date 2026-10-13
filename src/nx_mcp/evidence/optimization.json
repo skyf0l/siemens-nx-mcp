@@ -1,11 +1,21 @@
 {
+  "nx_analyze_topology_study": {
+    "v2406": {
+      "checks": 36,
+      "recorded": "2026-10-13T07:00:48Z",
+      "scenario": "acceptance/optimization/strength.json",
+      "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
+      "source_sha256": "1cfac9c09ad21cd87af97e412731bdb4fb3046314dadf72fd4bb438d6e0910c8",
+      "variants": []
+    }
+  },
   "nx_create_topology_condition": {
     "v2406": {
-      "checks": 30,
-      "recorded": "2026-10-12T14:37:36Z",
-      "scenario": "acceptance/optimization/conditions.json",
-      "scenario_sha256": "a156c5b4e38bdb19f00710dbb3a038bed77956b8ceddd3eaaba0be8cb199849c",
-      "source_sha256": "170880fe1253341043946368d90953d487df2e74f856abb438d4e21dd996d307",
+      "checks": 36,
+      "recorded": "2026-10-13T07:00:48Z",
+      "scenario": "acceptance/optimization/strength.json",
+      "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
+      "source_sha256": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033",
       "variants": [
         "extrude",
         "fixed",
@@ -19,33 +29,47 @@
       ]
     }
   },
+  "nx_create_topology_environment": {
+    "v2406": {
+      "checks": 36,
+      "recorded": "2026-10-13T07:00:48Z",
+      "scenario": "acceptance/optimization/strength.json",
+      "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
+      "source_sha256": "9aefa43c4c5ac1ad1365fab5d7b77033ac8b232d9128e4b8e0dc1263719d5e00",
+      "variants": [
+        "acceleration",
+        "connection",
+        "scenery"
+      ]
+    }
+  },
   "nx_create_topology_study": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-12T15:08:35Z",
+      "recorded": "2026-10-13T07:36:28Z",
       "scenario": "acceptance/optimization/bracket.json",
       "scenario_sha256": "7e622d4fdfa722a3d728f7ebb874f1266519721ed2080c5ceb3e0f00a858251c",
-      "source_sha256": "85bc4c584eca6f034ceee8e27b2cd9e8e5aafae376fdcb8c0d436002ce184595",
+      "source_sha256": "e1c734530d3f1d1a5dc01ef52ff980233acf6fe6b50dd5a153ead8987eca5a2a",
       "variants": []
     }
   },
   "nx_get_topology_study": {
     "v2406": {
-      "checks": 48,
-      "recorded": "2026-10-12T15:08:35Z",
-      "scenario": "acceptance/optimization/bracket.json",
-      "scenario_sha256": "7e622d4fdfa722a3d728f7ebb874f1266519721ed2080c5ceb3e0f00a858251c",
-      "source_sha256": "f07847fca7611ee14c458eea264f5ebe255cded747e8dab222a4044c0729b6b4",
+      "checks": 44,
+      "recorded": "2026-10-13T06:58:37Z",
+      "scenario": "acceptance/optimization/environment.json",
+      "scenario_sha256": "af4ec229be7f789eb9716aa4ad03ce95c4ee3da239314353d661e9fa15cb9585",
+      "source_sha256": "da3b6f2c790e0f0c08a8236db222f0b64a988bbf685dd603071dc0d09443fb57",
       "variants": []
     }
   },
   "nx_run_topology_study": {
     "v2406": {
       "checks": 48,
-      "recorded": "2026-10-12T15:08:35Z",
+      "recorded": "2026-10-13T07:36:28Z",
       "scenario": "acceptance/optimization/bracket.json",
       "scenario_sha256": "7e622d4fdfa722a3d728f7ebb874f1266519721ed2080c5ceb3e0f00a858251c",
-      "source_sha256": "6164eb2ad16c776abd2680f42c631d2fee7a214d589a69c7c631009119ba318d",
+      "source_sha256": "9fa54822e575162800431d7c9b4c25e06a0b22aacf0a5383ed048fadd8989080",
       "variants": []
     }
   }

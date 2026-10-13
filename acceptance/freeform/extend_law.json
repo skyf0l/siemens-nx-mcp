@@ -1,0 +1,337 @@
+{
+ "covers": {
+  "nx_create_law_extension": [
+   "faces",
+   "vector"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      20,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap2",
+   "args": {
+    "points": [
+     [
+      0,
+      10,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac2",
+   "args": {
+    "points": [
+     [
+      20,
+      0,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "primary": [
+     [
+      "$ap1.data.curve.id"
+     ],
+     [
+      "$ap2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$ac1.data.curve.id"
+     ],
+     [
+      "$ac2.data.curve.id"
+     ]
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e20",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "intent": "A flange 5 long at 90 deg to the sheet (along its +z normal): 10 x 5, area 50",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "length": 5,
+    "angle": 90
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.reference": "faces",
+    "data.sheet": true,
+    "data.area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.expected_area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.base_length": {
+     "close": 10,
+     "tol": 0.001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      20,
+      10,
+      5
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "fa",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face"
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "intent": "At 0 deg from the given face the extension continues the sheet: x 20..25",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "length": 5,
+    "faces": [
+     "$fa.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      20,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      25,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "intent": "Draft skirt: 30 deg from +z, 5 long: reaches x 22.5, z 4.3301",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "reference": "vector",
+    "direction": [
+     0,
+     0,
+     1
+    ],
+    "length": 5,
+    "angle": 30
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.reference": "vector",
+    "data.area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      22.5,
+      10,
+      4.3301
+     ],
+     "tol": 0.0002
+    }
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "intent": "Linear length law 4 -> 8 along +z: a trapezoid of area 60",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "reference": "vector",
+    "direction": [
+     0,
+     0,
+     1
+    ],
+    "length": 4,
+    "end_length": 8
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 60,
+     "tol": 0.001
+    },
+    "data.expected_area": {
+     "close": 60,
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      20,
+      10,
+      8
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "reference": "vector",
+    "length": 5
+   },
+   "expect": {
+    "error.field": "/direction",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "length": 0
+   },
+   "expect": {
+    "error.field": "/length",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,660 @@
+{
+ "covers": {
+  "nx_create_sheet_extension": [
+   "corner",
+   "distance",
+   "until"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      20,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ap2",
+   "args": {
+    "points": [
+     [
+      0,
+      10,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ac2",
+   "args": {
+    "points": [
+     [
+      20,
+      0,
+      0
+     ],
+     [
+      20,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "primary": [
+     [
+      "$ap1.data.curve.id"
+     ],
+     [
+      "$ap2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$ac1.data.curve.id"
+     ],
+     [
+      "$ac2.data.curve.id"
+     ]
+    ]
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bp1",
+   "args": {
+    "points": [
+     [
+      40,
+      0,
+      5
+     ],
+     [
+      40,
+      10,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bp2",
+   "args": {
+    "points": [
+     [
+      40,
+      0,
+      15
+     ],
+     [
+      40,
+      10,
+      15
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bc1",
+   "args": {
+    "points": [
+     [
+      40,
+      0,
+      5
+     ],
+     [
+      40,
+      0,
+      15
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "bc2",
+   "args": {
+    "points": [
+     [
+      40,
+      10,
+      5
+     ],
+     [
+      40,
+      10,
+      15
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "primary": [
+     [
+      "$bp1.data.curve.id"
+     ],
+     [
+      "$bp2.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$bc1.data.curve.id"
+     ],
+     [
+      "$bc2.data.curve.id"
+     ]
+    ]
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "wall",
+   "args": {
+    "shape": "block",
+    "origin": [
+     30,
+     -10,
+     -10
+    ],
+    "length": 5,
+    "width": 30,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "wf",
+   "args": {
+    "owner": "$wall.data.bodies.0.id",
+    "kind": "face",
+    "normal": "-x"
+   }
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "dp",
+   "args": {
+    "method": "point_normal",
+    "origin": [
+     26,
+     0,
+     0
+    ],
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e20",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "intent": "Grow the 20 x 10 sheet's x=20 edge by 5: 25 x 10, area 200 -> 250",
+   "args": {
+    "edges": [
+     "$e20.data.items.0.id"
+    ],
+    "distance": 5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "distance",
+    "data.sheet": true,
+    "data.bodies": {
+     "count": 1
+    },
+    "data.area_before": {
+     "close": 200,
+     "tol": 0.001
+    },
+    "data.area": {
+     "close": 250,
+     "tol": 0.001
+    },
+    "data.added_area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.faces": 1,
+    "data.edges": 4,
+    "data.bounds.min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      25,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e25",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     25,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "save": "strip",
+   "intent": "Extension as a separate sheet from x 25 to 30 (natural tangent): a 50 mm^2 strip",
+   "args": {
+    "edges": [
+     "$e25.data.items.0.id"
+    ],
+    "distance": 5,
+    "output": "new_sheet",
+    "shape": "natural_tangent"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bodies": {
+     "count": 1
+    },
+    "data.area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.added_area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      25,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      30,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "setup": true,
+   "args": {
+    "objects": [
+     "$strip.data.feature.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e25b",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     25,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "intent": "A negative distance trims the edge back 3: 22 x 10, area 220",
+   "args": {
+    "edges": [
+     "$e25b.data.items.0.id"
+    ],
+    "distance": "-3 mm"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 220,
+     "tol": 0.001
+    },
+    "data.added_area": {
+     "close": -30,
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      22,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e22",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     22,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "intent": "Extend until a datum plane at x 26: area 260",
+   "args": {
+    "edges": [
+     "$e22.data.items.0.id"
+    ],
+    "method": "until",
+    "until": [
+     "$dp.data.datum_plane.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "until",
+    "data.area": {
+     "close": 260,
+     "tol": 0.001
+    },
+    "data.gaps": {
+     "count": 1
+    },
+    "data.gaps.0": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      26,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e26",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     26,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "intent": "Hull to transom: extend until the wall face at x 30 (area 300)",
+   "args": {
+    "edges": [
+     "$e26.data.items.0.id"
+    ],
+    "method": "until",
+    "until": [
+     "$wf.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 300,
+     "tol": 0.001
+    },
+    "data.added_area": {
+     "close": 40,
+     "tol": 0.001
+    },
+    "data.gaps.0": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      30,
+      10,
+      0
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e30",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     30,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "eb",
+   "args": {
+    "owner": "$b.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     40,
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "intent": "Corner: the deck (z 0, to x 30) and a vertical sheet at x 40 (z 5..15) extend to meet at x 40, z 0 and are sewn: 400 + 150",
+   "args": {
+    "edges": [
+     "$e30.data.items.0.id"
+    ],
+    "method": "corner",
+    "to_edges": [
+     "$eb.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "corner",
+    "data.bodies": {
+     "count": 1
+    },
+    "data.faces": 2,
+    "data.area_before": {
+     "close": 400,
+     "tol": 0.001
+    },
+    "data.area": {
+     "close": 550,
+     "tol": 0.001
+    },
+    "data.added_area": {
+     "close": 150,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      40,
+      10,
+      15
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "args": {
+    "edges": [
+     "$e30.data.items.0.id"
+    ],
+    "distance": 0
+   },
+   "expect": {
+    "error.field": "/distance",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "args": {
+    "edges": [
+     "$e30.data.items.0.id"
+    ],
+    "method": "until"
+   },
+   "expect": {
+    "error.field": "/until",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

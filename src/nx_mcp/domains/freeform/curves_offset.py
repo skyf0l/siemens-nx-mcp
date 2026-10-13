@@ -1,0 +1,216 @@
+"""Offset curves: in the curves' plane by a distance, drafted out of it (height and angle),
+or 3D axial (along an axis direction).
+
+NX 2406 lessons kept here (``FeatureCollection.CreateOffsetCurveBuilder``):
+
+- ``CurvesToOffset`` is the builder's own section; ``OffsetDistance``, ``DraftHeight``,
+  ``DraftAngle`` and ``Offset3dDistance`` are expressions; ``AxialOffsetDirection`` a
+  smart direction. Corners are extended (``TrimMethod`` ``ExtendTangents``, the default).
+- ``ComputeOffsetDirection()`` returns NX's in-plane offset direction and its seed point on
+  the curves; it ignores ``ReverseDirection``. ``ReverseDirection`` flips the in-plane
+  side of distance and draft offsets (not the draft height); a negative draft height flips
+  both. The top-face loop of a 100 x 50 block at z 20 offset 5 went inward (90 x 40);
+  reversed, outward (110 x 60, corners extended); draft height 10 at 45 deg went to z 10
+  and inward 10 (80 x 30): the default height side follows NX's loop orientation. Editing
+  the committed feature (negated height, toggled reverse) did not move it, so a trial
+  build under ``tx.scratch()`` finds NX's height side and the real build negates the
+  height (and toggles the reverse) when it is against ``direction``.
+- Distance and draft need curves that span a plane: a single straight line is refused
+  ("Input curves form straight line, unable to determine offset plane").
+- 3D axial moves a line normal to the axis by the signed distance along the axis
+  (``ReverseDirection`` has no effect): +5 along z from z 0 gave z 5.
+- ``CurveFeatureCollection.CreateOffset3dCurveBuilder`` (Offset 3D Curve) is not used: a
+  100 mm line offset 5 with view direction z came out 98 mm long (ends trimmed by 1 mm).
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Annotated, Literal
+
+from nx_mcp.core.catalogue import tool
+from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.tx import Tx
+from nx_mcp.core.types import Angle, Direction, Doc, Items, Length, Point3, RefTo
+from nx_mcp.domains.freeform import curves_common as cc
+from nx_mcp.kit import builders, curve, expr, geom, readback, select, units
+
+StringRef = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
+TYPES = {"distance": "Distance", "draft": "Draft", "axial_3d": "Axial3d"}
+PLANE_HINT = "distance and draft need curves spanning a plane; for one straight line use axial_3d"
+
+
+class OffsetData(cc.CurvesData):
+    expected: float  # distance from the source curves that every offset point should have
+    measured_min: float  # nearest source distance over the sampled offset points
+    measured_max: float
+
+
+def _check(method, distance, height, angle, direction):
+    if method in ("distance", "axial_3d"):
+        if distance is None:
+            fail("NX_INVALID_ARGUMENT", f"{method} needs distance", field="/distance")
+        if method == "distance" and not float(distance) > 0:
+            fail("NX_INVALID_ARGUMENT", "distance must be positive (pick the side with toward)",
+                 field="/distance")  # fmt: skip
+        if method == "axial_3d" and geom.close(float(distance), 0.0, 1e-12):
+            fail("NX_INVALID_ARGUMENT", "distance must not be zero", field="/distance")
+        if method == "axial_3d" and direction is None:
+            fail("NX_INVALID_ARGUMENT", "axial_3d needs direction (the axis)", field="/direction")
+        return abs(float(distance))
+    if height is None or angle is None:
+        fail("NX_INVALID_ARGUMENT", "draft needs height and angle",
+             field="/height" if height is None else "/angle")  # fmt: skip
+    if not float(height) > 0:
+        fail("NX_INVALID_ARGUMENT", "height must be positive (pick its side with direction)",
+             field="/height")  # fmt: skip
+    if not -90.0 < float(angle) < 90.0:
+        fail("NX_INVALID_ARGUMENT", "angle must be between -90 and 90 degrees", field="/angle")
+    return float(height) * math.hypot(1.0, math.tan(math.radians(float(angle))))
+
+
+def _or_zero(value) -> float:
+    """A checked numeric argument as a float (0.0 when absent)."""
+    return 0.0 if value is None else float(value)
+
+
+def _configure(tx, b, method, sources, distance, height, angle, axis):
+    b.Type = getattr(tx.nx.Features.OffsetCurveBuilder.Types, TYPES[method])
+    tol = units.part_tolerance(tx)
+    b.Tolerance = tol
+    b.CurveFitData.Tolerance = tol
+    builders.curve_section(tx, sources, into=b.CurvesToOffset)
+    if method == "distance":
+        expr.drive(b.OffsetDistance, distance)
+    elif method == "draft":
+        expr.drive(b.DraftHeight, height)
+        expr.drive(b.DraftAngle, angle)
+    else:
+        expr.drive(b.Offset3dDistance, distance)
+        b.AxialOffsetDirection = builders.direction(tx, axis)
+
+
+def _side(tx, b):
+    """``(unit in-plane offset direction, seed point)`` NX computes for the curves."""
+    try:
+        with native(default="NX_BUILD_FAILED"):
+            vector, seed = b.ComputeOffsetDirection()
+    except NXError as error:
+        error.hint = PLANE_HINT
+        raise
+    return geom.unit(geom.xyz(vector)), geom.xyz(seed)
+
+
+def _nearest(tx, made, point):
+    """The point of the offset curves nearest ``point``."""
+    return min((curve.point_distance(tx, c, point) for c in made), key=lambda x: x[0])[1]
+
+
+def _build(tx, method, sources, values, axis, toward, flip=False):
+    """``(feature, in-plane side, seed)`` of one offset build; ``flip`` turns the draft
+    height over (a negated height flips both sides, so the in-plane side is reversed back)."""
+    distance, height, angle = values
+    with builders.build(tx, tx.part.Features.CreateOffsetCurveBuilder, None) as b:
+        _configure(tx, b, method, sources, distance, height, angle, axis)
+        side = seed = None
+        reverse = False
+        if method != "axial_3d":
+            side, seed = _side(tx, b)
+            if toward is not None and geom.dot(geom.sub(list(toward), seed), side) < 0:
+                reverse = True
+                side = geom.scale(side, -1)
+        if flip:
+            b.DraftHeight.RightHandSide = f"-({expr.rhs(height)})"
+            reverse = not reverse
+        b.ReverseDirection = reverse
+        feature = b.commit()
+    return feature, side, seed
+
+
+def _height_flipped(tx, method, sources, values, axis, toward) -> bool:
+    """Whether NX's draft height goes against ``axis``: a trial build, always undone."""
+    with tx.scratch():
+        feature, _side_, seed = _build(tx, method, sources, values, axis, toward)
+        moved = geom.sub(_nearest(tx, cc.output_curves(tx, feature), seed), seed)
+    return geom.dot(moved, axis) < 0
+
+
+def _measured(tx, made, sources):
+    distances = []
+    for c in made[: cc.MAX_SAMPLED]:
+        tx.checkpoint()
+        for p in cc.samples(tx, c):
+            distances.append(min(curve.point_distance(tx, s, p)[0] for s in sources))
+    return min(distances), max(distances)
+
+
+@tool(
+    effect="model",
+    label="Create offset curve",
+    summary={
+        "distance": "Offset {curves} by {distance}",
+        "draft": "Draft offset {curves} {height} high",
+        "axial_3d": "Offset {curves} {distance} along an axis",
+    },
+    keywords=("offset curve", "parallel curve", "draft offset", "3d axial offset", "offset edges"),
+    requires=("work_part", "no_active_sketch"),
+    variants="method",
+    required_by={
+        "distance": ("distance",),
+        "draft": ("height", "angle"),
+        "axial_3d": ("distance", "direction"),
+    },
+    cost="heavy",
+    previewable=True,
+    example={"curves": ["e:4", "e:5", "e:6", "e:7"], "method": "distance", "distance": 5},
+)
+def nx_create_offset_curve(
+    tx: Tx,
+    *,
+    curves: Annotated[list[StringRef], Items(1, 200), Doc("Chained curves or edges")],
+    method: Literal["distance", "draft", "axial_3d"] = "distance",
+    distance: Annotated[Length, Doc("distance: > 0; axial_3d: signed along direction")]
+    | None = None,
+    height: Annotated[Length, Doc("draft: > 0, out of the curves' plane")] | None = None,
+    angle: Annotated[Angle, Doc("draft: from the height direction; 0 = straight")] | None = None,
+    direction: Annotated[Direction, Doc("axial_3d: the axis; draft: height side (default NX's)")]
+    | None = None,
+    toward: Annotated[Point3, Doc("distance/draft: a point on the side to offset to")]
+    | None = None,
+) -> OffsetData:
+    """Create an associative offset curve from chained curves or edges. distance: in their
+    plane, toward picks the side (else NX's); draft: height out of the plane (direction picks
+    which way) plus height x tan(angle) in it; axial_3d: moved by the signed distance along
+    an axis, normal to the tangent. distance/draft need planar curves, not one line; corners
+    extend. Faces: nx_create_offset_surface."""
+    expected = _check(method, distance, height, angle, direction)
+    with tx.checks():
+        sources = cc.strings(tx, curves, "/curves")
+        axis = select.direction(tx, direction, "/direction") if direction is not None else None
+    cc.licensed(tx)
+    values = (distance, height, angle)
+    flip = method == "draft" and axis is not None
+    flip = flip and _height_flipped(tx, method, sources, values, axis, toward)
+    feature, side, seed = _build(tx, method, sources, values, axis, toward, flip)
+    made = cc.output_curves(tx, feature)
+    low, high = _measured(tx, made, sources)
+    limit = cc.gap_tolerance(tx)
+    readback.expect(abs(low - expected) <= limit, "distance", "The offset is not at the distance",
+                    expected=expected, measured_min=low)  # fmt: skip
+    if seed is None:  # axial_3d: moved along the axis by the sign of the distance
+        seed = cc.samples(tx, sources[0], 3)[1]
+        side = geom.scale(axis, 1.0 if _or_zero(distance) > 0 else -1.0)
+    moved = geom.sub(_nearest(tx, made, seed), seed)
+    flat = method == "draft" and geom.close(_or_zero(angle), 0.0, 1e-12)  # no in-plane move
+    if (toward is not None and not flat) or method == "axial_3d":
+        readback.expect(geom.dot(moved, side) > 0, "side", "The offset went to the other side",
+                        moved=moved)  # fmt: skip
+    if method == "draft" and axis is not None:
+        readback.expect(geom.dot(moved, axis) > 0, "height", "The draft height went the other "
+                        "way", moved=moved)  # fmt: skip
+    return {
+        **cc.describe(tx, feature, made),
+        "expected": expected,
+        "measured_min": low,
+        "measured_max": high,
+    }

@@ -628,7 +628,8 @@ def nx_set_component_pose(
 ) -> PoseData:
     """Place a direct component at an absolute pose, or move it relative to its pose. absolute
     without rotation means no rotation. relative turns it about its own origin by rotation,
-    then shifts it by translation. Returns the previous pose."""
+    then shifts it by translation. Returns the previous pose. It moves the component in
+    every arrangement; nx_set_arrangement_component sets a per-arrangement pose."""
     r = common.rotation(rotation, "/rotation") if rotation is not None else None
     t = [float(v) for v in translation]
     with tx.checks():

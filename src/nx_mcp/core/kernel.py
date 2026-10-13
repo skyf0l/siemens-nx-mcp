@@ -18,7 +18,8 @@ invalidation, 13 annotation refresh, 14 result projection, 15 error mapping.
 Nothing else applies gates. Around 8-15 a non-read call's loads become barriers in the
 undo history and dropped undo marks get their reason (``core/marks.py``); a committed
 changing call stamps the parts it worked in (``core/busy.py``). Gate 4's
-``no_active_sketch`` also refuses in a part whose sketch is parked (``core/parking.py``).
+``no_active_sketch`` also refuses in a part whose sketch is parked (``core/parking.py``);
+an active drafting (sheet) sketch NX re-activated is deactivated instead of refusing.
 
 Batch placeholders: a Ref field of a child may be ``"$<i>.<path>"`` naming the
 result envelope of child ``i`` (0-based, earlier children only), e.g.
@@ -298,14 +299,27 @@ def _gate_requires(spec, services: Services) -> None:  # gate 4
                 )
             continue
         if item == "no_active_sketch":  # NX's active sketch, or the target's parked one
-            ok = not state.get("active_sketch") and not parking.open_in(
-                services, services.work_part()
-            )
+            active = bool(state.get("active_sketch")) and not _release_drafting(services)
+            ok = not active and not parking.open_in(services, services.work_part())
         else:
             ok = bool(state.get(item))
         if not ok:
             code, message, hint = REQUIRE_FAILURES[item]
             fail(code, message, hint=hint)
+
+
+def _release_drafting(services: Services) -> bool:
+    """Gate 4 ``no_active_sketch``: an active drafting (sheet) sketch does not block.
+    NX re-activates a sheet's last sheet sketch on opening the sheet; the services
+    deactivate it quietly (``release_drafting_sketch``) and the call goes on. A model
+    sketch stays active and still refuses. Services without the seam release nothing."""
+    release = getattr(services, "release_drafting_sketch", None)
+    if release is None:
+        return False
+    try:
+        return bool(release())
+    except Exception:
+        return False  # it stays active: NX_SKETCH_ACTIVE as before
 
 
 def _gate_ownership(spec, services: Services, args: dict) -> dict | None:  # gate 6 (before)
