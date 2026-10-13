@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/visual_materials.json",
-  "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+  "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",
   "domain": "display",
   "covers": {
     "nx_list_visual_materials": [],
@@ -21,7 +21,7 @@
     "nx_create_decal": "1742db3e53339e3fbb9eea70115e58feca5557c65f604ed9733d0a59a902ab01",
     "nx_delete_decal": "1742db3e53339e3fbb9eea70115e58feca5557c65f604ed9733d0a59a902ab01"
   },
-  "recorded": "2026-10-13T12:21:39Z",
+  "recorded": "2026-10-13T15:40:57Z",
   "passed": true,
   "checks": 62,
   "failed_checks": 0,

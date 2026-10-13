@@ -40,7 +40,7 @@ class FakeSession:
 
 
 NXOPEN = NS(
-    Session=NS(MarkVisibility=NS(Visible=1, Invisible=0)),
+    Session=NS(MarkVisibility=NS(Visible=1, Invisible=0, AnyVisibility=2)),
     DisplayPartOption=NS(AllowAdditional=1, ReplaceExisting=0),
     PartDisplayPartWorkPartOption=NS(SameAsDisplay=0),
 )
@@ -70,6 +70,34 @@ def test_development_tool_failure_rolls_back_its_undo_mark(tmp_path):
     with pytest.raises(NXError) as error:
         dispatch.execute(s, "nx_dev_python", {"unexpected": 1})
     assert error.value.code == "NX_INVALID_ARGUMENT"
+
+
+class MarkingSession(FakeSession):
+    """NX's newest undo mark: a snippet's own SetUndoMark (or NX's) makes it newer."""
+
+    def GetNewestUndoMark(self, visibility):
+        assert visibility == 2  # AnyVisibility
+        return max(self.marks, default=None)
+
+
+def test_a_development_snippet_that_changed_nothing_leaves_no_mark_or_operation(tmp_path):
+    s = NXServices(MarkingSession(), NXOPEN, "test", Workspace(tmp_path / "ws"))
+    s.dev_tools["nx_dev_python"] = lambda: {"result": "42"}
+    probe = dispatch.execute(s, "nx_dev_python", {"operation_id": "op_dev_probe1"})
+    assert probe["mutation_outcome"] == "not_applicable" and probe["result"] == "42"
+    assert s.history == [] and s.session.marks == {} and s.epoch == 0
+
+    def journal():  # a snippet that changes the model under its own mark, as journals do
+        s.session.SetUndoMark(1, "edit")
+        s.session.values.append(1)
+
+    s.dev_tools["nx_dev_python"] = journal
+    done = dispatch.execute(s, "nx_dev_python", {"operation_id": "op_dev_edit01"})
+    assert done["mutation_outcome"] == "committed" and s.epoch == 1
+    assert [(h["operation_id"], h["method"]) for h in s.history] == [
+        ("op_dev_edit01", "nx_dev_python")
+    ]
+    assert len(s.session.marks) == 2  # the call's own mark and the snippet's
 
 
 def test_unknown_methods_are_refused_without_dev_tools(tmp_path):

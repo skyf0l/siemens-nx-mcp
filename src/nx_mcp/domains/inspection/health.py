@@ -3,9 +3,12 @@
 ``nx_check_model`` reads native feature errors and warnings, suppression, unloaded or
 suppressed components, unsolved assembly constraints (the solver status NX keeps: a
 constraint whose edge a prototype edit consumed reports CannotSolve, an error; NotSolved
-or OutOfDate is a warning), UF body consistency and sealed internal voids (a solid body
-with more than one shell, ``voids``: a warning with each void's facet volume and box);
-it does not run a model update.
+or OutOfDate is a warning), UF body consistency, self-overlapping solids (Examine
+Geometry's body face intersections, ``kit.bodies.clashing_faces``: an error naming the
+faces; a tube wider than its helix pitch passes UF consistency) and sealed internal voids
+(a solid body with more than one shell, ``voids``: a warning with each void's facet
+volume and box); it does not run a model update. Examine Geometry runs on the first
+``CLASH_BODIES`` solids of a call (an info issue counts the rest).
 Shared prototypes are checked once. ``nx_get_model_summary`` pages the feature tree,
 expressions, sketches and components, and gives counts, bounds and health for the
 overview.
@@ -24,6 +27,12 @@ from nx_mcp.domains.inspection import voids
 from nx_mcp.kit import bodies, expr, measure, parts, positioning, result
 from nx_mcp.kit import features as kfeatures
 
+CLASH_BODIES = 50  # solids examined for self-overlap per call (Examine Geometry's cost)
+LISTED_FACES = 10  # clashing faces named per body
+CLASH_ADVICE = (
+    "the body overlaps itself (parts of a sweep path closer than its section, e.g. a tube "
+    "wider than its helix pitch): use a smaller section or move the path apart"
+)
 CONSTRAINT_ADVICE = (
     "its geometry may be gone after a part edit; re-create it on current geometry, or edit "
     "or suppress it with nx_edit_assembly_constraint"
@@ -42,6 +51,7 @@ class Issue(TypedDict, total=False):
     voids: list[dict[str, Any]]
     status: str
     components: list[str]
+    faces: list[result.Row]
 
 
 class Counts(TypedDict):
@@ -75,8 +85,29 @@ def _fault(tx, owner, code, tag):
     return fault
 
 
-def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
-    """``(issues, counts)`` of the work part or the whole loaded assembly."""
+def _clash(tx, owner, where, body) -> Issue | None:
+    """The self-overlap error of ``body`` (Examine Geometry), or None."""
+    found = bodies.clashing_faces(tx, body, owner)  # NX lists each clashing pair: repeats
+    faces = list({int(f.Tag): f for f in found}.values())
+    if not faces:
+        return None
+    named = []
+    for face in faces[:LISTED_FACES]:
+        with contextlib.suppress(Exception):
+            named.append(tx.ref(face, kind="face", part=owner))
+    return {
+        "severity": "error",
+        "kind": "self_intersection",
+        "part": where,
+        "object": tx.ref(body, kind="body", part=owner),
+        "message": f"{len(faces)} faces cut other faces of the body: {CLASH_ADVICE}",
+        "faces": named,
+    }
+
+
+def diagnose(tx, scope="part", *, clashes: bool = True) -> tuple[list[Issue], Counts]:
+    """``(issues, counts)`` of the work part or the whole loaded assembly; ``clashes``
+    examines the first ``CLASH_BODIES`` solids for self-overlap."""
     part = tx.part
     checked = {int(part.Tag): part}
     issues: list[Issue] = []
@@ -93,7 +124,7 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
                 issues.append({"severity": "warning", "kind": "unloaded_component", "path": path})
             else:
                 checked.setdefault(int(prototype.Tag), prototype)
-    features = solids = 0
+    features = solids = examined = skipped = 0
     for owner in checked.values():
         where = tx.services.part_path(owner)
         for row in positioning.unsolved(tx, owner):
@@ -157,6 +188,15 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
                         ],
                     }
                 )
+            if clashes and getattr(body, "IsSolidBody", False):
+                if examined < CLASH_BODIES:
+                    examined += 1
+                    tx.checkpoint()
+                    clash = _clash(tx, owner, where, body)
+                    if clash is not None:
+                        issues.append(clash)
+                else:
+                    skipped += 1
             if getattr(body, "IsSolidBody", False):
                 with native():
                     groups = voids.shells(body)
@@ -172,6 +212,15 @@ def diagnose(tx, scope="part") -> tuple[list[Issue], Counts]:
                             "voids": voids.voids(tx, body, groups),
                         }
                     )
+    if skipped:
+        issues.append(
+            {
+                "severity": "info",
+                "kind": "self_intersection",
+                "message": f"{skipped} solid bodies past the first {CLASH_BODIES} were not "
+                "examined for self-overlap",
+            }
+        )
     counts: Counts = {
         "errors": sum(i["severity"] == "error" for i in issues),
         "warnings": sum(i["severity"] == "warning" for i in issues),
@@ -198,8 +247,9 @@ def nx_check_model(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> HealthData:
-    """Check feature errors/warnings, suppression, unloaded components, unsolved constraints,
-    body consistency, sealed voids. healthy: no errors or warnings; no update."""
+    """Check feature errors/warnings, suppression, unloaded components, unsolved constraints
+    and bodies. Bodies: consistency, self-overlap, sealed voids. healthy: no errors or
+    warnings; no update."""
     issues, counts = diagnose(tx, scope)
     selected, page = result.page(issues, offset, limit)
     return {

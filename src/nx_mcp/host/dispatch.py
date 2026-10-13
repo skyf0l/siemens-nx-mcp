@@ -16,7 +16,8 @@ when not already loaded); the engineer grants a part on the NX MCP panel
 (:func:`grant_state`, :func:`set_grant`). ``NX_MCP_DEV=1`` turns the gate off.
 
 Development tools (``services.dev_tools``, only ``nx_dev_python`` from the
-development launcher) run under one visible undo mark that rolls back on failure.
+development launcher) run under one visible undo mark that rolls back on failure; a
+snippet that changed nothing leaves no mark and no agent operation.
 """
 
 from __future__ import annotations
@@ -144,7 +145,9 @@ def run(services, spec, params: dict) -> dict:
 
 
 def run_dev_tool(services, method: str, handler, params: dict) -> dict:
-    """A development tool under one visible undo mark; a failure is rolled back."""
+    """A development tool under one visible undo mark (``NX MCP dev: ...``); a failure
+    is rolled back. A snippet that changed nothing (:func:`_dev_changed`) leaves no undo
+    mark and no agent operation: its outcome is ``not_applicable``, like a read."""
     operation_id = params.get("operation_id") or new_operation_id()
     params = {k: v for k, v in params.items() if k not in CALL_KEYS + TARGET_KEYS}
     try:
@@ -154,8 +157,8 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     part = services.work_part()
     shown = services.shown_parts()
     before = services.snapshot(part) if part is not None else {}
-    mark = services.set_mark("NX MCP: " + method)
-    services.epoch += 1
+    state = _dev_state(services)
+    mark = services.set_mark("NX MCP dev: " + method)
     loaded = services.loaded()
     depth = None
     with contextlib.suppress(Exception):
@@ -163,6 +166,7 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     try:
         result = dict(handler(**params) or {})
     except BaseException as error:  # a snippet's SystemExit is a failed call, not a host exit
+        services.epoch += 1
         failure = error if isinstance(error, NXError) else classify(error)
         if failure.trace:  # a development tool's caller is the developer: show the stack
             failure.details["traceback"] = failure.trace
@@ -174,12 +178,44 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     try:
         after = services.snapshot(part) if part is not None else {}
     except Exception:  # the snippet closed the part it started in
+        services.epoch += 1
         services.invalidate_parts(services.parts())
         return _dev_result(services, result, operation_id)
     services.invalidate(before, after, True)
-    if not _engineer_edit(services, depth):  # a snippet the host took as the engineer's
-        services.record_history(mark, part, operation_id, method)
+    if _engineer_edit(services, depth):  # a snippet the host took as the engineer's
+        services.epoch += 1
+        return _dev_result(services, result, operation_id)
+    if not _dev_changed(services, mark, before, after, state):
+        with contextlib.suppress(Exception):
+            services.delete_mark(mark)
+        return _dev_result(services, result, operation_id, "not_applicable")
+    services.epoch += 1
+    services.record_history(mark, part, operation_id, method)
     return _dev_result(services, result, operation_id)
+
+
+def _dev_state(services) -> tuple:
+    """What a model change moves, besides the work part's objects: the loaded parts
+    and every loaded part's modified flag."""
+    flags: dict = {}
+    with contextlib.suppress(Exception):
+        for part in services.parts() or []:
+            with contextlib.suppress(Exception):
+                flags[services.part_key(part)] = bool(part.IsModified)
+    return services.loaded(), flags
+
+
+def _dev_changed(services, mark, before: dict, after: dict, state: tuple) -> bool:
+    """Whether a development snippet may have changed the model: anything NX recorded
+    after its mark (a newer undo mark), objects of the work part created or deleted,
+    parts loaded or closed, or a part newly modified. Unknown counts as changed."""
+    newest = getattr(services, "newest_mark", None)
+    try:
+        if newest is None or newest() != mark:
+            return True
+    except Exception:
+        return True
+    return set(before) != set(after) or _dev_state(services) != state
 
 
 def _engineer_edit(services, depth: int | None) -> bool:
@@ -192,13 +228,13 @@ def _engineer_edit(services, depth: int | None) -> bool:
     return False
 
 
-def _dev_result(services, result: dict, operation_id: str) -> dict:
+def _dev_result(services, result: dict, operation_id: str, outcome: str = "committed") -> dict:
     return {
         "status": "success",
         **result,
         "operation_id": operation_id,
         "session_id": services.session_id,
-        "mutation_outcome": "committed",
+        "mutation_outcome": outcome,
         "warnings": list(result.get("warnings", [])),
     }
 

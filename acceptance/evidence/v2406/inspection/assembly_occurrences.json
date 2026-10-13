@@ -15,13 +15,13 @@
   "nx_build": "2406.9160",
   "sources": {
     "nx_list_objects": "d314cb2ff9eafcf6a25313ac7b841aa2bf3694f72db2ae1b51548a717194e4fa",
-    "nx_find_geometry": "d25d9d14f976b4989abb0bbf5d0b0da60d18b2753ec52ed25de6f529c2b753c1",
-    "nx_measure_bounds": "ea453162ecbb3b4065ae1ffb76eda0a556e74008fd3aec784a9a0ecf5ffe784f",
-    "nx_measure_distance": "ea453162ecbb3b4065ae1ffb76eda0a556e74008fd3aec784a9a0ecf5ffe784f",
-    "nx_check_interference": "00d283862e5df91400e1fc520d5b004566f09133c1d3302d72c849bb5133bd9b",
-    "nx_resolve_reference": "d25d9d14f976b4989abb0bbf5d0b0da60d18b2753ec52ed25de6f529c2b753c1"
+    "nx_find_geometry": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21",
+    "nx_measure_bounds": "9702aece81889dda898975a1ce94443250b29a84a933b017e696789aba55ccd6",
+    "nx_measure_distance": "9702aece81889dda898975a1ce94443250b29a84a933b017e696789aba55ccd6",
+    "nx_check_interference": "3a6c64f93df18c52f2bfed2ce31ef3a69b87574344f61313f058e91c16a67cf5",
+    "nx_resolve_reference": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21"
   },
-  "recorded": "2026-10-13T07:27:10Z",
+  "recorded": "2026-10-13T13:51:39Z",
   "passed": true,
   "checks": 55,
   "failed_checks": 0,

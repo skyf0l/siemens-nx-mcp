@@ -275,3 +275,25 @@ def test_an_ascii_stl_written_with_an_extra_suffix_is_published(nx, root):
     ok = export(nx, part="m", path="t.stl", format="stl", options={"binary": False})
     assert ok.ok, ok
     assert (root / "t.stl").is_file() and not list(root.glob("t.stl.*"))
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "says"),
+    [
+        ("chordal_tolerance", -0.01, "> 0"),
+        ("chordal_tolerance", 0, "> 0"),
+        ("chordal_tolerance", "-0.5 mm", "> 0"),
+        ("angular_tolerance", -5, "> 0"),
+        ("angular_tolerance", 0, "> 0"),
+        ("angular_tolerance", 120, "<= 90"),
+    ],
+)
+def test_stl_tolerances_out_of_range_are_refused_before_nx(nx, root, option, value, says):
+    """A zero or negative STL tolerance never reaches the translator: gate 1 (or gate 9
+    for a unit string) refuses it, not started, naming the option."""
+    modified_part(nx)
+    bad = export(nx, part="m", path="t.stl", format="stl", options={option: value})
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == f"/options/{option}" and says in bad.error["message"]
+    assert bad.mutation_outcome == "not_started" and not nx.exporters
+    assert not (root / "t.stl").exists()

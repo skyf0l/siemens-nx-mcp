@@ -115,3 +115,26 @@ def test_value_or_none_swallows_unreadable_expressions():
         raise NXException(1050017, "no value")
 
     assert expr.value_or_none(nx.tx, NS(Type="Number", GetValueUsingUnits=refuse)) is None
+
+
+def test_units_are_the_short_names_the_tools_take():
+    """NX 2406 abbreviates Degrees as a degree sign; tools say deg everywhere."""
+    assert expr.units(NS(Units=NS(Name="Degrees", Abbreviation="°"))) == "deg"
+    assert expr.units(NS(Units=NS(Name="Radian", Abbreviation="rad"))) == "rad"
+    assert expr.units(NS(Units=NS(Name="Inch", Abbreviation="in"))) == "in"
+    assert expr.units(NS(Units=NS(Name="Other", Abbreviation="°"))) == "deg"
+    assert expr.units(NS(Units=NS(Name="Newton", Abbreviation="N"))) == "N"
+
+
+def test_tube_diameter_aliases_match_only_a_tube():
+    """NX 2406 describes a tube's outer diameter as Limit 1 and the inner as Limit 2 (live:
+    OD 10, ID 4 -> p0 (Tube(2) Limit 1) = 10, p1 (Tube(2) Limit 2) = 4)."""
+    outer = NS(Name="p0", Description="(Tube(2) Limit 1)")
+    inner = NS(Name="p1", Description="(Tube(2) Limit 2)")
+    tube = NS(GetExpressions=lambda: [outer, inner])
+    assert expr.alias(tube, "outer_diameter") is outer
+    assert expr.alias(tube, "inner_diameter") is inner
+    other = NS(GetExpressions=lambda: [NS(Name="p5", Description="Revolve(3) Limit 1")])
+    err = _code(expr.alias, other, "outer_diameter")
+    assert err.code == "NX_NOT_FOUND" and err.details["expressions"][0]["name"] == "p5"
+    assert {"outer_diameter", "inner_diameter", "distance"} <= set(expr.alias_names())

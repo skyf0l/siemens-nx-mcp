@@ -9,6 +9,7 @@
     bodies.faulty(tx, found)           # tags UF body consistency faults (self-intersecting)
     bodies.expect_sound(tx, made, known=...)  # after a build: consistency faults fail
     bodies.scale_note(tx, made)        # warning text when the bodies span over 10 m
+    bodies.expect_no_clash(tx, made)   # after a build: faces cutting each other fail
 
 Occurrence bodies come from ``component.FindOccurrence(prototype_body)``, so
 suppressed components, unloaded prototypes and reference sets are honoured the way
@@ -228,3 +229,67 @@ def scale_note(tx, made) -> str | None:
     if span <= limit:
         return None
     return f"The result spans {span:.6g} {unit} (over 10 m): check the values and units"
+
+
+CLASH_HINT = (
+    "The body overlaps itself: parts of the path come closer than the section's size (a "
+    "tube wider than its helix pitch, loops of the path crossing). Use a smaller section "
+    "or move the path apart"
+)
+
+
+def face_clashes(tx, body) -> int:
+    """Faces of ``body`` that cut its other faces (NX Examine Geometry, body face
+    intersections): a self-overlapping solid, e.g. a tube wider than its helix pitch,
+    which UF consistency passes (NX 2406, measured). 0 when NX cannot tell."""
+    return len(clashing_faces(tx, body))
+
+
+def clashing_faces(tx, body, part=None) -> list:
+    """The faces :func:`face_clashes` counts (NX's failed objects of the body face
+    intersection check), examined in ``part`` (default the work part); ``[]`` when NX
+    cannot tell."""
+    manager = getattr(part if part is not None else tx.part, "AnalysisManager", None)
+    create = getattr(manager, "CreateExamineGeometryObject", None)
+    if create is None:
+        return []
+    examine = None
+    try:
+        check = tx.nx.GeometricAnalysis.ExamineGeometry.Check.BodyFaceIntersections
+        examine = create()
+        examine.ClearAllChecks()
+        examine.SetCheck(check)
+        examine.ObjectsToExamine.Add([body])
+        examine.Examine()
+        return list(examine.GetFailedObjects(check) or [])
+    except Exception:  # NX cannot examine this body: no verdict
+        return []
+    finally:
+        if examine is not None:
+            with contextlib.suppress(Exception):
+                examine.Destroy()
+
+
+def clashing(tx, found) -> set[int]:
+    """Tags of the bodies in ``found`` whose faces already cut each other (before a
+    change: such a body does not fail :func:`expect_no_clash`)."""
+    return {int(b.Tag) for b in found if face_clashes(tx, b)}
+
+
+def expect_no_clash(tx, made, *, known=(), check="body_health", hint=CLASH_HINT) -> None:
+    """After a build: ``NX_BUILD_FAILED`` (the kernel rolls back) when a body in ``made``
+    overlaps itself (:func:`face_clashes`) and did not before (``known``: tags from
+    :func:`clashing`)."""
+    skip = {int(t) for t in known}
+    for body in made:
+        if int(body.Tag) in skip:
+            continue
+        count = face_clashes(tx, body)
+        if count:
+            fail(
+                "NX_BUILD_FAILED",
+                f"NX built a self-overlapping body ({count} faces cut other faces of it); "
+                "it was rolled back",
+                hint=hint,
+                details={"check": check, "face_intersections": count},
+            )

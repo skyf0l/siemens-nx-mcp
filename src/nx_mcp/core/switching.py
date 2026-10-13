@@ -18,6 +18,9 @@ and puts the engineer's state back when the call ends (:func:`enter`, :meth:`Bou
 No switch, no binding and no NX call when the target *is* the work part (one part
 loaded, or the call targets the work part), or when it is the display part and the call
 did not name it (``part``): a call in the displayed assembly's context behaves as before.
+A display-bound call that names (``part``, refs, its own object) a work part NX does not
+display (a quiet work part, a work component's prototype) still shows it: the call
+would otherwise act on the engineer's displayed part.
 ``NX_MCP_SWITCH=display`` makes model tools switch the display instead of the work part.
 
 After the handler the work part must still be the target (:meth:`Bound.check`, before
@@ -43,6 +46,7 @@ from nx_mcp.core.errors import NXError
 ENV = "NX_MCP_SWITCH"  # "display": model tools switch the display part too
 DISPLAY_REFRESHERS = frozenset({"drawing_view", "drawing_table", "dimension", "annotation"})
 LOG_KEPT = 500  # switch log entries kept (Services.switch_log)
+NAMED_SOURCES = frozenset({"part", "refs", "resolver"})  # Target.source of a named target
 DEFERRED_NOTE = (
     "{file} is not displayed, so its drawing views and annotations were not refreshed "
     "(NX updates them only on the displayed part); they refresh on its next drawing call or "
@@ -226,7 +230,9 @@ def enter(spec, args, target, services, *, explicit: bool, nested: bool = False)
             mode != "display" or same(services, target.part, display)
         ):
             return bound  # the parent's part, or shown already: no NX call
-    elif same(services, target.part, work):
+    elif same(services, target.part, work) and not (
+        mode == "display" and display is not None and hidden and named(target, explicit)
+    ):
         return bound  # the work part: as before, no NX call
     elif same(services, target.part, display) and (mode == "display" or not explicit):
         return bound  # displayed already (a work component under it stays): as before
@@ -245,6 +251,12 @@ def enter(spec, args, target, services, *, explicit: bool, nested: bool = False)
         return bound
     bound.switch = switch
     return bound
+
+
+def named(target, explicit: bool) -> bool:
+    """Whether the call named its target: ``part``, or refs or its own object (resolver)
+    in that part. An unnamed call acts on the work part as NX has it."""
+    return explicit or getattr(target, "source", None) in NAMED_SOURCES
 
 
 def _loaded(services, part) -> bool:

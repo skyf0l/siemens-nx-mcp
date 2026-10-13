@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/display/multipart_display.json",
-  "scenario_sha256": "1186e9ef2a899541f938cec3d3f98bfbc0510869a0490550f7b7d43b565e0950",
+  "scenario_sha256": "324fa110c6d23e6817017b19a41505419b33f6a6fd6b6065df25c7ac67f6d03f",
   "domain": "display",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-12T09:50:37Z",
+  "recorded": "2026-10-13T14:37:33Z",
   "passed": true,
-  "checks": 50,
+  "checks": 97,
   "failed_checks": 0,
   "steps": [
     {
@@ -147,6 +147,118 @@
     },
     {
       "index": 20,
+      "call": "nx_get_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_get_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 25,
+      "call": "nx_create_section_view",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 26,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 28,
+      "call": "nx_delete_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 29,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 30,
+      "call": "nx_set_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 31,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 32,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 33,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 34,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 35,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 36,
       "call": "nx_get_camera",
       "setup": false,
       "passed": true,

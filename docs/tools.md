@@ -490,7 +490,7 @@ No arguments.
 
 **Capture view** · effect `view` · NX 2406: tested; 65 checks in `acceptance/display/natural_args.json`
 
-PNG of the shown view or a sheet, to path or captures/; inline only with inline=true or no path. view_from/up aim it. Shows the displayed part only.
+PNG of the shown view or a sheet, to path or captures/; inline only with inline=true or no path. view_from/up aim it. Without part, the displayed part; part X shows X for it.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -580,7 +580,7 @@ Read blank state, colour and transparency of objects; bodies list their faces to
 
 **Get camera** · effect `read` · NX 2406: tested; 54 checks in `acceptance/display/view_directions.json`
 
-Read the displayed view: camera rotation, origin, scale and rendering style, or the shown drawing sheet. Always the displayed part's, whatever part names. origin is what nx_set_camera takes back; view is a named view or custom, view_angle the degrees off the nearest.
+Read a part's view: camera rotation, origin, scale and rendering style, or the shown drawing sheet. Without part, the displayed part's; part X shows X for the read, then the display comes back. origin is what nx_set_camera takes back; view is a named view or custom, view_angle the degrees off the nearest.
 
 No arguments.
 
@@ -776,7 +776,7 @@ Create an associative dimension on edges in a drawing view, checked against the 
 
 **Create drawing sheet** · effect `model` · NX 2406: tested; 23 checks in `acceptance/drawing/inch_units.json`
 
-Create a drawing sheet from a standard or custom size or a sheet template, and open it. Default A3; the installed A0-A4 templates are metric. A template sets the sheet size: give template or size. Views take the sheet scale by default.
+Create a drawing sheet from a standard or custom size or a sheet template, and open it. Default A3; the installed A0-A4 templates are metric. A template sets the sheet size: give template or size, not both (refused). Views take the sheet scale by default.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -808,7 +808,7 @@ Place a surface-finish or weld symbol with a leader to an edge or face shown in 
 
 ### `nx_create_drawing_table`
 
-**Create drawing table** · effect `model` · NX 2406: tested (all variants); 53 checks in `acceptance/drawing/title_block.json`
+**Create drawing table** · effect `model` · NX 2406: tested (all variants); 54 checks in `acceptance/drawing/title_block.json`
 
 Place a parts list, bend, title block, revision or hole table. Parts lists need an assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title blocks and revisions take rows (one cell per width) and widths. position is a title block's bottom-right corner and a revision table's top-left corner (rows grow down); the result's bounds give the extent.
 
@@ -981,7 +981,7 @@ Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (r
 
 ### `nx_edit_drawing_table`
 
-**Edit drawing table** · effect `model` · NX 2406: tested (all variants); 53 checks in `acceptance/drawing/title_block.json`
+**Edit drawing table** · effect `model` · NX 2406: tested (all variants); 54 checks in `acceptance/drawing/title_block.json`
 
 Edit a drawing table of the given kind, or move it. Title blocks and revisions take rows, widths and row height; title blocks also cells (text, <W@TITLE> attribute link or lock, by label or row/column); parts lists columns; bend tables column order and update mode.
 
@@ -990,8 +990,8 @@ Edit a drawing table of the given kind, or move it. Title blocks and revisions t
 | `table` | Ref | required | Ref: drawing_table |
 | `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` \| `hole` | optional |  |
 | `rows` | array[1-100] of array[1-20] of string | optional |  |
-| `widths` | array[1-20] of SheetLength | optional |  |
-| `row_height` | SheetLength | optional | Sheet units, or '10 mm' |
+| `widths` | array[1-20] of number or string | optional |  |
+| `row_height` | number or string | optional | Sheet units, or '10 mm' |
 | `position` | array[2] of number | optional | [x, y] on the sheet, sheet units |
 | `columns` | array[1-20] of object {action, index, title, width, field, key, protected} | optional |  |
 | `bend_columns` | array[1-5] of `id` \| `name` \| `angle` \| `direction` \| `radius` | optional |  |
@@ -1035,7 +1035,7 @@ Read a drawing dimension: measured value, format, tolerance and sheet position. 
 
 ### `nx_get_drawing_table`
 
-**Get drawing table** · effect `read` · NX 2406: tested; 53 checks in `acceptance/drawing/title_block.json`
+**Get drawing table** · effect `read` · NX 2406: tested; 54 checks in `acceptance/drawing/title_block.json`
 
 Read a drawing table, or a sheet's title block. Give exactly one of table (that table) or sheet (its title block, plus tables: every table on the sheet). Gives kind, rows, columns, update mode and position (the anchor given at creation); title blocks list cells (label, lock, text with <W@TITLE> links, value).
 
@@ -1583,7 +1583,7 @@ Compare two versions of a solid face by face, plus volume and area differences. 
 
 ### `nx_analyze_curve`
 
-**Analyze curve** · effect `read` · NX 2406: tested; 113 checks in `acceptance/inspection/analysis.json`
+**Analyze curve** · effect `read` · NX 2406: tested; 127 checks in `acceptance/inspection/analysis.json`
 
 Sample points, unit tangents and curvature along a curve or edge at evenly spaced parameters 0..1. Edge curvature is a tangent-difference estimate; splines add degree, knots and poles.
 
@@ -1594,7 +1594,7 @@ Sample points, unit tangents and curvature along a curve or edge at evenly space
 
 ### `nx_analyze_faces`
 
-**Analyze faces** · effect `read` · NX 2406: tested; 113 checks in `acceptance/inspection/analysis.json`
+**Analyze faces** · effect `read` · NX 2406: tested; 127 checks in `acceptance/inspection/analysis.json`
 
 Sample normals and principal curvatures on a UV grid of each face, grouped per face. Trimmed-out points are skipped; pull_direction adds draft (90 faces the pull, 0 a wall along it, <0 undercut).
 
@@ -1607,7 +1607,7 @@ Sample normals and principal curvatures on a UV grid of each face, grouped per f
 
 ### `nx_check_continuity`
 
-**Check continuity** · effect `read` · NX 2406: tested; 113 checks in `acceptance/inspection/analysis.json`
+**Check continuity** · effect `read` · NX 2406: tested; 127 checks in `acceptance/inspection/analysis.json`
 
 Check G0/G1/G2 continuity of two edges or curves. Surface mode samples two sheet boundary edges along their length; curve mode compares them at their nearest ends (junction). G1/G2 are null when a sample cannot be evaluated.
 
@@ -1647,9 +1647,9 @@ Check interference and clearance between the solid bodies of objects. No objects
 
 ### `nx_check_model`
 
-**Check model health** · effect `read` · NX 2406: tested; 19 checks in `acceptance/inspection/sealed_void.json`
+**Check model health** · effect `read` · NX 2406: tested; 19 checks in `acceptance/inspection/self_overlap.json`
 
-Check feature errors/warnings, suppression, unloaded components, unsolved constraints, body consistency, sealed voids. healthy: no errors or warnings; no update.
+Check feature errors/warnings, suppression, unloaded components, unsolved constraints and bodies. Bodies: consistency, self-overlap, sealed voids. healthy: no errors or warnings; no update.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1659,7 +1659,7 @@ Check feature errors/warnings, suppression, unloaded components, unsolved constr
 
 ### `nx_create_anchor`
 
-**Create anchor** · effect `read` · NX 2406: tested; 78 checks in `acceptance/inspection/holes_and_words.json`
+**Create anchor** · effect `read` · NX 2406: tested; 91 checks in `acceptance/inspection/holes_and_words.json`
 
 Make a persistent anchor for a body, face or edge (a feature or sketch: its row anchor). It survives edits that keep the entity, save and reopen; resolve it with nx_resolve_reference.
 
@@ -1717,7 +1717,7 @@ Write the weight and CoG report to an Excel-friendly .csv. report_args: the argu
 
 ### `nx_find_geometry`
 
-**Find geometry** · effect `read` · NX 2406: tested; 78 checks in `acceptance/inspection/holes_and_words.json`
+**Find geometry** · effect `read` · NX 2406: tested; 91 checks in `acceptance/inspection/holes_and_words.json`
 
 Find faces, edges or bodies by type, normal, radius or role. Ranked nearest to near, else outermost along normal, else lowest along axis. Drawing-view edges: nx_list_view_edges.
 
@@ -1739,9 +1739,9 @@ Find faces, edges or bodies by type, normal, radius or role. Ranked nearest to n
 
 ### `nx_find_holes`
 
-**Find holes** · effect `read` · NX 2406: tested; 78 checks in `acceptance/inspection/holes_and_words.json`
+**Find holes** · effect `read` · NX 2406: tested; 91 checks in `acceptance/inspection/holes_and_words.json`
 
-Find holes (bores grouped by axis) with diameters, form, length, through and ends (entry first). No thread inference.
+Find holes (bores grouped by axis) with diameters, form, length, through and ends (entry first). No thread inference. offset/limit page the holes (groups; page.total counts holes); items lists the bore faces of the holes on the page.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1890,7 +1890,7 @@ Measure sampled wall thickness of a solid (default: the part's only one). Rays r
 
 ### `nx_resolve_reference`
 
-**Resolve reference** · effect `read` · NX 2406: tested; 78 checks in `acceptance/inspection/holes_and_words.json`
+**Resolve reference** · effect `read` · NX 2406: tested; 18 checks in `acceptance/inspection/resolve_two_parts.json`
 
 Turn a selector from nx_find_geometry (passed unchanged) or an anchor into a current reference. A selector re-runs its rule and fails on a tie. anchor also takes a ref such as fc:12: it is checked and returned if still valid.
 
@@ -2283,7 +2283,7 @@ Pattern features linearly, circularly, along a curve, on a polygon or spiral, fi
 
 ### `nx_create_primitive`
 
-**Create primitive** · effect `model` · NX 2406: tested (all variants); 34 checks in `acceptance/modeling/primitives.json`
+**Create primitive** · effect `model` · NX 2406: tested (all variants); 38 checks in `acceptance/modeling/primitives.json`
 
 Create a block, cylinder, cone or sphere solid as a new body or combined with bodies. Sizes take numbers or expression names; volume is the result bodies' total.
 
@@ -2303,7 +2303,7 @@ Create a block, cylinder, cone or sphere solid as a new body or combined with bo
 
 ### `nx_create_revolve`
 
-**Revolve sketch** · effect `model` · NX 2406: tested; 28 checks in `acceptance/modeling/revolve.json`
+**Revolve sketch** · effect `model` · NX 2406: tested; 37 checks in `acceptance/modeling/revolve.json`
 
 Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combined with bodies. Angles follow the right-hand rule about the axis direction.
 
@@ -2317,7 +2317,7 @@ Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combi
 
 ### `nx_create_rib`
 
-**Create rib** · effect `model` · NX 2406: tested (all variants); 28 checks in `acceptance/modeling/rib.json`
+**Create rib** · effect `model` · NX 2406: tested (all variants); 45 checks in `acceptance/modeling/rib.json`
 
 Add a rib (wall, web or gusset) from open sketch curves to a solid body. parallel: the sketch plane cuts through the body (an L-bracket's mid-plane) and a line from wall to wall closes a region with it, filled to the thickness across the plane. perpendicular: curves on a plane at the body (a cup's rim) grow along the sketch normal to meet it; flip when the body lies against the normal (below a rim sketch facing up). volume is the body's (the rib body's if not combined); added is the rib's.
 
@@ -2576,7 +2576,7 @@ Edit faces of any solid, imported ones included (synchronous modeling). Move, of
 
 **Edit feature** · effect `model` · NX 2406: tested; 45 checks in `acceptance/modeling/expression_natural_args.json`
 
-Set feature parameters to numbers or formulas, by expression name or alias (distance, radius, count). nx_get_feature lists both for each parameter; p-names (p12) number the whole part, not the feature. A tube's diameters have no alias: NX describes the outer as Limit 1 and the inner as Limit 2. definition replaces a transform's (nx_create_transform) pose instead.
+Set feature parameters to numbers or formulas, by expression name or alias (distance, radius, count). nx_get_feature lists both for each parameter; p-names (p12) number the whole part, not the feature. A tube's diameters are outer_diameter and inner_diameter (NX describes them as Limit 1 and Limit 2). definition replaces a transform's (nx_create_transform) pose instead.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2812,7 +2812,7 @@ List the work part's topology optimization studies, or describe one. Rows: desig
 
 ### `nx_run_topology_study`
 
-**Run topology study** · effect `model` · NX 2406: tested; 49 checks in `acceptance/optimization/contour.json`
+**Run topology study** · effect `model` · NX 2406: tested; 82 checks in `acceptance/optimization/contour.json`
 
 Solve a topology study with the NX optimizer (minutes) and load its optimized body. Returns the achieved mass fraction and reduction, peak stress (MPa) and displacement (also per load case), and whether every design space support and load face stays in the result.
 
@@ -2822,9 +2822,9 @@ Solve a topology study with the NX optimizer (minutes) and load its optimized bo
 
 ### `nx_set_topology_contour`
 
-**Show topology result contour** · effect `view` · NX 2406: tested; 49 checks in `acceptance/optimization/contour.json`
+**Show topology result contour** · effect `view` · NX 2406: tested; 82 checks in `acceptance/optimization/contour.json`
 
-Plot a solved topology study's result on its body in NX for the engineer to see. stress (von Mises) and principal_stress in MPa, displacement in part units, safety_factor vs yield; returns the plotted min/max. 'none' hides the plot: do so when done. Needs a study solved by nx_run_topology_study (nx_analyze_topology_study keeps no results).
+Plot a solved topology study's result on its body in NX for the engineer to see. stress (von Mises) and principal_stress in MPa, displacement in part units, safety_factor vs yield; returns the plotted min/max. 'none' hides the plot: do so when done. For an image use capture, not nx_capture_view (NX draws only the legend outside the task): PNG with legend, then no plot shown. Needs a study solved by nx_run_topology_study.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2832,6 +2832,7 @@ Plot a solved topology study's result on its body in NX for the engineer to see.
 | `result` | `stress` \| `principal_stress` \| `displacement` \| `displacement_x` \| `displacement_y` \| `displacement_z` \| `safety_factor` \| `none` | `"stress"` |  |
 | `load_case` | string | optional | Load case name; default the first |
 | `style` | `banded` \| `smooth` | `"banded"` |  |
+| `capture` | object {path, overwrite, inline, fit} | optional | Save a PNG of the coloured result ({} = captures/) |
 
 ## parts_files
 
@@ -3105,7 +3106,7 @@ Upload a new workspace file: text as content, or bytes as base64 chunks in order
 
 **Activate application** · effect `session` · NX 2406: tested; 21 checks in `acceptance/sheet_metal/activate_application.json`
 
-Switch NX to the Modeling or Sheet Metal application for the displayed work part. Sheet-metal features need sheet_metal; a part with them cannot go back to modeling. For drawings use nx_activate_drawing_sheet, not this tool.
+Switch NX to the Modeling or Sheet Metal application for the displayed work part. Sheet-metal features need sheet_metal; a part with them cannot go back to modeling. With two parts loaded, part must name the displayed one (nx_activate_part display=true shows another). For drawings use nx_activate_drawing_sheet, not this tool.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |

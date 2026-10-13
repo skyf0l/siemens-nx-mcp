@@ -310,7 +310,7 @@ def aliases(f) -> dict:
     """``{alias: expression tag}``: the semantic names (``distance``, ``end``...) that
     ``nx_edit_feature`` resolves on this feature, so p-numbered expressions read clearly."""
     out = {}
-    for name in expr.ALIASES:
+    for name in expr.alias_names():
         try:
             out[name] = int(expr.alias(f, name).Tag)
         except NXError:
@@ -395,7 +395,7 @@ class ParameterValue(TypedDict):
         str,
         Text(100),
         Doc("Expression name (p12) or alias: distance, start, end, radius, diameter, depth, angle, "
-            "count, spacing"),
+            "count, spacing, outer_diameter"),
     ]  # fmt: skip
     value: Annotated[
         float | Annotated[str, Text(4096)], Doc("Number in expression units, '20 mm' or formula")
@@ -485,9 +485,9 @@ def nx_edit_feature(
 ) -> FeatureInfo:
     """Set feature parameters to numbers or formulas, by expression name or alias (distance,
     radius, count). nx_get_feature lists both for each parameter; p-names (p12) number the
-    whole part, not the feature. A tube's diameters have no alias: NX describes the outer
-    as Limit 1 and the inner as Limit 2. definition replaces a transform's (nx_create_transform)
-    pose instead."""
+    whole part, not the feature. A tube's diameters are outer_diameter and inner_diameter (NX
+    describes them as Limit 1 and Limit 2). definition replaces a transform's
+    (nx_create_transform) pose instead."""
     args.exactly_one(parameters=parameters, definition=definition)
     with tx.checks():
         f = _feature(tx, feature)

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/simplify.json",
-  "scenario_sha256": "f588853cbbc46cfa74b9565821ad58bd8ec1e3f54b9ec9354c35a4dbc7ca0f13",
+  "scenario_sha256": "bf827dc82223d4e919bf6375ff2abf08582a0c588508fa2db6136d274aaf4ee1",
   "domain": "assembly",
   "covers": {
     "nx_create_simplified_assembly": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_create_simplified_assembly": "8d2cd3c1404a675d37296d5e14e30f26de32a271e0f2b0590d3f704316d6820f"
   },
-  "recorded": "2026-10-13T09:38:32Z",
+  "recorded": "2026-10-13T15:40:47Z",
   "passed": true,
   "checks": 16,
   "failed_checks": 0,

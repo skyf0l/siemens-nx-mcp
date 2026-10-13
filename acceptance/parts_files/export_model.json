@@ -40,8 +40,8 @@
     {"call": "nx_create_component", "setup": true, "args": {"part": "pf_export_asm", "path": "$fixture", "name": "FX"}},
     {"call": "nx_activate_part", "setup": true, "args": {"part": "$fx.data.part.id", "display": false}},
     {"call": "nx_export_model", "args": {"part": "$fixture", "path": "$run/em/e.step", "format": "step"},
-     "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "mutation_outcome": "not_started"}},
+     "expect": {"ok": true, "mutation_outcome": "committed"}},
     {"call": "nx_list_files", "args": {"path": "$run/em"},
-     "expect": {"page.total": 3}}
+     "expect": {"page.total": 4}}
   ]
 }

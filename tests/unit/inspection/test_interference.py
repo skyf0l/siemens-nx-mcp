@@ -1,8 +1,10 @@
 """nx_check_interference and nx_export_inspection_report on the fake kit."""
 
+import contextlib
 import json
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -139,7 +141,14 @@ def test_report_zip_has_manifest_captures_and_restores_view(monkeypatch, tmp_pat
 def test_report_argument_rules_change_nothing(monkeypatch):
     nx = inspection_nx()
     _asm(nx)
-    root = services(nx).root
+    kit = services(nx)
+    root = kit.root
+
+    @contextlib.contextmanager
+    def touched():  # live NX: the handler's first NXOpen call marks the call touched
+        yield SimpleNamespace(touched=True)
+
+    monkeypatch.setattr(kit, "observe", touched)
     planes = run(
         nx, "nx_export_inspection_report", path=str(root / "x.zip"), capture=False,
         section_planes=[{"origin": [0, 0, 0], "normal": [0, 0, 1]}],
@@ -152,6 +161,9 @@ def test_report_argument_rules_change_nothing(monkeypatch):
         section_planes=[{"origin": [0, 0, 0], "normal": [0, 0, 0]}],
     )  # fmt: skip
     assert zero.error["field"] == "/section_planes/0/normal"
+    assert zero.mutation_outcome == "not_started"
+    negative = run(nx, "nx_export_inspection_report", path=str(root / "y.zip"), clearance=-1)
+    assert negative.error["field"] == "/clearance" and negative.mutation_outcome == "not_started"
     assert not (root / "x.zip").exists() and not (root / "y.zip").exists()
     one = nx.block(1, 1, 1)  # live: one body was reported rolled_back
     single = run(nx, "nx_export_inspection_report", path=str(root / "z.zip"),

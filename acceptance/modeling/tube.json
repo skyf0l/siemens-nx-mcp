@@ -486,6 +486,173 @@
    }
   },
   {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$t.data.feature.id"
+   },
+   "intent": "Acceptance: a tube's diameters answer to outer_diameter (NX Limit 1) and inner_diameter (Limit 2)",
+   "expect": {
+    "data.parameters.0.aliases": [
+     "outer_diameter"
+    ],
+    "data.parameters.0.value": {
+     "close": 10,
+     "tol": 1e-09
+    },
+    "data.parameters.1.aliases": [
+     "inner_diameter"
+    ],
+    "data.parameters.1.value": {
+     "close": 8,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$t.data.feature.id",
+    "parameters": [
+     {
+      "name": "outer_diameter",
+      "value": 12
+     },
+     {
+      "name": "inner_diameter",
+      "value": 6
+     }
+    ]
+   },
+   "expect": {
+    "data.parameters.0.value": {
+     "close": 12,
+     "tol": 1e-09
+    },
+    "data.parameters.1.value": {
+     "close": 6,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$t.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 4241.15008234622,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$t.data.bodies.0.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      -6,
+      -6
+     ],
+     "tol": 0.0001
+    },
+    "data.max": {
+     "close": [
+      50,
+      6,
+      6
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "setup": true,
+   "save": "hx5",
+   "args": {
+    "axis": {
+     "origin": [
+      0,
+      300,
+      0
+     ],
+     "direction": [
+      0,
+      0,
+      1
+     ]
+    },
+    "radius": 10,
+    "pitch": 5,
+    "turns": 3
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$hx5.data.curves.0.id",
+    "outer_diameter": 8
+   },
+   "intent": "Acceptance: a tube wider than its helix pitch overlaps itself (live: committed, UF consistency and nx_check_model clean): refused and rolled back",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.details.check": "body_health",
+    "error.message": {
+     "contains": "self-overlapping"
+    },
+    "error.hint": {
+     "contains": "helix pitch"
+    }
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "setup": true,
+   "save": "hx10",
+   "args": {
+    "axis": {
+     "origin": [
+      100,
+      300,
+      0
+     ],
+     "direction": [
+      0,
+      0,
+      1
+     ]
+    },
+    "radius": 10,
+    "pitch": 10,
+    "turns": 3
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$hx10.data.curves.0.id",
+    "outer_diameter": 8
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 9594.06979081076,
+     "tol": 0.5
+    }
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

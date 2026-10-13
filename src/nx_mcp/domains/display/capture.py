@@ -175,6 +175,26 @@ def _sheets_note(tx, part) -> None:
             )
 
 
+def _contour_note(tx, part) -> None:
+    """Say that a shown topology contour is captured as NX draws it: the legend only.
+
+    NX 2406 (live, bug-fix round): a contour plotted outside the Topology Optimization task
+    (nx_set_topology_contour) shows only its legend, with every band labelled 0; the
+    result body and its colours are not drawn in the graphics window, so the viewport
+    export, UF ``Disp.CreateImage`` and Studio all return the legend alone (Studio not even
+    that). Inside the task NX draws the coloured result body. ``GetContourLimits`` needs
+    no license and raises "No contour is displayed" otherwise."""
+    with contextlib.suppress(Exception):
+        low, high, _unit = part.PostManager.GetContourLimits(0)
+        tx.warn(
+            "NX_NOTE",
+            f"A topology contour ({float(low):g} to {float(high):g}) is shown: NX draws only "
+            "its legend outside the Topology Optimization task, so the capture shows the "
+            "legend without the body. For an image of the coloured result use "
+            "nx_set_topology_contour with capture; result=none hides the contour",
+        )
+
+
 def _summary(a, say):
     what = "Render" if a.get("quality") == "studio" else "Capture"
     shown = f"sheet {say('sheet')}" if a.get("sheet") else "the view"
@@ -213,7 +233,7 @@ def nx_capture_view(
     sheet: SheetArg | None = None,
 ) -> CaptureData:
     """PNG of the shown view or a sheet, to path or captures/; inline only with inline=true
-    or no path. view_from/up aim it. Shows the displayed part only."""
+    or no path. view_from/up aim it. Without part, the displayed part; part X shows X for it."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
     if up is not None and view_from is None:
@@ -282,6 +302,7 @@ def nx_capture_view(
         )  # fmt: skip
     if not on_sheet:
         _sheets_note(tx, part)
+        _contour_note(tx, part)
     if tx.display.kept:
         tx.display.restore()  # the fitted camera goes back: the engineer's view is unchanged
     published = tx.files.publish()[0]  # with overwrite: atomic replace of the old PNG

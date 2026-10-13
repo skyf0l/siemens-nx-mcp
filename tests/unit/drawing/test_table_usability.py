@@ -150,6 +150,39 @@ def test_a_table_past_the_sheet_edge_is_warned_and_row_heights_are_read_back():
     assert nx.grid.fits and all(6 not in m for m in nx.grid.fits.values())
 
 
+def test_a_row_height_that_is_not_positive_is_refused_before_nx():
+    nx = grid_nx()
+    ok = revision(nx, [["A", "First"]], [40, 60], row_height=8)
+    assert ok.ok, ok
+    heights = dict(nx.grid.height)
+    for value in (0, -5, "-2 mm"):
+        edit = run(nx, "nx_edit_drawing_table", table=ok.data["table"]["id"], kind="revision",
+                   row_height=value)  # fmt: skip
+        assert edit.error["code"] == "NX_INVALID_ARGUMENT", (value, edit)
+        assert edit.error["field"] == "/row_height" and edit.mutation_outcome == "not_started"
+        new = revision(nx, [["B", "Second"]], [40, 60], row_height=value)
+        assert new.error["field"] == "/row_height" and new.mutation_outcome == "not_started"
+    assert nx.grid.height == heights
+
+
+def test_a_grid_edit_that_changes_the_column_count_is_refused_before_nx():
+    """Bug-fix round: widths or rows for another column count were refused rolled_back."""
+    nx = grid_nx()
+    ok = revision(nx, [["A", "First"]], [40, 60])
+    assert ok.ok, ok
+    table = ok.data["table"]["id"]
+    for args, field in (
+        ({"widths": [40, 60, 20]}, "/widths"),
+        ({"widths": [40]}, "/widths"),
+        ({"rows": [["A", "B"], ["C"]]}, "/rows/1"),
+        ({"rows": [["A", "B", "C"]], "widths": [10, 20, 30]}, "/widths"),
+        ({"widths": [40, 0]}, "/widths/1"),
+    ):
+        edit = run(nx, "nx_edit_drawing_table", table=table, kind="revision", **args)
+        assert edit.error["field"] == field and edit.mutation_outcome == "not_started", (args, edit)
+        assert "2 columns" in edit.error["message"] or "positive" in edit.error["message"]
+
+
 def test_a_title_block_extends_left_and_up_from_its_bottom_right_anchor():
     # NX's bounds win; without them the cells run from the anchor its kind defines.
     block = {"kind": "title_block", "position": [415, 30], "columns": [{"width": 40},

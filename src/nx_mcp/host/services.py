@@ -434,6 +434,11 @@ class NXServices(Services):
             visibility.Visible if visible else visibility.Invisible, name
         )
 
+    def newest_mark(self):
+        """NX's newest undo mark of any visibility (a development snippet that changed
+        nothing leaves its own mark newest: ``dispatch.run_dev_tool``)."""
+        return self.session.GetNewestUndoMark(self.nx.Session.MarkVisibility.AnyVisibility)
+
     def undo_to(self, mark) -> None:
         self.session.UndoToMark(mark, None)
 

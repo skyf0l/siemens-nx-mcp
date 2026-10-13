@@ -6,10 +6,15 @@ set with ``SetFeatureToEdit``; ``SetCancelled`` + ``Exit`` removes a new one), s
 ``Create*Builder`` factories are FakeBuilders committed into the study's lists, materials,
 ``EditWithUnits`` on expressions (``nx.edits``), UF minimum distance (``nx.gap``) and a
 solve (``nx.solve_fraction``: the optimized body's share of the design volume).
+The graphics window (``part.Views.CreateImageExportBuilder``) draws a plot like NX 2406:
+the legend's colour bar always, the coloured result body only inside the task (and
+``nx.body_drawn``); ``nx.window`` is its size, ``nx.exports`` what was captured.
 """
 
 from __future__ import annotations
 
+import struct
+import zlib
 from types import SimpleNamespace as NS
 
 from tests.kit.objects import NXException, Object
@@ -220,6 +225,8 @@ class TaskEnvironment:
 
     def Exit(self):
         self.log.append("Exit")
+        if self.cancelled:
+            self.nx.part.PostManager.plot = None  # NX 2406: a cancelled task takes its plot
         if self.cancelled and self.new is not None and self.new in self.nx.part.Features:
             self.nx.part.Features.remove(self.new)
         self.ActiveFeature = self.edit = self.new = None
@@ -364,9 +371,107 @@ class PostManager:
         return -0.9 * peaks["Displacement"], 1e-4, length
 
 
+def _predicted(kind, line, prev, i):
+    """The PNG filter predictor of byte ``i`` (RGB rows, 3 bytes per pixel)."""
+    a = line[i - 3] if i >= 3 else 0
+    b = prev[i]
+    c = prev[i - 3] if i >= 3 else 0
+    if kind == 0:
+        return 0
+    if kind == 1:
+        return a
+    if kind == 2:
+        return b
+    if kind == 3:
+        return (a + b) >> 1
+    p = a + b - c  # Paeth
+    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+    return a if pa <= pb and pa <= pc else (b if pb <= pc else c)
+
+
+def _chunk(kind, body):
+    return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+
+def png(width, height, pixel, filters=(0, 1, 2, 3, 4)) -> bytes:
+    """An RGB PNG of ``pixel(x, y) -> (r, g, b)``; row y uses filter ``filters[y % n]``."""
+    raw, prev = bytearray(), bytes(width * 3)
+    for y in range(height):
+        line = bytes(v for x in range(width) for v in pixel(x, y))
+        kind = filters[y % len(filters)]
+        raw.append(kind)
+        raw += bytes((line[i] - _predicted(kind, line, prev, i)) & 255 for i in range(len(line)))
+        prev = line
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    idat = _chunk(b"IDAT", zlib.compress(bytes(raw)))
+    return b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", header) + idat + _chunk(b"IEND", b"")
+
+
+def window_pixel(nx, legend, body):
+    """The fake graphics window: white, a legend colour bar on the right, the result body
+    (bands of hue) in the middle."""
+    width, height = nx.window
+    bands = [(0, 0, 255), (0, 200, 255), (0, 255, 0), (255, 255, 0), (255, 0, 0)]
+
+    def pixel(x, y):
+        if legend and x >= width - 6 and height // 5 <= y < height - height // 10:
+            return bands[(y * len(bands)) // height] if body else (0, 0, 255)
+        if body and width // 5 <= x < width // 2 and height // 3 <= y < height // 2:
+            return bands[(x * len(bands)) // width]
+        return (255, 255, 255)
+
+    return pixel
+
+
+class ImageExport:
+    """``ImageExportBuilder``: writes the window (``nx.window``, any requested size) to
+    ``FileName`` on Commit."""
+
+    FileFormats = NS(Png="png")
+    BackgroundOptions = NS(CustomColor="custom", Original="original", Transparent="clear")
+
+    def __init__(self, nx):
+        self.nx = nx
+
+    def SetCustomBackgroundColor(self, color):
+        self.color = list(color)
+
+    def Commit(self):
+        nx = self.nx
+        task = nx.session.TopologyOptimizationTaskEnvironment.ActiveFeature is not None
+        plotted = nx.part.PostManager.plot is not None
+        body = plotted and task and nx.body_drawn
+        nx.exports.append({"task": task, "plotted": plotted, "camera": dict(nx.camera)})
+        data = png(*nx.window, window_pixel(nx, plotted, body))
+        with open(self.FileName, "wb") as stream:
+            stream.write(data)
+
+    def Destroy(self):
+        pass
+
+
+class WorkView:
+    """The model work view: ``Fit`` zooms (``nx.camera`` scale), like NX in the task."""
+
+    def __init__(self, nx):
+        self.nx = nx
+        self.Name = "Trimetric"
+        self.fits = 0
+
+    def Fit(self):
+        self.fits += 1
+        self.nx.camera["scale"] = 4.4
+
+    def UpdateDisplay(self):
+        pass
+
+
 def topo_nx(units="mm", licensed=True):
     nx = modeling_nx(units=units)
     nx.part.PostManager = PostManager(nx)
+    nx.window, nx.exports, nx.body_drawn = (60, 40), [], True
+    nx.part.Views = NS(CreateImageExportBuilder=lambda: ImageExport(nx))
+    nx.part.ModelingViews._views = NS(WorkView=WorkView(nx))
     nx.licenses = {"des_top_opt"} if licensed else set()
     nx.session.LicenseManager = NS(CheckPresence=lambda name: name in nx.licenses)
     nx.session.TopologyOptimizationTaskEnvironment = TaskEnvironment(nx)

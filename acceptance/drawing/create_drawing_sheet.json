@@ -164,6 +164,22 @@
   {
    "call": "nx_create_drawing_sheet",
    "args": {
+    "name": "X2B",
+    "template": "A3",
+    "size": "a4"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/size",
+    "error.message": {
+     "contains": "not both"
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "args": {
     "name": "X3",
     "template": "No-Such-Template"
    },

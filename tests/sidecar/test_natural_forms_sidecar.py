@@ -113,3 +113,18 @@ async def test_nx_get_tool_schemas_shows_the_fields_each_variant_needs(tmp_path,
         ).list_tools()
     }
     assert "anyOf" not in listed["nx_create_datum_axis"].inputSchema
+
+
+def test_the_instructions_scope_unit_strings_to_length_and_angle_fields():
+    """The instructions promised '10 mm' everywhere; [x, y, z] coordinates take numbers."""
+    from nx_mcp.sidecar.server import AGENT_INSTRUCTIONS, FULL_INSTRUCTIONS
+
+    for text in (AGENT_INSTRUCTIONS, FULL_INSTRUCTIONS):
+        assert "ength and angle fields typed number or string" in text
+        assert "[x, y, z] points" in text and "numbers only" in text
+    assert TypeAdapter(ADAPT(T.Length)).validate_python("10 mm") == "10 mm"
+    assert TypeAdapter(ADAPT(T.Angle)).validate_python("90 deg") == "90 deg"
+    with pytest.raises(ValueError):
+        TypeAdapter(ADAPT(T.Point3)).validate_python(["10 mm", 0, 0])
+    with pytest.raises(ValueError):
+        TypeAdapter(ADAPT(T.Vec3)).validate_python(["1 mm", 0, 0])

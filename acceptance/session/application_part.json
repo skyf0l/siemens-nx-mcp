@@ -1,0 +1,31 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/ap/ap_front.prt", "units": "mm"}},
+  {"call": "nx_create_part", "setup": true, "save": "back", "args": {"path": "$run/ap/ap_back.prt", "units": "mm", "display": false}},
+  {"call": "nx_activate_part", "setup": true, "args": {"part": "ap_front", "display": true}},
+
+  {"call": "nx_activate_application", "args": {"application": "modeling", "part": "ap_back"},
+   "intent": "Acceptance: part names a loaded part that is not displayed: refused before NX (NX enters an application for the displayed part only)",
+   "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/part",
+              "error.message": {"matches": "ap_front[.]prt.*ap_back[.]prt"},
+              "error.hint": {"matches": "nx_activate_part"},
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_activate_application", "args": {"application": "sheet_metal", "part": "ap_back"},
+   "intent": "Acceptance: the refusal comes before the license query and any display or application switch",
+   "expect": {"ok": false, "error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/part",
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run/ap"},
+   "intent": "Acceptance: the display and work part never moved",
+   "expect": {"page.total": 2,
+              "data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run/ap/ap_back"},
+   "expect": {"page.total": 1, "data.items.0.display": false, "data.items.0.work": false}},
+  {"call": "nx_activate_application", "args": {"application": "modeling", "part": "ap_front"},
+   "intent": "Acceptance: part naming the displayed part acts there as before",
+   "expect": {"ok": true, "data.application": "modeling", "data.previous": "modeling", "data.changed": false,
+              "part.file": "ap_front.prt"}}
+ ]
+}

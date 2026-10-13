@@ -2,10 +2,10 @@
   "nx_activate_application": {
     "v2406": {
       "checks": 21,
-      "recorded": "2026-10-13T07:32:07Z",
+      "recorded": "2026-10-13T15:24:12Z",
       "scenario": "acceptance/sheet_metal/activate_application.json",
       "scenario_sha256": "6c2ad7b5d1e34f8627ef7b7ec884c94cd815c5ead0fe195b4e77c14e9b4e155a",
-      "source_sha256": "31b1518e24141e7e2fdb7cdf9e0e770b49df4da025cc40c93f14dda8bdbe13ec",
+      "source_sha256": "d308330f2fe6b69168c5186c8780c7374c8324ab9ffad2a7a0655b3a96c8d6d5",
       "variants": []
     }
   },
@@ -145,10 +145,10 @@
   "nx_set_name": {
     "v2406": {
       "checks": 99,
-      "recorded": "2026-10-13T07:12:08Z",
+      "recorded": "2026-10-13T15:02:41Z",
       "scenario": "acceptance/session/history.json",
       "scenario_sha256": "56bf39274833b8e0df6bf741cf0eb1f32e85318ed6b1e8f99bcff6763c416d2e",
-      "source_sha256": "665e0818a72abca9d0acdc5f920cf4b1cc233c9c1f6365dc1d521e7a3ba3eb9a",
+      "source_sha256": "b926a7c24fae5c7a9916e11f584d223287faf425397a6afbda8fd0db9f8e0d98",
       "variants": []
     }
   },

@@ -404,6 +404,7 @@ def nx_measure_wall_thickness(
             if int(face.Tag) not in own:
                 fail("NX_WRONG_OWNER", "The face is not on this body", field=f"/faces/{i}")
     samples, skipped = common.face_samples(tx, selected, samples_per_axis)
+    common.note_unsampled(tx, selected, samples)
     modeling = tx.uf.Modeling
     rows: list[ThicknessSample] = []
     values: list[float] = []

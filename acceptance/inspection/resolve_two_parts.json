@@ -1,0 +1,30 @@
+{
+ "covers": {"nx_resolve_reference": []},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "a", "args": {"path": "$run/rr/rr_a.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top",
+   "args": {"kind": "face", "geometry_type": "plane", "normal": [0, 0, 1], "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_create_anchor", "setup": true, "save": "an", "args": {"object": "$top.data.items.0.id"}},
+  {"call": "nx_create_part", "setup": true, "save": "b", "args": {"path": "$run/rr/rr_b.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"part": "rr_b", "shape": "block", "length": 5, "width": 5, "height": 30}},
+  {"call": "nx_get_model_summary", "args": {},
+   "intent": "Acceptance: two agent parts are loaded, a call without refs or part is ambiguous",
+   "expect": {"error.code": "NX_AMBIGUOUS_PART"}},
+  {"call": "nx_resolve_reference", "args": {"anchor": "$an.data.anchor"},
+   "intent": "Acceptance: the face anchor names its part; no part key needed with two parts loaded",
+   "expect": {"mutation_outcome": "not_applicable", "part.file": "rr_a.prt", "data.via": "anchor",
+              "data.object.kind": "face", "data.object.name": {"matches": "\\(20,10,10\\)"}}},
+  {"call": "nx_resolve_reference", "args": {"selector": "$top.data.selector"},
+   "expect": {"part.file": "rr_a.prt", "data.via": "selector", "data.rank": {"close": 10, "tol": 1e-06},
+              "data.object.kind": "face"}},
+  {"call": "nx_resolve_reference", "args": {"anchor": "$top.data.items.0.id"},
+   "expect": {"part.file": "rr_a.prt", "data.via": "reference", "data.object.id": "$top.data.items.0.id"}},
+  {"call": "nx_resolve_reference", "args": {"anchor": "$blk.data.bodies.0.anchor"},
+   "expect": {"part.file": "rr_a.prt", "data.via": "anchor", "data.object.kind": "body"}},
+  {"call": "nx_resolve_reference", "args": {"anchor": "$an.data.anchor", "part": "rr_b"},
+   "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/part"}}
+ ]
+}

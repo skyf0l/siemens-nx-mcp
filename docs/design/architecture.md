@@ -1198,11 +1198,11 @@ caps in the test, never the table:
 
 | Item (characters of compact JSON) | Cap | Measured |
 |---|---|---|
-| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,340 + 15 per domain = 15,520 (12 domains) | 15,358 (about 4.0K tokens) |
-| `agent` server instructions (once per session) | 1,600 | 1,395 |
-| Full listing (name + description + input schema, call keys included) | mean 1,140 per listed tool | mean 1,052.9 over 265 tools (279,030, about 73.4K tokens) |
+| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,340 + 15 per domain = 15,520 (12 domains) | 15,412 (about 4.1K tokens) |
+| `agent` server instructions (once per session) | 1,600 | 1,485 |
+| Full listing (name + description + input schema, call keys included) | mean 1,140 per listed tool | mean 1,057.2 over 265 tools (280,164, about 73.7K tokens) |
 | Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,589 (174 plain tools), 2,746 (87 unions) |
-| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 965.2, union 1,711.5 |
+| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 969.8, union 1,711.5 |
 | `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 385, 90th percentile 1,489.5 (max 1,784) |
 | `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 333 (1,558 in all) |
 | `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 194, mean 78.7 |

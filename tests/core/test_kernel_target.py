@@ -681,3 +681,33 @@ def test_a_refs_registered_kind_decides_over_the_inferred_one():
     assert targets._kind_of(services, object(), (), "ex:3") == "explosion"
     assert targets._kind_of(services, object(), (), "obj_7") == "section_view"
     assert targets._kind_of(services, object(), ("face",), "f:9") == "face"
+
+
+def test_resolve_reference_runs_in_the_part_its_anchor_or_selector_names():
+    """nx_resolve_reference names its part inside the anchor (``@<path>:...``), a ref, or
+    the selector's ``part``/``owner``: with two parts loaded it needs no ``part``."""
+    from tests.unit.inspection.fakes import inspection_nx
+
+    nx = inspection_nx()
+    nx.part.FullPath = str(Path(services(nx).root) / "work.prt")
+    body = nx.block(10, 10, 10)
+    top = next(f for f in body.faces if list(f.normal) == [0, 0, 1])
+    anchor = run(nx, "nx_create_anchor", object=top.ref).data["anchor"]
+    selector = run(nx, "nx_find_geometry", kind="face", near=[5, 5, 13]).data["selector"]
+    plate = _second(nx)
+    _show(nx, plate)  # the other part is work and displayed
+    assert run(nx, "nx_get_model_summary").error["code"] == "NX_AMBIGUOUS_PART"
+    for args in (
+        {"anchor": anchor},
+        {"anchor": top.ref},
+        {"selector": selector},
+        {"selector": json.loads(selector)},
+        {"anchor": selector},  # a selector in the anchor field
+        {"selector": anchor},  # an anchor in the selector field
+    ):
+        r = run(nx, "nx_resolve_reference", **args)
+        assert r.ok and r.data["object"]["id"] == top.ref, (args, r)
+        assert r.part["file"] == "work.prt", r
+    wrong = run(nx, "nx_resolve_reference", anchor=anchor, part="plate")
+    assert wrong.error["code"] == "NX_WRONG_PART_CONTEXT", wrong
+    assert run(nx, "nx_resolve_reference", anchor=anchor, part="work").ok

@@ -30,7 +30,7 @@
               "data.source_volume": {"close": 2193716.815, "tol": 1e-2}}},
   {"call": "nx_create_simplified_assembly",
    "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id", "$P.data.component.id"]},
-   "expect": {"mutation_outcome": "committed", 
+   "expect": {"mutation_outcome": "committed",
               "data.bodies": {"count": 2},
               "data.volume": {"close": 2093716.815, "tol": 1e-2}}},
   {"call": "nx_create_simplified_assembly",

@@ -32,6 +32,7 @@ from nx_mcp.core.types import (
     DrawingViewRef,
     EdgeRef,
     Items,
+    Range,
     SheetLength,
     SheetPoint,
     Text,
@@ -63,6 +64,7 @@ ONE_PARTS_LIST = "UGII_UPDATE_ALL_ID_SYMBOLS_WITH_PLIST"
 Cell = Annotated[str, Text(1024)]
 Rows = Annotated[list[Annotated[list[Cell], Items(1, 20)]], Items(1, 100)]
 Widths = Annotated[list[SheetLength], Items(1, 20)]
+RowHeight = Annotated[SheetLength, Range(gt=0)]
 BendColumns = Annotated[list[BendColumn], Items(1, 5)]
 
 
@@ -317,7 +319,7 @@ def nx_create_drawing_table(
     automatic: bool = True,
     rows: Rows | None = None,
     widths: Widths | None = None,
-    row_height: SheetLength | None = None,
+    row_height: RowHeight | None = None,
     origin: EdgeRef | None = None,
     origin_point: Literal["auto", "start", "end", "center"] = "auto",
 ) -> TableInfo:
@@ -566,7 +568,7 @@ def nx_edit_drawing_table(
     kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
     rows: Rows | None = None,
     widths: Widths | None = None,
-    row_height: SheetLength | None = None,
+    row_height: RowHeight | None = None,
     position: SheetPoint | None = None,
     columns: Annotated[list[ColumnEdit], Items(1, 20)] | None = None,
     bend_columns: BendColumns | None = None,
@@ -624,6 +626,8 @@ def nx_edit_drawing_table(
             if grid and table_tag(tx, obj) is None:
                 fail("NX_UNSUPPORTED_OPTION", "This title block spans several tables: edit its "
                      "cells", field=f"/{sorted(grid)[0]}")  # fmt: skip
+        if kind not in ("parts_list", "bend") and (rows or widths):
+            _check_grid_edit(tx, obj, rows, widths)
         if cells:
             title_blocks.check_attributes(tx, tx.part, cells)
             current = title_blocks.read(tx, obj)
@@ -756,17 +760,34 @@ def _edit_bend(tx, obj, columns, automatic):
         b.commit()
 
 
+def _check_grid_edit(tx, obj, rows, widths) -> None:
+    """Before NX: an edit's widths and rows keep the table's column count."""
+    for j, width in enumerate(widths or []):
+        if not width > 0:
+            fail("NX_INVALID_ARGUMENT", "Widths must be positive", field=f"/widths/{j}")
+    tag = table_tag(tx, obj)
+    if tag is None:
+        return
+    count = int(tx.uf.Tabnot.AskNmColumns(tag))
+    keep = (
+        f"the table has {count} columns: give one width per column and one cell per column "
+        "in every row"
+    )
+    hint = "nx_get_drawing_table reads its rows and widths; a new column count needs a new table"
+    if widths is not None and len(widths) != count:
+        fail("NX_INVALID_ARGUMENT", f"{len(widths)} widths given; {keep}", field="/widths",
+             hint=hint, details={"columns": count})  # fmt: skip
+    for i, row in enumerate(rows or []):
+        if len(row) != count:
+            fail("NX_INVALID_ARGUMENT", f"Row {i} has {len(row)} cells; {keep}",
+                 field=f"/rows/{i}", hint=hint, details={"columns": count})  # fmt: skip
+
+
 def _edit_grid(tx, obj, rows, widths, row_height, sh):
     tag = table_tag(tx, obj)
     tab = tx.uf.Tabnot
     current = cells(tx, tag, raw=True)
-    count = tab.AskNmColumns(tag)
-    if widths is not None and len(widths) != count:
-        fail("NX_UNSUPPORTED_OPTION", "Keep the table's column count", field="/widths")
-    if rows is not None and any(len(r) != count for r in rows):
-        fail("NX_UNSUPPORTED_OPTION", "Keep the table's column count", field="/rows")
-    if widths is not None and any(not w > 0 for w in widths):
-        fail("NX_INVALID_ARGUMENT", "Widths must be positive", field="/widths")
+    count = tab.AskNmColumns(tag)  # rows and widths match it (_check_grid_edit)
     native_widths = (
         [sh.to_part([w, 0])[0] for w in widths]
         if widths is not None

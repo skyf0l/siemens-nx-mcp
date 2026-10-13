@@ -575,9 +575,13 @@
     "error.code": "NX_BUILD_FAILED",
     "mutation_outcome": "rolled_back",
     "error.hint": {
-     "contains": "flip"
+     "contains": "Set flip true"
     },
-    "error.nx_code": 4095004
+    "error.nx_code": 4095004,
+    "error.details.cause": "wrong_side",
+    "error.message": {
+     "contains": "behind the sketch plane"
+    }
    }
   },
   {
@@ -593,6 +597,147 @@
     "mutation_outcome": "rolled_back",
     "error.hint": {
      "contains": "orientation parallel"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "ro",
+   "args": {
+    "placement": {
+     "principal": "xz",
+     "origin": [
+      0,
+      30,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$ro.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       5,
+       35
+      ],
+      "end": [
+       35,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$ro.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "rh",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      60,
+      0,
+      50
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$rh.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       20,
+       2
+      ],
+      "end": [
+       20,
+       18
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$rh.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$ro.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 2,
+    "orientation": "parallel"
+   },
+   "intent": "Acceptance: NX's one rib refusal (4095004) is named: a parallel plane beside the body",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.nx_code": 4095004,
+    "error.details.cause": "plane_misses_body",
+    "error.message": {
+     "contains": "lies 20 from it"
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "body": "$lb.data.bodies.0.id",
+    "thickness": 60,
+    "orientation": "parallel"
+   },
+   "intent": "Acceptance: a parallel rib thicker than the 20 mm body",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.nx_code": 4095004,
+    "error.details.cause": "thickness_too_large",
+    "error.message": {
+     "contains": "20 across"
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$rh.data.sketch.id",
+    "body": "$cup.data.bodies.0.id",
+    "thickness": 2,
+    "flip": true
+   },
+   "intent": "Acceptance: a perpendicular rib sketched 40 mm above the cup",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back",
+    "error.nx_code": 4095004,
+    "error.details.cause": "plane_off_body",
+    "error.message": {
+     "contains": "lies 40 from the body"
     }
    }
   }

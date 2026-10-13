@@ -458,6 +458,89 @@
    }
   },
   {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "rz",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      100
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$rz.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       10,
+       0
+      ],
+      "corner2": [
+       20,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$rz.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$rz.data.sketch.id",
+    "axis": "z"
+   },
+   "intent": "Acceptance: an XY sketch about z (live: NX refuses with 671623, the 'crosses the axis' code) names the axis",
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/axis",
+    "mutation_outcome": "not_started",
+    "error.message": {
+     "contains": "normal to the sketch plane"
+    }
+   }
+  },
+  {
+   "call": "nx_create_revolve",
+   "args": {
+    "sketch": "$far.data.sketch.id",
+    "axis": {
+     "principal": "z"
+    },
+    "combine": {
+     "operation": "intersect",
+     "targets": [
+      "$full.data.bodies.0.id"
+     ]
+    }
+   },
+   "intent": "Acceptance: an intersect revolve that misses its target says so, not 'crosses the axis'",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "error.field": "/combine/targets",
+    "error.nx_code": 671623,
+    "error.message": {
+     "contains": "misses the combine targets"
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

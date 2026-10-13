@@ -109,6 +109,7 @@ def nx_create_sweep_along_guide(
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
+    overlapping = kbodies.clashing(tx, targets)
     with builders.build(tx, tx.part.Features.CreateSweepAlongGuideBuilder, None) as b:
         tol = units.part_tolerance(tx, TOLERANCE_MM)
         b.DistanceTolerance, b.ChainingTolerance = tol, tol * 0.95
@@ -118,7 +119,7 @@ def nx_create_sweep_along_guide(
         expr.drive(b.SecondOffset, second_offset)
         builders.boolean(tx, b.BooleanOperation, combine)
         feature = b.commit()
-    common.sound(tx, common.feature_bodies(feature), known)
+    common.swept_sound(tx, common.feature_bodies(feature), known, overlapping)
     if combine is not None:
         out = common.combined(tx, feature, combine, targets, before, tags)
     else:
@@ -179,6 +180,7 @@ def nx_create_variational_sweep(
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
+    overlapping = kbodies.clashing(tx, targets)
     with builders.build(tx, tx.part.Features.CreateVarsweepBuilder, None) as b:
         b.DistanceTolerance = units.part_tolerance(tx, TOLERANCE_MM)
         b.AngularTolerance = 0.5
@@ -188,7 +190,7 @@ def nx_create_variational_sweep(
         b.Limits.EndExtend.Value.RightHandSide = repr(float(end))
         builders.boolean(tx, b.BooleanOperation, combine)
         feature = b.commit()
-    common.sound(tx, common.feature_bodies(feature), known)
+    common.swept_sound(tx, common.feature_bodies(feature), known, overlapping)
     if combine is not None:
         out = common.combined(tx, feature, combine, targets, before, tags)
     else:

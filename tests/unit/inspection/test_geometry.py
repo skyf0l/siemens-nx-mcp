@@ -87,7 +87,8 @@ def test_holes_group_coaxial_bores():
     body.faces.append(boss)
     ok = run(nx, "nx_find_holes", owner=body.ref)
     assert ok.ok, ok
-    assert ok.page["total"] == 3 and len(ok.data["groups"]) == 2
+    assert ok.page["total"] == 2 and len(ok.data["groups"]) == 2  # holes, not faces
+    assert ok.page["faces"] == 3 and len(ok.data["items"]) == 3
     first = ok.data["groups"][0]
     assert first["radii"] == [3.0, 5.0] and len(first["faces"]) == 2
     assert all(row["full"] for row in ok.data["items"])

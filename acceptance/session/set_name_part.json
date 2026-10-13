@@ -1,0 +1,25 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "p", "args": {"path": "$run/sn/sn_part.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"part": "sn_part", "shape": "block", "length": 40, "width": 20, "height": 10}},
+
+  {"call": "nx_set_name", "args": {"object": "$p.data.part.id", "name": "renamed_part"},
+   "intent": "Acceptance: a part ref is refused before NX (NX raised 580014): its name is its file name, renamed by save-as",
+   "expect": {"ok": false, "error.code": "NX_WRONG_KIND", "error.category": "wrong_kind",
+              "error.field": "/object", "error.hint": {"matches": "nx_save_part"},
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run/sn"},
+   "intent": "Acceptance: the part keeps its file and was not changed",
+   "expect": {"page.total": 1, "data.items.0.part.id": "$p.data.part.id"}},
+  {"call": "nx_set_name", "args": {"object": "$blk.data.feature.id", "name": "Base block"},
+   "intent": "Acceptance: a feature is still renamed (NX stores names upper case)",
+   "expect": {"mutation_outcome": "committed", "data.name": {"matches": "(?i)^base block$"},
+              "data.references": "preserved"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
+   "intent": "Acceptance: the renamed feature's body is unchanged",
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}}
+ ]
+}

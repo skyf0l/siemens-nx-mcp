@@ -67,9 +67,10 @@ AGENT_INSTRUCTIONS = (
     "mutation you may retry: 8-128 characters from A-Z a-z 0-9 _ - (e.g. 'fan_blade_01'); "
     "after an unknown outcome query nx_get_operation before retrying. Compact results keep "
     "result_id; expand the omitted fields with nx_get_result. Never paste base64 file content "
-    "into the conversation. Lengths are in part units and angles in degrees; they also take "
-    "'10 mm'/'90 deg' or an NX expression name or formula ('thickness', 'thickness/2'), which "
-    "keeps extrude, revolve, hole, pattern, blend and chamfer values driven by the expression. "
+    "into the conversation. Lengths are in part units and angles in degrees; length and angle "
+    "fields typed number or string also take '10 mm'/'90 deg' or an NX expression name or "
+    "formula ('thickness', 'thickness/2'), which keeps extrude, revolve, hole, pattern, blend "
+    "and chamfer values driven by the expression; [x, y, z] points and vectors take numbers only. "
     "Options match in any case or spacing ('Through All'). When two or more parts are loaded, "
     "add the target part's file name to the arguments of every call without refs, the listed "
     'core tools included: {"part": "housing", ...}; nx_list_parts lists them.'
@@ -95,8 +96,8 @@ FULL_INSTRUCTIONS = (
     "an optional operation_id (8-128 characters from A-Z a-z 0-9 _ -; omitted, the server "
     "makes one; reuse your own to retry safely) and intent (why, in the engineer's terms; "
     "shown in the NX panel). File paths are workspace-relative or absolute inside the "
-    "workspace. Lengths and angles also take '10 mm'/'90 deg' or an NX expression name or "
-    "formula ('thickness/2')."
+    "workspace. Length and angle fields typed number or string also take '10 mm'/'90 deg' or "
+    "an NX expression name or formula ('thickness/2'); [x, y, z] points take numbers only."
 )
 
 

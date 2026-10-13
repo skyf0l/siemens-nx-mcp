@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/tube.json",
-  "scenario_sha256": "6bab786e7972ad0ae30d72bb85234763a8df75c508691821f69418637efab337",
+  "scenario_sha256": "27d0792510b01158bdef9b6bf0734da94f0b3bad73bc4651ca6805c4914d5e76",
   "domain": "modeling",
   "covers": {
     "nx_create_tube": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_tube": "ab30e91803ec66b414d8ec30597c54b42e2141c1967591e897bade5d3e06acfc"
+    "nx_create_tube": "6231af020532718d6765dd44984f13d0000243ab1e4bf8dfd57ff678d1e6f468"
   },
-  "recorded": "2026-10-13T07:23:46Z",
+  "recorded": "2026-10-13T15:15:02Z",
   "passed": true,
-  "checks": 33,
+  "checks": 49,
   "failed_checks": 0,
   "steps": [
     {
@@ -235,6 +235,62 @@
     },
     {
       "index": 32,
+      "call": "nx_get_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 33,
+      "call": "nx_edit_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 34,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 35,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 36,
+      "call": "nx_create_helix",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 37,
+      "call": "nx_create_tube",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 38,
+      "call": "nx_create_helix",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 39,
+      "call": "nx_create_tube",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 40,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

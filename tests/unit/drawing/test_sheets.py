@@ -47,6 +47,8 @@ def test_refusals_happen_before_nx():
         ({"name": "sht1"}, "/name", "already_exists"),
         ({"template": "A3", "units": "in"}, "/units", "invalid_argument"),
         ({"template": "A3", "size": [100, 100]}, "/size", "invalid_argument"),
+        ({"template": "A3", "size": "a4"}, "/size", "invalid_argument"),
+        ({"template": "A3", "size": "a3"}, "/size", "invalid_argument"),
         ({"size": [0, 100]}, "/size", "invalid_argument"),
         ({"template_path": "missing.prt"}, "/template_path", "not_found"),
         ({"template_path": "../outside.prt"}, "/template_path", "path_rejected"),
@@ -65,7 +67,7 @@ def test_installed_templates_resolve_under_ugii_base_dir(tmp_path, monkeypatch):
     folder = tmp_path / "DRAFTING" / "templates"
     folder.mkdir(parents=True)
     (folder / "Drawing-A3-Size2D-template.prt").write_bytes(b"prt")
-    ok = run(nx, "nx_create_drawing_sheet", name="T", template="a3", size="a3", scale=2,
+    ok = run(nx, "nx_create_drawing_sheet", name="T", template="a3", scale=2,
              projection="first_angle")  # fmt: skip
     assert ok.ok, ok
     assert ok.data["sheet"]["name"] == "T" and ok.data["scale"] == 2  # renamed, rescaled

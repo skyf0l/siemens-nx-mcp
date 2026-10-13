@@ -65,21 +65,21 @@
   },
   "nx_run_topology_study": {
     "v2406": {
-      "checks": 49,
-      "recorded": "2026-10-13T12:25:26Z",
+      "checks": 82,
+      "recorded": "2026-10-13T15:33:25Z",
       "scenario": "acceptance/optimization/contour.json",
-      "scenario_sha256": "f8d259121fe7f300645f449cb29f9a989b206979a46a0795f07bebbfb5b31c0c",
+      "scenario_sha256": "611be748e50688f8a92657a686fc05fae39c7ad0f91fe0b73fc320dac735cd13",
       "source_sha256": "9fa54822e575162800431d7c9b4c25e06a0b22aacf0a5383ed048fadd8989080",
       "variants": []
     }
   },
   "nx_set_topology_contour": {
     "v2406": {
-      "checks": 49,
-      "recorded": "2026-10-13T12:25:26Z",
+      "checks": 82,
+      "recorded": "2026-10-13T15:33:25Z",
       "scenario": "acceptance/optimization/contour.json",
-      "scenario_sha256": "f8d259121fe7f300645f449cb29f9a989b206979a46a0795f07bebbfb5b31c0c",
-      "source_sha256": "21b6cf80bc30cc6136ac5ecc249aa4d7ce961cfaa70a6b4723525a936950bbfa",
+      "scenario_sha256": "611be748e50688f8a92657a686fc05fae39c7ad0f91fe0b73fc320dac735cd13",
+      "source_sha256": "49213bf76c25ab5a668cf164886dfa178081e614725d42e065b0216736077df7",
       "variants": []
     }
   }

@@ -90,6 +90,7 @@ def nx_analyze_faces(
         fail("NX_INVALID_ARGUMENT", "minimum_draft must be 0 to under 90", field="/minimum_draft")
     selected = select.faces(tx, faces)
     samples, skipped = common.face_samples(tx, selected, samples_per_axis)
+    common.note_unsampled(tx, selected, samples)
     groups: dict[int, FaceSamples] = {
         int(f.Tag): {"face": tx.ref(f, kind="face"), "samples": []} for f in selected
     }

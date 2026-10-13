@@ -48,8 +48,8 @@ def test_create_explosion_starts_at_assembled_poses(nx):
     spaced = run(nx, "nx_create_explosion", part="asm", name="E2 ")
     assert spaced.error["field"] == "/name"
     nx.session.Parts.Display = nx.blk
-    other = run(nx, "nx_create_explosion", part="asm", name="E3")
-    assert other.error["code"] == "NX_WRONG_PART_CONTEXT"
+    other = run(nx, "nx_create_explosion", part="asm", name="E3")  # asm shown for the call
+    assert other.ok and nx.session.Parts.Display is nx.blk, other
 
 
 def test_create_explosion_with_initial_placements(nx):

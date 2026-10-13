@@ -202,3 +202,48 @@ def test_summary_features_follow_the_timeline_without_internal_features():
     assert over.data["counts"]["features"] == 3
     health = run(nx, "nx_check_model")
     assert health.data["features_checked"] == 4  # internal features are still checked
+
+
+def _examine(nx, failed: dict):
+    """Examine Geometry whose body face intersection check fails ``failed[body tag]``."""
+    from types import SimpleNamespace as NS
+
+    seen: list = []
+    nx.nx.GeometricAnalysis = NS(ExamineGeometry=NS(Check=NS(BodyFaceIntersections="faces")))
+    nx.part.AnalysisManager = NS(CreateExamineGeometryObject=lambda: NS(
+        ClearAllChecks=lambda: None, SetCheck=lambda check: None,
+        ObjectsToExamine=NS(Add=seen.extend), Examine=lambda: None,
+        GetFailedObjects=lambda check: failed.get(int(seen[-1].Tag), []),
+        Destroy=lambda: None,
+    ))  # fmt: skip
+    return seen
+
+
+def test_a_self_overlapping_solid_is_an_error_naming_its_faces():
+    """Bug-fix round: a tube OD 8 on a pitch-5 helix passed UF consistency as healthy."""
+    nx = inspection_nx()
+    good, bad = nx.block(10, 10, 10), nx.block(5, 5, 5, origin=(20, 0, 0))
+    seen = _examine(nx, {int(bad.Tag): bad.faces[:3] + bad.faces[:2]})  # NX lists pairs
+    ok = run(nx, "nx_check_model")
+    assert ok.ok and ok.data["healthy"] is False and ok.data["errors"] == 1, ok
+    (issue,) = ok.data["issues"]
+    assert issue["kind"] == "self_intersection" and issue["object"]["id"] == bad.ref
+    assert [f["id"] for f in issue["faces"]] == [f.ref for f in bad.faces[:3]]
+    assert issue["message"].startswith("3 faces cut other faces") and seen == [good, bad]
+    summary = run(nx, "nx_get_model_summary").data
+    assert summary["health"] == {"healthy": False, "errors": 1, "warnings": 0}
+
+
+def test_self_overlap_is_examined_on_a_bounded_number_of_solids(monkeypatch):
+    from nx_mcp.domains.inspection import health
+
+    monkeypatch.setattr(health, "CLASH_BODIES", 2)
+    nx = inspection_nx()
+    for i in range(3):
+        nx.block(1, 1, 1, origin=(3 * i, 0, 0))
+    seen = _examine(nx, {})
+    ok = run(nx, "nx_check_model")
+    assert ok.data["healthy"] is True and len(seen) == 2, ok
+    (note,) = ok.data["issues"]
+    assert note["severity"] == "info" and note["kind"] == "self_intersection"
+    assert "1 solid bodies past the first 2" in note["message"]

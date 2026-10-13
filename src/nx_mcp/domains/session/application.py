@@ -25,12 +25,12 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal, NoReturn, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.kit import drawing, licenses, parts
+from nx_mcp.kit import drawing, licenses, parts, switching
 
 APPLICATIONS = {"modeling": "UG_APP_MODELING", "sheet_metal": "UG_APP_SBSM"}
 # License features of each application (NX 2406 feature names).
@@ -40,6 +40,27 @@ NAMES = {
     "UG_APP_SBSM": "sheet_metal",
     "UG_APP_DRAFTING": "drafting",
 }
+
+
+def _not_displayed(tx: Tx, part, display) -> NoReturn:
+    """Refuse a target that is not the displayed part, before NX is touched: NX runs one
+    application per session, entered for the displayed part, and the kernel restores the
+    display and application a call switched, so entering it for a background part would
+    be undone when the call ends."""
+    named = getattr(getattr(tx, "target", None), "source", None) == "part"
+    if display is None:
+        fail("NX_WRONG_PART_CONTEXT", "No part is displayed; NX enters an application for the "
+             "displayed part", hint="Display the part with nx_activate_part(display=true)")  # fmt: skip
+    fail(
+        "NX_WRONG_PART_CONTEXT",
+        f"NX enters an application for the displayed part ({switching.file_name(display)}), "
+        f"not for {switching.file_name(part)}",
+        field="/part" if named else None,
+        hint=f"Display {switching.file_name(part)} first with nx_activate_part(display=true), "
+        "or pass the displayed part; sheet-metal tools called with part enter Sheet Metal "
+        "for that call themselves",
+        details={"part": switching.file_name(part), "display": switching.file_name(display)},
+    )
 
 
 class ApplicationData(TypedDict):
@@ -55,6 +76,7 @@ def name_of(native_name) -> str:
 
 @tool(
     target="display",
+    switch="none",  # never displayed for the call: the switch would be undone at its end
     effect="session",
     label="Activate application",
     summary="Switch NX to {application}",
@@ -74,14 +96,15 @@ def nx_activate_application(
 ) -> ApplicationData:
     """Switch NX to the Modeling or Sheet Metal application for the displayed work part.
     Sheet-metal features need sheet_metal; a part with them cannot go back to modeling.
-    For drawings use nx_activate_drawing_sheet, not this tool."""
+    With two parts loaded, part must name the displayed one (nx_activate_part display=true
+    shows another). For drawings use nx_activate_drawing_sheet, not this tool."""
     wanted = APPLICATIONS[application]
     with tx.checks():
         part = tx.part
         session = tx.session
-        if session.Parts.Display != part:
-            fail("NX_WRONG_PART_CONTEXT", "The work part must be the displayed part",
-                 hint="Activate it with nx_activate_part(display=true)")  # fmt: skip
+        display = session.Parts.Display
+        if display is None or not parts.same_part(display, part):
+            _not_displayed(tx, part, display)
         previous = str(session.ApplicationName or "")
         if application == "modeling" and previous != wanted and parts.has_sheet_metal(part):
             fail("NX_UNSUPPORTED_OPTION",

@@ -1,0 +1,72 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/application_part.json",
+  "scenario_sha256": "3701a3b54069c384a262a60ae74fd12c5035c3f7d3e282c28d1e24afaf6bf527",
+  "domain": "session",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {},
+  "recorded": "2026-10-13T15:02:25Z",
+  "passed": true,
+  "checks": 20,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_activate_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_activate_application",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 5,
+      "call": "nx_activate_application",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_activate_application",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    }
+  ]
+}

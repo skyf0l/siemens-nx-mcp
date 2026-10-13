@@ -548,3 +548,21 @@ def test_rolled_back_features_are_inactive_not_suppressed():
     assert [r["details"].get("inactive", False) for r in listed] == [False, True, True]
     nx.suppress_codes[int(boss.Tag)] = 1 | 16
     assert run(nx, "nx_update_model").data["suppressed"] == 1
+
+
+def test_tube_diameters_answer_to_outer_and_inner_diameter():
+    nx = modeling_nx()
+    numeric(nx)
+    f = feature(nx, "SWP104")  # NX 2406's feature type of a tube
+    outer = nx.expression("p0", "10", 10.0)
+    outer.Description, outer.Units = "(Tube(2) Limit 1)", MM
+    inner = nx.expression("p1", "4", 4.0)
+    inner.Description, inner.Units = "(Tube(2) Limit 2)", MM
+    f.expressions = [outer, inner]
+    ref = nx.ref_of(f, "feature")
+    data = run(nx, "nx_get_feature", feature=ref).data
+    assert [p["aliases"] for p in data["parameters"]] == [["outer_diameter"], ["inner_diameter"]]
+    ok = run(nx, "nx_edit_feature", feature=ref, parameters=[
+        {"name": "outer_diameter", "value": 12}, {"name": "inner_diameter", "value": 6}])  # fmt: skip
+    assert ok.ok, ok
+    assert outer.RightHandSide == "12.0" and inner.RightHandSide == "6.0"

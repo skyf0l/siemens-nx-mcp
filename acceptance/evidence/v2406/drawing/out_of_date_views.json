@@ -13,9 +13,9 @@
   "sources": {
     "nx_export_drawing": "cd440855fe8fb335a23e56520115c6450e8613e87ca9ab15732732d9ea6d5fa2",
     "nx_update_annotations": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
-    "nx_activate_drawing_sheet": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074"
+    "nx_activate_drawing_sheet": "48d0842dc4ca3532d80a1768bcbd18a43a7b2944d700d5b3850390253e0310c8"
   },
-  "recorded": "2026-10-13T12:18:03Z",
+  "recorded": "2026-10-13T13:40:02Z",
   "passed": true,
   "checks": 19,
   "failed_checks": 0,

@@ -54,10 +54,10 @@ def test_export_rejections(nx, root, ugii, monkeypatch):
     other = nx.new_part("o.prt")
     nx.session.Parts.Display = other
     nx.session.Parts.Work = part
-    wrong = call(nx, exchange.nx_export_model, part="m", path="a.step", format="step")
-    assert (
-        wrong.error["code"] == "NX_WRONG_PART_CONTEXT" and wrong.mutation_outcome == "not_started"
-    )
+    # The named work part that NX does not display is shown for the export (gate 4s).
+    shown = call(nx, exchange.nx_export_model, part="m", path="shown.step", format="step")
+    assert shown.ok and (root / "shown.step").exists(), shown
+    assert nx.session.Parts.Display is other and nx.session.Parts.Work is part
     nx.session.Parts.Display = part
     (root / "e.step").write_text("x")
     exists = call(nx, exchange.nx_export_model, part="m", path="e.step", format="step")

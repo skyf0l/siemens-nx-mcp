@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/primitives.json",
-  "scenario_sha256": "3d6254e6409211248ab88c4e98293c0e67717c23752e023d659e9bd12a9d05ba",
+  "scenario_sha256": "b505e9700195250898fc1ae32037f72fd2f1a178d9e535754bc61db171a5b6cd",
   "domain": "modeling",
   "covers": {
     "nx_create_primitive": [
@@ -14,11 +14,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_primitive": "38dbb89cb4b86b0d22d8145454d387f94ae77af68d8bdee4bedd09b8fc315aa8"
+    "nx_create_primitive": "d739e23556c9a7a32e6a97de569d156d02723a13b373ee243b3051cc0ecc794b"
   },
-  "recorded": "2026-10-11T10:04:25Z",
+  "recorded": "2026-10-13T15:13:18Z",
   "passed": true,
-  "checks": 34,
+  "checks": 38,
   "failed_checks": 0,
   "steps": [
     {
@@ -100,42 +100,42 @@
     },
     {
       "index": 12,
-      "call": "nx_measure_mass",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 13,
-      "call": "nx_create_primitive",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 14,
-      "call": "nx_create_primitive",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
-      "index": 15,
       "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
+      "index": 13,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
       "index": 16,
       "call": "nx_create_primitive",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 17,
-      "call": "nx_create_primitive",
+      "call": "nx_measure_bounds",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -149,6 +149,20 @@
     },
     {
       "index": 19,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
       "call": "nx_create_primitive",
       "setup": false,
       "passed": true,

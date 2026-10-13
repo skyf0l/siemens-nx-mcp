@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/bend_list.json",
-  "scenario_sha256": "ebdd821b5377d9a4d7793c4f07bbbffc613c3b64f02fc989207f110d669f0b8c",
+  "scenario_sha256": "6fd574913198fb03e30b0a92fc4a717ad559dc0712bc92fd3b6980c54119d0ae",
   "domain": "sheet_metal",
   "covers": {
     "nx_get_bend_list": [],
@@ -13,7 +13,7 @@
     "nx_get_bend_list": "b486bed7a470f4035b0adc777b1ba9978176b9949500978d16485f2af4761c38",
     "nx_export_bend_list": "b486bed7a470f4035b0adc777b1ba9978176b9949500978d16485f2af4761c38"
   },
-  "recorded": "2026-10-13T12:19:02Z",
+  "recorded": "2026-10-13T15:41:01Z",
   "passed": true,
   "checks": 47,
   "failed_checks": 0,

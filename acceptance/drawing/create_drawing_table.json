@@ -74,6 +74,7 @@
     },
     "data.table.kind": "drawing_table",
     "changes.created": {
+     "count": 1,
      "count_kind": {
       "drawing_table": 1
      }
@@ -131,6 +132,7 @@
      "tol": 1e-06
     },
     "changes.created": {
+     "count": 1,
      "count_kind": {
       "drawing_table": 1
      }

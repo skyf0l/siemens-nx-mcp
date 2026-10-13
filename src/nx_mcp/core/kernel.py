@@ -181,6 +181,16 @@ def _relative(services: Services, path: Path) -> str:
         return path.name
 
 
+def _given(services: Services, value) -> str:
+    """A path argument as error details show it: workspace-relative when it is an
+    absolute path inside the workspace (the sidecar sends paths resolved), else as given."""
+    text = str(value)
+    with contextlib.suppress(ValueError, OSError, TypeError, AttributeError):
+        if Path(text).is_absolute():
+            return Path(text).relative_to(Path(services.workspace.root)).as_posix()
+    return text
+
+
 def _free_name(resolved: Path) -> Path:
     """The first ``<stem>-<n><suffix>`` beside ``resolved`` that does not exist."""
     for n in range(2, 1000):
@@ -207,7 +217,7 @@ def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None
                 "NX_PATH_RESERVED" if reserved else "NX_PATH_OUTSIDE_WORKSPACE",
                 f"{field}: {error}",
                 field=field,
-                details={"path": value},
+                details={"path": _given(services, value)},
             ) from None
         if marker.suffixes and resolved.suffix.lower() not in marker.suffixes:
             expected = "/".join(marker.suffixes)
@@ -217,7 +227,7 @@ def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None
                 f"(got '{resolved.suffix}')",
                 field=field,
                 hint=f"End the path with {marker.suffixes[0]}, or leave the suffix out",
-                details={"path": value, "expected": list(marker.suffixes)},
+                details={"path": _relative(services, resolved), "expected": list(marker.suffixes)},
             )
         if marker.mode == "read" and not resolved.is_file():
             fail(
@@ -225,7 +235,7 @@ def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None
                 f"{field}: no such file",
                 field=field,
                 hint="Check the path with nx_list_files on its folder",
-                details={"path": value},
+                details={"path": _relative(services, resolved)},
             )
         if marker.mode == "new" and resolved.exists():
             free = _relative(services, _free_name(resolved))

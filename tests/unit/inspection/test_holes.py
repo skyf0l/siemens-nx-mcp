@@ -93,7 +93,8 @@ def test_holes_filter_by_diameter_and_through():
     five = run(nx, "nx_find_holes", diameter="5 mm")
     assert five.ok, five
     assert [round(g["axis_point"][0]) for g in five.data["groups"]] == [50]
-    assert five.page["total"] == 2  # both faces of the counterbore
+    assert five.page["total"] == 1 and five.page["faces"] == 2  # the counterbore's 2 faces
+    assert len(five.data["items"]) == 2
     six = run(nx, "nx_find_holes", diameter=6)
     assert [g["diameters"] for g in six.data["groups"]] == [[6.0]]
     blind = run(nx, "nx_find_holes", through=False)
@@ -127,3 +128,24 @@ def test_holes_owner_takes_an_anchor_and_refuses_names():
     named = run(nx, "nx_find_holes", owner="SIMPLE HOLE(3)")
     assert named.error["code"] == "NX_INVALID_ARGUMENT" and named.error["field"] == "/owner"
     assert "f:12" in named.error["message"] and "anchor" in named.error["message"]
+
+
+def test_holes_page_by_hole_and_items_follow_the_page():
+    """offset/limit page the holes; items are the faces of the paged holes only."""
+    nx, body = _plate()
+    whole = run(nx, "nx_find_holes", owner=body.ref)
+    assert whole.page["total"] == 5 and whole.page["faces"] == 6 and len(whole.data["items"]) == 6
+    order = [g["group"] for g in whole.data["groups"]]
+    seen = []
+    for offset in range(5):
+        one = run(nx, "nx_find_holes", owner=body.ref, offset=offset, limit=1)
+        (group,) = one.data["groups"]
+        assert one.page["total"] == 5 and one.page["returned"] == 1
+        assert one.page["next_offset"] == (offset + 1 if offset < 4 else None)
+        assert {row["group"] for row in one.data["items"]} == {group["group"]}
+        assert [row["id"] for row in one.data["items"]] == group["faces"]
+        assert one.page["faces"] == len(group["faces"])
+        seen.append(group["group"])
+    assert seen == order
+    past = run(nx, "nx_find_holes", owner=body.ref, offset=5, limit=1)
+    assert past.data["groups"] == [] and past.data["items"] == [] and past.page["faces"] == 0

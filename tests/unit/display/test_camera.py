@@ -279,3 +279,50 @@ def test_view_from_conflicts_are_invalid(args, field):
     bad = run(display_nx(), "nx_set_camera", **args)
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field
     assert bad.mutation_outcome == "not_started"
+
+
+def test_a_named_work_part_that_is_not_displayed_is_shown_for_the_read():
+    """Live (bug fix round): the agent's part was NX's (quiet) work part beside the
+    engineer's displayed part; gate 4s does not switch a target that is already the work
+    part, so nx_get_camera part=X read the engineer's view and named their part. The read
+    now shows X, then the engineer's display and the quiet work part come back."""
+    nx = display_nx()
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
+    parts = nx.session.Parts
+    shown = parts.Display
+    plate = Part(nx.session, Path(services(nx).root) / "plate.prt")
+    plate.ModelingViews = NS(WorkView=shown.ModelingViews.WorkView)
+    parts.Display, parts.Work = shown, plate  # the work part, quietly, not displayed
+    seen = []
+    original = display.camera
+    try:
+        display.camera = lambda tx, view: (
+            seen.append(tx.session.Parts.Display) or original(tx, view)
+        )
+        ok = run(nx, "nx_get_camera", part="plate")
+    finally:
+        display.camera = original
+    assert ok.ok, ok
+    assert ok.data["part"]["name"] == plate.Name and seen == [plate]
+    assert parts.Display is shown and parts.Work is plate
+    ok = run(nx, "nx_get_camera")  # unnamed: what NX displays, nothing switched
+    assert ok.data["part"]["name"] == shown.Name and parts.Work is plate
+
+
+def test_set_camera_shows_a_named_work_part_that_is_not_displayed():
+    """The same gate 4s gap: part=X, X the quiet work part beside a displayed part, was
+    refused ("The displayed part is not the work part"); X is now shown, its view set,
+    and the display comes back."""
+    nx = display_nx()
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
+    parts = nx.session.Parts
+    shown = parts.Display
+    plate = Part(nx.session, Path(services(nx).root) / "plate.prt")
+    plate.ModelingViews = shown.ModelingViews
+    parts.Display, parts.Work = shown, plate
+    ok = run(nx, "nx_set_camera", part="plate", orientation="top")
+    assert ok.ok, ok
+    assert ok.data["part"]["name"] == plate.Name and ok.data["view"] == "top"
+    assert parts.Display is shown and parts.Work is plate

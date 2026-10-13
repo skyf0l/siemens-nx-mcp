@@ -85,6 +85,13 @@ def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: 
         _check(name)
         obj = tx.resolve(object)
         kind = _kind(tx, object, obj)
+        if kind == "part":  # NX refuses SetName on a part (580014): its name is its file
+            fail("NX_WRONG_KIND",
+                 f"{object} is a part: a part's name is its file name, which nx_set_name "
+                 "cannot change", field="/object",
+                 hint="Rename a part by saving it as a new file: nx_save_part with part and "
+                 "path (a new .prt in the workspace); the old file stays",
+                 details={"ref": object, "kind": "part"})  # fmt: skip
         if kind != "component":  # a component lives in the assembly, not as its body
             tx.resolve(object, work_part=True)
     before = str(getattr(obj, "Name", "") or "")

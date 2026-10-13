@@ -476,6 +476,36 @@ def test_path_gate(svc):
         assert bad["mutation_outcome"] == "not_started"
 
 
+@pytest.mark.parametrize(
+    ("mode", "suffixes", "name", "code"),
+    [
+        ("new", (".txt",), "rep3.pdf", "NX_UNSUPPORTED_FILE_TYPE"),
+        ("read", (".prt",), "missing/plate.prt", "NX_FILE_NOT_FOUND"),
+        ("new", (".txt",), "there.txt", "NX_ALREADY_EXISTS"),
+        ("dir", (), "file.txt", "NX_WRONG_KIND"),
+        ("new", (".txt",), ".nx-mcp/x.txt", "NX_PATH_RESERVED"),
+    ],
+)
+def test_path_gate_errors_never_show_the_absolute_workspace_path(svc, mode, suffixes, name, code):
+    """The sidecar sends paths resolved (absolute): error details stay workspace-relative."""
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.core.types import PathArg
+
+    (svc.root / "there.txt").write_text("x")
+    (svc.root / "file.txt").write_text("x")
+    given = str(svc.root.resolve() / name)
+    checked = NS(paths=[(("path",), PathArg(mode, suffixes))], args={"path": given})
+    with pytest.raises(Exception) as error:
+        kernel._gate_paths(None, checked, svc)
+    assert error.value.code == code
+    shown = " ".join(
+        map(str, [error.value.message, error.value.hint, *error.value.details.values()])
+    )
+    assert str(svc.root.resolve()) not in shown and str(svc.root) not in shown
+    assert error.value.details["path"] == name
+
+
 def test_file_staging_rolls_back_or_reports_partial(svc):
     ok = run(svc, "nx_export_note", path="out/a.txt")
     assert ok["ok"] and (svc.root / "out" / "a.txt").read_text() == "hello"

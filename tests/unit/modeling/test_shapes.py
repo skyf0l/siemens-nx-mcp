@@ -425,3 +425,69 @@ def test_tube_into_a_target_that_was_already_faulty_still_builds():
         combine={"operation": "subtract", "targets": [block.ref]},
     )
     assert ok.ok, ok
+
+
+def test_a_self_overlapping_tube_is_rolled_back():
+    """NX 2406 commits a tube wider than its helix pitch: UF consistency passes it, Examine
+    Geometry finds faces cutting each other (live: 144 for OD 8 on a pitch 5 helix)."""
+    nx = modeling_nx()
+    c = line(nx, 50.0)
+    tube(nx, 8, 0, 50.0)
+    nx.nx.GeometricAnalysis = NS(ExamineGeometry=NS(Check=NS(BodyFaceIntersections="faces")))
+    examined: list = []
+    nx.part.AnalysisManager = NS(
+        CreateExamineGeometryObject=lambda: NS(
+            ClearAllChecks=lambda: None,
+            SetCheck=lambda check: None,
+            ObjectsToExamine=NS(Add=examined.extend),
+            Examine=lambda: None,
+            GetFailedObjects=lambda check: [object()] * 144,
+            Destroy=lambda: None,
+        )
+    )
+    bad = run(nx, "nx_create_tube", path=[c.ref], outer_diameter=8)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
+    details = bad.error["details"]
+    assert details["check"] == "body_health" and details["face_intersections"] == 144
+    assert "helix pitch" in bad.error["hint"] and examined
+
+
+@pytest.mark.parametrize(
+    ("placement", "extra", "cause", "words"),
+    [
+        # parallel: an XZ plane (normal -y) beside, through and across a 20 mm wide body
+        (((0, 30, 0), (0, 0, 1)), {"orientation": "parallel"}, "plane_misses_body", "lies 10"),
+        (((0, 10, 0), (0, 0, 1)), {"orientation": "parallel", "thickness": 30},
+         "thickness_too_large", "20 across"),
+        (((0, 5, 0), (0, 0, 1)), {"orientation": "parallel", "thickness": 6,
+                                   "side": "one_side"}, "thickness_too_large", "5 across"),
+        # perpendicular: an XY plane (normal +z) on, above and below a 10 mm high body
+        (((0, 0, 10), (0, 1, 0)), {}, "wrong_side", "Set flip true"),
+        (((0, 0, 50), (0, 1, 0)), {"flip": True}, "plane_off_body", "lies 40"),
+        (((0, 0, -5), (0, 1, 0)), {"flip": True}, "wrong_side", "Omit flip"),
+    ],
+)  # fmt: skip
+def test_rib_refusal_names_the_cause_nx_does_not(placement, extra, cause, words):
+    """NX 2406 refuses every rib geometry problem with 4095004 (live): the body's box
+    against the sketch plane names the cause."""
+    nx = rib_nx()
+    body = nx.block(40, 20, 10)
+    origin, y_axis = placement
+    sk = nx.sketch(origin=origin, x_axis=(1, 0, 0), y_axis=y_axis)
+    nx.refuse("RibBuilder", code=4095004, message="cannot cap")
+    args = {"thickness": 2, **extra}
+    bad = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, **args)
+    assert bad.error["nx_code"] == 4095004 and bad.mutation_outcome == "rolled_back"
+    assert bad.error["details"]["cause"] == cause, bad.error
+    assert words in bad.error["message"] + bad.error["hint"], bad.error
+    assert "cannot cap" in bad.error["message"]
+
+
+def test_rib_refusal_without_a_known_cause_keeps_the_orientation_hint():
+    nx = rib_nx()
+    body = nx.block(40, 20, 10)
+    sk = nx.sketch(origin=(0, 10, 0), x_axis=(1, 0, 0), y_axis=(0, 0, 1))
+    nx.refuse("RibBuilder", code=4095004, message="cannot cap")
+    bad = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=2)
+    assert "cause" not in (bad.error["details"] or {})
+    assert "orientation parallel" in bad.error["hint"]

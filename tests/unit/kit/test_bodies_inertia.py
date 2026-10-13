@@ -97,3 +97,39 @@ def test_expect_sound_skips_known_faults_and_scale_note_follows_part_units():
     assert "12000 mm" in bodies.scale_note(nx.tx, [good])
     nx.uf.ModlGeneral = NS(AskBoundingBox=lambda tag: [0, 0, 0, 9_000, 1, 1])
     assert bodies.scale_note(nx.tx, [good]) is None and bodies.scale_note(nx.tx, []) is None
+
+
+def _examine(failed: dict, destroyed: list):
+    """A fake ExamineGeometry whose body face intersection check fails ``failed[tag]``
+    faces of a body."""
+    seen: list = []
+
+    def create():
+        return NS(
+            ClearAllChecks=lambda: None,
+            SetCheck=lambda check: None,
+            ObjectsToExamine=NS(Add=lambda objs: seen.extend(objs)),
+            Examine=lambda: None,
+            GetFailedObjects=lambda check: [object()] * failed.get(int(seen[-1].Tag), 0),
+            Destroy=lambda: destroyed.append(True),
+        )
+
+    return NS(CreateExamineGeometryObject=create)
+
+
+def test_expect_no_clash_fails_self_overlapping_bodies_and_skips_known_ones():
+    nx = fake_nx()
+    good, bad = nx.block(1, 1, 1), nx.block(2, 2, 2)
+    nx.nx.GeometricAnalysis = NS(ExamineGeometry=NS(Check=NS(BodyFaceIntersections="faces")))
+    destroyed: list = []
+    nx.part.AnalysisManager = _examine({int(bad.Tag): 144}, destroyed)
+    assert bodies.face_clashes(nx.tx, bad) == 144 and bodies.face_clashes(nx.tx, good) == 0
+    assert bodies.clashing(nx.tx, [good, bad]) == {int(bad.Tag)}
+    bodies.expect_no_clash(nx.tx, [good, bad], known={int(bad.Tag)})  # overlapping before
+    with pytest.raises(NXError) as error:
+        bodies.expect_no_clash(nx.tx, [good, bad])
+    assert error.value.code == "NX_BUILD_FAILED"
+    assert error.value.details == {"check": "body_health", "face_intersections": 144}
+    assert len(destroyed) == 7  # every examine object is destroyed
+    nx.part.AnalysisManager = NS(CreateExamineGeometryObject=Mock(side_effect=RuntimeError))
+    bodies.expect_no_clash(nx.tx, [bad])  # NX cannot tell: no failure

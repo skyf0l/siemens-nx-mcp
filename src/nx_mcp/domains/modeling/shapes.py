@@ -62,6 +62,78 @@ RIB_HINTS = {
 }
 
 
+def _rib_cause(tx, sk, target, orientation, side, flip, thickness):
+    """``(cause, message, hint)`` for NX's rib refusal, or None. NX 2406 refuses every rib
+    geometry problem with the same 4095004 (live: a parallel plane beside the body, a
+    thickness wider than the body, a perpendicular rib growing away from the body or from
+    a sketch 40 mm off it), so the cause is read from the body's box against the plane."""
+    f = ksketch.frame(sk)
+    low, high = measure.bounds(tx, [target])
+    corners = [[(low, high)[(i >> k) & 1][k] for k in range(3)] for i in range(8)]
+    heights = [ksketch.height(f, c) for c in corners]
+    lo, hi = min(heights), max(heights)  # the body's span along the sketch normal
+    tol = units.part_tolerance(tx)
+    gap = lo if lo >= -tol else -hi  # plane to body, when the body is on one side
+    if orientation == "parallel":
+        if lo >= -tol or hi <= tol:
+            return (
+                "plane_misses_body",
+                f"The sketch plane does not cut through the body (it lies {max(gap, 0):.6g} "
+                "from it)",
+                RIB_HINTS["parallel"],
+            )
+        room = {"symmetric": 2 * min(hi, -lo), "one_side": hi, "other_side": -lo}[side]
+        if float(thickness) >= room - tol:
+            return (
+                "thickness_too_large",
+                f"thickness {float(thickness):.6g} does not fit in the body: it has "
+                f"{room:.6g} across the sketch plane on the rib's side",
+                f"Use a rib thinner than {room:.6g}"
+                + ("" if side == "symmetric" else ", or side symmetric to centre it in the body"),
+            )
+        return None
+    behind, ahead = hi <= tol, lo >= -tol
+    away = f" and lies {gap:.6g} from it" if gap > tol else ""
+    if behind and not flip:
+        return (
+            "wrong_side",
+            f"The body lies behind the sketch plane{away}, but a rib grows along the normal",
+            "Set flip true to grow the rib against the sketch normal, toward the body",
+        )
+    if ahead and flip:
+        return (
+            "wrong_side",
+            f"The body lies in front of the sketch plane{away}, but flip grows the rib away "
+            "from it",
+            "Omit flip: the rib grows along the sketch normal, toward the body",
+        )
+    if (behind or ahead) and gap > tol:
+        return (
+            "plane_off_body",
+            f"The sketch plane lies {gap:.6g} from the body",
+            "Put the sketch on the body (a rim or a face plane, or a plane cutting it)",
+        )
+    return None
+
+
+def _rib_failed(tx, error, sk, target, orientation, side, flip, thickness) -> None:
+    """Name the cause of a rib refusal (:func:`_rib_cause`) in the error, else give the
+    orientation's hint."""
+    if error.code != "NX_BUILD_FAILED":
+        return
+    try:
+        found = _rib_cause(tx, sk, target, orientation, side, flip, thickness)
+    except Exception:  # no box: keep NX's own message
+        found = None
+    if found is None:
+        error.hint = error.hint or RIB_HINTS[orientation]
+        return
+    cause, message, hint = found
+    error.message = f"{message} ({error.message})"
+    error.hint = hint
+    error.details = {**(error.details or {}), "cause": cause}
+
+
 def _new_bodies(feature, *known):
     tags = {int(b.Tag) for b in known}
     return [b for b in common.feature_bodies(feature) if int(b.Tag) not in tags]
@@ -150,8 +222,7 @@ def nx_create_rib(
             b.ReverseRibDirection = bool(flip)
             feature = b.commit()
     except NXError as error:
-        if error.code == "NX_BUILD_FAILED" and not error.hint:
-            error.hint = RIB_HINTS[orientation]
+        _rib_failed(tx, error, sk, target, orientation, side, flip, thickness)
         raise
     if combine:
         out = common.result_of(tx, feature, [target])
@@ -233,6 +304,7 @@ def nx_create_tube(
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
+    overlapping = kbodies.clashing(tx, targets)
     try:
         with builders.build(tx, tx.part.Features.CreateTubeBuilder, None) as b:
             b.Tolerance = units.part_tolerance(tx)
@@ -245,7 +317,7 @@ def nx_create_tube(
     except NXError as error:
         common.smooth_hint(error)
         raise
-    common.sound(tx, common.feature_bodies(feature), known)
+    common.swept_sound(tx, common.feature_bodies(feature), known, overlapping)
     if combine is not None:
         return common.combined(tx, feature, combine, targets, before, tags)
     out = common.result_of(tx, feature)

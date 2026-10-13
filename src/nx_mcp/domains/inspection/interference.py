@@ -443,14 +443,16 @@ def nx_export_inspection_report(
     """Write a .zip of interference and clearance results (index.html, report.json, PNG
     captures, SHA-256 manifest). No objects: every solid, sheets skipped."""
     planes = list(section_planes or [])
-    if planes and not capture:
-        fail("NX_INVALID_ARGUMENT", "section_planes need capture=true", field="/section_planes")
-    for i, plane in enumerate(planes):
-        geom.unit(plane["normal"], f"/section_planes/{i}/normal")
     clearance = float(clearance)  # the kernel converted the quantity to part units
-    if clearance < 0:
-        fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
-    with tx.checks():  # lookups, refusals and measurements: no file yet (not_started)
+    # Argument rules, lookups, refusals and measurements: no file yet (not_started).
+    with tx.checks():
+        if planes and not capture:
+            fail("NX_INVALID_ARGUMENT", "section_planes need capture=true",
+                 field="/section_planes")  # fmt: skip
+        for i, plane in enumerate(planes):
+            geom.unit(plane["normal"], f"/section_planes/{i}/normal")
+        if clearance < 0:
+            fail("NX_INVALID_ARGUMENT", "clearance must not be negative", field="/clearance")
         found, pairs, sheets = _groups(tx, objects)
         checks = analyze(
             tx,

@@ -256,6 +256,68 @@
    }
   },
   {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "tilt",
+    "formula": "30",
+    "units": "deg"
+   },
+   "intent": "Acceptance: an angle expression reports units deg (NX abbreviates it as a degree sign)",
+   "expect": {
+    "data.created": true,
+    "data.units": "deg",
+    "data.value": {
+     "close": 30,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "tilt",
+    "formula": "45",
+    "units": "deg"
+   },
+   "expect": {
+    "data.created": false,
+    "data.units": "deg",
+    "data.value": {
+     "close": 45,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "tilt",
+    "formula": "0.5 rad"
+   },
+   "expect": {
+    "data.units": "deg",
+    "data.value": {
+     "close": 28.64788975654116,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "twist",
+    "formula": "2",
+    "units": "rad"
+   },
+   "expect": {
+    "data.units": "rad",
+    "data.value": {
+     "close": 2,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

@@ -194,3 +194,18 @@ def test_relax_found_relations_relaxes_every_relation_nx_found():
     assert sketch.relax_found_relations(builder) == 2
     assert relaxed == [("r1", True), ("r2", True)]
     assert sketch.relax_found_relations(NS()) == 0
+
+
+def test_status_solves_a_sketch_nx_has_not_evaluated_and_reads_again(monkeypatch):
+    """NX can answer NotEvaluated before it solved a sketch (right after an NX start)."""
+    nx = fake_nx()
+    status = NS(NotEvaluated=0, UnderConstrained=1, WellConstrained=2)
+    monkeypatch.setattr(nx.nx.Sketch, "Status", status)
+    s = nx.sketch()
+    answers = iter([(0, 0), (1, 3)])
+    s.GetStatus = lambda: next(answers)
+    assert sketch.status(nx.tx, s) == {"status": "UnderConstrained", "dof": 3, "native_dof": 3}
+    assert s.updates == ["Update"] and nx.undo_marks == []
+    s.status, s.updates = (2, 0), []
+    del s.GetStatus
+    assert sketch.status(nx.tx, s)["status"] == "WellConstrained" and s.updates == []

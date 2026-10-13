@@ -412,6 +412,32 @@ def _anchor_part(services, ref: str):
     return None
 
 
+def part_at_path(services, path) -> Any:
+    """The loaded part whose ``services.part_path`` is ``path`` (as anchors and
+    nx_find_geometry selectors write it), else None."""
+    if not isinstance(path, str) or not path.strip():
+        return None
+    wanted = path.strip().casefold()
+    for part in services.parts() or []:
+        with contextlib.suppress(Exception):
+            if str(services.part_path(part)).casefold() == wanted:
+                return part
+    return None
+
+
+def part_named_by(services, value, kinds=(), policy: str = "refs") -> Any:
+    """The loaded part a ref or anchor string pins (as gate 3t pins a ref argument), else
+    None. For ``target`` resolvers of tools that carry refs inside other arguments."""
+    if not isinstance(value, str) or not value.strip() or value.startswith("$"):
+        return None
+    value = value.strip()
+    try:
+        obj = _named(services, value, kinds)
+        return owner_of(services, obj, _kind_of(services, obj, kinds, value), policy)
+    except Exception:
+        return _anchor_part(services, value)
+
+
 def _named(services, ref: str, kinds):
     """The object ``ref`` names. A ref of another kind still pins its part, so the handler
     reports the kind there (not a wrong part when that part works in the background)."""

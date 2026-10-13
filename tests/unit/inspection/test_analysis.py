@@ -44,6 +44,27 @@ def test_cylinder_curvature_and_trim_skips():
     assert ok.data["skipped_outside_trim"] == 2 and len(rows) == 2
     assert ok.data["sample_count"] == 2 and rows[0]["curvatures"] == [0.5, 0.0]
     assert "draft" not in rows[0]
+    assert ok.warnings == []  # every face has samples: no note
+
+
+def test_a_face_whose_samples_all_fall_in_a_hole_is_named_in_a_note():
+    """Live: one centre sample on a face with a hole read sample_count 0 and no hint."""
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top, side = _face(body, (0, 0, 1)), _face(body, (1, 0, 0))
+    holed = {int(top.Tag)}
+    nx.uf.Modeling.AskPointContainment = lambda p, tag: 2 if int(tag) in holed else 1
+    alone = run(nx, "nx_analyze_faces", faces=[top.ref], samples_per_axis=1)
+    assert alone.ok and alone.data["sample_count"] == 0
+    assert alone.data["skipped_outside_trim"] == 1 and alone.data["faces"][0]["samples"] == []
+    (note,) = alone.warnings
+    assert note["code"] == "NX_NOTE" and "every face" in note["message"]
+    assert top.ref in note["message"] and "samples_per_axis" in note["message"]
+    mixed = run(nx, "nx_analyze_faces", faces=[top.ref, side.ref], samples_per_axis=2)
+    assert mixed.data["sample_count"] == 4 and mixed.data["skipped_outside_trim"] == 4
+    (note,) = mixed.warnings
+    assert "1 of 2 faces" in note["message"] and top.ref in note["message"]
+    assert side.ref not in note["message"]
 
 
 def test_face_analysis_argument_rules():

@@ -106,11 +106,15 @@ def _read_only(method):
     return is_read_only(method)
 
 
-def _model_unchanged(method):
-    """Read and view steps: grouped in the panel history (model unchanged)."""
+def _model_unchanged(method, result=None):
+    """Read and view steps, and development snippets that changed nothing
+    (``not_applicable``): grouped in the panel history (model unchanged)."""
     from nx_mcp.host.dispatch import effect_of
 
-    return effect_of(method) in ("read", "view")
+    effect = effect_of(method)
+    if effect is None and isinstance(result, dict):
+        return result.get("mutation_outcome") == "not_applicable"
+    return effect in ("read", "view")
 
 
 def _display_changed(before, now):
@@ -1458,7 +1462,7 @@ class InteractiveHost:
                     started=self.current_started_at,
                     duration=self.last_duration_seconds,
                     intent=self.current_intent,
-                    read_only=_model_unchanged(method),
+                    read_only=_model_unchanged(method, result),
                     result=result,
                     error=error,
                     part=self._ran_in(result, error),

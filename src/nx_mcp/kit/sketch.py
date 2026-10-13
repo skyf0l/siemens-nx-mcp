@@ -13,6 +13,9 @@ NX 2406 findings encoded here:
   the number of curves that are not fully constrained, not scalar DOF.
 - Solver status needs the work region set to the entire sketch; that change is
   made under an invisible undo mark and undone.
+- ``GetStatus()`` can answer NotEvaluated for a sketch NX has not solved in this
+  session (reported right after an NX start): :func:`status` solves it once
+  (:func:`update`) and reads again.
 - NX has one active sketch per session and refuses model calls in every part while it
   is active. No sketch stays active between calls: an unfinished sketch is *parked*
   (deactivated with a model update, ``core/parking.py``) and ``editing`` activates it
@@ -42,6 +45,8 @@ from nx_mcp.kit.result import enum_name
 
 FAILED_STATUSES = frozenset({"OverConstrained", "InconsistentlyConstrained"})
 SOLVED_DOF_STATUSES = frozenset({"UnderConstrained", "WellConstrained"})
+# A status NX answers before it solved the sketch: solved once, then read again.
+UNEVALUATED = frozenset({"NotEvaluated"})
 
 
 def frame(sketch):
@@ -204,6 +209,10 @@ def status(tx, sk):
             region.Destroy()
         s.CalculateStatus()
         value, dof = s.GetStatus()
+        if enum_name(value, nx.Sketch.Status) in UNEVALUATED:
+            update(tx, s)  # NX had not solved it yet (seen right after an NX start)
+            s.CalculateStatus()
+            value, dof = s.GetStatus()
     finally:
         session.UndoToMark(mark, None)
         session.DeleteUndoMark(mark, None)

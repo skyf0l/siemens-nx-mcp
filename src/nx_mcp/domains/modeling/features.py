@@ -249,6 +249,28 @@ def _crosses_axis(tx, sk, origin, direction) -> bool:
     return len(signs) == 2
 
 
+def _tilt(sk, direction) -> float:
+    """|cos| of the angle between the axis and the sketch normal: 0 for an axis in (or
+    parallel to) the sketch plane, 1 for an axis normal to it."""
+    return abs(geom.dot(geom.unit(direction), geom.unit(ksketch.frame(sk)["normal"])))
+
+
+def _tilted(normal: bool, nx_code=None, nx_message=None) -> NoReturn:
+    """An axis NX cannot revolve about: normal to the sketch plane (the profile would turn
+    in its own plane) or tilted out of it (live NX 2406: refused, 671623)."""
+    fail(
+        "NX_INVALID_ARGUMENT",
+        "The axis is normal to the sketch plane: the profile would turn in its own plane"
+        if normal
+        else "NX could not revolve the profile about an axis tilted out of the sketch plane",
+        field="/axis",
+        hint="Use an axis lying in (or parallel to) the sketch plane, e.g. x or y for a sketch "
+        "on XY",
+        nx_code=nx_code,
+        details={"nx_message": nx_message} if nx_message else None,
+    )
+
+
 def _crosses(nx_code=None, nx_message=None):
     details = {"nx_message": nx_message} if nx_message else None
     fail(
@@ -306,6 +328,9 @@ def nx_create_revolve(
     with tx.checks():
         sk = ksketch.resolve(tx, sketch)
         resolved = select.axis(tx, axis, "/axis")
+        tilt = _tilt(sk, resolved[2])
+        if tilt > 1 - 1e-9:
+            _tilted(True)
         if _crosses_axis(tx, sk, resolved[1], resolved[2]):
             _crosses()
     targets = common.combine_targets(tx, combine)
@@ -322,6 +347,8 @@ def nx_create_revolve(
     except NXError as error:
         if error.nx_code != REVOLVE_CROSSES_AXIS:
             raise
+        if tilt > 1e-9:  # NX's one refusal: here the axis leaves the plane, not the profile
+            _tilted(False, error.nx_code, error.message)
         if combine is not None:  # NX 2406 says "crosses" for a revolve that misses targets too
             _missed(error, combine)
         _crosses(error.nx_code, error.message)  # a crossing the samples missed
@@ -376,7 +403,7 @@ def nx_create_sweep(
         raise
     swept = common.feature_bodies(feature)
     readback.expect(bool(swept), "bodies", "The sweep built no body")
-    common.sound(tx, swept)  # swapped section and guide self-intersect
+    common.swept_sound(tx, swept)  # swapped section and guide self-intersect
     if combine is None:
         out = common.result_of(tx, feature)
         common.changed(0.0, out["volume"], "positive")

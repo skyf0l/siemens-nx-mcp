@@ -56,6 +56,12 @@ ALIASES = {
     "spacing": ("Pitch Distance", "Spacing", "Pitch"),
     "offset": ("Offset", "Distance"),
 }
+# Aliases of one feature kind: ``{name: (description word naming the kind, words)}``. NX 2406
+# describes a tube's diameters as "(Tube(2) Limit 1)" (outer, live) and "Limit 2" (inner).
+FEATURE_ALIASES = {
+    "outer_diameter": ("Tube(", ("Limit 1",)),
+    "inner_diameter": ("Tube(", ("Limit 2",)),
+}
 
 
 def _formula(formula, field="/formula"):
@@ -126,10 +132,21 @@ def value_or_none(tx, exp):
         return None
 
 
+# NX unit names -> the short names the tools take (NX 2406 abbreviates Degrees as "°").
+SHORT_UNITS = {"MilliMeter": "mm", "Inch": "in", "Degrees": "deg", "Radian": "rad"}
+
+
 def units(exp):
-    """``"mm"``, ``"in"``, ``"deg"``, ``"rad"``, another NX abbreviation or ``"unitless"``."""
+    """``"mm"``, ``"in"``, ``"deg"``, ``"rad"``, another NX abbreviation or ``"unitless"``:
+    the names the tools take (an angle in degrees is ``"deg"``, never NX's ``"°"``)."""
     unit = getattr(exp, "Units", None)
-    return unit.Abbreviation if unit else "unitless"
+    if not unit:
+        return "unitless"
+    short = SHORT_UNITS.get(str(getattr(unit, "Name", "") or ""))
+    if short:
+        return short
+    abbreviation = str(unit.Abbreviation)
+    return "deg" if abbreviation == "°" else abbreviation
 
 
 def dependents(exp):
@@ -141,12 +158,16 @@ def dependents(exp):
 def alias(feature, name):
     """The feature expression for a semantic parameter name (``"distance"``...).
 
-    Matches the words in ``ALIASES`` against each expression's NX description;
-    raises ``NX_NOT_FOUND`` (listing the feature's expressions) if none match.
+    Matches the words in ``ALIASES`` against each expression's NX description (a
+    ``FEATURE_ALIASES`` name only on that feature kind); raises ``NX_NOT_FOUND``
+    (listing the feature's expressions) if none match.
     """
     words = ALIASES.get(name, (name.replace("_", " "),))
     expressions = list(feature.GetExpressions())
     described = [(e, str(getattr(e, "Description", "") or "")) for e in expressions]
+    if name in FEATURE_ALIASES:  # only the expressions of that feature kind match
+        kind, words = FEATURE_ALIASES[name]
+        described = [(e, t) for e, t in described if kind.casefold() in t.casefold()]
     for word in words:
         hits = [e for e, text in described if word.casefold() in text.casefold()]
         if len(hits) == 1:
@@ -157,11 +178,17 @@ def alias(feature, name):
                 f"{len(hits)} expressions of the feature match {name!r}",
                 details={"candidates": [e.Name for e in hits]},
             )
+    listed = [(e, str(getattr(e, "Description", "") or "")) for e in expressions]
     fail(
         "NX_NOT_FOUND",
         f"The feature has no {name!r} parameter",
-        details={"expressions": [{"name": e.Name, "description": t} for e, t in described]},
+        details={"expressions": [{"name": e.Name, "description": t} for e, t in listed]},
     )
+
+
+def alias_names() -> tuple[str, ...]:
+    """Every semantic parameter name :func:`alias` resolves on some feature."""
+    return (*ALIASES, *FEATURE_ALIASES)
 
 
 def bind(tx, target, source):

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/holes_and_words.json",
-  "scenario_sha256": "94b52e0207c2abf3895924978e1db8524eef808d7437316eca2a46ffaae96b6a",
+  "scenario_sha256": "5343e52cb00b1c12a49d24eef0802bd059dc135e67f0ef9c94591460ab7c64b0",
   "domain": "inspection",
   "covers": {
     "nx_find_holes": [],
@@ -13,15 +13,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_find_holes": "d25d9d14f976b4989abb0bbf5d0b0da60d18b2753ec52ed25de6f529c2b753c1",
-    "nx_find_geometry": "d25d9d14f976b4989abb0bbf5d0b0da60d18b2753ec52ed25de6f529c2b753c1",
+    "nx_find_holes": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21",
+    "nx_find_geometry": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21",
     "nx_list_objects": "d314cb2ff9eafcf6a25313ac7b841aa2bf3694f72db2ae1b51548a717194e4fa",
-    "nx_resolve_reference": "d25d9d14f976b4989abb0bbf5d0b0da60d18b2753ec52ed25de6f529c2b753c1",
-    "nx_create_anchor": "d25d9d14f976b4989abb0bbf5d0b0da60d18b2753ec52ed25de6f529c2b753c1"
+    "nx_resolve_reference": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21",
+    "nx_create_anchor": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21"
   },
-  "recorded": "2026-10-13T07:27:34Z",
+  "recorded": "2026-10-13T13:50:49Z",
   "passed": true,
-  "checks": 78,
+  "checks": 91,
   "failed_checks": 0,
   "steps": [
     {
@@ -155,49 +155,49 @@
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 20,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 9
+      "checks": 4
     },
     {
       "index": 21,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 5
     },
     {
       "index": 22,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 9
     },
     {
       "index": 23,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 10
     },
     {
       "index": 24,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 5
     },
     {
       "index": 25,
       "call": "nx_find_holes",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 7
     },
     {
       "index": 26,
@@ -208,28 +208,28 @@
     },
     {
       "index": 27,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 28,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 29,
       "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 28,
-      "call": "nx_find_geometry",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
-      "index": 29,
-      "call": "nx_resolve_reference",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
       "index": 30,
-      "call": "nx_resolve_reference",
+      "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -243,7 +243,7 @@
     },
     {
       "index": 32,
-      "call": "nx_create_anchor",
+      "call": "nx_resolve_reference",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -257,14 +257,14 @@
     },
     {
       "index": 34,
-      "call": "nx_list_objects",
+      "call": "nx_create_anchor",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 35,
-      "call": "nx_list_objects",
+      "call": "nx_resolve_reference",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -285,6 +285,20 @@
     },
     {
       "index": 38,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 39,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 40,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

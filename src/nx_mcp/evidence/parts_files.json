@@ -80,10 +80,10 @@
   "nx_export_model": {
     "v2406": {
       "checks": 40,
-      "recorded": "2026-10-13T07:39:37Z",
+      "recorded": "2026-10-13T15:36:30Z",
       "scenario": "acceptance/parts_files/export_model.json",
-      "scenario_sha256": "3669d227c8e32376a00f09c4b5209bf0b56edb7b1249bb93889a07925399725e",
-      "source_sha256": "c588c2006abd70c010dabac2245d24b85483395eeb3c143e5f81b37aaedac6a7",
+      "scenario_sha256": "f92c3f22726687b691614347db186ef6e2b13f5d547ea363e320a0fd7df6b300",
+      "source_sha256": "57f0874cfa1b8511892852097c9889ae685d6651f2126616c51681247f4dd283",
       "variants": [
         "dwg",
         "dxf",

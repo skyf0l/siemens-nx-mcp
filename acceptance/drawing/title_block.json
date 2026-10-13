@@ -29,7 +29,13 @@
    },
    "expect": {
     "data.title_block_added": true,
-    "data.title_block.kind": "drawing_table"
+    "data.title_block.kind": "drawing_table",
+    "changes.created": {
+     "count_kind": {
+      "drawing_sheet": 1,
+      "drawing_table": 1
+     }
+    }
    }
   },
   {

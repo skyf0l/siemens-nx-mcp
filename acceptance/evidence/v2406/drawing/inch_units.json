@@ -25,10 +25,10 @@
     "nx_create_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
     "nx_create_drawing_dimension": "8651746931d38990280d8a4732397f4462a181f01ffa2814efcefb6435abf1e1",
     "nx_create_note": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
-    "nx_create_drawing_table": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
-    "nx_create_drawing_sheet": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074"
+    "nx_create_drawing_table": "def923e992d04f6636b93a3fc04659b40e31244aa8286a8f26853a7bb98498df",
+    "nx_create_drawing_sheet": "48d0842dc4ca3532d80a1768bcbd18a43a7b2944d700d5b3850390253e0310c8"
   },
-  "recorded": "2026-10-13T12:17:44Z",
+  "recorded": "2026-10-13T14:52:58Z",
   "passed": true,
   "checks": 23,
   "failed_checks": 0,

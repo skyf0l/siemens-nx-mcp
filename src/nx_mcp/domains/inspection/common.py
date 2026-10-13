@@ -116,6 +116,22 @@ def face_samples(tx, faces, per_axis, field="/samples_per_axis"):
     return samples, skipped
 
 
+def note_unsampled(tx, faces, samples, field="samples_per_axis") -> None:
+    """``NX_NOTE`` naming the faces where every grid point fell outside the trim (a
+    hole or slot under the points): their rows are empty, not a measurement."""
+    hit = {int(face.Tag) for face, _uv, _props in samples}
+    empty = [tx.ref(f, kind="face")["id"] for f in faces if int(f.Tag) not in hit]
+    if not empty:
+        return
+    which = "every face" if len(empty) == len(faces) else f"{len(empty)} of {len(faces)} faces"
+    shown = ", ".join(empty[:10]) + (", ..." if len(empty) > 10 else "")
+    tx.warn(
+        "NX_NOTE",
+        f"No sample point lies on {which} ({shown}): each grid point fell outside the "
+        f"trimmed face (a hole or slot there); raise {field} for samples on them",
+    )
+
+
 def xyz3(values):
     return [float(v) for v in list(values)[:3]]
 

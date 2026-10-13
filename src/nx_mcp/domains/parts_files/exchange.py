@@ -37,7 +37,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, BodyRef, Doc, Items, Length, PathTo
+from nx_mcp.core.types import Angle, BodyRef, Doc, Items, Length, PathTo, Range
 from nx_mcp.domains.parts_files import _saving, neutral
 from nx_mcp.kit import args, files, licenses, measure, parts, readback, result
 from nx_mcp.kit import units as kit_units
@@ -72,8 +72,12 @@ class ExportOptions(TypedDict, total=False):
     """STL only; the other formats take no options."""
 
     binary: Annotated[bool, Doc("stl: false writes ASCII (default true)")]
-    chordal_tolerance: Annotated[Length, Doc("stl: max chord deviation (NX default 0.058)")]
-    angular_tolerance: Annotated[Angle, Doc("stl: max angle between facets (NX default 18)")]
+    chordal_tolerance: Annotated[
+        Length, Range(gt=0), Doc("stl: max chord deviation, > 0 (NX default 0.058)")
+    ]
+    angular_tolerance: Annotated[
+        Angle, Range(gt=0, le=90), Doc("stl: max angle between facets, 0-90 (NX default 18)")
+    ]
 
 
 # Option keys each format accepts (only STL has any).

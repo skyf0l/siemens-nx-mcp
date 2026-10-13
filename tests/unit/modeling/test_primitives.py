@@ -178,3 +178,13 @@ def test_argument_errors_are_not_started(args, field):
     assert bad.error["category"] == "invalid_argument", bad
     assert bad.error["field"] == field and bad.mutation_outcome == "not_started"
     assert nx.builders == []
+
+
+@pytest.mark.parametrize("name", ["box", "Box", "cuboid"])
+def test_box_and_cuboid_are_the_block(name):
+    nx = modeling_nx()
+    nx.on_commit("BlockFeatureBuilder", made(nx, [0, 0, 0, 40, 20, 10]))
+    ok = run(nx, "nx_create_primitive", shape=name, length=40, width=20, height=10)
+    assert ok.ok, ok
+    assert nx.last("BlockFeatureBuilder") is not None
+    assert ok.data["volume"] == pytest.approx(8000)

@@ -345,3 +345,60 @@ def test_sheet_reopens_the_sheet_that_was_shown_before():
     ok = run(nx, "nx_capture_view", sheet="SHT2")
     assert ok.ok and ok.data["sheet"]["name"] == "SHT2", ok
     assert nx.part.DrawingSheets.CurrentDrawingSheet is first
+
+
+def test_a_named_work_part_that_is_not_displayed_is_shown_for_the_capture():
+    """Live (bug-fix round): beside the engineer's displayed part, the agent's part was
+    NX's quiet work part; gate 4s switches no work part, so a capture with part=X wrote
+    the engineer's view. X is now shown for the capture; the display and work part come
+    back, and a fitted camera is put back in X before its tab is left."""
+    from types import SimpleNamespace as NS
+
+    from tests.kit.objects import Part
+
+    nx = display_nx()
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
+    parts = nx.session.Parts
+    shown = parts.Display
+    plate = Part(nx.session, root(nx) / "plate.prt")
+    plate.ModelingViews, plate.Views = shown.ModelingViews, shown.Views
+    parts.Display, parts.Work = shown, plate  # quietly the work part, not displayed
+    seen = []
+    commit = nx.part.Views.CreateImageExportBuilder
+
+    def builder():
+        b = commit()
+        original = b.Commit
+        b.Commit = lambda: (seen.append(parts.Display), original())[1]
+        return b
+
+    nx.part.Views.CreateImageExportBuilder = builder
+    ok = run(nx, "nx_capture_view", part="plate", fit=True)
+    assert ok.ok, ok
+    assert seen == [plate] and ok.part["file"] == "plate.prt"
+    assert parts.Display is shown and parts.Work is plate
+    assert nx.work_view.fits == 1 and ok.data["camera"]["scale"] == 2.5
+    assert nx.camera["scale"] == 1.0  # the kept camera was restored
+
+
+def test_a_shown_topology_contour_is_reported_as_legend_only():
+    """Live (bug-fix round): outside the Topology Optimization task NX 2406 draws only a
+    contour's legend (bands labelled 0, no body), and every export of the window shows
+    just that; the capture says so instead of silently returning a blank model."""
+    from types import SimpleNamespace as NS
+
+    nx = display_nx()
+    nx.part.PostManager = NS(GetContourLimits=lambda i: (0.0, 76.49, "MPa"))
+    ok = run(nx, "nx_capture_view")
+    assert ok.ok
+    notes = [w["message"] for w in ok.warnings if w["code"] == "NX_NOTE"]
+    assert len(notes) == 1 and "legend without the body" in notes[0] and "76.49" in notes[0]
+    assert "nx_set_topology_contour with capture" in notes[0]
+
+    def none(_index):
+        raise NXException(1, "No contour is displayed.")
+
+    nx.part.PostManager = NS(GetContourLimits=none)
+    ok = run(nx, "nx_capture_view")
+    assert ok.ok and not ok.warnings

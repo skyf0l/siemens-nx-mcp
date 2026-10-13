@@ -1,0 +1,21 @@
+{
+ "covers": {},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "bar", "args": {"shape": "block", "length": 100, "width": 20, "height": 10}},
+  {"call": "nx_set_material", "setup": true, "args": {"material": "Steel"}},
+  {"call": "nx_find_geometry", "save": "root", "args": {"owner": "$bar.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [-1, 0, 0], "order": "lowest", "axis": "x", "limit": 1}, "setup": true},
+  {"call": "nx_find_geometry", "save": "tip", "args": {"owner": "$bar.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": [1, 0, 0], "order": "highest", "axis": "x", "limit": 1}, "setup": true},
+  {"call": "nx_create_topology_study", "save": "st", "args": {"design_space": "$bar.data.bodies.0.id", "mass_fraction": 0.5, "quality": 9, "name": "post_study"}, "setup": true},
+  {"call": "nx_create_topology_condition", "args": {"study": "$st.data.study.id", "kind": "fixed", "faces": ["$root.data.items.0.id"]}, "setup": true},
+  {"call": "nx_create_topology_condition", "args": {"study": "$st.data.study.id", "kind": "force", "faces": ["$tip.data.items.0.id"], "magnitude": 100, "direction": "-z", "load_case": "down"}, "setup": true},
+  {"call": "nx_run_topology_study", "save": "solved", "args": {"study": "$st.data.study.id"}, "setup": true, "expect": {"mutation_outcome": "committed", "data.load_cases": {"count": 1}, "data.load_cases.0.max_stress": {"close": 41.4, "tol": 15}}},
+  {"call": "nx_capture_view", "args": {"path": "$run/contour_none.png", "overwrite": true, "fit": true}, "intent": "Acceptance: without a contour the capture carries no contour note", "expect": {"ok": true, "warnings": {"count": 0}, "data.resolution": {"count": 2}}},
+  {"call": "nx_set_topology_contour", "setup": true, "save": "plot", "args": {"study": "$st.data.study.id", "result": "stress"}, "expect": {"data.shown": true, "data.max": {"close": "$solved.data.load_cases.0.max_stress", "tol": 0.01}}},
+  {"call": "nx_capture_view", "args": {"path": "$run/contour_shown.png", "overwrite": true}, "intent": "Acceptance: NX 2406 draws a topology contour plotted outside its task as the legend alone (bands labelled 0, no body; viewport export, UF CreateImage and Studio agree), so the capture says so with the plotted range instead of returning a silently blank model", "expect": {"ok": true, "warnings": {"count": 1}, "warnings.0.code": "NX_NOTE", "warnings.0.message": {"matches": "^A topology contour \\(0 to [1-9][0-9.]+\\) is shown: NX draws only its legend outside the Topology Optimization task.*nx_set_topology_contour with capture"}, "data.resolution": {"count": 2}}},
+  {"call": "nx_set_topology_contour", "setup": true, "args": {"study": "$st.data.study.id", "result": "none"}, "expect": {"data.shown": false}},
+  {"call": "nx_capture_view", "args": {"path": "$run/contour_hidden.png", "overwrite": true}, "intent": "Acceptance: the hidden contour leaves no note and the model is captured again", "expect": {"ok": true, "warnings": {"count": 0}}}
+ ]
+}

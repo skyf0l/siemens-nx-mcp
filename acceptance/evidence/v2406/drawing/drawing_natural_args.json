@@ -18,14 +18,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_sheet": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074",
-    "nx_activate_drawing_sheet": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074",
+    "nx_create_drawing_sheet": "48d0842dc4ca3532d80a1768bcbd18a43a7b2944d700d5b3850390253e0310c8",
+    "nx_activate_drawing_sheet": "48d0842dc4ca3532d80a1768bcbd18a43a7b2944d700d5b3850390253e0310c8",
     "nx_create_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
     "nx_edit_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
     "nx_get_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
     "nx_export_drawing": "cd440855fe8fb335a23e56520115c6450e8613e87ca9ab15732732d9ea6d5fa2"
   },
-  "recorded": "2026-10-13T12:15:59Z",
+  "recorded": "2026-10-13T13:37:51Z",
   "passed": true,
   "checks": 76,
   "failed_checks": 0,

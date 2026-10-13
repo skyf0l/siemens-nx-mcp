@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/rib.json",
-  "scenario_sha256": "61e421fcac80404ebf39ec990125b76fa0ee0b1404b017b0282ebca6701b6713",
+  "scenario_sha256": "dd9567262825a9cc743a31abb986ca76b188a098c354935571ce0502c4ad3d4c",
   "domain": "modeling",
   "covers": {
     "nx_create_rib": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_rib": "ab30e91803ec66b414d8ec30597c54b42e2141c1967591e897bade5d3e06acfc"
+    "nx_create_rib": "6231af020532718d6765dd44984f13d0000243ab1e4bf8dfd57ff678d1e6f468"
   },
-  "recorded": "2026-10-13T07:22:30Z",
+  "recorded": "2026-10-13T15:13:35Z",
   "passed": true,
-  "checks": 28,
+  "checks": 45,
   "failed_checks": 0,
   "steps": [
     {
@@ -255,7 +255,7 @@
       "call": "nx_create_rib",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 6
     },
     {
       "index": 35,
@@ -263,6 +263,69 @@
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 36,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 37,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 38,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 39,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 40,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 41,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 42,
+      "call": "nx_create_rib",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 43,
+      "call": "nx_create_rib",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 44,
+      "call": "nx_create_rib",
+      "setup": false,
+      "passed": true,
+      "checks": 5
     }
   ]
 }

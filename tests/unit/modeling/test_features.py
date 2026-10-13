@@ -145,7 +145,7 @@ def test_extrude_refuses_while_a_sketch_is_active():
 
 def test_revolve_about_a_principal_axis_and_angle_rules():
     nx = modeling_nx()
-    sk = nx.sketch()
+    sk = nx.sketch(x_axis=(1, 0, 0), y_axis=(0, 0, 1))  # XZ: the z axis lies in it
     nx.on_commit("RevolveBuilder", extruded(nx, [-10, -10, 0, 10, 10, 10]))
     ok = run(
         nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "z"}, end_angle="3.14159265 rad"
@@ -318,10 +318,28 @@ def test_revolve_combine_that_misses_its_targets_says_so():
     block = nx.block(40, 20, 10)
     sk = nx.sketch()
     nx.refuse("RevolveBuilder", code=671623, message="Unable to create revolved body")
-    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "z"},
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "x"},
               combine={"operation": "subtract", "targets": [block.ref]})  # fmt: skip
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671623
     assert bad.error["field"] == "/combine/targets" and "misses" in bad.error["message"]
+    assert "crosses" not in bad.error["message"]
+
+
+def test_revolve_axis_normal_to_or_tilted_out_of_the_sketch_plane_says_so():
+    """Live NX 2406: an XY sketch revolved about z is refused with 671623, the code of a
+    profile across the axis; the profile was on one side."""
+    nx = modeling_nx()
+    sk = nx.sketch()  # XY: normal z
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis="z")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.mutation_outcome == "not_started"
+    assert "normal to the sketch plane" in bad.error["message"] and bad.error["field"] == "/axis"
+    assert not any(b.kind == "RevolveBuilder" for b in nx.builders)
+    nx.refuse("RevolveBuilder", code=671623, message="Unable to create revolved body")
+    tilted = run(nx, "nx_create_revolve", sketch=sk.ref,
+                 axis={"origin": [0, 0, 0], "direction": [1, 0, 1]})  # fmt: skip
+    assert tilted.error["code"] == "NX_INVALID_ARGUMENT" and tilted.error["nx_code"] == 671623
+    assert "tilted out of the sketch plane" in tilted.error["message"]
+    assert "crosses" not in tilted.error["message"]
 
 
 def _square(nx, corners):

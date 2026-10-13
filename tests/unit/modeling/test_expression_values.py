@@ -88,7 +88,7 @@ def test_revolve_angles_blend_radius_and_chamfer_offsets_keep_formulas():
     nx = modeling_nx()
     expression(nx, "sweep", 90.0, DEG)
     expression(nx, "r", 2.0)
-    sk = nx.sketch()
+    sk = nx.sketch(x_axis=(1, 0, 0), y_axis=(0, 0, 1))  # XZ: the z axis lies in it
     nx.on_commit(
         "RevolveBuilder", lambda b: feature(nx, "REVOLVE", [new_body(nx, [0, 0, 0, 9, 9, 9])])
     )
@@ -146,3 +146,15 @@ def test_hole_sizes_keep_their_formulas():
     assert spec["diameter"].formula == "d" and spec["depth"].formula == "depth"
     assert spec["counterbore"]["diameter"].formula == "d*2"
     assert spec["counterbore"]["depth"] == 4.0
+
+
+def test_set_expression_says_deg_for_nx_degree_sign_and_keeps_units_deg():
+    """NX 2406 abbreviates Degrees as a degree sign: the result says deg like every other
+    tool, and units='deg' on an existing angle expression is not a unit change."""
+    nx = modeling_nx()
+    expression(nx, "ang", 30.0, NS(Name="Degrees", Abbreviation="°"))
+    ok = run(nx, "nx_set_expression", name="ang", formula="45", units="deg")
+    assert ok.ok, ok
+    assert ok.data["units"] == "deg" and ok.data["formula"] == "45"
+    bad = run(nx, "nx_set_expression", name="ang", formula="40", units="mm")
+    assert bad.error["field"] == "/units" and "exists in deg" in bad.error["message"], bad

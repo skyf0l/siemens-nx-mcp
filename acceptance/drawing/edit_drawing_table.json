@@ -201,10 +201,41 @@
      20
     ]
    },
+   "intent": "Acceptance: widths for another column count are refused before NX (bug-fix round: refused rolled_back after the edit started)",
    "expect": {
-    "error.category": "unsupported",
-    "mutation_outcome": "rolled_back",
-    "error.field": "/widths"
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/widths",
+    "error.message": {
+     "matches": "^2 widths given; the table has 3 columns"
+    },
+    "error.details.columns": 3
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "rows": [
+     [
+      "A",
+      "B",
+      "C"
+     ],
+     [
+      "D",
+      "E"
+     ]
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/rows/1",
+    "error.message": {
+     "matches": "^Row 1 has 2 cells; the table has 3 columns"
+    }
    }
   },
   {
@@ -248,6 +279,47 @@
    "expect": {
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "row_height": -5
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/row_height"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$tb.data.table.id",
+    "kind": "title_block",
+    "row_height": "0 mm"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "mutation_outcome": "not_started",
+    "error.field": "/row_height"
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id"
+   },
+   "expect": {
+    "data.row_height": {
+     "close": 9,
+     "tol": 0.0001
+    },
+    "data.rows": {
+     "count": 1
+    }
    }
   },
   {

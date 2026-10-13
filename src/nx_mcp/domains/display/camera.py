@@ -81,10 +81,14 @@ def _hidden(services, part, args) -> bool:
     example={},
 )
 def nx_get_camera(tx: Tx) -> CameraData:
-    """Read the displayed view: camera rotation, origin, scale and rendering style, or the
-    shown drawing sheet. Always the displayed part's, whatever part names. origin is what
-    nx_set_camera takes back; view is a named view or custom, view_angle the degrees off
-    the nearest."""
+    """Read a part's view: camera rotation, origin, scale and rendering style, or the shown
+    drawing sheet. Without part, the displayed part's; part X shows X for the read, then
+    the display comes back. origin is what nx_set_camera takes back; view is a named view
+    or custom, view_angle the degrees off the nearest."""
+    return _camera(tx)
+
+
+def _camera(tx) -> CameraData:
     part = display.shown_part(tx)
     tx.frame = "display_part_absolute"
     out: CameraData = {"part": tx.ref(part, "part"), "interactive": not tx.session.IsBatch}

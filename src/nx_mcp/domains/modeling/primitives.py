@@ -21,11 +21,14 @@ from typing import Annotated, Literal
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Combine, Direction, Doc, Length, Point3, Vec3
+from nx_mcp.core.types import Aliases, Combine, Direction, Doc, Length, Point3, Vec3
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import builders, expr, geom, measure, readback, select
 
-Shape = Literal["block", "cylinder", "cone", "sphere"]
+# Other names agents use for the block (gate 1 maps them; listings never show them).
+Shape = Annotated[
+    Literal["block", "cylinder", "cone", "sphere"], Aliases(box="block", cuboid="block")
+]
 # The sizes each shape takes (any other size is refused, never ignored).
 SIZES: dict[str, tuple[str, ...]] = {
     "block": ("length", "width", "height"),

@@ -1,0 +1,58 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/set_name_part.json",
+  "scenario_sha256": "2bbe959b9d1b7e56ad44cc60dca77f1c2fb38ae1ef2ccae64b6f504dde645797",
+  "domain": "session",
+  "covers": {},
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {},
+  "recorded": "2026-10-13T15:03:49Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_name",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 4,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_set_name",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

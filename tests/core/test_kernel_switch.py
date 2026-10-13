@@ -263,6 +263,27 @@ def test_a_display_call_switches_the_display_and_comes_back():
     assert services(nx).switch_log()[-1]["primitive"] == "display"
 
 
+def test_a_named_quiet_work_part_is_displayed_for_a_display_call():
+    """Bug-fix round: plate is NX's (quiet) work part beside the displayed work.prt; a
+    display call naming plate acted on the displayed part (no switch: plate was work)."""
+    nx = _nx()
+    nx.session.Parts.Work = nx.plate
+    r = call(nx, DRAWING, part="plate")
+    assert r.ok, r
+    assert [(nx.plate, nx.plate, nx.plate, MODELING)] == SEEN  # shown for the call
+    assert _state(nx) == (nx.part, nx.plate)  # the engineer's state is back
+    assert services(nx).switch_log()[-1]["primitive"] == "display"
+
+
+def test_a_quiet_work_part_needs_no_switch_for_work_or_read_calls():
+    nx = _nx()
+    nx.session.Parts.Work = nx.plate
+    for spec in (MODEL, READ):
+        assert call(nx, spec, part="plate").ok
+    assert nx.session.calls == [] and _state(nx) == (nx.part, nx.plate)
+    assert [s[0] for s in SEEN] == [nx.plate, nx.plate] and len(nx.plate.Features) == 1
+
+
 def test_the_display_fallback_switches_the_display_for_model_tools(monkeypatch):
     monkeypatch.setenv(switching.ENV, "display")
     nx = _nx()

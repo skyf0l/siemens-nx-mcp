@@ -1,0 +1,26 @@
+{
+  "covers": {"nx_check_model": []},
+  "fixture": null,
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+    {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 20, "width": 20, "height": 20}},
+    {"call": "nx_check_model", "args": {},
+     "intent": "Acceptance: a healthy block passes the self-overlap check",
+     "expect": {"data.healthy": true, "data.errors": 0, "data.warnings": 0, "data.bodies_checked": 1, "page.total": 0}},
+    {"call": "nx_create_helix", "setup": true, "save": "hx",
+     "args": {"axis": {"origin": [100, 0, 0], "direction": [0, 0, 1]}, "radius": 10, "pitch": 5, "turns": 3}},
+    {"call": "engineer", "args": {"code": "p = session.Parts.Work\nhelix = [f for f in p.Features if str(f.FeatureType) == 'HELIX'][-1]\nb = p.Features.CreateTubeBuilder(NXOpen.Features.Tube.Null)\ntry:\n    b.Tolerance = 0.01\n    rule = p.ScRuleFactory.CreateRuleCurveFeature([helix])\n    b.PathSection.AddToSection([rule], helix.GetEntities()[0], NXOpen.NXObject.Null, NXOpen.NXObject.Null, NXOpen.Point3d(0.0, 0.0, 0.0), NXOpen.Section.Mode.Create, False)\n    b.OuterDiameter.RightHandSide = '8'\n    b.InnerDiameter.RightHandSide = '0'\n    tube = b.CommitFeature()\nfinally:\n    b.Destroy()\nresult = [len(list(body.GetFaces())) for body in tube.GetBodies()]"},
+     "intent": "Acceptance: the engineer sweeps a tube OD 8 along the pitch-5 helix (nx_create_tube refuses it): NX commits a solid that overlaps itself",
+     "expect": {"ok": true}},
+    {"call": "nx_check_model", "args": {},
+     "intent": "Acceptance: the self-overlapping tube is an error naming its clashing faces (bug-fix round: reported healthy, UF consistency passes it)",
+     "expect": {"data.healthy": false, "data.errors": 1, "data.warnings": 0, "data.bodies_checked": 2, "page.total": 1,
+                "data.issues.0.severity": "error", "data.issues.0.kind": "self_intersection", "data.issues.0.object.kind": "body",
+                "data.issues.0.message": {"matches": "^26 faces cut other faces.*helix pitch"},
+                "data.issues.0.faces": {"count": 10}, "data.issues.0.faces.0.kind": "face"}},
+    {"call": "nx_get_model_summary", "args": {},
+     "intent": "Acceptance: the summary's health agrees",
+     "expect": {"data.health": {"healthy": false, "errors": 1, "warnings": 0}, "data.counts.bodies": 2}}
+  ]
+}

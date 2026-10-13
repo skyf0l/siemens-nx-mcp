@@ -140,7 +140,7 @@ def nx_create_drawing_sheet(
 ) -> SheetData:
     """Create a drawing sheet from a standard or custom size or a sheet template, and open
     it. Default A3; the installed A0-A4 templates are metric. A template sets the sheet size:
-    give template or size. Views take the sheet scale by default."""
+    give template or size, not both (refused). Views take the sheet scale by default."""
     standard = _size(size)
     custom = standard if isinstance(standard, list) else None
     standard = standard if isinstance(standard, str) else None
@@ -149,8 +149,13 @@ def nx_create_drawing_sheet(
         fail("NX_INVALID_ARGUMENT", "width and height must be positive", field="/size")
     if template is not None and template_path is not None:
         fail("NX_INVALID_ARGUMENT", "Give template or template_path", field="/template_path")
-    if (template or template_path) and custom is not None:
-        fail("NX_INVALID_ARGUMENT", "A template sets its own size", field="/size")
+    if (template or template_path) and size is not None:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "A template sets the sheet size: give template or size, not both",
+            field="/size",
+            hint="Leave size out; data.size and data.dimensions report the template's size",
+        )
     installed = template
     if installed and installed.lower() in SIZES and units != "mm":
         fail(

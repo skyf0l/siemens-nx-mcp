@@ -134,6 +134,15 @@ def sound(tx, made, known=()) -> None:
         tx.warn("NX_UPDATE_WARNING", note)
 
 
+def swept_sound(tx, made, known=(), overlapping=()) -> None:
+    """:func:`sound` for a body swept along a path (tube, sweeps), plus the self-overlap
+    check: NX 2406 commits a tube wider than its helix pitch as a solid whose faces cut each
+    other, which UF consistency passes. ``overlapping``: ``kit.bodies.clashing`` of the
+    combine targets before the build."""
+    sound(tx, made, known)
+    kbodies.expect_no_clash(tx, made, known=overlapping)
+
+
 def boolean_feature(tx, operation, target, tools):
     """Commit one boolean feature (``unite``/``subtract``/``intersect``) of ``tools``
     with ``target``; returns the feature."""

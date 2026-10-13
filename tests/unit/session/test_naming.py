@@ -91,3 +91,17 @@ def test_real_references_keep_ids_and_reanchor_the_renamed_object(rig, monkeypat
     again = rig.run("nx_list_objects", {"kind": "body"})["data"]["items"]
     assert [row["id"] for row in again] == ids  # nothing went stale
     assert again[0]["anchor"].endswith(":PLATE#0") and again[0]["part"] == listed[0]["part"]
+
+
+def test_a_part_is_refused_up_front_with_the_save_as_tool():
+    """A part's name is its file name: NX refuses SetName on a part (580014, live), so the
+    rename is refused before NX with the tool that renames a part (save-as)."""
+    nx = fake_nx()
+    calls = []
+    nx.part.SetName = lambda name: calls.append(name)
+    ref = nx.ref_of(nx.part, "part")
+    bad = run(nx, "nx_set_name", object=ref, name="Housing")
+    assert bad.error["code"] == "NX_WRONG_KIND", bad
+    assert bad.error["field"] == "/object" and bad.mutation_outcome == "not_started"
+    assert "nx_save_part" in bad.error["hint"] and "path" in bad.error["hint"]
+    assert calls == []

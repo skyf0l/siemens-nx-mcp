@@ -345,3 +345,12 @@ def test_start_defaults_to_auto_also_in_dev_and_sets_the_dev_title(monkeypatch):
     host.stopped = True
     interactive.start("w", "d", True)
     assert "nx_dev_python" not in interactive._host.services.dev_tools
+
+
+def test_a_development_snippet_that_changed_nothing_is_a_read_in_the_activity_list():
+    from nx_mcp import interactive
+
+    assert interactive._model_unchanged("nx_dev_python", {"mutation_outcome": "not_applicable"})
+    assert not interactive._model_unchanged("nx_dev_python", {"mutation_outcome": "committed"})
+    assert not interactive._model_unchanged("nx_dev_python", None)
+    assert interactive._model_unchanged("nx_get_status", {"mutation_outcome": "committed"})

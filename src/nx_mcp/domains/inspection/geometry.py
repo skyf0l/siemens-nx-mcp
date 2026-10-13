@@ -37,6 +37,7 @@ import re
 from pathlib import PurePath
 from typing import Annotated, Any, Literal, TypedDict, cast
 
+from nx_mcp.core import target as targets
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
@@ -674,7 +675,8 @@ def nx_find_holes(
     limit: PageLimit = 20,
 ) -> HolesData:
     """Find holes (bores grouped by axis) with diameters, form, length, through and ends
-    (entry first). No thread inference."""
+    (entry first). No thread inference. offset/limit page the holes (groups; page.total
+    counts holes); items lists the bore faces of the holes on the page."""
     common.note_exploded(tx)
     if diameter is not None and float(diameter) <= 0:
         fail("NX_INVALID_ARGUMENT", "diameter must be > 0", field="/diameter")
@@ -698,12 +700,17 @@ def nx_find_holes(
         if through is not None and group["through"] is not through:
             continue
         groups.append(group)
-    ordered = [(face, found, g["group"]) for g in groups for face, found in g["members"]]
-    selected, page = result.page(ordered, offset, limit)
+    # offset/limit page the holes; items are the bore faces of the holes on this page.
+    groups, page = result.page(groups, offset, limit)
+    page["faces"] = sum(len(g["members"]) for g in groups)
     keys = ("radius", "axis", "axis_point", "full")
     items = [
-        cast(HoleRow, {**tx.ref(face, kind="face"), **{k: found[k] for k in keys}, "group": group})
-        for face, found, group in selected
+        cast(
+            HoleRow,
+            {**tx.ref(face, kind="face"), **{k: found[k] for k in keys}, "group": g["group"]},
+        )
+        for g in groups
+        for face, found in g["members"]
     ]
     out_groups: list[HoleGroup] = [
         {
@@ -883,6 +890,26 @@ def _selector_owner(tx, selector):
     return obj
 
 
+def _named_part(services, args):
+    """Gate 3t: the part the anchor or selector names (a ref's or anchor's part, else the
+    selector's ``part`` path or ``owner`` anchor), so two loaded parts need no ``part``.
+    An occurrence pins its assembly, where nx_find_geometry found it."""
+    for value in (args.get("anchor"), args.get("selector")):
+        if isinstance(value, str) and value.lstrip().startswith("{"):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                continue
+        if isinstance(value, dict):
+            found = targets.part_at_path(services, value.get("part"))
+            found = found or targets.part_named_by(services, value.get("owner"), (), "assembly")
+        else:
+            found = targets.part_named_by(services, value, (), "assembly")
+        if found is not None:
+            return found
+    return None
+
+
 @tool(
     effect="read",
     label="Resolve reference",
@@ -891,6 +918,7 @@ def _selector_owner(tx, selector):
     requires=("work_part",),
     cost="light",
     example={"anchor": "@smoke/a/blk.prt:face=RMblk.prt R1234"},
+    target=_named_part,
 )
 def nx_resolve_reference(
     tx: Tx,
