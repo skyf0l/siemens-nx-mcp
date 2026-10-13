@@ -1,0 +1,106 @@
+{
+ "covers": {
+  "nx_create_part_family_table": []
+ },
+ "fixture": "fixtures/parts_files_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_part_family_table",
+   "args": {
+    "origin": [
+     30,
+     250
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_part_family",
+   "setup": true,
+   "args": {
+    "expressions": [
+     "p0",
+     "p2"
+    ],
+    "directory": "$run/fam",
+    "members": [
+     {
+      "name": "ft_block_50",
+      "values": [
+       50,
+       12.5
+      ]
+     },
+     {
+      "name": "ft_block_60",
+      "values": [
+       60,
+       15
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_part_family_table",
+   "args": {
+    "origin": [
+     30,
+     250
+    ],
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      30,
+      250
+     ],
+     "tol": 1e-06
+    },
+    "data.rows": {
+     "count": 2
+    },
+    "data.rows.0.0": "ft_block_50",
+    "data.rows.1.0": "ft_block_60",
+    "data.rows.0.1": "50",
+    "data.rows.1.2": "15",
+    "data.columns": {
+     "count": 3
+    },
+    "data.table.kind": "drawing_table"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

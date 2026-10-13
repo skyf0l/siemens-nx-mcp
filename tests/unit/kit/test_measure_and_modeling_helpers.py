@@ -69,6 +69,45 @@ def test_length_converts_nx_millimetres_to_part_units(units, want):
     assert measure.length(nx.tx, edge) == pytest.approx(want * 50.8 / 60.0)
 
 
+def _line(nx, tag, end, reading):
+    """A straight curve from the origin to ``end`` (part units) whose ``GetLength`` reads
+    ``reading``; UF Eval answers its points in part units."""
+    shapes = getattr(nx, "line_ends", {})
+    nx.line_ends = shapes
+    shapes[tag] = end
+    nx.uf.Eval = NS(
+        Initialize=lambda t: t,
+        AskLimits=lambda h: (0.0, 1.0),
+        EvaluateUnitVectors=lambda h, t: ([v * t for v in shapes[h]], [1.0, 0.0, 0.0]),
+    )
+    return NS(Tag=tag, GetLength=lambda: reading)
+
+
+@pytest.mark.parametrize(
+    ("units", "end", "reading", "want"),
+    [
+        ("in", [4.0, 0, 0], 101.6, 4.0),  # millimetres, as documented
+        ("in", [4.0, 0, 0], 4.0, 4.0),  # part units read as mm (live 2026-10-13)
+        ("mm", [101.6, 0, 0], 101.6, 101.6),
+        ("mm", [101.6, 0, 0], 101.6 * 25.4, 101.6),  # a mm part read as inches
+        ("in", [0.5, 0, 0], 0.5 * 25.4, 0.5),
+    ],
+)
+def test_length_takes_the_units_reading_that_matches_the_sampled_curve(units, end, reading, want):
+    """NX 2406 GetLength units follow hidden session state (50.8 or 2 for the same 2 in
+    line of a quietly worked inch part): the reading is checked against UF Eval points."""
+    nx = fake_nx(units=units)
+    line = _line(nx, 41, end, reading)
+    assert measure.length(nx.tx, line) == pytest.approx(want)
+    other = _line(nx, 42, end, reading)
+    assert measure.length(nx.tx, [line, other]) == pytest.approx(2 * want)
+
+
+def test_length_of_a_curve_uf_eval_cannot_sample_keeps_nx_millimetres():
+    nx = fake_nx(units="in")
+    assert measure.length(nx.tx, NS(GetLength=lambda: 4.0)) == pytest.approx(4.0 / 25.4)
+
+
 def test_bounds_union_of_objects():
     nx = fake_nx()
     a, b = nx.block(1, 1, 1), nx.block(2, 2, 2, origin=(5, 0, -1))

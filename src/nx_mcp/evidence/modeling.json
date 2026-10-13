@@ -9,6 +9,16 @@
       "variants": []
     }
   },
+  "nx_create_blend_corner": {
+    "v2406": {
+      "checks": 16,
+      "recorded": "2026-10-13T12:05:03Z",
+      "scenario": "acceptance/modeling/blend_corner.json",
+      "scenario_sha256": "2e9e38a65e4529f8fdf8da8953d779f83856551d34d83fd59d35c38eade58d3f",
+      "source_sha256": "b00964f4202df5fd6faf19aa9ec3e420f4fb3805114fab78cf077415551052e7",
+      "variants": []
+    }
+  },
   "nx_create_boolean": {
     "v2406": {
       "checks": 26,
@@ -84,6 +94,16 @@
       "variants": []
     }
   },
+  "nx_create_delete_body": {
+    "v2406": {
+      "checks": 35,
+      "recorded": "2026-10-13T12:07:53Z",
+      "scenario": "acceptance/modeling/repair.json",
+      "scenario_sha256": "6862bbb20548990d3f358f628b42ee57de48244301d5151e9cc826e594ffd8b9",
+      "source_sha256": "dcc8f380d47aeacc0ee2e37aed38cbc6010487a8011b44e164a34733be9b9f96",
+      "variants": []
+    }
+  },
   "nx_create_draft": {
     "v2406": {
       "checks": 27,
@@ -92,6 +112,29 @@
       "scenario_sha256": "f5c8f3e634fb42f839210af0cf20e934ce9e5da23d0f1667badc70b0334f0f58",
       "source_sha256": "1df3e9c6e289626477f0a402d66b60d6dd2d6ba30266b29d5924c180890fa22b",
       "variants": []
+    }
+  },
+  "nx_create_draft_body": {
+    "v2406": {
+      "checks": 15,
+      "recorded": "2026-10-13T12:05:43Z",
+      "scenario": "acceptance/modeling/draft_body.json",
+      "scenario_sha256": "562bc889cc8c4a5d1db8e7bb244f9847acbc0a89491f1495eaa5c10ded823a60",
+      "source_sha256": "9954242bba424a7ead67acb9aac017575d0e79395a9c7edc04a49e65675aa031",
+      "variants": []
+    }
+  },
+  "nx_create_emboss": {
+    "v2406": {
+      "checks": 10,
+      "recorded": "2026-10-13T12:05:53Z",
+      "scenario": "acceptance/modeling/emboss.json",
+      "scenario_sha256": "aa147980573a3919c539f0251e44a25945496e36d1bc16287c0fcfeb16e7f459",
+      "source_sha256": "a577c2ae3fe0757abc6b67fd5b6c249b6fd1331d3acf639173301d495f438218",
+      "variants": [
+        "pad",
+        "pocket"
+      ]
     }
   },
   "nx_create_emboss_body": {
@@ -122,6 +165,46 @@
       "scenario_sha256": "49491b9178eecf3566c8d5ef24486c70e98c0d8af7a1b95a4c3294ac1e8d5f0c",
       "source_sha256": "c3dd12e40f143e02cd66999de91efdc8fea1c059b9ac63f330f35d12357ab871",
       "variants": []
+    }
+  },
+  "nx_create_face_copy": {
+    "v2406": {
+      "checks": 16,
+      "recorded": "2026-10-13T12:08:47Z",
+      "scenario": "acceptance/modeling/sync_faces.json",
+      "scenario_sha256": "ee67e8407299e49a7ecfc89250fd04dba5556f45fc99b974294efdbc28cdb931",
+      "source_sha256": "7530ab07a2d315cabe5a580e7a210a4240765075157a881c9d37da36bc2f3859",
+      "variants": [
+        "copy",
+        "cut"
+      ]
+    }
+  },
+  "nx_create_face_label": {
+    "v2406": {
+      "checks": 8,
+      "recorded": "2026-10-13T12:08:49Z",
+      "scenario": "acceptance/modeling/sync_labels.json",
+      "scenario_sha256": "e452953ca0ba958eeac81cbf16db412197bc59f21a1b398d47e690d225fe7d44",
+      "source_sha256": "4ac8ff50cb476850d7150b1789d75d12bea45f6bbbff4fb74be9b7f01705af85",
+      "variants": [
+        "chamfer",
+        "group"
+      ]
+    }
+  },
+  "nx_create_face_paste": {
+    "v2406": {
+      "checks": 16,
+      "recorded": "2026-10-13T12:08:47Z",
+      "scenario": "acceptance/modeling/sync_faces.json",
+      "scenario_sha256": "ee67e8407299e49a7ecfc89250fd04dba5556f45fc99b974294efdbc28cdb931",
+      "source_sha256": "7530ab07a2d315cabe5a580e7a210a4240765075157a881c9d37da36bc2f3859",
+      "variants": [
+        "add",
+        "auto",
+        "subtract"
+      ]
     }
   },
   "nx_create_helix": {
@@ -159,6 +242,20 @@
       "variants": []
     }
   },
+  "nx_create_measurement": {
+    "v2406": {
+      "checks": 16,
+      "recorded": "2026-10-13T12:07:08Z",
+      "scenario": "acceptance/modeling/measure_feature.json",
+      "scenario_sha256": "128ad16e48c81019bda562d2bc8a91c2228ec3d98ad120ab298ab392cbc49aa6",
+      "source_sha256": "bf81920fcfa9b05e182c958a977e3e771c003aae374a688133ef201db06f1518",
+      "variants": [
+        "body",
+        "distance",
+        "length"
+      ]
+    }
+  },
   "nx_create_mirror": {
     "v2406": {
       "checks": 23,
@@ -170,6 +267,26 @@
         "bodies",
         "features"
       ]
+    }
+  },
+  "nx_create_offset_emboss": {
+    "v2406": {
+      "checks": 10,
+      "recorded": "2026-10-13T12:05:59Z",
+      "scenario": "acceptance/modeling/emboss_offset.json",
+      "scenario_sha256": "8320f58d3540005b82f0b8ee5e5c1b4c78eebd9cc26a59773abfcfe93c0f5bee",
+      "source_sha256": "a577c2ae3fe0757abc6b67fd5b6c249b6fd1331d3acf639173301d495f438218",
+      "variants": []
+    }
+  },
+  "nx_create_patch_body": {
+    "v2406": {
+      "checks": 35,
+      "recorded": "2026-10-13T12:07:53Z",
+      "scenario": "acceptance/modeling/repair.json",
+      "scenario_sha256": "6862bbb20548990d3f358f628b42ee57de48244301d5151e9cc826e594ffd8b9",
+      "source_sha256": "dcc8f380d47aeacc0ee2e37aed38cbc6010487a8011b44e164a34733be9b9f96",
+      "variants": []
     }
   },
   "nx_create_pattern": {
@@ -258,6 +375,16 @@
       "variants": []
     }
   },
+  "nx_create_sweep_along_guide": {
+    "v2406": {
+      "checks": 9,
+      "recorded": "2026-10-13T12:08:21Z",
+      "scenario": "acceptance/modeling/sweep_guide.json",
+      "scenario_sha256": "cdba24710ec6d076117edb8a77dd1018a2be843979159f97bc7b95caf4deb31f",
+      "source_sha256": "754df5b480d17b296c1e9d66980063e86cc95fa15c1fd8f272b79ddb627b5550",
+      "variants": []
+    }
+  },
   "nx_create_text": {
     "v2406": {
       "checks": 22,
@@ -312,6 +439,39 @@
       "variants": []
     }
   },
+  "nx_create_unsew": {
+    "v2406": {
+      "checks": 35,
+      "recorded": "2026-10-13T12:07:53Z",
+      "scenario": "acceptance/modeling/repair.json",
+      "scenario_sha256": "6862bbb20548990d3f358f628b42ee57de48244301d5151e9cc826e594ffd8b9",
+      "source_sha256": "dcc8f380d47aeacc0ee2e37aed38cbc6010487a8011b44e164a34733be9b9f96",
+      "variants": [
+        "edges",
+        "faces"
+      ]
+    }
+  },
+  "nx_create_untrim": {
+    "v2406": {
+      "checks": 35,
+      "recorded": "2026-10-13T12:07:53Z",
+      "scenario": "acceptance/modeling/repair.json",
+      "scenario_sha256": "6862bbb20548990d3f358f628b42ee57de48244301d5151e9cc826e594ffd8b9",
+      "source_sha256": "dcc8f380d47aeacc0ee2e37aed38cbc6010487a8011b44e164a34733be9b9f96",
+      "variants": []
+    }
+  },
+  "nx_create_variational_sweep": {
+    "v2406": {
+      "checks": 9,
+      "recorded": "2026-10-13T12:08:24Z",
+      "scenario": "acceptance/modeling/sweep_guide_variational.json",
+      "scenario_sha256": "666b327f74a266d272b52b4c0a8a29295aa4db1debc187f4b175273cff28f3d1",
+      "source_sha256": "754df5b480d17b296c1e9d66980063e86cc95fa15c1fd8f272b79ddb627b5550",
+      "variants": []
+    }
+  },
   "nx_create_wrap_geometry": {
     "v2406": {
       "checks": 12,
@@ -322,16 +482,43 @@
       "variants": []
     }
   },
+  "nx_edit_edges": {
+    "v2406": {
+      "checks": 14,
+      "recorded": "2026-10-13T12:08:26Z",
+      "scenario": "acceptance/modeling/sync_edges.json",
+      "scenario_sha256": "63339213d58a86e0bcb90389fbeb9c4a1b334ee2406bacb3fd81132686aed9c8",
+      "source_sha256": "a10210ed5a9dded9bea72f5e8c74879ddc438949a53587f24d9b7a963ea032eb",
+      "variants": [
+        "move",
+        "offset"
+      ]
+    }
+  },
+  "nx_edit_face_region": {
+    "v2406": {
+      "checks": 10,
+      "recorded": "2026-10-13T12:08:51Z",
+      "scenario": "acceptance/modeling/sync_region.json",
+      "scenario_sha256": "a1b72a0c1f887daab0145e191813464c5a431bc4e75536a9ab95b128857c3497",
+      "source_sha256": "065c3e046a0f22462ffb940ba2ed8d6de83551758784b9254ff00b76d4476c7f",
+      "variants": [
+        "offset",
+        "pull"
+      ]
+    }
+  },
   "nx_edit_face_relation": {
     "v2406": {
-      "checks": 29,
-      "recorded": "2026-10-13T06:37:44Z",
+      "checks": 36,
+      "recorded": "2026-10-13T12:08:55Z",
       "scenario": "acceptance/modeling/sync_relate.json",
-      "scenario_sha256": "f96b2db1b2dd48ea36e11301118f13c17ba510215ca4085f8a904f72b655f9d3",
-      "source_sha256": "177f409b978b730995bde8f50d9bb15069cd05846f94e4f83ae873b3871f0dd4",
+      "scenario_sha256": "b02a8099c6b6cf7f132ba2bd6d82d2d5cb89c5f2ea046e0e0fadc726af24bec0",
+      "source_sha256": "2a73bc182d75552d1fad3baeb11fa4ab4282d6a46198ad4ef410f98caaec3c8d",
       "variants": [
         "coaxial",
         "coplanar",
+        "offset",
         "parallel",
         "perpendicular",
         "symmetric",

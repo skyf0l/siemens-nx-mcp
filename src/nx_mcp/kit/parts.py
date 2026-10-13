@@ -9,6 +9,8 @@
     for component, names in parts.components(part): ...
     with parts.saving(tx, part) as updated:        # drawing preview data survives the save
         part.Save(...)                             # updated: views it brought up to date
+    with parts.without_cgm([template]):            # NX writes files we cannot display
+        manager.SaveFamilyAndCreateMembers(...)
 
 NX 2406 findings encoded here:
 
@@ -18,6 +20,11 @@ NX 2406 findings encoded here:
 - A part whose drawing sheets keep CGM preview data saves them only while a
   sheet is displayed: ``saving`` opens the current (or first) sheet, saves,
   then restores the sheet, the modeling display and the work/display parts.
+- Saving a part that keeps CGM preview data while none of its sheets is displayed
+  shows NX's modal "Save CGM" dialog ("Parts containing sheets that are not visible
+  will not have a CGM saved..."), which blocks the host. Saves NX runs itself, where
+  no sheet can be displayed first (family members written from their template), go
+  through ``without_cgm``: the files they write carry no CGM preview.
 - Views saved out of date reopen with an "(Out of Date)" sheet banner: ``saving``
   updates the views NX flags out of date before the save.
 - Displaying a part never drops NX's undo marks here: a plain ``SetDisplay`` (or a
@@ -641,4 +648,37 @@ def saving(tx, part, *, force_display: bool = False, update_views: bool = True):
         fail(
             "NX_RESTORE_FAILED",
             f"The part was saved but the drawing display was not restored: {error}",
+        )
+
+
+@contextlib.contextmanager
+def without_cgm(targets):
+    """Turn off ``SaveOptions.DrawingCgmData`` of ``targets`` for a save NX runs itself.
+
+    NX shows the modal "Save CGM" dialog when it saves a part that keeps CGM preview
+    data while its sheets are not displayed; ``saving`` avoids it by displaying a sheet,
+    which saves NX writes on its own (family members, clones) cannot use. Parts without
+    the option or with it off are left alone; the old values are restored after, also
+    on failure. A failed restore raises ``NX_RESTORE_FAILED``.
+    """
+    changed = []
+    try:
+        for part in targets:
+            options = getattr(part, "SaveOptions", None)
+            if options is not None and bool(getattr(options, "DrawingCgmData", False)):
+                options.DrawingCgmData = False
+                changed.append(options)
+        yield list(changed)
+    except BaseException:
+        for options in changed:
+            with contextlib.suppress(Exception):  # never hides the error propagating
+                options.DrawingCgmData = True
+        raise
+    try:
+        for options in changed:
+            options.DrawingCgmData = True
+    except Exception as error:
+        fail(
+            "NX_RESTORE_FAILED",
+            f"The files were written but the CGM save option was not restored: {error}",
         )

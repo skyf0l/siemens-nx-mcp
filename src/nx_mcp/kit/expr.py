@@ -117,6 +117,15 @@ def value(tx, exp):
     return None
 
 
+def value_or_none(tx, exp):
+    """:func:`value`, or None when NX gives no numeric value (a string or list
+    expression, or one NX cannot evaluate)."""
+    try:
+        return value(tx, exp)
+    except Exception:  # a string or list expression has no numeric value
+        return None
+
+
 def units(exp):
     """``"mm"``, ``"in"``, ``"deg"``, ``"rad"``, another NX abbreviation or ``"unitless"``."""
     unit = getattr(exp, "Units", None)

@@ -208,6 +208,7 @@ class TaskEnvironment:
         if not self.nx.licenses:
             raise NXException(949895, "The requested license feature is not available")
         self.log.append("Enter")
+        self.nx.part.PostManager.plot = None  # NX 2406: entering the task clears the plot
         if self.edit is not None:
             self.ActiveFeature = self.edit
             return
@@ -311,8 +312,61 @@ def _commit(nx, kind):
     return hook
 
 
+def _name(member) -> str:
+    """The member name of a fake enum value (a Node path)."""
+    return str(member).rsplit(".", 1)[-1].rstrip(">")
+
+
+class PostManager:
+    """``BasePart.PostManager``: one contour plot at a time (``plot``: component name and
+    load case index). NX 2406's ``HideContour`` leaves the plot shown; entering the task
+    clears it. ``GetContourLimits(0)`` derives the range from the fake's peaks."""
+
+    def __init__(self, nx):
+        self.nx = nx
+        self.plot = None
+        self.hides = 0
+        nx.on_commit("ViewContourBuilder", self._commit)
+        nx.lacks("ViewContourBuilder", "GetCommittedObjects")
+
+    def CreateViewContourBuilder(self):
+        return self.nx.builder("ViewContourBuilder")
+
+    def _commit(self, b):
+        study, index = b.FirstStudy, b.SubcaseIndexForFirstStudy
+        solved = study.designs and study.designs[0].Results is not None
+        if not solved or not 0 <= index < len(study.subcases):
+            raise NXException(3520300, "No solved result for the specified subcase.")
+        self.plot = (_name(b.ResultComponentType), index)
+        return None
+
+    def IsContourShown(self):
+        return self.plot is not None
+
+    def HideContour(self):
+        self.hides += 1  # NX 2406: no effect outside the task
+
+    def GetContourLimits(self, index):
+        if index != 0 or self.plot is None:
+            raise NXException(3520301, "No contour is displayed at the specified index.")
+        nx, (component, case) = self.nx, self.plot
+        peaks = nx.case_peaks[case] if case < len(nx.case_peaks) else nx.peaks
+        length = NS(Name="MilliMeter" if nx.part.PartUnits == "mm" else "Inch")
+        stress = peaks["StressVonMises"] * (1e-3 if nx.part.PartUnits == "mm" else 1.7858e-5)
+        if component == "StressVonMises":
+            return 0.0, stress, NS(Name="StressNewtonPerSquareMilliMeter")
+        if component == "StressWorstPrincipal":
+            return -1.2 * stress, 1.1 * stress, NS(Name="StressNewtonPerSquareMilliMeter")
+        if component == "SafetyFactor":
+            return 250.0 / stress, 1e6, None
+        if component == "DisplacementMagnitude":
+            return 0.0, peaks["Displacement"], length
+        return -0.9 * peaks["Displacement"], 1e-4, length
+
+
 def topo_nx(units="mm", licensed=True):
     nx = modeling_nx(units=units)
+    nx.part.PostManager = PostManager(nx)
     nx.licenses = {"des_top_opt"} if licensed else set()
     nx.session.LicenseManager = NS(CheckPresence=lambda name: name in nx.licenses)
     nx.session.TopologyOptimizationTaskEnvironment = TaskEnvironment(nx)

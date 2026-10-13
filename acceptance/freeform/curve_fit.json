@@ -1,0 +1,247 @@
+{
+ "covers": {
+  "nx_import_points": [],
+  "nx_create_fit_curve": [
+   "spline",
+   "line",
+   "circle"
+  ]
+ },
+ "fixture": "fixtures/freeform_fit_circle.txt",
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_import_points",
+   "save": "pts",
+   "intent": "24 points of an R50 circle from a text file with a comment and a header",
+   "args": {
+    "path": "$fixture"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 24,
+    "data.listed": 24,
+    "data.first": {
+     "close": [
+      50,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.last": {
+     "close": [
+      48.296291,
+      -12.940952,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds.min": {
+     "close": [
+      -50,
+      -50,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds.max": {
+     "close": [
+      50,
+      50,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Full circle through all 24 points: radius 50 at the origin",
+   "args": {
+    "shape": "circle",
+    "points": [
+     "$pts.data.points.0.id",
+     "$pts.data.points.1.id",
+     "$pts.data.points.2.id",
+     "$pts.data.points.3.id",
+     "$pts.data.points.4.id",
+     "$pts.data.points.5.id",
+     "$pts.data.points.6.id",
+     "$pts.data.points.7.id",
+     "$pts.data.points.8.id",
+     "$pts.data.points.9.id",
+     "$pts.data.points.10.id",
+     "$pts.data.points.11.id",
+     "$pts.data.points.12.id",
+     "$pts.data.points.13.id",
+     "$pts.data.points.14.id",
+     "$pts.data.points.15.id",
+     "$pts.data.points.16.id",
+     "$pts.data.points.17.id",
+     "$pts.data.points.18.id",
+     "$pts.data.points.19.id",
+     "$pts.data.points.20.id",
+     "$pts.data.points.21.id",
+     "$pts.data.points.22.id",
+     "$pts.data.points.23.id"
+    ],
+    "closed": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.radius": {
+     "close": 50,
+     "tol": 0.0001
+    },
+    "data.center": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.max_deviation": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.closed": true,
+    "data.length": {
+     "close": 314.1592653589793,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Arc through the first quarter's 7 points",
+   "args": {
+    "shape": "circle",
+    "points": [
+     "$pts.data.points.0.id",
+     "$pts.data.points.1.id",
+     "$pts.data.points.2.id",
+     "$pts.data.points.3.id",
+     "$pts.data.points.4.id",
+     "$pts.data.points.5.id",
+     "$pts.data.points.6.id"
+    ]
+   },
+   "expect": {
+    "data.radius": {
+     "close": 50,
+     "tol": 0.0001
+    },
+    "data.closed": false,
+    "data.length": {
+     "close": 78.53981633974483,
+     "tol": 0.001
+    },
+    "data.max_deviation": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Closed cubic spline of 12 segments read from the file itself",
+   "args": {
+    "shape": "spline",
+    "path": "$fixture",
+    "degree": 3,
+    "segments": 12,
+    "closed": true
+   },
+   "expect": {
+    "data.imported": 24,
+    "data.points": 24,
+    "data.degree": 3,
+    "data.closed": true,
+    "data.max_deviation": {
+     "close": 0,
+     "tol": 0.05
+    },
+    "data.length": {
+     "close": 314.1592653589793,
+     "tol": 0.05
+    }
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Open spline through the quarter at the default 0.01 mm tolerance",
+   "args": {
+    "points": [
+     "$pts.data.points.0.id",
+     "$pts.data.points.1.id",
+     "$pts.data.points.2.id",
+     "$pts.data.points.3.id",
+     "$pts.data.points.4.id",
+     "$pts.data.points.5.id",
+     "$pts.data.points.6.id"
+    ]
+   },
+   "expect": {
+    "data.degree": 3,
+    "data.max_deviation": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "data.length": {
+     "close": 78.53981633974483,
+     "tol": 0.01
+    },
+    "data.closed": false
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Line through two opposite points: the 100 mm diameter",
+   "args": {
+    "shape": "line",
+    "points": [
+     "$pts.data.points.0.id",
+     "$pts.data.points.12.id"
+    ]
+   },
+   "expect": {
+    "data.length": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "data.max_deviation": {
+     "close": 0,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "An ellipse needs 5 points: refused before NX",
+   "args": {
+    "shape": "ellipse",
+    "points": [
+     "$pts.data.points.0.id",
+     "$pts.data.points.6.id",
+     "$pts.data.points.12.id"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/points",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

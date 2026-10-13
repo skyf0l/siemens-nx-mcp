@@ -23,9 +23,9 @@
     "nx_create_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
     "nx_edit_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
     "nx_get_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe",
-    "nx_export_drawing": "457c07bd8c84511e5676c9ebc84fd489367cb934685cf4fee64c4ab0962f8f61"
+    "nx_export_drawing": "cd440855fe8fb335a23e56520115c6450e8613e87ca9ab15732732d9ea6d5fa2"
   },
-  "recorded": "2026-10-13T07:29:32Z",
+  "recorded": "2026-10-13T12:15:59Z",
   "passed": true,
   "checks": 76,
   "failed_checks": 0,

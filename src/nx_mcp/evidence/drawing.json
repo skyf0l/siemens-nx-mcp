@@ -2,17 +2,27 @@
   "nx_activate_drawing_sheet": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T07:31:29Z",
+      "recorded": "2026-10-13T12:18:03Z",
       "scenario": "acceptance/drawing/out_of_date_views.json",
       "scenario_sha256": "6612c84e3914065a337630297740f56055601f6c0b8529ba9850bb60029c81a4",
       "source_sha256": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074",
       "variants": []
     }
   },
+  "nx_check_drawing_changes": {
+    "v2406": {
+      "checks": 25,
+      "recorded": "2026-10-13T12:15:34Z",
+      "scenario": "acceptance/drawing/drawing_compare.json",
+      "scenario_sha256": "9fe8020a63cdc23a52e8ba5f463ee2370ad8e6c3fed126289ff2515dbf89cc07",
+      "source_sha256": "2c2519c06f85fef05386296678769c2fffceb6d0634a19b72e5cc1654bbf70e8",
+      "variants": []
+    }
+  },
   "nx_create_balloons": {
     "v2406": {
       "checks": 36,
-      "recorded": "2026-10-13T07:28:26Z",
+      "recorded": "2026-10-13T12:14:49Z",
       "scenario": "acceptance/drawing/create_balloons.json",
       "scenario_sha256": "c1613ec9aa544802ac43f944ab2c8b2cfe9fc0a44592f220c0fd5fdbf50fe19f",
       "source_sha256": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
@@ -21,16 +31,18 @@
   },
   "nx_create_centerline": {
     "v2406": {
-      "checks": 23,
-      "recorded": "2026-10-13T06:41:57Z",
-      "scenario": "acceptance/drawing/create_centerline.json",
-      "scenario_sha256": "4fefa5d109f4acdc15c3b7a686419d4a360bad13f052442eb01088a82fa07639",
-      "source_sha256": "8ff12626101bc3c3d799e95c8768dff8a3c8620ebf445abe2b4b38b901a8d5a0",
+      "checks": 20,
+      "recorded": "2026-10-13T12:18:20Z",
+      "scenario": "acceptance/drawing/symbols_centerlines.json",
+      "scenario_sha256": "48f4377bd13ae2980a19b3f7d42fdb37e01b7578050ce35e476e651c4d95f077",
+      "source_sha256": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
       "variants": [
+        "automatic",
         "axis",
         "between_edges",
         "bolt_circle",
-        "center_mark"
+        "center_mark",
+        "symmetrical"
       ]
     }
   },
@@ -61,7 +73,7 @@
   "nx_create_drawing_sheet": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-13T07:31:11Z",
+      "recorded": "2026-10-13T12:17:44Z",
       "scenario": "acceptance/drawing/inch_units.json",
       "scenario_sha256": "05b953794eea5db0185b3ee01fd970b6c0bd40d25b43fd1199565aba6c18a0e2",
       "source_sha256": "74e6375deedb78c60a87853637d88afc5980b1acaef111548467839a119dc074",
@@ -71,10 +83,10 @@
   "nx_create_drawing_symbol": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T07:28:37Z",
+      "recorded": "2026-10-13T12:15:01Z",
       "scenario": "acceptance/drawing/create_drawing_symbol.json",
       "scenario_sha256": "f40cf40c8cf8b6c6cf9a16a562a10cc7294afc94b5898f3ab5cad096f5cfa994",
-      "source_sha256": "8ff12626101bc3c3d799e95c8768dff8a3c8620ebf445abe2b4b38b901a8d5a0",
+      "source_sha256": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
       "variants": [
         "surface_finish",
         "weld"
@@ -84,7 +96,7 @@
   "nx_create_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-13T06:42:11Z",
+      "recorded": "2026-10-13T12:18:29Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "6ed79da9777c9c765fd6315ee968a5f614b8c3b57866b97b897f7915ec59bac1",
       "source_sha256": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
@@ -147,10 +159,20 @@
   "nx_create_note": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-13T07:31:11Z",
+      "recorded": "2026-10-13T12:17:44Z",
       "scenario": "acceptance/drawing/inch_units.json",
       "scenario_sha256": "05b953794eea5db0185b3ee01fd970b6c0bd40d25b43fd1199565aba6c18a0e2",
-      "source_sha256": "8ff12626101bc3c3d799e95c8768dff8a3c8620ebf445abe2b4b38b901a8d5a0",
+      "source_sha256": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
+      "variants": []
+    }
+  },
+  "nx_create_part_family_table": {
+    "v2406": {
+      "checks": 11,
+      "recorded": "2026-10-13T12:17:15Z",
+      "scenario": "acceptance/drawing/family_table.json",
+      "scenario_sha256": "586e4dae9658ce2d5ef78548743d32749c6fcf21ee9bcc81cd1722f26f4c0db3",
+      "source_sha256": "a85d9d0b82ce06b0632a6221e4196483fbd0143d9fe220f7358ed92c3dbb23e3",
       "variants": []
     }
   },
@@ -170,13 +192,29 @@
       ]
     }
   },
+  "nx_create_sheet_symbol": {
+    "v2406": {
+      "checks": 47,
+      "recorded": "2026-10-13T12:18:17Z",
+      "scenario": "acceptance/drawing/symbols.json",
+      "scenario_sha256": "cbfe7ad4b575297204f90edf9f66757e3c94fef26fd0c9b098d0eca910e787ff",
+      "source_sha256": "13a5ed4c8d7f2df9e8603819d395cc2af9928ee46cdb7fad1133ef1df9dd63bb",
+      "variants": [
+        "custom",
+        "edge_condition",
+        "id",
+        "intersection",
+        "target_point"
+      ]
+    }
+  },
   "nx_edit_annotation": {
     "v2406": {
       "checks": 30,
-      "recorded": "2026-10-13T07:29:35Z",
+      "recorded": "2026-10-13T12:16:03Z",
       "scenario": "acceptance/drawing/edit_annotation.json",
       "scenario_sha256": "a11a85b0d14ddc0a7ca3129002097347277401f7c17c984e0198ab92ae522877",
-      "source_sha256": "8ff12626101bc3c3d799e95c8768dff8a3c8620ebf445abe2b4b38b901a8d5a0",
+      "source_sha256": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
       "variants": []
     }
   },
@@ -193,7 +231,7 @@
   "nx_edit_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-13T06:42:11Z",
+      "recorded": "2026-10-13T12:18:29Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "6ed79da9777c9c765fd6315ee968a5f614b8c3b57866b97b897f7915ec59bac1",
       "source_sha256": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
@@ -219,10 +257,10 @@
   "nx_export_drawing": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T07:31:29Z",
+      "recorded": "2026-10-13T12:18:03Z",
       "scenario": "acceptance/drawing/out_of_date_views.json",
       "scenario_sha256": "6612c84e3914065a337630297740f56055601f6c0b8529ba9850bb60029c81a4",
-      "source_sha256": "457c07bd8c84511e5676c9ebc84fd489367cb934685cf4fee64c4ab0962f8f61",
+      "source_sha256": "cd440855fe8fb335a23e56520115c6450e8613e87ca9ab15732732d9ea6d5fa2",
       "variants": []
     }
   },
@@ -239,7 +277,7 @@
   "nx_get_drawing_table": {
     "v2406": {
       "checks": 53,
-      "recorded": "2026-10-13T06:42:11Z",
+      "recorded": "2026-10-13T12:18:29Z",
       "scenario": "acceptance/drawing/title_block.json",
       "scenario_sha256": "6ed79da9777c9c765fd6315ee968a5f614b8c3b57866b97b897f7915ec59bac1",
       "source_sha256": "7a15143d124bce874fa5e062858efff35ad6a1aa0eac0014241d479187f1507b",
@@ -266,23 +304,43 @@
       "variants": []
     }
   },
+  "nx_set_sheet_borders": {
+    "v2406": {
+      "checks": 26,
+      "recorded": "2026-10-13T12:14:44Z",
+      "scenario": "acceptance/drawing/borders.json",
+      "scenario_sha256": "67dfe833f03fd31728df6954929ade7cc9b72b7350e3dfa80b2c29bafacbb315",
+      "source_sha256": "a7656b73fef9265b7349b2421f010b7819e524f7f3f814066e4a61d74d95c226",
+      "variants": []
+    }
+  },
   "nx_set_view_sectioning": {
     "v2406": {
       "checks": 21,
-      "recorded": "2026-10-13T06:40:34Z",
+      "recorded": "2026-10-13T12:14:42Z",
       "scenario": "acceptance/drawing/bolt_circle_section_in_view.json",
       "scenario_sha256": "e2560268edf2db18f8e9a5799bb8f5c4c9e9b804d5f3f0def8cf27750e18338d",
       "source_sha256": "ba9ab1d811a579d5c4b1429c23f2193f7fee8725f6571ab640441da1a95d6ee6",
       "variants": []
     }
   },
+  "nx_set_view_settings": {
+    "v2406": {
+      "checks": 34,
+      "recorded": "2026-10-13T12:18:39Z",
+      "scenario": "acceptance/drawing/view_settings.json",
+      "scenario_sha256": "38fc0c251468315dd1469cf50095f003b6a0e7ecbfcf8b662378355f7c9b64f1",
+      "source_sha256": "1d8bdb9c8f0e24ca3535a8d76dd41735b9908f6745db6a3378eb694d5fd4c001",
+      "variants": []
+    }
+  },
   "nx_update_annotations": {
     "v2406": {
       "checks": 8,
-      "recorded": "2026-10-13T07:31:48Z",
+      "recorded": "2026-10-13T12:18:31Z",
       "scenario": "acceptance/drawing/update_annotations.json",
       "scenario_sha256": "48fec541f584d819f9d745e4dd11ad6d5d8c22cfb561dc1b715f3c3d04571e8c",
-      "source_sha256": "8ff12626101bc3c3d799e95c8768dff8a3c8620ebf445abe2b4b38b901a8d5a0",
+      "source_sha256": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
       "variants": []
     }
   }

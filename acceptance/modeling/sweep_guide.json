@@ -1,0 +1,237 @@
+{
+ "covers": {
+  "nx_create_sweep_along_guide": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s",
+   "args": {
+    "placement": {
+     "principal": "yz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "s_c",
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "g",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "g_c",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       100,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$g.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "l_c",
+   "args": {
+    "sketch": "$l.data.sketch.id",
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        0,
+        0
+       ],
+       [
+        100,
+        0
+       ],
+       [
+        100,
+        80
+       ]
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$l.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "save": "sw",
+   "args": {
+    "section": "$s.data.sketch.id",
+    "guide": "$g.data.sketch.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 5000,
+     "tol": 0.01
+    },
+    "data.guide_length": {
+     "close": 100,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "args": {
+    "section": "$s.data.sketch.id",
+    "guide": [
+     "$g_c.data.curves.0.curve.id"
+    ],
+    "first_offset": 1,
+    "second_offset": -1
+   },
+   "expect": {
+    "data.volume": {
+     "close": 6000,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "save": "lw",
+   "args": {
+    "section": "$s.data.sketch.id",
+    "guide": "$l.data.sketch.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8500,
+     "tol": 0.05
+    },
+    "data.guide_length": {
+     "close": 180,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     40,
+     -5,
+     -5
+    ],
+    "length": 20,
+    "width": 20,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "args": {
+    "section": "$s.data.sketch.id",
+    "guide": "$g.data.sketch.id",
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$blk.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 7000,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "args": {
+    "section": "$s.data.sketch.id",
+    "guide": "$s.data.sketch.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/guide"
+   }
+  }
+ ]
+}

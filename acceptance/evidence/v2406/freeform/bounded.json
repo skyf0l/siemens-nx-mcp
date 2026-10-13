@@ -1,0 +1,104 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/bounded.json",
+  "scenario_sha256": "f7cc018d0ed7b31649859701ed6760ef4ca3f87301f967895f5e90a0ce630d75",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_bounded_plane": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_bounded_plane": "bf8616fda804099d02a73404939405266e403987bd5a663a51dd9efa73c93df5"
+  },
+  "recorded": "2026-10-13T12:09:40Z",
+  "passed": true,
+  "checks": 20,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_bounded_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 4,
+      "call": "nx_create_bounded_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_bounded_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_bounded_plane",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

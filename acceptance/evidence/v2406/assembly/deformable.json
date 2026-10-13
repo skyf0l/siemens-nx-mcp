@@ -1,0 +1,176 @@
+{
+  "format": 2,
+  "scenario": "acceptance/assembly/deformable.json",
+  "scenario_sha256": "259af3d14f6b6f0a082255d126f2bf63ff16c2579f6c760f4c5e088a9e266e95",
+  "domain": "assembly",
+  "covers": {
+    "nx_create_deformable_definition": [],
+    "nx_set_component_deformation": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_deformable_definition": "50c7ca366d2bdec078ecb89d34af2d43b05172ec781d3ace71a2ce3e93173b33",
+    "nx_set_component_deformation": "50c7ca366d2bdec078ecb89d34af2d43b05172ec781d3ace71a2ce3e93173b33"
+  },
+  "recorded": "2026-10-13T12:11:44Z",
+  "passed": true,
+  "checks": 49,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_deformable_definition",
+      "setup": false,
+      "passed": true,
+      "checks": 11
+    },
+    {
+      "index": 7,
+      "call": "nx_create_deformable_definition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 15,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 16,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 17,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_update_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

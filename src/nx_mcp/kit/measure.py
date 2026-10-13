@@ -13,8 +13,10 @@ in^2 and inches. Bounds come from UF
 
 from __future__ import annotations
 
+import math
+
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import geom, units
+from nx_mcp.kit import curve, geom, units
 
 # Units handed to NewMassProperties: area, volume, mass, length, force.
 MM_UNITS = ("SquareMilliMeter", "CubicMilliMeter", "Kilogram", "MilliMeter", "Newton")
@@ -141,16 +143,44 @@ UF_KG_M = 4  # AskMassProps3d units: kilograms and metres
 M_PER = {"mm": 1e-3, "in": 0.0254}
 
 
+LENGTH_SEGMENTS = 16  # chords of the sampled length that checks a GetLength reading
+_SLIPS = (1.0, 25.4, 1.0 / 25.4)
+
+
 def length(tx, curves):
     """Total arc length of one curve or edge, or a list of them, in part units.
 
-    NX 2406 ``GetLength`` answers millimetres whatever the part units (live NX 2406).
+    NX 2406 ``GetLength`` answers millimetres, but its units follow hidden session state:
+    a 2 in line of a quietly worked inch part beside a displayed mm part read 50.8 (mm)
+    in one session and 2 in another, and 2 while the mm part was the work part (live
+    2026-10-13; UF ``AskArcLength`` slips the same way). UF ``Eval`` points are always in
+    the part's units, so each reading is converted as millimetres, then checked against
+    the curve's sampled chord length: when it is off by the inch factor (25.4 either
+    way), the reading in the other units is taken. Exact lengths stay NX's.
     """
     if not isinstance(curves, (list, tuple)):
         curves = [curves]
-    with native(default="NX_ERROR"):
-        total = sum(float(c.GetLength()) for c in curves)
-    return total * _scale(tx)
+    k = _scale(tx)
+    total = 0.0
+    for c in curves:
+        with native(default="NX_ERROR"):
+            reading = float(c.GetLength()) * k
+        total += _checked_length(tx, c, reading)
+    return total
+
+
+def _checked_length(tx, obj, reading: float) -> float:
+    """``reading`` (part units), or the inch-factor slip of it that agrees with the
+    length sampled through UF ``Eval``; ``reading`` when the curve cannot be sampled."""
+    try:
+        with curve.evaluator(tx, obj) as e:
+            points = [e.at(i / LENGTH_SEGMENTS)[0] for i in range(LENGTH_SEGMENTS + 1)]
+    except Exception:  # not evaluable: keep NX's millimetres
+        return reading
+    sampled = sum(geom.dist(a, b) for a, b in zip(points, points[1:], strict=False))
+    if not (sampled > 0 and reading > 0):
+        return reading
+    return min((reading * f for f in _SLIPS), key=lambda v: abs(math.log(v / sampled)))
 
 
 def wcs(tx):

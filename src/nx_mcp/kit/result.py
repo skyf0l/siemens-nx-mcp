@@ -50,6 +50,16 @@ def rename(tx, obj, name):
     return str(getattr(obj, "Name", name))
 
 
+def enum_int(value) -> int:
+    """A native enum member (or plain int) as int: Python NXOpen members convert with
+    ``int()`` or print as their value; a ``.value`` attribute is used when present."""
+    value = getattr(value, "value", value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(str(value))
+
+
 def _same_integer(member, value):
     """NX 2406 enums stringify as their integer: compare by that text."""
     text = str(value)

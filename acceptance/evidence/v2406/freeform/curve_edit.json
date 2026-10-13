@@ -1,0 +1,176 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_edit.json",
+  "scenario_sha256": "93bf85b8d4ff7ea7c5666a79bff064aaf3aed68c5a65ad688a97d87caa539608",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_bridge_curve": [],
+    "nx_create_joined_curve": [],
+    "nx_create_mirror_curve": [],
+    "nx_create_trim_curve": [
+      "trim",
+      "divide"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_bridge_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+    "nx_create_joined_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+    "nx_create_mirror_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+    "nx_create_trim_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd"
+  },
+  "recorded": "2026-10-13T12:50:48Z",
+  "passed": true,
+  "checks": 58,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_bridge_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 8,
+      "call": "nx_create_bridge_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_create_bridge_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_create_joined_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 11,
+      "call": "nx_create_joined_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_create_joined_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_create_mirror_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 14,
+      "call": "nx_create_mirror_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 19,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 20,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

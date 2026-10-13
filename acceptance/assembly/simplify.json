@@ -1,0 +1,42 @@
+{
+ "covers": {
+  "nx_create_simplified_assembly": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sa_cube.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"part": "sa_cube", "length": 100, "width": 100, "height": 100}},
+  {"call": "nx_save_part", "setup": true, "args": {"part": "sa_cube"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sa_plate.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "plate", "args": {"part": "sa_plate", "length": 100, "width": 100, "height": 20}},
+  {"call": "nx_create_primitive", "setup": true,
+   "args": {"part": "sa_plate", "shape": "cylinder", "origin": [50, 50, -5], "diameter": 20, "height": 30,
+            "combine": {"operation": "subtract", "targets": ["$plate.data.bodies.0.id"]}}},
+  {"call": "nx_save_part", "setup": true, "args": {"part": "sa_plate"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sa_block.prt", "units": "mm"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_component", "setup": true, "save": "A", "args": {"part": "$part", "path": "$run/sa_cube.prt", "name": "A"}},
+  {"call": "nx_create_component", "setup": true, "save": "B", "args": {"part": "$part", "path": "$run/sa_cube.prt", "name": "B", "pose": {"translation": [90, 0, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "P", "args": {"part": "$part", "path": "$run/sa_plate.prt", "name": "P", "pose": {"translation": [0, 0, 150]}}},
+  {"call": "nx_create_simplified_assembly",
+   "args": {"part": "$part", "fill_holes_up_to": -1},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/fill_holes_up_to", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_simplified_assembly",
+   "args": {"part": "$part", "destination_part": "sa_block", "fill_holes_up_to": 25},
+   "expect": {"mutation_outcome": "committed", "data.destination": "sa_block.prt", "data.sources": 3,
+              "data.bodies": {"count": 2},
+              "data.volume": {"close": 2100000, "tol": 1e-2},
+              "data.source_volume": {"close": 2193716.815, "tol": 1e-2}}},
+  {"call": "nx_create_simplified_assembly",
+   "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id", "$P.data.component.id"]},
+   "expect": {"mutation_outcome": "committed", 
+              "data.bodies": {"count": 2},
+              "data.volume": {"close": 2093716.815, "tol": 1e-2}}},
+  {"call": "nx_create_simplified_assembly",
+   "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id"], "unite": false, "destination_part": "sa_block"},
+   "expect": {"mutation_outcome": "committed", "data.bodies": {"count": 2},
+              "data.volume": {"close": 2000000, "tol": 1e-2}}},
+  {"call": "nx_check_model", "args": {"part": "$part"}, "expect": {"ok": true}}
+ ]
+}

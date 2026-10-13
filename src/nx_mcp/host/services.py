@@ -19,7 +19,7 @@ from typing import Any, cast
 
 from nx_mcp import side_effects
 from nx_mcp.bridge import ObjectKind, ObjectRegistry
-from nx_mcp.core import catalogue
+from nx_mcp.core import busy, catalogue
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core.errors import fail
 from nx_mcp.core.receipts import OperationStore
@@ -401,6 +401,7 @@ class NXServices(Services):
                     owned[key] = now
                 elif before[key] != now and before[key] in (owned.get(key), granted.get(key)):
                     owned[key] = now  # the agent saved its (or a granted) part as a new file
+        busy.persist(self)  # the agent's parts survive a host reload (core/busy.py)
 
     def modified_flags(self) -> dict:
         out = {}

@@ -84,6 +84,26 @@ def test_clone_renames_every_file_loads_as_saved_and_verifies_references(nx, roo
     assert kept.data["part"]["kind"] == "part"
 
 
+def test_clone_writes_the_copies_without_cgm_data(nx, root):
+    """NX's modal "Save CGM" dialog would stop a clone of a part whose sheets keep CGM
+    data: the option is off while NX writes the copies and restored after."""
+    asm, blk, _plate = saved_assembly(nx)
+    nx.structure[str((root / "proj/asm.prt").resolve()).casefold()] = [
+        str(root / "proj/parts/blk.prt"), str(root / "proj/parts/plate.prt")
+    ]  # fmt: skip
+    asm.SaveOptions.DrawingCgmData = True
+    seen = []
+    clone = nx.uf.Clone.PerformClone
+    nx.uf.Clone.PerformClone = lambda failures: (
+        seen.append((asm.SaveOptions.DrawingCgmData, blk.SaveOptions.DrawingCgmData)),
+        clone(failures),
+    )
+    ok = call(nx, assembly.nx_export_assembly, part="asm", path="copy", format="clone", prefix="C_")
+    assert ok.ok, ok
+    assert seen == [(False, False)] and asm.SaveOptions.DrawingCgmData is True
+    assert blk.SaveOptions.DrawingCgmData is False  # never had it: left alone
+
+
 def test_clone_of_a_background_assembly_keeps_the_engineers_display(nx, root):
     """Gate 4s: the assembly is a quiet work part under another display. The clone never
     displays it, and activate (the copy left as work part) is refused before copying."""

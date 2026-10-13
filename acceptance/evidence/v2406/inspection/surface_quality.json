@@ -15,10 +15,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_face_continuity": "b3657ffdc9a827cc76f5620899c40399c6331b4e6887e7b509c0e5cd53059ff2",
-    "nx_create_surface_analysis": "b3657ffdc9a827cc76f5620899c40399c6331b4e6887e7b509c0e5cd53059ff2"
+    "nx_check_face_continuity": "04a3fb7bc500b41388d80a640fb7c4b956678684df9c8b81be5adad09186c445",
+    "nx_create_surface_analysis": "04a3fb7bc500b41388d80a640fb7c4b956678684df9c8b81be5adad09186c445"
   },
-  "recorded": "2026-10-13T07:28:10Z",
+  "recorded": "2026-10-13T12:14:27Z",
   "passed": true,
   "checks": 40,
   "failed_checks": 0,

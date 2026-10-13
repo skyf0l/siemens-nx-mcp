@@ -9,7 +9,9 @@ gateway) runs on the same faces under ``tx.scratch`` and adds its G0/G1 verdict.
 
 ``nx_create_surface_analysis`` keeps one NX analysis object in the work part (saved with
 it, shown in its views) for nx_capture_view; ``nx_undo_operation`` with the call's
-operation removes it. Only gateway analysis builders are used.
+operation removes it. Only gateway analysis builders are used, and only in the displayed
+part: one made in a background part stays registered after that part closes and makes NX
+reopen it later (``kit.analysis_objects``).
 
 NX 2406 measured (``GeometricAnalysis``, part not displayed):
 
@@ -27,18 +29,36 @@ NX 2406 measured (``GeometricAnalysis``, part not displayed):
   thresholds); they go with it on undo.
 - ``SelectObjectList.Add(list)`` takes faces; the comb's ``SelectedCurves`` is an
   ``ScCollector`` (dumb curve and edge rules).
+- Slope and Distance (``AnalysisObjectsEx.Create{Slope,Distance}AnalysisBuilder1``, gateway)
+  take a smart ``Direction``/``Plane``; their ``DataRange`` stays at the fixed -0.01..0.01
+  default (2.0/2.0 after ``ResetData``, 0/0 on an edit builder) whether or not ``IsFixed``
+  is cleared, so their numbers come from a UV sampling of the faces (``values``).
+- The other gateway analyses give no numbers either: Sheet Boundary only highlights edges,
+  Local Radius writes to the Information window; draft, face curvature, highlight lines,
+  deviation gauge and section analysis need another license and are not used.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Doc, FaceRef, Items, Range, RefTo, forbid_extra
+from nx_mcp.core.types import (
+    Angle,
+    Direction,
+    Doc,
+    FaceRef,
+    Items,
+    Plane,
+    Range,
+    RefTo,
+    forbid_extra,
+)
 from nx_mcp.domains.inspection import common
-from nx_mcp.kit import builders, licenses, result, select, surface
+from nx_mcp.kit import analysis_objects, builders, geom, licenses, result, select, surface
 from nx_mcp.kit import units as kunits
 
 LICENSE = ("gateway",)
@@ -117,6 +137,8 @@ def _nx_verdict(tx, faces, angle) -> NxVerdict | None:
     create = getattr(collection, "CreateSurfaceContinuityAnalysisBuilder", None)
     analysis = getattr(tx.nx, "GeometricAnalysis", None)
     if create is None or analysis is None or licenses.served(tx, LICENSE) is False:
+        return None
+    if not analysis_objects.is_displayed(tx):  # see kit.analysis_objects
         return None
     kinds = analysis.SurfaceContinuityAnalysisBuilder.Types
     verdict: NxVerdict | None = None
@@ -211,7 +233,7 @@ def nx_check_face_continuity(
 # Display analyses
 
 
-AnalysisType = Literal["reflection", "curvature_comb", "continuity", "radius"]
+AnalysisType = Literal["reflection", "curvature_comb", "continuity", "radius", "slope", "distance"]
 LINES = {4: "Four", 8: "Eight", 16: "Sixteen", 32: "ThirtyTwo", 64: "SixtyFour"}
 LINE_IMAGES = {
     "black": "BlackLines",
@@ -220,16 +242,30 @@ LINE_IMAGES = {
 }
 ORIENTATIONS = {"horizontal": "Horizontal", "vertical": "Vertical", "both": "Both"}
 RADII = {"gaussian": "Gaussian", "minimum": "Minimum", "maximum": "Maximum", "mean": "Mean"}
-TYPE_DOC = "reflection: zebra on faces; curvature_comb: curves; continuity: G0-G2 marks; radius map"
+TYPE_DOC = (
+    "reflection zebra, curvature_comb on curves, continuity marks, radius/slope/distance maps"
+)
 CurveOrEdge = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
 
 
-class AnalysisData(TypedDict):
+class Values(TypedDict):
+    min: float
+    max: float
+    mean: float
+    samples: int
+    skipped_outside_trim: int
+
+
+class _AnalysisRequired(TypedDict):
     type: str
     name: str
     faces: int
     curves: int
     analyses: int
+
+
+class AnalysisData(_AnalysisRequired, total=False):
+    values: Values  # slope (degrees) and distance (part units), sampled on the faces
 
 
 def _collection(tx):
@@ -303,6 +339,69 @@ def _radius(tx, collection, faces, radius_type):
         return list(b.GetCommittedObjects())
 
 
+def _slope(tx, collection, faces, vector):
+    ex = collection.AnalysisObjectsEx
+    kinds = tx.nx.GeometricAnalysis.SlopeAnalysisBuilder1
+    with builders.build(tx, ex.CreateSlopeAnalysisBuilder1, None) as b:
+        b.Faces.Add(list(faces))
+        b.Vector = builders.direction(tx, vector)
+        b.DisplayMode = kinds.DisplayModes.Fringe
+        b.StartSlopeAnalysis()
+        b.Commit()
+        return list(b.GetCommittedObjects())
+
+
+def _distance(tx, collection, faces, origin, normal):
+    ex = collection.AnalysisObjectsEx
+    kinds = tx.nx.GeometricAnalysis.DistanceAnalysisBuilder1
+    nx = tx.nx
+    with builders.build(tx, ex.CreateDistanceAnalysisBuilder1, None) as b:
+        b.Faces.Add(list(faces))
+        b.Plane = tx.part.Planes.CreatePlane(
+            nx.Point3d(*(float(v) for v in origin)),
+            nx.Vector3d(*(float(v) for v in normal)),
+            nx.SmartObject.UpdateOption.WithinModeling,
+        )
+        b.DisplayMode = kinds.DisplayModes.Fringe
+        b.StartDistanceAnalysis()
+        b.Commit()
+        return list(b.GetCommittedObjects())
+
+
+def _sampled(tx, faces, per_axis, measure) -> Values:
+    """min/max/mean of ``measure(point, normal)`` on a UV grid of the faces."""
+    samples, skipped = common.face_samples(tx, faces, per_axis, "/samples_per_axis")
+    found = []
+    for _face, _uv, props in samples:
+        normal = common.unit_or_none(props[5])
+        if normal is not None:
+            found.append(measure(common.xyz3(props[0]), normal))
+    if not found:
+        fail("NX_INCOMPLETE_RESULT", "No sample point lies on the faces",
+             field="/samples_per_axis", hint="Raise samples_per_axis")  # fmt: skip
+    return {
+        "min": min(found),
+        "max": max(found),
+        "mean": sum(found) / len(found),
+        "samples": len(found),
+        "skipped_outside_trim": skipped,
+    }
+
+
+def _slope_of(vector):
+    def slope(_point, normal):
+        return math.degrees(math.acos(max(-1.0, min(1.0, geom.dot(normal, vector)))))
+
+    return slope
+
+
+def _distance_of(origin, normal):
+    def distance(point, _normal):
+        return geom.dot(geom.sub(point, origin), normal)
+
+    return distance
+
+
 @tool(
     effect="model",
     label="Create surface analysis",
@@ -312,8 +411,9 @@ def _radius(tx, collection, faces, radius_type):
         "reflection lines",
         "highlight stripes",
         "curvature comb",
-        "porcupine",
         "radius map",
+        "slope analysis",
+        "distance analysis",
         "surface quality display",
     ),
     requires=("work_part", "no_active_sketch"),
@@ -323,6 +423,8 @@ def _radius(tx, collection, faces, radius_type):
         "curvature_comb": ("curves",),
         "continuity": ("faces",),
         "radius": ("faces",),
+        "slope": ("faces",),
+        "distance": ("faces", "plane"),
     },
     cost="heavy",
     invalidates="deleted",
@@ -332,7 +434,7 @@ def nx_create_surface_analysis(
     tx: Tx,
     *,
     type: Annotated[AnalysisType, Doc(TYPE_DOC)],
-    faces: Annotated[list[FaceRef], Items(1, 200), Doc("reflection, continuity (2+), radius")]
+    faces: Annotated[list[FaceRef], Items(1, 200), Doc("Every type but curvature_comb")]
     | None = None,
     curves: Annotated[list[CurveOrEdge], Items(1, 200), Doc("curvature_comb")] | None = None,
     lines: Annotated[Literal[4, 8, 16, 32, 64], Doc("reflection stripes")] = 16,
@@ -347,18 +449,26 @@ def nx_create_surface_analysis(
     radius_type: Annotated[Literal["gaussian", "minimum", "maximum", "mean"], Doc("radius")] = (
         "minimum"
     ),
+    direction: Annotated[Direction, Doc("slope reference; default +z (up)")] | None = None,
+    plane: Annotated[Plane, Doc("distance reference plane; + along its normal")] | None = None,
+    samples_per_axis: Annotated[int, Range(ge=1, le=20), Doc("slope/distance values grid")] = 5,
 ) -> AnalysisData:
-    """Create an NX display analysis to look at or capture with nx_capture_view. Reflection
-    zebra stripes, curvature combs, continuity marks or a radius map; it stays in the part
-    until nx_undo_operation with this call's operation removes it. Numbers:
-    nx_check_face_continuity, nx_analyze_faces, nx_analyze_curve."""
-    if type in ("reflection", "continuity", "radius") and curves is not None:
+    """Create an NX display analysis to look at or capture with nx_capture_view. Displayed
+    part only; it stays until nx_undo_operation of this call. slope and distance also return
+    values (min/max/mean on a UV grid): slope = angle from direction to face normal (0
+    faces along it, 90 wall, 180 faces away); distance = signed, along the plane normal.
+    Numbers: nx_check_face_continuity, nx_analyze_faces."""
+    if type != "curvature_comb" and curves is not None:
         fail("NX_INVALID_ARGUMENT", f"{type} takes faces, not curves", field="/curves")
     if type == "curvature_comb" and faces is not None:
         fail("NX_INVALID_ARGUMENT", "curvature_comb takes curves, not faces", field="/faces",
              hint="For faces use reflection or radius")  # fmt: skip
     if type == "continuity" and faces is not None and len(faces) < 2:
         fail("NX_INVALID_ARGUMENT", "continuity compares 2 or more faces", field="/faces")
+    if direction is not None and type != "slope":
+        fail("NX_INVALID_ARGUMENT", "direction is the slope reference", field="/direction")
+    if plane is not None and type != "distance":
+        fail("NX_INVALID_ARGUMENT", "plane is the distance reference", field="/plane")
     angle = float(angle)
     if not 0 < angle < 90:
         fail("NX_INVALID_ARGUMENT", "angle must be 0 to 90 degrees", field="/angle")
@@ -368,8 +478,20 @@ def nx_create_surface_analysis(
             select.one(tx, ref, "curve", "edge", field=f"/curves/{i}")
             for i, ref in enumerate(curves or [])
         ]
+        vector = [0.0, 0.0, 1.0]
+        if direction is not None:
+            vector = select.direction(tx, direction, "/direction")
+        origin = normal = None
+        if plane is not None:
+            _obj, origin, normal = select.plane(tx, plane, "/plane")
+        analysis_objects.require_displayed(tx)
         licenses.require(tx, LICENSE, NOTE)
         collection = _collection(tx)
+    values: Values | None = None
+    if type == "slope":
+        values = _sampled(tx, picked_faces, samples_per_axis, _slope_of(vector))
+    elif type == "distance":
+        values = _sampled(tx, picked_faces, samples_per_axis, _distance_of(origin, normal))
     with native(default="NX_BUILD_FAILED"):
         if type == "reflection":
             made = _reflection(tx, collection, picked_faces, lines, line_type, orientation)
@@ -377,6 +499,10 @@ def nx_create_surface_analysis(
             made = _comb(tx, collection, picked_curves, density)
         elif type == "continuity":
             made = _continuity(tx, collection, picked_faces, angle)
+        elif type == "slope":
+            made = _slope(tx, collection, picked_faces, vector)
+        elif type == "distance":
+            made = _distance(tx, collection, picked_faces, origin, normal)
         else:
             made = _radius(tx, collection, picked_faces, radius_type)
     if not made:
@@ -385,10 +511,14 @@ def nx_create_surface_analysis(
     with native():
         for obj in made:
             obj.SetName(name)
-    return {
+    analysis_objects.remember(tx.part, made)
+    out: AnalysisData = {
         "type": type,
         "name": name,
         "faces": len(picked_faces),
         "curves": len(picked_curves),
         "analyses": _count(collection),
     }
+    if values is not None:
+        out["values"] = values
+    return out

@@ -1,4 +1,14 @@
 {
+  "nx_analyze_body_changes": {
+    "v2406": {
+      "checks": 22,
+      "recorded": "2026-10-13T12:13:30Z",
+      "scenario": "acceptance/inspection/body_compare.json",
+      "scenario_sha256": "545c1dd213de6d2fbd7178e746cf88a4e78e50617ebbceaca480c7478d66beca",
+      "source_sha256": "d614288dc4b92b7f78fc785838a52b68faa6e7c6c1669ec76ede5c370e13eee6",
+      "variants": []
+    }
+  },
   "nx_analyze_curve": {
     "v2406": {
       "checks": 113,
@@ -32,10 +42,10 @@
   "nx_check_face_continuity": {
     "v2406": {
       "checks": 40,
-      "recorded": "2026-10-13T07:28:10Z",
+      "recorded": "2026-10-13T12:14:27Z",
       "scenario": "acceptance/inspection/surface_quality.json",
       "scenario_sha256": "5fb9c36dae23ec4153f2da6db5483e3d52cd11ad343d4c7d3d4fc3da7e1a6f71",
-      "source_sha256": "b3657ffdc9a827cc76f5620899c40399c6331b4e6887e7b509c0e5cd53059ff2",
+      "source_sha256": "04a3fb7bc500b41388d80a640fb7c4b956678684df9c8b81be5adad09186c445",
       "variants": []
     }
   },
@@ -71,16 +81,18 @@
   },
   "nx_create_surface_analysis": {
     "v2406": {
-      "checks": 40,
-      "recorded": "2026-10-13T07:28:10Z",
-      "scenario": "acceptance/inspection/surface_quality.json",
-      "scenario_sha256": "5fb9c36dae23ec4153f2da6db5483e3d52cd11ad343d4c7d3d4fc3da7e1a6f71",
-      "source_sha256": "b3657ffdc9a827cc76f5620899c40399c6331b4e6887e7b509c0e5cd53059ff2",
+      "checks": 26,
+      "recorded": "2026-10-13T12:50:51Z",
+      "scenario": "acceptance/inspection/surface_quality_values.json",
+      "scenario_sha256": "b08d60240027385960ad836ba732d71b6abd70c9fc14ebeab5a1681c37966ec0",
+      "source_sha256": "04a3fb7bc500b41388d80a640fb7c4b956678684df9c8b81be5adad09186c445",
       "variants": [
         "continuity",
         "curvature_comb",
+        "distance",
         "radius",
-        "reflection"
+        "reflection",
+        "slope"
       ]
     }
   },

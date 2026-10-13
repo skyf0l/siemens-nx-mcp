@@ -79,6 +79,10 @@ NAME = 4  # times the share of the tool's name words the query names (pattern: n
 PHRASE = 6  # bonus when a whole keyword or the label appears in the query
 DOMAIN = 3  # bonus when a query word names the tool's domain
 KEYWORD = 2  # bonus when a query word is a whole one-word keyword ("pocket": extrude)
+# Bonus when the whole query is one of the tool's keyword phrases or its label: the tool's
+# author named this very request ("create assembly": nx_create_part over the assembly
+# tools whose names merely contain both words).
+WHOLE = 14
 # Action words: a query with one ranks tools whose name verb is in CHANGING by ACTION
 # above those that read, list, export or activate ("create expression": set_expression
 # over export_expressions). Never respelled: "make block" keeps "make".
@@ -238,8 +242,9 @@ class Entry:
         word 1, ``SYNONYM``, ``PREFIX``), plus ``EXACT`` when the word itself is in the
         name, a keyword or the label, times its ``rarity``. The sum is scaled by the share
         of query words matched (``COVERAGE``); bonuses add the share of the name's words
-        the query names (``NAME``), keyword or label phrases in the query (``PHRASE``) and
-        a word naming the tool's domain (``DOMAIN``). ``variants``: the tool's variant
+        the query names (``NAME``), keyword or label phrases in the query (``PHRASE``, plus
+        ``WHOLE`` when the query is one of them) and a word naming the tool's domain
+        (``DOMAIN``). ``variants``: the tool's variant
         values offered on this build (searchable too)."""
         fields = dict(self.fields)
         fields["variant"] = {w for v in variants for w in words(v)}
@@ -273,6 +278,8 @@ class Entry:
         total += NAME * len(named) / max(len(self.fields["name"]), 1)
         text = " " + " ".join(query) + " "
         total += sum(PHRASE for p in self.phrases if f" {p} " in text)
+        if " ".join(query) in self.phrases:
+            total += WHOLE
         total += KEYWORD * len(self.single.intersection(query))
         if any(DOMAIN_WORDS.get(w) == self.domain for w in query):
             total += DOMAIN

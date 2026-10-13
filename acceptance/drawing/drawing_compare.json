@@ -1,0 +1,148 @@
+{
+ "covers": {
+  "nx_check_drawing_changes": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle",
+    "part": "drawing_drawing_compare_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ],
+    "part": "drawing_drawing_compare_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "drawing_drawing_compare_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "path": "$run/rev_b.prt",
+    "part": "drawing_drawing_compare_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_check_drawing_changes",
+   "args": {
+    "against": "$fixture",
+    "part": "rev_b.prt"
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.counts.changes": 0,
+    "data.counts.additions": 0,
+    "data.counts.deletions": 0,
+    "data.by_type": {
+     "count": 0
+    },
+    "data.current.views": 1,
+    "data.earlier.views": 1,
+    "data.current.file": "rev_b.prt"
+   }
+  },
+  {
+   "call": "nx_create_note",
+   "setup": true,
+   "args": {
+    "text": [
+     "REV B"
+    ],
+    "origin": [
+     300,
+     60
+    ],
+    "sheet": "$sh.data.sheet.id",
+    "part": "rev_b.prt"
+   }
+  },
+  {
+   "call": "nx_check_drawing_changes",
+   "args": {
+    "against": "$fixture",
+    "part": "rev_b.prt"
+   },
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.summary": {
+     "matches": "1 Addition"
+    },
+    "data.counts.changes": 0,
+    "data.counts.additions": 1,
+    "data.counts.deletions": 0,
+    "data.by_type": {
+     "count": 1
+    },
+    "data.by_type.0.type": "Annotations",
+    "data.by_type.0.additions": 1,
+    "data.current.sheets": 1,
+    "data.earlier.sheets": 1,
+    "data.current.views": 1,
+    "data.earlier.views": 1
+   }
+  },
+  {
+   "call": "nx_check_drawing_changes",
+   "args": {
+    "against": "$run/rev_b.prt",
+    "part": "rev_b.prt"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/against",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_check_drawing_changes",
+   "args": {
+    "against": "$run/missing.prt",
+    "part": "rev_b.prt"
+   },
+   "expect": {
+    "error.field": "/against",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

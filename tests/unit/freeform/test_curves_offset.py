@@ -51,6 +51,27 @@ def test_distance_toward_a_point_reverses_nx_side_and_reads_back():
     assert ok.data["length"] == pytest.approx(340) and ok.data["count"] == 4
 
 
+@pytest.mark.parametrize(
+    ("toward", "reverse", "box"),
+    [([200, 200, 20], True, (-5, -5, 105, 55)), ([50, 25, 20], False, (5, 5, 95, 45))],
+)
+def test_toward_a_far_corner_is_tested_where_it_is_nearest_not_at_the_seed(toward, reverse, box):
+    # four rim curves with mixed directions; NX seeds on the x = 0 edge, inward (+x): the
+    # seed alone would read [200, 200, 20] (dot +200) as inward
+    nx, _loop = offset_nx(direction=(1, 0, 0), seed=(0, 25, 20))
+    rim = [
+        curve(nx, [0, 0, 20], [0, 50, 20]),
+        curve(nx, [100, 50, 20], [0, 50, 20]),
+        curve(nx, [100, 50, 20], [100, 0, 20]),
+        curve(nx, [0, 0, 20], [100, 0, 20]),
+    ]
+    nx.on_commit(OFF, lambda b: made(nx, "OFFSET_CURVE", _rect(*box, 20)))
+    ok = run(nx, "nx_create_offset_curve", curves=[c.ref for c in rim], distance=5,
+             toward=toward)  # fmt: skip
+    assert ok.ok, ok.error
+    assert nx.last(OFF).ReverseDirection is reverse
+
+
 def test_distance_on_nx_side_and_a_wrong_distance_rolls_back():
     nx, loop = offset_nx()
     nx.on_commit(OFF, lambda b: made(nx, "OFFSET_CURVE", _rect(5, 5, 95, 45, 20)))

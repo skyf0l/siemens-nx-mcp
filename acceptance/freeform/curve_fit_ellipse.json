@@ -1,0 +1,53 @@
+{
+ "covers": {
+  "nx_create_fit_curve": [
+   "ellipse"
+  ]
+ },
+ "fixture": "fixtures/freeform_fit_ellipse.csv",
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Ellipse 40 x 20 at z 5 from a CSV with a header",
+   "args": {
+    "shape": "ellipse",
+    "path": "$fixture",
+    "closed": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.imported": 16,
+    "data.major_radius": {
+     "close": 40,
+     "tol": 0.0001
+    },
+    "data.minor_radius": {
+     "close": 20,
+     "tol": 0.0001
+    },
+    "data.center": {
+     "close": [
+      0,
+      0,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.max_deviation": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.closed": true
+   }
+  }
+ ]
+}

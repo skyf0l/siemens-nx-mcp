@@ -137,3 +137,31 @@ def test_ownership_needs_the_same_file(engineer, tmp_path):
     assert services.owns(engineer.part) and services.granted(engineer.part)
     services.revoke(engineer.part)
     assert not services.owns(engineer.part)
+
+
+def test_parts_a_development_snippet_made_stay_the_agents_after_a_host_reload(
+    engineer, tmp_path, monkeypatch
+):
+    """A part loaded by a call that records no owner (a development snippet) is still the
+    agent's after ``dev_reload``: the host writes part-owners.json after tracking it, and
+    the new host generation adopts it (same NX process, same tag and file)."""
+    from nx_mcp.core import busy
+    from nx_mcp.host.services import NXServices
+
+    made = []
+    engineer.e.dev_tools["nx_test_create"] = lambda: (
+        made.append(Part(engineer.session, tmp_path / "made.prt")) or {}
+    )
+    engineer.run("nx_test_create", {})
+    new = made[0]
+    assert engineer.e.created(new)
+    # A host reload: new services over the same NX session and workspace, nothing known.
+    reloaded = NXServices(engineer.session, engineer.e.nx, engineer.e.build, engineer.e.workspace)
+    assert not reloaded.created(new)
+    reloaded.track(reloaded.loaded())  # the first call after the reload loads nothing
+    assert reloaded.created(new) and not reloaded.created(engineer.part)
+    assert busy.engineer(reloaded, engineer.part) and not busy.engineer(reloaded, new)
+    # ... and a second reload still knows it (the new generation kept the row).
+    again = NXServices(engineer.session, engineer.e.nx, engineer.e.build, engineer.e.workspace)
+    busy.adopt(again)
+    assert again.created(new)

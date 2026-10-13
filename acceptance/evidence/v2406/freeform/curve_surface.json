@@ -1,0 +1,164 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_surface.json",
+  "scenario_sha256": "e5f18f8a781f31249b9f9ec46fd03515b3929c49e8b936603a3d8bc5ea550181",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_isoparametric_curves": [
+      "uniform",
+      "through_points",
+      "between_points"
+    ],
+    "nx_create_isocline_curves": [
+      "single",
+      "range"
+    ],
+    "nx_create_curve_on_surface": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_isoparametric_curves": "62b23e9fe25194089a82958c07da82e3b3c20d32b61918779a4c34eb5650cc29",
+    "nx_create_isocline_curves": "62b23e9fe25194089a82958c07da82e3b3c20d32b61918779a4c34eb5650cc29",
+    "nx_create_curve_on_surface": "62b23e9fe25194089a82958c07da82e3b3c20d32b61918779a4c34eb5650cc29"
+  },
+  "recorded": "2026-10-13T12:10:05Z",
+  "passed": true,
+  "checks": 52,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 7,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 8,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 13,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 14,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_create_curve_on_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 17,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

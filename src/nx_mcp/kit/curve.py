@@ -4,6 +4,7 @@
     p = curve.point_at(tx, spline, 0.5)            # normalised parameter 0..1
     foot, tangent = curve.closest(tx, edge, [x, y, z])
     gap, on_a, on_b = curve.min_distance(tx, a, b)
+    pieces = curve.along(tx, source, pieces)       # sorted from the source's start
 
 NX 2406 findings encoded here:
 
@@ -45,6 +46,12 @@ class Evaluator:
         values = self.ev.EvaluateUnitVectors(self.handle, float(found[0]))
         return [float(v) for v in values[0]], [float(v) for v in values[1]]
 
+    def fraction(self, point):
+        """Normalised parameter (0 start, 1 end) of the curve point closest to ``point``."""
+        found = self.ev.EvaluateClosestPoint(self.handle, [float(v) for v in point])
+        span = self.high - self.low
+        return (float(found[0]) - self.low) / span if span else 0.0
+
 
 @contextlib.contextmanager
 def evaluator(tx, curve):
@@ -78,6 +85,15 @@ def closest(tx, curve, point):
     """``(foot, unit tangent)``: the point of ``curve`` closest to ``point``."""
     with evaluator(tx, curve) as e:
         return e.closest(point)
+
+
+def along(tx, curve, pieces):
+    """``pieces`` (curves or edges lying on ``curve``) sorted along ``curve`` from its
+    start, by the parameter of each piece's midpoint."""
+    pieces = list(pieces)
+    with evaluator(tx, curve) as e:
+        keys = [e.fraction(point_at(tx, p, 0.5)) for p in pieces]
+    return [p for _k, p in sorted(zip(keys, pieces, strict=True), key=lambda kp: kp[0])]
 
 
 def min_distance(tx, a, b):

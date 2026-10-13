@@ -1,0 +1,480 @@
+{
+ "covers": {
+  "nx_create_isoparametric_curves": [
+   "uniform",
+   "through_points",
+   "between_points"
+  ],
+  "nx_create_isocline_curves": [
+   "single",
+   "range"
+  ],
+  "nx_create_curve_on_surface": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "diameter": 40,
+    "height": 60
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "sph",
+   "args": {
+    "shape": "sphere",
+    "diameter": 60,
+    "origin": [
+     200,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ball",
+   "args": {
+    "owner": "$sph.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "any"
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "u 3 on a cylinder d 40 h 60: lines at 0, 180 and 360 deg (seam twice), 60 long",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "u",
+    "method": "uniform",
+    "count": 3
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 3,
+    "data.length": {
+     "close": 180,
+     "tol": 0.0001
+    },
+    "data.curves.0.length": {
+     "close": 60.0,
+     "tol": 0.0001
+    },
+    "data.curves.1.start": {
+     "close": [
+      -20,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "changes.created": {
+     "count_kind": {
+      "feature": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "v 3: circles of radius 20 at z 0, 30 and 60",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "v",
+    "count": 3
+   },
+   "expect": {
+    "data.count": 3,
+    "data.length": {
+     "close": 376.99111843077515,
+     "tol": 0.0001
+    },
+    "data.curves.1.start": {
+     "close": [
+      20,
+      0,
+      30
+     ],
+     "tol": 0.0001
+    },
+    "data.curves.1.closed": true,
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "uv 2: two seam lines and the two boundary circles",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "uv",
+    "count": 2
+   },
+   "expect": {
+    "data.count": 4,
+    "data.length": {
+     "close": 371.32741228718345,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "v through points at z 15 and 45: two circles",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "v",
+    "method": "through_points",
+    "points": [
+     [
+      0,
+      20,
+      15
+     ],
+     [
+      -20,
+      0,
+      45
+     ]
+    ]
+   },
+   "expect": {
+    "data.count": 2,
+    "data.length": {
+     "close": 251.32741228718345,
+     "tol": 0.0001
+    },
+    "data.curves.0.start": {
+     "close": [
+      20,
+      0,
+      15
+     ],
+     "tol": 0.0001
+    },
+    "data.curves.1.start": {
+     "close": [
+      20,
+      0,
+      45
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "u through points at 90 and 180 deg: two lines through them",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "u",
+    "method": "through_points",
+    "points": [
+     [
+      0,
+      20,
+      15
+     ],
+     [
+      -20,
+      0,
+      45
+     ]
+    ]
+   },
+   "expect": {
+    "data.count": 2,
+    "data.length": {
+     "close": 120.0,
+     "tol": 0.0001
+    },
+    "data.curves.0.start": {
+     "close": [
+      0,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "v 3 between z 15 and z 45: circles at 15, 30, 45",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "v",
+    "method": "between_points",
+    "points": [
+     [
+      0,
+      20,
+      15
+     ],
+     [
+      0,
+      20,
+      45
+     ]
+    ],
+    "count": 3
+   },
+   "expect": {
+    "data.count": 3,
+    "data.length": {
+     "close": 376.99111843077515,
+     "tol": 0.0001
+    },
+    "data.curves.1.start": {
+     "close": [
+      20,
+      0,
+      30
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isocline_curves",
+   "intent": "Sphere R 30 about z at 30 deg: one circle at z +15, radius 30 cos 30",
+   "args": {
+    "faces": [
+     "$ball.data.items.0.id"
+    ],
+    "direction": "z",
+    "angle": 30
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 163.2419427810796,
+     "tol": 0.0001
+    },
+    "data.curves.0.start.2": {
+     "close": 15,
+     "tol": 0.0001
+    },
+    "data.angle_error": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isocline_curves",
+   "intent": "Range 0 to 60 by 30: equator r 30, z 15 r 25.98, z 25.98 r 15",
+   "args": {
+    "faces": [
+     "$ball.data.items.0.id"
+    ],
+    "direction": [
+     0,
+     0,
+     1
+    ],
+    "method": "range",
+    "start_angle": 0,
+    "end_angle": 60,
+    "step": 30
+   },
+   "expect": {
+    "data.count": 3,
+    "data.angles": {
+     "close": [
+      0,
+      30,
+      60
+     ],
+     "tol": 0.0001
+    },
+    "data.length": {
+     "close": 445.985281604161,
+     "tol": 0.0001
+    },
+    "data.angle_error": {
+     "close": 0,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_isocline_curves",
+   "intent": "-45 deg: the circle below the equator at z -21.2132",
+   "args": {
+    "faces": [
+     "$ball.data.items.0.id"
+    ],
+    "direction": "z",
+    "angle": -45
+   },
+   "expect": {
+    "data.count": 1,
+    "data.length": {
+     "close": 133.286488144751,
+     "tol": 0.0001
+    },
+    "data.curves.0.start.2": {
+     "close": -21.213203435596427,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isocline_curves",
+   "intent": "Cylinder seen along x at 0 deg: its two silhouette lines at y +-20",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "direction": "x",
+    "angle": 0
+   },
+   "expect": {
+    "data.count": 2,
+    "data.length": {
+     "close": 120.0,
+     "tol": 0.0001
+    },
+    "data.curves.0.start.0": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_curve_on_surface",
+   "intent": "Spline on the cylinder through three points 60 deg and 20 apart",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "points": [
+     [
+      20,
+      0,
+      10
+     ],
+     [
+      10,
+      17.320508,
+      30
+     ],
+     [
+      -10,
+      17.320508,
+      50
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 58.05575,
+     "tol": 0.01
+    },
+    "data.curves.0.start": {
+     "close": [
+      20,
+      0,
+      10
+     ],
+     "tol": 0.0001
+    },
+    "data.curves.0.end": {
+     "close": [
+      -10,
+      17.320508,
+      50
+     ],
+     "tol": 0.001
+    },
+    "data.miss": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "method": "through_points",
+    "points": [
+     [
+      0,
+      0,
+      15
+     ]
+    ]
+   },
+   "expect": {
+    "error.field": "/points/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_isocline_curves",
+   "args": {
+    "faces": [
+     "$ball.data.items.0.id"
+    ],
+    "direction": "z",
+    "angle": 90
+   },
+   "expect": {
+    "error.field": "/angle",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,275 @@
+{
+ "covers": {
+  "nx_create_measurement": [
+   "distance",
+   "length",
+   "body"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "h",
+    "formula": "10",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 100,
+    "width": 60,
+    "height": 40
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "shape": "block",
+    "origin": [
+     200,
+     0,
+     0
+    ],
+    "length": 80,
+    "width": 80,
+    "height": "h"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bot",
+   "args": {
+    "kind": "face",
+    "near": [
+     50,
+     30,
+     0
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     -1
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "near": [
+     240,
+     40,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "vert",
+   "args": {
+    "kind": "edge",
+    "near": [
+     200,
+     0,
+     5
+    ],
+    "limit": 1,
+    "geometry_type": "line"
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "save": "md",
+   "args": {
+    "kind": "distance",
+    "first": "$bot.data.items.0.id",
+    "second": "$top.data.items.0.id",
+    "name": "gap"
+   },
+   "expect": {
+    "data.value": {
+     "close": 100.4987562112,
+     "tol": 1e-06
+    },
+    "data.expression.expression.name": {
+     "equals": "gap"
+    },
+    "data.parents": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_measure_distance",
+   "args": {
+    "first": "$bot.data.items.0.id",
+    "second": "$top.data.items.0.id"
+   },
+   "expect": {
+    "data.distance": {
+     "close": 100.4987562112,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "save": "ml",
+   "args": {
+    "kind": "length",
+    "curves": [
+     "$vert.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.value": {
+     "close": 10,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "save": "mb",
+   "args": {
+    "kind": "body",
+    "bodies": [
+     "$b.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.value": {
+     "close": 64000,
+     "tol": 0.001
+    },
+    "data.expressions": {
+     "count": 5
+    },
+    "data.expression.quantity": {
+     "equals": "volume"
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "gap2",
+    "formula": "gap*2",
+    "units": "mm"
+   },
+   "expect": {
+    "data.value": {
+     "close": 200.9975124224,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "h",
+    "formula": "20"
+   }
+  },
+  {
+   "call": "nx_update_model",
+   "args": {}
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$md.data.feature.id"
+   },
+   "expect": {
+    "data.parameters.0.value": {
+     "close": 101.9803902719,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_distance",
+   "args": {
+    "first": "$bot.data.items.0.id",
+    "second": "$top.data.items.0.id"
+   },
+   "expect": {
+    "data.distance": {
+     "close": 101.9803902719,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$ml.data.feature.id"
+   },
+   "expect": {
+    "data.parameters.0.value": {
+     "close": 20,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "args": {
+    "kind": "distance",
+    "first": "$bot.data.items.0.id"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "args": {
+    "kind": "length",
+    "curves": [
+     "$vert.data.items.0.id"
+    ],
+    "name": "h"
+   },
+   "expect": {
+    "error.code": "NX_NAME_CONFLICT",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

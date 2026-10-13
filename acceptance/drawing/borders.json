@@ -1,0 +1,179 @@
+{
+ "covers": {
+  "nx_set_sheet_borders": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {},
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.borders": true,
+    "data.zones": true,
+    "data.replaced": false,
+    "data.outer": {
+     "close": [
+      15,
+      5,
+      415,
+      292
+     ],
+     "tol": 1e-06
+    },
+    "data.inner": {
+     "close": [
+      20,
+      10,
+      410,
+      287
+     ],
+     "tol": 1e-06
+    },
+    "data.columns": {
+     "count": 8
+    },
+    "data.rows": {
+     "count": 6
+    },
+    "data.zone_size": {
+     "close": [
+      50,
+      50
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "sheet": "SHT1",
+    "margins": [
+     20,
+     10,
+     10,
+     10
+    ],
+    "zone_size": [
+     70,
+     60
+    ],
+    "zone_origin": "top_left",
+    "border_width": 6
+   },
+   "expect": {
+    "data.replaced": true,
+    "data.outer": {
+     "close": [
+      20,
+      10,
+      410,
+      287
+     ],
+     "tol": 1e-06
+    },
+    "data.inner": {
+     "close": [
+      26,
+      16,
+      404,
+      281
+     ],
+     "tol": 1e-06
+    },
+    "data.zone_origin": "top_left",
+    "data.margins": {
+     "close": [
+      20,
+      10,
+      10,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.border_width": {
+     "close": 6,
+     "tol": 1e-06
+    },
+    "data.columns.0": "1",
+    "data.rows.0": "A"
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "zones": false
+   },
+   "expect": {
+    "data.zones": false,
+    "data.borders": true,
+    "data.columns": {
+     "count": 0
+    },
+    "data.inner": {
+     "close": [
+      26,
+      16,
+      404,
+      281
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "margins": [
+     200,
+     10,
+     230,
+     10
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "sheet": "NOPE"
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/sheet",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

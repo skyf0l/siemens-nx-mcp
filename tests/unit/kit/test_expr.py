@@ -103,3 +103,15 @@ def test_evaluate_reads_names_and_needs_a_scratch_expression_for_formulas():
     assert read_only.field == "/tol" and "expression name, not a formula" in read_only.message
     assert "no expression 'u'" in _code(expr.evaluate, svc, "u", "length", "mm").message
     assert "not an angle" in _code(expr.evaluate, svc, "t", "angle", "deg").message
+
+
+def test_value_or_none_swallows_unreadable_expressions():
+    nx = fake_nx()
+    exp = NS(Type="Number", GetValueUsingUnits=lambda _option: 7)
+    assert expr.value_or_none(nx.tx, exp) == 7.0
+    assert expr.value_or_none(nx.tx, NS(Type="String")) is None
+
+    def refuse(_option):
+        raise NXException(1050017, "no value")
+
+    assert expr.value_or_none(nx.tx, NS(Type="Number", GetValueUsingUnits=refuse)) is None

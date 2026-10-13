@@ -8,7 +8,12 @@ collector too (Coplanar: ``RigidFace``, the others: ``MoveAlongFace``, both
 parameters". The stationary face may lie on another body and stays put; the moved face
 keeps its tag. Parallel keeps the face centre by default but Perpendicular does not, so
 both get ``ThroughPoint`` (the face centre unless given). Symmetric takes a new plane
-(``SymmetryPlaneOption.New``).
+(``SymmetryPlaneOption.New``). Make Offset (``MotionFace``, ``StationaryFace``,
+``OffsetValue``) needs both faces on one body ("Feature cannot be applied to multiple
+bodies") and a positive distance (a negative one fails "A face does not intersect properly").
+
+Not offered: Make Fixed (``FixedBuilder.FaceToFix``) refuses "Invalid constraint" on NX 2406
+for a plain planar face, with or without recognized relations.
 
 Not offered: Shell Face, Shell Body (``AdaptiveShellBuilder``) and Change Shell Thickness
 commit without any effect through NXOpen on NX 2406, or refuse "Invalid shell data", on
@@ -24,14 +29,16 @@ from typing import Annotated, Literal
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, FaceRef, Items, Plane, Point3
+from nx_mcp.core.types import Doc, FaceRef, Items, Length, Plane, Point3
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args as kargs
-from nx_mcp.kit import builders, geom, licenses, measure, readback, select
+from nx_mcp.kit import builders, expr, geom, licenses, measure, readback, select
 
 SYNC_LICENSE = "nx_synchronous"
 
-Relation = Literal["coplanar", "coaxial", "parallel", "perpendicular", "tangent", "symmetric"]
+Relation = Literal[
+    "coplanar", "coaxial", "parallel", "perpendicular", "tangent", "symmetric", "offset"
+]
 AXIAL = (select.FACE_CYLINDER, select.FACE_CONE)
 LINEAR = (select.FACE_PLANE, *AXIAL)  # faces with a direction: a normal or an axis
 FACTORIES = {
@@ -41,10 +48,12 @@ FACTORIES = {
     "perpendicular": "CreatePerpendicularBuilder",
     "tangent": "CreateTangentBuilder",
     "symmetric": "CreateSymmetricBuilder",
+    "offset": "CreateMakeOffsetBuilder",
 }
 # Face types each relation takes (both faces), said in its refusal.
 TAKES = {
     "coplanar": ((select.FACE_PLANE,), "planar faces"),
+    "offset": ((select.FACE_PLANE,), "planar faces"),
     "coaxial": (AXIAL, "cylindrical or conical faces"),
     "parallel": (LINEAR, "planar, cylindrical or conical faces"),
     "perpendicular": (LINEAR, "planar, cylindrical or conical faces"),
@@ -149,7 +158,7 @@ def _through(tx, face, m):
     return geom.add(m["point"], geom.scale(m["dir"], offset))
 
 
-def _read_back(relation, m, s, mirror, through):
+def _read_back(relation, m, s, mirror, through, distance=0.0):
     """``(angle, gap)`` after the edit; a relation NX did not meet fails the call."""
     scale = max(1.0, *map(abs, m["point"]), *map(abs, s["point"]))
     tol = TOL * scale
@@ -157,6 +166,8 @@ def _read_back(relation, m, s, mirror, through):
     gap = None
     if relation == "coplanar":
         gap = abs(geom.dot(geom.sub(m["point"], s["point"]), s["dir"]))
+    elif relation == "offset":
+        gap = abs(abs(geom.dot(geom.sub(m["point"], s["point"]), s["dir"])) - distance)
     elif relation == "coaxial":
         gap = _line_gap(m["point"], s["point"], s["dir"])
     elif relation == "tangent":
@@ -195,7 +206,7 @@ def _read_back(relation, m, s, mirror, through):
         "make perpendicular",
         "make tangent",
         "make symmetric",
-        "align faces",
+        "make offset",
         "synchronous",
     ),
     requires=("work_part", "no_active_sketch"),
@@ -217,12 +228,14 @@ def nx_edit_face_relation(
         list[FaceRef], Items(1, 100), Doc("Faces of the same body that move rigidly along")
     ]
     | None = None,
+    distance: Annotated[Length, Doc("offset only (required, > 0): gap from to's plane")]
+    | None = None,
 ) -> RelateData:
-    """Make a face coplanar, coaxial, parallel, perpendicular, tangent or symmetric to another
-    face. Synchronous: imported solids too; to stays put, adjacent faces stretch to follow.
-    coplanar: planes; coaxial: cylinders/cones; parallel and perpendicular turn the face about
-    its centre (or through); symmetric: face becomes to's mirror image about plane. Reads back
-    angle and gap."""
+    """Make a face coplanar, coaxial, parallel, perpendicular, tangent, symmetric or offset to
+    another face. Synchronous: imported solids too; to stays put, adjacent faces stretch to
+    follow. coplanar: planes; coaxial: cylinders/cones; parallel and perpendicular turn the face
+    about its centre (or through); symmetric: face becomes to's mirror image about plane;
+    offset: parallel plane of the same body at distance. Reads back angle and gap."""
     if (plane is not None) != (relation == "symmetric"):
         verb = "needs" if relation == "symmetric" else "does not take"
         fail("NX_INVALID_ARGUMENT", f"{relation} {verb} plane", field="/plane",
@@ -230,6 +243,14 @@ def nx_edit_face_relation(
     if through is not None and relation not in ("parallel", "perpendicular"):
         fail("NX_INVALID_ARGUMENT", f"{relation} does not take through", field="/through",
              hint="through applies to parallel and perpendicular")  # fmt: skip
+    if (distance is not None) != (relation == "offset"):
+        verb = "needs" if relation == "offset" else "does not take"
+        fail("NX_INVALID_ARGUMENT", f"{relation} {verb} distance", field="/distance",
+             hint="offset takes distance > 0: the gap between the two parallel faces")  # fmt: skip
+    if distance is not None and float(distance) <= 0:
+        fail("NX_INVALID_ARGUMENT", "distance must be positive", field="/distance")
+    if with_faces and relation == "offset":
+        fail("NX_INVALID_ARGUMENT", "offset does not take with_faces", field="/with_faces")
     if face == to:
         fail("NX_INVALID_ARGUMENT", "face and to must differ", field="/to")
     with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
@@ -244,6 +265,8 @@ def nx_edit_face_relation(
                 fail("NX_WRONG_OWNER", "with_faces must be faces of face's body",
                      field=f"/with_faces/{i}")  # fmt: skip
         group = [g for g in group if int(g.Tag) not in (int(moving.Tag), int(fixed.Tag))]
+        if relation == "offset" and int(fixed.GetBody().Tag) != int(body.Tag):
+            fail("NX_WRONG_OWNER", "offset needs to on face's body", field="/to")
         m, s = _shape(tx, moving), _shape(tx, fixed)
         _check_faces(relation, m, s)
         mirror = select.plane(tx, plane, "/plane")[1:] if plane is not None else None
@@ -257,7 +280,10 @@ def nx_edit_face_relation(
     part = tx.part
     rule = part.ScRuleFactory.CreateRuleFaceDumb([moving, *group])
     with builders.build(tx, getattr(part.Features, FACTORIES[relation]), None) as b:
-        if relation == "coplanar":
+        if relation == "offset":
+            b.MotionFace.Value = moving
+            expr.drive(b.OffsetValue, distance)
+        elif relation == "coplanar":
             b.ConstraintFace.Value = moving
             b.RigidFace.FaceCollector.ReplaceRules([rule], False)
         else:
@@ -278,6 +304,7 @@ def nx_edit_face_relation(
     if check is not None:
         faults = check(body.Tag)[0]
         readback.expect(not faults, "consistency", "The edit left an invalid body", faults=faults)
-    angle, gap = _read_back(relation, _shape(tx, moving), _shape(tx, fixed), mirror, point)
+    after = _shape(tx, moving), _shape(tx, fixed)
+    angle, gap = _read_back(relation, *after, mirror, point, float(distance or 0.0))
     out = common.result_of(tx, feature, [body])
     return {**out, "volume_change": out["volume"] - before, "angle": angle, "gap": gap}

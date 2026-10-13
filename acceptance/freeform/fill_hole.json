@@ -1,0 +1,22 @@
+{
+ "covers": {"nx_create_fill_hole": ["g0", "g1"]},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sq0", "args": {"placement": {"principal": "xy", "origin": [0, 0, 0]}, "finish": true, "curves": [{"type": "rectangle", "corner1": [-10, -10], "corner2": [10, 10]}]}},
+  {"call": "nx_create_sketch", "setup": true, "save": "sq1", "args": {"placement": {"principal": "xy", "origin": [0, 0, 30]}, "finish": true, "curves": [{"type": "rectangle", "corner1": [-10, -10], "corner2": [10, 10]}]}},
+  {"call": "nx_create_ruled", "setup": true, "save": "tube", "args": {"first": ["$sq0.data.curves.0.id", "$sq0.data.curves.1.id", "$sq0.data.curves.2.id", "$sq0.data.curves.3.id"], "second": ["$sq1.data.curves.0.id", "$sq1.data.curves.1.id", "$sq1.data.curves.2.id", "$sq1.data.curves.3.id"]}},
+  {"call": "nx_find_geometry", "setup": true, "save": "rim", "args": {"owner": "$tube.data.bodies.0.id", "kind": "edge", "parallel": "xy", "order": "highest", "axis": "z", "limit": 4}},
+  {"call": "nx_find_geometry", "setup": true, "save": "low", "args": {"owner": "$tube.data.bodies.0.id", "kind": "edge", "parallel": "xy", "order": "lowest", "axis": "z", "limit": 4}},
+  {"call": "nx_create_fill_hole", "intent": "Square tube, top opening: G0 patch sewn in (+400 mm^2), the bottom still open", "args": {"boundary": ["$rim.data.items.0.id", "$rim.data.items.1.id", "$rim.data.items.2.id", "$rim.data.items.3.id"]}, "expect": {"mutation_outcome": "committed", "data.continuity": "g0", "data.sewn": true, "data.faces": 5, "data.area": {"close": 2800, "tol": 0.01}, "data.free_edges": 4, "data.closed": false, "data.gap": {"close": 0, "tol": 0.002}, "data.bounds.max.2": {"close": 30, "tol": 0.001}}},
+  {"call": "nx_create_fill_hole", "intent": "Bottom opening too: no free edge left, NX sews the closed sheet into a solid", "args": {"boundary": ["$low.data.items.0.id", "$low.data.items.1.id", "$low.data.items.2.id", "$low.data.items.3.id"], "continuity": "g0"}, "expect": {"mutation_outcome": "committed", "data.faces": 6, "data.area": {"close": 3200, "tol": 0.01}, "data.free_edges": 0, "data.closed": true, "data.sheet": false}},
+  {"call": "nx_create_sketch", "setup": true, "save": "c0", "args": {"placement": {"principal": "xy", "origin": [100, 0, 0]}, "finish": true, "curves": [{"type": "circle", "center": [0, 0], "radius": 10}]}},
+  {"call": "nx_create_sketch", "setup": true, "save": "c1", "args": {"placement": {"principal": "xy", "origin": [100, 0, 30]}, "finish": true, "curves": [{"type": "circle", "center": [0, 0], "radius": 10}]}},
+  {"call": "nx_create_ruled", "setup": true, "save": "cyl", "args": {"first": ["$c0.data.curves.0.id"], "second": ["$c1.data.curves.0.id"]}},
+  {"call": "nx_find_geometry", "setup": true, "save": "crim", "args": {"owner": "$cyl.data.bodies.0.id", "kind": "edge", "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_create_fill_hole", "intent": "Round tube: a G1 dome on the top rim as a separate sheet", "args": {"boundary": ["$crim.data.items.0.id"], "continuity": "g1", "sew": false, "tolerance": 0.01}, "expect": {"mutation_outcome": "committed", "data.continuity": "g1", "data.sewn": false, "data.free_edges": 1, "data.gap": {"close": 0, "tol": 0.021}, "data.bounds.min.2": {"close": 30, "tol": 0.01}}},
+  {"call": "nx_create_fill_hole", "intent": "Sketch curves cannot be sewn", "args": {"boundary": ["$c1.data.curves.0.id"]}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started", "error.field": "/boundary/0"}},
+  {"call": "nx_check_model", "args": {}, "expect": {"data.healthy": true}}
+ ]
+}

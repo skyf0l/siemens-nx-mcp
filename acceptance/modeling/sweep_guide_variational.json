@@ -1,0 +1,196 @@
+{
+ "covers": {
+  "nx_create_variational_sweep": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 80,
+    "width": 80,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "kind": "edge",
+    "near": [
+     40,
+     0,
+     10
+    ],
+    "limit": 1,
+    "geometry_type": "line"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "ps",
+   "args": {
+    "placement": {
+     "path": [
+      "$e.data.items.0.id"
+     ],
+     "help_point": [
+      0,
+      0,
+      10
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$ps.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       5,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$ps.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "flat",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "flat_c",
+   "args": {
+    "sketch": "$flat.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       5,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$flat.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_variational_sweep",
+   "args": {
+    "sketch": "$ps.data.sketch.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 1600,
+     "tol": 0.01
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_variational_sweep",
+   "args": {
+    "sketch": "$ps.data.sketch.id",
+    "end": 50,
+    "combine": {
+     "operation": "subtract",
+     "targets": [
+      "$blk.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "data.volume": {
+     "close": 63200,
+     "tol": 0.01
+    },
+    "data.end": {
+     "close": 50,
+     "tol": 0
+    }
+   }
+  },
+  {
+   "call": "nx_create_variational_sweep",
+   "args": {
+    "sketch": "$flat.data.sketch.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_variational_sweep",
+   "args": {
+    "sketch": "$ps.data.sketch.id",
+    "start": 60,
+    "end": 40
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/end"
+   }
+  }
+ ]
+}

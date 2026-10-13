@@ -131,17 +131,21 @@ def collector(tx, objects, kind):
     return fill(tx, tx.part.ScCollectors.CreateCollector(), objects, kind)
 
 
-def fill(tx, collector, objects, kind):
+def fill(tx, collector, objects, kind, *, sheets=False):
     """Replace the rules of an existing ``collector`` (a builder's own collector)
     with one dumb rule over ``objects``; returns the collector.
 
     ``kind`` is ``"Edge"``, ``"Face"`` or ``"Body"``; ``objects`` are live NX
-    objects or references (resolved through ``tx.resolve``).
+    objects or references (resolved through ``tx.resolve``). ``sheets`` (Body only)
+    passes NX's ``includeSheetBodies`` flag so sheet bodies are kept by the rule.
     """
     if kind not in ("Edge", "Face", "Body"):
         raise ValueError("collector kind must be Edge, Face or Body")
+    if sheets and kind != "Body":
+        raise ValueError("sheets applies to Body collectors only")
     items = [tx.resolve(o, kind.lower()) if isinstance(o, str) else o for o in objects]
-    rule = getattr(tx.part.ScRuleFactory, "CreateRule" + kind + "Dumb")(items)
+    create = getattr(tx.part.ScRuleFactory, "CreateRule" + kind + "Dumb")
+    rule = create(items, True) if sheets else create(items)
     collector.ReplaceRules([rule], False)
     return collector
 

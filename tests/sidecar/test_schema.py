@@ -11,6 +11,7 @@ import typing
 from typing import Annotated, Literal, TypedDict
 
 import jsonschema
+import pydantic
 import pytest
 
 from nx_mcp.core import catalogue
@@ -61,6 +62,7 @@ def nx_create_sample(
     pose: Pose | None = None,
     corner: SketchPoint | None = None,
     angle: Angle = 0,
+    draft: Annotated[Angle, Range(gt=0, lt=90)] = 45,  # bounds on a quantity (gate 1 and 9)
     width: SheetLength | None = None,
     length: Length | None = None,
     points: Annotated[list[Point2], Items(1, 4)] | None = None,
@@ -377,3 +379,12 @@ def test_every_catalogue_tool_converts():
         assert schema.adapter(spec) is schema.adapter(spec)  # cached
         assert schema.input_schema(spec)
     assert list(itertools.islice(samples(SAMPLE), 1)) == [{"kind": "a"}]
+
+
+def test_range_on_a_quantity_bounds_its_numbers_in_the_listed_schema():
+    adapter = schema.adapter(SAMPLE)
+    adapter.validate_python({"kind": "a", "draft": 30})
+    adapter.validate_python({"kind": "a", "draft": "0.5 rad"})  # checked by gate 9
+    for bad in (0, 90, -5):
+        with pytest.raises(pydantic.ValidationError):
+            adapter.validate_python({"kind": "a", "draft": bad})

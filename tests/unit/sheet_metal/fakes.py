@@ -66,6 +66,15 @@ class Manager:
         b = face.bend
         return NS(InnerRadius=b.radius, BendAngle=b.angle, NeutralFactor=b.nf)
 
+    def GetFaceType(self, face):
+        return getattr(face, "sm_type", "SheetmetalFaceType.Web")
+
+    def GetFaceLayer(self, face):
+        return getattr(face, "layer", "SheetmetalFaceLayer.Unknown")
+
+    def GetOppositeFace(self, face):
+        return face.opposite
+
     def __getattr__(self, name):
         if name.startswith("Create") and name.endswith("Builder"):
             kind = name[len("Create") :]
@@ -173,6 +182,8 @@ def sm_nx(units="mm", application="sheet_metal"):
     nx.tab = lambda *a, **k: tab(nx, *a, **k)
     nx.add_bend = lambda *a, **k: add_bend(nx, *a, **k)
     nx.made = lambda kind, body=None, **k: made(nx, kind, body, **k)
+    nx.bend_edges = lambda *a, **k: bend_edges(nx, *a, **k)
+    nx.flat_pattern = lambda *a, **k: flat_pattern(nx, *a, **k)
     return nx
 
 
@@ -197,6 +208,58 @@ def add_bend(nx, body, radius=3.0, angle=90.0, nf=0.33, state=BENT):
     body.bends.append(face)
     body.faces.append(face)
     return face
+
+
+def bend_edges(nx, face, length, width, layer="Top", flat=False):
+    """Give an inner bend face its edges (two tangent lines ``length`` long; the ends border
+    thickness faces, arcs when bent), its ``layer`` and an opposite (outer) face."""
+    web = nx.face(body=face.GetBody())
+    side = nx.face(body=face.GetBody())
+    side.sm_type = "SheetmetalFaceType.Thickness"
+    edges = []
+    for y in (0.0, width):
+        e = nx.edge((0.0, y, 0.0), (length, y, 0.0), body=face.GetBody())
+        e.GetFaces = lambda e_face=face: [e_face, web]
+        edges.append(e)
+    for x in (0.0, length):
+        e = nx.edge((x, 0.0, 0.0), (x, width, 0.0), body=face.GetBody(), linear=flat)
+        e.GetFaces = lambda e_face=face: [e_face, side]
+        edges.append(e)
+    face.GetEdges = lambda: list(edges)
+    face.layer = f"SheetmetalFaceLayer.{layer}"
+    face.opposite = nx.face(body=face.GetBody())
+    return face
+
+
+def flat_pattern(nx, body, up=(), down=(), view="FLAT-PATTERN#1", sequence=()):
+    """A Flat Pattern feature whose centre lines point at ``up``/``down`` formed faces, with
+    the modeling view ``view`` whose bend list is ``sequence`` ([(id, name)])."""
+    feature = nx.made("FLAT_PATTERN", body, feature_type="FLAT_PATTERN")
+    feature.ref = nx.ref_of(feature, "feature")
+    feature.GetBendUpCenterLines = lambda: [NS(FormedBodyObject=f) for f in up]
+    feature.GetBendDownCenterLines = lambda: [NS(FormedBodyObject=f) for f in down]
+    shown = NS(Name=view)
+    nx.part.ModelingViews._views.FindObject = lambda name: shown if name == view else _no(name)
+
+    def flat_builder(*args):
+        b = nx.builder("FlatPatternBuilder", *args)
+        object.__setattr__(b, "FlatPatternViewName", view)
+        return b
+
+    def list_builder():
+        b = nx.builder("BendListBuilder")
+        items = [NS(BendID=i, BendName=n) for i, n in sequence]
+        object.__setattr__(b, "BendList", NS(Length=len(items), FindItem=items.__getitem__))
+        return b
+
+    manager = nx.part.Features.SheetmetalManager
+    manager.CreateFlatPatternBuilder = flat_builder
+    manager.CreateBendListBuilder = list_builder
+    return feature
+
+
+def _no(name):
+    raise RuntimeError(f"No object found with this name: {name}")
 
 
 def made(nx, kind, body=None, feature_type=None):

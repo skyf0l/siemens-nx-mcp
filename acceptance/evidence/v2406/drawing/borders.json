@@ -1,0 +1,76 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/borders.json",
+  "scenario_sha256": "67dfe833f03fd31728df6954929ade7cc9b72b7350e3dfa80b2c29bafacbb315",
+  "domain": "drawing",
+  "covers": {
+    "nx_set_sheet_borders": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_sheet_borders": "a7656b73fef9265b7349b2421f010b7819e524f7f3f814066e4a61d74d95c226"
+  },
+  "recorded": "2026-10-13T12:14:44Z",
+  "passed": true,
+  "checks": 26,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 4,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 5,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

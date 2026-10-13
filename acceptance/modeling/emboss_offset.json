@@ -1,0 +1,215 @@
+{
+ "covers": {
+  "nx_create_offset_emboss": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "placement": {
+     "principal": "xz"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "e_c",
+   "args": {
+    "sketch": "$e.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       100,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$e.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "sketch": "$e.data.sketch.id",
+    "end": 60,
+    "direction": "y"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "p_c",
+   "args": {
+    "sketch": "$p.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       20,
+       30
+      ],
+      "end": [
+       80,
+       30
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$p.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "g",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "g_c",
+   "args": {
+    "sketch": "$g.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       20,
+       50
+      ],
+      "end": [
+       80,
+       50
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$g.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_offset_emboss",
+   "args": {
+    "sheet": "$sh.data.bodies.0.id",
+    "path": [
+     "$p_c.data.curves.0.curve.id"
+    ],
+    "height": 3,
+    "left_width": 5,
+    "side_offset": 2
+   },
+   "expect": {
+    "data.area_before": {
+     "close": 6000,
+     "tol": 0.01
+    },
+    "data.area": {
+     "close": 6211.9328,
+     "tol": 0.05
+    },
+    "data.bounds.1.2": {
+     "close": 3,
+     "tol": 0.0001
+    },
+    "data.bounds.0.2": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_offset_emboss",
+   "args": {
+    "sheet": "$sh.data.bodies.0.id",
+    "path": [
+     "$g_c.data.curves.0.curve.id"
+    ],
+    "height": 2,
+    "left_width": 4,
+    "right_width": 3,
+    "side_offset": 1,
+    "groove": true
+   },
+   "expect": {
+    "data.bounds.0.2": {
+     "close": -2,
+     "tol": 0.0001
+    },
+    "data.bounds.1.2": {
+     "close": 3,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_offset_emboss",
+   "args": {
+    "sheet": "$sh.data.bodies.0.id",
+    "path": [
+     "$g_c.data.curves.0.curve.id"
+    ],
+    "height": 2,
+    "left_width": 4,
+    "side_offset": -1
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/side_offset"
+   }
+  }
+ ]
+}

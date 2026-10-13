@@ -1,0 +1,181 @@
+{
+  "format": 2,
+  "scenario": "acceptance/optimization/contour.json",
+  "scenario_sha256": "f8d259121fe7f300645f449cb29f9a989b206979a46a0795f07bebbfb5b31c0c",
+  "domain": "optimization",
+  "covers": {
+    "nx_set_topology_contour": [],
+    "nx_create_topology_condition": [
+      "fixed",
+      "force"
+    ],
+    "nx_run_topology_study": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_topology_contour": "21b6cf80bc30cc6136ac5ecc249aa4d7ce961cfaa70a6b4723525a936950bbfa",
+    "nx_create_topology_condition": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033",
+    "nx_run_topology_study": "9fa54822e575162800431d7c9b4c25e06a0b22aacf0a5383ed048fadd8989080"
+  },
+  "recorded": "2026-10-13T12:25:26Z",
+  "passed": true,
+  "checks": 49,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_material",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_create_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_run_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 12,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 13,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 14,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_get_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

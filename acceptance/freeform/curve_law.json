@@ -1,0 +1,384 @@
+{
+ "covers": {
+  "nx_create_law_curve": [],
+  "nx_create_general_conic": [
+   "five_points",
+   "rho"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_law_curve",
+   "intent": "x linear 0..100, y cubic 0..40, z 5",
+   "args": {
+    "x": {
+     "start": 0,
+     "end": 100
+    },
+    "y": {
+     "start": 0,
+     "end": 40,
+     "cubic": true
+    },
+    "z": 5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 109.02508,
+     "tol": 0.001
+    },
+    "data.curves.0.start": {
+     "close": [
+      0,
+      0,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.curves.0.end": {
+     "close": [
+      100,
+      40,
+      5
+     ],
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.expressions": {
+     "count": 0
+    },
+    "changes.created": {
+     "count_kind": {
+      "feature": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_law_curve",
+   "intent": "All linear from z 10: a straight line of length 50",
+   "args": {
+    "x": {
+     "start": 0,
+     "end": 30
+    },
+    "y": {
+     "start": 0,
+     "end": 40
+    },
+    "z": "10 mm"
+   },
+   "expect": {
+    "data.length": {
+     "close": 50,
+     "tol": 0.0001
+    },
+    "data.curves.0.end": {
+     "close": [
+      30,
+      40,
+      10
+     ],
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_law_curve",
+   "intent": "One helix turn r 20 over x 100 by formulas: length hypot(100, 40 pi)",
+   "args": {
+    "x": {
+     "formula": "100*t"
+    },
+    "y": {
+     "formula": "20*cos(360*t)"
+    },
+    "z": {
+     "formula": "20*sin(360*t)"
+    }
+   },
+   "expect": {
+    "data.length": {
+     "close": 160.59690856844963,
+     "tol": 0.01
+    },
+    "data.curves.0.start": {
+     "close": [
+      0,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.curves.0.end": {
+     "close": [
+      100,
+      20,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.expressions": {
+     "equals": [
+      "t",
+      "xt",
+      "yt",
+      "zt"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "intent": "Deck camber: ends 100 apart, anchor 40 up, rho 0.5: a parabola 20 high",
+   "args": {
+    "method": "rho",
+    "start": [
+     0,
+     300,
+     10
+    ],
+    "end": [
+     100,
+     300,
+     10
+    ],
+    "anchor": [
+     50,
+     340,
+     10
+    ],
+    "rho": 0.5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.kind": "parabola",
+    "data.length": {
+     "close": 109.823008,
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "intent": "rho 0.3: an ellipse arc",
+   "args": {
+    "method": "rho",
+    "start": [
+     0,
+     300,
+     10
+    ],
+    "end": [
+     100,
+     300,
+     10
+    ],
+    "anchor": [
+     50,
+     340,
+     10
+    ],
+    "rho": 0.3
+   },
+   "expect": {
+    "data.kind": "ellipse",
+    "data.length": {
+     "close": 104.40809,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "intent": "rho 0.7: a hyperbola arc",
+   "args": {
+    "method": "rho",
+    "start": [
+     0,
+     300,
+     10
+    ],
+    "end": [
+     100,
+     300,
+     10
+    ],
+    "anchor": [
+     50,
+     340,
+     10
+    ],
+    "rho": 0.7
+   },
+   "expect": {
+    "data.kind": "hyperbola",
+    "data.length": {
+     "close": 116.44644,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "intent": "Tilted plane: anchor 28.28 off the chord, rho 0.5: a parabola 14.14 high",
+   "args": {
+    "method": "rho",
+    "start": [
+     0,
+     0,
+     0
+    ],
+    "end": [
+     100,
+     0,
+     0
+    ],
+    "anchor": [
+     50,
+     20,
+     20
+    ],
+    "rho": 0.5
+   },
+   "expect": {
+    "data.kind": "parabola",
+    "data.length": {
+     "close": 105.102734,
+     "tol": 0.001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "intent": "Five points of a 50 x 30 half ellipse in the xz plane at z 100",
+   "args": {
+    "method": "five_points",
+    "points": [
+     [
+      50.0,
+      0,
+      100.0
+     ],
+     [
+      38.302222156,
+      0,
+      119.283628291
+     ],
+     [
+      0.0,
+      0,
+      130.0
+     ],
+     [
+      -32.139380484,
+      0,
+      122.981333294
+     ],
+     [
+      -50.0,
+      0,
+      100.0
+     ]
+    ]
+   },
+   "expect": {
+    "data.kind": "ellipse",
+    "data.length": {
+     "close": 127.63499,
+     "tol": 0.001
+    },
+    "data.curves.0.end": {
+     "close": [
+      -50,
+      0,
+      100
+     ],
+     "tol": 0.0001
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "args": {
+    "method": "five_points",
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      10,
+      5,
+      0
+     ],
+     [
+      20,
+      7,
+      0
+     ],
+     [
+      30,
+      5,
+      1
+     ],
+     [
+      40,
+      0,
+      0
+     ]
+    ]
+   },
+   "expect": {
+    "error.field": "/points",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_law_curve",
+   "args": {
+    "x": 1,
+    "y": 2
+   },
+   "expect": {
+    "error.field": "/x",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

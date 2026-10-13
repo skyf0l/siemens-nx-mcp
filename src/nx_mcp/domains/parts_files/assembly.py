@@ -7,7 +7,10 @@ clone (UF ``Clone``) with new file names ``<prefix><name>`` in a new folder;
 NX 2406 lesson: the session load options may search folders without the
 workspace, so components load *as saved* during the clone and the reopen (the
 option is restored). The copy is reopened and its component references are
-verified against the new files; ``nx-project-manifest.json`` records them.
+verified against the new files; ``nx-project-manifest.json`` records them. The loaded
+source parts keep no drawing CGM data while NX writes the copies
+(``kit.parts.without_cgm``): NX would otherwise show its modal "Save CGM" dialog for
+sheets that are not displayed, so the copies carry no CGM preview.
 
 A clone puts back the display and work part it found: an assembly that is not displayed
 (gate 4s: the quiet work part) is never displayed by it. ``activate`` leaves the copy
@@ -255,7 +258,10 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
                     )
                 for source, new in mapping.items():
                     clone.SetNaming(str(source), clone.NamingTechnique.USER_NAME, str(new))
-                clone.PerformClone(clone.InitNamingFailures())
+                loaded_sources = [parts.loaded(tx, p) for p in sources]
+                loaded_sources = [q for q in loaded_sources if q is not None]
+                with parts.without_cgm(loaded_sources):  # no modal "Save CGM" dialog
+                    clone.PerformClone(clone.InitNamingFailures())
             finally:
                 clone.Terminate()
         for source, new in mapping.items():

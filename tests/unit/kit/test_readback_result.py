@@ -96,3 +96,15 @@ def test_enum_name():
     # Python NXOpen cannot expose a member called None: listed, it matches 0.
     assert result.enum_name(0, NS(Fillet=13), ["Fillet", "None"]) == "None"
     assert result.enum_name(7, NS(Fillet=13), ["Fillet"], default="7") == "7"
+
+
+def test_enum_int_reads_ints_printed_members_and_value_attributes():
+    class Printed:  # NX 2406 members that only print as their value
+        def __str__(self):
+            return "4"
+
+    assert result.enum_int(3) == 3
+    assert result.enum_int(Printed()) == 4
+    assert result.enum_int(NS(value=2)) == 2
+    with pytest.raises(ValueError):
+        result.enum_int("Shaded")

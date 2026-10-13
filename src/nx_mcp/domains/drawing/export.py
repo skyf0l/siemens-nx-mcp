@@ -1,4 +1,4 @@
-"""Export drawing sheets to PDF, DXF or DWG files in the workspace.
+"""Export drawing sheets to PDF, CGM, DXF or DWG files in the workspace.
 
 NX 2406 findings encoded here:
 
@@ -12,10 +12,15 @@ NX 2406 findings encoded here:
   changes and never saves the part; it runs an external translator (tens of
   seconds) and writes one sheet per file.
 - Assemblies must be fully loaded: partially loaded components plot empty.
+- CGM (``PlotManager.CreateCgmBuilder``, ``Multiple = Single``) writes every selected
+  sheet into one binary CGM file named by ``SetFilenames`` ("NX8.5 Metafile"), one
+  picture per sheet named after it; the element stream is parsed from BEGIN to END
+  METAFILE and the picture names are returned.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -32,7 +37,11 @@ HEADERS = {
 }
 
 
-class ExportData(TypedDict):
+class _CgmData(TypedDict, total=False):
+    pictures: Annotated[list[str], Doc("CGM only: the file's pictures, one per sheet")]
+
+
+class ExportData(_CgmData):
     path: str
     format: str
     size: int
@@ -59,7 +68,44 @@ def _check_loaded(part):
         )
 
 
+def _cgm_text(raw):
+    """A CGM string parameter without its ISO 2022 character-set escapes."""
+    return re.sub(r"[ -/]*[0-~]", "", raw.decode("latin-1"))
+
+
+def cgm_pictures(data):
+    """``(metafile name, [picture names])`` of a binary CGM that opens with BEGIN METAFILE
+    and closes with END METAFILE, else None. Every picture is one exported sheet."""
+    elements, at = [], 0
+    while at + 2 <= len(data):
+        word = int.from_bytes(data[at : at + 2], "big")
+        cls, element, length, at = word >> 12, (word >> 5) & 0x7F, word & 0x1F, at + 2
+        body = b""
+        more = length == 31
+        if not more:
+            body, at = data[at : at + length], at + length + (length & 1)
+        while more:  # long form: partitions of up to 32767 bytes, bit 15 = more follow
+            if at + 2 > len(data):
+                return None
+            head = int.from_bytes(data[at : at + 2], "big")
+            size, more = head & 0x7FFF, bool(head & 0x8000)
+            body += data[at + 2 : at + 2 + size]
+            at += 2 + size + (size & 1)
+        if at > len(data):
+            return None
+        elements.append((cls, element, body))
+    if not elements or elements[0][:2] != (0, 1) or elements[-1][:2] != (0, 2):
+        return None
+
+    def name(body):
+        return _cgm_text(body[1 : 1 + body[0]]) if body else ""
+
+    return name(elements[0][2]), [name(b) for c, e, b in elements if (c, e) == (0, 3)]
+
+
 def _valid(data, kind):
+    if kind == "cgm":
+        return cgm_pictures(data) is not None
     if kind == "dxf":
         head = data[:64].lstrip(b" \r\n")
         return any(
@@ -80,14 +126,14 @@ def _valid(data, kind):
 def nx_export_drawing(
     tx: Tx,
     *,
-    path: Annotated[str, PathTo("new", ".pdf", ".dxf", ".dwg")],
-    format: Annotated[Literal["pdf", "dxf", "dwg"], Aliases(acad="dwg", autocad="dwg")]  # noqa: A002
+    path: Annotated[str, PathTo("new", ".pdf", ".cgm", ".dxf", ".dwg")],
+    format: Annotated[Literal["pdf", "cgm", "dxf", "dwg"], Aliases(acad="dwg", autocad="dwg")]  # noqa: A002
     | None = None,
     sheets: Annotated[list[SheetArg], Items(1, 50)] | None = None,
 ) -> ExportData:
-    """Export drawing sheets of the work part to a new PDF (all or the given sheets) or a
-    DXF/DWG file (one sheet). format follows the path's extension. Unsaved changes are
-    included; the part is not saved."""
+    """Export drawing sheets of the work part to a new PDF or CGM file (all or the given
+    sheets) or a DXF/DWG file (one sheet). format follows the path's extension. Unsaved
+    changes are included; the part is not saved."""
     suffix = str(path).rsplit(".", 1)[-1].lower()
     kind = format or suffix
     if suffix != kind:
@@ -102,7 +148,7 @@ def nx_export_drawing(
         if not selected:
             fail("NX_WRONG_APPLICATION", "The work part has no drawing sheet",
                  hint="Create one with nx_create_drawing_sheet")  # fmt: skip
-        if kind != "pdf":
+        if kind in ("dxf", "dwg"):
             if len(selected) != 1:
                 which = "" if sheets else " (sheets omitted: every sheet of the work part)"
                 fail(
@@ -110,7 +156,7 @@ def nx_export_drawing(
                     f"A {kind.upper()} file holds one sheet, not {len(selected)}{which}",
                     field="/sheets",
                     hint="Pass sheets: [one sheet ref or name] and export each sheet to its "
-                    f"own .{kind} file, or export all sheets to one .pdf",
+                    f"own .{kind} file, or export all sheets to one .pdf or .cgm",
                     details={"sheets": [tx.ref(s, "drawing_sheet") for s in part.DrawingSheets]},
                 )  # fmt: skip
             if tx.session.Parts.Display != part:
@@ -127,6 +173,8 @@ def nx_export_drawing(
             tx.checkpoint()
         if kind == "pdf":
             _pdf(tx, part, selected, temp)
+        elif kind == "cgm":
+            _cgm(tx, part, selected, temp)
         else:
             _dxf(tx, part, selected[0], temp, kind)
     data = temp.read_bytes() if temp.is_file() else b""
@@ -135,7 +183,7 @@ def nx_export_drawing(
              details={"size": len(data)})  # fmt: skip
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
-    return {
+    out: ExportData = {
         "path": meta["path"],
         "format": kind,
         "size": meta["size"],
@@ -143,6 +191,10 @@ def nx_export_drawing(
         "sheets": [tx.ref(s, "drawing_sheet") for s in selected],
         "updated_views": [tx.ref(v, "drawing_view") for v in stale],
     }
+    metafile = cgm_pictures(data) if kind == "cgm" else None
+    if metafile is not None:
+        out["pictures"] = metafile[1]
+    return out
 
 
 def _pdf(tx, part, sheets, temp):
@@ -174,3 +226,20 @@ def _dxf(tx, part, sheet, temp, kind):
         c.ProcessHoldFlag = True
         c.DrawingList = str(sheet.Name)
         c.commit()
+
+
+def _cgm(tx, part, sheets, temp):
+    with builders.build(tx, part.PlotManager.CreateCgmBuilder, codes=None) as b:
+        b.Action = b.ActionOption.FileBrowser
+        b.Multiple = b.MultipleOption.Single
+        b.Size = b.SizeOption.FullScale
+        b.Units = b.UnitsOption.Metric
+        b.OutputText = b.OutputTextOption.Text
+        b.Colors = b.Color.AsDisplayed
+        b.Widths = b.Width.StandardWidths
+        b.VdcCoordinates = b.Vdc.Real
+        b.RasterImages = True
+        b.ShadedGeometry = False
+        b.SourceBuilder.SetSheets(list(sheets))
+        b.SetFilenames([str(temp)])
+        b.commit()

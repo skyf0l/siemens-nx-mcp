@@ -17,7 +17,7 @@ from typing import TypedDict
 
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core.errors import classify, fail
-from nx_mcp.kit import files, parts, result
+from nx_mcp.kit import analysis_objects, files, parts, result
 
 
 class _Audit(TypedDict):
@@ -220,6 +220,10 @@ def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = T
         before[int(p.Tag)] = (tx.ref(p, "part"), services.part_key(p), _path(services, p))
     target_key = services.part_key(target)  # NX's wrapper reports tag 0 once closed
     audit = verified_save(tx, target) if save else None
+    # Analysis objects of a closed, unsaved background part stay registered with NX's
+    # analysis display, which then demand-loads the missing file behind a modal dialog.
+    with contextlib.suppress(Exception):
+        analysis_objects.delete_all(tx, target)
     keep_marks = getattr(target, "CloseRetainUndoMarks", None) if retain else None
     shown = None
     active = parts.same_part(tx.session.Parts.Display, target)

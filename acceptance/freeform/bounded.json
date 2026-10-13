@@ -1,0 +1,19 @@
+{
+ "covers": {"nx_create_bounded_plane": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_sketch", "setup": true, "save": "rect", "args": {"placement": {"principal": "xy", "origin": [0, 0, 0]}, "finish": true, "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}, {"type": "circle", "center": [20, 10], "radius": 5}]}},
+  {"call": "nx_create_bounded_plane", "intent": "A 40 x 20 rectangle (curves in any order): one planar face of 800 mm^2 at z 0", "args": {"boundary": ["$rect.data.curves.3.id", "$rect.data.curves.2.id", "$rect.data.curves.1.id", "$rect.data.curves.0.id"]}, "expect": {"mutation_outcome": "committed", "data.loops": 1, "data.faces": 1, "data.sheet": true, "data.area": {"close": 800, "tol": 0.001}, "data.gap": {"close": 0, "tol": 0.0001}, "data.bounds.min": {"close": [0, 0, 0], "tol": 0.001}, "data.bounds.max": {"close": [40, 20, 0], "tol": 0.001}}},
+  {"call": "nx_create_bounded_plane", "intent": "Rectangle with the r 5 circle inside: a hole, area 800 - 25 pi", "args": {"boundary": ["$rect.data.curves.0.id", "$rect.data.curves.1.id", "$rect.data.curves.2.id", "$rect.data.curves.3.id", "$rect.data.curves.4.id"]}, "expect": {"mutation_outcome": "committed", "data.loops": 2, "data.faces": 1, "data.area": {"close": 721.46018, "tol": 0.001}, "data.gap": {"close": 0, "tol": 0.0001}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "tilt", "args": {"placement": {"principal": "xy", "origin": [0, 50, 0]}, "finish": true, "curves": [{"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]}]}},
+  {"call": "nx_create_spline", "setup": true, "save": "q1", "args": {"points": [[0, 100, 0], [10, 100, 0]], "method": "through_points", "degree": 1}},
+  {"call": "nx_create_spline", "setup": true, "save": "q2", "args": {"points": [[10, 100, 0], [10, 110, 5]], "method": "through_points", "degree": 1}},
+  {"call": "nx_create_spline", "setup": true, "save": "q3", "args": {"points": [[10, 110, 5], [0, 110, 0]], "method": "through_points", "degree": 1}},
+  {"call": "nx_create_spline", "setup": true, "save": "q4", "args": {"points": [[0, 110, 0], [0, 100, 0]], "method": "through_points", "degree": 1}},
+  {"call": "nx_create_bounded_plane", "intent": "Three sides of a rectangle: not a closed loop", "args": {"boundary": ["$tilt.data.curves.0.id", "$tilt.data.curves.1.id", "$tilt.data.curves.2.id"]}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started", "error.field": "/boundary"}},
+  {"call": "nx_create_bounded_plane", "intent": "A closed but twisted 3D loop: refused", "args": {"boundary": ["$q1.data.curve.id", "$q2.data.curve.id", "$q3.data.curve.id", "$q4.data.curve.id"]}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started", "error.field": "/boundary"}},
+  {"call": "nx_check_model", "args": {}, "expect": {"data.healthy": true}}
+ ]
+}

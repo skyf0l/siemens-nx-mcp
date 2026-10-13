@@ -1,0 +1,36 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_fit_ellipse.json",
+  "scenario_sha256": "55d472a178bd24251a529470411f59100b059b2535a258fcc44e207d86f74852",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_fit_curve": [
+      "ellipse"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_fit_curve": "3ece92f009214300c2ebc2dbe7a509cc3c542051f57104beaa245cd377be712c"
+  },
+  "recorded": "2026-10-13T09:41:52Z",
+  "passed": true,
+  "checks": 7,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    }
+  ]
+}

@@ -1,0 +1,416 @@
+{
+ "covers": {
+  "nx_list_visual_materials": [],
+  "nx_set_visual_material": [],
+  "nx_get_visual_material": [],
+  "nx_set_true_shading": [],
+  "nx_create_decal": [],
+  "nx_delete_decal": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 60,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     50,
+     30,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     100,
+     30,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_upload_file",
+   "setup": true,
+   "args": {
+    "path": "$run/logo.png",
+    "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAIAAABM5OhcAAABl0lEQVR4nO3SQRHCUADFwCqpEvyrqBe4ooCXP2wmEva6JEmSJEn66rnvo38f2P16jh6saHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxm/gCVJkiRJ+ps+r7FcsdWPvY4AAAAASUVORK5CYII=",
+    "offset": 0,
+    "total_size": 464,
+    "sha256": "42a234490bbaf3cf76626e9ce0e2f7da90862b773c0551eddc14db190074a0b4"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "view_from": [
+     1,
+     -0.6,
+     0.8
+    ],
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_list_visual_materials",
+   "args": {
+    "query": "teak"
+   },
+   "expect": {
+    "data.items.0.name": "Teak",
+    "data.items.0.category": "Woods",
+    "data.in_part": {
+     "count": 0
+    },
+    "data.categories": {
+     "contains": "Glasses"
+    }
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "save": "bare",
+   "args": {
+    "path": "$run/bare.png",
+    "style": "studio"
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "material": "Clear Glas"
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_NOT_FOUND",
+    "mutation_outcome": "not_started",
+    "error.details.close": {
+     "contains": "Clear Glass"
+    }
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "save": "paint",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "material": "brush painted metal blue"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.material": "Brush Painted Metal Blue",
+    "data.category": "Paints",
+    "data.count": 1,
+    "data.objects.0.material": "Brush Painted Metal Blue"
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "args": {
+    "objects": [
+     "$top.data.items.0.id"
+    ],
+    "material": "CLEAR GLASS"
+   },
+   "expect": {
+    "data.material": "Clear Glass",
+    "data.objects.0.material": "Clear Glass",
+    "data.objects.0.from_body": false
+   }
+  },
+  {
+   "call": "nx_get_visual_material",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id",
+     "$side.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.count": 3,
+    "data.objects.0.material": "Brush Painted Metal Blue",
+    "data.objects.1.material": "Clear Glass",
+    "data.objects.2.material": "Brush Painted Metal Blue",
+    "data.objects.2.from_body": true
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "save": "logo",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "image": "$run/logo.png",
+    "width": 40,
+    "height": 20,
+    "center": [
+     103,
+     30,
+     10
+    ],
+    "rotation": 30,
+    "name": "HULL_LOGO"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.decal.name": "HULL_LOGO",
+    "data.decal.width": {
+     "close": 40,
+     "tol": 1e-06
+    },
+    "data.decal.height": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.decal.center": {
+     "close": [
+      100,
+      30,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.decal.normal": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.decal.up": {
+     "close": [
+      0,
+      -0.5,
+      0.8660254038
+     ],
+     "tol": 1e-06
+    },
+    "data.decal.projection": "planar",
+    "data.projected": {
+     "close": 3,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "image": "$run/logo.png",
+    "width": "30 mm",
+    "center": [
+     50,
+     30,
+     20
+    ],
+    "name": "DECK_MARK"
+   },
+   "expect": {
+    "data.decal.width": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.decal.height": {
+     "close": 15,
+     "tol": 1e-06
+    },
+    "data.decal.normal": {
+     "close": [
+      0,
+      0,
+      1
+     ],
+     "tol": 1e-06
+    },
+    "data.decal.width_direction": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "image": "$run/logo.png",
+    "width": 10,
+    "name": "HULL_LOGO"
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_NAME_CONFLICT",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "save": "dressed",
+   "args": {
+    "path": "$run/dressed.png",
+    "style": "studio"
+   }
+  },
+  {
+   "call": "nx_set_true_shading",
+   "save": "shade",
+   "args": {
+    "material": "chrome",
+    "background": "white",
+    "shadows": true,
+    "reflections": false
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.enabled": true,
+    "data.style": "studio",
+    "data.material": "chrome",
+    "data.background": "white",
+    "data.shadows": true,
+    "data.reflections": false
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "args": {
+    "path": "$run/true_shading.png"
+   }
+  },
+  {
+   "call": "nx_list_visual_materials",
+   "args": {
+    "limit": 1
+   },
+   "expect": {
+    "data.in_part": {
+     "contains": {
+      "name": "HULL_LOGO",
+      "kind": "decal",
+      "objects": 1
+     }
+    },
+    "page.total": {
+     "close": 1221,
+     "tol": 300
+    }
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "args": {
+    "names": [
+     "HULL_LOGO"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.deleted.0": "HULL_LOGO"
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "args": {
+    "names": [
+     "Clear Glass"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/names/0"
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "save": "rm",
+   "args": {
+    "objects": [
+     "$top.data.items.0.id"
+    ],
+    "remove": true
+   },
+   "expect": {
+    "data.material": null,
+    "data.objects.0.material": "Brush Painted Metal Blue",
+    "data.objects.0.from_body": true
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$rm.operation_id"
+   },
+   "intent": "Acceptance: NX undo puts the face's own visual material back",
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_get_visual_material",
+   "args": {
+    "objects": [
+     "$top.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.count": 1,
+    "data.objects.0.material": "Clear Glass",
+    "data.objects.0.from_body": false
+   }
+  },
+  {
+   "call": "nx_set_true_shading",
+   "args": {
+    "enabled": false
+   },
+   "expect": {
+    "data.enabled": false,
+    "data.style": "shaded_with_edges",
+    "data.material": "chrome"
+   }
+  }
+ ]
+}

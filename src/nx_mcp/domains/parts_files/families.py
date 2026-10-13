@@ -11,6 +11,11 @@ NX 2406 findings encoded here (``Part.NewPartFamilyTemplateManager``):
   is always set). ``SaveFamilyAndCreateMembers`` writes each member file (0 = created)
   without loading it and without saving the template; members are current only once
   the template, which stores the table, is saved.
+- Writing the members of a template that keeps drawing CGM preview data shows NX's
+  modal "Save CGM" dialog once per member (their sheets cannot be displayed): the
+  template's ``SaveOptions.DrawingCgmData`` is off while NX writes them
+  (``kit.parts.without_cgm``), so member files carry no CGM preview. The template
+  itself is then saved with its option restored and its preview kept.
 - An NX error inside the manager's calls is not rolled back by NX and can leave the
   session unstable: every argument is checked first (expression names against
   ``GetSelectableAttributes``, member names, files) so NX is never asked anything it
@@ -346,7 +351,8 @@ def nx_create_part_family(
                 )  # fmt: skip
                 definitions.append(definition)
                 previous = definition
-            codes = [int(c) for c in manager.SaveFamilyAndCreateMembers(definitions)]
+            with parts.without_cgm([part]):  # no modal "Save CGM" dialog per member
+                codes = [int(c) for c in manager.SaveFamilyAndCreateMembers(definitions)]
             created = [p for p in paths if p.is_file()]
             if any(codes) or len(created) != len(paths):
                 messages = [str(m) for m in (manager.GetInfoMessages() or [])][:20]

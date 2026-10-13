@@ -65,11 +65,21 @@
   },
   "nx_run_topology_study": {
     "v2406": {
-      "checks": 48,
-      "recorded": "2026-10-13T07:36:28Z",
-      "scenario": "acceptance/optimization/bracket.json",
-      "scenario_sha256": "7e622d4fdfa722a3d728f7ebb874f1266519721ed2080c5ceb3e0f00a858251c",
+      "checks": 49,
+      "recorded": "2026-10-13T12:25:26Z",
+      "scenario": "acceptance/optimization/contour.json",
+      "scenario_sha256": "f8d259121fe7f300645f449cb29f9a989b206979a46a0795f07bebbfb5b31c0c",
       "source_sha256": "9fa54822e575162800431d7c9b4c25e06a0b22aacf0a5383ed048fadd8989080",
+      "variants": []
+    }
+  },
+  "nx_set_topology_contour": {
+    "v2406": {
+      "checks": 49,
+      "recorded": "2026-10-13T12:25:26Z",
+      "scenario": "acceptance/optimization/contour.json",
+      "scenario_sha256": "f8d259121fe7f300645f449cb29f9a989b206979a46a0795f07bebbfb5b31c0c",
+      "source_sha256": "21b6cf80bc30cc6136ac5ecc249aa4d7ce961cfaa70a6b4723525a936950bbfa",
       "variants": []
     }
   }

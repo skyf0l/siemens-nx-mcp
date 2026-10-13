@@ -1,0 +1,301 @@
+{
+ "covers": {
+  "nx_create_emboss": [
+   "pad",
+   "pocket"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 80,
+    "width": 80,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "near": [
+     40,
+     40,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "c",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      30
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "c_c",
+   "args": {
+    "sketch": "$c.data.sketch.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       40,
+       40
+      ],
+      "radius": 15
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$c.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "r",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      30
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "r_c",
+   "args": {
+    "sketch": "$r.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       5,
+       5
+      ],
+      "corner2": [
+       25,
+       15
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$r.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "t",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      30
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "save": "t_c",
+   "args": {
+    "sketch": "$t.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       50,
+       5
+      ],
+      "corner2": [
+       70,
+       15
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$t.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_emboss",
+   "args": {
+    "sketch": "$c.data.sketch.id",
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "side": "pad",
+    "height": 5
+   },
+   "expect": {
+    "data.added": {
+     "close": 3534.2917353,
+     "tol": 0.01
+    },
+    "data.volume": {
+     "close": 67534.2917353,
+     "tol": 0.01
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top2",
+   "args": {
+    "kind": "face",
+    "near": [
+     10,
+     10,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_emboss",
+   "args": {
+    "sketch": "$r.data.sketch.id",
+    "faces": [
+     "$top2.data.items.0.id"
+    ],
+    "side": "pocket",
+    "height": 3
+   },
+   "expect": {
+    "data.added": {
+     "close": -600,
+     "tol": 0.01
+    },
+    "data.volume": {
+     "close": 66934.2917353,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top3",
+   "args": {
+    "kind": "face",
+    "near": [
+     60,
+     60,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_emboss",
+   "args": {
+    "sketch": "$t.data.sketch.id",
+    "faces": [
+     "$top3.data.items.0.id"
+    ],
+    "side": "pad",
+    "height": 4,
+    "end_cap": "translate"
+   },
+   "expect": {
+    "data.added": {
+     "close": 800,
+     "tol": 0.01
+    },
+    "data.volume": {
+     "close": 67734.2917353,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_emboss",
+   "args": {
+    "sketch": "$t.data.sketch.id",
+    "faces": [
+     "$top3.data.items.0.id"
+    ],
+    "height": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/height"
+   }
+  }
+ ]
+}

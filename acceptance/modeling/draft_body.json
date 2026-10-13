@@ -1,0 +1,443 @@
+{
+ "covers": {
+  "nx_create_draft_body": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 100,
+    "width": 60,
+    "height": 40
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "shape": "block",
+    "origin": [
+     200,
+     0,
+     0
+    ],
+    "length": 100,
+    "width": 60,
+    "height": 40
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ax",
+   "args": {
+    "kind": "face",
+    "near": [
+     100,
+     30,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "anx",
+   "args": {
+    "kind": "face",
+    "near": [
+     0,
+     30,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     -1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ay",
+   "args": {
+    "kind": "face",
+    "near": [
+     50,
+     60,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "any",
+   "args": {
+    "kind": "face",
+    "near": [
+     50,
+     0,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     -1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bx",
+   "args": {
+    "kind": "face",
+    "near": [
+     300,
+     30,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bnx",
+   "args": {
+    "kind": "face",
+    "near": [
+     200,
+     30,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     -1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "by",
+   "args": {
+    "kind": "face",
+    "near": [
+     250,
+     60,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bny",
+   "args": {
+    "kind": "face",
+    "near": [
+     250,
+     0,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     -1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "kind": "face",
+    "near": [
+     50,
+     30,
+     40
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "dp",
+   "args": {
+    "method": "offset",
+    "reference": "xy",
+    "distance": 20
+   }
+  },
+  {
+   "call": "nx_create_draft_body",
+   "save": "da",
+   "args": {
+    "faces": [
+     "$ax.data.items.0.id",
+     "$anx.data.items.0.id",
+     "$ay.data.items.0.id",
+     "$any.data.items.0.id"
+    ],
+    "parting": {
+     "origin": [
+      0,
+      0,
+      20
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    },
+    "direction": "z",
+    "angle": 5
+   },
+   "expect": {
+    "data.volume": {
+     "close": 251361.8399,
+     "tol": 0.01
+    },
+    "data.faces": {
+     "count": 8
+    },
+    "data.faces.0.angle": {
+     "close": 5,
+     "tol": 1e-06
+    },
+    "data.faces.7.angle": {
+     "close": 5,
+     "tol": 1e-06
+    },
+    "data.bodies": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ax",
+   "args": {
+    "kind": "face",
+    "near": [
+     101,
+     30,
+     30
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0.0874887
+    ]
+   }
+  },
+  {
+   "call": "nx_measure_angle",
+   "args": {
+    "first": "$ax.data.items.0.id",
+    "second": "$top.data.items.0.id"
+   },
+   "expect": {
+    "data.angle": {
+     "close": 85,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_draft_body",
+   "save": "db",
+   "args": {
+    "faces": [
+     "$bx.data.items.0.id",
+     "$bnx.data.items.0.id",
+     "$by.data.items.0.id",
+     "$bny.data.items.0.id"
+    ],
+    "parting": "$dp.data.datum_plane.id",
+    "direction": [
+     0,
+     0,
+     -1
+    ],
+    "angle": 5,
+    "method": "true_draft"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 251361.8399,
+     "tol": 0.01
+    },
+    "data.faces": {
+     "count": 8
+    }
+   }
+  },
+  {
+   "call": "nx_create_draft_body",
+   "args": {
+    "faces": [
+     "$da.data.faces.0.face.id",
+     "$da.data.faces.1.face.id",
+     "$da.data.faces.2.face.id",
+     "$da.data.faces.3.face.id",
+     "$da.data.faces.4.face.id",
+     "$da.data.faces.5.face.id",
+     "$da.data.faces.6.face.id",
+     "$da.data.faces.7.face.id"
+    ],
+    "parting": {
+     "origin": [
+      0,
+      0,
+      10
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    },
+    "direction": "z",
+    "angle": 8,
+    "match": "isocline"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 267931.923,
+     "tol": 0.02
+    }
+   }
+  },
+  {
+   "call": "nx_create_draft_body",
+   "args": {
+    "faces": [
+     "$db.data.faces.0.face.id",
+     "$db.data.faces.1.face.id",
+     "$db.data.faces.2.face.id",
+     "$db.data.faces.3.face.id",
+     "$db.data.faces.4.face.id",
+     "$db.data.faces.5.face.id",
+     "$db.data.faces.6.face.id",
+     "$db.data.faces.7.face.id"
+    ],
+    "parting": {
+     "origin": [
+      0,
+      0,
+      10
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    },
+    "direction": "z",
+    "angle": 8,
+    "match": "none"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 263223.9309,
+     "tol": 0.02
+    }
+   }
+  },
+  {
+   "call": "nx_create_draft_body",
+   "args": {
+    "faces": [
+     "$ax.data.items.0.id",
+     "$anx.data.items.0.id",
+     "$ay.data.items.0.id",
+     "$any.data.items.0.id"
+    ],
+    "parting": "xy",
+    "direction": "z",
+    "angle": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/angle"
+   }
+  },
+  {
+   "call": "nx_create_draft_body",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "parting": "xy",
+    "direction": "z",
+    "angle": 3
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

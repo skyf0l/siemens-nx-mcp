@@ -127,7 +127,8 @@ def test_pattern_count_and_spacing_take_expressions():
     assert d.XSpacing.PitchDistance.RightHandSide == "pitch"
     expression(nx, "one", 1.0, None)
     few = pattern(nx, seed, "linear", direction=[1, 0, 0], count="one", spacing=5)
-    assert few.error["field"] == "/parameters/count" and "2.." in few.error["message"], few
+    # gate 9 checks the evaluated formula against the count's Range
+    assert few.error["field"] == "/parameters/count" and ">= 2 (got 1)" in few.error["message"], few
     half = pattern(nx, seed, "linear", direction=[1, 0, 0], count="pitch/3", spacing=5)
     assert half.error["field"] == "/parameters/count" and "whole number" in half.error["message"]
 

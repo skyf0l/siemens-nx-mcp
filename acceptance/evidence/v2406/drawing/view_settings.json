@@ -1,0 +1,111 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/view_settings.json",
+  "scenario_sha256": "38fc0c251468315dd1469cf50095f003b6a0e7ecbfcf8b662378355f7c9b64f1",
+  "domain": "drawing",
+  "covers": {
+    "nx_set_view_settings": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_view_settings": "1d8bdb9c8f0e24ca3535a8d76dd41735b9908f6745db6a3378eb694d5fd4c001"
+  },
+  "recorded": "2026-10-13T12:18:39Z",
+  "passed": true,
+  "checks": 34,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 14
+    },
+    {
+      "index": 6,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 8,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 10,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 11,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

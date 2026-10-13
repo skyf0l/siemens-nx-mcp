@@ -161,3 +161,24 @@ def test_the_synchronous_licence_is_asked_before_any_builder():
                                                    feature(nx, "OFFSET", [a]))[1])  # fmt: skip
     offset = run(nx, "nx_edit_faces", faces=[top], action="offset", distance=1)
     assert offset.ok, offset  # Offset Face needs Modeling only
+
+
+def test_offset_sets_the_gap_on_one_body_and_reads_it_back():
+    nx, a, b = setup()
+    side, back = a.face((1, 0, 0)), a.face((-1, 0, 0))
+    moves(nx, "MakeOffsetBuilder", a, side, (25, 10, 5), (1, 0, 0), 5000.0)
+    ok = relate(nx, side, "offset", back, distance=25)
+    assert ok.ok and ok.data["gap"] == 0.0 and ok.data["angle"] == 0.0, ok
+    builder = nx.last("MakeOffsetBuilder")
+    assert builder.MotionFace.Value is side and builder.StationaryFace.Value is back
+    assert builder.OffsetValue.RightHandSide == "25.0"
+    moves(nx, "MakeOffsetBuilder", a, side, (24, 10, 5), (1, 0, 0))  # one short
+    short = relate(nx, side, "offset", back, distance=25)
+    assert short.error["details"]["check"] == "gap" and short.mutation_outcome == "rolled_back"
+    other = relate(nx, side, "offset", b.face((-1, 0, 0)), distance=5)
+    assert other.error["code"] == "NX_WRONG_OWNER" and other.mutation_outcome == "not_started"
+    missing = relate(nx, side, "offset", back)
+    extra = relate(nx, side, "coplanar", back, distance=5)
+    assert missing.error["field"] == extra.error["field"] == "/distance"
+    negative = relate(nx, side, "offset", back, distance=-5)
+    assert negative.error["field"] == "/distance" and negative.mutation_outcome == "not_started"

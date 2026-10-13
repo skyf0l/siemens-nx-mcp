@@ -11,7 +11,11 @@ A call without the key (an older sidecar, a direct bridge client) has no identit
 **Owners.** A committed changing call that loads a part (create, open, import, an
 assembly's components) records the loading caller (:func:`record`). The record survives
 a host reload in the same NX process (``.nx-mcp/part-owners.json``: tag and file of every
-loaded agent part, :func:`adopt`).
+loaded agent part, :func:`adopt`). The file is rewritten whenever the agent's parts change:
+after every committed changing call and after the host tracks the parts a call loaded
+(``Services.track``: development snippets and failed calls included), and the parts an
+earlier host generation listed are adopted before it is rewritten. A part matches its row
+by tag *and* file: a part the engineer closed and opened again (a new tag) is theirs.
 
 **Rules** (:func:`refuse_engineer`, :func:`refuse_close`, :func:`refuse_activate`):
 
@@ -142,7 +146,7 @@ def _record(services, spec, target, tx, loaded_before, now) -> None:
     live = {services.part_key(p) for p in services.parts() or []}
     for key in [k for k in owners if k not in live]:  # closed parts
         owners.pop(key, None)
-    _persist(services)
+    persist(services)
 
 
 def _newest(entry: dict) -> float:
@@ -184,11 +188,15 @@ def _file(part) -> str:
     return str(getattr(part, "FullPath", "") or "").replace("\\", "/").casefold()
 
 
-def _persist(services) -> None:
-    """Write the tag, file and caller of every loaded agent part (never raises)."""
+def persist(services) -> None:
+    """Write the tag, file and caller of every loaded agent part (never raises).
+
+    Adopts the rows of an earlier host generation first (a first call after a reload
+    must not drop them) and writes only when the rows changed."""
     path = _owners_path(services)
     if path is None:
         return
+    adopt(services)
     with contextlib.suppress(Exception):
         owners = _owners(services)
         rows = {}
@@ -198,6 +206,10 @@ def _persist(services) -> None:
             if tag is None or (key not in owners and engineer(services, part)):
                 continue
             rows[str(tag)] = {"file": _file(part), "caller": (owners.get(key) or {}).get("caller")}
+        table = _table(services)
+        if table.get("persisted") == rows and path.exists():
+            return
+        table["persisted"] = rows
         path.parent.mkdir(parents=True, exist_ok=True)
         temp = path.with_suffix(".tmp")
         temp.write_text(json.dumps({"pid": os.getpid(), "parts": rows}), encoding="utf-8")

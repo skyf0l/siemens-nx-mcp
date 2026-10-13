@@ -1,0 +1,122 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/midsurface.json",
+  "scenario_sha256": "f9c0835b4000a7647479af55276f9320c97557d8833507c77f635d671837f8d4",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_midsurface": [
+      "auto",
+      "face_pairs",
+      "two_sheets"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_midsurface": "e680df06fb52cd517069024b3dc9def3198c1386065f8d7924e8d67c56f15cc7"
+  },
+  "recorded": "2026-10-13T12:10:22Z",
+  "passed": true,
+  "checks": 29,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 6,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_bounded_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_bounded_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 12,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

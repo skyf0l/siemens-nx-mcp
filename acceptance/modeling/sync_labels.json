@@ -1,0 +1,278 @@
+{
+ "covers": {
+  "nx_create_face_label": [
+   "chamfer",
+   "group"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 60,
+    "width": 40,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     15,
+     20,
+     20
+    ],
+    "diameter": 10,
+    "height": 8,
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$a.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     0,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_chamfer",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$e.data.items.0.id"
+    ],
+    "method": "symmetric",
+    "offset": 2
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     30,
+     1,
+     1
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     -0.7071067811865476,
+     -0.7071067811865476
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     30,
+     0,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     -1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bottom",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     30,
+     20,
+     0
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     -1
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     15,
+     20,
+     24
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cap",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     15,
+     20,
+     28
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 48508.31853071796,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$ch.data.items.0.id"
+    ],
+    "kind": "chamfer"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 48508.31853071796,
+     "tol": 1e-06
+    },
+    "data.faces": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$ch.data.items.0.id"
+    ],
+    "kind": "chamfer",
+    "between": [
+     "$front.data.items.0.id",
+     "$bottom.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 48508.31853071796,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id",
+     "$cap.data.items.0.id"
+    ],
+    "kind": "group",
+    "rigid": true
+   },
+   "expect": {
+    "data.volume": {
+     "close": 48508.31853071796,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": {
+     "equals": true
+    }
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$side.data.items.0.id"
+    ],
+    "kind": "group"
+   },
+   "expect": {
+    "error.field": "/faces",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

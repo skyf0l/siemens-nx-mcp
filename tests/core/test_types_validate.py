@@ -226,3 +226,47 @@ def test_forbid_extra_marks_typeddicts_for_pydantic():
 
     T.forbid_extra(Spec)
     assert Spec.__pydantic_config__ == {"extra": "forbid"}
+
+
+def test_range_on_a_quantity_is_enforced_for_numbers_and_after_conversion():
+    """``Annotated[Angle, Range(...)]``: a plain number (degrees, part units) is checked at
+    gate 1; a unit string or formula is checked by gate 9 once converted."""
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.core import kernel
+
+    draft = Annotated[T.Angle, T.Range(gt=0, lt=90)]
+    gap = Annotated[T.Length, T.Range(ge=0)]
+    spec = params(angle=draft, gap=gap)
+    assert validate(spec, {"angle": 45, "gap": 0}).args == {"angle": 45, "gap": 0}
+    for args, field in (({"angle": 90, "gap": 1}, "/angle"), ({"angle": 0, "gap": 1}, "/angle"),
+                        ({"angle": 5, "gap": -1}, "/gap")):  # fmt: skip
+        with pytest.raises(NXError) as e:
+            validate(spec, args)
+        assert e.value.field == field and "must be" in e.value.message
+
+    services = NS(
+        work_part=lambda: object(),
+        part_units=lambda part: "mm",
+        evaluate_formula=lambda formula, dim, unit, field=None, scratch=False: 120.0,
+    )
+    tool = NS(sheet=False, effect="model")
+
+    def gate9(args):
+        checked = validate(spec, args)
+        return kernel._gate_units(tool, checked, services, NS(units={}))
+
+    assert gate9({"angle": "0.5 rad", "gap": "1 in"}) == pytest.approx(
+        {"angle": 28.6479, "gap": 25.4}, rel=1e-4
+    )
+    for args, field, text in (
+        ({"angle": "2 rad", "gap": 0}, "/angle", "must be < 90 (got 114.592 deg)"),
+        ({"angle": "taper", "gap": 0}, "/angle", "must be < 90 (got 120 deg)"),  # a formula
+        ({"angle": 10, "gap": "-1 in"}, "/gap", "must be >= 0 (got -25.4 mm)"),
+    ):
+        with pytest.raises(NXError) as e:
+            gate9(args)
+        assert e.value.field == field and text in e.value.message, e.value.message
+    # A union alternative that fails leaves no deferred bound behind.
+    either = params(v=Annotated[T.Angle, T.Range(ge=0, le=10)] | Annotated[str, T.Text(20)])
+    assert validate(either, {"v": "abc def!"}).bounds == []

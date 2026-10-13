@@ -5,7 +5,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from nx_mcp.kit import surface
+from nx_mcp.kit import analysis_objects, surface
 from tests.kit import run
 from tests.unit.inspection.fakes import inspection_nx
 
@@ -31,8 +31,11 @@ class Builder:
     def StartRadiusAnalysis(self):  # noqa: N802
         self.started = True
 
+    StartSlopeAnalysis = StartDistanceAnalysis = StartRadiusAnalysis  # noqa: N815
+
     def Commit(self):  # noqa: N802
         obj = NS(kind=self.kind, Name="", SetName=lambda n: setattr(obj, "Name", n))
+        obj.Tag = 90000 + len(self.made)
         self.committed.append(obj)
         self.made.append(self)
         return None if self.kind == "comb" else obj
@@ -51,8 +54,9 @@ def enums(*names):
     return NS(**{n: n for n in names})
 
 
-def with_analysis(nx, results=(True, True, False, False)):
+def with_analysis(nx, results=(True, True, False, False), displayed=True):
     made: list = []
+    nx.session.Parts.Display = nx.part if displayed else None
 
     def factory(kind):
         return lambda _obj: Builder(nx, kind, made, results)
@@ -63,6 +67,8 @@ def with_analysis(nx, results=(True, True, False, False)):
         AnalysisObjectsEx=NS(
             CreateReflectionAnalysisBuilder1=factory("reflection"),
             CreateRadiusAnalysisBuilder1=factory("radius"),
+            CreateSlopeAnalysisBuilder1=factory("slope"),
+            CreateDistanceAnalysisBuilder1=factory("distance"),
         ),
         __iter__=None,
     )
@@ -78,6 +84,11 @@ def with_analysis(nx, results=(True, True, False, False)):
         RadiusAnalysisBuilder1=NS(
             Types=enums("Gaussian", "Minimum", "Maximum", "Mean"), DisplayModes=enums("Fringe")
         ),
+        SlopeAnalysisBuilder1=NS(DisplayModes=enums("Fringe")),
+        DistanceAnalysisBuilder1=NS(DisplayModes=enums("Fringe")),
+    )
+    nx.part.Planes = NS(
+        CreatePlane=lambda origin, normal, option: NS(kind="plane", Origin=origin, Normal=normal)
     )
     return made
 
@@ -192,6 +203,73 @@ def test_comb_continuity_and_radius_analyses():
     assert made[-1].DisplayMode == "Fringe"
 
 
+def test_slope_reports_sampled_angles_from_the_direction():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top, side = body.face((0, 0, 1)), body.face((1, 0, 0))
+    made = with_analysis(nx)
+    ok = run(nx, "nx_create_surface_analysis", type="slope", faces=[top.ref, side.ref],
+             samples_per_axis=2)  # fmt: skip
+    assert ok.ok and ok.mutation_outcome == "committed", ok
+    (b,) = made
+    assert b.kind == "slope" and b.started and b.destroyed and list(b.Faces) == [top, side]
+    assert b.Vector.kind == "direction" and b.DisplayMode == "Fringe"
+    assert b.committed[0].Name == "NX_MCP_SLOPE"
+    v = ok.data["values"]
+    assert (v["min"], v["max"], v["mean"], v["samples"]) == (0.0, 90.0, 45.0, 8)
+    tilted = run(nx, "nx_create_surface_analysis", type="slope", faces=[top.ref],
+                 direction=[0, 0, -1], samples_per_axis=1)  # fmt: skip
+    assert tilted.data["values"]["min"] == pytest.approx(180.0)
+    v3 = made[-1].Vector.Vector
+    assert (v3.X, v3.Y, v3.Z) == (0.0, 0.0, -1.0)
+
+
+def test_distance_reports_signed_offsets_from_the_plane():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10, origin=(0, 0, 5))
+    top, bottom = body.face((0, 0, 1)), body.face((0, 0, -1))
+    made = with_analysis(nx)
+    ok = run(nx, "nx_create_surface_analysis", type="distance", faces=[top.ref, bottom.ref],
+             plane={"origin": [0, 0, 10], "normal": [0, 0, 1]})  # fmt: skip
+    assert ok.ok, ok
+    (b,) = made
+    assert b.kind == "distance" and b.started and b.Plane.kind == "plane"
+    assert (b.Plane.Origin.Z, b.Plane.Normal.Z) == (10.0, 1.0)
+    v = ok.data["values"]
+    assert (v["min"], v["max"], v["mean"], v["samples"]) == (-5.0, 5.0, 0.0, 50)
+    xy = run(nx, "nx_create_surface_analysis", type="distance", faces=[top.ref], plane="xy")
+    assert (
+        xy.data["values"]["max"] == 15.0
+        and "values"
+        not in run(nx, "nx_create_surface_analysis", type="radius", faces=[top.ref]).data
+    )
+
+
+def test_background_parts_get_no_analysis_object(monkeypatch):
+    nx = inspection_nx()
+    first, second, _e, _f = shared_pair(nx.block(10, 10, 10))
+    made = with_analysis(nx, displayed=False)
+    bad = run(nx, "nx_create_surface_analysis", type="slope", faces=[first.ref])
+    assert bad.error["code"] == "NX_WRONG_PART_CONTEXT", bad
+    assert bad.mutation_outcome == "not_started" and made == []
+    assert "nx_activate_part" in bad.error["hint"]
+    monkeypatch.setattr(
+        surface,
+        "edge_continuity",
+        lambda *a: {"gap": 0.0, "angle": 0.0, "curvature": 0.0, "samples": 9, "unresolved": 0},
+    )
+    ok = run(nx, "nx_check_face_continuity", faces=[first.ref, second.ref])
+    assert ok.ok and "nx" not in ok.data and made == []  # no temporary analysis either
+
+
+def test_made_analyses_are_remembered_for_deletion_before_close():
+    nx = inspection_nx()
+    top = nx.block(10, 10, 10).face((0, 0, 1))
+    made = with_analysis(nx)
+    run(nx, "nx_create_surface_analysis", type="radius", faces=[top.ref])
+    assert analysis_objects._MADE[int(nx.part.Tag)] == made[0].committed
+
+
 @pytest.mark.parametrize(
     ("args", "field"),
     [
@@ -201,6 +279,12 @@ def test_comb_continuity_and_radius_analyses():
         ({"type": "reflection", "faces": ["FACE"], "curves": ["EDGE"]}, "/curves"),
         ({"type": "continuity", "faces": ["FACE"]}, "/faces"),
         ({"type": "continuity", "faces": ["FACE", "FACE2"], "angle": 120}, "/angle"),
+        ({"type": "slope"}, "/faces"),
+        ({"type": "distance", "faces": ["FACE"]}, "/plane"),
+        ({"type": "slope", "faces": ["FACE"], "plane": "xy"}, "/plane"),
+        ({"type": "distance", "faces": ["FACE"], "plane": "xy", "direction": "z"}, "/direction"),
+        ({"type": "slope", "faces": ["FACE"], "direction": [0, 0, 0]}, "/direction"),
+        ({"type": "distance", "faces": ["FACE"], "plane": "EDGE"}, "/plane"),
     ],
 )
 def test_display_arguments_are_refused_before_nx(args, field):

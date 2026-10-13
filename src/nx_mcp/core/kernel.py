@@ -48,6 +48,7 @@ from nx_mcp.core.validate import (
     combine,
     get_at,
     pointer,
+    range_error,
     set_at,
     variant_needs,
 )
@@ -418,6 +419,14 @@ def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # 
         except ValueError as error:
             fail("NX_INVALID_ARGUMENT", f"{where}: {error}", field=where)
         set_at(checked.args, path, value)
+    for path, bounds in checked.bounds:  # a unit string or formula, now converted
+        where = pointer(path)
+        value = get_at(checked.args, path)
+        broken = range_error(value, bounds)
+        if broken is not None:
+            unit = tx.units.get(dict(checked.quantities).get(path, "")) or ""
+            got = f"{float(value):g} {unit}".strip()
+            fail("NX_INVALID_ARGUMENT", f"{where}: {broken} (got {got})", field=where)
     for path, canonical in checked.forms:  # an axis-angle pose -> {translation, rotation}
         try:
             set_at(checked.args, path, canonical(get_at(checked.args, path)))

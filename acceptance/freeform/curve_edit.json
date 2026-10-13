@@ -1,0 +1,674 @@
+{
+ "covers": {
+  "nx_create_bridge_curve": [],
+  "nx_create_joined_curve": [],
+  "nx_create_mirror_curve": [],
+  "nx_create_trim_curve": [
+   "trim",
+   "divide"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "A",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      50,
+      0,
+      0
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "B",
+   "args": {
+    "points": [
+     [
+      100,
+      30,
+      0
+     ],
+     [
+      150,
+      30,
+      0
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "C",
+   "args": {
+    "points": [
+     [
+      50,
+      0,
+      0
+     ],
+     [
+      50,
+      40,
+      0
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "T",
+   "args": {
+    "points": [
+     [
+      0,
+      -50,
+      0
+     ],
+     [
+      100,
+      -50,
+      0
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "R",
+   "args": {
+    "points": [
+     [
+      30.0,
+      200.0,
+      0
+     ],
+     [
+      21.213203435596427,
+      221.21320343559643,
+      0
+     ],
+     [
+      1.83697019872103e-15,
+      230.0,
+      0
+     ],
+     [
+      -21.213203435596423,
+      221.21320343559643,
+      0
+     ],
+     [
+      -30.0,
+      200.0,
+      0
+     ],
+     [
+      -21.21320343559643,
+      178.78679656440357,
+      0
+     ],
+     [
+      -5.510910596163089e-15,
+      170.0,
+      0
+     ],
+     [
+      21.21320343559642,
+      178.78679656440357,
+      0
+     ]
+    ],
+    "periodic": true
+   }
+  },
+  {
+   "call": "nx_create_bridge_curve",
+   "save": "br",
+   "intent": "G1 bridge from the end of A to the start of B",
+   "args": {
+    "start": {
+     "curve": "$A.data.curve.id",
+     "end": "end"
+    },
+    "end": {
+     "curve": "$B.data.curve.id",
+     "end": "start"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.start": {
+     "close": [
+      50,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.end": {
+     "close": [
+      100,
+      30,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.start_gap": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.end_gap": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.start_angle": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.end_angle": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.length": {
+     "close": 60.081042,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_bridge_curve",
+   "intent": "G3 at the start of A, G2 at the end of B",
+   "args": {
+    "start": {
+     "curve": "$A.data.curve.id",
+     "end": "start"
+    },
+    "end": {
+     "curve": "$B.data.curve.id",
+     "end": "end"
+    },
+    "start_continuity": "G3",
+    "end_continuity": "G2"
+   },
+   "expect": {
+    "data.start": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.end": {
+     "close": [
+      150,
+      30,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.start_angle": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.end_angle": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.end_gap": {
+     "close": 0,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_bridge_curve",
+   "intent": "G0 bridge: the straight 58.31 chord, 30.96 deg off A",
+   "args": {
+    "start": {
+     "curve": "$A.data.curve.id",
+     "end": "end"
+    },
+    "end": {
+     "curve": "$B.data.curve.id",
+     "end": "start"
+    },
+    "start_continuity": "G0",
+    "end_continuity": "G0"
+   },
+   "expect": {
+    "data.length": {
+     "close": 58.309518948453004,
+     "tol": 0.001
+    },
+    "data.start_angle": {
+     "close": 30.96375653207352,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_joined_curve",
+   "intent": "A + C: one 90 mm curve",
+   "args": {
+    "curves": [
+     "$A.data.curve.id",
+     "$C.data.curve.id"
+    ]
+   },
+   "expect": {
+    "data.count": 1,
+    "data.length": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.source_length": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.curves.0.start": {
+     "close": [
+      0,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.0.end": {
+     "close": [
+      50,
+      40,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_joined_curve",
+   "intent": "A + bridge + B approximated by one quintic",
+   "args": {
+    "curves": [
+     "$A.data.curve.id",
+     "$br.data.curve.id",
+     "$B.data.curve.id"
+    ],
+    "output": "quintic"
+   },
+   "expect": {
+    "data.count": 1,
+    "data.length": {
+     "close": 160.081042,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_joined_curve",
+   "intent": "A and B do not touch: refused",
+   "args": {
+    "curves": [
+     "$A.data.curve.id",
+     "$B.data.curve.id"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_BUILD_FAILED",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_create_mirror_curve",
+   "intent": "B mirrored about YZ",
+   "args": {
+    "curves": [
+     "$B.data.curve.id"
+    ],
+    "plane": "yz"
+   },
+   "expect": {
+    "data.count": 1,
+    "data.curves.0.start": {
+     "close": [
+      -100,
+      30,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.0.end": {
+     "close": [
+      -150,
+      30,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.symmetry_gap": {
+     "close": 0,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_mirror_curve",
+   "intent": "A and C mirrored about the plane y = 100",
+   "args": {
+    "curves": [
+     "$A.data.curve.id",
+     "$C.data.curve.id"
+    ],
+    "plane": {
+     "origin": [
+      0,
+      100,
+      0
+     ],
+     "normal": [
+      0,
+      1,
+      0
+     ]
+    }
+   },
+   "expect": {
+    "data.count": 2,
+    "data.length": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.symmetry_gap": {
+     "close": 0,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "T kept between x 30 and x 60",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "planes": [
+     {
+      "origin": [
+       30,
+       0,
+       0
+      ],
+      "normal": [
+       1,
+       0,
+       0
+      ]
+     },
+     {
+      "origin": [
+       60,
+       0,
+       0
+      ],
+      "normal": [
+       1,
+       0,
+       0
+      ]
+     }
+    ],
+    "keep": [
+     45,
+     -50,
+     0
+    ]
+   },
+   "expect": {
+    "data.count": 1,
+    "data.length": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.source_length": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "data.curves.0.start": {
+     "close": [
+      30,
+      -50,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "data.curves.0.end": {
+     "close": [
+      60,
+      -50,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "T trimmed at x 80, the start side kept",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "method": "trim",
+    "planes": [
+     {
+      "origin": [
+       80,
+       0,
+       0
+      ],
+      "normal": [
+       1,
+       0,
+       0
+      ]
+     }
+    ],
+    "keep": [
+     10,
+     -40,
+     0
+    ]
+   },
+   "expect": {
+    "data.count": 1,
+    "data.length": {
+     "close": 80,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "A plane beyond the end of T is refused (no extension)",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "planes": [
+     {
+      "origin": [
+       150,
+       0,
+       0
+      ],
+      "normal": [
+       1,
+       0,
+       0
+      ]
+     }
+    ],
+    "keep": [
+     10,
+     -50,
+     0
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/planes/0"
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "T in 4 equal pieces",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "method": "divide",
+    "segments": 4
+   },
+   "expect": {
+    "data.count": 4,
+    "data.length": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "data.curves.0.length": {
+     "close": 25,
+     "tol": 1e-06
+    },
+    "data.curves.3.length": {
+     "close": 25,
+     "tol": 1e-06
+    },
+    "data.locations.1": {
+     "close": [
+      50,
+      -50,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "T cut at x 20 and x 70",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "method": "divide",
+    "at": [
+     [
+      20,
+      -50,
+      0
+     ],
+     [
+      70,
+      -45,
+      0
+     ]
+    ]
+   },
+   "expect": {
+    "data.count": 3,
+    "data.curves.0.length": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.curves.1.length": {
+     "close": 50,
+     "tol": 1e-06
+    },
+    "data.curves.2.length": {
+     "close": 30,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "T cut where x 40 crosses it",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "method": "divide",
+    "planes": [
+     {
+      "origin": [
+       40,
+       0,
+       0
+      ],
+      "normal": [
+       1,
+       0,
+       0
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "data.count": 2,
+    "data.curves.0.length": {
+     "close": 40,
+     "tol": 1e-06
+    },
+    "data.locations.0": {
+     "close": [
+      40,
+      -50,
+      0
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "The closed ring in 3 equal pieces (one cut at its seam)",
+   "args": {
+    "curve": "$R.data.curve.id",
+    "method": "divide",
+    "segments": 3
+   },
+   "expect": {
+    "data.count": 3,
+    "data.length": {
+     "close": 188.381442,
+     "tol": 0.0001
+    },
+    "data.curves.0.length": {
+     "close": 62.793814,
+     "tol": 0.001
+    },
+    "data.curves.2.length": {
+     "close": 62.793814,
+     "tol": 0.001
+    }
+   }
+  }
+ ]
+}

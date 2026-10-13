@@ -40,7 +40,7 @@ import contextlib
 import math
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import geom, licenses
+from nx_mcp.kit import geom, licenses, result
 
 ADV_ASSEMBLIES = "adv_assemblies"
 SYSTEM_GROUPS = frozenset(
@@ -188,14 +188,6 @@ def require_license(tx, feature=ADV_ASSEMBLIES, what="This tool") -> None:
 # NX weight management (UF Weight)
 
 
-def _code(value) -> int:
-    value = getattr(value, "value", value)
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return int(str(value))
-
-
 def _weight(tx):
     uf = getattr(getattr(tx, "uf", None), "Weight", None)
     enums = getattr(getattr(getattr(tx, "nx", None), "UF", None), "Weight", None)
@@ -213,9 +205,9 @@ def asserted(tx, obj) -> dict | None:
         props = uf.AskProps(obj.Tag, enums.UnitsType.UNITS_KMM)
     except Exception:
         return None
-    flag = _code(enums.StateType.ASSERTED)
-    mass_set = _code(props.MassState) == flag
-    center_set = _code(props.CofmState) == flag
+    flag = result.enum_int(enums.StateType.ASSERTED)
+    mass_set = result.enum_int(props.MassState) == flag
+    center_set = result.enum_int(props.CofmState) == flag
     if not (mass_set or center_set):
         return None
     return {

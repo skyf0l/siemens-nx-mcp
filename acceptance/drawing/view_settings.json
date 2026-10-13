@@ -1,0 +1,232 @@
+{
+ "covers": {
+  "nx_set_view_settings": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle",
+    "part": "drawing_view_settings_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ],
+    "part": "drawing_view_settings_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "fv",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "bottom",
+    "spacing": 20,
+    "part": "drawing_view_settings_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "$top.data.view.id"
+    ],
+    "settings": {
+     "threads": "schematic",
+     "thread_min_pitch": 0.5,
+     "thread_true_hidden": false,
+     "hidden_lines": false,
+     "edges_hidden_by_edges": true,
+     "smooth_edges": false,
+     "virtual_intersections": true,
+     "adjacent_blends": true,
+     "silhouettes": false,
+     "uv_grid": false
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.views": {
+     "count": 1
+    },
+    "data.views.0.settings.threads": "schematic",
+    "data.views.0.settings.thread_min_pitch": {
+     "close": 0.5,
+     "tol": 1e-09
+    },
+    "data.views.0.settings.thread_true_hidden": false,
+    "data.views.0.settings.hidden_lines": false,
+    "data.views.0.settings.edges_hidden_by_edges": true,
+    "data.views.0.settings.smooth_edges": false,
+    "data.views.0.settings.virtual_intersections": true,
+    "data.views.0.settings.adjacent_blends": true,
+    "data.views.0.settings.silhouettes": false,
+    "data.views.0.settings.uv_grid": false,
+    "changes.modified": {
+     "count": 1
+    },
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$top.data.view.id"
+   },
+   "expect": {
+    "data.style.smooth_edges": false,
+    "data.style.hidden_lines": false,
+    "data.scale": {
+     "close": 1,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "$top.data.view.id",
+     "$fv.data.view.id"
+    ],
+    "settings": {
+     "threads": "detailed"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.views": {
+     "count": 2
+    },
+    "data.views.0.settings.threads": "detailed",
+    "data.views.1.settings.threads": "detailed",
+    "data.views.0.settings.thread_min_pitch": {
+     "close": 0.5,
+     "tol": 1e-09
+    },
+    "data.views.1.settings.thread_min_pitch": {
+     "close": 0,
+     "tol": 1e-09
+    },
+    "data.views.1.settings.smooth_edges": true,
+    "changes.modified": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "top"
+    ],
+    "settings": {
+     "threads": "simplified",
+     "thread_min_pitch": 1.25
+    },
+    "part": "drawing_view_settings_drawing_block_mm.prt"
+   },
+   "expect": {
+    "data.views.0.settings.threads": "simplified",
+    "data.views.0.settings.thread_min_pitch": {
+     "close": 1.25,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "$top.data.view.id"
+    ],
+    "settings": {
+     "threads": "simplified_three_quarter"
+    }
+   },
+   "expect": {
+    "data.views.0.settings.threads": "simplified_three_quarter"
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "$top.data.view.id"
+    ],
+    "settings": {
+     "threads": "none"
+    }
+   },
+   "expect": {
+    "data.views.0.settings.threads": "none"
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "$top.data.view.id"
+    ],
+    "settings": {}
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/settings",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "NOPE"
+    ],
+    "settings": {
+     "uv_grid": true
+    },
+    "part": "drawing_view_settings_drawing_block_mm.prt"
+   },
+   "expect": {
+    "error.field": "/views/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

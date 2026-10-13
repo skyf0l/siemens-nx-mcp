@@ -1,0 +1,316 @@
+{
+ "covers": {
+  "nx_create_centerline": [
+   "symmetrical",
+   "automatic"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     20,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "fv",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "bottom",
+    "position": [
+     120,
+     140
+    ]
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "marks",
+   "args": {
+    "kind": "annotation"
+   },
+   "expect": {
+    "data.items": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "setup": true,
+   "args": {
+    "objects": [
+     "$marks.data.items.0.id",
+     "$marks.data.items.1.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$fv.data.view.id",
+    "kind": "symmetrical",
+    "objects": [
+     "$cyl.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      120,
+      130
+     ],
+     "tol": 0.001
+    },
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "symmetrical",
+    "objects": [
+     "$h1.data.items.0.id",
+     "$h2.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      137.5,
+      200
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "automatic"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.annotations": {
+     "count": 2
+    },
+    "data.origins": {
+     "count": 2
+    },
+    "changes.created": {
+     "count_kind": {
+      "annotation": 2
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "automatic"
+   },
+   "expect": {
+    "data.annotations": {
+     "count": 0
+    },
+    "warnings.0.code": "NX_NO_EFFECT"
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "automatic",
+    "objects": [
+     "$h1.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.field": "/objects",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "symmetrical",
+    "objects": [
+     "$cyl.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_GEOMETRY",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "symmetrical",
+    "objects": [
+     "$back.data.items.0.id",
+     "$front.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/objects/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_centerline",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "center_mark"
+   },
+   "expect": {
+    "error.field": "/objects",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

@@ -9,6 +9,16 @@
       "variants": []
     }
   },
+  "nx_create_decal": {
+    "v2406": {
+      "checks": 62,
+      "recorded": "2026-10-13T12:21:39Z",
+      "scenario": "acceptance/display/visual_materials.json",
+      "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+      "source_sha256": "1742db3e53339e3fbb9eea70115e58feca5557c65f604ed9733d0a59a902ab01",
+      "variants": []
+    }
+  },
   "nx_create_section_view": {
     "v2406": {
       "checks": 50,
@@ -16,6 +26,16 @@
       "scenario": "acceptance/display/sections.json",
       "scenario_sha256": "baea18bab7aa9e27e8df97478a3b56a2f6ffd05db383397edee2b4b220624106",
       "source_sha256": "1d42cfa5bca247214e51f9648b504a61e055ddca6abcde8b67cf723e1baa4f9b",
+      "variants": []
+    }
+  },
+  "nx_delete_decal": {
+    "v2406": {
+      "checks": 62,
+      "recorded": "2026-10-13T12:21:39Z",
+      "scenario": "acceptance/display/visual_materials.json",
+      "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+      "source_sha256": "1742db3e53339e3fbb9eea70115e58feca5557c65f604ed9733d0a59a902ab01",
       "variants": []
     }
   },
@@ -46,6 +66,26 @@
       "scenario": "acceptance/display/view_directions.json",
       "scenario_sha256": "d2f2264b4e2545297445dbe15c5ee08458334ca2b282f4499c93de28c7618375",
       "source_sha256": "1e85d2a52e0ae8c0397330da5bb2ec68c1b3fe0e96f04ec22e94d13db8b402f2",
+      "variants": []
+    }
+  },
+  "nx_get_visual_material": {
+    "v2406": {
+      "checks": 62,
+      "recorded": "2026-10-13T12:21:39Z",
+      "scenario": "acceptance/display/visual_materials.json",
+      "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+      "source_sha256": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
+      "variants": []
+    }
+  },
+  "nx_list_visual_materials": {
+    "v2406": {
+      "checks": 62,
+      "recorded": "2026-10-13T12:21:39Z",
+      "scenario": "acceptance/display/visual_materials.json",
+      "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+      "source_sha256": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
       "variants": []
     }
   },
@@ -99,6 +139,16 @@
       "variants": []
     }
   },
+  "nx_set_true_shading": {
+    "v2406": {
+      "checks": 62,
+      "recorded": "2026-10-13T12:21:39Z",
+      "scenario": "acceptance/display/visual_materials.json",
+      "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+      "source_sha256": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
+      "variants": []
+    }
+  },
   "nx_set_visibility": {
     "v2406": {
       "checks": 39,
@@ -106,6 +156,16 @@
       "scenario": "acceptance/display/visibility.json",
       "scenario_sha256": "d110b952f93e49fd258abd933b592e22c37795f180a8e64ee4b0eb9d8f3064b1",
       "source_sha256": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
+      "variants": []
+    }
+  },
+  "nx_set_visual_material": {
+    "v2406": {
+      "checks": 62,
+      "recorded": "2026-10-13T12:21:39Z",
+      "scenario": "acceptance/display/visual_materials.json",
+      "scenario_sha256": "075fb81e958e7f74caee9eaf4d4bf207d404f392b5f1a3a2e9dd2e67e02cfe3a",
+      "source_sha256": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
       "variants": []
     }
   }

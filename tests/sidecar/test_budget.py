@@ -52,8 +52,10 @@ INSTRUCTIONS_CAP = 1_600
 # A mean per listed tool (name + description + input schema with the call keys), so adding
 # tools does not move it: 977.6 over 180 tools on 2026-10-12, 951.8 after the 2026-10-13
 # cuts (kept: 9% headroom). 880 on 2026-10-10 (798.5), 1,040 since the natural-argument
-# forms of 2026-10-11 (942.1). Only full-profile clients pay it, so it stays a mean.
-FULL_MEAN_PER_TOOL = 1_040
+# forms of 2026-10-11 (942.1). 1,052.7 over 265 tools after the 2026-10-13 build rounds,
+# whose tools spell out their conditional rules (a failed call costs more): cap about 8%
+# above. Only full-profile clients pay it, so it stays a mean.
+FULL_MEAN_PER_TOOL = 1_140
 
 # -- Per tool fetched --------------------------------------------------------------------
 # A tool's own definition (name + description + input schema, no call keys) as one
@@ -63,8 +65,10 @@ FULL_MEAN_PER_TOOL = 1_040
 DEFINITION_CAP, UNION_CAP = 1_600, 3_000
 # Drift: the 75th percentile per kind (a median over all tools moved with the share of
 # unions, not with verbose writing). 2026-10-13: plain 866 (121 tools), union 1,657.5 (55
-# tools), after the cuts (884 and 1,721 before); caps about 12% above.
-PLAIN_P75, UNION_P75 = 970, 1_860
+# tools), after the cuts (884 and 1,721 before); caps about 12% above. After the two
+# 2026-10-13 build rounds (explicit descriptions for 90 new tools): plain 965 (174 tools),
+# union 1,711 (87 tools); the plain cap follows at about 9% above.
+PLAIN_P75, UNION_P75 = 1_050, 1_860
 
 # -- Per discovery call ------------------------------------------------------------------
 # nx_find_tools over FIND_QUERIES: each row and the fixed part (wrapper, call_with,

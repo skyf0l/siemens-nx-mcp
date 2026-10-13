@@ -1,0 +1,62 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/family_table.json",
+  "scenario_sha256": "586e4dae9658ce2d5ef78548743d32749c6fcf21ee9bcc81cd1722f26f4c0db3",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_part_family_table": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_part_family_table": "a85d9d0b82ce06b0632a6221e4196483fbd0143d9fe220f7358ed92c3dbb23e3"
+  },
+  "recorded": "2026-10-13T12:17:15Z",
+  "passed": true,
+  "checks": 11,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_part_family_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
+      "call": "nx_create_part_family",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_part_family_table",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 6,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

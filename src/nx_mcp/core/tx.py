@@ -216,7 +216,7 @@ class Services:
     def part_activity(self) -> dict:
         """The live part table (``core/busy.py``): ``{"parts": {part_key: {at, tool,
         operation_id, loaded_at, changed_at, saved_at}}, "owners": {part_key: {caller}},
-        "adopted": bool}``."""
+        "adopted": bool, "persisted": rows last written to part-owners.json}``."""
         return self.__dict__.setdefault("_part_activity", {})
 
     def after_commit(self, spec) -> None: ...

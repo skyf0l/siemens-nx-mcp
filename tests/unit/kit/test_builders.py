@@ -116,6 +116,14 @@ def test_smart_objects_and_collectors():
     own = nx.part.ScCollectors.CreateCollector()  # a builder's own collector
     assert builders.fill(nx.tx, own, [block.ref], "Body") is own
     assert own.GetRules() == [("BodyDumb", [block])]
+    calls = []
+    nx.part.ScRuleFactory.CreateRuleBodyDumb = lambda objs, *flags: calls.append(flags) or (
+        "BodyDumb", list(objs))  # fmt: skip
+    builders.fill(nx.tx, own, [block], "Body", sheets=True)
+    builders.fill(nx.tx, own, [block], "Body")
+    assert calls == [(True,), ()]  # includeSheetBodies only when asked
+    with pytest.raises(ValueError):
+        builders.fill(nx.tx, own, [block.edges[0]], "Edge", sheets=True)
     s = nx.sketch()
     section = builders.section(nx.tx, s)
     assert section is not None

@@ -1,0 +1,21 @@
+{
+ "covers": {"nx_create_midsurface": ["auto", "face_pairs", "two_sheets"]},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "plate", "args": {"shape": "block", "origin": [0, 50, 0], "length": 40, "width": 20, "height": 4}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top", "args": {"owner": "$plate.data.bodies.0.id", "kind": "face", "normal": "+z"}},
+  {"call": "nx_find_geometry", "setup": true, "save": "bot", "args": {"owner": "$plate.data.bodies.0.id", "kind": "face", "normal": "-z"}},
+  {"call": "nx_create_midsurface", "intent": "A 4 mm plate: NX pairs the faces, mid sheet 40 x 20 at z 2", "args": {"body": "$plate.data.bodies.0.id"}, "expect": {"mutation_outcome": "committed", "data.method": "auto", "data.sheet": true, "data.area": {"close": 800, "tol": 0.001}, "data.bounds.min": {"close": [0, 50, 2], "tol": 0.001}, "data.bounds.max": {"close": [40, 70, 2], "tol": 0.001}, "data.half_thickness.min": {"close": 2, "tol": 0.0001}, "data.half_thickness.max": {"close": 2, "tol": 0.0001}}},
+  {"call": "nx_create_midsurface", "intent": "Top and bottom faces paired: the same sheet, equidistant", "args": {"method": "face_pairs", "body": "$plate.data.bodies.0.id", "side_one": ["$top.data.items.0.id"], "side_two": ["$bot.data.items.0.id"]}, "expect": {"mutation_outcome": "committed", "data.method": "face_pairs", "data.area": {"close": 800, "tol": 0.001}, "data.bounds.min.2": {"close": 2, "tol": 0.0001}, "data.bounds.max.2": {"close": 2, "tol": 0.0001}, "data.half_thickness.min": {"close": 2, "tol": 0.0001}, "data.asymmetry": {"close": 0, "tol": 0.0001}}},
+  {"call": "nx_create_sketch", "setup": true, "save": "s0", "args": {"placement": {"principal": "xy", "origin": [100, 0, 0]}, "finish": true, "curves": [{"type": "rectangle", "corner1": [-10, -10], "corner2": [10, 10]}]}},
+  {"call": "nx_create_sketch", "setup": true, "save": "s1", "args": {"placement": {"principal": "xy", "origin": [100, 0, 30]}, "finish": true, "curves": [{"type": "rectangle", "corner1": [-10, -10], "corner2": [10, 10]}]}},
+  {"call": "nx_create_bounded_plane", "setup": true, "save": "p0", "args": {"boundary": ["$s0.data.curves.0.id", "$s0.data.curves.1.id", "$s0.data.curves.2.id", "$s0.data.curves.3.id"]}},
+  {"call": "nx_create_bounded_plane", "setup": true, "save": "p1", "args": {"boundary": ["$s1.data.curves.0.id", "$s1.data.curves.1.id", "$s1.data.curves.2.id", "$s1.data.curves.3.id"]}},
+  {"call": "nx_create_midsurface", "intent": "Two parallel 20 x 20 sheets 30 apart: a sheet at z 15", "args": {"method": "two_sheets", "sheets": ["$p0.data.bodies.0.id", "$p1.data.bodies.0.id"]}, "expect": {"mutation_outcome": "committed", "data.method": "two_sheets", "data.area": {"close": 400, "tol": 0.001}, "data.bounds.min": {"close": [90, -10, 15], "tol": 0.001}, "data.bounds.max": {"close": [110, 10, 15], "tol": 0.001}, "data.half_thickness.max": {"close": 15, "tol": 0.0001}, "data.asymmetry": {"close": 0, "tol": 0.0001}}},
+  {"call": "nx_create_midsurface", "intent": "A solid is not a sheet", "args": {"method": "two_sheets", "sheets": ["$plate.data.bodies.0.id", "$p1.data.bodies.0.id"]}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started", "error.field": "/sheets/0"}},
+  {"call": "nx_create_midsurface", "intent": "auto needs a solid", "args": {"body": "$p0.data.bodies.0.id"}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started", "error.field": "/body"}},
+  {"call": "nx_check_model", "args": {}, "expect": {"data.healthy": true}}
+ ]
+}

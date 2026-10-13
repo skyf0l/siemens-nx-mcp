@@ -1,0 +1,526 @@
+{
+ "covers": {
+  "nx_create_sheet_symbol": [
+   "id",
+   "custom",
+   "target_point",
+   "intersection",
+   "edge_condition"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h2",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     60,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     20,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "near": [
+     25,
+     25,
+     10
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "fv",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "bottom",
+    "position": [
+     120,
+     140
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "id",
+    "text": "1",
+    "origin": [
+     300,
+     250
+    ],
+    "size": 10
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      300,
+      250
+     ],
+     "tol": 1e-06
+    },
+    "data.text": [
+     "1"
+    ],
+    "data.symbol.shape": "circle",
+    "data.symbol.size": {
+     "close": 10,
+     "tol": 1e-06
+    },
+    "data.sheet.id": "$sh.data.sheet.id",
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "id",
+    "shape": "divided_circle",
+    "text": "A",
+    "lower_text": "2",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$h1.data.items.0.id"
+    ],
+    "origin": [
+     60,
+     260
+    ]
+   },
+   "expect": {
+    "data.text": [
+     "A",
+     "2"
+    ],
+    "data.symbol.shape": "divided_circle",
+    "data.leader.object.kind": "edge",
+    "data.origin": {
+     "close": [
+      60,
+      260
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "id",
+    "shape": "hexagon",
+    "text": "B3",
+    "origin": [
+     330,
+     250
+    ]
+   },
+   "expect": {
+    "data.symbol.shape": "hexagon",
+    "data.text": [
+     "B3"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "custom",
+    "name": "balloon_note",
+    "origin": [
+     350,
+     60
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.symbol.name": "balloon_note",
+    "data.origin": {
+     "close": [
+      350,
+      60
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "custom",
+    "name": "part_identification",
+    "origin": [
+     60,
+     230
+    ]
+   },
+   "expect": {
+    "data.symbol.name": "part_identification",
+    "data.origin": {
+     "close": [
+      60,
+      230
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "custom",
+    "name": "balloon_note",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id"
+    ],
+    "origin": [
+     60,
+     230
+    ]
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/objects",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "target_point",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$h1.data.items.0.id"
+    ],
+    "size": 6
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      120,
+      200
+     ],
+     "tol": 0.001
+    },
+    "data.symbol.height": {
+     "close": 6,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "intersection",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id",
+     "$right.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      175,
+      225
+     ],
+     "tol": 0.001
+    },
+    "data.symbol.objects": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "edge_condition",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id"
+    ],
+    "origin": [
+     150,
+     270
+    ],
+    "condition": "size",
+    "deviations": [
+     "+0.3",
+     "-0.1"
+    ]
+   },
+   "expect": {
+    "data.symbol.condition": "size",
+    "data.symbol.deviations": [
+     "+0.3",
+     "-0.1"
+    ],
+    "data.origin": {
+     "close": [
+      150,
+      270
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "edge_condition",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$front.data.items.0.id"
+    ],
+    "origin": [
+     200,
+     150
+    ],
+    "condition": "bilateral",
+    "deviations": [
+     "0.2"
+    ]
+   },
+   "expect": {
+    "data.symbol.condition": "bilateral",
+    "data.symbol.deviations": [
+     "0.2"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "edge_condition",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$right.data.items.0.id"
+    ],
+    "condition": "minus"
+   },
+   "expect": {
+    "data.symbol.condition": "minus",
+    "data.symbol.deviations": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "edge_condition",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id"
+    ],
+    "origin": [
+     100,
+     270
+    ]
+   },
+   "expect": {
+    "data.symbol.condition": "basic"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "custom",
+    "name": "no_such_symbol",
+    "origin": [
+     350,
+     60
+    ]
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "error.field": "/name",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "intersection",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id",
+     "$front.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/objects",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "target_point",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/objects/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "id",
+    "origin": [
+     300,
+     250
+    ]
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/text",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "edge_condition",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id"
+    ],
+    "condition": "size"
+   },
+   "expect": {
+    "error.field": "/deviations",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

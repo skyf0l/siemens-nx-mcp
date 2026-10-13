@@ -153,3 +153,16 @@ def test_work_without_display_only_inside_the_display_assembly(nx):
     assert not shown.work and shown.kept is asm and nx.session.Parts.Work is asm
     nx.session.Parts.Display = None
     assert parts.can_be_work(nx.tx, other)  # nothing displayed: any part may become work part
+
+
+def test_without_cgm_turns_the_preview_off_for_the_save_and_restores_it(nx):
+    keeps, plain = nx.new_part("keeps.prt"), nx.new_part("plain.prt")
+    keeps.SaveOptions.DrawingCgmData = True
+    with parts.without_cgm([keeps, plain, NS()]) as changed:  # NS(): no SaveOptions
+        assert changed == [keeps.SaveOptions]
+        assert keeps.SaveOptions.DrawingCgmData is False
+        assert plain.SaveOptions.DrawingCgmData is False
+    assert keeps.SaveOptions.DrawingCgmData is True and plain.SaveOptions.DrawingCgmData is False
+    with pytest.raises(RuntimeError), parts.without_cgm([keeps]):
+        raise RuntimeError("NX refused")
+    assert keeps.SaveOptions.DrawingCgmData is True  # restored on failure too

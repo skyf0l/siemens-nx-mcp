@@ -1,0 +1,82 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_fit.json",
+  "scenario_sha256": "e639ea4a8793d3d498d09ad67f74a5c8c7d6afb1c3786329477cea5fb46d3fb5",
+  "domain": "freeform",
+  "covers": {
+    "nx_import_points": [],
+    "nx_create_fit_curve": [
+      "spline",
+      "line",
+      "circle"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_import_points": "3ece92f009214300c2ebc2dbe7a509cc3c542051f57104beaa245cd377be712c",
+    "nx_create_fit_curve": "3ece92f009214300c2ebc2dbe7a509cc3c542051f57104beaa245cd377be712c"
+  },
+  "recorded": "2026-10-13T09:41:45Z",
+  "passed": true,
+  "checks": 33,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_import_points",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 3,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 4,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 6,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 7,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

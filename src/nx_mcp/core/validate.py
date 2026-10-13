@@ -170,6 +170,9 @@ class Checked:
     # [(path, fn)]: forms gate 9 replaces with their canonical value (types.CANONICAL),
     # innermost first.
     forms: list = field(default_factory=list)
+    # [(path, Range)]: quantities given as a unit string or formula; gate 9 checks their
+    # bounds once converted (a plain number is checked here).
+    bounds: list = field(default_factory=list)
 
 
 def _bad(path, message, **extra):
@@ -734,7 +737,11 @@ class _Walker:
             value = float(value)
         if dim == "count" and formula is None:
             value = int(value)
-            self._markers(value, markers, path)
+        if Range in markers:
+            if isinstance(value, (int, float)) and formula is None:
+                self._markers(value, markers, path)  # part units / degrees already
+            else:  # '10 mm', '0.5 rad' or a formula: gate 9 checks the converted value
+                self.out.bounds.append((tuple(path), markers[Range]))
         self.out.quantities.append((tuple(path), dim))
         return value
 
@@ -755,14 +762,15 @@ class _Walker:
                         len(self.out.refs),
                         len(self.out.placeholders),
                         len(self.out.forms),
+                        len(self.out.bounds),
                     )
                     meant = bare[1] if bare and level >= NATURAL and alt is bare[0] else value
                     try:
                         return self.check(meant, alt, path)
                     except NXError as error:
-                        q, p, r, h, f = saved
+                        q, p, r, h, f, b = saved
                         del self.out.quantities[q:], self.out.paths[p:], self.out.refs[r:]
-                        del self.out.placeholders[h:], self.out.forms[f:]
+                        del self.out.placeholders[h:], self.out.forms[f:], self.out.bounds[b:]
                         errors.append((alt, error))
         finally:
             self.level, self.collect = top, collect
@@ -924,15 +932,9 @@ class _Walker:
             if text.pattern and not re.match(text.pattern, value):
                 raise _bad(path, _format_message(value, markers))
         bounds = markers.get(Range)
-        if bounds is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
-            if bounds.ge is not None and value < bounds.ge:
-                raise _bad(path, f"must be >= {bounds.ge:g}")
-            if bounds.le is not None and value > bounds.le:
-                raise _bad(path, f"must be <= {bounds.le:g}")
-            if bounds.gt is not None and value <= bounds.gt:
-                raise _bad(path, f"must be > {bounds.gt:g}")
-            if bounds.lt is not None and value >= bounds.lt:
-                raise _bad(path, f"must be < {bounds.lt:g}")
+        broken = range_error(value, bounds) if bounds is not None else None
+        if broken is not None:
+            raise _bad(path, broken)
         items = markers.get(Items)
         if (
             items is not None
@@ -940,6 +942,22 @@ class _Walker:
             and not items.min <= len(value) <= items.max
         ):
             raise _bad(path, f"needs {items.min}..{items.max} items, got {len(value)}")
+
+
+def range_error(value, bounds: Range) -> str | None:
+    """Why a number breaks ``bounds`` (``"must be >= 0"``), None when it fits or is no
+    number. Gate 1 and gate 9 (converted quantities) share it."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    if bounds.ge is not None and value < bounds.ge:
+        return f"must be >= {bounds.ge:g}"
+    if bounds.le is not None and value > bounds.le:
+        return f"must be <= {bounds.le:g}"
+    if bounds.gt is not None and value <= bounds.gt:
+        return f"must be > {bounds.gt:g}"
+    if bounds.lt is not None and value >= bounds.lt:
+        return f"must be < {bounds.lt:g}"
+    return None
 
 
 def _format_message(value: str, markers) -> str:

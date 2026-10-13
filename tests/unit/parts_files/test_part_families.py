@@ -89,6 +89,8 @@ class Manager:
         return definition
 
     def SaveFamilyAndCreateMembers(self, definitions):
+        # NX shows the modal "Save CGM" dialog per member when this is on.
+        self.fake.cgm_at_save.append(self.part.SaveOptions.DrawingCgmData)
         folder = Path(self.SaveDirectory)
         self.family.folder = str(folder)
         codes = []
@@ -112,6 +114,7 @@ class Manager:
 @pytest.fixture
 def fam(nx, root):
     nx.managers, nx.members, nx.locked, nx.member_errors = [], {}, set(), {}
+    nx.cgm_at_save = []
     template = nx.new_part("t.prt")
     template.Expressions = Collection()
     for name, value in (("length", 40.0), ("width", 20.0), ("p2", 10.0)):
@@ -217,6 +220,18 @@ def test_creates_members_and_saves_the_template(nx, root, fam):
     assert fam.family.rows[1].values["width"] == "length/4"
     assert (root / "fam" / "plate_a.prt").is_file()
     assert not [p for p in nx.session.Parts if p.Name.startswith("plate")]  # read, closed
+
+
+def test_members_are_written_without_cgm_data_and_the_template_keeps_it(nx, root, fam):
+    """A template with a drawing sheet that keeps CGM data: NX would show its modal
+    "Save CGM" dialog for every member, so the option is off while NX writes them."""
+    fam.SaveOptions.DrawingCgmData = True
+    ok = create(nx, directory="fam")
+    assert ok.ok, ok
+    assert nx.cgm_at_save == [False] and fam.SaveOptions.DrawingCgmData is True
+    nx.member_errors["plate_b"] = 3
+    failed = create(nx, directory="fam2")
+    assert not failed.ok and fam.SaveOptions.DrawingCgmData is True  # restored on failure
 
 
 def test_default_folder_is_the_templates(nx, root, fam):

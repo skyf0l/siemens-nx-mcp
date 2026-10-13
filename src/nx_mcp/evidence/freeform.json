@@ -1,4 +1,24 @@
 {
+  "nx_create_bounded_plane": {
+    "v2406": {
+      "checks": 20,
+      "recorded": "2026-10-13T12:09:40Z",
+      "scenario": "acceptance/freeform/bounded.json",
+      "scenario_sha256": "f7cc018d0ed7b31649859701ed6760ef4ca3f87301f967895f5e90a0ce630d75",
+      "source_sha256": "bf8616fda804099d02a73404939405266e403987bd5a663a51dd9efa73c93df5",
+      "variants": []
+    }
+  },
+  "nx_create_bridge_curve": {
+    "v2406": {
+      "checks": 58,
+      "recorded": "2026-10-13T12:50:48Z",
+      "scenario": "acceptance/freeform/curve_edit.json",
+      "scenario_sha256": "93bf85b8d4ff7ea7c5666a79bff064aaf3aed68c5a65ad688a97d87caa539608",
+      "source_sha256": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+      "variants": []
+    }
+  },
   "nx_create_bridge_surface": {
     "v2406": {
       "checks": 21,
@@ -23,6 +43,57 @@
       "variants": []
     }
   },
+  "nx_create_curve_on_surface": {
+    "v2406": {
+      "checks": 52,
+      "recorded": "2026-10-13T12:10:05Z",
+      "scenario": "acceptance/freeform/curve_surface.json",
+      "scenario_sha256": "e5f18f8a781f31249b9f9ec46fd03515b3929c49e8b936603a3d8bc5ea550181",
+      "source_sha256": "62b23e9fe25194089a82958c07da82e3b3c20d32b61918779a4c34eb5650cc29",
+      "variants": []
+    }
+  },
+  "nx_create_fill_hole": {
+    "v2406": {
+      "checks": 25,
+      "recorded": "2026-10-13T12:10:13Z",
+      "scenario": "acceptance/freeform/fill_hole.json",
+      "scenario_sha256": "e1f801dbcb3eb4676fb454b0c038d13cba07debc1f641fd6ce61c840816e41ea",
+      "source_sha256": "20608d6d46afd322e1e130abc8f4b2e1607a0db317df80f2fe004e52095aee29",
+      "variants": [
+        "g0",
+        "g1"
+      ]
+    }
+  },
+  "nx_create_fit_curve": {
+    "v2406": {
+      "checks": 7,
+      "recorded": "2026-10-13T09:41:52Z",
+      "scenario": "acceptance/freeform/curve_fit_ellipse.json",
+      "scenario_sha256": "55d472a178bd24251a529470411f59100b059b2535a258fcc44e207d86f74852",
+      "source_sha256": "3ece92f009214300c2ebc2dbe7a509cc3c542051f57104beaa245cd377be712c",
+      "variants": [
+        "circle",
+        "ellipse",
+        "line",
+        "spline"
+      ]
+    }
+  },
+  "nx_create_general_conic": {
+    "v2406": {
+      "checks": 34,
+      "recorded": "2026-10-13T12:09:56Z",
+      "scenario": "acceptance/freeform/curve_law.json",
+      "scenario_sha256": "c31f814ed09b61f18b13f62ed5a06bed8a7f505a070ce4e30ce286537cdd7388",
+      "source_sha256": "6fe73a1c61106f7dca07e99d9535c613bdfa2899e070cf2b9200699901111ab6",
+      "variants": [
+        "five_points",
+        "rho"
+      ]
+    }
+  },
   "nx_create_intersection_curve": {
     "v2406": {
       "checks": 16,
@@ -30,6 +101,53 @@
       "scenario": "acceptance/freeform/curve_intersection.json",
       "scenario_sha256": "e8e85def0c09c7366e5eafdc28a910389de6a1c4da3992d8e125600aae23b8fb",
       "source_sha256": "6658bde294740c520d7892d63e18b7785bb05fd49fc1f48d7e25adf6bc0d4f45",
+      "variants": []
+    }
+  },
+  "nx_create_isocline_curves": {
+    "v2406": {
+      "checks": 52,
+      "recorded": "2026-10-13T12:10:05Z",
+      "scenario": "acceptance/freeform/curve_surface.json",
+      "scenario_sha256": "e5f18f8a781f31249b9f9ec46fd03515b3929c49e8b936603a3d8bc5ea550181",
+      "source_sha256": "62b23e9fe25194089a82958c07da82e3b3c20d32b61918779a4c34eb5650cc29",
+      "variants": [
+        "range",
+        "single"
+      ]
+    }
+  },
+  "nx_create_isoparametric_curves": {
+    "v2406": {
+      "checks": 52,
+      "recorded": "2026-10-13T12:10:05Z",
+      "scenario": "acceptance/freeform/curve_surface.json",
+      "scenario_sha256": "e5f18f8a781f31249b9f9ec46fd03515b3929c49e8b936603a3d8bc5ea550181",
+      "source_sha256": "62b23e9fe25194089a82958c07da82e3b3c20d32b61918779a4c34eb5650cc29",
+      "variants": [
+        "between_points",
+        "through_points",
+        "uniform"
+      ]
+    }
+  },
+  "nx_create_joined_curve": {
+    "v2406": {
+      "checks": 58,
+      "recorded": "2026-10-13T12:50:48Z",
+      "scenario": "acceptance/freeform/curve_edit.json",
+      "scenario_sha256": "93bf85b8d4ff7ea7c5666a79bff064aaf3aed68c5a65ad688a97d87caa539608",
+      "source_sha256": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+      "variants": []
+    }
+  },
+  "nx_create_law_curve": {
+    "v2406": {
+      "checks": 34,
+      "recorded": "2026-10-13T12:09:56Z",
+      "scenario": "acceptance/freeform/curve_law.json",
+      "scenario_sha256": "c31f814ed09b61f18b13f62ed5a06bed8a7f505a070ce4e30ce286537cdd7388",
+      "source_sha256": "6fe73a1c61106f7dca07e99d9535c613bdfa2899e070cf2b9200699901111ab6",
       "variants": []
     }
   },
@@ -56,6 +174,30 @@
       "variants": []
     }
   },
+  "nx_create_midsurface": {
+    "v2406": {
+      "checks": 29,
+      "recorded": "2026-10-13T12:10:22Z",
+      "scenario": "acceptance/freeform/midsurface.json",
+      "scenario_sha256": "f9c0835b4000a7647479af55276f9320c97557d8833507c77f635d671837f8d4",
+      "source_sha256": "e680df06fb52cd517069024b3dc9def3198c1386065f8d7924e8d67c56f15cc7",
+      "variants": [
+        "auto",
+        "face_pairs",
+        "two_sheets"
+      ]
+    }
+  },
+  "nx_create_mirror_curve": {
+    "v2406": {
+      "checks": 58,
+      "recorded": "2026-10-13T12:50:48Z",
+      "scenario": "acceptance/freeform/curve_edit.json",
+      "scenario_sha256": "93bf85b8d4ff7ea7c5666a79bff064aaf3aed68c5a65ad688a97d87caa539608",
+      "source_sha256": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+      "variants": []
+    }
+  },
   "nx_create_n_sided_surface": {
     "v2406": {
       "checks": 39,
@@ -72,10 +214,10 @@
   "nx_create_offset_curve": {
     "v2406": {
       "checks": 27,
-      "recorded": "2026-10-13T07:24:05Z",
+      "recorded": "2026-10-13T12:50:44Z",
       "scenario": "acceptance/freeform/curve_offset.json",
       "scenario_sha256": "b42ecab5fa6eb578ad379df637170cf1e080935bca51cc93398ffd4208ebd69c",
-      "source_sha256": "18d1b9c85c6fe7ba4e6dc7260ceb4d95b8114af36f69e04b6d421f480b2ce598",
+      "source_sha256": "05a4015a073fb6526f47e7bcc437cc4e04d32a67cb94129ca9fdeb2d02edfd3c",
       "variants": [
         "axial_3d",
         "distance",
@@ -104,6 +246,16 @@
         "face_normal",
         "vector"
       ]
+    }
+  },
+  "nx_create_refit_face": {
+    "v2406": {
+      "checks": 10,
+      "recorded": "2026-10-13T12:10:30Z",
+      "scenario": "acceptance/freeform/refit.json",
+      "scenario_sha256": "c415f19b5213fb9ef8a28dbaede32dcc0a5d1f8f93082133d6be61033aa49f6d",
+      "source_sha256": "20608d6d46afd322e1e130abc8f4b2e1607a0db317df80f2fe004e52095aee29",
+      "variants": []
     }
   },
   "nx_create_ruled": {
@@ -190,6 +342,19 @@
       "variants": []
     }
   },
+  "nx_create_trim_curve": {
+    "v2406": {
+      "checks": 58,
+      "recorded": "2026-10-13T12:50:48Z",
+      "scenario": "acceptance/freeform/curve_edit.json",
+      "scenario_sha256": "93bf85b8d4ff7ea7c5666a79bff064aaf3aed68c5a65ad688a97d87caa539608",
+      "source_sha256": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
+      "variants": [
+        "divide",
+        "trim"
+      ]
+    }
+  },
   "nx_create_trim_sheet": {
     "v2406": {
       "checks": 22,
@@ -207,6 +372,16 @@
       "scenario": "acceptance/freeform/variable_offset.json",
       "scenario_sha256": "7924cffc52ea28c45f82c42d059391d9f43f5a315996f08ca1b935c9e40add47",
       "source_sha256": "9c2f3e550967e5b6d796007baa35817b9be53e13963788b90c448326400eefb3",
+      "variants": []
+    }
+  },
+  "nx_import_points": {
+    "v2406": {
+      "checks": 33,
+      "recorded": "2026-10-13T09:41:45Z",
+      "scenario": "acceptance/freeform/curve_fit.json",
+      "scenario_sha256": "e639ea4a8793d3d498d09ad67f74a5c8c7d6afb1c3786329477cea5fb46d3fb5",
+      "source_sha256": "3ece92f009214300c2ebc2dbe7a509cc3c542051f57104beaa245cd377be712c",
       "variants": []
     }
   }

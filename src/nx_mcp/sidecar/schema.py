@@ -208,7 +208,9 @@ class _Converter:
             number: Any = (
                 _annotated(int, [*self._range(markers), BeforeValidator(_integral), Strict()])
                 if dim == "count"
-                else Annotated[float, Strict(), Field(allow_inf_nan=False)]
+                else _annotated(
+                    float, [Strict(), Field(allow_inf_nan=False), *self._range(markers)]
+                )
             )
             text = Annotated[
                 str,

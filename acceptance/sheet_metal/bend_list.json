@@ -1,0 +1,376 @@
+{
+ "covers": {
+  "nx_get_bend_list": [],
+  "nx_export_bend_list": []
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2.0,
+    "bend_radius": 3.0,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        0,
+        0
+       ],
+       [
+        100,
+        0
+       ],
+       [
+        80,
+        80
+       ],
+       [
+        20,
+        80
+       ]
+      ],
+      "closed": true
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2.0
+    }
+   }
+  },
+  {
+   "call": "nx_get_bend_list",
+   "args": {},
+   "expect": {
+    "data.items": {
+     "count": 0
+    },
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.flat_pattern": null,
+    "data.sequence": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     50,
+     0,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "e1"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "f1",
+   "args": {
+    "operation": "flange",
+    "parameters": {
+     "edges": [
+      "$e1.data.items.0.id"
+     ],
+     "length": 20
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     50,
+     80,
+     -2
+    ],
+    "limit": 1
+   },
+   "save": "e2"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "f2",
+   "args": {
+    "operation": "flange",
+    "parameters": {
+     "edges": [
+      "$e2.data.items.0.id"
+     ],
+     "length": 30
+    }
+   }
+  },
+  {
+   "call": "nx_get_bend_list",
+   "save": "bl",
+   "args": {},
+   "expect": {
+    "data.body.id": "$tab.data.body.id",
+    "data.direction_from": "top_layer",
+    "data.items": {
+     "count": 2
+    },
+    "data.items.0.index": 1,
+    "data.items.0.state": "bent",
+    "data.items.0.direction": "up",
+    "data.items.0.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.items.0.radius": {
+     "close": 3,
+     "tol": 1e-06
+    },
+    "data.items.0.length": {
+     "close": 97.5,
+     "tol": 1e-06
+    },
+    "data.items.0.neutral_factor": {
+     "close": 0.33,
+     "tol": 1e-09
+    },
+    "data.items.0.allowance": {
+     "close": 5.749114556069322,
+     "tol": 1e-06
+    },
+    "data.items.0.deduction": {
+     "close": 4.250885443930678,
+     "tol": 1e-06
+    },
+    "data.items.1.direction": "down",
+    "data.items.1.angle": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.items.1.radius": {
+     "close": 3,
+     "tol": 1e-06
+    },
+    "data.items.1.length": {
+     "close": 62.5,
+     "tol": 1e-06
+    },
+    "data.items.1.allowance": {
+     "close": 5.749114556069322,
+     "tol": 1e-06
+    },
+    "page.total": 2
+   }
+  },
+  {
+   "call": "nx_get_bend_list",
+   "args": {
+    "body": "$tab.data.body.id",
+    "offset": 1,
+    "limit": 1
+   },
+   "expect": {
+    "data.items": {
+     "count": 1
+    },
+    "data.items.0.index": 2,
+    "data.items.0.length": {
+     "close": 62.5,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     40,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   },
+   "save": "up"
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$tab.data.body.id",
+    "kind": "edge",
+    "near": [
+     90,
+     40,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "xe"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "setup": true,
+   "save": "fp",
+   "args": {
+    "operation": "flat_pattern",
+    "parameters": {
+     "face": "$up.data.items.0.id",
+     "edge": "$xe.data.items.0.id"
+    }
+   }
+  },
+  {
+   "call": "nx_get_bend_list",
+   "args": {},
+   "expect": {
+    "data.body.id": "$tab.data.body.id",
+    "data.flat_pattern.id": "$fp.data.feature.id",
+    "data.direction_from": "flat_pattern",
+    "data.items.0.direction": "up",
+    "data.items.1.direction": "down",
+    "data.items.0.length": {
+     "close": 97.5,
+     "tol": 1e-06
+    },
+    "data.items.1.length": {
+     "close": 62.5,
+     "tol": 1e-06
+    },
+    "data.sequence": [
+     {
+      "id": 1,
+      "name": "Bend 1"
+     },
+     {
+      "id": 2,
+      "name": "Bend 2"
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_export_bend_list",
+   "args": {
+    "path": "$run/bend_list.csv",
+    "flat_pattern": "$fp.data.feature.id"
+   },
+   "expect": {
+    "data.bend_count": 2,
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.direction_from": "flat_pattern",
+    "data.overwritten": false,
+    "data.sha256": {
+     "count": 64
+    }
+   }
+  },
+  {
+   "call": "nx_export_bend_list",
+   "args": {
+    "path": "$run/bend_list.csv"
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.field": "/path",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_export_bend_list",
+   "args": {
+    "path": "$run/bend_list.csv",
+    "overwrite": true
+   },
+   "expect": {
+    "data.bend_count": 2,
+    "data.overwritten": true
+   }
+  },
+  {
+   "call": "nx_get_bend_list",
+   "args": {
+    "flat_pattern": "$tab.data.feature.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "error.field": "/flat_pattern"
+   }
+  },
+  {
+   "call": "nx_export_bend_list",
+   "args": {
+    "path": "../outside.csv"
+   },
+   "expect": {
+    "error.code": "NX_PATH_OUTSIDE_WORKSPACE",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

@@ -1,0 +1,135 @@
+{
+ "covers": {
+  "nx_export_drawing": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle",
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ],
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh2",
+   "args": {
+    "name": "SHT2",
+    "size": "a3",
+    "projection": "first_angle",
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/all.cgm",
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.format": "cgm",
+    "data.sheets": {
+     "count": 2
+    },
+    "data.pictures": {
+     "count": 2
+    },
+    "data.pictures.0": "SHT1",
+    "data.pictures.1": "SHT2",
+    "data.path": {
+     "matches": "all\\.cgm$"
+    },
+    "data.sha256": {
+     "matches": "^[0-9a-f]{64}$"
+    }
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/one.cgm",
+    "format": "CGM",
+    "sheets": [
+     "sht1"
+    ],
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.format": "cgm",
+    "data.sheets": {
+     "count": 1
+    },
+    "data.sheets.0.name": "SHT1",
+    "data.pictures": {
+     "count": 1
+    },
+    "data.pictures.0": "SHT1"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/one.cgm",
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   },
+   "expect": {
+    "error.category": "already_exists",
+    "mutation_outcome": "not_started",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_export_drawing",
+   "args": {
+    "path": "$run/wrong.cgm",
+    "format": "pdf",
+    "part": "drawing_export_cgm_drawing_block_mm.prt"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/path"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

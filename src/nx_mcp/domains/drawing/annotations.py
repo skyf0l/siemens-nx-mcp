@@ -201,6 +201,8 @@ def nx_create_note(
         "axis": "Axis centerline in {view}",
         "between_edges": "Centerline between 2 edges in {view}",
         "bolt_circle": "Bolt circle through {objects} in {view}",
+        "symmetrical": "Symmetrical centerline on {objects} in {view}",
+        "automatic": "Automatic center marks in {view}",
     },
     keywords=(
         "center mark",
@@ -209,11 +211,18 @@ def nx_create_note(
         "symmetry line",
         "hole center",
         "bolt circle",
-        "pitch circle",
+        "symmetrical centerline",
         "PCD",
     ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     variants="kind",
+    required_by={
+        "center_mark": ("objects",),
+        "axis": ("objects",),
+        "between_edges": ("objects",),
+        "bolt_circle": ("objects",),
+        "symmetrical": ("objects",),
+    },
     cost="light",
     batchable=True,
     invalidates="deleted",
@@ -223,7 +232,9 @@ def nx_create_centerline(
     tx: Tx,
     *,
     view: DrawingViewRef,
-    kind: Literal["center_mark", "axis", "between_edges", "bolt_circle"],
+    kind: Literal[
+        "center_mark", "axis", "between_edges", "bolt_circle", "symmetrical", "automatic"
+    ],
     objects: Annotated[
         list[EdgeOrFace],
         Items(1, 50),
@@ -231,12 +242,21 @@ def nx_create_centerline(
             "center_mark: circular edges; axis: 1 cylindrical/conical face; between_edges: 2 "
             "lines; bolt_circle: 3+ hole edges"
         ),
-    ],
+    ]
+    | None = None,
 ) -> AnnotationData:
     """Create center marks, an axis line, a centerline between edges or a bolt circle. Kinds:
     center_mark on circular edges; axis on a cylindrical or conical face; between_edges on two
     edges that look parallel; bolt_circle through 3+ hole edges on one circle (center, radius
-    read back). Circles must be seen along their axis."""
+    read back); symmetrical (symmetry marks at its ends) on 1 face like axis or between the
+    centers of 2 circular edges; automatic (no objects) marks each hole seen along its axis
+    that has no mark. Circles must be seen along their axis."""
+    if kind == "automatic":
+        if objects is not None:
+            fail("NX_INVALID_ARGUMENT", "automatic finds the holes itself: omit objects",
+                 field="/objects")  # fmt: skip
+        return _automatic(tx, view)
+    objects = args.required(objects, "objects")
     args.distinct("/objects", objects, "objects")
     wanted = {"axis": 1, "between_edges": 2}.get(kind)
     if wanted and len(objects) != wanted:
@@ -247,6 +267,8 @@ def nx_create_centerline(
         return _center_marks(tx, view, objects)
     if kind == "bolt_circle":
         return _bolt_circle(tx, view, objects)
+    if kind == "symmetrical":
+        return _symmetrical(tx, view, objects)
     return _centerline(tx, view, kind, objects)
 
 
@@ -482,6 +504,93 @@ def _centerline(tx, view_ref, kind, refs):
             "annotation": tx.ref(obj, "annotation"),
             "sheet": tx.ref(sheet, "drawing_sheet"),
             "origin": position,
+        }
+
+
+def _symmetrical(tx, view_ref, refs):
+    """A symmetrical centerline (``SymmetricalCenterlineBuilder``): ``FromFace`` on a
+    cylindrical or conical face seen from the side (NX puts its origin on the projected
+    axis), or ``StartAndEnd`` between two circle centers (origin at their midpoint)."""
+    if len(refs) > 2:
+        fail("NX_INVALID_ARGUMENT", "symmetrical takes 1 face or 2 circular edges",
+             field="/objects")  # fmt: skip
+    with tx.checks():
+        view, sheet = drawing.view(tx, view_ref)
+        if len(refs) == 1:
+            targets = [geometry(tx, refs[0], ("face",), "/objects/0")]
+            line_point, line_direction = _axis_line(tx, view, sheet, targets[0], "/objects/0")
+        else:
+            targets = [geometry(tx, r, ("edge",), f"/objects/{i}") for i, r in enumerate(refs)]
+            centers = []
+            for i, edge in enumerate(targets):
+                f = facts.edge(tx, edge)
+                if f["kind"] != "arc":
+                    fail("NX_WRONG_GEOMETRY", "symmetrical takes 2 circular edges or 1 face",
+                         field=f"/objects/{i}")  # fmt: skip
+                true_shape(view, f, f"/objects/{i}")
+                centers.append(drawing.to_sheet(tx, view, f["center"]))
+            span = max(1.0, *map(abs, centers[0]))
+            if geom.dist([*centers[0], 0.0], [*centers[1], 0.0]) <= 1e-6 * span:
+                fail("NX_INVALID_ARGUMENT", "The two circles share their center in this view",
+                     field="/objects")  # fmt: skip
+            midpoint = [(centers[0][i] + centers[1][i]) / 2 for i in (0, 1)]
+    A = tx.nx.Annotations
+    part = tx.part
+    factory = part.Annotations.Centerlines.CreateSymmetricalCenterlineBuilder
+    with drawing.on_sheet(tx, sheet, part) as sh:
+        with builders.build(tx, factory, A.SymmetricalCenterline.Null) as b:
+            types = A.SymmetricalCenterlineBuilder.Types
+            if len(targets) == 1:
+                b.Type = types.FromFace
+                face = targets[0]
+                b.Face.SetValue(face, view, tx.nx.Point3d(*facts.face_point(tx, face)))
+            else:
+                b.Type = types.StartAndEnd
+                for selection, edge in zip((b.Start, b.End), targets, strict=True):
+                    selection.SetValue(edge, view, tx.nx.Point3d(*curve.point_at(tx, edge, 0.5)))
+            obj = commit(b, "symmetrical centerline")
+        update(tx)
+        position = sh.to_sheet(obj.AnnotationOrigin)
+        if len(targets) == 1:
+            offset = distance_to_line(position, line_point, line_direction)
+        else:
+            offset = geom.dist([*position, 0.0], [*midpoint, 0.0])
+        readback.expect(
+            offset <= 1e-3 * max(1.0, abs(position[0]), abs(position[1])),
+            "axis",
+            "The centerline is not on the expected axis",
+            origin=position,
+            offset=offset,
+        )
+        return {
+            "annotation": tx.ref(obj, "annotation"),
+            "sheet": tx.ref(sheet, "drawing_sheet"),
+            "origin": position,
+        }
+
+
+def _automatic(tx, view_ref):
+    """NX's automatic centerlines (``AutomaticCenterlineBuilder``) in one view: a center
+    mark on each hole seen along its axis that has none yet. Its ``Commit`` returns no
+    object: the new marks are the centerlines that were not there before."""
+    with tx.checks():
+        view, sheet = drawing.view(tx, view_ref)
+    part = tx.part
+    collection = part.Annotations.Centerlines
+    before = {int(c.Tag) for c in collection}
+    with drawing.on_sheet(tx, sheet, part) as sh:
+        with builders.build(tx, collection.CreateAutomaticCenterlineBuilder) as b:
+            b.Views.Add(view)
+            b.commit(validate=True)
+        update(tx)
+        created = [c for c in collection if int(c.Tag) not in before]
+        if not created:
+            tx.warn("NX_NO_EFFECT", "NX found no hole without a center mark in this view: "
+                    "holes need to be seen along their axis")  # fmt: skip
+        return {
+            "annotations": [tx.ref(c, "annotation") for c in created],
+            "sheet": tx.ref(sheet, "drawing_sheet"),
+            "origins": [sh.to_sheet(c.AnnotationOrigin) for c in created],
         }
 
 
