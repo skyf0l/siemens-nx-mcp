@@ -155,8 +155,8 @@ class CurveSpec(_CurveType, total=False):
     diameter: Size
     major_radius: Size
     minor_radius: Size
-    width: Size
-    height: Size
+    width: Annotated[Size, Doc("Along sketch x (slot: overall length, round ends included)")]
+    height: Annotated[Size, Doc("Along sketch y (slot: width across; end radius = height/2)")]
     start_angle: Degrees
     end_angle: Degrees
     rotation: Degrees
@@ -501,14 +501,16 @@ def nx_create_sketch_curves(
     curves: Annotated[
         list[CurveSpec],
         Items(1, 100),
-        Doc("Fields per type: nx_get_tool_schemas(tool#type)"),
+        Doc("Fields per type: see the description"),
     ],
     construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
 ) -> CurvesData:
-    """Add 1-100 curves to a sketch: line, polyline, arc, circle, ellipse, rectangle, polygon,
-    slot, rounded_rectangle. Sketch-local, plain numbers in part units and degrees. Curves are
-    joined and read back; loops give each non-construction chain's closure (one inside
-    another makes a hollow profile)."""
+    """Add 1-100 curves to a sketch, sketch-local in plain numbers (part units, degrees).
+    Fields: line start, end; polyline points, closed; arc center, radius, start_angle,
+    end_angle (CCW); circle center, radius; ellipse center, major/minor_radius; rectangle
+    corner1, corner2; polygon center, sides, radius; slot center, width, height;
+    rounded_rectangle center, width, height, radius; diameter can replace radius. The result's
+    loops give each chain's closure (one inside another: hollow)."""
     plans = check_curves(curves)
     tx.frame = "sketch_local"
     return add_curves(tx, sketch, plans, construction)

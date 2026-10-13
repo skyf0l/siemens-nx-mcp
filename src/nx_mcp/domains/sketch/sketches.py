@@ -80,7 +80,10 @@ class _On(TypedDict):
     on: Annotated[
         str,
         RefTo("face", "datum_plane"),
-        Doc("Local origin: part origin projected onto it; x: X projected (Y if normal is X)"),
+        Doc(
+            "Origin: part origin dropped onto it, not the face centre; x: X projected (Y if "
+            "normal is X)"
+        ),
     ]
 
 
@@ -678,7 +681,8 @@ def nx_check_sketch(
 ) -> ConflictData:
     """Find the constraints behind an over- or inconsistently constrained sketch. Each is removed
     on trial (always undone) and the solver re-run; relieving lists those whose removal alone
-    solves it."""
+    solves it. Mainly for sketches already in conflict (e.g. imported): the sketch tools refuse
+    conflicts."""
     sk = ksketch.resolve(tx, sketch)
     if _other_active(tx, sk):
         fail("NX_SKETCH_ACTIVE", "Another sketch is active", hint="Finish the active sketch first")

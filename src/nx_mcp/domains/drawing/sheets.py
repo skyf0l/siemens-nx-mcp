@@ -125,7 +125,7 @@ def _summary(args, say):
 def nx_create_drawing_sheet(
     tx: Tx,
     *,
-    name: Name | None = None,
+    name: Annotated[Name, Doc("New on the part; default SHT1, SHT2, ...")] | None = None,
     size: Literal["a0", "a1", "a2", "a3", "a4"]
     | Loose
     | Annotated[tuple[float, float], Doc("[width, height]")]
@@ -139,8 +139,8 @@ def nx_create_drawing_sheet(
     template_path: Annotated[str, PathTo("read", ".prt")] | None = None,
 ) -> SheetData:
     """Create a drawing sheet from a standard or custom size or a sheet template, and open
-    it. Default A3; the installed A0-A4 templates are metric. Views take the sheet scale
-    by default."""
+    it. Default A3; the installed A0-A4 templates are metric. A template sets the sheet size:
+    give template or size. Views take the sheet scale by default."""
     standard = _size(size)
     custom = standard if isinstance(standard, list) else None
     standard = standard if isinstance(standard, str) else None

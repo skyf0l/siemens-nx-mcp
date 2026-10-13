@@ -42,6 +42,13 @@ Formula = Annotated[
 ]
 MAX_FEATURES = 100
 MAX_DRIVEN = 50
+# NX 2406 refuses some new values only at the update ("Update undo happened", 670024) and
+# names no parameter: an inner diameter at or above the outer, a negative size.
+UPDATE_HINT = (
+    "NX rejected the new values for this feature's geometry (e.g. a tube's inner diameter at "
+    "or above its outer, a size at or below zero); compare them with the other parameters "
+    "nx_get_feature lists"
+)
 FORMULA_HINT = (
     "Send a number, a number with units ('10 mm', '0.5 in', '30 deg'), another "
     "expression's name, or NX syntax such as 'p3*2'"
@@ -384,7 +391,12 @@ def nx_get_feature(tx: Tx, *, feature: FeatureRef) -> FeatureInfo:
 
 
 class ParameterValue(TypedDict):
-    name: Annotated[str, Text(100), Doc("Expression name or alias: distance, radius, count...")]
+    name: Annotated[
+        str,
+        Text(100),
+        Doc("Expression name (p12) or alias: distance, start, end, radius, diameter, depth, angle, "
+            "count, spacing"),
+    ]  # fmt: skip
     value: Annotated[
         float | Annotated[str, Text(4096)], Doc("Number in expression units, '20 mm' or formula")
     ]
@@ -472,7 +484,10 @@ def nx_edit_feature(
     definition: TransformDefinition | None = None,
 ) -> FeatureInfo:
     """Set feature parameters to numbers or formulas, by expression name or alias (distance,
-    radius, count). definition replaces a transform."""
+    radius, count). nx_get_feature lists both for each parameter; p-names (p12) number the
+    whole part, not the feature. A tube's diameters have no alias: NX describes the outer
+    as Limit 1 and the inner as Limit 2. definition replaces a transform's (nx_create_transform)
+    pose instead."""
     args.exactly_one(parameters=parameters, definition=definition)
     with tx.checks():
         f = _feature(tx, feature)
@@ -499,7 +514,12 @@ def nx_edit_feature(
                 if isinstance(error, NXError) and error.code == "NX_INVALID_FORMULA":
                     error.hint = error.hint or FORMULA_HINT
                 raise
-        update(tx)
+        try:
+            update(tx)
+        except NXError as error:
+            if error.code == "NX_UPDATE_FAILED" and not error.hint:
+                error.hint = UPDATE_HINT
+            raise
         for exp, value, field in targets:
             if isinstance(value, (int, float)):
                 readback.expect_close(expr.value(tx, exp), float(value), field.strip("/"))
@@ -967,7 +987,9 @@ _NX_UNITS = {"mm": "MilliMeter", "in": "Inch", "deg": "Degrees", "rad": "Radian"
 
 
 class HealthData(TypedDict):
-    features: int
+    features: Annotated[
+        int, Doc("Every feature of the part, NX's internal ones (a sketch's or a hole's) included")
+    ]
     errors: list[dict]
     warnings: list[dict]
     suppressed: Annotated[int, Doc("Features suppressed by the user")]

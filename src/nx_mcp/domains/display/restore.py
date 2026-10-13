@@ -127,7 +127,8 @@ def nx_restore_display(
     presentation: Annotated[str, PathTo("read", ".json")] | None = None,
 ) -> RestoreData:
     """Undo a display change by restore_id ('last' or none: the newest; newest first), or
-    apply an nx_save_presentation file. A presentation returns a restore_id."""
+    apply an nx_save_presentation file. nx_set_camera, nx_set_visibility, nx_set_appearance
+    and a presentation return restore_ids; sections do not (nx_delete_objects)."""
     if restore_id is not None and presentation is not None:
         fail("NX_INVALID_ARGUMENT", "Give restore_id or presentation, not both",
              field="/presentation")  # fmt: skip

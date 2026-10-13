@@ -49,6 +49,30 @@ def test_valid_spec_derives_fields():
     )
 
 
+def _documented(doc: str, field_doc: str = "Size"):
+    def nx_create_sized(tx, *, size: Annotated[int, Doc(field_doc)]) -> Out:
+        return {"n": 1}
+
+    nx_create_sized.__doc__ = doc
+    return nx_create_sized
+
+
+def test_text_limits_follow_tool_surface_1_7():
+    """Description at most 500 characters (first sentence 120), field doc at most 120."""
+    first = "Size the sample " + "x" * (catalogue.FIRST_SENTENCE_MAX - 17) + "."
+    assert len(first) == catalogue.FIRST_SENTENCE_MAX
+    whole = first + " " + "y" * (catalogue.DESCRIPTION_MAX - len(first) - 2) + "."
+    assert len(whole) == catalogue.DESCRIPTION_MAX
+    spec(_documented(whole, "z" * catalogue.FIELD_DOC_MAX), example={"size": 1})
+    for doc, field_doc, message in (
+        ("Size " + "x" * catalogue.FIRST_SENTENCE_MAX + ".", "Size", "first sentence"),
+        (whole + " More.", "Size", "exceeds 500"),
+        ("Size it.", "z" * (catalogue.FIELD_DOC_MAX + 1), "Doc longer than 120"),
+    ):
+        with pytest.raises(CatalogueError, match=message):
+            spec(_documented(doc, field_doc), example={"size": 1})
+
+
 def _named(fn, name):
     fn.__name__ = name
     return fn

@@ -45,6 +45,14 @@ repos:
         additional_dependencies: ["pydantic>=2.11,<3"]
         pass_filenames: false
         files: ^(src/nx_mcp/evidence/.*\.json|src/nx_mcp/domains/.*\.py|src/nx_mcp/core/(catalogue|types)\.py|src/nx_mcp/sidecar/schema\.py|scripts/generate_tool_reference\.py|docs/tools\.md)$
+      - id: budget-table
+        name: token budget table matches the measured values
+        # Imports the server (mcp, pydantic) and tests/sidecar/test_budget.py (pytest): the
+        # dev environment's python, as for the pytest hook.
+        entry: python scripts/generate_budget_table.py --check
+        language: system
+        pass_filenames: false
+        files: ^(src/nx_mcp/(evidence/.*\.json|domains/.*\.py|core/.*\.py|sidecar/.*\.py)|tests/sidecar/test_budget\.py|scripts/generate_budget_table\.py|docs/design/architecture\.md)$
       - id: pytest
         name: pytest (non-real-NX)
         entry: python -m pytest -q -p no:cacheprovider -m "not real_nx"

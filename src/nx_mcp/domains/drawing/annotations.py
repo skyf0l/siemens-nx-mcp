@@ -212,10 +212,17 @@ def nx_create_centerline(
     *,
     view: DrawingViewRef,
     kind: Literal["center_mark", "axis", "between_edges"],
-    objects: Annotated[list[EdgeOrFace], Items(1, 50)],
+    objects: Annotated[
+        list[EdgeOrFace],
+        Items(1, 50),
+        Doc(
+            "center_mark: circular edges; axis: 1 cylindrical/conical face; between_edges: 2 lines"
+        ),
+    ],
 ) -> AnnotationData:
     """Create center marks on circular edges, an axis line on a cylindrical or conical face, or a
-    centerline between two edges. Circles must be seen along their axis."""
+    centerline between two edges. Circles must be seen along their axis; the two edges must
+    look parallel in the view."""
     args.distinct("/objects", objects, "objects")
     wanted = {"axis": 1, "between_edges": 2}.get(kind)
     if wanted and len(objects) != wanted:
@@ -701,8 +708,10 @@ def nx_update_annotations(
     objects: Annotated[list[Ref], Items(1, 100)] | None = None,
 ) -> RefreshData:
     """Refresh managed annotations from the model: parts lists, bend tables, title blocks,
-    detail boundaries and callouts. Also updates out-of-date views. Omit objects to refresh all of them; given objects
-    nothing refreshes come back in skipped."""
+    detail boundaries and callouts. Also updates out-of-date views. Model edits of a displayed
+    part refresh them already; call it after editing a part that was not displayed (a note
+    says the refresh waited). Omit objects to refresh all of them; given objects nothing
+    refreshes come back in skipped."""
     live = (
         [select.resolve(tx, r, field=f"/objects/{i}") for i, r in enumerate(objects)]
         if objects

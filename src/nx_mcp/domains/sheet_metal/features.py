@@ -29,9 +29,9 @@ NX 2406 findings encoded here:
   tool places one gusset on the plane normal to the bend axis through its middle, which
   splits the bend face in two.
 - Edge Rip with a sketch line on the web and ``Width`` removes a square-ended slot.
-- Advanced Flange and Variational Flange need a license this seat lacks ("The check out
-  of a feature failed because its token feature does not exist",
-  ``NX_LICENSE_UNAVAILABLE``), so the operations have no 2406 evidence.
+- Advanced Flange and Variational Flange need an advanced sheet-metal license; without
+  it NX refuses ("The check out of a feature failed because its token feature does not
+  exist", ``NX_LICENSE_UNAVAILABLE``).
 - Three Bend Corner takes two bends that meet around a third (convex corner: flanges on
   the web's and on a flange's side edges, both bending outward); two flanges of one web
   are refused (3675084, "A bend face pair is not valid"). Closed Corner takes those.
@@ -41,20 +41,20 @@ NX 2406 findings encoded here:
   other edges are refused (3675678, "Not valid edge").
 - A bead needs every size positive (radius 3675048, punched width 3675049); the tool makes
   circular, formed beads.
-- Joggle needs a license this seat lacks: ``CreateJoggleBuilder`` fails with 948801
-  (``NX_LICENSE_UNAVAILABLE``), so the operation has no 2406 evidence.
+- Joggle needs an advanced sheet-metal license; without it ``CreateJoggleBuilder``
+  fails with 948801 (``NX_LICENSE_UNAVAILABLE``).
 - Each operation's ``parameters`` form (``FORMS``) is its own schema, shown by
   ``nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>")``; the listed schema
   keeps a free-form object, so adding operations does not grow it.
 - Convert to Sheet Metal takes only a base face of a constant-thickness solid; reading the
-  builder's options before they are set fails with a license error on this seat. A sharp
+  builder's options before they are set can fail with a license error. A sharp
   inner corner becomes a bend with the part's default radius.
 - Sheet Metal from Solid needs its bend edges (``GetAutomaticBendEdges`` proposes the
   shared ones): without them the commit fails ("Cannot create feature"). It thickens the
   web faces into the solid and hides it, as a new body.
 - Flat Solid adds a flat sheet-metal body (its bends ``flat``) beside the bent one.
-- Lightening Cutout needs a license this seat lacks: ``CreateLighteningCutoutBuilder``
-  fails with 948801 (``NX_LICENSE_UNAVAILABLE``), so the operation has no 2406 evidence.
+- Lightening Cutout needs an advanced sheet-metal license; without it
+  ``CreateLighteningCutoutBuilder`` fails with 948801 (``NX_LICENSE_UNAVAILABLE``).
 - Solid Punch takes the tool body where it is (no CSYS needed) and NX's default punch
   type; the tool body stays visible.
 - A tab's sheet lies against its sketch's normal (below an XY sketch: z -t..0);

@@ -24,7 +24,7 @@ from typing import Annotated, Any, Literal, TypedDict
 
 @dataclass(frozen=True)
 class Doc:
-    """Field description, at most 80 characters."""
+    """Field description, at most 120 characters (tool-surface 1.7)."""
 
     text: str
 
@@ -271,7 +271,10 @@ SHEET_KINDS = frozenset(
     {"drawing_sheet", "drawing_view", "annotation", "dimension", "drawing_table"}
 )
 Name = Annotated[str, Text(64, r"^[A-Za-z0-9_][A-Za-z0-9_ .\-]{0,63}$"), Doc("Object name")]
-Offset = Annotated[int, Range(ge=0, le=1_000_000)]
+# A page offset. Gate 1 bounds it; listings leave the bound out (no agent reaches it, so
+# it would only spend characters in every paged tool's schema).
+OFFSET_MAX = 1_000_000
+Offset = Annotated[int, Range(ge=0, le=OFFSET_MAX)]
 PageLimit = Annotated[int, Range(ge=1, le=200)]
 
 

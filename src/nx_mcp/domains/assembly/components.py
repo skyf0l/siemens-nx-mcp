@@ -265,7 +265,10 @@ def nx_create_component(
     tx: Tx,
     *,
     mode: Literal["from_file", "new_in_context"] = "from_file",
-    path: Annotated[str, Doc("from_file: the saved .prt"), PathTo("read", ".prt")] | None = None,
+    path: Annotated[
+        str, Doc("from_file: workspace path of a .prt saved on disk"), PathTo("read", ".prt")
+    ]
+    | None = None,
     new_path: Annotated[str, Doc("new_in_context: the new part's file"), PathTo("new", ".prt")]
     | None = None,
     units: Annotated[Literal["mm", "in"], Doc("new_in_context: default the work part's")]
@@ -457,11 +460,13 @@ def nx_edit_component(
     components: Annotated[list[ComponentId], Items(1, 100)],
     name: ComponentName | None = None,
     replace_with: Annotated[
-        str, Doc("Saved .prt that replaces the component's part"), PathTo("read", ".prt")
+        str, Doc("A .prt saved on disk that replaces the component's part"), PathTo("read", ".prt")
     ]
     | None = None,
     make_unique: Annotated[
-        str, Doc("New .prt: a copy of the part for this component only"), PathTo("new", ".prt")
+        str,
+        Doc("New .prt copy of the part for this component only; unsaved until nx_save_part"),
+        PathTo("new", ".prt"),
     ]
     | None = None,
     suppressed: Annotated[bool, Doc("false: unsuppress (done first); true: suppress (last)")]

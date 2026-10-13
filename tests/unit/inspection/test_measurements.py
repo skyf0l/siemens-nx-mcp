@@ -214,3 +214,14 @@ def test_wall_thickness_without_a_solid_is_not_found():
     sheet.IsSolidBody = False
     bad = run(nx, "nx_measure_wall_thickness")
     assert bad.error["code"] == "NX_NOT_FOUND" and bad.error["field"] == "/body"
+
+
+def test_angle_to_a_cylinder_points_to_its_axis():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top = next(f for f in body.faces if list(f.normal) == [0, 0, 1])
+    bore = nx.remember(nx.face(normal=(0, 0, 1), origin=(5, 5, 0), kind="cylinder", body=body))
+    bore.radius, bore.sense = 2.0, -1
+    bad = run(nx, "nx_measure_angle", first=bore.ref, second=top.ref)
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/first", bad
+    assert "nx_find_geometry" in bad.error["hint"] and "nx_create_datum_axis" in bad.error["hint"]

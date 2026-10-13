@@ -33,7 +33,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.kit import drawing, licenses, parts
 
 APPLICATIONS = {"modeling": "UG_APP_MODELING", "sheet_metal": "UG_APP_SBSM"}
-# License features of each application (NX 2406 seat: solid_modeling, nx_sheet_metal).
+# License features of each application (NX 2406 feature names).
 LICENSES = {"modeling": ("solid_modeling",), "sheet_metal": ("nx_sheet_metal",)}
 NAMES = {
     "UG_APP_MODELING": "modeling",

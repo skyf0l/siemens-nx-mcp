@@ -955,9 +955,9 @@ def nx_undo_operation(
     example={"label": "before fillets"},
 )
 def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointData:
-    """Set an in-session undo checkpoint in the work part (restore by id or label). Its
-    part's own save or close, the engineer's edits or an undo past it expire it; other
-    parts' work never does. Disk saves are never rolled back."""
+    """Set an in-session undo checkpoint in the work part (restore by id or label; a reused
+    label restores its newest). Its part's own save or close, the engineer's edits or an undo
+    past it expire it; other parts' work never does. Disk saves are never rolled back."""
     services = tx.services
     part = tx.part
     part_key = services.part_key(part)
@@ -993,7 +993,8 @@ def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointDa
     example={},
 )
 def nx_list_checkpoints(tx: Tx) -> CheckpointsData:
-    """List this session's checkpoints (with part: that part's) and the part's undo depth.
+    """List this session's checkpoints (with the part key: only that part's) and the part's
+    undo depth.
     Expired ones show available=false and expired_reason; compensated=true: a restore now
     deletes what the part made since instead of using NX's undo."""
     services = tx.services
@@ -1075,8 +1076,9 @@ def _restore_refusal(services, cp: dict, reason: str) -> None:
 )
 def nx_restore_checkpoint(tx: Tx, *, checkpoint_id: CheckpointKey) -> RestoreData:
     """Roll the checkpoint's part back to it (id or label), undoing its agent operations
-    since; it stays restorable. Other parts' later work makes it compensate (delete what
-    the part made, set values back), refused when that does not qualify. Save to persist."""
+    since. It stays restorable until it expires (nx_create_checkpoint says what expires it).
+    Other parts' later work makes it compensate (delete what the part made, set values back),
+    refused when that does not qualify. Save to persist."""
     services = tx.services
     checkpoints = services.undo_checkpoints()
     history = services.undo_history()

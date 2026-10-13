@@ -7,9 +7,8 @@ managed: ``@refresher("annotation")`` re-measures it after every model change an
 
 NX 2406 findings encoded here:
 
-- This seat has no Sheet Metal PMI license: setting ``SheetMetalPMIBuilder.PMIType``
-  raises native 948801, reported as ``NX_LICENSE_UNAVAILABLE`` and rolled back. The tool
-  has no 2406 evidence, so it stays unavailable there.
+- Without the Sheet Metal PMI license, setting ``SheetMetalPMIBuilder.PMIType`` raises
+  native 948801, reported as ``NX_LICENSE_UNAVAILABLE`` and rolled back.
 - PMI created while a drawing sheet is shown becomes a sheet annotation, so the modeling
   display is shown for the commit and the sheet reopened afterwards.
 """

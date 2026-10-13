@@ -29,12 +29,12 @@ Constrain a direct component to a sibling (touch is the mate) or fix it; it must
 | --- | --- | --- | --- |
 | `type` | `fix` \| `touch` \| `align` \| `distance` \| `parallel` \| `perpendicular` \| `angle` \| `concentric` \| `align_lock` \| `fit` \| `bond` \| `center_1_2` \| `center_2_2` | required |  |
 | `component` | Ref | required | Component id 'o:N' (nx_list_components) |
-| `geometry` | Ref | optional | Ref: face/edge |
-| `target_component` | Ref | optional | Component id 'o:N' (nx_list_components) |
-| `target_geometry` | Ref | optional | Ref: face/edge |
+| `geometry` | Ref | optional | The component's face or edge; every type but fix and bond |
+| `target_component` | Ref | optional | The sibling 'o:N' it is constrained to; every type but fix |
+| `target_geometry` | Ref | optional | The target's face or edge; every type but fix and bond |
 | `geometry2` | Ref | optional | center_2_2: the component's second face or edge |
 | `target_geometry2` | Ref | optional | center types: the target's second face or edge |
-| `value` | number or string | optional | Part units or '10 mm' (<0: other side); angle: deg or '0.5 rad' |
+| `value` | number or string | optional | distance/angle only (required there): part units or '10 mm' (<0: other side); angle deg |
 | `alignment` | `infer` \| `same` \| `opposite` | `"infer"` |  |
 
 ### `nx_create_component`
@@ -46,10 +46,10 @@ Add a saved part (from_file) or a new empty part (new_in_context) as a component
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `mode` | `from_file` \| `new_in_context` | `"from_file"` |  |
-| `path` | string | optional | from_file: the saved .prt |
+| `path` | string | optional | from_file: workspace path of a .prt saved on disk |
 | `new_path` | string | optional | new_in_context: the new part's file |
 | `units` | `mm` \| `in` | optional | new_in_context: default the work part's |
-| `objects_to_move` | array[1-100] of string | optional | new_in_context: work-part bodies moved into the new part (same position) |
+| `objects_to_move` | array[1-100] of Ref | optional | new_in_context: work-part bodies moved into the new part (same position) |
 | `name` | string | optional | Component name (NX upper-cases it) |
 | `pose` | object {translation, rotation} | optional | Omitted: origin, unrotated |
 | `reference_set` | string | optional | e.g. MODEL or Entire Part (any case) |
@@ -63,7 +63,7 @@ Create an NX component group of these components (and children), e.g. a weight g
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `name` | string | required | Object name |
-| `components` | array[1-500] of string | required |  |
+| `components` | array[1-500] of Ref | required |  |
 | `children` | boolean | `false` |  |
 | `replace` | boolean | `false` | Redefine a group of this name |
 
@@ -75,8 +75,8 @@ Mirror direct components of the work part across a plane into new components. Ea
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `components` | array[1-100] of string | required |  |
-| `plane` | string or object {principal} or object {origin, normal} | required |  |
+| `components` | array[1-100] of Ref | required |  |
+| `plane` | Ref or object {principal} or object {origin, normal} | required |  |
 
 ### `nx_create_component_pattern`
 
@@ -86,7 +86,7 @@ Pattern a direct component linearly (one or two directions) or about an axis. Co
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `component` | string | required | Ref: component |
+| `component` | Ref | required | Ref: component |
 | `layout` | object {linear} or object {circular} | required |  |
 | `associative` | boolean | `true` | NX pattern (true) or plain copies, no pattern object |
 
@@ -94,7 +94,7 @@ Pattern a direct component linearly (one or two directions) or about an axis. Co
 
 **Create explosion** · effect `model` · NX 2406: tested; 139 checks in `acceptance/assembly/explosions.json`
 
-Create a named explosion of the displayed work assembly and show it in the work view. placements (as in nx_edit_explosion) move components at once; the others stay assembled.
+Create a named explosion of the work assembly and show it in its work view. placements (as in nx_edit_explosion) move components at once; the others stay assembled.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -110,9 +110,9 @@ Draw a trace line between edges of two components in an explosion. Each end sits
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `explosion` | string | required | Explosion id 'ex:N', not its name |
-| `start_edge` | Text | required | Edge id 'e:N' of a component in the explosion |
-| `end_edge` | Text | required | Edge id 'e:N' of a component in the explosion |
+| `explosion` | Ref | required | Explosion id 'ex:N', not its name |
+| `start_edge` | Ref | required | Edge id 'e:N' of a component in the explosion |
+| `end_edge` | Ref | required | Edge id 'e:N' of a component in the explosion |
 | `start_percent` | Number | `0` | 0-100 % of the edge's arc length |
 | `end_percent` | Number | `0` | 0-100 % of the edge's arc length |
 | `start_direction` | List | optional | Direction the line leaves this anchor; default +Z |
@@ -127,8 +127,8 @@ Extract bodies, faces or a region of faces of the work part into a new body of t
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `kind` | `body` \| `face` \| `region` | required |  |
-| `objects` | array[1-50] of string | required | body: bodies; face: connected faces; region: the seed face |
-| `boundary` | array[1-50] of string | optional | region only: faces that stop it |
+| `objects` | array[1-50] of Ref | required | body: bodies; face: connected faces; region: the seed face |
+| `boundary` | array[1-50] of Ref | optional | region only: faces that stop it |
 | `associative` | boolean | `true` | false: a dumb copy |
 | `at_timestamp` | boolean | `false` | Ignore later features of the source |
 
@@ -141,8 +141,8 @@ Create a reference set of exactly these bodies, curves, datums or sketches (or c
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `name` | string | required | New set name: letters, digits, _ or - (e.g. SOLID) |
-| `objects` | array[1-1000] of string | required |  |
-| `component` | string | optional | Its part gets the set |
+| `objects` | array[1-1000] of Ref | required |  |
+| `component` | Ref | optional | Its part gets the set |
 
 ### `nx_create_wave_link`
 
@@ -153,9 +153,9 @@ WAVE link bodies, faces, curves, datums or sketches of one component into anothe
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `kind` | `body` \| `face` \| `curve` \| `datum` \| `sketch` | required |  |
-| `sources` | array[1-50] of string | required | nx_find_geometry owner=<component> lists its faces and edges |
-| `component` | string | optional | Shows part-object sources (found if only one does) |
-| `target` | string | optional | Component whose part gets the link |
+| `sources` | array[1-50] of Ref | required | nx_find_geometry owner=<component> lists its faces and edges |
+| `component` | Ref | optional | Shows part-object sources (found if only one does) |
+| `target` | Ref | optional | Component whose part gets the link |
 | `associative` | boolean | `true` | false: a dumb copy, no link |
 | `at_timestamp` | boolean | `false` | Fix the link at the current timestamp |
 
@@ -167,7 +167,7 @@ Change a constraint's distance or angle, its alignment or its suppression and so
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `constraint` | string | required | Ref: assembly_constraint |
+| `constraint` | Ref | required | Ref: assembly_constraint |
 | `value` | number or string | optional | Part units or '10 mm' (<0: other side); angle: deg or '0.5 rad' |
 | `alignment` | `infer` \| `same` \| `opposite` | optional |  |
 | `suppressed` | boolean | optional |  |
@@ -180,10 +180,10 @@ Edit direct components: rename (one), replace or make unique the part, (un)suppr
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `components` | array[1-100] of string | required |  |
+| `components` | array[1-100] of Ref | required |  |
 | `name` | string | optional | Component name (NX upper-cases it) |
-| `replace_with` | string | optional | Saved .prt that replaces the component's part |
-| `make_unique` | string | optional | New .prt: a copy of the part for this component only |
+| `replace_with` | string | optional | A .prt saved on disk that replaces the component's part |
+| `make_unique` | string | optional | New .prt copy of the part for this component only; unsaved until nx_save_part |
 | `suppressed` | boolean | optional | false: unsuppress (done first); true: suppress (last) |
 | `reference_set` | string | optional | e.g. MODEL or Entire Part (any case) |
 
@@ -191,11 +191,11 @@ Edit direct components: rename (one), replace or make unique the part, (un)suppr
 
 **Edit component pattern** · effect `model` · NX 2406: tested; 85 checks in `acceptance/assembly/patterns.json`
 
-Change the count, spacing or angle of an associative single-seed component pattern. NX may recreate the pattern: then replaced is true and the old reference is stale.
+Change the count, spacing or angle of an associative single-seed component pattern. A lower count deletes the surplus components and their constraints. NX may recreate the pattern: then replaced is true and the old reference is stale.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `pattern` | string | required | Ref: component_pattern |
+| `pattern` | Ref | required | Ref: component_pattern |
 | `count` | integer | optional | Instances including the seed |
 | `spacing` | Value | optional | Distance between instances |
 | `count2` | integer | optional | Rows in the second direction |
@@ -210,9 +210,9 @@ Move components in an explosion by an offset or to an absolute pose, or reset th
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `explosion` | string | required | Ref: explosion |
+| `explosion` | Ref | required | Ref: explosion |
 | `placements` | array[1-1000] of object {component, offset, pose} | optional |  |
-| `reset_components` | array[1-1000] of string | optional |  |
+| `reset_components` | array[1-1000] of Ref | optional |  |
 | `display` | boolean | `true` | Show it in the work view; false keeps the view as it is |
 
 ### `nx_edit_explosion_trace`
@@ -223,7 +223,7 @@ Slide a trace's anchors along their edges (percent) or set its end legs. An offs
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `trace` | string | required | Trace id 'tl:N' |
+| `trace` | Ref | required | Trace id 'tl:N' |
 | `start_percent` | Number | optional | 0-100 % of the edge's arc length |
 | `end_percent` | Number | optional | 0-100 % of the edge's arc length |
 | `start_offset` | Length | optional | Part units, or '10 mm'/'0.5 in' |
@@ -237,7 +237,7 @@ Write a self-contained HTML page animating an explosion from assembled to explod
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `explosion` | string | required | Explosion id 'ex:N', not its name |
+| `explosion` | Ref | required | Explosion id 'ex:N', not its name |
 | `path` | string | required | New .html file (no GIF/MP4) |
 | `frames` | integer | `12` | Frames from assembled to exploded, 2-30 |
 | `fps` | integer | `12` | Playback frames per second |
@@ -252,7 +252,7 @@ Read the exploded and assembled poses of an explosion's components, paged, neste
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `explosion` | string | optional | Default: the shown or only one |
+| `explosion` | Ref | optional | Default: the shown or only one |
 | `offset` | integer | `0` |  |
 | `limit` | integer | `20` |  |
 
@@ -289,7 +289,7 @@ Assert a component's mass and CoG (NX weight management), e.g. a bought-in engin
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `component` | string | required | Component id 'o:N' (nx_list_components) |
+| `component` | Ref | required | Component id 'o:N' (nx_list_components) |
 | `mass` | number | optional | kg |
 | `center` | array[3] of number | optional | CoG, part units |
 | `frame` | `assembly` \| `component` | `"assembly"` |  |
@@ -304,7 +304,7 @@ Place a direct component at an absolute pose, or move it relative to its pose. a
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `component` | string | required | Component id 'o:N' (nx_list_components) |
+| `component` | Ref | required | Component id 'o:N' (nx_list_components) |
 | `mode` | `absolute` \| `relative` | required |  |
 | `translation` | array[3] of number or string | required | [x, y, z], part units or '10 mm' |
 | `rotation` | array[3] of array[3] of number or object {axis, angle} | optional | Row-major 3x3 matrix, or {axis, angle} |
@@ -317,9 +317,9 @@ Show an explosion in a view, or the assembled (unexploded) state when explosion 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `explosion` | string | optional | Explosion id 'ex:N', not its name |
-| `drawing_view` | string | optional | Ref: drawing_view |
-| `model_view` | string | optional | Modeling view 'mv:N' |
+| `explosion` | Ref | optional | Explosion id 'ex:N', not its name |
+| `drawing_view` | Ref | optional | Ref: drawing_view |
+| `model_view` | Ref | optional | Modeling view 'mv:N' |
 
 ### `nx_update_assembly`
 
@@ -335,7 +335,7 @@ No arguments.
 
 **Capture view** · effect `view` · NX 2406: tested; 65 checks in `acceptance/display/natural_args.json`
 
-PNG of the shown view or a sheet, to path or captures/; inline only with inline=true or no path. view_from/up aim it.
+PNG of the shown view or a sheet, to path or captures/; inline only with inline=true or no path. view_from/up aim it. Shows the displayed part only.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -372,11 +372,11 @@ Cut the model view with a section plane, {origin, normal} or 'xz' + offset; the 
 
 **Edit section view** · effect `view` · NX 2406: tested; 50 checks in `acceptance/display/sections.json`
 
-Move a section plane, switch its cap, or enable/disable it. A plane with only origin or normal keeps the other; offset shifts along the normal.
+Move a section plane, switch its cap, or enable/disable it. A plane with only origin or normal keeps the other. offset moves the given or current origin along the normal (relative); with a plane name it is the absolute position, as on create.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `section` | string or string | required | Section ref or name |
+| `section` | Ref or string | required | Section ref or name |
 | `plane` | object {origin, normal} or string | optional |  |
 | `offset` | number or string | optional | Part units, or '10 mm'/'0.5 in' |
 | `enabled` | boolean | optional |  |
@@ -390,14 +390,14 @@ Read blank state, colour and transparency of objects; bodies list their faces to
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[1-1000] of string | required |  |
+| `objects` | array[1-1000] of Ref | required |  |
 | `count_only` | boolean | `false` |  |
 
 ### `nx_get_camera`
 
 **Get camera** · effect `read` · NX 2406: tested; 54 checks in `acceptance/display/view_directions.json`
 
-Read the displayed view: camera rotation, origin, scale and rendering style, or the shown drawing sheet. origin is what nx_set_camera takes back; view is a named view or custom, view_angle the degrees off the nearest.
+Read the displayed view: camera rotation, origin, scale and rendering style, or the shown drawing sheet. Always the displayed part's, whatever part names. origin is what nx_set_camera takes back; view is a named view or custom, view_angle the degrees off the nearest.
 
 No arguments.
 
@@ -405,7 +405,7 @@ No arguments.
 
 **Undo display change or load presentation** · effect `view` · NX 2406: tested; 39 checks in `acceptance/display/visibility.json`
 
-Undo a display change by restore_id ('last' or none: the newest; newest first), or apply an nx_save_presentation file. A presentation returns a restore_id.
+Undo a display change by restore_id ('last' or none: the newest; newest first), or apply an nx_save_presentation file. nx_set_camera, nx_set_visibility, nx_set_appearance and a presentation return restore_ids; sections do not (nx_delete_objects).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -430,7 +430,7 @@ Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) o
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[1-1000] of string | required |  |
+| `objects` | array[1-1000] of Ref | required |  |
 | `color` | integer or `red` \| `green` \| `blue` \| `yellow` \| `cyan` \| `magenta` \| `orange` \| `white` \| `black` \| `gray` or string | optional |  |
 | `transparency` | integer or string | optional |  |
 
@@ -438,7 +438,7 @@ Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) o
 
 **Set camera: orient, zoom, fit view** · effect `view` · NX 2406: tested; 54 checks in `acceptance/display/view_directions.json`
 
-Orient (orientation, view_from or rotation), pan, zoom or fit the model view; returns restore_id. NX iso looks from (1,-1,1); view_from [-1,-1,1] shows a min-X front.
+Orient, pan, zoom or fit the displayed part's model view (it must be the work part); returns restore_id. Direction: one of orientation, view_from (+ up) or rotation. scale is absolute, zoom a factor: not both; fit takes zoom, not origin or scale. NX iso looks from (1,-1,1); view_from [-1,-1,1] shows a min-X front.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -459,7 +459,7 @@ Replace the agent's highlights with these objects (NX selection highlight, no co
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[0-1000] of string | required |  |
+| `objects` | array[0-1000] of Ref | required |  |
 
 ### `nx_set_visibility`
 
@@ -470,7 +470,7 @@ Show, hide or isolate bodies, components, curves and datums (not faces). datums=
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `mode` | `show` \| `hide` \| `isolate` | required |  |
-| `objects` | array[1-1000] of string | optional |  |
+| `objects` | array[1-1000] of Ref | optional |  |
 | `datums` | boolean | `false` |  |
 
 ## drawing
@@ -483,30 +483,30 @@ Open a drawing sheet of the work part by ref or name, or return to modeling when
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sheet` | string or string | optional | Sheet ref or name |
+| `sheet` | Ref or string | optional | Sheet ref or name |
 
 ### `nx_create_balloons`
 
 **Create balloons** · effect `model` · NX 2406: tested; 36 checks in `acceptance/drawing/create_balloons.json`
 
-Create parts-list balloons for the components shown in a drawing view. One per parts-list row; rows already ballooned in the view get none.
+Create parts-list balloons for the components shown in a drawing view of an assembly. parts_list: a table from nx_create_drawing_table kind=parts_list. One per parts-list row; rows already ballooned in the view get none.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `parts_list` | string | required | Ref: drawing_table |
-| `view` | string | required | Ref: drawing_view |
+| `parts_list` | Ref | required | Ref: drawing_table |
+| `view` | Ref | required | Ref: drawing_view |
 
 ### `nx_create_centerline`
 
 **Create centerline** · effect `model` · NX 2406: tested (all variants); 23 checks in `acceptance/drawing/create_centerline.json`
 
-Create center marks on circular edges, an axis line on a cylindrical or conical face, or a centerline between two edges. Circles must be seen along their axis.
+Create center marks on circular edges, an axis line on a cylindrical or conical face, or a centerline between two edges. Circles must be seen along their axis; the two edges must look parallel in the view.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `view` | string | required | Ref: drawing_view |
+| `view` | Ref | required | Ref: drawing_view |
 | `kind` | `center_mark` \| `axis` \| `between_edges` | required |  |
-| `objects` | array[1-50] of string | required |  |
+| `objects` | array[1-50] of Ref | required | center_mark: circular edges; axis: 1 cylindrical/conical face; between_edges: 2 lines |
 
 ### `nx_create_drawing_dimension`
 
@@ -516,29 +516,29 @@ Create an associative dimension on edges in a drawing view, checked against the 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `view` | string or string | required | View ref v:N, or name 'TOP@1' |
+| `view` | Ref or string | required | View ref v:N, or name 'TOP@1' |
 | `kind` | `linear` \| `horizontal` \| `vertical` \| `radius` \| `diameter` \| `angle` \| `ordinate` \| `chamfer` \| `thickness` \| `arc_length` \| `baseline` \| `chain` \| `hole_callout` | required |  |
-| `first` | Text | optional | Ref: edge |
-| `second` | Text | optional | Ref: edge |
+| `first` | Ref | optional | Ref: edge |
+| `second` | Ref | optional | Ref: edge |
 | `orientation` | `aligned` \| `horizontal` \| `vertical` | `"aligned"` |  |
 | `origin` | array[2] of number | optional | [x, y] on the sheet, sheet units |
-| `datum` | Text | optional | Ref: edge |
+| `datum` | Ref | optional | Ref: edge |
 | `datum_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |
-| `objects` | array[1-50] of Text | optional |  |
+| `objects` | array[1-50] of Ref | optional |  |
 | `object_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |
 | `direction` | `horizontal` \| `vertical` | `"horizontal"` |  |
 | `margin` | number or string | optional | Sheet units, or '10 mm' |
-| `hole` | string | optional | Ref: feature |
+| `hole` | Ref | optional | Ref: feature |
 
 ### `nx_create_drawing_sheet`
 
 **Create drawing sheet** · effect `model` · NX 2406: tested; 23 checks in `acceptance/drawing/inch_units.json`
 
-Create a drawing sheet from a standard or custom size or a sheet template, and open it. Default A3; the installed A0-A4 templates are metric. Views take the sheet scale by default.
+Create a drawing sheet from a standard or custom size or a sheet template, and open it. Default A3; the installed A0-A4 templates are metric. A template sets the sheet size: give template or size. Views take the sheet scale by default.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `name` | string | optional | Object name |
+| `name` | string | optional | New on the part; default SHT1, SHT2, ... |
 | `size` | `a0` \| `a1` \| `a2` \| `a3` \| `a4` or string or array[2] of number | optional |  |
 | `scale` | number or string | `1.0` | 2 or '2:1'; 0.5 or '1:2' |
 | `units` | `mm` \| `in` | `"mm"` |  |
@@ -554,8 +554,8 @@ Place a surface-finish or weld symbol with a leader to an edge or face shown in 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `view` | string | required | Ref: drawing_view |
-| `object` | string | required | Ref: edge/face |
+| `view` | Ref | required | Ref: drawing_view |
+| `object` | Ref | required | Ref: edge/face |
 | `symbol` | `surface_finish` \| `weld` | required |  |
 | `origin` | array[2] of number | optional | [x, y] on the sheet, sheet units |
 | `roughness_ra` | number or string | optional | Ra in um: 3.2 or '3.2 um' |
@@ -568,28 +568,28 @@ Place a surface-finish or weld symbol with a leader to an edge or face shown in 
 
 **Create drawing table** · effect `model` · NX 2406: tested (all variants); 53 checks in `acceptance/drawing/title_block.json`
 
-Place a parts list, bend, title block, revision or hole table. Parts lists need an assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title blocks and revisions take rows and widths.
+Place a parts list, bend, title block, revision or hole table. Parts lists need an assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title blocks and revisions take rows (one cell per width) and widths. position is a title block's bottom-right corner and a revision table's top-left corner (rows grow down); the result's bounds give the extent.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` \| `hole` | required |  |
 | `position` | array[2] of number | required | [x, y] on the sheet, sheet units |
-| `sheet` | string | optional | Ref: drawing_sheet |
-| `view` | string | optional | Ref: drawing_view |
+| `sheet` | Ref | optional | Ref: drawing_sheet |
+| `view` | Ref | optional | Ref: drawing_view |
 | `scope` | `leaves` \| `top_level` \| `all` | `"leaves"` |  |
 | `columns` | array[1-5] of `id` \| `name` \| `angle` \| `direction` \| `radius` | optional |  |
 | `automatic` | boolean | `true` |  |
 | `rows` | array[1-100] of array[1-20] of string | optional |  |
 | `widths` | array[1-20] of number or string | optional |  |
 | `row_height` | number or string | optional | Sheet units, or '10 mm' |
-| `origin` | string | optional | Ref: edge |
+| `origin` | Ref | optional | Ref: edge |
 | `origin_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |
 
 ### `nx_create_drawing_view`
 
 **Create drawing view** · effect `model` · NX 2406: tested (all variants); 54 checks in `acceptance/drawing/view_types.json`
 
-Place a drawing view at a verified sheet point; broken and break_out cut the parent. Derived views keep the parent scale.
+Place a drawing view at a sheet point (position: the view's reference point, sheet units). Projected: parent plus orientation (the view to show, e.g. top; the projection angle picks the side) or direction (the side of the parent it goes on). It stays aligned with the parent: give spacing (border gap, default 20 mm) or a position whose x (right/left) or y (top/bottom) lies past the parent's on that side and on the sheet. Derived views keep the parent scale; broken and break_out cut the parent.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -599,8 +599,8 @@ Place a drawing view at a verified sheet point; broken and break_out cut the par
 | `orientation` | `top` \| `front` \| `back` \| `right` \| `left` \| `bottom` \| `isometric` | optional |  |
 | `body` | Ref | optional | Ref: body |
 | `explosion` | Ref | optional | Ref: explosion |
-| `direction` | `right` \| `left` \| `top` \| `bottom` | optional | Projected: side of the parent on the sheet; position must lie on that side |
-| `spacing` | Number | optional | Gap between borders |
+| `direction` | `right` \| `left` \| `top` \| `bottom` | optional | Projected: the side of the parent the view goes on |
+| `spacing` | Number | optional | Projected: gap between borders, sheet units |
 | `hinge` | Ref | optional | Ref: edge |
 | `cut` | Ref | optional | Ref: edge |
 | `cut_point` | `start` \| `end` \| `center` | `"start"` |  |
@@ -628,10 +628,10 @@ Create GD&T as PMI on faces, or as a drafting annotation with a leader to view g
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `kind` | `datum_feature` \| `fcf` \| `view_datum_feature` \| `view_fcf` \| `view_datum_target` | required |  |
-| `faces` | array[1-20] of string | optional |  |
+| `faces` | array[1-20] of Ref | optional |  |
 | `position` | array[3] of number | optional | [x, y, z] absolute, part units |
-| `view` | string | optional | Ref: drawing_view |
-| `object` | string | optional | Ref: edge/face |
+| `view` | Ref | optional | Ref: drawing_view |
+| `object` | Ref | optional | Ref: edge/face |
 | `origin` | array[2] of number | optional | [x, y] on the sheet, sheet units |
 | `letter` | string | optional |  |
 | `frame` | object {characteristic, tolerance, datums, material, zone, datum_material, projected_height, tangent_plane, free_state} | optional |  |
@@ -647,9 +647,9 @@ Place a drawing note on a sheet (default the open one). leader_to adds a leader 
 | --- | --- | --- | --- |
 | `text` | array[1-50] of string or string | required | Lines, or one string split at newlines |
 | `origin` | array[2] of number | required | [x, y] on the sheet, sheet units |
-| `sheet` | string | optional | Ref: drawing_sheet |
-| `view` | string | optional | Ref: drawing_view |
-| `leader_to` | string | optional | Ref: edge/face |
+| `sheet` | Ref | optional | Ref: drawing_sheet |
+| `view` | Ref | optional | Ref: drawing_view |
+| `leader_to` | Ref | optional | Ref: edge/face |
 
 ### `nx_edit_annotation`
 
@@ -659,7 +659,7 @@ Move or rename an annotation, dimension or table, or replace a note's text. posi
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `annotation` | string | required | Ref: annotation/dimension/drawing_table |
+| `annotation` | Ref | required | Ref: annotation/dimension/drawing_table |
 | `position` | array[2] of number or array[3] of number | optional |  |
 | `name` | string | optional | Object name |
 | `text` | array[1-50] of string or string | optional | Lines, or one string split at newlines |
@@ -668,14 +668,14 @@ Move or rename an annotation, dimension or table, or replace a note's text. posi
 
 **Edit dimension** · effect `model` · NX 2406: tested; 68 checks in `acceptance/drawing/edit_dimension.json`
 
-Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (read back in objects). upper/lower: signed numbers in part units; symmetric takes upper (+/-). Fit: ISO 286 hole/shaft class (H7, g6); limits are checked.
+Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (read back in objects). upper/lower: signed numbers in part units, upper > lower; symmetric takes upper (+/-). Fit: ISO 286 hole and/or shaft class on a size shown in mm (up to 500 mm, not an angle); NX computes the deviations (no upper/lower) and they are checked.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `dimension` | string | required | Ref: dimension |
+| `dimension` | Ref | required | Ref: dimension |
 | `format` | object {decimals, trailing_zeros, units, decimal_separator} | optional |  |
 | `tolerance` | object {type, upper, lower, decimals, hole, shaft, display} | optional |  |
-| `edges` | array[1-2] of string | optional |  |
+| `edges` | array[1-2] of Ref | optional |  |
 
 ### `nx_edit_drawing_table`
 
@@ -685,7 +685,7 @@ Edit a drawing table of the given kind, or move it. Title blocks and revisions t
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `table` | string | required | Ref: drawing_table |
+| `table` | Ref | required | Ref: drawing_table |
 | `kind` | `parts_list` \| `bend` \| `title_block` \| `revision` \| `hole` | optional |  |
 | `rows` | array[1-100] of array[1-20] of string | optional |  |
 | `widths` | array[1-20] of SheetLength | optional |  |
@@ -700,11 +700,11 @@ Edit a drawing table of the given kind, or move it. Title blocks and revisions t
 
 **Edit drawing view** · effect `model` · NX 2406: tested; 56 checks in `acceptance/drawing/view_edges_bounds.json`
 
-Move a drawing view, change its scale or its display style (fonts 0-7, 0 invisible). Projected views made from it follow a scale change, keeping their gap (rescaled). Every change is read back.
+Move a drawing view, change its scale or its display style (fonts 0-7, 0 invisible). Projected views made from it follow a scale change, keeping their gap (rescaled); a projected view itself keeps its parent's scale (rescale the parent) and moves only along the axis away from its parent. Every change is read back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `view` | string | required | Ref: drawing_view |
+| `view` | Ref | required | Ref: drawing_view |
 | `position` | array[2] of number | optional | [x, y] on the sheet, sheet units |
 | `scale` | number or string | optional | 2 or '2:1'; 0.5 or '1:2' |
 | `style` | object {hidden_lines, self_hidden, hidden_font, visible_font, smooth_edges, rendering, construction_geometry} | optional |  |
@@ -719,7 +719,7 @@ Export drawing sheets of the work part to a new PDF (all or the given sheets) or
 | --- | --- | --- | --- |
 | `path` | string | required | Workspace path (.pdf/.dxf/.dwg) |
 | `format` | `pdf` \| `dxf` \| `dwg` | optional |  |
-| `sheets` | array[1-50] of string or string | optional |  |
+| `sheets` | array[1-50] of Ref or string | optional |  |
 
 ### `nx_get_dimension`
 
@@ -729,18 +729,18 @@ Read a drawing dimension: measured value, format, tolerance and sheet position. 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `dimension` | string | required | Ref: dimension |
+| `dimension` | Ref | required | Ref: dimension |
 
 ### `nx_get_drawing_table`
 
 **Get drawing table** · effect `read` · NX 2406: tested; 53 checks in `acceptance/drawing/title_block.json`
 
-Read a drawing table, or the title block of a sheet with tables: every table on it. Gives kind, evaluated rows, columns, update mode and position; title blocks list cells (label, lock, text with <W@TITLE> links, value).
+Read a drawing table, or a sheet's title block. Give exactly one of table (that table) or sheet (its title block, plus tables: every table on the sheet). Gives kind, rows, columns, update mode and position (the anchor given at creation); title blocks list cells (label, lock, text with <W@TITLE> links, value).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `table` | string | optional | Ref: drawing_table |
-| `sheet` | string | optional | Ref: drawing_sheet |
+| `table` | Ref | optional | Ref: drawing_table |
+| `sheet` | Ref | optional | Ref: drawing_sheet |
 
 ### `nx_get_drawing_view`
 
@@ -750,17 +750,17 @@ Read a drawing view: type, orientation, parent, position, scale and border. Also
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `view` | string | required | Ref: drawing_view |
+| `view` | Ref | required | Ref: drawing_view |
 
 ### `nx_list_view_edges`
 
 **List view edges** · effect `read` · NX 2406: tested; 56 checks in `acceptance/drawing/view_edges_bounds.json`
 
-List model edges a drawing view draws visible, longest lines first, then circles (geometry_type circle: holes). Sheet start, end, center, length and orientation.
+List model edges a drawing view draws visible, longest lines first, then circles (geometry_type circle: holes). Sheet start, end, center, length and orientation; hidden and end-on edges are left out. Pick dimension and centerline edges here: nx_find_geometry does not search drawing views.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `view` | string or string | required | View ref v:N, or name 'TOP@1' |
+| `view` | Ref or string | required | View ref v:N, or name 'TOP@1' |
 | `geometry_type` | `any` \| `line` \| `circle` | `"any"` |  |
 | `orientation` | `any` \| `horizontal` \| `vertical` | `"any"` |  |
 | `offset` | integer | `0` |  |
@@ -770,11 +770,11 @@ List model edges a drawing view draws visible, longest lines first, then circles
 
 **Update annotations** · effect `model` · NX 2406: tested; 8 checks in `acceptance/drawing/update_annotations.json`
 
-Refresh managed annotations from the model: parts lists, bend tables, title blocks, detail boundaries and callouts. Also updates out-of-date views. Omit objects to refresh all of them; given objects nothing refreshes come back in skipped.
+Refresh managed annotations from the model: parts lists, bend tables, title blocks, detail boundaries and callouts. Also updates out-of-date views. Model edits of a displayed part refresh them already; call it after editing a part that was not displayed (a note says the refresh waited). Omit objects to refresh all of them; given objects nothing refreshes come back in skipped.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[1-100] of string | optional |  |
+| `objects` | array[1-100] of Ref | optional |  |
 
 ## freeform
 
@@ -786,8 +786,8 @@ Bridge two sheet edges with a new sheet meeting their faces at G0, G1 or G2 (G1/
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `first` | string | required | Ref: edge |
-| `second` | string | required | Ref: edge |
+| `first` | Ref | required | Ref: edge |
+| `second` | Ref | required | Ref: edge |
 | `continuity` | `g0` \| `g1` \| `g2` | required | Position, tangent or curvature at both ends |
 | `reverse_second` | boolean | `false` | Start the second edge at its other end |
 
@@ -811,10 +811,10 @@ Fill a closed loop of curves or sheet edges with an N-sided sheet, G0 or (triang
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `boundary` | array[1-100] of string | required | One closed loop of curves/edges |
+| `boundary` | array[1-100] of Ref | required | One closed loop of curves/edges |
 | `type` | `trimmed` \| `triangular` | `"trimmed"` | trimmed: one face (G0); triangular: one face per side (G0 or G1) |
 | `continuity` | `g0` \| `g1` | `"g0"` | g1: tangent to the boundary faces |
-| `faces` | array[1-100] of string | optional | G1 faces; default: edges' faces |
+| `faces` | array[1-100] of Ref | optional | G1 faces; default: edges' faces |
 | `tolerance` | number or string | optional | Position tolerance |
 
 ### `nx_create_offset_surface`
@@ -853,8 +853,8 @@ Sew edge-sharing sheet bodies into the target sheet (tools are consumed). solid=
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `target` | string | required | Ref: body |
-| `tools` | array[1-100] of string | required |  |
+| `target` | Ref | required | Ref: body |
+| `tools` | array[1-100] of Ref | required |  |
 | `tolerance` | number or string | optional | Largest gap to close |
 | `solid` | boolean | `false` | Require a closed solid result |
 
@@ -879,7 +879,7 @@ Thicken sheet faces into a solid. thickness t means offset1=t, offset2=0; offset
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `faces` | array[1-200] of string | required |  |
+| `faces` | array[1-200] of Ref | required |  |
 | `thickness` | Length | optional | Part units, or '10 mm'/'0.5 in' |
 | `offset1` | Length | optional | Part units, or '10 mm'/'0.5 in' |
 | `offset2` | Length | optional | Part units, or '10 mm'/'0.5 in' |
@@ -892,8 +892,8 @@ Trim a sheet body with boundary curves, keeping or discarding the region at regi
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `body` | string | required | Ref: body |
-| `boundaries` | array[1-100] of string | required |  |
+| `body` | Ref | required | Ref: body |
+| `boundaries` | array[1-100] of Ref | required |  |
 | `region_point` | array[3] of number | required | A point on the region to keep or discard |
 | `keep` | boolean | `true` | false: discard the region |
 | `direction` | array[3] of number | optional | Project boundaries along this vector |
@@ -908,7 +908,7 @@ Sample points, unit tangents and curvature along a curve or edge at evenly space
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `curve` | string | required | Ref: curve/edge |
+| `curve` | Ref | required | Ref: curve/edge |
 | `samples` | integer | `11` |  |
 
 ### `nx_analyze_faces`
@@ -919,7 +919,7 @@ Sample normals and principal curvatures on a UV grid of each face, grouped per f
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `faces` | array[1-200] of string | required |  |
+| `faces` | array[1-200] of Ref | required |  |
 | `samples_per_axis` | integer | `5` |  |
 | `pull_direction` | array[3] of number or string | optional | [x,y,z] or +z, -x, top... |
 | `minimum_draft` | number or string | optional | Needs pull_direction; 0 to under 90 degrees |
@@ -932,8 +932,8 @@ Check G0/G1/G2 continuity of two edges or curves. Surface mode samples two sheet
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `first` | Text | required | Edge or curve 'e:21'/'c:7' |
-| `second` | Text | required | Edge or curve 'e:21'/'c:7' |
+| `first` | Ref | required | Edge or curve 'e:21'/'c:7' |
+| `second` | Ref | required | Edge or curve 'e:21'/'c:7' |
 | `mode` | `auto` \| `surface` \| `curve` | `"auto"` | auto: surface for two sheet boundary edges, else curve |
 | `tolerances` | object {position, angle, curvature} | optional |  |
 | `samples` | integer | `20` | Surface: per edge; counts both |
@@ -946,7 +946,7 @@ Check interference and clearance between the solid bodies of objects. No objects
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[2-500] of string | optional |  |
+| `objects` | array[2-500] of Ref | optional |  |
 | `clearance` | number or string | `0` | Minimum clearance, part units; 0 = interference only |
 | `max_pairs` | integer | `100` | Native pair checks allowed |
 | `include_clear` | boolean | `false` |  |
@@ -972,7 +972,7 @@ Make a persistent anchor for a body, face or edge (a feature or sketch: its row 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `object` | string | required | Ref: body/face/edge/feature/sketch |
+| `object` | Ref | required | Ref: body/face/edge/feature/sketch |
 
 ### `nx_export_inspection_report`
 
@@ -983,7 +983,7 @@ Write a .zip of interference and clearance results (index.html, report.json, PNG
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | Workspace path (.zip) |
-| `objects` | array[2-500] of string | optional |  |
+| `objects` | array[2-500] of Ref | optional |  |
 | `clearance` | number or string | `0` | Minimum clearance, part units; 0 = interference only |
 | `max_pairs` | integer | `100` | Native pair checks allowed |
 | `section_planes` | array[1-6] of object {origin, normal} | optional |  |
@@ -1005,20 +1005,20 @@ Write the weight and CoG report to an Excel-friendly .csv. report_args: the argu
 
 **Find geometry** · effect `read` · NX 2406: tested; 78 checks in `acceptance/inspection/holes_and_words.json`
 
-Find faces/edges/bodies by type, normal, radius, role. parallel: edges along an axis/plane. Ranked: near or normal/axis.
+Find faces, edges or bodies by type, normal, radius or role. Ranked nearest to near, else outermost along normal, else lowest along axis. Drawing-view edges: nx_list_view_edges.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `owner` | string | optional | body/feature/component; face: its edges |
+| `owner` | string | optional | body/feature/component; a face: its edges (kind edge) |
 | `kind` | `face` \| `edge` \| `body` | `"face"` |  |
 | `geometry_type` | `any` \| `plane` \| `cylinder` \| `cone` \| `circle` \| `line` | `"any"` |  |
-| `normal` | array[3] of number or string | optional | [x,y,z] or +z, -x, top... |
+| `normal` | array[3] of number or string | optional | Planar faces facing [x,y,z] or +z, -x, top... |
 | `radius` | number | optional |  |
 | `role` | `bore` \| `boss` | optional |  |
 | `near` | array[3] of number | optional | [x, y, z] absolute, part units |
 | `order` | `nearest` \| `highest` \| `lowest` | optional |  |
 | `axis` | `x` \| `y` \| `z` | optional |  |
-| `parallel` | `x` \| `y` \| `z` \| `xy` \| `yz` \| `xz` | optional |  |
+| `parallel` | `x` \| `y` \| `z` \| `xy` \| `yz` \| `xz` | optional | Line edges along an axis or in a plane |
 | `tolerance` | number | `0.001` |  |
 | `offset` | integer | `0` |  |
 | `limit` | integer | `20` |  |
@@ -1073,8 +1073,8 @@ Measure the angle (0-180) between lines, straight edges, planar faces or datums.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `first` | Text | required | Ref: curve/edge/face/datum_plane/datum_axis |
-| `second` | Text | required | Ref: curve/edge/face/datum_plane/datum_axis |
+| `first` | Ref | required | Ref: curve/edge/face/datum_plane/datum_axis |
+| `second` | Ref | required | Ref: curve/edge/face/datum_plane/datum_axis |
 | `units` | `deg` \| `rad` | `"deg"` |  |
 
 ### `nx_measure_assembly_mass`
@@ -1090,7 +1090,7 @@ Report weight and centre of gravity per component and in total, for trim and sta
 | `include_suppressed` | boolean | `false` |  |
 | `items` | array[1-200] of object {mass, name, component, center, frame, group} | optional | Assumed kg: {name, center} or {component} |
 | `group_by` | `top_component` \| `part` \| `attribute` \| `component_group` \| `named` | optional |  |
-| `attribute` | Text2 | optional | Title (group_by attribute) |
+| `attribute` | Text | optional | Title (group_by attribute) |
 | `groups` | object | optional | {group: [refs or name patterns]} |
 | `reference` | object {origin, x_axis, y_axis} | optional | LCG/TCG/VCG frame |
 | `what_if` | array[1-50] of object {name, mass, center} or object {name, component, item, offset, move_to, remove} | optional | Add {name, mass, center}; move/remove a component or item |
@@ -1104,7 +1104,7 @@ Measure the absolute axis-aligned bounding box of bodies, the part or the assemb
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `bodies` | array[1-500] of string | optional |  |
+| `bodies` | array[1-500] of Ref | optional |  |
 | `scope` | `auto` \| `part` \| `assembly` | `"auto"` | Without bodies: part or assembly |
 | `precision` | `conservative` \| `exact` | `"conservative"` | exact needs a WCS with absolute axes |
 
@@ -1116,8 +1116,8 @@ Measure the minimum distance and the closest points between two objects; feature
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `first` | Text | required | Ref 'fc:12'/'b:3': body/face/edge/curve/point/datum/feature/component |
-| `second` | Text | required | Ref 'fc:12'/'b:3': body/face/edge/curve/point/datum/feature/component |
+| `first` | Ref | required | Ref 'fc:12'/'b:3': body/face/edge/curve/point/datum/feature/component |
+| `second` | Ref | required | Ref 'fc:12'/'b:3': body/face/edge/curve/point/datum/feature/component |
 
 ### `nx_measure_mass`
 
@@ -1127,14 +1127,14 @@ Measure volume, area, mass, centre of gravity and inertia of solid bodies. Mass 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `bodies` | array[1-500] of string | optional |  |
+| `bodies` | array[1-500] of Ref | optional |  |
 | `scope` | `auto` \| `part` \| `assembly` | `"auto"` | Without bodies: part or assembly |
 
 ### `nx_measure_section`
 
 **Measure section** · effect `read` · NX 2406: tested; 39 checks in `acceptance/inspection/section.json`
 
-Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the model is unchanged. Loops: role, area, box, 2D lines/arcs. radial_axis z cuts xz, x or y cut xy: radius spans per axial station (at).
+Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the model is unchanged. Loops: role, area, box, 2D lines/arcs. radial_axis z cuts xz, x or y cut xy: radius spans per axial station (at), from that one cut: for revolved parts.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1145,7 +1145,7 @@ Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the m
 | `radial_axis` | `x` \| `y` \| `z` | optional |  |
 | `stations` | integer | `20` |  |
 | `at` | array[1-200] of number | optional |  |
-| `bodies` | array[1-100] of string | optional |  |
+| `bodies` | array[1-100] of Ref | optional |  |
 
 ### `nx_measure_wall_thickness`
 
@@ -1155,8 +1155,8 @@ Measure sampled wall thickness of a solid (default: the part's only one). Rays r
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `body` | string | optional | Ref: body |
-| `faces` | array[1-200] of string | optional |  |
+| `body` | Ref | optional | Ref: body |
+| `faces` | array[1-200] of Ref | optional |  |
 | `samples_per_axis` | integer | `5` |  |
 | `tolerance` | number | `0.001` | Inward ray start offset, part units |
 
@@ -1164,12 +1164,12 @@ Measure sampled wall thickness of a solid (default: the part's only one). Rays r
 
 **Resolve reference** · effect `read` · NX 2406: tested; 78 checks in `acceptance/inspection/holes_and_words.json`
 
-Turn a selector from nx_find_geometry, an anchor or a live id into a current reference. A selector re-runs its rule and fails on a tie.
+Turn a selector from nx_find_geometry (passed unchanged) or an anchor into a current reference. A selector re-runs its rule and fails on a tie. anchor also takes a ref such as fc:12: it is checked and returned if still valid.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `selector` | string or object | optional | selector from nx_find_geometry (text or object) |
-| `anchor` | string | optional | Anchor '@...' from nx_create_anchor or a result row |
+| `anchor` | string | optional | Anchor '@...' (nx_create_anchor, a result row), or a ref like fc:12 to check |
 | `tie_tolerance` | number | `0.001` | Rank gap that counts as a tie |
 
 ## modeling
@@ -1182,7 +1182,7 @@ Blend (fillet) edges of one body: a constant radius, or a radius varying along o
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `edges` | array[1-200] of string | required |  |
+| `edges` | array[1-200] of Ref | required |  |
 | `radius` | Length | optional | Part units, or '10 mm'/'0.5 in' |
 | `variable` | array[2-20] of object {at, radius} | optional |  |
 | `chain` | boolean | `false` | Add the edges tangent-continuous with the given ones |
@@ -1196,8 +1196,8 @@ Unite, subtract or intersect tool bodies with a target body; the tools are consu
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `operation` | `unite` \| `subtract` \| `intersect` | required |  |
-| `target` | string | required | Ref: body |
-| `tools` | array[1-50] of string | required |  |
+| `target` | Ref | required | Ref: body |
+| `tools` | array[1-50] of Ref | required |  |
 
 ### `nx_create_chamfer`
 
@@ -1207,7 +1207,7 @@ Chamfer edges of one body by a symmetric offset, two offsets (offset2), or an of
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `edges` | array[1-200] of string | required |  |
+| `edges` | array[1-200] of Ref | required |  |
 | `method` | `symmetric` \| `two_offsets` \| `offset_angle` | optional | Omit: inferred from offset2 or angle |
 | `offset` | Length | required | Part units, or '10 mm'/'0.5 in' |
 | `offset2` | Length | optional | Part units, or '10 mm'/'0.5 in' |
@@ -1252,7 +1252,7 @@ Create a datum plane offset from a face, datum plane or world plane, through a p
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `method` | `offset` \| `point_normal` \| `three_points` | required |  |
-| `reference` | `xy` \| `yz` \| `xz` or string | optional | Face/datum plane ref, or world plane xy (+Z), yz (+X), xz (-Y) |
+| `reference` | `xy` \| `yz` \| `xz` or Ref | optional | Face/datum plane ref, or world plane xy (+Z), yz (+X), xz (-Y) |
 | `distance` | number or string | optional | Part units, or '10 mm'/'0.5 in' |
 | `origin` | Point3 | optional | [x, y, z] absolute, part units |
 | `normal` | array[3] of number | optional | Direction [x, y, z] |
@@ -1263,7 +1263,7 @@ Create a datum plane offset from a face, datum plane or world plane, through a p
 
 **Create point feature** · effect `model` · NX 2406: tested; 8 checks in `acceptance/modeling/datum_point.json`
 
-Create a fixed point feature at a work-part position [x, y, z]. Later calls select the returned point.
+Create a fixed point feature at a work-part position [x, y, z]. Coordinates are plain numbers in part units: '10 mm' strings and expression names are not taken here. Later calls select the returned point.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1278,9 +1278,9 @@ Draft faces about a stationary face; a positive angle tapers them inward along t
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `faces` | array[1-200] of string | required |  |
-| `stationary_face` | string | required | Ref: face |
-| `direction` | array[3] of number or string or object {principal} | required |  |
+| `faces` | array[1-200] of Ref | required |  |
+| `stationary_face` | Ref | required | Ref: face |
+| `direction` | array[3] of number or Ref or object {principal} | required |  |
 | `angle` | number or string | required | Degrees, or '90 deg' |
 
 ### `nx_create_emboss_body`
@@ -1291,8 +1291,8 @@ Emboss a target around an overlapping tool body (not text). A solid target loses
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `target` | string | required | Ref: body |
-| `tool_body` | string | required | Ref: body |
+| `target` | Ref | required | Ref: body |
+| `tool_body` | Ref | required | Ref: body |
 | `clearance` | number or string | `0.0` | Gap kept around the tool on every side |
 | `thickness` | number or string | optional | Sheet targets only: the embossed wall's thickness |
 | `keep_tool` | boolean | `true` | Keep the tool body after the emboss |
@@ -1306,11 +1306,11 @@ Extrude a sketch along its normal or a direction, as a new body or combined with
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
+| `sketch` | Ref | required | Ref: sketch |
 | `end` | Choice | required |  |
 | `start` | Choice | optional |  |
 | `symmetric` | boolean | `false` | end distance to both sides; omit start |
-| `direction` | array[3] of number or string or object {principal} | optional |  |
+| `direction` | array[3] of number or Ref or object {principal} | optional |  |
 | `combine` | object {operation, targets} | optional |  |
 
 ### `nx_create_helix`
@@ -1321,13 +1321,13 @@ Create a helix curve of constant radius and pitch climbing along an axis (defaul
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `axis` | string or object {principal} or object {origin, direction} | `"z"` |  |
-| `radius` | Value | required | Part units, or '10 mm'/'0.5 in' |
-| `pitch` | Value | required | Part units, or '10 mm'/'0.5 in' |
+| `axis` | Ref or object {principal} or object {origin, direction} | `"z"` |  |
+| `radius` | Length | required | Part units, or '10 mm'/'0.5 in' |
+| `pitch` | Length | required | Part units, or '10 mm'/'0.5 in' |
 | `turns` | number | optional | Number of turns |
-| `height` | Value | optional | Axial length instead of turns |
+| `height` | number or string | optional | Axial length instead of turns |
 | `hand` | `right` \| `left` | `"right"` |  |
-| `start_angle` | Value | `0.0` | About the axis from world X (world Y for an axis near X) |
+| `start_angle` | number or string | `0.0` | About the axis from world X (world Y for an axis near X) |
 
 ### `nx_create_hole`
 
@@ -1337,16 +1337,16 @@ Create one NX Hole feature with 1-100 holes on a planar face, drilled into the m
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `face` | string | required | Ref: face |
+| `face` | Ref | required | Ref: face |
 | `positions` | array[1-100] of array[2-3] of number | required | Centres on the face |
 | `depth` | object {type, value} or object {type} or Length or `through_all` \| `through` | required | To the cylinder bottom: 10, '10 mm' or 'through_all' |
 | `form` | `simple` \| `counterbore` \| `countersink` \| `threaded` | `"simple"` |  |
-| `diameter` | Value | optional | Drill diameter; threaded: default the tap drill |
-| `tip_angle` | Value | `118.0` | Degrees, or '90 deg' |
+| `diameter` | number or string | optional | Drill diameter; threaded: default the tap drill |
+| `tip_angle` | number or string | `118.0` | Degrees, or '90 deg' |
 | `counterbore` | object {diameter, depth} | optional |  |
 | `countersink` | object {diameter, angle} | optional |  |
 | `thread` | object {size, standard, depth} | optional |  |
-| `target` | string | optional | Ref: body |
+| `target` | Ref | optional | Ref: body |
 
 ### `nx_create_loft`
 
@@ -1356,10 +1356,10 @@ Loft a body through 2-20 section sketches in order (NX Through Curves; Swept alo
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sections` | array[2-20] of string | required |  |
+| `sections` | array[2-20] of Ref | required |  |
 | `solid` | boolean | `true` |  |
 | `start_points` | array[2-20] of array[3] of number | optional |  |
-| `guides` | array[1-3] of string | optional |  |
+| `guides` | array[1-3] of Ref | optional |  |
 | `tangent` | `faces` \| `normal` | optional | faces: G1 to a body at an end; normal: square |
 | `combine` | object {operation, targets} | optional |  |
 
@@ -1371,10 +1371,10 @@ Mirror solid bodies, or features into their own bodies, about a plane ('yz', a d
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `plane` | string or object {principal} or object {origin, normal} | required |  |
+| `plane` | Ref or object {principal} or object {origin, normal} | required |  |
 | `target` | `bodies` \| `features` | `"bodies"` |  |
-| `bodies` | array[1-50] of string | optional |  |
-| `features` | array[1-50] of string | optional | Feature ids f:.., not bodies b:.. |
+| `bodies` | array[1-50] of Ref | optional |  |
+| `features` | array[1-50] of Ref | optional | Feature ids f:.., not bodies b:.. |
 | `keep_original` | boolean | `true` | bodies only: false hides the sources |
 | `unite` | boolean | `false` | features only: unite separate-body mirrors into the seed's body |
 
@@ -1382,11 +1382,11 @@ Mirror solid bodies, or features into their own bodies, about a plane ('yz', a d
 
 **Pattern features** · effect `model` · NX 2406: tested (all variants); 23 checks in `acceptance/modeling/pattern_unite.json`
 
-Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a face, or at explicit points. Counts include the seed; NX computes spiral and fill counts. A seed with its own body makes new bodies (new_bodies) unless unite; a circular angle is the step between instances.
+Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a face, or at explicit points. Counts include the seed; general positions list only the copies. NX computes spiral and fill counts. A seed with its own body makes new bodies (new_bodies) unless unite; a circular angle is the step between instances.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `features` | array[1-50] of string | required | Feature ids f:.., not bodies b:.. |
+| `features` | array[1-50] of Ref | required | Feature ids f:.., not bodies b:.. |
 | `layout` | `linear` \| `circular` \| `along_curve` \| `polygon` \| `spiral` \| `fill` \| `general` | required |  |
 | `parameters` | object | required | Layout parameters: nx_get_tool_schemas(nx_create_pattern#<layout>) |
 | `unite` | boolean | `false` | Unite copies made as separate bodies into the seed's body (they must touch it) |
@@ -1413,12 +1413,12 @@ Create a block, cylinder, cone or sphere solid as a new body or combined with bo
 | --- | --- | --- | --- |
 | `shape` | `block` \| `cylinder` \| `cone` \| `sphere` | `"block"` |  |
 | `origin` | Point3 | optional | block: corner; cylinder, cone: base centre; sphere: centre; default 0 |
-| `length` | Value | optional | block, along x_direction |
-| `width` | Value | optional | block |
-| `height` | Value | optional | block, cylinder, cone |
-| `diameter` | Value | optional | cylinder, sphere, cone base |
-| `top_diameter` | Value | optional | cone; omit: apex |
-| `direction` | Point3 or string or object {principal} | optional | height axis; default z |
+| `length` | number or string | optional | block, along x_direction |
+| `width` | number or string | optional | block |
+| `height` | number or string | optional | block, cylinder, cone |
+| `diameter` | number or string | optional | cylinder, sphere, cone base |
+| `top_diameter` | number or string | optional | cone; omit: apex |
+| `direction` | Point3 or Ref or object {principal} | optional | height axis; default z |
 | `x_direction` | Point3 | optional | block length axis; default x |
 | `centered` | boolean | `false` | origin is the centre |
 | `combine` | object {operation, targets} | optional |  |
@@ -1431,24 +1431,24 @@ Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combi
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
-| `axis` | string or object {principal} or object {origin, direction} | required |  |
-| `start_angle` | Angle | `0.0` | Degrees, or '90 deg' |
-| `end_angle` | Angle | `360.0` | Degrees, or '90 deg' |
+| `sketch` | Ref | required | Ref: sketch |
+| `axis` | Ref or object {principal} or object {origin, direction} | required |  |
+| `start_angle` | number or string | `0.0` | Degrees, or '90 deg' |
+| `end_angle` | number or string | `360.0` | Degrees, or '90 deg' |
 | `combine` | object {operation, targets} | optional |  |
 
 ### `nx_create_rib`
 
 **Create rib** · effect `model` · NX 2406: tested (all variants); 28 checks in `acceptance/modeling/rib.json`
 
-Add a rib (wall, web or gusset) of a thickness from open sketch curves to a solid body. The curves extend to the body and must close a region with it (a parallel rib fills it). volume is the body's (the rib body's if not combined); added is the rib's.
+Add a rib (wall, web or gusset) from open sketch curves to a solid body. parallel: the sketch plane cuts through the body (an L-bracket's mid-plane) and a line from wall to wall closes a region with it, filled to the thickness across the plane. perpendicular: curves on a plane at the body (a cup's rim) grow along the sketch normal to meet it; flip when the body lies against the normal (below a rim sketch facing up). volume is the body's (the rib body's if not combined); added is the rib's.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
-| `body` | string | required | Ref: body |
+| `sketch` | Ref | required | Ref: sketch |
+| `body` | Ref | required | Ref: body |
 | `thickness` | number or string | required | Part units, or '10 mm'/'0.5 in' |
-| `orientation` | `perpendicular` \| `parallel` | `"perpendicular"` | perpendicular: wall along the sketch normal; parallel: plate/gusset in its plane |
+| `orientation` | `perpendicular` \| `parallel` | `"perpendicular"` | parallel: a gusset/web lying in the sketch plane; perpendicular: a wall grown along the sketch normal |
 | `side` | `symmetric` \| `one_side` \| `other_side` | `"symmetric"` | Centred or one side; a parallel rib's one_side is the sketch normal side |
 | `draft` | number or string | optional | Draft of a perpendicular rib's walls |
 | `combine` | boolean | `true` | Unite the rib with the body; false keeps a new body |
@@ -1462,11 +1462,11 @@ Scale solid bodies uniformly (factor) or per axis (factors). p -> origin + f (p 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `bodies` | array[1-50] of string | required |  |
+| `bodies` | array[1-50] of Ref | required |  |
 | `factor` | number | optional | Uniform factor, not 1 |
 | `factors` | array[3] of number | optional | Per-axis [x, y, z] factors |
 | `origin` | `center` or array[3] of number | optional | Fixed point |
-| `csys` | string | optional | factors along its axes; its origin fixed |
+| `csys` | Ref | optional | factors along its axes; its origin fixed |
 
 ### `nx_create_shell`
 
@@ -1476,9 +1476,9 @@ Hollow a solid body to a wall thickness, opening the removed faces.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `body` | string | required | Ref: body |
+| `body` | Ref | required | Ref: body |
 | `thickness` | number or string | required | Part units, or '10 mm'/'0.5 in' |
-| `remove_faces` | array[1-200] of string | optional | Faces to open; omit for a closed hollow |
+| `remove_faces` | array[1-200] of Ref | optional | Faces to open; omit for a closed hollow |
 | `outward` | boolean | `false` | Grow the wall outside the original faces |
 
 ### `nx_create_sweep`
@@ -1489,26 +1489,26 @@ Sweep a closed section sketch along a guide sketch, as a new body or combined wi
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `section` | string | required | Ref: sketch |
-| `guide` | string | required | Ref: sketch |
+| `section` | Ref | required | Ref: sketch |
+| `guide` | Ref | required | Ref: sketch |
 | `combine` | object {operation, targets} | optional |  |
 
 ### `nx_create_thread`
 
 **Create thread** · effect `model` · NX 2406: tested; 48 checks in `acceptance/modeling/thread_natural_args.json`
 
-Thread a cylindrical face, or several (faces: one thread each). spec: a table size ('M6': Metric Coarse, engagement 0.75) or pitch and diameters. A bore must be the tap drill (a clearance bore is refused). Symbolic keeps the volume; detailed cuts it.
+Thread a cylindrical face, or several (faces: one thread each). spec: a table size, or pitch, major_diameter and minor_diameter for a custom thread. A size alone is looked up in Metric Coarse/Fine ('M6') or Inch UNC/UNF; the standard's unit must match the part's. An internal thread needs the bore at the tap drill (nx_list_thread_sizes); a clearance bore is refused. Give start_face when both ends are alike: a through bore or a free cylinder. Symbolic keeps the volume; detailed cuts it.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `face` | string | optional | Cylindrical face: a bore or a shaft |
-| `faces` | array[1-50] of string | optional | Several faces, one thread each |
+| `face` | Ref | optional | Cylindrical face: a bore or a shaft |
+| `faces` | array[1-50] of Ref | optional | Several faces, one thread each |
 | `spec` | object {standard, size, method, engagement} or object {pitch, major_diameter, minor_diameter, angle, starts} | required |  |
-| `start_face` | string | optional | Planar end; default the only one, else a shaft's free end or bore's opening |
-| `length` | Length or `full` | optional | Default 'full': the whole face |
+| `start_face` | Ref | optional | Planar end the thread starts at. Default: the only end, a shaft's free end, a blind bore's opening |
+| `length` | Length or `full` | optional | Measured from start_face along the axis, at most the face length; default 'full' |
 | `detailed` | boolean | `false` | Helical geometry instead of a symbolic thread |
 | `hand` | `right` \| `left` | `"right"` |  |
-| `reverse` | boolean | `false` |  |
+| `reverse` | boolean | `false` | Leave false: threads run from start_face inward |
 
 ### `nx_create_transform`
 
@@ -1518,7 +1518,7 @@ Move or copy solid bodies: rotate (matrix about [0, 0, 0] or angle about an axis
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `bodies` | array[1-50] of string | required |  |
+| `bodies` | array[1-50] of Ref | required |  |
 | `transform` | object {translation, rotation} | required |  |
 | `copy` | boolean | `false` | Move a copy (combinable with its source) |
 
@@ -1530,8 +1530,8 @@ Cut a solid body with a datum plane or planar face used as an infinite plane. Ke
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `body` | string | required | Ref: body |
-| `tool` | string | required | Ref: datum_plane/face |
+| `body` | Ref | required | Ref: body |
+| `tool` | Ref | required | Ref: datum_plane/face |
 | `keep` | `back` \| `front` \| `both` | `"back"` | back: against the tool normal; front: along it; both: split |
 
 ### `nx_create_tube`
@@ -1542,7 +1542,7 @@ Sweep a circular tube (or rod) along a smooth (G1) path, as a new body or combin
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `path` | array[1-100] of Text or Text | required | One sketch, or connected curves and edges |
+| `path` | array[1-100] of Ref or Ref | required | One sketch, or connected curves and edges |
 | `outer_diameter` | number or string | required | Part units, or '10 mm'/'0.5 in' |
 | `inner_diameter` | number or string | `0.0` | 0 for a solid rod |
 | `combine` | object {operation, targets} | optional |  |
@@ -1555,26 +1555,26 @@ Edit faces of any solid, imported ones included (synchronous modeling). Move, of
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `faces` | array[1-200] of string | required |  |
+| `faces` | array[1-200] of Ref | required |  |
 | `action` | `move` \| `offset` \| `replace` \| `delete` \| `resize` \| `resize_blend` \| `resize_chamfer` \| `pattern` \| `mirror` \| `delete_blend` | required |  |
-| `distance` | Value | optional | move/offset (> 0: outward)/resize_chamfer |
-| `direction` | Point3 or string or object {principal} | optional | move/pattern direction or axis |
-| `replacement` | string | optional | Ref: face |
-| `diameter` | Value | optional | resize: cylinder/sphere diameter |
-| `angle` | Value | optional | resize: cone half angle |
-| `radius` | Value | optional | resize_blend radius; resize: diameter/2 |
+| `distance` | number or string | optional | move/offset (> 0: outward)/resize_chamfer |
+| `direction` | Point3 or Ref or object {principal} | optional | move/pattern direction or axis |
+| `replacement` | Ref | optional | Ref: face |
+| `diameter` | number or string | optional | resize: cylinder/sphere diameter |
+| `angle` | number or string | optional | resize: cone half angle |
+| `radius` | number or string | optional | resize_blend radius; resize: diameter/2 |
 | `pattern` | object {layout, count, spacing, angle, origin} | optional |  |
-| `plane` | string or object {principal} or object {origin, normal} | optional | mirror plane |
+| `plane` | Ref or object {principal} or object {origin, normal} | optional | mirror plane |
 
 ### `nx_edit_feature`
 
 **Edit feature** · effect `model` · NX 2406: tested; 45 checks in `acceptance/modeling/expression_natural_args.json`
 
-Set feature parameters to numbers or formulas, by expression name or alias (distance, radius, count). definition replaces a transform.
+Set feature parameters to numbers or formulas, by expression name or alias (distance, radius, count). nx_get_feature lists both for each parameter; p-names (p12) number the whole part, not the feature. A tube's diameters have no alias: NX describes the outer as Limit 1 and the inner as Limit 2. definition replaces a transform's (nx_create_transform) pose instead.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `feature` | string | required | Ref: feature |
+| `feature` | Ref | required | Ref: feature |
 | `parameters` | array[1-25] of object {name, value} | optional |  |
 | `definition` | object {transform} | optional |  |
 
@@ -1599,7 +1599,7 @@ Read a feature: type, timeline position, state, parents and children. Parameters
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `feature` | string | required | Ref: feature |
+| `feature` | Ref | required | Ref: feature |
 
 ### `nx_get_material`
 
@@ -1609,7 +1609,7 @@ Read the materials of bodies, the work part or the assembly with density and pro
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `bodies` | array[1-200] of string | optional |  |
+| `bodies` | array[1-200] of Ref | optional |  |
 | `scope` | `part` \| `assembly` | `"part"` | Without bodies: work part or components |
 
 ### `nx_import_expressions`
@@ -1639,12 +1639,12 @@ List NX library materials with category, density, mechanical and thermal data (n
 
 **List thread sizes** · effect `read` · NX 2406: tested; 48 checks in `acceptance/modeling/thread_natural_args.json`
 
-List NX thread standards, a standard's sizes, or one size's rows (diameters, tap drill and pitch per engagement). A size alone is looked up in Metric Coarse/Fine or Inch UNC/UNF.
+List NX thread standards, a standard's sizes, or one size's rows (diameters, tap drill and pitch per engagement). A size alone is looked up in Metric Coarse/Fine or Inch UNC/UNF. Values are in the standard's unit (inch standards in inches, whatever the part's unit).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `standard` | string | optional | e.g. 'Metric Coarse', 'UNC' |
-| `size` | string | optional | e.g. 'M6 x 1.0' or 'M6' |
+| `standard` | string | optional | 'Metric Coarse', 'Metric Fine', 'Inch UNC', 'Inch UNF'... (loose spelling) |
+| `size` | string | optional | 'M6' or 'M6 x 1.0' (metric), '1/4-20' (inch); case and spaces ignored |
 | `offset` | integer | `0` |  |
 | `limit` | integer | `50` |  |
 
@@ -1656,7 +1656,7 @@ Roll the timeline to a feature (a ref like f:12 from nx_list_objects), or to the
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `feature` | string | optional | Ref: feature |
+| `feature` | Ref | optional | Ref: feature |
 
 ### `nx_set_expression`
 
@@ -1678,11 +1678,11 @@ Move a feature directly before or after another: before or after alone, or ancho
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `feature` | Text | required | Ref: feature |
-| `anchor` | Text | optional | Ref: feature |
+| `feature` | Ref | required | Ref: feature |
+| `anchor` | Ref | optional | Ref: feature |
 | `position` | `before` \| `after` | optional |  |
-| `before` | Text | optional | Ref: feature |
-| `after` | Text | optional | Ref: feature |
+| `before` | Ref | optional | Ref: feature |
+| `after` | Ref | optional | Ref: feature |
 
 ### `nx_set_feature_suppression`
 
@@ -1692,7 +1692,7 @@ Suppress (suppressed: true) or unsuppress (false) features given as refs like f:
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `features` | array[1-100] of string | required |  |
+| `features` | array[1-100] of Ref | required |  |
 | `suppressed` | boolean | required |  |
 
 ### `nx_set_material`
@@ -1703,7 +1703,7 @@ Assign a library or custom density material to solid bodies, default all; reads 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `bodies` | array[1-200] of string | optional | Omit for every solid body |
+| `bodies` | array[1-200] of Ref | optional | Omit for every solid body |
 | `material` | string or object {library, custom} | required |  |
 
 ### `nx_update_model`
@@ -1763,7 +1763,7 @@ Create a topology optimization study (max stiffness at a mass fraction) on a sol
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `design_space` | string | required | Ref: body |
+| `design_space` | Ref | required | Ref: body |
 | `mass_fraction` | number | required | Target of design mass; 0.4 |
 | `material` | string | optional | Library name; default the body's |
 | `quality` | integer | optional | 1 fine..9 coarse; NX 5 |
@@ -1777,7 +1777,7 @@ List the work part's topology optimization studies, or describe one. Rows: desig
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `study` | string | optional | Ref: feature |
+| `study` | Ref | optional | Ref: feature |
 
 ### `nx_run_topology_study`
 
@@ -1787,7 +1787,7 @@ Solve a topology study with the NX optimizer (minutes) and load its optimized bo
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `study` | string | required | Ref: feature |
+| `study` | Ref | required | Ref: feature |
 
 ## parts_files
 
@@ -1801,7 +1801,7 @@ Show a loaded part in its own NX tab for the engineer. Not needed to work in it:
 | --- | --- | --- | --- |
 | `part` | string | required | Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name |
 | `work` | boolean | `true` |  |
-| `display` | boolean | optional | Show it in its own NX tab; calls never need it |
+| `display` | boolean | optional | Leave unset unless the engineer asked to see the part (true: its own NX tab). Calls never need it |
 | `force` | boolean | `false` | Go ahead although another agent may be working in it |
 
 ### `nx_close_part`
@@ -1835,9 +1835,9 @@ Create a new workspace part and load it. Calls reach it by part (its file name) 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `path` | string | required | New workspace .prt path |
+| `path` | string | required | New .prt file path (not a folder), e.g. 'proj/plate.prt' |
 | `units` | `mm` \| `in` | `"mm"` |  |
-| `display` | boolean | optional | Show it in its own NX tab; calls never need it |
+| `display` | boolean | optional | Leave unset unless the engineer asked to see the part (true: its own NX tab). Calls never need it |
 
 ### `nx_download_file`
 
@@ -1869,13 +1869,13 @@ Copy the saved work part and its component files to a new .zip or clone folder. 
 
 **Export model** · effect `file` · NX 2406: tested: iges, jt, parasolid, step, stl (untested: step_ap242); 40 checks in `acceptance/parts_files/export_model.json`
 
-Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only); the suffix picks the format. Unsaved changes are exported; the part is never saved. Work part = display part.
+Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only); the suffix picks the format. Unsaved changes are exported; the part is never saved. A part named by part is displayed for the export, then the tab shown before comes back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | Workspace path |
-| `format` | `step` \| `step_ap242` \| `stl` \| `iges` \| `parasolid` \| `jt` | optional | Default: from the path suffix; step_ap242 only when named |
-| `bodies` | array[1-200] of string | optional | Only these bodies |
+| `format` | `step` \| `step_ap242` \| `stl` \| `iges` \| `parasolid` \| `jt` | optional | Default: from the path suffix (.step/.stp: AP214); AP242 needs the STEP AP242 translator license |
+| `bodies` | array[1-200] of Ref | optional | Only these bodies |
 | `options` | object {binary, chordal_tolerance, angular_tolerance} | optional |  |
 
 ### `nx_export_profile`
@@ -1886,9 +1886,9 @@ Export a sketch or planar face as a 1:1 mm DXF R12 of lines, arcs and circles (n
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `source` | string | required | Sketch s:N or planar face fc:N ref (nx_list_objects); not a name |
+| `source` | Ref | required | Sketch s:N or planar face fc:N ref (nx_list_objects); not a name |
 | `path` | string | required | Workspace path (.dxf) |
-| `frame` | array[3] of array[3] of number | optional | [origin, x_axis, y_axis] in the source plane |
+| `frame` | array[3] of array[3] of number | optional | [origin, x_axis, y_axis] on the source plane; default: the sketch's, or a face point and X projected |
 | `layer` | string | `"0"` | DXF layer name |
 | `layers` | array[1-1000] of array[2] of any | optional | [ref, layer] pairs: sketch curves c:N or face edges e:N |
 
@@ -1900,7 +1900,7 @@ Read user attributes of the work part or of parts, bodies, faces, features and c
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[1-50] of string | optional | Default: the work part |
+| `objects` | array[1-50] of Ref | optional | Default: the work part |
 | `names` | array[1-100] of string | optional | Only these titles |
 | `include_system` | boolean | `false` | Also NX-owned attributes (NX_...) |
 
@@ -1916,7 +1916,7 @@ Import a CAD file into the work part, or into a new part (new_part_path) made wo
 | `format` | `step` \| `iges` \| `parasolid` \| `stl` \| `dxf_dwg` \| `catia_v5` | optional | Default: from the path suffix; catia_v5 only when named |
 | `target` | `work_part` \| `new_part` \| `sketch` | `"work_part"` |  |
 | `new_part_path` | string | optional | Workspace path (.prt) |
-| `sketch` | string | optional | target sketch: its X/Y take the file's X/Y |
+| `sketch` | Ref | optional | target sketch, finished (nx_finish_sketch): its X/Y take the file's X/Y |
 | `flatten` | boolean | `true` | STEP: false keeps the assembly structure as components |
 | `options` | object {sew, units} | optional |  |
 
@@ -1957,7 +1957,7 @@ Open a workspace .prt, or reuse it if loaded. Calls reach it by part (its file n
 | --- | --- | --- | --- |
 | `path` | string | required | Workspace .prt path |
 | `work` | boolean | `true` |  |
-| `display` | boolean | optional |  |
+| `display` | boolean | optional | Leave unset unless the engineer asked to see the part (true: its own NX tab). Calls never need it |
 | `load_components` | boolean | `false` | Fully load every component prototype |
 
 ### `nx_save_part`
@@ -1979,7 +1979,7 @@ Set user attributes of the work part or of parts, bodies, faces, features, compo
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[1-50] of string | optional | Default: the work part |
+| `objects` | array[1-50] of Ref | optional | Default: the work part |
 | `attributes` | object | optional | {title: value}, typed by value |
 | `values` | array[1-100] of object {name, value, type, category} | optional |  |
 | `delete` | array[1-100] of string | optional | Titles to remove first |
@@ -2025,7 +2025,7 @@ Ask a running call (nx_run_batch or another multi-step tool) to stop at its next
 
 **Create checkpoint** · effect `session` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
-Set an in-session undo checkpoint in the work part (restore by id or label). Its part's own save or close, the engineer's edits or an undo past it expire it; other parts' work never does. Disk saves are never rolled back.
+Set an in-session undo checkpoint in the work part (restore by id or label; a reused label restores its newest). Its part's own save or close, the engineer's edits or an undo past it expire it; other parts' work never does. Disk saves are never rolled back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2039,7 +2039,7 @@ Delete 1-100 objects (ids like f:12) of the work part in one undoable step. Kind
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `objects` | array[1-100] of string | required | Ids such as f:12 or s:3 to delete; mixed kinds allowed |
+| `objects` | array[1-100] of Ref | required | Ids such as f:12 or s:3 to delete; mixed kinds allowed |
 
 ### `nx_delete_results`
 
@@ -2104,7 +2104,7 @@ NX build, bridge state, panel mode, work and display part, workspace root and ru
 
 **List checkpoints** · effect `read` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
-List this session's checkpoints (with part: that part's) and the part's undo depth. Expired ones show available=false and expired_reason; compensated=true: a restore now deletes what the part made since instead of using NX's undo.
+List this session's checkpoints (with the part key: only that part's) and the part's undo depth. Expired ones show available=false and expired_reason; compensated=true: a restore now deletes what the part made since instead of using NX's undo.
 
 No arguments.
 
@@ -2133,7 +2133,7 @@ Repeat the part's agent calls an undo or checkpoint restore reverted, next first
 
 **Restore checkpoint** · effect `model` · NX 2406: tested; 41 checks in `acceptance/session/undo_survives_load.json`
 
-Roll the checkpoint's part back to it (id or label), undoing its agent operations since; it stays restorable. Other parts' later work makes it compensate (delete what the part made, set values back), refused when that does not qualify. Save to persist.
+Roll the checkpoint's part back to it (id or label), undoing its agent operations since. It stays restorable until it expires (nx_create_checkpoint says what expires it). Other parts' later work makes it compensate (delete what the part made, set values back), refused when that does not qualify. Save to persist.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2153,11 +2153,11 @@ Run 1-100 light calls (sketch, annotation, placement, rename) under one undo mar
 
 **Set name** · effect `model` · NX 2406: tested; 99 checks in `acceptance/session/history.json`
 
-Rename an object of the work part (feature, body, sketch, component) by its ref. Returns the name NX stored, often upper-cased; all references stay valid.
+Rename an object of the work part (feature, body, sketch, component) by its ref. Returns the name NX stored, often upper-cased; all references stay valid. A part is renamed by saving it as a new file (nx_save_part path).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `object` | string | required | Ref: any |
+| `object` | Ref | required | Ref: any |
 | `name` | string | required | 1-132 characters, no newlines; NX may upper-case it |
 
 ### `nx_undo_operation`
@@ -2183,8 +2183,8 @@ Place a Sheet Metal PMI callout with the measured thickness or bend data. Bend d
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `kind` | `body` \| `bend` | required |  |
-| `body` | string | required | Ref: body |
-| `faces` | array[1-50] of string | optional | Bend faces (kind=bend) |
+| `body` | Ref | required | Ref: body |
+| `faces` | array[1-50] of Ref | optional | Bend faces (kind=bend) |
 | `position` | array[3] of number | required | [x, y, z] absolute, part units |
 | `automatic` | boolean | `true` | Re-measure after model changes |
 
@@ -2246,7 +2246,7 @@ Export a Flat Pattern feature to a new DXF or Trumpf GEO file. Returns checksum,
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `flat_pattern` | string | required | Ref f:N: Flat Pattern |
+| `flat_pattern` | Ref | required | Ref f:N: Flat Pattern |
 | `path` | string | required | Workspace path (.dxf/.geo) |
 | `format` | `dxf` \| `geo` | optional | Default: path suffix |
 | `dxf` | object {revision, mold} | optional |  |
@@ -2261,7 +2261,7 @@ Read the sheet-metal facts of the work part's bodies, or of one body. Rows give 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `body` | string | optional | Ref b:N; default: all |
+| `body` | Ref | optional | Ref b:N; default: all |
 | `offset` | integer | `0` |  |
 | `limit` | integer | `20` |  |
 
@@ -2299,11 +2299,11 @@ Change the part's sheet-metal creation defaults. Omitted fields and existing fea
 
 **Check sketch conflicts** · effect `read` · NX 2406: tested; 54 checks in `acceptance/sketch/sketch_natural_args.json`
 
-Find the constraints behind an over- or inconsistently constrained sketch. Each is removed on trial (always undone) and the solver re-run; relieving lists those whose removal alone solves it.
+Find the constraints behind an over- or inconsistently constrained sketch. Each is removed on trial (always undone) and the solver re-run; relieving lists those whose removal alone solves it. Mainly for sketches already in conflict (e.g. imported): the sketch tools refuse conflicts.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
+| `sketch` | Ref | required | Ref: sketch |
 | `max_checks` | integer | `20` | Constraints to try removing |
 
 ### `nx_create_sketch`
@@ -2327,7 +2327,7 @@ Add 1-50 geometric constraints to a sketch; each is solved and checked on the ge
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
+| `sketch` | Ref | required | Ref: sketch |
 | `constraints` | array[1-50] of object {type, curves, points, centerline} | required | Fields per type: nx_get_tool_schemas(tool#type) |
 
 ### `nx_create_sketch_copy`
@@ -2338,12 +2338,12 @@ Copy sketch curves as an associative offset or mirror. Offsets of ellipses and s
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
-| `curves` | array[1-100] of string | required |  |
+| `sketch` | Ref | required | Ref: sketch |
+| `curves` | array[1-100] of Ref | required |  |
 | `mode` | `offset` \| `mirror` | required |  |
 | `distance` | number or string | optional | Part units, or '10 mm'/'0.5 in' |
 | `side` | `auto` \| `left` \| `right` \| `inside` \| `outside` | `"auto"` | left/right of the first curve, or inside/outside a closed loop |
-| `mirror_line` | string | optional | Sketch line or datum axis |
+| `mirror_line` | Ref | optional | Sketch line or datum axis |
 
 ### `nx_create_sketch_corner`
 
@@ -2353,9 +2353,9 @@ Fillet (radius) or chamfer (distance) the corner where two sketch curves meet; b
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
-| `first` | string | required | Ref: curve |
-| `second` | string | required | Ref: curve |
+| `sketch` | Ref | required | Ref: sketch |
+| `first` | Ref | required | Ref: curve |
+| `second` | Ref | required | Ref: curve |
 | `kind` | `fillet` \| `chamfer` | required |  |
 | `radius` | number or string | optional | Part units, or '10 mm'/'0.5 in' |
 | `distance` | number or string | optional | Chamfer cut along first |
@@ -2365,23 +2365,23 @@ Fillet (radius) or chamfer (distance) the corner where two sketch curves meet; b
 
 **Create sketch curves** · effect `model` · NX 2406: tested (all variants); 37 checks in `acceptance/sketch/sketch_polyline.json`
 
-Add 1-100 curves to a sketch: line, polyline, arc, circle, ellipse, rectangle, polygon, slot, rounded_rectangle. Sketch-local, plain numbers in part units and degrees. Curves are joined and read back; loops give each non-construction chain's closure (one inside another makes a hollow profile).
+Add 1-100 curves to a sketch, sketch-local in plain numbers (part units, degrees). Fields: line start, end; polyline points, closed; arc center, radius, start_angle, end_angle (CCW); circle center, radius; ellipse center, major/minor_radius; rectangle corner1, corner2; polygon center, sides, radius; slot center, width, height; rounded_rectangle center, width, height, radius; diameter can replace radius. The result's loops give each chain's closure (one inside another: hollow).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
-| `curves` | array[1-100] of object {type, start, end, center, corner1, corner2, radius, diameter, major_radius, minor_radius, width, height, start_angle, end_angle, rotation, sides, inscribed, points, closed} | required | Fields per type: nx_get_tool_schemas(tool#type) |
+| `sketch` | Ref | required | Ref: sketch |
+| `curves` | array[1-100] of object {type, start, end, center, corner1, corner2, radius, diameter, major_radius, minor_radius, width, height, start_angle, end_angle, rotation, sides, inscribed, points, closed} | required | Fields per type: see the description |
 | `construction` | boolean | `false` | Create construction (reference) curves |
 
 ### `nx_create_sketch_dimensions`
 
 **Add sketch dimensions** · effect `model` · NX 2406: tested (all variants); 52 checks in `acceptance/sketch/sketch_natural_ops.json`
 
-Add 1-50 driving or reference sketch dimensions; each returns its expression. The sketch is solved to every value and read back; fixed geometry never moves. Edit a value later with nx_set_expression.
+Add 1-50 driving or reference sketch dimensions; each returns its expression. The sketch is solved to every value and read back; fixed geometry never moves. horizontal/vertical measure the x/y extent (they do not make a line level). Edit a value later with nx_set_expression.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
+| `sketch` | Ref | required | Ref: sketch |
 | `dimensions` | array[1-50] of object {kind, first, second, value, origin, reference} | required | Fields per kind: nx_get_tool_schemas(tool#kind) |
 
 ### `nx_create_sketch_projection`
@@ -2392,8 +2392,8 @@ Bring model geometry into a sketch as associative curves that follow model chang
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
-| `objects` | array[1-200] of string | required | project: edges or curves; intersect: faces |
+| `sketch` | Ref | required | Ref: sketch |
+| `objects` | array[1-200] of Ref | required | project: edges or curves; intersect: faces |
 | `mode` | `project` \| `intersect` | optional | Default: intersect for faces, else project |
 
 ### `nx_edit_sketch_curves`
@@ -2404,7 +2404,7 @@ Apply 1-100 edits to sketch curves in order. Reshape a line or arc, trim or exte
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
+| `sketch` | Ref | required | Ref: sketch |
 | `edits` | array[1-100] of object {type, curve, start, end, center, radius, start_angle, end_angle, boundaries, pick, curves, on, object} | required | Fields per type: nx_get_tool_schemas(tool#type) |
 
 ### `nx_finish_sketch`
@@ -2415,7 +2415,7 @@ Finish a sketch (default: the part's open one) and update the model so features 
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | optional | Ref: sketch |
+| `sketch` | Ref | optional | Ref: sketch |
 
 ### `nx_get_sketch`
 
@@ -2425,5 +2425,5 @@ Read a sketch: frame, curves, constraints with dimension expressions, solver sta
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sketch` | string | required | Ref: sketch |
+| `sketch` | Ref | required | Ref: sketch |
 | `include` | array[1-3] of `geometry` \| `constraints` \| `status` | optional | Sections to return (default all) |

@@ -78,7 +78,10 @@ INFERRED: dict[str, ExportFormat] = {
     ".step": "step", ".stp": "step", ".stl": "stl", ".igs": "iges", ".iges": "iges",
     ".x_t": "parasolid", ".x_b": "parasolid", ".jt": "jt",
 }  # fmt: skip
-FORMAT_DOC = "Default: from the path suffix; step_ap242 only when named"
+FORMAT_DOC = (
+    "Default: from the path suffix (.step/.stp: AP214); AP242 needs the STEP AP242 translator "
+    "license"
+)
 
 
 class Bounds(TypedDict):
@@ -180,8 +183,8 @@ def nx_export_model(
 ) -> ExportData:
     """Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp
     (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only); the suffix
-    picks the format. Unsaved changes are exported; the part is never saved. Work part =
-    display part."""
+    picks the format. Unsaved changes are exported; the part is never saved. A part named by
+    part is displayed for the export, then the tab shown before comes back."""
     target = Path(path)
     suffix = target.suffix.lower()
     if format is None:

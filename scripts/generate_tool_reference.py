@@ -65,8 +65,14 @@ def type_of(node: dict, defs: dict) -> str:
         return " \\| ".join(f"`{value}`" for value in node["enum"])
     for key in ("anyOf", "oneOf"):
         if key in node:
-            return " or ".join(type_of(sub, defs) for sub in node[key])
+            numeric = any(sub.get("type") in ("integer", "number") for sub in node[key])
+            return " or ".join(
+                "string" if numeric and sub == {"type": "string"} else type_of(sub, defs)
+                for sub in node[key]
+            )
     kind = node.get("type")
+    if kind == "string" and not {"maxLength", "pattern", "enum", "format"} & set(node):
+        return "Ref"  # a reference: listings leave its bounds to gate 1 (a count's text: above)
     if isinstance(kind, list):
         return " or ".join(kind)
     if kind == "array":

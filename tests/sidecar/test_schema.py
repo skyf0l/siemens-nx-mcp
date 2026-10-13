@@ -16,8 +16,8 @@ import pytest
 from nx_mcp.core import catalogue
 from nx_mcp.core.catalogue import make_spec
 from nx_mcp.core.errors import NXError
-from nx_mcp.core.types import QUANTITY_MAX as T_QUANTITY_MAX
 from nx_mcp.core.types import (
+    OFFSET_MAX,
     Angle,
     Axis,
     Combine,
@@ -40,6 +40,7 @@ from nx_mcp.core.types import (
     SketchPoint,
     Text,
 )
+from nx_mcp.core.types import QUANTITY_MAX as T_QUANTITY_MAX
 from nx_mcp.core.validate import is_typeddict, is_union, typeddict_fields, unwrap, validate
 from nx_mcp.sidecar import schema
 
@@ -213,14 +214,39 @@ def test_schema_is_bounded_untitled_and_its_refs_resolve(spec):
         types = types if isinstance(types, list) else [types]
         if "array" in types:
             assert "maxItems" in node, path
-        if "string" in types:
-            assert "maxLength" in node or "enum" in node, path
+        if "string" in types and "maxLength" not in node and "enum" not in node:
+            # Only a reference or a quantity string goes without maxLength: gate 1 bounds
+            # them (test_gate_1_bounds_what_the_listing_leaves_out).
+            assert _ref_or_quantity(node), path
         if node.get("type") == "object" and "properties" in node:
             assert node.get("additionalProperties") is False, path
     assert generated["additionalProperties"] is False
     text = json.dumps(generated)
     for unshown in schema.LISTING_UNSHOWN_PATTERNS:  # gate 1 checks these
         assert json.dumps(unshown) not in text
+
+
+def _ref_or_quantity(node: dict) -> bool:
+    """A reference or quantity string: ``number | string``, or a string with nothing but a
+    description. The catalogue requires ``Text`` bounds on every other string, and the
+    listing drops ``maxLength`` only next to a reference pattern or from a quantity's
+    string (``schema._unshown_patterns``)."""
+    return node.get("type") == ["number", "string"] or set(node) <= {"type", "description"}
+
+
+def test_gate_1_bounds_what_the_listing_leaves_out():
+    """Ref and quantity strings lose maxLength in listings and the page offset its
+    maximum; both gate-1 validators (Pydantic and ``core.validate``) still refuse them."""
+    listed = schema.input_schema(SAMPLE, call_keys=False)["properties"]
+    assert "maximum" not in listed["offset"] and listed["limit"]["maximum"] == 200
+    assert "maxLength" not in listed["target"] and listed["name"]["maxLength"] == 64
+    for args in (
+        {"kind": "a", "target": "b:" + "1" * 200},
+        {"kind": "a", "length": "1" * (T_QUANTITY_MAX - 2) + " mm"},
+        {"kind": "a", "offset": OFFSET_MAX + 1},
+    ):
+        assert not accepts_pydantic(SAMPLE, args) and not accepts_core(SAMPLE, args), args
+    assert accepts_core(SAMPLE, {"kind": "a", "target": "b:41", "offset": OFFSET_MAX})
 
 
 def _strings(value):
@@ -256,7 +282,11 @@ def test_listed_schema_accepts_what_gate_1_accepts(spec):
         if accepts_pydantic(spec, args):
             assert listed_ok, (spec.name, args)
         elif listed_ok and "inf" not in repr(args):
-            assert {"x", "b:0", "10 deg", "10 mm"} & set(_strings(args)), (spec.name, args)
+            # "a" * 300: a ref or quantity string longer than gate 1 allows, and 10**9 a
+            # page offset over OFFSET_MAX: bounds the listing leaves to gate 1.
+            loose = {"x", "b:0", "10 deg", "10 mm", "a" * 300}
+            offset = 10**9 in args.values()
+            assert offset or loose & set(_strings(args)), (spec.name, args)
 
 
 def test_a_field_named_like_a_keyword_is_still_a_field():
@@ -278,7 +308,7 @@ def test_a_field_named_like_a_keyword_is_still_a_field():
         example={"pattern": "f:1"},
     )
     props = schema.input_schema(spec, call_keys=False)["properties"]
-    assert props["pattern"]["maxLength"] == 128 and "pattern" not in props["pattern"]
+    assert props["pattern"] == {"description": "Ref: any", "type": "string"}
     assert props["type"]["pattern"] == "^[a-z]+$"
     assert set(props) == {"pattern", "type", "anyOf"}
 
@@ -297,7 +327,7 @@ def test_unit_strings_refs_defaults_and_call_keys():
     length = props["length"]
     if "$ref" in length:  # a shared definition; the field keeps its own description
         length = {**generated["$defs"][length.pop("$ref").split("/")[-1]], **length}
-    assert length["type"] == ["number", "string"] and length["maxLength"] == T_QUANTITY_MAX
+    assert length["type"] == ["number", "string"] and "maxLength" not in length
     assert "mm" in length["description"] and "deg" in props["angle"]["description"]
     assert props["target"]["description"].startswith("Ref") and "pattern" not in props["target"]
     assert props["label"]["pattern"] == "^[a-z]+$"  # a tool's own pattern stays listed

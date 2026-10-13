@@ -82,8 +82,9 @@ def _hidden(services, part, args) -> bool:
 )
 def nx_get_camera(tx: Tx) -> CameraData:
     """Read the displayed view: camera rotation, origin, scale and rendering style, or the
-    shown drawing sheet. origin is what nx_set_camera takes back; view is a named view or
-    custom, view_angle the degrees off the nearest."""
+    shown drawing sheet. Always the displayed part's, whatever part names. origin is what
+    nx_set_camera takes back; view is a named view or custom, view_angle the degrees off
+    the nearest."""
     part = display.shown_part(tx)
     tx.frame = "display_part_absolute"
     out: CameraData = {"part": tx.ref(part, "part"), "interactive": not tx.session.IsBatch}
@@ -133,8 +134,10 @@ def nx_set_camera(
     zoom: Zoom | None = None,
     fit: bool = False,
 ) -> CameraData:
-    """Orient (orientation, view_from or rotation), pan, zoom or fit the model view; returns
-    restore_id. NX iso looks from (1,-1,1); view_from [-1,-1,1] shows a min-X front."""
+    """Orient, pan, zoom or fit the displayed part's model view (it must be the work part);
+    returns restore_id. Direction: one of orientation, view_from (+ up) or rotation. scale
+    is absolute, zoom a factor: not both; fit takes zoom, not origin or scale. NX iso looks
+    from (1,-1,1); view_from [-1,-1,1] shows a min-X front."""
     given = [n for n, v in (("orientation", orientation), ("view_from", view_from),
                             ("rotation", rotation)) if v is not None]  # fmt: skip
     if not given and origin is None and scale is None and zoom is None and not fit:

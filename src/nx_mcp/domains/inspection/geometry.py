@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from pathlib import PurePath
 from typing import Annotated, Any, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
@@ -81,6 +82,12 @@ GeometryType = Literal["any", "plane", "cylinder", "cone", "circle", "line"]
 Order = Literal["nearest", "highest", "lowest"]
 NORMAL_DOC = Doc("[x,y,z] or +z, -x, top...")
 Normal = Annotated[tuple[float, float, float], NORMAL_DOC] | Annotated[str, Text(8), NORMAL_DOC]
+# nx_find_geometry's normal: which faces it applies to (agents put it on edges).
+FIND_NORMAL_DOC = Doc("Planar faces facing [x,y,z] or +z, -x, top...")
+FindNormal = (
+    Annotated[tuple[float, float, float], FIND_NORMAL_DOC]
+    | Annotated[str, Text(8), FIND_NORMAL_DOC]
+)
 # A short ref or a row's anchor (no pattern here: resolve_owner explains a bad value).
 OwnerRef = Annotated[
     str, Text(400), RefKind("body", "feature", "component"),
@@ -89,9 +96,14 @@ OwnerRef = Annotated[
 # nx_find_geometry also takes a face: its edges (as nx_list_objects lists them).
 FIND_OWNER_KINDS = (*common.TARGET_KINDS, "face")
 FindOwnerRef = Annotated[
-    str, Text(400), RefKind(*FIND_OWNER_KINDS), Doc("body/feature/component; face: its edges")
+    str, Text(400), RefKind(*FIND_OWNER_KINDS),
+    Doc("body/feature/component; a face: its edges (kind edge)"),
+]  # fmt: skip
+AnchorText = Annotated[
+    str,
+    Text(400),
+    Doc("Anchor '@...' (nx_create_anchor, a result row), or a ref like fc:12 to check"),
 ]
-AnchorText = Annotated[str, Text(400), Doc("Anchor '@...' from nx_create_anchor or a result row")]
 
 
 SelectorText = Annotated[str, Text(2000), Doc("selector from nx_find_geometry (text or object)")]
@@ -105,7 +117,9 @@ SELECTOR_KEYS = {
 OPTIONAL_SELECTOR_KEYS = {"owner", "owner_kind", "normal", "radius", "near", "role", "parallel"}
 PLANE_NORMALS = {"xy": "z", "yz": "x", "xz": "y"}
 Parallel = Annotated[
-    Literal["x", "y", "z", "xy", "yz", "xz"], Aliases(zx="xz", yx="xy", zy="yz")
+    Literal["x", "y", "z", "xy", "yz", "xz"],
+    Aliases(zx="xz", yx="xy", zy="yz"),
+    Doc("Line edges along an axis or in a plane"),
 ]  # an axis (lines along it) or a principal plane (lines across its normal)
 
 
@@ -434,7 +448,7 @@ def nx_find_geometry(
     owner: FindOwnerRef | None = None,
     kind: Literal["face", "edge", "body"] = "face",
     geometry_type: GeometryType = "any",
-    normal: Normal | None = None,
+    normal: FindNormal | None = None,
     radius: Annotated[float, Range(gt=0)] | None = None,
     role: Literal["bore", "boss"] | None = None,
     near: Point3 | None = None,
@@ -445,8 +459,9 @@ def nx_find_geometry(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> FindData:
-    """Find faces/edges/bodies by type, normal, radius, role. parallel: edges along an
-    axis/plane. Ranked: near or normal/axis."""
+    """Find faces, edges or bodies by type, normal, radius or role. Ranked nearest to near,
+    else outermost along normal, else lowest along axis. Drawing-view edges:
+    nx_list_view_edges."""
     common.note_exploded(tx)
     want = direction(normal) if normal is not None else None
     # Without an axis: the normal's main axis, else z; without an order: nearest to near,
@@ -761,7 +776,7 @@ def _same_part(tx, path, field):
             "NX_WRONG_OWNER",
             f"{path} is not the work part",
             field=field,
-            hint="Activate the part the anchor or selector was made in",
+            hint=f"Call again with part={PurePath(str(path)).name!r}, the part it was made in",
         )
 
 
@@ -840,11 +855,15 @@ def _parse_selector(text):
         extra = sorted(set(value) - SELECTOR_KEYS) if isinstance(value, dict) else []
         what = f" (missing {', '.join(missing)})" if missing else ""
         what += f" (unknown {', '.join(extra)})" if extra else ""
+        ref = isinstance(text, str) and re.match(REF_PATTERN, text.strip())
         fail(
             "NX_INVALID_ARGUMENT",
             f"Not a selector{what}: pass the selector of an nx_find_geometry result unchanged, "
             "as text or as an object",
             field="/selector",
+            hint=f'A ref goes in anchor: {{"anchor": "{text.strip()}"}}'
+            if ref
+            else "Selectors are not written by hand: run nx_find_geometry and pass its selector",
         )
     return value
 
@@ -880,8 +899,9 @@ def nx_resolve_reference(
     anchor: AnchorText | None = None,
     tie_tolerance: Annotated[float, Range(gt=0), Doc("Rank gap that counts as a tie")] = 0.001,
 ) -> ResolveData:
-    """Turn a selector from nx_find_geometry, an anchor or a live id into a current
-    reference. A selector re-runs its rule and fails on a tie."""
+    """Turn a selector from nx_find_geometry (passed unchanged) or an anchor into a current
+    reference. A selector re-runs its rule and fails on a tie. anchor also takes a ref such
+    as fc:12: it is checked and returned if still valid."""
     # A value given to the other field by mistake is still unambiguous: an anchor starts
     # with '@', a selector is a JSON object.
     if anchor is None and isinstance(selector, str) and selector.lstrip().startswith("@"):

@@ -14,7 +14,8 @@
 - Unknown tool names (``nx_fillet_edges``) are answered with tools found by their
   words (fillet -> nx_create_blend) as well as close spellings.
 - ``nx_get_tool_schemas``: input schema, example, prerequisites and evidence for
-  1-10 tools or variants (``nx_create_datum_plane#offset``).
+  1-10 tools or variants (``nx_create_datum_plane#offset``); several variants of one
+  tool come as one entry (``server.group_variants``).
 - ``nx_invoke``: call any tool; ``intent`` is shown in the NX panel.
 - ``nx_invoke_read``: the same for read tools only; others are refused before
   their arguments are validated, so hosts can auto-approve it.
@@ -518,7 +519,9 @@ DESCRIPTIONS = {
     ),
     "nx_get_tool_schemas": (
         "Exact input schemas, examples, prerequisites and evidence for 1-10 tools; output "
-        "schemas on request."
+        "schemas on request. Several variants of one tool ('tool#a', 'tool#b') come as one "
+        "entry: input_schema holds what they share; variants.<v>.input_schema adds v's "
+        "properties and required."
     ),
     "nx_invoke": (
         "Call any NX tool with its exact arguments; the kernel checks and undoes failures."
@@ -537,5 +540,7 @@ def tool_schema(name: str) -> dict:
         prop = schema._without_null(prop)
         if "default" in prop and prop["default"] is None:
             prop = {k: v for k, v in prop.items() if k != "default"}
+        if key == "offset":  # the model bounds it; no agent pages that far (schema.OFFSET_MAX)
+            prop = {k: v for k, v in prop.items() if k != "maximum"}
         out["properties"][key] = prop
     return out

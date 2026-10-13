@@ -399,10 +399,11 @@ def nx_create_drawing_view(
     direction: Annotated[
         Literal["right", "left", "top", "bottom"],
         Aliases(DIRECTION_ALIASES),
-        Doc("Projected: side of the parent on the sheet; position must lie on that side"),
+        Doc("Projected: the side of the parent the view goes on"),
     ]
     | None = None,
-    spacing: Annotated[float, Range(gt=0), Doc("Gap between borders")] | None = None,
+    spacing: Annotated[float, Range(gt=0), Doc("Projected: gap between borders, sheet units")]
+    | None = None,
     hinge: EdgeRef | None = None,
     cut: EdgeRef | None = None,
     cut_point: Literal["start", "end", "center"] = "start",
@@ -421,8 +422,12 @@ def nx_create_drawing_view(
     position: SheetPoint | None = None,
     scale: ScaleArg | None = None,
 ) -> ViewData:
-    """Place a drawing view at a verified sheet point; broken and break_out cut the parent.
-    Derived views keep the parent scale."""
+    """Place a drawing view at a sheet point (position: the view's reference point, sheet
+    units). Projected: parent plus orientation (the view to show, e.g. top; the projection
+    angle picks the side) or direction (the side of the parent it goes on). It
+    stays aligned with the parent: give spacing (border gap, default 20 mm) or a position whose
+    x (right/left) or y (top/bottom) lies past the parent's on that side and on the sheet.
+    Derived views keep the parent scale; broken and break_out cut the parent."""
     a = {**locals(), "scale": scale_value(scale)}
     out = _create(tx, type, a)
     if type not in ("broken", "break_out"):  # those cut the parent view in place
@@ -914,8 +919,9 @@ def nx_edit_drawing_view(
     style: ViewStyle | None = None,  # noqa: A002 - surface name
 ) -> ViewInfo:
     """Move a drawing view, change its scale or its display style (fonts 0-7, 0 invisible).
-    Projected views made from it follow a scale change, keeping their gap (rescaled). Every
-    change is read back."""
+    Projected views made from it follow a scale change, keeping their gap (rescaled); a
+    projected view itself keeps its parent's scale (rescale the parent) and moves only along
+    the axis away from its parent. Every change is read back."""
     changes = {k: v for k, v in (style or {}).items() if v is not None}
     ratio = scale_value(scale)
     if position is None and ratio is None and not changes:
@@ -946,6 +952,16 @@ def nx_edit_drawing_view(
         if rescaled:
             out["rescaled"] = rescaled
     if ratio is not None:
+        if out["type"] == "projected" and not abs(out["scale"] - ratio) <= 1e-8:
+            fail(
+                "NX_VERIFICATION_FAILED",
+                f"NX kept this projected view at scale {out['scale']:g}, not {ratio:g}: a "
+                "projected view follows its parent's scale",
+                hint="Rescale the parent view with nx_edit_drawing_view; its projected views "
+                "follow, keeping their gap",
+                details={"check": "scale", "actual": out["scale"], "wanted": ratio,
+                         "parent": out["parent"]},
+            )  # fmt: skip
         readback.expect_close(out["scale"], ratio, "scale", 1e-8)
     if position is not None:
         tol = units.tolerance(units.sheet_units(tx, sheet), 1e-4)

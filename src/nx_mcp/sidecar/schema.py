@@ -8,10 +8,12 @@ the same metadata into
   accepts and rejects exactly what :func:`nx_mcp.core.validate.validate` does;
 - the tool's JSON Schema for listings and ``nx_get_tool_schemas``, kept compact
   (tool-surface 1.7): bounded arrays and strings, no titles; references are
-  bounded strings whose description names the accepted kinds and quantities are
+  strings whose description names the accepted kinds and quantities are
   ``number | string`` with the unit spelled in the description (their regular
-  expressions are checked by gate 1, Pydantic here and ``core.validate`` in NX,
-  not repeated in every listing); a subschema that occurs more than once (a
+  expressions and lengths, and the page offset's upper bound, are checked by
+  gate 1, Pydantic here and ``core.validate`` in NX, not repeated in every
+  listing: an agent copies a server-issued ref and writes '10 mm', it never
+  needs their bounds); a subschema that occurs more than once (a
   ``Plane``, ``Length`` or ``Point3`` used by several fields) is shared once
   under ``$defs`` when that makes the definition shorter;
 - the output schema of the result envelope, ``data`` derived from the returned
@@ -42,6 +44,7 @@ from pydantic import (
 from nx_mcp.core import types as core_types
 from nx_mcp.core.receipts import OPERATION_ID_CHARS, OPERATION_ID_MAX, OPERATION_ID_MIN
 from nx_mcp.core.types import (
+    OFFSET_MAX,
     QUANTITY_MAX,
     QUANTITY_PATTERNS,
     REF_PATTERN,
@@ -80,7 +83,8 @@ OPERATION_ID = {
     "pattern": OPERATION_ID_CHARS,
 }
 INTENT = {"type": "string", "maxLength": 120}
-# Regular expressions gate 1 checks but listings omit (references, unit strings).
+# Regular expressions gate 1 checks but listings omit (references, unit strings); a
+# string carrying one of them also loses its ``maxLength`` (gate 1 checks it too).
 LISTING_UNSHOWN_PATTERNS = frozenset({REF_PATTERN, *QUANTITY_PATTERNS.values()})
 # Core types named in ``$defs`` when shared (others are named after their field).
 NAMED_TYPES = (
@@ -437,11 +441,26 @@ def _hoist_description(schema: dict) -> dict:
     return schema
 
 
-def _unshown_patterns(node, *, in_properties: bool = False):
-    """Drop reference and unit-string patterns (gate 1 checks them) from a listing.
+def _is_quantity_string(node) -> bool:
+    """The string half of a quantity: ``{"type": "string", "maxLength": QUANTITY_MAX}``."""
+    return isinstance(node, dict) and node == {"type": "string", "maxLength": QUANTITY_MAX}
 
-    A quantity's ``number | string`` pair then reads ``type: [number, string]``;
-    ``maxLength`` constrains only the string, so the meaning is unchanged.
+
+def _numeric(node) -> bool:
+    return isinstance(node, dict) and node.get("type") in ("number", "integer")
+
+
+def _unshown_patterns(node, *, in_properties: bool = False):
+    """Drop from a listing what gate 1 checks but an agent never uses.
+
+    - Reference and unit-string patterns, with the reference's ``maxLength`` (refs are
+      server-issued: an agent copies them, it never writes one).
+    - A quantity string's ``maxLength`` (``'10 mm'``, ``'thickness/2'``): its
+      ``number | string`` pair then reads ``type: [number, string]``.
+    - The page offset's upper bound (``OFFSET_MAX``), which no agent reaches.
+
+    Gate 1 (the Pydantic adapter of :func:`adapter` and ``core.validate``) still checks
+    every one of them; only the listed JSON Schema is shorter.
     """
     if isinstance(node, list):
         return [_unshown_patterns(v) for v in node]
@@ -449,25 +468,34 @@ def _unshown_patterns(node, *, in_properties: bool = False):
         return node
     if in_properties:  # a map of field names, any of which may be called "pattern"
         return {k: _unshown_patterns(v) for k, v in node.items()}
+    pattern = node.get("pattern")
+    unshown = isinstance(pattern, str) and pattern in LISTING_UNSHOWN_PATTERNS
+    offset = node.get("type") == "integer" and node.get("maximum") == OFFSET_MAX
     out = {
         k: _unshown_patterns(v, in_properties=k in ("properties", "$defs"))
         for k, v in node.items()
-        if not (k == "pattern" and isinstance(v, str) and v in LISTING_UNSHOWN_PATTERNS)
+        if not (k in ("pattern", "maxLength") and unshown) and not (k == "maximum" and offset)
     }
     branches = out.get("anyOf")
-    if (
-        isinstance(branches, list)
-        and len(branches) == 2
-        and {"type": "number"} in branches
-        and any(
-            isinstance(b, dict) and b.get("type") == "string" and set(b) <= {"type", "maxLength"}
-            for b in branches
+    if isinstance(branches, list) and any(_numeric(b) for b in branches):
+        branches = [{"type": "string"} if _is_quantity_string(b) else b for b in branches]
+        out["anyOf"] = branches
+        text = next(
+            (
+                b
+                for b in branches
+                if isinstance(b, dict)
+                and b.get("type") == "string"
+                and set(b) <= {"type", "maxLength"}
+            ),
+            None,
         )
-    ):
-        text = next(b for b in branches if b.get("type") == "string")
-        rest = {k: v for k, v in out.items() if k != "anyOf"}
-        out = {"type": ["number", "string"], **{k: v for k, v in text.items() if k != "type"}}
-        out.update(rest)
+        if len(branches) == 2 and {"type": "number"} in branches and text is not None:
+            # number | string reads type: [number, string]; a maxLength left (a text that is
+            # not a quantity) constrains only the string, so the meaning is unchanged.
+            rest = {k: v for k, v in out.items() if k != "anyOf"}
+            out = {"type": ["number", "string"], **{k: v for k, v in text.items() if k != "type"}}
+            out.update(rest)
     return out
 
 
@@ -519,7 +547,7 @@ def _known_names() -> dict:
     """Canonical subschema -> core type name, for readable ``$defs`` keys. A subschema
     two core types share (``Length`` and ``Angle`` without their descriptions) gets no
     core name: an angle field must not point at ``#/$defs/Length``."""
-    names = {_key({"maxLength": 128, "type": "string"}): "Ref"}
+    names: dict = {}  # a reference is a bare string: named "Text" if ever shared
     shared: set = set()
     for name in NAMED_TYPES:
         hint = getattr(core_types, name)
@@ -536,6 +564,8 @@ def _known_names() -> dict:
 
 def _def_name(body: dict, taken: set) -> str:
     name = _known_names().get(_key(body))
+    if body.get("type") == "string" and set(body) <= {"type", "description"}:
+        name = "Ref"  # every other string has bounds (listings leave a ref's to gate 1)
     if name is None:  # named by its JSON type: a field name could mislead other fields
         kind = body.get("type")
         name = {

@@ -65,7 +65,9 @@ from nx_mcp.kit import units as kit_units
 
 TEMPLATES = {"mm": "model-plain-1-mm-template.prt", "in": "model-plain-1-inch-template.prt"}
 # A Doc placed before PathTo/RefTo wins over their generic "Workspace path"/"Ref: part".
-PartPath = Annotated[str, Doc("New workspace .prt path"), PathTo("new", ".prt")]
+PartPath = Annotated[
+    str, Doc("New .prt file path (not a folder), e.g. 'proj/plate.prt'"), PathTo("new", ".prt")
+]
 # A ref, or a loaded part's file (matched against the loaded parts only; nothing is read).
 LoadedPart = Annotated[
     str, Text(260), Doc("Ref 'p:N' from nx_list_parts, or a loaded part's workspace path or name")
@@ -77,7 +79,10 @@ SaveAsPath = Annotated[
     str, Doc("New .prt to save as; omit to save in place"), PathTo("replace", ".prt")
 ]
 REF_HINT = "Use the part's current ref from nx_list_parts; a reopened part gets a new ref"
-TAB_DOC = "Show it in its own NX tab; calls never need it"
+TAB_DOC = (
+    "Leave unset unless the engineer asked to see the part (true: its own NX tab). Calls never "
+    "need it"
+)
 
 
 class PartData(TypedDict):
@@ -355,7 +360,7 @@ def nx_open_part(
     *,
     path: Annotated[str, Doc("Workspace .prt path"), PathTo("read", ".prt")],
     work: bool = True,
-    display: bool | None = None,
+    display: Annotated[bool, Doc(TAB_DOC)] | None = None,
     load_components: Annotated[bool, Doc("Fully load every component prototype")] = False,
 ) -> OpenData:
     """Open a workspace .prt, or reuse it if loaded. Calls reach it by part (its file

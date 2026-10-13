@@ -93,6 +93,12 @@ HOOKS = ("lister", "deleter", "definition", "refresher", "sheet", "restorer")
 TARGETS = ("refs", "assembly", "sheet", "display", "any", "creates", "none", "resolver")
 SWITCHES = ("none", "work", "display")
 _DOMAIN_PACKAGE = "nx_mcp.domains."
+# Text limits (tool-surface 1.7). They catch filler, never a rule an agent needs: a failed
+# call and its retry cost far more tokens than a sentence that prevents it.
+LABEL_MAX = 48
+FIRST_SENTENCE_MAX = 120  # what the tool does, in engineer terms
+DESCRIPTION_MAX = 500  # then the non-obvious constraints
+FIELD_DOC_MAX = 120  # units, frame, range, the field's one gotcha
 
 
 class CatalogueError(Exception):
@@ -284,8 +290,8 @@ def _check_hint(hint, where: str, problems: list[str], *, seen=None) -> None:
     seen = seen if seen is not None else set()
     base, markers = unwrap(hint)
     doc = markers.get(Doc)
-    if doc is not None and len(doc.text) > 80:
-        problems.append(f"{where}: Doc longer than 80 characters")
+    if doc is not None and len(doc.text) > FIELD_DOC_MAX:
+        problems.append(f"{where}: Doc longer than {FIELD_DOC_MAX} characters")
     if RefKind in markers:
         unknown = [k for k in markers[RefKind].kinds if k not in KINDS and k not in KIND_GROUPS]
         if unknown:
@@ -446,15 +452,15 @@ def make_spec(
         elif item not in REQUIRES:
             problems.append(f"unknown requires {item!r}")
     # Budgets (surface 1.7).
-    if not label or len(label) > 48:
-        problems.append("label must be 1-48 characters")
+    if not label or len(label) > LABEL_MAX:
+        problems.append(f"label must be 1-{LABEL_MAX} characters")
     description = normalise_doc(fn.__doc__)
     if not description:
         problems.append("the docstring is the description and is required")
-    elif len(first_sentence(description)) > 120:
-        problems.append("description first sentence exceeds 120 characters")
-    if len(description) > 300:
-        problems.append("description exceeds 300 characters")
+    elif len(first_sentence(description)) > FIRST_SENTENCE_MAX:
+        problems.append(f"description first sentence exceeds {FIRST_SENTENCE_MAX} characters")
+    if len(description) > DESCRIPTION_MAX:
+        problems.append(f"description exceeds {DESCRIPTION_MAX} characters")
     keywords = tuple(keywords)
     if not 3 <= len(keywords) <= 8 or len(set(keywords)) != len(keywords):
         problems.append("keywords: 3-8 distinct entries")

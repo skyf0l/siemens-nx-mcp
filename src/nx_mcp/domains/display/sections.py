@@ -78,7 +78,16 @@ def _plane(plane, offset, current=None):
         text = plane.strip()
         sign = -1.0 if text.startswith("-") else 1.0
         name = re.sub(r"(?i)\s*plane$", "", text.lstrip("+-"))
-        name = choice(name, tuple(PRINCIPALS), "/plane", PLANE_ALIASES)
+        try:
+            name = choice(name, tuple(PRINCIPALS), "/plane", PLANE_ALIASES)
+        except NXError as error:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                str(error),
+                field="/plane",
+                hint="Name 'xy', 'yz' or 'xz' with offset (a leading '-' flips the normal: '-xz'), "
+                "or give {origin: [x, y, z], normal: [x, y, z]}",
+            )
         axis = PRINCIPALS[name]
         return [float(offset or 0.0) * v for v in axis], [sign * v for v in axis]
     spec = dict(plane or {})
@@ -318,7 +327,8 @@ def nx_edit_section_view(
     cap: bool | None = None,
 ) -> SectionData:
     """Move a section plane, switch its cap, or enable/disable it. A plane with only origin
-    or normal keeps the other; offset shifts along the normal."""
+    or normal keeps the other. offset moves the given or current origin along the normal
+    (relative); with a plane name it is the absolute position, as on create."""
     if plane is None and offset is None and enabled is None and cap is None:
         fail("NX_INVALID_ARGUMENT", "Give plane, offset, enabled or cap", field="/plane")
     with tx.checks():

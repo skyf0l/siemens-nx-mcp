@@ -493,7 +493,10 @@ def nx_import_model(
     format: Annotated[ImportFormat, Doc(FORMAT_DOC)] | None = None,
     target: Literal["work_part", "new_part", "sketch"] = "work_part",
     new_part_path: Annotated[str, PathTo("new", ".prt")] | None = None,
-    sketch: Annotated[SketchRef, Doc("target sketch: its X/Y take the file's X/Y")] | None = None,
+    sketch: Annotated[
+        SketchRef, Doc("target sketch, finished (nx_finish_sketch): its X/Y take the file's X/Y")
+    ]
+    | None = None,
     flatten: Annotated[bool, Doc("STEP: false keeps the assembly structure as components")] = True,
     options: ImportOptions | None = None,
 ) -> ImportData:

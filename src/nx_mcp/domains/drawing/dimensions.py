@@ -32,6 +32,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     REF_PATTERN,
     DimensionRef,
+    Doc,
     EdgeRef,
     FeatureRef,
     Items,
@@ -605,8 +606,12 @@ class DimensionTolerance(TypedDict, total=False):
     upper: float
     lower: float
     decimals: int
-    hole: Annotated[str, Text(4)]
-    shaft: Annotated[str, Text(4)]
+    hole: Annotated[
+        str,
+        Text(4),
+        Doc("Fit hole class D E F G H JS K M N P, grade 5-11 (K M N up to 8, P up to 7), e.g. H7"),
+    ]
+    shaft: Annotated[str, Text(4), Doc("Fit shaft class d e f g h js k m n p, grade 5-11, e.g. g6")]
     display: Literal["symbol", "deviations", "symbol_and_deviations", "symbol_and_limits"]
 
 
@@ -983,8 +988,9 @@ def nx_edit_dimension(
     edges: Annotated[list[EdgeRef], Items(1, 2)] | None = None,
 ) -> DimensionInfo:
     """Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (read
-    back in objects). upper/lower: signed numbers in part units; symmetric takes upper
-    (+/-). Fit: ISO 286 hole/shaft class (H7, g6); limits are checked."""
+    back in objects). upper/lower: signed numbers in part units, upper > lower; symmetric
+    takes upper (+/-). Fit: ISO 286 hole and/or shaft class on a size shown in mm (up to
+    500 mm, not an angle); NX computes the deviations (no upper/lower) and they are checked."""
     if not format and not tolerance and not edges:
         fail("NX_INVALID_ARGUMENT", "Give format, tolerance or edges")
     fit = bool(tolerance and tolerance.get("type") == "fit")

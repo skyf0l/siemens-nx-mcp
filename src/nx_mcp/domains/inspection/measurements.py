@@ -146,7 +146,15 @@ def _direction(tx, obj, kind, field):
         return geom.unit(geom.xyz(obj.Normal), field)
     code, _point, normal = select.face_data(tx, obj)
     if code != select.FACE_PLANE:
-        fail("NX_WRONG_GEOMETRY", "Select a planar face", field=field)
+        fail(
+            "NX_WRONG_GEOMETRY",
+            "Select a planar face",
+            field=field,
+            hint="For a cylinder's axis: nx_find_geometry gives its axis; measure a straight "
+            "edge along it, or a datum axis made there (nx_create_datum_axis)"
+            if code == select.FACE_CYLINDER
+            else None,
+        )
     return geom.unit(normal, field)
 
 

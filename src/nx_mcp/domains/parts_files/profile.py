@@ -37,7 +37,13 @@ XYZ = tuple[float, float, float]
 
 
 # [origin, x_axis, y_axis] in work-part coordinates; [curve or edge ref, layer name].
-Frame = Annotated[tuple[XYZ, XYZ, XYZ], Doc("[origin, x_axis, y_axis] in the source plane")]
+Frame = Annotated[
+    tuple[XYZ, XYZ, XYZ],
+    Doc(
+        "[origin, x_axis, y_axis] on the source plane; default: the sketch's, or a face point "
+        "and X projected"
+    ),
+]
 LayerOverride = tuple[Annotated[str, Text(128), RefKind("curve", "edge")], Annotated[str, Text(64)]]
 
 

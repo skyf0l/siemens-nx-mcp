@@ -24,7 +24,8 @@ the limit value is bisected between that step and the clear one before.
 
 Everything happens inside ``tx.scratch()``: the moves and constraint values are undone
 and every component is read back at its pose from before the sweep. NX Motion is not
-used: its solver is not licensed on the reference seat (``kit.kinematics`` notes).
+used: it needs a Motion solver license, and without one NX blocks on a license dialog
+(``kit.kinematics`` notes).
 """
 
 from __future__ import annotations

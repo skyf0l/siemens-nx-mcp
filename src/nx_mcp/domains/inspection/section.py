@@ -399,7 +399,7 @@ def nx_measure_section(
 ) -> SectionData:
     """Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the model is
     unchanged. Loops: role, area, box, 2D lines/arcs. radial_axis z cuts xz, x or y cut xy:
-    radius spans per axial station (at)."""
+    radius spans per axial station (at), from that one cut: for revolved parts."""
     common.note_exploded(tx)
     given = [n for n, v in (("plane", plane), ("normal", normal), ("radial_axis", radial_axis))
              if v is not None]  # fmt: skip

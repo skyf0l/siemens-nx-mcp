@@ -79,7 +79,8 @@ def _forget_anchor(tx: Tx, ref: str) -> None:
 )
 def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: A002
     """Rename an object of the work part (feature, body, sketch, component) by its ref.
-    Returns the name NX stored, often upper-cased; all references stay valid."""
+    Returns the name NX stored, often upper-cased; all references stay valid. A part is
+    renamed by saving it as a new file (nx_save_part path)."""
     with tx.checks():
         _check(name)
         obj = tx.resolve(object)

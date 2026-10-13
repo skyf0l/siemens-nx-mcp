@@ -271,3 +271,11 @@ def test_a_tabular_note_reads_and_edits_as_the_table_that_shows_it():
     assert edit.data["rows"] == [["B", "Next"]]
     both = run(nx, "nx_get_drawing_table", table=ref, sheet=nx.sheet_obj.ref)
     assert both.error["field"] == "/sheet" and "not both" in both.error["message"]
+
+
+def test_reading_neither_table_nor_sheet_names_both_routes():
+    nx = grid_nx()
+    bad = run(nx, "nx_get_drawing_table")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/table"
+    assert "nx_list_objects kind=drawing_table" in bad.error["hint"]
+    assert "title block" in bad.error["hint"]

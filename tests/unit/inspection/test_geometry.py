@@ -431,3 +431,16 @@ def test_face_owner_gives_the_faces_edges_and_a_handle_selector():
     assert 'kind "edge"' in faces.error["hint"]
     holes = run(nx, "nx_find_holes", owner=top.ref)
     assert holes.error["code"] == "NX_WRONG_KIND"
+
+
+def test_resolve_errors_say_where_a_ref_or_another_part_goes():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    top = _top(nx, body)
+    in_selector = run(nx, "nx_resolve_reference", selector=top.ref)
+    assert in_selector.error["code"] == "NX_INVALID_ARGUMENT"
+    assert in_selector.error["hint"] == f'A ref goes in anchor: {{"anchor": "{top.ref}"}}'
+    by_hand = run(nx, "nx_resolve_reference", selector={"kind": "face", "normal": "+z"})
+    assert "run nx_find_geometry" in by_hand.error["hint"]
+    other = run(nx, "nx_resolve_reference", anchor="@smoke/a/other.prt:face=RM1 R1")
+    assert other.error["code"] == "NX_WRONG_OWNER" and "part='other.prt'" in other.error["hint"]

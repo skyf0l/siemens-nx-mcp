@@ -168,6 +168,7 @@ def test_create_errors_say_what_to_send():
     nx = display_nx()
     bad = run(nx, "nx_create_section_view", plane="xq")
     assert bad.error["field"] == "/plane" and "'xy'" in bad.error["hint"]
+    assert "'-xz'" in bad.error["hint"] and "normal: [x, y, z]" in bad.error["hint"]
     assert bad.mutation_outcome == "not_started"
     near = run(nx, "nx_create_section_view", plane="xzz")
     assert "did you mean 'xz'" in near.error["message"]

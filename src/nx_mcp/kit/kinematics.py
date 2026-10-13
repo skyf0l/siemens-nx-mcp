@@ -9,9 +9,9 @@
 
 NX 2406 findings encoded here:
 
-- The Simcenter 3D Motion solver (license feature ``sc_motion_solver``) is not licensed
-  on the reference seat, and a new motion simulation takes NX's customer default solver
-  (``CAE_DefaultMotionSolverType`` = ``LmsSolver``): creating one opens the blocking
+- A new motion simulation takes NX's customer default solver
+  (``CAE_DefaultMotionSolverType`` = ``LmsSolver``, the Simcenter 3D Motion solver, license
+  feature ``sc_motion_solver``): without that license, creating one opens the blocking
   "Change Solver" license dialog. Sweeps therefore move the assembly itself: a rigid
   rotation or translation of components, or an assembly constraint's angle or distance
   driven through the positioner (its solver closes linkage loops).

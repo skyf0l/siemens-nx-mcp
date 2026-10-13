@@ -64,11 +64,25 @@ VALUED = ("distance", "angle")
 WHOLE = ("fix", "bond")
 NO_ALIGNMENT = ("fix", "bond", "fit", "center_1_2", "center_2_2")
 Geometry = Annotated[str, RefTo("face", "edge")]
+OwnGeometry = Annotated[
+    str, RefTo("face", "edge", doc="The component's face or edge; every type but fix and bond")
+]
+TargetGeometry = Annotated[
+    str, RefTo("face", "edge", doc="The target's face or edge; every type but fix and bond")
+]
+TargetComponent = Annotated[
+    str, RefTo("component", doc="The sibling 'o:N' it is constrained to; every type but fix")
+]
 Alignment = Literal["infer", "same", "opposite"]
 # A number, or a unit string checked against the constraint type by ``_value``.
 Value = Annotated[
     float | Annotated[str, Text(QUANTITY_MAX)],
     Doc("Part units or '10 mm' (<0: other side); angle: deg or '0.5 rad'"),
+]
+# The create form: only distance and angle take it, and they need it.
+CreateValue = Annotated[
+    float | Annotated[str, Text(QUANTITY_MAX)],
+    Doc("distance/angle only (required there): part units or '10 mm' (<0: other side); angle deg"),
 ]
 _QUANTITY = re.compile(
     r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*(mm|in|deg|rad|\u00b0)?\s*$", re.IGNORECASE
@@ -494,14 +508,14 @@ def nx_create_assembly_constraint(
     *,
     type: Kind,
     component: ComponentId,
-    geometry: Geometry | None = None,
-    target_component: ComponentId | None = None,
-    target_geometry: Geometry | None = None,
+    geometry: OwnGeometry | None = None,
+    target_component: TargetComponent | None = None,
+    target_geometry: TargetGeometry | None = None,
     geometry2: Annotated[Geometry, Doc("center_2_2: the component's second face or edge")]
     | None = None,
     target_geometry2: Annotated[Geometry, Doc("center types: the target's second face or edge")]
     | None = None,
-    value: Value | None = None,
+    value: CreateValue | None = None,
     alignment: Alignment = "infer",
 ) -> ConstraintData:
     """Constrain a direct component to a sibling (touch is the mate) or fix it; it must solve.

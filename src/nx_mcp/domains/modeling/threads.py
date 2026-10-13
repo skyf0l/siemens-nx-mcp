@@ -49,8 +49,12 @@ if TYPE_CHECKING:
     from typing_extensions import TypeIs
 
 MAX_TABLE_BYTES = 20_000_000
-StandardText = Annotated[str, Text(64), Doc("e.g. 'Metric Coarse', 'UNC'")]
-SizeText = Annotated[str, Text(64), Doc("e.g. 'M6 x 1.0' or 'M6'")]
+StandardText = Annotated[
+    str, Text(64), Doc("'Metric Coarse', 'Metric Fine', 'Inch UNC', 'Inch UNF'... (loose spelling)")
+]
+SizeText = Annotated[
+    str, Text(64), Doc("'M6' or 'M6 x 1.0' (metric), '1/4-20' (inch); case and spaces ignored")
+]
 # Metric sizes ('M6') without a standard are looked up in the first pair, others in the second.
 DEFAULT_STANDARDS = (("Metric Coarse", "Metric Fine"), ("Inch UNC", "Inch UNF"))
 # Natural names of common standards (keys: lower-case letters, digits and dots).
@@ -340,7 +344,8 @@ def nx_list_thread_sizes(
     limit: PageLimit = 50,
 ) -> ThreadList:
     """List NX thread standards, a standard's sizes, or one size's rows (diameters, tap drill
-    and pitch per engagement). A size alone is looked up in Metric Coarse/Fine or Inch UNC/UNF."""
+    and pitch per engagement). A size alone is looked up in Metric Coarse/Fine or Inch UNC/UNF.
+    Values are in the standard's unit (inch standards in inches, whatever the part's unit)."""
     rows = thread_rows()
     if standard is None and size is None:
         found = [
@@ -358,8 +363,14 @@ def nx_list_thread_sizes(
 class TableSpec(TypedDict, total=False):
     standard: StandardText
     size: SizeText
-    method: Annotated[str, Text(16)]
-    engagement: Annotated[float | Annotated[str, Text(16)], Doc("0.75 (default) or 0.5")]
+    method: Annotated[str, Text(16), Doc("Omit: NX 2406's table has only 'CUT'")]
+    engagement: Annotated[
+        float | Annotated[str, Text(16)],
+        Doc(
+            "Radial engagement 0.75 (default) or 0.5; it sets the tap drill. Omit where a size "
+            "offers neither"
+        ),
+    ]
 
 
 class _ManualRequired(TypedDict):
@@ -720,18 +731,28 @@ def nx_create_thread(
     | None = None,
     spec: TableSpec | ManualSpec,
     start_face: Annotated[
-        FaceRef, Doc("Planar end; default the only one, else a shaft's free end or bore's opening")
+        FaceRef,
+        Doc(
+            "Planar end the thread starts at. Default: the only end, a shaft's free end, a "
+            "blind bore's opening"
+        ),
     ]
     | None = None,
-    length: Annotated[Length | Literal["full"], Doc("Default 'full': the whole face")]
+    length: Annotated[
+        Length | Literal["full"],
+        Doc("Measured from start_face along the axis, at most the face length; default 'full'"),
+    ]
     | None = None,
     detailed: Annotated[bool, Doc("Helical geometry instead of a symbolic thread")] = False,
     hand: Literal["right", "left"] = "right",
-    reverse: bool = False,
+    reverse: Annotated[bool, Doc("Leave false: threads run from start_face inward")] = False,
 ) -> ThreadData:
-    """Thread a cylindrical face, or several (faces: one thread each). spec: a table size
-    ('M6': Metric Coarse, engagement 0.75) or pitch and diameters. A bore must be the tap
-    drill (a clearance bore is refused). Symbolic keeps the volume; detailed cuts it."""
+    """Thread a cylindrical face, or several (faces: one thread each). spec: a table size, or
+    pitch, major_diameter and minor_diameter for a custom thread. A size alone is looked up
+    in Metric Coarse/Fine ('M6') or Inch UNC/UNF; the standard's unit must match the part's.
+    An internal thread needs the bore at the tap drill (nx_list_thread_sizes); a clearance
+    bore is refused. Give start_face when both ends are alike: a through bore or a free
+    cylinder. Symbolic keeps the volume; detailed cuts it."""
     args.exactly_one(face=face, faces=faces)
     refs = [face] if face is not None else args.distinct("/faces", faces or [], "faces")
     if length is not None and length != "full" and float(length) <= 0:

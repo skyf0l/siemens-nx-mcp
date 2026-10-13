@@ -320,8 +320,9 @@ def nx_create_datum_point(
     position: Point3,
     name: Name | None = None,
 ) -> DatumPointData:
-    """Create a fixed point feature at a work-part position [x, y, z]. Later calls select
-    the returned point."""
+    """Create a fixed point feature at a work-part position [x, y, z]. Coordinates are plain
+    numbers in part units: '10 mm' strings and expression names are not taken here. Later
+    calls select the returned point."""
     p = list(position)
     with builders.build(tx, tx.part.BaseFeatures.CreatePointFeatureBuilder, None) as b:
         b.Point = builders.point(tx, p)

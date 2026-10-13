@@ -151,9 +151,17 @@ class _ConstraintType(TypedDict):
 
 
 class ConstraintSpec(_ConstraintType, total=False):
-    curves: Annotated[list[CurveRef], Items(1, 2)]
-    points: Annotated[list[Vertex], Items(1, 2)]
-    centerline: CurveRef
+    curves: Annotated[
+        list[CurveRef],
+        Items(1, 2),
+        Doc("symmetric: the two mirrored curves; midpoint/point_on_curve: the target curve"),
+    ]
+    points: Annotated[
+        list[Vertex],
+        Items(1, 2),
+        Doc("coincident: two; midpoint/point_on_curve: one, it moves; fixed: one (or curves)"),
+    ]
+    centerline: Annotated[CurveRef, Doc("symmetric only (required): a straight line")]
 
 
 # Synonyms agents use; case, spaces and hyphens are ignored anyway.
@@ -683,7 +691,8 @@ class _DimKind(TypedDict):
 class DimensionSpec(_DimKind, total=False):
     second: Target
     value: Annotated[
-        float | Annotated[str, Text(40)], Doc("Part units or '40 mm'; angle: deg or '30 deg'")
+        float | Annotated[str, Text(40)],
+        Doc("Part units or '40 mm' (no formulas); angle: deg or '30 deg'; omit: the current size"),
     ]
     origin: XY
     reference: bool
@@ -1062,7 +1071,8 @@ def nx_create_sketch_dimensions(
     ],
 ) -> DimensionsData:
     """Add 1-50 driving or reference sketch dimensions; each returns its expression. The sketch
-    is solved to every value and read back; fixed geometry never moves. Edit a value later with
+    is solved to every value and read back; fixed geometry never moves. horizontal/vertical
+    measure the x/y extent (they do not make a line level). Edit a value later with
     nx_set_expression."""
     named = common.natural_items(
         dimensions, "kind", list(DIM_KINDS), "/dimensions", DIMENSION_ALIASES

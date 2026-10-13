@@ -94,7 +94,10 @@ def nx_create_rib(
     thickness: Length,
     orientation: Annotated[
         Literal["perpendicular", "parallel"],
-        Doc("perpendicular: wall along the sketch normal; parallel: plate/gusset in its plane"),
+        Doc(
+            "parallel: a gusset/web lying in the sketch plane; perpendicular: a wall grown along "
+            "the sketch normal"
+        ),
     ] = "perpendicular",
     side: Annotated[
         Literal["symmetric", "one_side", "other_side"],
@@ -106,9 +109,12 @@ def nx_create_rib(
         bool, Doc("Perpendicular rib: grow against the sketch normal (NX grows along it)")
     ] = False,
 ) -> RibData:
-    """Add a rib (wall, web or gusset) of a thickness from open sketch curves to a solid body.
-    The curves extend to the body and must close a region with it (a parallel rib fills it).
-    volume is the body's (the rib body's if not combined); added is the rib's."""
+    """Add a rib (wall, web or gusset) from open sketch curves to a solid body. parallel: the
+    sketch plane cuts through the body (an L-bracket's mid-plane) and a line from wall to wall
+    closes a region with it, filled to the thickness across the plane. perpendicular: curves
+    on a plane at the body (a cup's rim) grow along the sketch normal to meet it; flip when
+    the body lies against the normal (below a rim sketch facing up). volume is the body's
+    (the rib body's if not combined); added is the rib's."""
     args.finite(thickness, "/thickness", positive=True)
     if draft is not None:
         if orientation != "perpendicular":

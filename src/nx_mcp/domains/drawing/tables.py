@@ -298,7 +298,9 @@ def nx_create_drawing_table(
 ) -> TableInfo:
     """Place a parts list, bend, title block, revision or hole table. Parts lists need an
     assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title
-    blocks and revisions take rows and widths."""
+    blocks and revisions take rows (one cell per width) and widths. position is a title
+    block's bottom-right corner and a revision table's top-left corner (rows grow down);
+    the result's bounds give the extent."""
     if kind == "hole":
         args.need(view=view, origin=origin)
         return hole_callouts.create_table(tx, view, position, origin, origin_point, table_info)
@@ -786,13 +788,16 @@ def nx_get_drawing_table(
     table: DrawingTableRef | None = None,
     sheet: DrawingSheetRef | None = None,
 ) -> TableInfo:
-    """Read a drawing table, or the title block of a sheet with tables: every table on it. Gives
-    kind, evaluated rows, columns, update mode and position; title blocks list cells (label,
+    """Read a drawing table, or a sheet's title block. Give exactly one of table (that table)
+    or sheet (its title block, plus tables: every table on the sheet). Gives kind, rows, columns,
+    update mode and position (the anchor given at creation); title blocks list cells (label,
     lock, text with <W@TITLE> links, value)."""
     if (table is None) == (sheet is None):
         both = table is not None
         fail("NX_INVALID_ARGUMENT", "Give table or sheet" + (", not both" if both else ""),
-             field="/sheet" if both else "/table")  # fmt: skip
+             field="/sheet" if both else "/table",
+             hint="table reads that table (nx_list_objects kind=drawing_table lists them); "
+             "sheet reads the sheet's title block and lists its tables")  # fmt: skip
     if table is not None:
         obj = select.resolve(
             tx, table, "drawing_table", "annotation", field="/table", work_part=True
@@ -865,8 +870,9 @@ def nx_create_balloons(
     parts_list: DrawingTableRef,
     view: DrawingViewRef,
 ) -> BalloonData:
-    """Create parts-list balloons for the components shown in a drawing view. One per parts-list
-    row; rows already ballooned in the view get none."""
+    """Create parts-list balloons for the components shown in a drawing view of an assembly.
+    parts_list: a table from nx_create_drawing_table kind=parts_list. One per parts-list row;
+    rows already ballooned in the view get none."""
     with tx.checks():
         obj = select.resolve(
             tx, parts_list, "drawing_table", "annotation", field="/parts_list", work_part=True

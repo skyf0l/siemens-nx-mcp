@@ -126,6 +126,25 @@ def test_edit_feature_update_failure_rolls_back():
     assert bad.error["code"] == "NX_UPDATE_FAILED" and bad.mutation_outcome == "rolled_back"
 
 
+def test_edit_feature_update_undone_by_nx_says_what_to_check():
+    # Live (tooltest2 modeling_5): a tube's inner diameter set above its outer failed with
+    # NX's bare "Update undo happened" (670024) and no reason.
+    nx = modeling_nx()
+    f = feature(nx, "TUBE")
+    exp = nx.expression("p1", "6", 6.0)
+    f.expressions = [exp]
+
+    def undone(mark):
+        raise NXException(670024, "Update undo happened.")
+
+    nx.session.UpdateManager = NS(DoUpdate=undone)
+    bad = run(nx, "nx_edit_feature", feature=nx.ref_of(f, "feature"),
+              parameters=[{"name": "p1", "value": 20}])  # fmt: skip
+    assert bad.error["code"] == "NX_UPDATE_FAILED" and bad.error["nx_code"] == 670024, bad
+    assert "inner diameter" in bad.error["hint"] and "nx_get_feature" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back"
+
+
 def test_suppression_dependents_and_inactive_features():
     nx = modeling_nx()
     block, boss, hole = timeline(nx)

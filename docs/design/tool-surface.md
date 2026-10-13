@@ -211,12 +211,17 @@ Every tool returns the same envelope. Tool-specific data lives in `data`.
 
 ### 1.7 Description style and length budget
 
+Tools are explicit and schemas detailed. A failed call and its retry cost about 1-3K
+tokens; about 100 more schema characters cost about 26 tokens per fetch. The limits below
+catch bloat (repetition, filler, bytes no agent uses), never a rule an agent needs: when
+such a rule does not fit, the limit changes, with the reason.
+
 | Item | Budget | Rule |
 |---|---|---|
 | Description first sentence | at most 120 characters | What the tool does in engineer terms, starting with a verb |
-| Whole description | at most 300 characters | Then only non-obvious constraints: preconditions, which reference to reacquire, the one gotcha. No units or field docs (fields carry them) and no advertising ("native", "associative" only when it changes behaviour) |
-| Field description | at most 80 characters | Units, frame, range |
-| Tool definition (name + description + input schema) | median 700, cap 1,200 characters; cap 2,500 for discriminated unions | Checked by a catalogue test |
+| Whole description | at most 500 characters | Then the non-obvious constraints: preconditions, which reference to reacquire, the gotchas an agent would otherwise learn from a failed call. No units or field docs (fields carry them) and no advertising ("native", "associative" only when it changes behaviour) |
+| Field description | at most 120 characters | Units, frame, range, the field's own gotcha |
+| Tool definition (name + description + input schema) | cap 1,600 characters; cap 3,000 for discriminated unions; the 75th percentile of each kind checked for drift | Checked by `tests/sidecar/test_budget.py` (architecture.md 6) |
 | Panel label / summary | label at most 48 characters; rendered summary at most 60 | Separate fields; the summary is never shown to the model |
 | Examples | one minimal example per tool | Returned by `nx_get_tool_schemas`, not in the listing |
 
@@ -400,7 +405,7 @@ Gateway tools (always listed):
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
 | `nx_find_tools` | A scored OR search after stemming, stop words and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`): every tool matching at least one query word is a hit. Per word: the best field (name > keyword/label > variant > description; a synonym or a prefix counts less than the word itself, plus a little when the word itself is in the name, a keyword or the label) times the word's rarity `1 + log2(N/n)` over the catalogue (a word few tools match, "save", outweighs a common one, "part"). The sum is scaled by the share of query words matched (a tool matching every word beats partial ones of similar weight), plus bonuses for the share of the tool's name words named, a keyword or label phrase in the query (a whole one-word keyword counts less: "pocket" finds `nx_create_extrude`), a word naming the tool's domain and, when the query has an action word (create, make, add, new, set, insert, build, place, define, generate), a tool whose verb is `create` or `set` over one that reads, lists, exports or activates ("create expression" finds `nx_set_expression` before `nx_export_expressions`); an exact name wins. `query` is 1-4 keywords for one task; `queries` (1-20, exclusive with `query`) returns `results: [{query, tools, total}]`, 5 rows per query by default. With two or more words each row lists the words it `matched`; `partial: true` means no tool matched every word; a `hint` says to split the tasks into `queries` when a query has more than five words (stop words not counted), or three or more, is partial and joins tasks (`,`, `;`, `+`, `&`, "and", "then", "also"); a `note` says what to do for a word naming something NX MCP does as another tool ("pocket": a sketch and a subtracting extrude). An unknown tool name (`nx_fillet_edges`, `NX_UNKNOWN_TOOL`) is answered with a typo match, the tools its words find and close spellings (`details.close_matches`). Never just empty: when no word matches, the close spellings of names, labels and keywords are searched instead (`did_you_mean`); if none, the domain overview comes with a hint. An empty query returns the domain overview (tool counts and key tools). Rows: name, summary, effect, domain, evidence for the connected build; `call_with` says to call them through `nx_invoke`/`nx_invoke_read` | `query` or `queries[1..20]`, `domain?`, `effect?`, `limit` (10, or 5 per query; max 20), `offset` | read |
-| `nx_get_tool_schemas` | Exact input schema, example, prerequisites and evidence for 1-10 tools or variants in one call; output schema on request. A tool whose variants need fields gets a compact `required_by` map next to `input_schema`, one key per group of offered variants needing the same fields (`{"hole": ["view", "origin"], "title_block\|revision": ["sheet", "rows", "widths"]}`; variants needing nothing are left out); a `tool#variant` schema lists them in `required` | `names[1..10]` (e.g. `nx_create_drawing_view#section`), `include_output=false` | read |
+| `nx_get_tool_schemas` | Exact input schema, example, prerequisites and evidence for 1-10 tools or variants in one call; output schema on request. A tool whose variants need fields gets a compact `required_by` map next to `input_schema`, one key per group of offered variants needing the same fields (`{"hole": ["view", "origin"], "title_block\|revision": ["sheet", "rows", "widths"]}`; variants needing nothing are left out); a `tool#variant` schema lists them in `required`. One `tool#variant` is a self-contained entry. Two or more variants of one tool in one call come as one entry at the first one's place: `{"name": tool, <keys they share: description, effect, requires, evidence>, "input_schema": <what their schemas share>, "variants": {"<v>": {"input_schema": <v's own properties, required, x-variant>, <v's own keys: example>}}}`; the schema of `tool#v` is `input_schema` with `variants.<v>.input_schema`'s properties added and its `required` appended (2026-10-13: three drawing-view variants in 2,760 characters instead of 7,529 in three calls) | `names[1..10]` (e.g. `nx_create_drawing_view#section`), `include_output=false` | read |
 | `nx_invoke` | Call any task tool; kernel gates apply; `intent` (at most 120 characters) is shown in the NX panel | `tool`, `arguments`, `intent?`, `detail=compact/full` | per tool (declared destructive) |
 | `nx_invoke_read` | Same, but refuses tools whose effect is not `read` before validation; hosts can auto-approve it | `tool`, `arguments`, `detail` | read |
 
@@ -411,20 +416,25 @@ Core tools listed directly in the `agent` profile (most-used, mostly read):
 `nx_undo_operation`, `nx_download_file`. The seven that act on a part without refs
 (`nx_list_components`, `nx_list_objects`, `nx_get_model_summary`, `nx_find_geometry`,
 `nx_check_model`, `nx_capture_view`, `nx_undo_operation`) list the `part` call key in
-their schemas ("File name of the target part; needed when 2+ parts are loaded").
+their schemas ("Target part's file name; needed when 2+ parts are loaded").
 
 ### 2.2 Token cost
 
-Estimates at 3.8 characters per token for JSON schemas; measured values come from
-the catalogue test, which fails above budget.
+Estimates at 3.8 characters per token for JSON schemas. The caps and today's measured
+values are the generated table in architecture.md section 6 (`tests/sidecar/test_budget.py`
+measures, `scripts/generate_budget_table.py` writes the table); they are not repeated here.
+The budgets catch bloat, never a rule an agent needs (section 1.7): a failed call and its
+retry cost far more than the schema characters that prevent it. Each cap is a measured value
+plus headroom and moves only when what it measures changes in kind, never because a tool or
+a domain was added.
 
 | Item | Today | Target |
 |---|---|---|
-| Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | At most 1,040 characters per listed tool on average, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included: 180 listed tools (176 + 4 gateways) average 977.6 (175,970 characters, about 46K tokens). A mean rather than a total, so adding tools does not move the cap; the per-tool caps (1,200, 2,500 for unions, median 700; measured median 699) still bound each definition. The full profile is opt-in for clients that load schemas on demand; the default `agent` profile stays at 15K |
-| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, at most 15,300 characters (15,251 measured), about 4K tokens |
-| One discovery call (10 rows) | full descriptions, 1-3K tokens | name + summary + effect rows, about 300 tokens |
-| Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call; each entry at most 200 characters over the tool's definition (1,071 characters, about 280 tokens, per tool measured) |
-| Typical modeling task (find 4 tools, fetch 4 schemas, 10 calls) | about 8-10K tokens of tool metadata | about 5K tokens |
+| Full listing (name + description + input schema) | 218,951 characters, about 55-60K tokens for 227 tools (median 851, max 6,077 characters per tool) | A mean per listed tool, call keys (`operation_id`, `intent`: 87 characters on each changing tool) included, so adding tools does not move the cap; per-tool caps bound each definition. Opt-in for clients that load schemas on demand |
+| `agent` profile listing | 13 tools, 11,588 characters, about 3K tokens | 18 tools, about 4K tokens, plus the server instructions once per session |
+| One discovery call (10 rows) | full descriptions, 1-3K tokens | name + summary + effect rows, about 350-400 tokens; each row and the rest of the page capped |
+| Schema fetch | one tool per call, 250-1,500 tokens each | 1-10 tools per call; each entry a little over the tool's definition; variants of one tool share their schema once |
+| Typical modeling task (overview, 3 searches, 4 schemas) | about 8-10K tokens of tool metadata | about 3.2K tokens, plus the session's listing and instructions |
 
 ---
 
@@ -666,7 +676,7 @@ Note: an existing sheet-metal feature is edited with
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_capture_view` | PNG of the current view or sheet, saved to `path` or `captures/`; inline only with `inline=true` or without `path`; `quality=studio` renders with lighting. Omitted `width`/`height` take the graphics window's size; given ones are honoured: when the window differs, a shaded model view is rendered again at the exact size by Studio capture (`quality` then says `studio`), a wireframe view or a drawing sheet keeps the window size with an `NX_APPROXIMATED` warning. The camera, style and lighting are put back. `sheet` (ref or name) captures that drawing sheet: opened for the capture only, the previous sheet or model view comes back (no `nx_activate_drawing_sheet` first); a model-view capture of a part with sheets names them in an `NX_NOTE` | `quality: viewport/studio, path?, overwrite=false (replace an existing PNG at path), inline?, view_from?: Vec3, up?, fit?, hide_sketches=true, width=1024, height=768, background?: white/original/transparent/color/black, color?, style: current/shaded/shaded_with_edges/wireframe/studio, lighting?, sheet?` | view |
+| `nx_capture_view` | PNG of the current view or sheet, saved to `path` or `captures/`; inline only with `inline=true` or without `path`; `quality=studio` renders with lighting. Omitted `width`/`height` take the graphics window's size; given ones are honoured: when the window differs, a shaded model view is rendered again at the exact size by Studio capture (`quality` then says `studio`), a wireframe view or a drawing sheet keeps the window size with an `NX_APPROXIMATED` warning. The camera, style and lighting are put back. `sheet` (ref or name) captures that drawing sheet: opened for the capture only, the previous sheet or model view comes back (no `nx_activate_drawing_sheet` first); a model-view capture of a part with sheets names them in an `NX_NOTE` | `quality: viewport/studio, path?, overwrite=false (replace an existing PNG at path), inline?, view_from?: Vec3, up?, fit?, hide_sketches=true, width?, height? (the window size when omitted), background?: white/original/transparent/color/black, color?, style: current/shaded/shaded_with_edges/wireframe/studio, lighting?, sheet?` | view |
 | `nx_get_camera` | Displayed view, camera matrix, scale, style | — | read |
 | `nx_set_camera` | Named orientation, explicit camera, and/or fit | `orientation?: top/front/right/back/left/bottom/isometric/trimetric, rotation?: Mat3, origin?, scale?, fit=false` | view |
 | `nx_set_visibility` | Show, hide or isolate objects, or all datums | `objects?` or `datums=true`, `mode: show/hide/isolate` | view |

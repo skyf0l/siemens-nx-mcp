@@ -66,7 +66,9 @@ async def test_agent_profile_lists_gateways_and_existing_core_tools(tmp_path, te
         tools = {t.name: t for t in (await client.list_tools()).tools}
     assert list(tools) == [*gateways.NAMES, "nx_get_result", "nx_list_objects"]
     assert tools["nx_invoke_read"].annotations.readOnlyHint is True
-    assert tools["nx_invoke"].annotations.destructiveHint is True
+    # destructiveHint true is MCP's default for a tool that is not read-only: left out.
+    assert tools["nx_invoke"].annotations.readOnlyHint is None
+    assert tools["nx_invoke"].annotations.destructiveHint is None
     listed = tools["nx_list_objects"]
     assert listed.annotations.readOnlyHint and listed.annotations.idempotentHint
     assert listed.title == "List objects" and listed.description.startswith(
@@ -103,7 +105,8 @@ async def test_full_profile_lists_every_tool_with_annotations_from_effect(tmp_pa
     assert not untested & set(tools)  # decision 11: untested tools are hidden
     assert not {"nx_result", "nx_inspect", "nx_result_cleanup", "nx_read_result"} & set(tools)
     datum = tools["nx_create_datum_plane"]
-    assert datum.annotations.readOnlyHint is False and datum.annotations.destructiveHint is True
+    # Both are MCP's defaults (not read-only, destructive), so the listing leaves them out.
+    assert datum.annotations.readOnlyHint is None and datum.annotations.destructiveHint is None
     assert {"operation_id", "intent"} <= set(datum.inputSchema["properties"])
 
 
@@ -207,6 +210,59 @@ async def test_schemas_for_tools_and_variants(tmp_path, tested):
     assert wrong["error"]["details"]["not_found"][0]["close_matches"][0].endswith("#offset")
     bad = body(await agent.call_tool("nx_get_tool_schemas", {"names": []}))
     assert bad["error"]["code"] == "NX_INVALID_ARGUMENT" and bad["error"]["field"] == "/names"
+
+
+def _variant_schema(entry: dict, variant: str) -> dict:
+    """tool#variant's schema from a grouped entry: the shared part plus the variant's own."""
+    own = entry["variants"][variant]["input_schema"]
+    merged = {**entry["input_schema"], **{k: v for k, v in own.items() if k != "required"}}
+    merged["properties"] = {**entry["input_schema"]["properties"], **own.get("properties", {})}
+    required = [*entry["input_schema"].get("required", []), *own.get("required", [])]
+    if required:
+        merged["required"] = required
+    return merged
+
+
+@pytest.mark.parametrize(
+    ("tool", "variants"),
+    [
+        ("nx_create_drawing_view", ("section", "detail", "base")),
+        ("nx_create_sketch_curves", ("line", "arc")),  # x-variant forms
+        ("nx_create_pattern", ("linear", "circular")),  # ByVariant parameters
+    ],
+)
+async def test_variants_of_one_tool_share_their_schema_once(tmp_path, every_tool, tool, variants):
+    agent = server(tmp_path)
+
+    async def fetch(names):
+        result = await agent.call_tool("nx_get_tool_schemas", {"names": names})
+        return result, body(result)["data"]["tools"]
+
+    singles = {}
+    separate = 0
+    for v in variants:  # one variant per call: self-contained, as before
+        result, (single,) = await fetch([f"{tool}#{v}"])
+        assert single["name"] == f"{tool}#{v}" and "variants" not in single
+        singles[v] = single
+        separate += len(result.content[0].text)
+    names = [f"{tool}#{v}" for v in variants]
+    _, entries = await fetch([names[0], "nx_list_objects", *names[1:], names[0]])
+    assert [e["name"] for e in entries] == [tool, "nx_list_objects"]
+    grouped = entries[0]
+    assert list(grouped["variants"]) == list(variants)
+    for v, single in singles.items():
+        merged = _variant_schema(grouped, v)
+        expected = single["input_schema"]
+        assert sorted(merged.pop("required")) == sorted(expected.pop("required"))
+        assert merged == expected, v
+        own = grouped["variants"][v]
+        for key, value in single.items():  # every other key is shared or the variant's own
+            if key not in ("name", "input_schema"):
+                assert grouped.get(key, own.get(key)) == value, (v, key)
+    assert grouped["description"] == singles[variants[0]]["description"]
+    assert "example" not in grouped and "evidence" in grouped
+    alone, _ = await fetch(names)
+    assert len(alone.content[0].text) < separate
 
 
 # ---- catalogue calls ----------------------------------------------------------

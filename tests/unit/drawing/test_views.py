@@ -319,3 +319,22 @@ def test_listed_views_carry_their_sheet_and_border():
     row = ok.data["items"][0]
     assert row["details"]["bounds"] == [110.0, 195.0, 130.0, 205.0]
     assert row["details"]["sheet"] == "SHT1"
+
+
+def test_rescaling_a_projected_view_that_keeps_its_parent_scale_points_at_the_parent():
+    nx = views_nx()
+    parent = make_view(nx, nx.sheet_obj, pos=(120, 200))
+    made = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref, direction="top")
+    child = nx.views[max(nx.views)]
+    set_scale = nx.uf.Draw.SetViewScale
+
+    def inherited(tag, s):  # NX keeps a projected view at its parent's scale
+        if int(tag) != int(child.Tag):
+            set_scale(tag, s)
+
+    nx.uf.Draw.SetViewScale = inherited
+    bad = run(nx, "nx_edit_drawing_view", view=made.data["view"]["id"], scale="1:2")
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.mutation_outcome == "rolled_back"
+    assert "follows its parent's scale" in bad.error["message"]
+    assert "Rescale the parent view" in bad.error["hint"]
+    assert bad.error["details"]["parent"]["id"] == parent.ref

@@ -312,6 +312,15 @@ def test_pattern_layout_errors(layout, parameters, field):
     assert nx.live_builders == 0 and not any(b.commits for b in nx.builders)
 
 
+def test_general_pattern_listing_the_seed_says_to_list_only_the_copies():
+    # Live (bench rounds 1-2): agents listed the seed's own place among the positions.
+    nx, block, seed = pattern_nx()
+    bad = pattern(nx, seed, "general", origin=[5, 5, 10], positions=[[5, 5, 10], [15, 5, 10]])
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == "/parameters/positions/0"
+    assert "only the copies" in bad.error["hint"]
+
+
 def test_pattern_parameters_follow_the_layout_form():
     nx, block, seed = pattern_nx()
     bad = pattern(nx, seed, "polygon", axis={"principal": "z"}, sides=2, count_per_side=3)

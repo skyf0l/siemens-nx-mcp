@@ -1,6 +1,6 @@
 """Shared topology-optimization helpers: license check, task environment, study lookup.
 
-NX 2406 (probed live on a des_top_opt seat):
+NX 2406 (probed live):
 
 - A study lives in a Topology Optimization feature (``Features.TopologyOptimizationFeature``)
   that NX creates and edits only inside its task environment

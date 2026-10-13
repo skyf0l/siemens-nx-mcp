@@ -67,12 +67,12 @@ validators accept and reject the same generated samples.
 
 | Marker | Meaning | JSON Schema |
 |---|---|---|
-| `Doc(text)` | field description, ≤ 80 chars | `description` |
+| `Doc(text)` | field description, ≤ 120 chars | `description` |
 | `Range(ge, le, gt, lt)` | finite numeric bounds | `minimum`, `maximum`, ... |
 | `Items(min, max)` | list length; required on every list | `minItems`, `maxItems` |
 | `Text(max, pattern)` | string bounds | `maxLength`, `pattern` |
-| `RefKind(*kinds)` | accepted reference kinds | description (gate 1 checks the pattern; section 4) |
-| `Quantity(dim)` | `length`, `sheet_length`, `angle` or `count`; allows unit strings and NX expression names or formulas | `[number, string]`, `maxLength` 80 |
+| `RefKind(*kinds)` | accepted reference kinds | description (gate 1 checks the pattern and length; section 4) |
+| `Quantity(dim)` | `length`, `sheet_length`, `angle` or `count`; allows unit strings and NX expression names or formulas | `[number, string]` (gate 1 checks the 80-character bound) |
 | `PathArg(mode, suffixes)` | workspace path; mode `read`, `new`, `dir`, `save` or `replace` (new, or an existing file the tool replaces only when asked) | `string` |
 | `RefTo(*kinds, doc=None)` | shorthand for `Text(128, ref pattern)`, `RefKind(*kinds)`, `Doc` | as its parts |
 | `PathTo(mode, *suffixes)` | shorthand for `Text(260)`, `PathArg`, `Doc("Workspace path")` | as its parts |
@@ -144,7 +144,7 @@ imports every package in `domains/`. A *derived* field is never written by hand.
 | `effect` | decorator | `read`, `view`, `model`, `file` or `session`, fixed per tool |
 | `label` | decorator | static, ≤ 48 chars. Used in discovery rows, as the undo-mark name `NX MCP: <label>`, and as the panel fallback |
 | `summary` | decorator | panel line built from the arguments, ≤ 60 chars rendered (forms below) |
-| `description` | docstring | first sentence ≤ 120 chars, whole text ≤ 300 |
+| `description` | docstring | first sentence ≤ 120 chars, whole text ≤ 500 (`catalogue.DESCRIPTION_MAX`) |
 | `keywords` | decorator | 3-8 synonyms and NX command names for `nx_find_tools` |
 | `params`, `returns` | derived from the signature | input schema; `data` schema from the returned `TypedDict` |
 | `requires` | decorator | `work_part`, `no_active_sketch`, `drawing_sheet`, `assembly`, `interactive`, `application:sheet_metal` |
@@ -669,13 +669,13 @@ the same arguments in another part is `NX_IDEMPOTENCY_CONFLICT` naming that part
 The kernel takes them out before gate 1 (`split_call_keys`) unless the tool has a
 parameter of that name, and validates them (`NX_INVALID_ARGUMENT`, field `/part` or
 `/expires_at`). Catalogue schemas do not list them. The seven ref-less core tools listed
-directly in the `agent` profile list `part` (`server.PART_KEY`: "File name of the target
-part; needed when 2+ parts are loaded"): in benchmark bench3p agents trusted the strict
+directly in the `agent` profile list `part` (`server.PART_KEY`: "Target part's file name;
+needed when 2+ parts are loaded"): in benchmark bench3p agents trusted the strict
 schemas over the instruction sentence, and with `part` left out none of four builders
 passed it to a core tool. The listing cap rose to 15,300 characters for it (15,244
 measured; the offset/limit descriptions and `idempotentHint: false` were dropped to keep
-the raise small). The server does not validate input against the listed schemas
-(`validate_input=False`) and the proxy forwards both keys untouched (`proxy.call`). The
+the raise small; section 6 has today's cap). The server does not validate input against
+the listed schemas (`validate_input=False`) and the proxy forwards both keys untouched (`proxy.call`). The
 agent instructions (`server.AGENT_INSTRUCTIONS`) say: "When two or more parts are loaded,
 add the target part's file name to the arguments of every call without refs, the listed
 core tools included".
@@ -1149,9 +1149,11 @@ The **per-tool contract test** is parametrised over the registry. It checks:
    renders without falling back to `label`, within 60 characters, with one template per
    variant.
 3. **Schema bounded.**
-   - Every array has `maxItems`; every string has `maxLength` or is an enum.
+   - Every array has `maxItems`; every string has `maxLength` or is an enum, except references
+     and quantity strings, whose bounds gate 1 checks (an agent copies a server-issued ref and
+     writes '10 mm'; their lengths would only spend characters in every schema).
    - Numbers are finite, and there are no `additionalProperties`.
-   - The tool definition is ≤ 1,200 characters, or ≤ 2,500 for discriminated unions.
+   - The tool definition is ≤ 1,600 characters, or ≤ 3,000 for discriminated unions.
 4. **Evidence present.** v2406 evidence covers every variant. A `source_sha256` mismatch is a
    local warning and a release-build failure.
 5. **Handler signature matches.** `tx` comes first, the other parameters are keyword-only with
@@ -1160,15 +1162,45 @@ The **per-tool contract test** is parametrised over the registry. It checks:
    table.
 7. **Imports.** The domain module imports with NXOpen blocked and contains no `import NXOpen`.
 
-**Token budgets.** `tests/sidecar/test_budget.py` measures these at 3.8 characters per token
-and fails above the cap (`-s` prints the measured values).
+**Token budgets.** `tests/sidecar/test_budget.py` measures what an agent reads (characters
+of compact JSON, 3.8 characters per token) and fails above a cap.
 
-| Item | Cap | Measured |
+The principle (engineer, 2026-10-13): tools must be explicit and schemas detailed. A failed
+call and its retry cost about 1-3K tokens; about 100 more schema characters cost about 26
+tokens per fetch. The budgets exist to catch bloat (repetition, filler, bytes no agent
+uses), never to justify leaving out a rule an agent needs; when such a rule does not fit, the
+cap changes in the same change, with the reason.
+
+Every cap is a measured value plus headroom: about 3% on the `agent` listing (paid on every
+turn), about 12% on the drift checks (percentiles, the typical task), and a small margin on
+the hard per-row and per-entry caps. A cap moves only when what it measures changes in kind
+(a new key on every row, a new section in the listing), never because a tool or a domain was
+added: the caps are per tool, per row and per entry, percentiles, or (the `agent` listing,
+whose `nx_find_tools` domain enum grows) a formula in the number of domains. The listings
+leave out what carries no information for an agent: MCP annotation hints equal to MCP's
+defaults (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false,
+`openWorldHint` true), the `maxLength` of references and quantity strings and the page
+offset's upper bound (gate 1 checks all three). They keep `additionalProperties: false`,
+units in field descriptions, enums, item counts and defaults.
+
+The table is generated from the test's own measurement (`python
+scripts/generate_budget_table.py`; `--check`, a pre-commit hook, reports drift); edit the
+caps in the test, never the table:
+
+<!-- BEGIN budget table: generated by scripts/generate_budget_table.py -->
+
+| Item (characters of compact JSON) | Cap | Measured |
 |---|---|---|
-| Full listing (name + description + input schema, call keys included) | 1,040 chars per listed tool on average | 180 tools (176 + 4 gateways), 175,970 chars, mean 977.6 |
-| Tool definition (without call keys) | median 700 chars; each ≤ 1,200, or ≤ 2,500 for unions | median 699, max 2,463 |
-| `agent` profile listing | 15,300 chars (about 4K tokens; 15,000 before `part` was listed on the seven ref-less core tools) | 15,251 chars |
-| `nx_find_tools` page of 10 rows | 1,400 chars | at most 1,358 |
-| `nx_find_tools` domain overview (empty query, one row per domain) | 1,650 chars (1,400 until motion and optimization made 12 domains) | 1,557 chars |
-| `nx_get_tool_schemas` | each entry at most 200 chars over its definition; 900 chars per tool on average plus the mean definition's excess over 700 | 1,071 chars per tool |
-| Compact result before `result_id` paging | 4,000 chars | |
+| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,340 + 15 per domain = 15,520 (12 domains) | 15,358 (about 4.0K tokens) |
+| `agent` server instructions (once per session) | 1,600 | 1,395 |
+| Full listing (name + description + input schema, call keys included) | mean 1,040 per listed tool | mean 984.1 over 180 tools (177,132, about 46.6K tokens) |
+| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,409 (121 plain tools), 2,746 (55 unions) |
+| Tool definition drift (75th percentile per kind) | plain 970, union 1,860 | plain 866, union 1,739.5 |
+| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 385, 90th percentile 1,461 (max 1,812) |
+| `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 333 (1,557 in all) |
+| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 194, mean 74.5 |
+| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,541 (about 3.3K tokens) |
+
+<!-- END budget table -->
+
+Compact results before `result_id` paging aim at 4,000 characters (not measured by the test).

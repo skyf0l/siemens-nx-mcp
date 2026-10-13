@@ -54,8 +54,17 @@ class _PlacementRequired(TypedDict):
 
 
 class Placement(_PlacementRequired, total=False):
-    offset: Annotated[tuple[float, float, float], Doc("[dx, dy, dz] from unexploded pose")]
-    pose: Pose
+    offset: Annotated[
+        tuple[float, float, float],
+        Doc("[dx, dy, dz] from the unexploded pose: plain numbers in part units"),
+    ]
+    pose: Annotated[
+        Pose,
+        Doc(
+            "Instead of offset: absolute exploded pose; axis form: the unrotated part turned "
+            "about origin"
+        ),
+    ]
 
 
 forbid_extra(Placement)
@@ -163,7 +172,7 @@ def nx_create_explosion(
     placements: Annotated[list[Placement], Items(1, 1000)] | None = None,
     display: Display = True,
 ) -> ExplosionData:
-    """Create a named explosion of the displayed work assembly and show it in the work view.
+    """Create a named explosion of the work assembly and show it in its work view.
     placements (as in nx_edit_explosion) move components at once; the others stay assembled."""
     if name != name.strip():
         fail("NX_INVALID_ARGUMENT", "The name has leading or trailing spaces", field="/name")

@@ -314,13 +314,15 @@ Count = Annotated[CountValue, Range(ge=2, le=MAX_INSTANCES), Doc("Instances incl
 class _LinearRequired(TypedDict):
     direction: Direction
     count: Count
-    spacing: Length
+    spacing: Annotated[Length, Doc("Distance between neighbours (NX's pitch), not the total")]
 
 
 class LinearForm(_LinearRequired, total=False):
-    direction2: Direction
-    count2: Annotated[CountValue, Range(ge=1, le=MAX_INSTANCES)]
-    spacing2: Length
+    direction2: Annotated[Direction, Doc("Second grid direction: give count2 and spacing2 too")]
+    count2: Annotated[
+        CountValue, Range(ge=1, le=MAX_INSTANCES), Doc("Rows along direction2, the seed's included")
+    ]
+    spacing2: Annotated[Length, Doc("Distance between rows along direction2")]
 
 
 class CircularForm(TypedDict):
@@ -377,8 +379,12 @@ class FillForm(_FillRequired, total=False):
 
 
 class _GeneralRequired(TypedDict):
-    origin: Annotated[Point3, Doc("Reference point on the seed")]
-    positions: Annotated[list[Point3], Items(1, MAX_INSTANCES - 1), Doc("Where origin goes")]
+    origin: Annotated[Point3, Doc("Reference point on the seed (where the seed is now)")]
+    positions: Annotated[
+        list[Point3],
+        Items(1, MAX_INSTANCES - 1),
+        Doc("Where origin goes in each copy, the seed's own place excluded: 3 copies, 3 points"),
+    ]
 
 
 class GeneralForm(_GeneralRequired, total=False):
@@ -480,7 +486,9 @@ def _check(layout, p):
         for i, q in enumerate(points):
             if geom.dist(q, origin) <= 1e-9 * scale:
                 fail("NX_INVALID_ARGUMENT", "A position repeats the seed",
-                     field=f"{where}/positions/{i}")  # fmt: skip
+                     field=f"{where}/positions/{i}",
+                     hint="List only the copies' positions: the seed stays at origin and "
+                     "counts as an instance already")  # fmt: skip
             for j in range(i):
                 if geom.dist(q, points[j]) <= 1e-9 * scale:
                     fail("NX_INVALID_ARGUMENT", "Positions must be distinct",
@@ -702,9 +710,9 @@ def nx_create_pattern(
     unite: Annotated[bool, Doc(UNITE_TEXT)] = False,
 ) -> PatternData:
     """Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a
-    face, or at explicit points. Counts include the seed; NX computes spiral and fill counts.
-    A seed with its own body makes new bodies (new_bodies) unless unite; a circular angle
-    is the step between instances."""
+    face, or at explicit points. Counts include the seed; general positions list only the
+    copies. NX computes spiral and fill counts. A seed with its own body makes new bodies
+    (new_bodies) unless unite; a circular angle is the step between instances."""
     p = {k: common.principal(v) if k in SHORT_AXES else v for k, v in parameters.items()}
     total = _check(layout, p)
     with tx.checks():

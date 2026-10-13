@@ -213,7 +213,7 @@ def nx_capture_view(
     sheet: SheetArg | None = None,
 ) -> CaptureData:
     """PNG of the shown view or a sheet, to path or captures/; inline only with inline=true
-    or no path. view_from/up aim it."""
+    or no path. view_from/up aim it. Shows the displayed part only."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
     if up is not None and view_from is None:

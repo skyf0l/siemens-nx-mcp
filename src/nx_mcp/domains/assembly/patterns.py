@@ -380,7 +380,8 @@ def nx_edit_component_pattern(
     angle: Pitch | None = None,
 ) -> PatternData:
     """Change the count, spacing or angle of an associative single-seed component pattern.
-    NX may recreate the pattern: then replaced is true and the old reference is stale."""
+    A lower count deletes the surplus components and their constraints. NX may recreate the
+    pattern: then replaced is true and the old reference is stale."""
     given = {"count": count, "spacing": spacing, "count2": count2, "spacing2": spacing2,
              "angle": angle}  # fmt: skip
     if all(v is None for v in given.values()):

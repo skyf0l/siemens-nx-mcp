@@ -81,7 +81,7 @@ AGENT_INSTRUCTIONS = (
 # capture). The proxy pops it as a call key before gate 1; the kernel resolves it (gate 3t).
 PART_KEY = {
     "type": "string",
-    "description": "File name of the target part; needed when 2+ parts are loaded",
+    "description": "Target part's file name; needed when 2+ parts are loaded",
 }
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
 # nx_find_tools: default rows for one query and per query of ``queries``; a query with more
@@ -101,15 +101,21 @@ FULL_INSTRUCTIONS = (
 
 
 def tool_annotations(effect: str, name: str, label: str | None = None) -> ToolAnnotations:
-    """MCP hints from a spec effect (surface 1.3)."""
+    """MCP hints from a spec effect (surface 1.3).
+
+    A hint equal to MCP's default (readOnlyHint false, destructiveHint true,
+    idempotentHint false, openWorldHint true) is left out: a client reads the same
+    meaning from its absence, and the listing is paid on every turn.
+    """
     verb = name.split("_")[1] if name.count("_") >= 2 else ""
+    read = effect == "read"
     return ToolAnnotations(
         title=label,
-        readOnlyHint=effect == "read",
-        # MCP: destructiveHint means something only for tools that are not read-only.
-        destructiveHint=None if effect == "read" else effect in ("model", "session"),
-        # false is MCP's default: left out, which keeps the agent listing small.
-        idempotentHint=True if effect == "read" or verb == "set" else None,
+        readOnlyHint=True if read else None,
+        # MCP: destructiveHint means something only for tools that are not read-only;
+        # model and session changes keep the default (true).
+        destructiveHint=False if not read and effect not in ("model", "session") else None,
+        idempotentHint=True if read or verb == "set" else None,
         openWorldHint=False,
     )
 
@@ -552,7 +558,7 @@ class Surface:
                 missing.append({"name": name, "close_matches": hint})
             else:
                 tools.append(described)
-        data: dict[str, Any] = {"tools": tools}
+        data: dict[str, Any] = {"tools": group_variants(tools)}
         if missing:
             data["not_found"] = missing
         if unavailable:
@@ -585,6 +591,78 @@ class Surface:
                 "data": data,
             }
         )
+
+
+def group_variants(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """``nx_get_tool_schemas`` entries with two or more variants of one tool (``tool#a``,
+    ``tool#b``) merged into one entry at the first one's place (tool-surface 2.1):
+
+    ``{"name": tool, <keys every variant shares: description, effect, requires...>,
+    "input_schema": <what every variant's schema shares>, "variants": {"a": {"input_schema":
+    <a's own properties, required and other keys>, <a's own keys: example...>}, ...}}``
+
+    The schema of ``tool#a`` is ``input_schema`` with ``variants.a.input_schema``'s
+    ``properties`` added, its ``required`` appended and its other keys set. A single
+    ``tool#variant`` stays one self-contained entry.
+    """
+    groups: dict[str, dict[str, dict[str, Any]]] = {}
+    for entry in entries:
+        base, _, variant = entry["name"].partition("#")
+        if variant:
+            groups.setdefault(base, {}).setdefault(entry["name"], entry)
+    out: list[dict[str, Any]] = []
+    merged: set[str] = set()
+    for entry in entries:
+        base = entry["name"].partition("#")[0]
+        group = groups.get(base, {}) if "#" in entry["name"] else {}
+        if len(group) < 2:
+            out.append(entry)
+        elif base not in merged:
+            merged.add(base)
+            out.append(_merge_variants(base, list(group.values())))
+    return out
+
+
+def _merge_variants(base: str, group: list[dict[str, Any]]) -> dict[str, Any]:
+    schemas = [g["input_schema"] for g in group]
+    first, rest = schemas[0], schemas[1:]
+    props = {
+        k: v
+        for k, v in first.get("properties", {}).items()
+        if all(s.get("properties", {}).get(k, ...) == v for s in rest)
+    }
+    needed = [r for r in first.get("required", []) if all(r in s.get("required", ()) for s in rest)]
+    shared: dict[str, Any] = {}
+    for key, value in first.items():
+        if key == "properties":
+            shared[key] = props
+        elif key == "required":
+            if needed:
+                shared[key] = needed
+        elif all(s.get(key, ...) == value for s in rest):
+            shared[key] = value
+    entry: dict[str, Any] = {"name": base}
+    for key, value in group[0].items():
+        if key == "input_schema":
+            entry[key] = shared
+            entry["variants"] = {}
+        elif key != "name" and all(g.get(key, ...) == value for g in group[1:]):
+            entry[key] = value
+    for item, own_schema in zip(group, schemas, strict=True):
+        own: dict[str, Any] = {}
+        extra = {k: v for k, v in own_schema.get("properties", {}).items() if k not in props}
+        if extra:
+            own["properties"] = extra
+        more = [r for r in own_schema.get("required", []) if r not in needed]
+        if more:
+            own["required"] = more
+        own.update(
+            {k: v for k, v in own_schema.items() if k not in ("properties", "required", *shared)}
+        )
+        variant: dict[str, Any] = {"input_schema": own}
+        variant.update({k: v for k, v in item.items() if k not in ("name", *entry)})
+        entry["variants"][item["name"].partition("#")[2]] = variant
+    return entry
 
 
 def profile_from_env(surface: str | None) -> str:

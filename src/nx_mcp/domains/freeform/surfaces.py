@@ -163,7 +163,7 @@ def _native_bridge(tx, edges, kind, reverse_second):
             return b.commit(validate=True)
     except NXError as error:
         if not entered and error.code == "NX_LICENSE_UNAVAILABLE":
-            return None  # no Studio license on this seat: build Through Curves instead
+            return None  # no Studio license: build Through Curves instead
         raise
 
 
