@@ -149,4 +149,4 @@ def test_a_status_answered_during_a_call_counts_the_queue_as_it_is_now(host, rig
     control = result["data"]["control"]
     assert control["queue"]["waiting"] == 1 and control["queue"]["oldest_seconds"] >= 7.0
     assert control["running"] == "nx_extrude"
-    assert control["busy"] is True and control["waiting"] == 1  # one count (bench3t)
+    assert control["busy"] is True and control["waiting"] == 1  # one count

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/sealed_void.json",
-  "scenario_sha256": "3c15503ef6a45edf9bbf5586d4e8434901a2316f5cd5e2ebea12b2c52ff8b7de",
+  "scenario_sha256": "f0d9b62dcd899e20c4197c600f7b0883319a9f9f1e011bc81866b20da500a66c",
   "domain": "inspection",
   "covers": {
     "nx_check_model": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_model": "f5141ec31bdd20ad1f10ff09356fe31e32aa4d03c153ca70a7cf85e12bd32225"
+    "nx_check_model": "9056f2e1f3fc42e40be23e19621ebcfd457fe642a1a832b4452409f4b1ce889b"
   },
-  "recorded": "2026-10-13T14:46:18Z",
+  "recorded": "2026-10-14T13:47:37Z",
   "passed": true,
-  "checks": 19,
+  "checks": 20,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,14 +56,14 @@
       "call": "nx_check_model",
       "setup": false,
       "passed": true,
-      "checks": 14
+      "checks": 16
     },
     {
       "index": 7,
       "call": "nx_get_model_summary",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 8,

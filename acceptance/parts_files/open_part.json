@@ -12,7 +12,7 @@
      "expect": {"page.total": 1}},
     {"call": "nx_create_part", "setup": true, "args": {"path": "$run/pf_open_other.prt", "display": true}},
     {"call": "nx_open_part", "args": {"path": "$fixture", "display": false},
-     "intent": "Acceptance: open without display (work true) is no longer refused (bench3t): the work part stays and a note says how calls reach the part",
+     "intent": "Acceptance: open without display (work true) is no longer refused: the work part stays and a note says how calls reach the part",
      "expect": {"mutation_outcome": "committed", "data.already_loaded": true, "data.work": false, "data.display": false,
                 "warnings.0.message": {"matches": "Calls reach it with \"part\": \"parts_files_open_part_parts_files_block_mm[.]prt\""}}},
     {"call": "nx_open_part", "args": {"path": "$fixture", "work": false, "display": false},

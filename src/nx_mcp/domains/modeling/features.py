@@ -7,6 +7,7 @@ plain distance (``10``, ``"10 mm"``) and an axis or direction a bare principal n
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Annotated, NoReturn, cast
 
 from nx_mcp.core.catalogue import tool
@@ -30,8 +31,9 @@ from nx_mcp.kit import sketch as ksketch
 
 ZERO: LimitDistance = {"type": "distance", "value": 0.0}
 COMBINE_CHANGE = common.COMBINE_CHANGE
-# NX 2406 revolve refusal for a profile on both sides of the axis.
-REVOLVE_CROSSES_AXIS = 671623
+# NX 2406 revolve refusal shared by several causes: a profile on both sides of the axis,
+# an axis tilted out of the sketch plane, a combine whose body misses its targets.
+REVOLVE_REFUSED = 671623
 # NX 2406 extrude refusal "Limit face not found in the limit direction": the extruded
 # profile misses the target body (through all) or the until-face limit.
 LIMIT_FACE_MISSED = 671473
@@ -224,9 +226,31 @@ def _axis(tx, value, resolved=None):
     return part.Axes.CreateAxis(builders.point(tx, origin), smart, update)
 
 
-def _crosses_axis(tx, sk, origin, direction) -> bool:
-    """Whether the sketch's profile curves lie on both sides of an axis in the sketch
-    plane (sampled at five points per curve); False when the axis leaves the plane."""
+# Section checks of a revolve profile, in millimetres: curve ends closer than JOINED_MM
+# are one point; free ends up to GAP_MM apart are a gap NX does not close (a section
+# with a gap of 0.0007 mm was refused); each curve is sampled at SAMPLES + 1 points.
+JOINED_MM = 1e-4
+GAP_MM = 1.0
+SAMPLES = 16
+
+
+def _profile(tx, sk) -> list:
+    """``[(curve, part points)]`` of the sketch's profile curves (construction curves and
+    sketch points left out), each sampled at ``SAMPLES + 1`` points."""
+    out = []
+    for c in common.sketch_curves(sk):
+        try:
+            with curve.evaluator(tx, c) as e:
+                points = [e.at(k / SAMPLES)[0] for k in range(SAMPLES + 1)]
+        except Exception:
+            continue  # a sketch point, not a curve
+        out.append((c, points))
+    return out
+
+
+def _crosses_axis(tx, sk, profile, origin, direction) -> bool:
+    """Whether the profile curves lie on both sides of an axis in the sketch plane
+    (sampled); False when the axis leaves the plane."""
     f = ksketch.frame(sk)
     n = geom.unit(f["normal"])
     d = geom.unit(direction)
@@ -235,18 +259,151 @@ def _crosses_axis(tx, sk, origin, direction) -> bool:
         return False
     side = geom.cross(d, n)  # in-plane normal of the axis line
     signs = set()
-    for c in ksketch.geometry(sk):
-        if getattr(c, "IsReference", False):
-            continue
-        try:
-            points = [curve.point_at(tx, c, t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)]
-        except Exception:
-            continue  # a sketch point, not a curve
+    for _c, points in profile:
         for p in points:
-            s = geom.dot(geom.sub(geom.xyz(p) if hasattr(p, "X") else list(p), origin), side)
+            s = geom.dot(geom.sub(p, origin), side)
             if abs(s) > tol:
                 signs.add(s > 0)
     return len(signs) == 2
+
+
+def _chains(tx, profile) -> dict:
+    """``{"closed", "open", "branched", "gaps", "nodes"}``: closed loops, open chains and
+    branched chains of the profile, the gaps (free ends that nearly meet another free end)
+    and ``nodes`` ``[[point, {curve index}]]`` where curve ends meet."""
+    joined, window = units.part_tolerance(tx, JOINED_MM), units.part_tolerance(tx, GAP_MM)
+    nodes: list = []  # [point, {curve index}]
+    ends = []
+    for i, (_c, points) in enumerate(profile):
+        pair = []
+        for p in (points[0], points[-1]):
+            k = next((k for k, n in enumerate(nodes) if geom.dist(p, n[0]) <= joined), None)
+            if k is None:
+                nodes.append([p, set()])
+                k = len(nodes) - 1
+            nodes[k][1].add(i)
+            pair.append(k)
+        ends.append(pair)
+    degree: Counter = Counter(k for pair in ends for k in pair)
+    parent = list(range(len(nodes)))
+
+    def root(k):
+        while parent[k] != k:
+            k = parent[k]
+        return k
+
+    for a, b in ends:
+        parent[root(a)] = root(b)
+    groups: dict = {}
+    for k in range(len(nodes)):
+        groups.setdefault(root(k), []).append(degree[k])
+    out: dict = {"closed": 0, "open": 0, "branched": 0, "gaps": [], "nodes": nodes}
+    for degrees in groups.values():
+        kind = "branched" if max(degrees) > 2 else "open" if min(degrees) < 2 else "closed"
+        out[kind] += 1
+    free = [k for k in range(len(nodes)) if degree[k] == 1]
+    for x, a in enumerate(free):
+        for b in free[x + 1 :]:
+            gap = geom.dist(nodes[a][0], nodes[b][0])
+            if gap <= window:
+                out["gaps"].append({"point": [round(v, 6) for v in nodes[a][0]], "gap": gap})
+    return out
+
+
+def _simplified(points, tol):
+    """The two ends of a sampled curve that is straight within ``tol``, else all samples."""
+    a, b = points[0], points[-1]
+    chord = geom.sub(b, a)
+    length = geom.norm(chord)
+    if length > tol and all(
+        abs(geom.cross2(chord, geom.sub(p, a))) / length <= tol for p in points[1:-1]
+    ):
+        return [a, b]
+    return points
+
+
+def _segment_cross(a, b, c, d):
+    """The point where 2D segments ab and cd cross inside both (touching ends excluded)."""
+    r, q = geom.sub(b, a), geom.sub(d, c)
+    den = geom.cross2(r, q)
+    if abs(den) <= 1e-12 * geom.norm(r) * geom.norm(q):
+        return None  # parallel or degenerate
+    w = geom.sub(c, a)
+    t, u = geom.cross2(w, q) / den, geom.cross2(w, r) / den
+    if 1e-9 < t < 1 - 1e-9 and 1e-9 < u < 1 - 1e-9:
+        return [a[0] + t * r[0], a[1] + t * r[1]]
+    return None
+
+
+def _meeting(tx, a, b, start, tol):
+    """The point where curves ``a`` and ``b`` meet near ``start`` (alternating closest
+    points), or None when they stay apart: sampled polylines can cross where the curves
+    themselves only come close."""
+    x = start
+    for _ in range(25):
+        pa = curve.closest(tx, a, x)[0]
+        pb = curve.closest(tx, b, pa)[0]
+        if geom.dist(pa, pb) <= tol:
+            return pb
+        x = pb
+    return None
+
+
+def _crossings(tx, sk, profile, nodes) -> list:
+    """Points (at most 5) where two profile curves cross or one crosses itself, away from
+    the ends where curves join."""
+    f = ksketch.frame(sk)
+    tol = units.part_tolerance(tx)
+    polys = [_simplified([ksketch.to_local(f, p) for p in points], tol) for _c, points in profile]
+    boxes = [
+        ([min(p[k] for p in poly) for k in (0, 1)], [max(p[k] for p in poly) for k in (0, 1)])
+        for poly in polys
+    ]
+    found: list = []
+    for i in range(len(polys)):
+        for j in range(i, len(polys)):
+            (lo_i, hi_i), (lo_j, hi_j) = boxes[i], boxes[j]
+            if any(lo_i[k] > hi_j[k] + tol or lo_j[k] > hi_i[k] + tol for k in (0, 1)):
+                continue
+            hit = _pair_crossing(tx, f, profile, nodes, (i, j), (polys[i], polys[j]), tol)
+            if hit is not None:
+                found.append([round(v, 6) for v in hit])
+                if len(found) >= 5:
+                    return found
+    return found
+
+
+def _pair_crossing(tx, f, profile, nodes, pair, polys, tol):
+    """The first crossing of profile curves ``pair`` (one index twice: the curve with
+    itself), or None."""
+    (i, j), (pi, pj) = pair, polys
+    closed = len(pi) > 2 and geom.dist(pi[0], pi[-1]) <= tol
+    for s in range(len(pi) - 1):
+        for t in range(s + 2 if i == j else 0, len(pj) - 1):
+            if i == j and closed and s == 0 and t == len(pj) - 2:
+                continue  # a closed curve's first and last segments meet at its seam
+            x = _segment_cross(pi[s], pi[s + 1], pj[t], pj[t + 1])
+            if x is None:
+                continue
+            point = ksketch.to_part(f, x)
+            if i != j:
+                try:
+                    point = _meeting(tx, profile[i][0], profile[j][0], point, 10 * tol)
+                except Exception:
+                    point = None  # UF cannot evaluate: no evidence of a crossing
+                if point is None or any(
+                    {i, j} <= n[1] and geom.dist(point, n[0]) <= 100 * tol for n in nodes
+                ):
+                    continue  # apart, or where the two curves join
+            return point
+    return None
+
+
+def _section(tx, sk, profile) -> dict:
+    """:func:`_chains` plus ``crossings`` of the profile."""
+    section = _chains(tx, profile)
+    section["crossings"] = _crossings(tx, sk, profile, section["nodes"])
+    return section
 
 
 def _tilt(sk, direction) -> float:
@@ -271,30 +428,90 @@ def _tilted(normal: bool, nx_code=None, nx_message=None) -> NoReturn:
     )
 
 
-def _crosses(nx_code=None, nx_message=None):
-    details = {"nx_message": nx_message} if nx_message else None
+def _crosses():
     fail(
         "NX_INVALID_ARGUMENT",
         "The profile crosses the revolve axis; keep it on one side of the axis",
         field="/axis",
         hint="Move the sketch curves to one side of the axis (touching it is fine), "
         "or choose another axis",
-        nx_code=nx_code,
-        details=details,
     )
 
 
-def _missed(error, combine) -> NoReturn:
+def _check_section(section) -> None:
+    """Refuse, before NX, a section with gaps between curve ends or crossing curves."""
+    gaps = section["gaps"]
+    if gaps:
+        worst = max(gaps, key=lambda g: g["gap"])
+        fail(
+            "NX_WRONG_GEOMETRY",
+            f"The profile has {len(gaps)} gap(s) between curve ends (up to {worst['gap']:.3g} "
+            f"at {worst['point']}): NX does not join ends that do not coincide",
+            field="/sketch",
+            hint="Make the ends coincide exactly: nx_get_sketch lists the end points; reshape "
+            "a curve onto the other's end with nx_edit_sketch_curves",
+            details={"gaps": gaps[:10]},
+        )
+    if section["crossings"]:
+        at = section["crossings"]
+        fail(
+            "NX_WRONG_GEOMETRY",
+            f"The profile curves cross each other at {at[0]} ({len(at)} crossing(s) found): NX "
+            "cannot revolve a self-intersecting section",
+            field="/sketch",
+            hint="Trim the curves at the crossing (nx_edit_sketch_curves) and make leftover "
+            "curves construction, so each region is one clean loop",
+            details={"crossings": at},
+        )
+
+
+def _refused(error, combine, section) -> NoReturn:
+    """NX's 671623 once the axis, crossings and gaps are ruled out: the causes left."""
+    causes = []
+    loose = section["open"] + section["branched"]
+    if loose and section["closed"]:
+        causes.append(
+            f"the sketch has {loose} open or branched chain(s) next to {section['closed']} "
+            "closed loop(s): make leftover curves construction"
+        )
+    if combine is not None:
+        causes.append("the revolved body misses the combine targets")
+    else:
+        causes.append("the profile touches or crosses the axis between the sampled points")
     fail(
         "NX_BUILD_FAILED",
-        f"NX refused the {combine['operation']} revolve ({error.message}), but the profile "
-        "stays on one side of the axis: the revolved body most likely misses the combine "
-        "targets",
-        field="/combine/targets",
-        hint="Make the revolved region overlap the targets, or revolve without combine and "
+        f"NX refused the revolve ({error.message}); the profile stays on one side of the "
+        "axis with no gap or crossing found. Likely: " + "; or ".join(causes),
+        field="/combine/targets" if combine is not None and not loose else "/sketch",
+        hint="Check the sketch loops with nx_get_sketch; or revolve without combine and "
         "use nx_create_boolean",
         nx_code=error.nx_code,
+        details={k: section[k] for k in ("closed", "open", "branched")},
     )
+
+
+class RevolveData(common.FeatureData, total=False):
+    sheet: Annotated[bool, Doc("True: sheet bodies (surfaces); False: solids")]
+    area: float  # the sheets' total area
+
+
+def _open_note(tx, section, sheet) -> None:
+    """Warn about open chains: next to closed loops each becomes a body of its own; alone,
+    they made a solid unless ``sheet`` (NX built sheet bodies)."""
+    loose = section["open"] + section["branched"]
+    if loose and section["closed"]:
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"The section has {loose} open chain(s) next to {section['closed']} closed "
+            "loop(s): NX revolved each into a body of its own; make leftover curves "
+            "construction (nx_edit_sketch_curves) and delete the extra body unless intended",
+        )
+    elif loose and not sheet:
+        tx.warn(
+            "NX_NOTE",
+            "The profile is open: NX closed the revolved shape into a solid; pass sheet: true "
+            "for a surface",
+        )
 
 
 @tool(
@@ -317,13 +534,18 @@ def nx_create_revolve(
     start_angle: Angle = 0.0,
     end_angle: Angle = 360.0,
     combine: Combine | None = None,
-) -> common.FeatureData:
+    sheet: Annotated[bool, Doc("Build sheet bodies (surfaces), not solids; no combine")] = False,
+) -> RevolveData:
     """Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combined with
-    bodies. Angles follow the right-hand rule about the axis direction."""
+    bodies. Angles follow the right-hand rule about the axis direction. NX closes an open
+    profile into a solid unless sheet is true; the result's sheet says which was built."""
     axis = common.principal(axis)
     start, end = float(start_angle), float(end_angle)
     if not start < end <= start + 360.0:
         fail("NX_INVALID_ARGUMENT", "Use start < end <= start + 360", field="/end_angle")
+    if sheet and combine is not None:
+        fail("NX_INVALID_ARGUMENT", "A sheet revolve cannot combine with solid bodies",
+             field="/combine", hint="Omit combine, or omit sheet to build a solid")  # fmt: skip
     common.check_combine(combine)
     with tx.checks():
         sk = ksketch.resolve(tx, sketch)
@@ -331,8 +553,11 @@ def nx_create_revolve(
         tilt = _tilt(sk, resolved[2])
         if tilt > 1 - 1e-9:
             _tilted(True)
-        if _crosses_axis(tx, sk, resolved[1], resolved[2]):
+        profile = _profile(tx, sk)
+        if _crosses_axis(tx, sk, profile, resolved[1], resolved[2]):
             _crosses()
+        section = _section(tx, sk, profile)
+        _check_section(section)
     targets = common.combine_targets(tx, combine)
     before = measure.volume(tx, targets) if targets else 0.0
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
@@ -342,22 +567,31 @@ def nx_create_revolve(
             b.Axis = _axis(tx, axis, resolved)
             expr.drive(b.Limits.StartExtend.Value, start_angle)
             expr.drive(b.Limits.EndExtend.Value, end_angle)
+            if sheet:
+                style = tx.nx.GeometricUtilities.FeatureOptions.BodyStyle
+                b.FeatureOptions.BodyType = style.Sheet
             builders.boolean(tx, b.BooleanOperation, combine)
             feature = b.commit()
     except NXError as error:
-        if error.nx_code != REVOLVE_CROSSES_AXIS:
+        if error.nx_code != REVOLVE_REFUSED:
             raise
-        if tilt > 1e-9:  # NX's one refusal: here the axis leaves the plane, not the profile
+        if tilt > 1e-9:  # here the axis leaves the plane, not the profile
             _tilted(False, error.nx_code, error.message)
-        if combine is not None:  # NX 2406 says "crosses" for a revolve that misses targets too
-            _missed(error, combine)
-        _crosses(error.nx_code, error.message)  # a crossing the samples missed
+        _refused(error, combine, section)
     common.sound(tx, common.feature_bodies(feature), known)
     if combine is not None:
-        return common.combined(tx, feature, combine, targets, before, tags)
-    out = common.result_of(tx, feature)
+        _open_note(tx, section, False)
+        out = cast(RevolveData, common.combined(tx, feature, combine, targets, before, tags))
+        return {**out, "sheet": False}
+    out = cast(RevolveData, common.result_of(tx, feature))
+    made = _sheet(tx, feature, out)
+    if sheet:
+        readback.expect(made is not None, "sheet", "NX built solids, not sheet bodies")
+    _open_note(tx, section, made is not None)
+    if made is not None:
+        return cast(RevolveData, made)
     common.changed(0.0, out["volume"], "positive")
-    return out
+    return {**out, "sheet": False}
 
 
 @tool(

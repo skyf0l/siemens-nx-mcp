@@ -1,0 +1,35 @@
+{
+ "covers": {"nx_set_camera": [], "nx_capture_view": []},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "far", "args": {"path": "$run/cfb/cfb_far.prt", "units": "mm"}},
+  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('cfb_far') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at cfb_far.prt (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
+  {"call": "nx_create_datum_csys", "setup": true, "args": {"origin": [0, 0, 0], "x_axis": [1, 0, 0], "y_axis": [0, 1, 0]}},
+  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"shape": "block", "origin": [2200, -200, -200], "length": 790, "width": 400, "height": 400}},
+  {"call": "nx_create_primitive", "setup": true, "save": "hid", "args": {"shape": "block", "origin": [-900, -900, -900], "length": 10, "width": 10, "height": 10}},
+  {"call": "nx_set_visibility", "setup": true, "args": {"objects": ["$hid.data.bodies.0.id"], "mode": "hide"}},
+
+  {"call": "nx_set_camera", "args": {"orientation": "front", "fit": true},
+   "intent": "Acceptance: fit frames the shown bodies, not the datum CSYS at the absolute origin or a hidden body: the viewport centre is the block's box centre (2595, 0, 0) seen from the front",
+   "expect": {"mutation_outcome": "committed", "data.view": "front",
+              "data.fit.bodies": 1,
+              "data.fit.centre": {"close": [2595, 0, 0], "tol": 0.5},
+              "data.fit.offset": {"close": 0, "tol": 1.0},
+              "data.absolute_origin.0": {"close": 2595, "tol": 1.0},
+              "data.absolute_origin.2": {"close": 0, "tol": 1.0}}},
+  {"call": "nx_set_camera", "args": {"orientation": "isometric", "fit": true, "zoom": 0.8},
+   "intent": "Acceptance: an isometric fit is centred on the block as well; zoom scales the fitted view about that centre",
+   "expect": {"mutation_outcome": "committed", "data.view": "isometric",
+              "data.fit.offset": {"close": 0, "tol": 1.0},
+              "data.fit.centre": {"close": [2595, 0, 0], "tol": 0.5}}},
+  {"call": "nx_set_camera", "args": {"view_from": [-1, -1, 1], "fit": true},
+   "intent": "Acceptance: a fit from any direction stays centred on the bodies",
+   "expect": {"mutation_outcome": "committed", "data.fit.offset": {"close": 0, "tol": 1.0}}},
+  {"call": "nx_capture_view", "args": {"path": "$run/cfb/cfb_front.png", "overwrite": true, "view_from": [0, -1, 0], "fit": true},
+   "intent": "Acceptance: a fitted capture frames the shown bodies centred (the camera row is the fitted one; the engineer's camera comes back after the capture)",
+   "expect": {"ok": true, "mutation_outcome": "not_applicable",
+              "data.camera.absolute_origin.0": {"close": 2595, "tol": 1.0},
+              "data.camera.absolute_origin.2": {"close": 0, "tol": 1.0}}}
+ ]
+}

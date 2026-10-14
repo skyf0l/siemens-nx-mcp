@@ -113,7 +113,7 @@ def nx_edit_blend_order(
     readback.expect(feature is not None, "feature", "NX built no Reorder Blends feature")
     sync_common.consistent(tx, body, "The reorder")
     common.sound(tx, [body], known=faulty)
-    kbodies.expect_no_clash(tx, [body], known=overlapping, hint=CLASH_HINT)
+    common.no_clash(tx, [body], overlapping, hint=CLASH_HINT)
     out = common.result_of(tx, feature, [body])
     common.changed(before["volume"], out["volume"], "differs")
     after = measure.mass(tx, [body])

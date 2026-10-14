@@ -43,8 +43,11 @@ DOMAINS = len(typing.get_args(catalogue.Domain))
 # equal to MCP's defaults, the ref maxLength, the page offset maximum and 5 characters of the
 # part key were dropped (about 350), the sentence on grouped variants was added to
 # nx_get_tool_schemas (165). History: 15,000 until 2026-10-12, then 15,300 for the part key.
-AGENT_LISTING_BASE, PER_DOMAIN = 15_340, 15
-AGENT_LISTING = AGENT_LISTING_BASE + PER_DOMAIN * DOMAINS  # 15,520 at 12 domains
+# Moved when a core tool gained an argument: nx_check_model's ``clash`` (force the
+# self-overlap and void checks on large solids) and its sealed-void sentence; 15,579
+# measured at 12 domains, cap about 3% above (the same headroom rule as every cap here).
+AGENT_LISTING_BASE, PER_DOMAIN = 15_880, 15
+AGENT_LISTING = AGENT_LISTING_BASE + PER_DOMAIN * DOMAINS  # 16,060 at 12 domains
 # The server instructions, sent once per session: 1,395 on 2026-10-13 (unbudgeted before).
 INSTRUCTIONS_CAP = 1_600
 

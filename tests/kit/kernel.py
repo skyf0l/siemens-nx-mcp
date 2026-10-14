@@ -185,15 +185,25 @@ class KitServices(Services):
         return dict(self.fake.camera)
 
     def display_records(self, objects, appearance):
-        if appearance:  # like the host: a body is followed by its faces (unique by tag)
-            expanded = [x for o in objects for x in [o, *getattr(o, "faces", [])]]
-            objects = list({x.Tag: x for x in expanded}.values())
+        """Like the host: one record per object given (unique by tag); a body's appearance
+        record names only its faces that differ (``display.body_appearance``)."""
+        from nx_mcp.kit import display
+
         out = []
-        for obj in objects:
+        for obj in {x.Tag: x for x in objects}.values():
             record = {"blanked": bool(obj.IsBlanked)}
-            if appearance:
+            if appearance and type(obj).__name__ == "Body":
+                record.update(
+                    display.body_appearance(
+                        obj,
+                        list(getattr(obj, "faces", [])),
+                        lambda face: face.transparency,
+                        lambda face: self.fake.row(face, "face"),
+                    )  # fmt: skip
+                )
+            elif appearance:
                 record["color_index"] = obj.Color
-                if type(obj).__name__ == "Face":  # like the host: translucency of faces only
+                if type(obj).__name__ == "Face":  # like the host: translucency of faces
                     record["transparency"] = obj.transparency
             out.append((obj, record))
         return out
@@ -208,6 +218,14 @@ class KitServices(Services):
                 obj.Color = record["color_index"]
             if "transparency" in record:
                 obj.transparency = record["transparency"]
+            if type(obj).__name__ == "Body" and "color_index" in record:  # body -> faces
+                for face in getattr(obj, "faces", []):
+                    face.Color = record["color_index"]
+                    if record.get("transparency") is not None:
+                        face.transparency = record["transparency"]
+            for row in record.get("faces") or ():
+                face = self.fake.refs[row["object"]["id"]][0]
+                face.Color, face.transparency = row["color_index"], row["transparency"]
         if highlights is not None:
             for obj in self.fake.highlighted:
                 obj.Unhighlight()

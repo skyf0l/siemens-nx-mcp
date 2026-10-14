@@ -813,20 +813,17 @@ class NXServices(Services):
         return display.camera(self, part.ModelingViews.WorkView)
 
     def display_records(self, objects, appearance: bool) -> list:
-        """``[(obj, record)]`` of display state; bodies expand to faces with appearance."""
-        values = list(objects)
-        if appearance:
-            values = list(
-                {
-                    int(x.Tag): x
-                    for obj in values
-                    for x in (
-                        [obj] + list(obj.GetFaces()) if isinstance(obj, self.nx.Body) else [obj]
-                    )
-                }.values()
-            )
+        """``[(obj, record)]`` of display state, one record per object given: with
+        ``appearance`` a body's record carries its colour, the transparency most of its
+        faces have and only the faces that differ (``display.body_appearance``); faces
+        get records of their own only when they are given."""
+        values = list({int(x.Tag): x for x in objects}.values())
         if len(values) > display.MAX_RECORDS:
-            fail("NX_TOO_MANY_OBJECTS", "Display change exceeds 10000 objects/faces")
+            fail(
+                "NX_TOO_MANY_OBJECTS",
+                f"A display change takes at most {display.MAX_RECORDS} objects",
+                hint="Pass bodies or components rather than their faces, or fewer objects",
+            )
         return [(x, self._display_record(x, appearance)) for x in values]
 
     def _display_record(self, obj, appearance: bool) -> dict:
@@ -855,11 +852,27 @@ class NXServices(Services):
             "object": self.register(obj, kind, part, "Display object"),
             "blanked": bool(obj.IsBlanked),
         }
-        if appearance:
+        if appearance and kind == "body":
+            record.update(
+                display.body_appearance(
+                    obj,
+                    list(obj.GetFaces()),
+                    lambda face: self.uf.Obj.AskTranslucency(face.Tag),
+                    lambda face: self.register(face, "face", part, "Display object"),
+                )
+            )
+        elif appearance:
             record["color_index"] = obj.Color
             if isinstance(obj, nx.Face):
                 record["transparency"] = self.uf.Obj.AskTranslucency(obj.Tag)
         return record
+
+    def _display_face(self, row: dict):
+        """The face a body record lists (``display.body_appearance``), None when gone."""
+        try:
+            return self.resolve_handle(str(display.record_id(row)))
+        except Exception:  # noqa: BLE001 - a face the model no longer has is skipped
+            return None
 
     def highlights(self) -> list:
         return list(self.highlighted)
@@ -895,6 +908,7 @@ class NXServices(Services):
                 display.apply_appearance(
                     self, [obj], record["color_index"], record.get("transparency")
                 )
+                display.restore_faces(self, record, self._display_face)
             (obj.Blank if record["blanked"] else obj.Unblank)()
         if highlights is not None:
             self.set_highlights(highlights)

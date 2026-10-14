@@ -14,6 +14,18 @@ INSERT, NX 2406) and needs the ``ug_to_dxf`` license (asked before NX). The tran
 writes into
 ``.nx-mcp/staging``; the file is read back (``neutral``: schema, units, solids or
 triangles, extent against the bodies) and published without overwriting anything.
+
+Assemblies: the exported bodies are the work part's own plus the occurrence bodies of its
+loaded, unsuppressed components (``kit.bodies.scope``), in assembly coordinates; ``bodies``
+takes either kind (an occurrence of a component outside the work assembly is
+``NX_WRONG_OWNER``). STEP, IGES, Parasolid and DXF/DWG translate the selected bodies of
+the display part; for an assembly without ``bodies`` they are given every exported body,
+since the IGES and Parasolid translators skip components and the STEP translator loads
+them from the assembly's folder (a component stored elsewhere would drop out). JT writes the assembly natively (monolithic: one file with the structure and every part);
+it is refused while the assembly or a component part has unsaved changes. STL tessellates
+the occurrence bodies into one file, so every component must be fully loaded
+(``NX_NOT_LOADED`` otherwise). STEP counts solids per prototype body (an assembly file
+holds each part once however often it is placed).
 STEP AP242 needs its own NX license; without it NX 2406 raises "Interrupt" (code 2) for
 a modified part and writes "STEP AP242 License not found" to the syslog. Code 2 maps to
 ``NX_LICENSE_UNAVAILABLE`` only when the syslog lines of this call or the translator log
@@ -39,7 +51,8 @@ from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, BodyRef, Doc, Items, Length, PathTo, Range
 from nx_mcp.domains.parts_files import _saving, neutral
-from nx_mcp.kit import args, files, licenses, measure, parts, readback, result
+from nx_mcp.kit import args, files, licenses, measure, parts, readback, result, select
+from nx_mcp.kit import bodies as body_scope
 from nx_mcp.kit import units as kit_units
 
 LOG_TAIL = 4000
@@ -93,6 +106,7 @@ FORMAT_DOC = (
     "Default: from the path suffix (.step/.stp: AP214); AP242 needs the STEP AP242 translator "
     "license"
 )
+BODIES_DOC = "Only these bodies: the work part's or its components' (occurrence bodies)"
 
 
 class Bounds(TypedDict):
@@ -172,6 +186,59 @@ def _format_of(a: dict) -> str:
     return str(a.get("format") or INFERRED.get(Path(str(a.get("path", ""))).suffix.lower(), ""))
 
 
+def _selected(tx, refs, scope) -> list:
+    """The bodies ``refs`` name: the work part's own, or occurrence bodies of its loaded,
+    unsuppressed components (``scope``); an occurrence elsewhere is ``NX_WRONG_OWNER``."""
+    tags = {int(b.Tag) for b in scope}
+    out = []
+    for i, ref in enumerate(refs):
+        field = f"/bodies/{i}"
+        body = select.resolve(tx, ref, "body", field=field)
+        if not getattr(body, "IsOccurrence", False):
+            body = select.resolve(tx, ref, "body", field=field, work_part=True)
+        elif int(body.Tag) not in tags:
+            fail(
+                "NX_WRONG_OWNER",
+                f"{ref} is a body of a component outside the work assembly, or of a "
+                "suppressed or unloaded one",
+                field=field,
+                hint="Pass bodies of the work part or of its loaded, unsuppressed components",
+                details={"ref": ref},
+            )
+        out.append(body)
+    return out
+
+
+def _is_occurrence(body) -> bool:
+    return bool(getattr(body, "IsOccurrence", False))
+
+
+def _prototype_tag(body) -> int:
+    """The tag of an occurrence body's prototype (the body's own tag otherwise)."""
+    prototype = getattr(body, "Prototype", None) if getattr(body, "IsOccurrence", False) else None
+    return int((prototype or body).Tag)
+
+
+def _require_saved(tx, part) -> None:
+    """``NX_UNSAVED_PART`` when the part or a component part has unsaved changes: NX 2406
+    JT writes edited bodies as last saved (a moved body stays where it was saved)."""
+    found: dict[int, object] = {}
+    for p in [part, *(c.Prototype for c, _ in parts.components(part))]:
+        if p is not None and getattr(p, "IsModified", False) and int(p.Tag) not in found:
+            found[int(p.Tag)] = p
+    if not found:
+        return
+    unsaved = list(found.values())
+    which = "the part has" if unsaved == [part] else f"{len(unsaved)} part(s) of the assembly have"
+    fail(
+        "NX_UNSAVED_PART",
+        f"JT export writes the saved geometry of edited bodies; {which} unsaved changes",
+        hint="Save each part in details.parts (nx_save_part) first, or export step, "
+        "parasolid, iges or stl, which write the unsaved state",
+        details={"parts": [tx.ref(p, "part") for p in unsaved[:50]]},
+    )
+
+
 @tool(
     target="assembly",
     switch="display",
@@ -198,12 +265,13 @@ def nx_export_model(
     *,
     path: Annotated[str, PathTo("new", *ALL_SUFFIXES)],
     format: Annotated[ExportFormat, Doc(FORMAT_DOC)] | None = None,
-    bodies: Annotated[list[BodyRef], Items(1, 200), Doc("Only these bodies")] | None = None,
+    bodies: Annotated[list[BodyRef], Items(1, 200), Doc(BODIES_DOC)] | None = None,
     options: ExportOptions | None = None,
 ) -> ExportData:
     """Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp
-    (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only), DXF .dxf/DWG
+    (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved parts only), DXF .dxf/DWG
     .dwg (3D model data; drawing sheets: nx_export_drawing); the suffix picks the format.
+    An assembly exports with its loaded components in assembly coordinates, in one file.
     Unsaved changes are exported; the part is never saved. A part named by
     part is displayed for the export, then the tab shown before comes back."""
     target = Path(path)
@@ -243,19 +311,29 @@ def nx_export_model(
                 "The export writes the display part; the work part is not displayed",
                 hint="Display the part with nx_activate_part(display=true) and retry",
             )
-        selected = [tx.resolve(b, "body", work_part=True) for b in bodies or []]
-        exported = selected or list(part.Bodies)
-        if format in ("stl", "jt") and not exported:
-            fail("NX_INVALID_ARGUMENT", "The work part has no bodies to export", field="/bodies")
-        if format == "jt" and part.IsModified:
-            # NX 2406 JT writes edited bodies as last saved (a moved body stays put).
-            fail(
-                "NX_UNSAVED_PART",
-                "JT export writes the saved geometry of edited bodies; the part has unsaved "
-                "changes",
-                hint="Save the part (nx_save_part) first, or export step, parasolid, iges or "
-                "stl, which write the unsaved state",
+        scope = body_scope.scope(tx, "auto")  # own bodies + loaded occurrence bodies
+        selected = _selected(tx, bodies or [], scope)
+        exported = selected or scope
+        if format == "stl" and not selected:
+            # STL tessellates only the loaded occurrence bodies: the file would miss a
+            # component that is not fully loaded.
+            parts.require_loaded(
+                part,
+                "STL writes the loaded component bodies; some components are not fully loaded",
             )
+        if format in ("stl", "jt") and not exported:
+            fail(
+                "NX_NOT_FOUND",
+                "Nothing to export: the work part has no bodies and no loaded, unsuppressed "
+                "component holds any",
+                hint="Model a body, or load and unsuppress the components, then retry",
+            )
+        if format == "jt":
+            _require_saved(tx, part)
+        elif format != "stl" and not selected and any(_is_occurrence(b) for b in exported):
+            # The file translators skip components (IGES, Parasolid) or load them from the
+            # assembly's folder (STEP): select the loaded occurrence bodies instead.
+            selected = list(exported)
         if format in ("dxf", "dwg"):
             licenses.require(tx, (DXF_LICENSE,), "DXF/DWG export needs the NX DXF/DWG "
                              "translator license (ug_to_dxf)", by_argument=True)  # fmt: skip
@@ -272,7 +350,7 @@ def nx_export_model(
             with native(default="NX_EXPORT_FAILED"):
                 create, configure = WRITERS[format]
                 builder = create(tx)  # destroyed in finally even if configuring fails
-                configure(tx, builder, format, part, selected, settings, temp, opts)
+                configure(tx, builder, format, part, selected, exported, settings, temp, opts)
                 builder.Commit()
         except NXError as error:
             proof = _license_proof(syslog, log) if error.nx_code == AP242_INTERRUPT_CODE else None
@@ -337,7 +415,7 @@ def _select(tx, block, selected) -> None:
         readback.expect(block.SelectionComp.Add(selected), "selection")
 
 
-def _step_writer(tx, builder, format, part, selected, settings, temp, opts):
+def _step_writer(tx, builder, format, part, selected, exported, settings, temp, opts):
     builder.SettingsFile = str(settings)
     # Always set the schema: a new StepCreator may start from the session's last choice.
     option = tx.nx.StepCreator.ExportAsOption
@@ -356,7 +434,7 @@ def _step_writer(tx, builder, format, part, selected, settings, temp, opts):
     builder.ProcessHoldFlag = True
 
 
-def _iges_writer(tx, builder, format, part, selected, settings, temp, opts):
+def _iges_writer(tx, builder, format, part, selected, exported, settings, temp, opts):
     builder.SettingsFile = str(settings)
     builder.ExportFrom = tx.nx.IgesCreator.ExportFromOption.DisplayPart
     builder.InputFile = parts.file_of(part)  # as STEP: read only when unmodified
@@ -370,7 +448,7 @@ def _iges_writer(tx, builder, format, part, selected, settings, temp, opts):
     builder.ProcessHoldFlag = True
 
 
-def _parasolid_writer(tx, builder, format, part, selected, settings, temp, opts):
+def _parasolid_writer(tx, builder, format, part, selected, exported, settings, temp, opts):
     # No save flag exists: the displayed part is written from memory.
     builder.ExportFrom = tx.nx.ParasolidExporter.ExportFromOption.DisplayedPart
     builder.InputFile = parts.file_of(part)
@@ -381,15 +459,17 @@ def _parasolid_writer(tx, builder, format, part, selected, settings, temp, opts)
     builder.ProcessHoldFlag = True
 
 
-def _stl_writer(tx, builder, format, part, selected, settings, temp, opts):
-    # STL tessellates the loaded bodies; its ExportSelectionBlock is a plain object list.
+def _stl_writer(tx, builder, format, part, selected, exported, settings, temp, opts):
+    # STL tessellates the loaded bodies it is given (no whole-part mode); its
+    # ExportSelectionBlock is a plain object list. Occurrence bodies of an assembly's
+    # components are tessellated in the assembly's coordinates, into the same file.
     kinds = tx.nx.STLCreator.OutputTypeEnum
     builder.OutputType = kinds.Binary if opts.get("binary", True) else kinds.Text
     if opts.get("chordal_tolerance") is not None:
         builder.ChordalTol = float(opts["chordal_tolerance"])
     if opts.get("angular_tolerance") is not None:
         builder.AngularTol = float(opts["angular_tolerance"])
-    readback.expect(builder.ExportSelectionBlock.Add(selected or list(part.Bodies)), "selection")
+    readback.expect(builder.ExportSelectionBlock.Add(list(exported)), "selection")
     builder.OutputFile = str(temp)
     opts["_tolerances"] = {
         "chordal": float(builder.ChordalTol),
@@ -397,15 +477,17 @@ def _stl_writer(tx, builder, format, part, selected, settings, temp, opts):
     }
 
 
-def _jt_writer(tx, builder, format, part, selected, settings, temp, opts):
-    # One monolithic file (NX's default writes an assembly file plus one file per part).
+def _jt_writer(tx, builder, format, part, selected, exported, settings, temp, opts):
+    # One monolithic file (NX's default writes an assembly file plus one file per part):
+    # an assembly's structure and every component part go into it. Without a selection
+    # the whole display part (assembly) is written.
     builder.JtfileStructure = tx.nx.JtCreatorFileStructure.Monolithic
     if selected:
         readback.expect(builder.SelectBody.Add(selected), "selection")
     builder.OutputJtFile = str(temp)
 
 
-def _dxf_writer(tx, builder, format, part, selected, settings, temp, opts):
+def _dxf_writer(tx, builder, format, part, selected, exported, settings, temp, opts):
     # 3D model data (not drawings): solids and surfaces of the display part, from memory.
     kinds = tx.nx.DxfdwgCreator
     builder.SettingsFile = str(settings)
@@ -476,7 +558,8 @@ def _verify(tx, format, facts, exported, selected, target, opts, log) -> dict:
         schema = "AP242" if format == "step_ap242" else "AP214"
         readback.expect(facts["schema"] == schema, "schema", schema=facts["schema"])
         solids = facts["solids"]
-        wanted = sum(1 for b in selected if getattr(b, "IsSolidBody", True))
+        # An assembly file holds each part's solids once, however often it is placed.
+        wanted = len({_prototype_tag(b) for b in selected if getattr(b, "IsSolidBody", True)})
         if solids == 0 or solids < wanted:
             fail(
                 "NX_INCOMPLETE_RESULT",

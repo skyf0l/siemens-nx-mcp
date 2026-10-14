@@ -82,8 +82,8 @@ def test_status_reads_the_panel_mode_and_filters_sections(monkeypatch):
 
 
 def test_status_counts_agree_while_calls_wait(monkeypatch):
-    """bench3t: busy false and waiting 0 next to queue.waiting 4 (busy meant the engineer
-    only, waiting the Ask me first card only)."""
+    """Never busy false and waiting 0 next to queue.waiting 4 (busy once meant the
+    engineer only, waiting the Ask me first card only)."""
     nx = fake_nx()
     status = panel_status() | {"queue": {"waiting": 4, "oldest_seconds": 0.0}}
     monkeypatch.setattr(services(nx), "control_status", lambda: status, raising=False)
@@ -141,8 +141,9 @@ async def test_the_proxy_answers_status_when_the_bridge_is_down(tmp_path, monkey
     answer = await proxy.call(st.nx_get_status.spec, {}, detail="full")
     body = answer.structuredContent
     assert not answer.isError and body["ok"] and body["mutation_outcome"] == "not_applicable"
-    assert body["data"]["bridge"]["state"] == "unavailable"
+    assert body["data"]["bridge"]["state"] == "down"
     assert body["data"]["bridge"]["answered_from"] == "sidecar"
+    assert body["data"]["bridge"]["health"]["hint"].startswith("Start NX")
     assert body["data"]["workspace"]["root"] == str(tmp_path)
     assert body["data"]["parts"] is None and "NX_BRIDGE_UNAVAILABLE" not in body["data"]
     assert "connection refused" in body["warnings"][0]["message"]

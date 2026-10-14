@@ -50,24 +50,6 @@ class ExportData(_CgmData):
     updated_views: Annotated[list[result.Row], Doc("Views out of date before the export")]
 
 
-def _check_loaded(part):
-    missing = [
-        "/".join(names)
-        for component, names in parts.components(part)
-        if not component.IsSuppressed
-        and not (
-            parts.prototype_file(component) and getattr(component.Prototype, "IsFullyLoaded", True)
-        )
-    ]
-    if missing:
-        fail(
-            "NX_NOT_LOADED",
-            "Load the assembly components before exporting drawings",
-            hint="Open the assembly with nx_open_part(load_components=true)",
-            details={"components": missing[:50]},
-        )
-
-
 def _cgm_text(raw):
     """A CGM string parameter without its ISO 2022 character-set escapes."""
     return re.sub(r"[ -/]*[0-~]", "", raw.decode("latin-1"))
@@ -141,7 +123,7 @@ def nx_export_drawing(
              field="/path", hint=f"Use a .{kind} path, or omit format to follow the path")  # fmt: skip
     with tx.checks():
         part = tx.part
-        _check_loaded(part)
+        parts.require_loaded(part, "Load the assembly components before exporting drawings")
         selected = [sheet_of(tx, s, f"/sheets/{i}") for i, s in enumerate(sheets or [])]
         if not selected:
             selected = list(part.DrawingSheets)

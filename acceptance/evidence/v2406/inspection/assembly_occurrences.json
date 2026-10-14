@@ -18,10 +18,10 @@
     "nx_find_geometry": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21",
     "nx_measure_bounds": "9702aece81889dda898975a1ce94443250b29a84a933b017e696789aba55ccd6",
     "nx_measure_distance": "9702aece81889dda898975a1ce94443250b29a84a933b017e696789aba55ccd6",
-    "nx_check_interference": "3a6c64f93df18c52f2bfed2ce31ef3a69b87574344f61313f058e91c16a67cf5",
+    "nx_check_interference": "645be667e75d0b11d382d1b119e3d32bc7a801c55d871d6965961d441c0ccb31",
     "nx_resolve_reference": "e099a1e3e8d40662e10bff6a1e988dc7130cfbdc49a78ac62f9d8268e9a03e21"
   },
-  "recorded": "2026-10-13T13:51:39Z",
+  "recorded": "2026-10-14T13:46:34Z",
   "passed": true,
   "checks": 55,
   "failed_checks": 0,

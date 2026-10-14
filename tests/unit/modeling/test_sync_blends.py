@@ -68,6 +68,18 @@ def test_finds_the_overflowing_blend_and_reads_the_corner_change_back():
     assert nx.last(BUILDER).BlendFace2.ReplaceRules.calls[0][0][0] == [("FaceDumb", [concave])]
 
 
+def test_a_reorder_on_a_body_too_large_to_examine_says_the_check_was_skipped(monkeypatch):
+    from nx_mcp.kit import bodies
+
+    nx, a, concave, _convex, _asked = corner()
+    reorders(nx, a, a.volume - 11.7)
+    monkeypatch.setattr(bodies, "CLASH_FACES", 1)
+    ok = run(nx, "nx_edit_blend_order", face=nx.ref_of(concave, "face"))
+    assert ok.ok, ok
+    notes = [w["message"] for w in ok.warnings if w["code"] == "NX_NOTE"]
+    assert notes and notes[0].startswith("Self-overlap check skipped"), ok.warnings
+
+
 def test_a_reorder_that_changes_nothing_rolls_back():
     nx, a, concave, _convex, _asked = corner()
     reorders(nx, a, a.volume)

@@ -134,7 +134,7 @@ def test_appearance_count_only():
     nx = display_nx()
     body = nx.block(1, 1, 1)
     ok = run(nx, "nx_get_appearance", objects=[body.ref], count_only=True)
-    assert ok.data == {"count": 7}
+    assert ok.data == {"count": 1, "faces": 6}
 
 
 def test_highlight_replaces_and_clears_the_agents_highlights():
@@ -209,7 +209,9 @@ def test_unknown_colour_lists_the_names_with_a_guess():
     body = nx.block(1, 1, 1)
     bad = run(nx, "nx_set_appearance", objects=[body.ref], color="bleu")
     assert bad.error["field"] == "/color" and "did you mean 'blue'" in bad.error["message"]
-    assert "'magenta'" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+    assert bad.mutation_outcome == "not_started"
+    for form in ("1-216", "magenta", "#RRGGBB", "[r, g, b]", "0-255", "0-1"):
+        assert form in bad.error["hint"]
     big = run(nx, "nx_set_appearance", objects=[body.ref], color="300")
     assert big.error["field"] == "/color" and body.Color == 7
 
@@ -231,27 +233,109 @@ def test_transparency_out_of_range_is_refused(value):
 
 
 def test_a_body_reports_its_faces_transparency_and_colour_name():
-    """The NX host asks translucency of faces only (a body's record has none)."""
+    """One row per body: the transparency its faces share, None when they disagree, and
+    the faces coloured unlike the body as faces_differ (and rows)."""
     nx = display_nx()
     body = nx.block(1, 1, 1)
-    kit = services(nx)
-    records = kit.display_records
-
-    def like_the_host(objects, appearance):
-        pairs = records(objects, appearance)
-        for obj, record in pairs:
-            if obj is body:
-                record.pop("transparency", None)
-        return pairs
-
-    kit.display_records = like_the_host
     run(nx, "nx_set_appearance", objects=[body.ref], color="red", transparency=40)
     rows = run(nx, "nx_get_appearance", objects=[body.ref]).data["objects"]
-    assert rows[0]["object"]["kind"] == "body"
+    assert len(rows) == 1 and rows[0]["object"]["kind"] == "body"
     assert rows[0]["transparency"] == 40 and rows[0]["color_name"] == "red"
+    assert "faces_differ" not in rows[0]
     run(nx, "nx_set_appearance", objects=[body.faces[0].ref], transparency=10)
     mixed = run(nx, "nx_get_appearance", objects=[body.ref]).data["objects"]
-    assert mixed[0]["transparency"] is None and mixed[1]["transparency"] == 10
+    assert len(mixed) == 1 and mixed[0]["transparency"] is None
+    assert mixed[0]["faces_differ"] == 1 and mixed[0]["faces"][0]["transparency"] == 10
+    assert mixed[0]["faces"][0]["object"]["kind"] == "face"
+
+
+def test_a_body_of_many_faces_is_one_record_coloured_and_restored_whole():
+    """More faces than a display change may name: still one record, coloured in one
+    modification, and the faces that had their own colour get it back on restore."""
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    body.faces = [nx.face(body=body) for _ in range(display.MAX_RECORDS + 5)]
+    body.faces[3].Color = 44
+    read = run(nx, "nx_get_appearance", objects=[body.ref])
+    assert read.ok and read.data["count"] == 1 and read.data["objects"][0]["faces_differ"] == 1
+    ok = run(nx, "nx_set_appearance", objects=[body.ref], color="#0000FF")
+    assert ok.ok and ok.data["count"] == 1 and len(ok.data["objects"]) == 1
+    assert all(f.Color == 211 for f in body.faces) and len(nx.modifications) == 1
+    assert ok.data["color_match"] == {"index": 211, "label": "Blue", "hex": "#0000FF",
+                                      "requested": "#0000FF"}  # fmt: skip
+    snapshot = display.snapshots.items[ok.restore_id]
+    assert len(snapshot["records"]) == 1 and len(snapshot["records"][0]["faces"]) == 1
+    back = run(nx, "nx_restore_display", restore_id=ok.restore_id)
+    assert back.ok and body.Color == 7 and body.faces[3].Color == 44
+    assert body.faces[0].Color == 7
+
+
+def test_too_many_objects_is_refused_before_anything_changes():
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+
+    original = display.MAX_RECORDS
+    display.MAX_RECORDS = 3
+    try:
+        bad = run(nx, "nx_set_appearance", objects=[f.ref for f in body.faces], color="red")
+    finally:
+        display.MAX_RECORDS = original
+    assert bad.error["code"] == "NX_TOO_MANY_OBJECTS" and bad.mutation_outcome == "not_started"
+    assert body.faces[0].Color == 7
+
+
+@pytest.mark.parametrize(
+    ("color", "index", "label", "requested"),
+    [
+        ("#FF0000", 186, "Red", "#FF0000"),
+        ("#9ac8f5", 123, "Light Steel Blue", "#9AC8F5"),
+        ([250, 10, 5], 186, "Red", "#FA0A05"),
+        ([0.6, 0.6, 0.62], 87, "Light Gray", "#99999E"),
+        ([1, 1, 1], 1, "White", "#FFFFFF"),  # every component <= 1: 0-1 scale
+        ([1, 1, 2], 216, "Black", "#010102"),  # one above 1: 0-255 scale
+    ],
+)
+def test_rgb_and_hex_take_the_nearest_colour_table_entry(color, index, label, requested):
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    ok = run(nx, "nx_set_appearance", objects=[body.ref], color=color)
+    assert ok.ok, ok.error
+    assert body.Color == index and ok.data["color_match"]["label"] == label
+    assert ok.data["color_match"]["requested"] == requested
+
+
+@pytest.mark.parametrize(
+    ("color", "index"), [("Light Gray", 87), ("light_grey", 87), ("LIGHT STEEL BLUE", 123)]
+)
+def test_colour_table_names_in_any_case_and_spacing(color, index):
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    ok = run(nx, "nx_set_appearance", objects=[body.ref], color=color)
+    assert ok.ok, ok.error
+    assert body.Color == index and ok.data["color_match"]["index"] == index
+
+
+@pytest.mark.parametrize(
+    ("color", "words"),
+    [("#12345", "#RRGGBB"), ([300, 0, 0], "0-255"), ([-1, 0, 0], "0-255"),
+     ("Steel", "did you mean 'Light Steel Blue'"), ("Dark Bronze", "Unknown color")],
+)  # fmt: skip
+def test_bad_colours_are_refused_with_the_accepted_forms(color, words):
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    bad = run(nx, "nx_set_appearance", objects=[body.ref], color=color)
+    assert bad.error["field"] == "/color" and bad.mutation_outcome == "not_started"
+    assert words in bad.error["message"] and "#RRGGBB" in bad.error["hint"]
+    assert body.Color == 7
+
+
+def test_given_faces_get_rows_of_their_own():
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    ok = run(nx, "nx_set_appearance", objects=[body.faces[0].ref, body.faces[1].ref], color=186)
+    assert ok.ok and ok.data["count"] == 2
+    assert [r["object"]["kind"] for r in ok.data["objects"]] == ["face", "face"]
+    assert body.faces[0].Color == 186 and body.faces[2].Color == 7
 
 
 def test_hide_counts_what_ends_up_blanked():

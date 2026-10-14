@@ -33,7 +33,7 @@ by tag *and* file: a part the engineer closed and opened again (a new tag) is th
   (its connection never runs calls at once) is never refused by this rule, nor is a close
   that saves. In a shared connection an agent's own close within ``RECENT_SECONDS`` of
   its own work in the part is refused too (one retry with ``force``): the refusal says
-  so. Measured (30 agents in one sidecar): the foreign close of a part changed 17 s and
+  so. Measured with many agents in one sidecar: the foreign close of a part changed 17 s and
   worked in 0 s before is refused; own closes 2 to 56 s after own edits mostly pass.
 - Closing an assembly keeps a component part that a call worked in (saves included)
   within ``BUSY_SECONDS`` after the assembly was loaded (:func:`component_reason`).

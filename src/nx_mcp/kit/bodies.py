@@ -9,7 +9,9 @@
     bodies.faulty(tx, found)           # tags UF body consistency faults (self-intersecting)
     bodies.expect_sound(tx, made, known=...)  # after a build: consistency faults fail
     bodies.scale_note(tx, made)        # warning text when the bodies span over 10 m
-    bodies.expect_no_clash(tx, made)   # after a build: faces cutting each other fail
+    bodies.expect_no_clash(tx, made)   # after a build: faces cutting each other fail;
+                                       # a note when a body was too big to examine
+    bodies.examinable(body)            # False above CLASH_FACES faces (no self-overlap check)
 
 Occurrence bodies come from ``component.FindOccurrence(prototype_body)``, so
 suppressed components, unloaded prototypes and reference sets are honoured the way
@@ -36,14 +38,7 @@ def is_body(obj) -> bool:
     return hasattr(obj, "IsSolidBody") and hasattr(obj, "GetFaces")
 
 
-def suppressed(component) -> bool:
-    """True when the component or one of its parents is suppressed."""
-    node = component
-    while node is not None:
-        if getattr(node, "IsSuppressed", False):
-            return True
-        node = getattr(node, "Parent", None)
-    return False
+suppressed = parts.suppressed  # the component or one of its parents is suppressed
 
 
 def occurrences(component) -> list:
@@ -231,6 +226,13 @@ def scale_note(tx, made) -> str | None:
     return f"The result spans {span:.6g} {unit} (over 10 m): check the values and units"
 
 
+# Examine Geometry's self-overlap check is skipped on bodies with more faces than this: it
+# runs on NX's main thread, cannot be interrupted and can run for an hour on such a body.
+CLASH_FACES = 2_000
+CLASH_SKIPPED = (
+    "Self-overlap check skipped: the body has {faces:,} faces (over {limit:,}); "
+    "nx_check_model with clash: true checks it (slow)"
+)
 CLASH_HINT = (
     "The body overlaps itself: parts of the path come closer than the section's size (a "
     "tube wider than its helix pitch, loops of the path crossing). Use a smaller section "
@@ -238,10 +240,26 @@ CLASH_HINT = (
 )
 
 
+def face_count(body) -> int:
+    """Faces of ``body`` (0 when NX cannot tell)."""
+    try:
+        return len(list(body.GetFaces() or []))
+    except Exception:
+        return 0
+
+
+def examinable(body, limit: int | None = None) -> bool:
+    """True when ``body`` has at most ``limit`` (``CLASH_FACES``) faces: Examine Geometry's body face
+    intersection check runs on NX's main thread and cannot be interrupted, and its time
+    grows faster than the face count (a 17,627-face solid took about an hour, NX 2406)."""
+    return face_count(body) <= (CLASH_FACES if limit is None else limit)
+
+
 def face_clashes(tx, body) -> int:
     """Faces of ``body`` that cut its other faces (NX Examine Geometry, body face
     intersections): a self-overlapping solid, e.g. a tube wider than its helix pitch,
-    which UF consistency passes (NX 2406, measured). 0 when NX cannot tell."""
+    which UF consistency passes (NX 2406, measured). 0 when NX cannot tell. It examines
+    any size: callers check :func:`examinable` first."""
     return len(clashing_faces(tx, body))
 
 
@@ -272,17 +290,24 @@ def clashing_faces(tx, body, part=None) -> list:
 
 def clashing(tx, found) -> set[int]:
     """Tags of the bodies in ``found`` whose faces already cut each other (before a
-    change: such a body does not fail :func:`expect_no_clash`)."""
-    return {int(b.Tag) for b in found if face_clashes(tx, b)}
+    change: such a body does not fail :func:`expect_no_clash`); bodies over
+    ``CLASH_FACES`` faces are not examined."""
+    return {int(b.Tag) for b in found if examinable(b) and face_clashes(tx, b)}
 
 
-def expect_no_clash(tx, made, *, known=(), check="body_health", hint=CLASH_HINT) -> None:
+def expect_no_clash(tx, made, *, known=(), check="body_health", hint=CLASH_HINT) -> str | None:
     """After a build: ``NX_BUILD_FAILED`` (the kernel rolls back) when a body in ``made``
     overlaps itself (:func:`face_clashes`) and did not before (``known``: tags from
-    :func:`clashing`)."""
+    :func:`clashing`). A body over ``CLASH_FACES`` faces is not examined: the returned
+    note says so (the caller warns with it, like :func:`scale_note`), else None."""
     skip = {int(t) for t in known}
+    note = None
     for body in made:
         if int(body.Tag) in skip:
+            continue
+        faces = face_count(body)
+        if faces > CLASH_FACES:
+            note = CLASH_SKIPPED.format(faces=faces, limit=CLASH_FACES)
             continue
         count = face_clashes(tx, body)
         if count:
@@ -293,3 +318,4 @@ def expect_no_clash(tx, made, *, known=(), check="body_health", hint=CLASH_HINT)
                 hint=hint,
                 details={"check": check, "face_intersections": count},
             )
+    return note

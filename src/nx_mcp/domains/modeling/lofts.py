@@ -1,4 +1,4 @@
-"""Loft through section sketches (tool-surface 3.6): NX Through Curves, or Swept with guides.
+"""Loft through sections (tool-surface 3.6): NX Through Curves, or Swept with guides.
 
 NX 2406 lessons kept here:
 
@@ -18,6 +18,10 @@ NX 2406 lessons kept here:
 - Through Curves and Swept have no Boolean option: combine through a Boolean feature.
 - Swept takes several sections and 1-3 guides (``SectionList``, ``GuideList``) with the same
   ``AlignmentMethod``.
+- A section is any ``Section``: a sketch (curve feature rule) or curves and edges (dumb
+  rules, ``builders.curve_section``). A section of curves has no sketch frame: its plane
+  is the loop's own (Newell normal, centroid), and an open one has none (the loft
+  direction then runs from its centre to the next section's).
 """
 
 from __future__ import annotations
@@ -28,12 +32,16 @@ from typing import Annotated, Any, Literal
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Combine, Doc, Items, Point3, RefTo, SketchRef
+from nx_mcp.core.types import Combine, Doc, Items, Point3, RefTo
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args, builders, curve, geom, measure, readback, select, units
 from nx_mcp.kit import sketch as ksketch
 
 GuideRef = Annotated[str, RefTo("sketch", "curve", "edge")]
+SectionRef = (
+    Annotated[str, RefTo("sketch", "curve", "edge")]
+    | Annotated[list[Annotated[str, RefTo("curve", "edge")]], Items(1, 50)]
+)
 # A solid loft below this share of its sections' trapezoid volume estimate is twisted (an
 # untwisted ruled loft keeps at least 2/3 of it, a cone's share).
 LOFT_TWIST = 0.5
@@ -178,8 +186,61 @@ def _start(loop, points, vertices, best, forward) -> dict:
 # NX side
 
 
-def _pieces(tx, sk) -> list:
-    curves = common.sketch_curves(sk)
+class Section:
+    """One loft section: a sketch, or curves and edges, with the plane ``frame``
+    (``origin``, ``normal``; ``normal`` None for an open section of curves)."""
+
+    def __init__(self, tx, curves, sketch=None):
+        self.curves = list(curves)
+        self.sketch = sketch
+        self.frame = ksketch.frame(sketch) if sketch is not None else _curve_frame(tx, curves)
+
+    def build(self, tx):
+        if self.sketch is not None:
+            return builders.section(tx, self.sketch)
+        return builders.curve_section(tx, self.curves)
+
+
+def _curve_frame(tx, curves) -> dict:
+    """``{origin, normal}`` of a section of curves: its loop's plane (Newell normal and
+    centroid), or the centre of its sample points and no normal when it is not one loop."""
+    pieces = _pieces(tx, curves)
+    loop = chain(pieces, units.part_tolerance(tx))
+    if loop is not None:
+        points, _vertices = ring(loop)
+        if len(points) >= 3:
+            area, centroid = polygon(points)
+            if geom.norm(area) > 0:
+                return {"origin": centroid, "normal": geom.unit(area)}
+    samples = [q for _c, pts in pieces for q in pts] or [[0.0, 0.0, 0.0]]
+    centre = geom.scale([sum(q[i] for q in samples) for i in range(3)], 1 / len(samples))
+    return {"origin": centre, "normal": None}
+
+
+def _section(tx, ref, field) -> Section:
+    """A section from a sketch ref, a curve or edge ref, or a list of curve and edge refs."""
+    if isinstance(ref, str):
+        try:
+            obj = select.resolve(tx, ref, "sketch", field=field)
+        except NXError as error:
+            if error.code != "NX_WRONG_KIND":
+                raise
+        else:
+            sk = ksketch.resolve(tx, obj, field)
+            return Section(tx, common.sketch_curves(sk), sk)
+        refs, fields = [ref], [field]
+    else:
+        refs, fields = list(ref), [f"{field}/{k}" for k in range(len(ref))]
+        args.distinct(field, refs, "curves")
+    curves = [
+        select.owned(tx, select.resolve(tx, r, "curve", "edge", field=f), f, "curves")
+        for r, f in zip(refs, fields, strict=True)
+    ]
+    return Section(tx, curves)
+
+
+def _pieces(tx, curves) -> list:
+    curves = list(curves)
     n = SINGLE_SAMPLES if len(curves) == 1 else SAMPLES
     out = []
     for c in curves:
@@ -191,16 +252,19 @@ def _pieces(tx, sk) -> list:
     return out
 
 
-def _loops(tx, sketches) -> list:
+def _loops(tx, sections) -> list:
     tol = units.part_tolerance(tx)
-    return [chain(_pieces(tx, sk), tol) for sk in sketches]
+    return [chain(_pieces(tx, s.curves), tol) for s in sections]
 
 
-def _axis(tx, sketches) -> list[float]:
-    """The loft direction: first sketch normal, turned toward the second section."""
-    frames = [ksketch.frame(sk) for sk in sketches]
-    n = geom.unit(frames[0]["normal"])
+def _axis(tx, sections) -> list[float]:
+    """The loft direction: the first section's normal turned toward the second section
+    (from the first section's centre to the second's when it has no normal)."""
+    frames = [s.frame for s in sections]
     ahead = geom.sub(frames[1]["origin"], frames[0]["origin"])
+    if frames[0]["normal"] is None:
+        return geom.unit(ahead) if geom.norm(ahead) > 0 else [0.0, 0.0, 1.0]
+    n = geom.unit(frames[0]["normal"])
     return geom.scale(n, -1.0) if geom.dot(ahead, n) < 0 else n
 
 
@@ -271,7 +335,7 @@ def _behind(tx, body, f, axis, end) -> bool:
     return ahead < 0 if end == 0 else ahead > 0
 
 
-def _tangent_ends(tx, sketches, axis) -> dict[int, list]:
+def _tangent_ends(tx, sections, axis) -> dict[int, list]:
     """``{0: faces, 1: faces}``: for the first and last section, the faces of the work-part
     solids outside the loft at that end whose boundary holds all the section's curves,
     except faces in the section's plane (the body the loft continues from: its side
@@ -279,18 +343,20 @@ def _tangent_ends(tx, sketches, axis) -> dict[int, list]:
     tol = max(10 * units.part_tolerance(tx), 1e-6)
     ends: dict[int, list] = {}
     solids = [b for b in tx.part.Bodies if getattr(b, "IsSolidBody", True)]
-    for end, sk in ((0, sketches[0]), (1, sketches[-1])):
-        curves = common.sketch_curves(sk)
-        f = ksketch.frame(sk)
-        normal = geom.unit(f["normal"])
+    for end, section in ((0, sections[0]), (1, sections[-1])):
+        curves = section.curves
+        f = section.frame
+        normal = geom.unit(f["normal"]) if f["normal"] is not None else None
         found = []
         for body in solids:
             if not _behind(tx, body, f, axis, end):
                 continue
             for face in body.GetFaces():
                 kind, point, direction = select.face_data(tx, face)
-                flat = kind == select.FACE_PLANE and geom.parallel(
-                    geom.unit(direction), normal, 1e-6
+                flat = (
+                    normal is not None
+                    and kind == select.FACE_PLANE
+                    and geom.parallel(geom.unit(direction), normal, 1e-6)
                 )
                 if flat and abs(ksketch.height(f, point)) <= tol:
                     continue  # the cap the section lies in
@@ -322,7 +388,11 @@ def _tangent_ends(tx, sketches, axis) -> dict[int, list]:
 def nx_create_loft(
     tx: Tx,
     *,
-    sections: Annotated[list[SketchRef], Items(2, 20)],
+    sections: Annotated[
+        list[SectionRef],
+        Items(2, 20),
+        Doc("Each a sketch, a curve or edge (e.g. a closed spline), or a list of curves/edges"),
+    ],
     solid: bool = True,
     start_points: Annotated[list[Point3], Items(2, 20)] | None = None,
     guides: Annotated[list[GuideRef], Items(1, 3)] | None = None,
@@ -333,9 +403,10 @@ def nx_create_loft(
     | None = None,
     combine: Combine | None = None,
 ) -> common.FeatureData:
-    """Loft a body through 2-20 section sketches in order (NX Through Curves; Swept along
-    guides). Closed sections start at matching corners: no twist."""
-    args.distinct("/sections", sections, "sketches")
+    """Loft a body through 2-20 sections in order (NX Through Curves; Swept along guides). A
+    section is a sketch, a curve or edge, or a list of curves and edges forming one chain.
+    Closed sections start at matching corners: no twist."""
+    args.distinct("/sections", sections, "sections")
     common.check_one_target(combine, "loft")
     if start_points is not None and len(start_points) != len(sections):
         fail("NX_INVALID_ARGUMENT", "start_points needs one point per section",
@@ -346,8 +417,8 @@ def nx_create_loft(
     if combine is not None and not solid:
         fail("NX_INVALID_ARGUMENT", "A sheet loft cannot combine", field="/combine")
     with tx.checks():
-        sketches = [ksketch.resolve(tx, s, f"/sections/{i}") for i, s in enumerate(sections)]
-        loops = _loops(tx, sketches)
+        made_sections = [_section(tx, s, f"/sections/{i}") for i, s in enumerate(sections)]
+        loops = _loops(tx, made_sections)
         targets = None
         if start_points is not None:
             targets = [args.vec3(p, f"/start_points/{i}") for i, p in enumerate(start_points)]
@@ -357,8 +428,8 @@ def nx_create_loft(
                          f"sections[{i}] is not one closed loop: it has no start to move",
                          field=f"/start_points/{i}")  # fmt: skip
         fills = [_guide(tx, g, f"/guides/{i}") for i, g in enumerate(guides or [])]
-        axis = _axis(tx, sketches)
-        ends = _tangent_ends(tx, sketches, axis) if tangent == "faces" else {}
+        axis = _axis(tx, made_sections)
+        ends = _tangent_ends(tx, made_sections, axis) if tangent == "faces" else {}
     targets_body = common.one_target(tx, combine, "loft")
     before = measure.volume(tx, targets_body) if targets_body else 0.0
     swept = guides is not None
@@ -374,8 +445,8 @@ def nx_create_loft(
             b.BodyPreference = prefer.Solid if solid else prefer.Sheet
             listing, alignment = b.SectionsList, b.Alignment
         made: list[Any] = []
-        for sk in sketches:
-            made.append(builders.section(tx, sk))
+        for section in made_sections:
+            made.append(section.build(tx))
             tx.checkpoint()
         shifts = _starts(tx, made, loops, axis, targets)
         for section in made:
@@ -405,12 +476,12 @@ def nx_create_loft(
     out = common.result_of(tx, feature)
     if solid:
         common.changed(0.0, out["volume"], "positive")
-        _warn_twist(tx, sketches, out["volume"])
+        _warn_twist(tx, made_sections, out["volume"])
     return out
 
 
-def _warn_twist(tx, sketches, volume) -> None:
-    estimate = _loft_estimate(tx, sketches)
+def _warn_twist(tx, sections, volume) -> None:
+    estimate = _loft_estimate(tx, sections)
     if estimate is None or volume >= LOFT_TWIST * estimate:
         return
     tx.warn(
@@ -425,9 +496,9 @@ def _warn_twist(tx, sketches, volume) -> None:
 # Volume estimate (twist warning)
 
 
-def _section_area(tx, sk):
-    """Area enclosed by a sketch that is one closed loop, or None."""
-    loop = chain(list(_sampled(tx, sk)), units.part_tolerance(tx))
+def _section_area(tx, section):
+    """Area enclosed by a section that is one closed loop, or None."""
+    loop = chain(list(_sampled(tx, section.curves)), units.part_tolerance(tx))
     if loop is None:
         return None
     points, _vertices = ring(loop)
@@ -437,8 +508,8 @@ def _section_area(tx, sk):
     return geom.norm(area)
 
 
-def _sampled(tx, sk):
-    for c in common.sketch_curves(sk):
+def _sampled(tx, curves):
+    for c in curves:
         try:
             with curve.evaluator(tx, c) as e:
                 yield c, [e.at(i / SAMPLES)[0] for i in range(SAMPLES + 1)]
@@ -446,20 +517,22 @@ def _sampled(tx, sk):
             continue
 
 
-def _loft_estimate(tx, sketches):
+def _loft_estimate(tx, sections):
     """Trapezoid volume estimate of a loft through parallel one-loop sections, or None."""
     try:
-        frames = [ksketch.frame(sk) for sk in sketches]
+        frames = [s.frame for s in sections]
+        if any(f["normal"] is None for f in frames):
+            return None
         normal = geom.unit(frames[0]["normal"])
         if not all(geom.parallel(geom.unit(f["normal"]), normal, 1e-6) for f in frames):
             return None
-        areas = [_section_area(tx, sk) for sk in sketches]
+        areas = [_section_area(tx, s) for s in sections]
     except Exception:  # an estimate only: never fail a built loft over it
         return None
     if any(a is None or a <= 0 for a in areas):
         return None
     total = 0.0
-    for i in range(len(sketches) - 1):
+    for i in range(len(sections) - 1):
         h = abs(geom.dot(geom.sub(frames[i + 1]["origin"], frames[i]["origin"]), normal))
         total += h * (areas[i] + areas[i + 1]) / 2
     return total if total > 0 and math.isfinite(total) else None

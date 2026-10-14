@@ -13,9 +13,9 @@
   "sources": {
     "nx_redo_operation": "792dc58b7b8a4fd2a768a3eea37fca744dd1f55191690f350403e36adb4dd2e1",
     "nx_undo_operation": "792dc58b7b8a4fd2a768a3eea37fca744dd1f55191690f350403e36adb4dd2e1",
-    "nx_get_operation": "9a811e3622e9c6066d3350210ef5e448e17a38f20f65474457be13a33749373e"
+    "nx_get_operation": "374dac16c7e9d8ce9f0706b60f0dc4c2831a2932365abf98850154b45c506ce8"
   },
-  "recorded": "2026-10-13T07:12:47Z",
+  "recorded": "2026-10-14T13:32:46Z",
   "passed": true,
   "checks": 71,
   "failed_checks": 0,

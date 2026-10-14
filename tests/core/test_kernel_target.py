@@ -173,7 +173,7 @@ def test_engineer_parts_are_not_counted():
     assert r.error["code"] == "NX_AMBIGUOUS_PART" and r.error["details"]["count"] == 2, r
     files = {row["file"] for row in r.error["details"]["loaded_parts"]}
     assert files == {"work.prt", "plate.prt"} and "housing.prt" not in r.error["hint"]
-    # bench3t: "4 parts are loaded" while 6 were; the engineer's are said apart
+    # Not "4 parts are loaded" while 6 were: the engineer's are said apart
     message = "2 agent parts are loaded (and 1 of the engineer's) and nx_create_primitive"
     assert r.error["message"].startswith(message), r.error["message"]
 

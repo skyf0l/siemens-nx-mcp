@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import PathTo, Text
 from nx_mcp.domains.display.common import Camera, DisplayRow, camera_row, display_rows
@@ -177,6 +177,16 @@ def nx_restore_display(
     return out
 
 
+def _save_row(saved: list, where: dict, obj, record: dict) -> None:
+    key = where.get(int(obj.Tag))
+    if key is None:
+        return
+    kind, jid, component = key
+    row = display.state_of(record)
+    row["locator"] = {"kind": kind, "journal_id": jid, "component": component}
+    saved.append(row)
+
+
 def _read(path: Path) -> dict:
     if path.stat().st_size > MAX_FILE:
         fail("NX_REQUEST_TOO_LARGE", "The presentation exceeds 8 MiB", field="/presentation")
@@ -288,15 +298,15 @@ def nx_save_presentation(
     index = _index(part)
     where = {int(obj.Tag): key for key, obj in index.items()}
     values = bodies.scope(tx, "assembly") + [c for c, _ in parts.components(part)]
-    saved = []
+    saved: list = []
     for obj, record in tx.services.display_records(values, True):
-        key = where.get(int(obj.Tag))
-        if key is None:
-            continue
-        kind, jid, component = key
-        row = display.state_of(record)
-        row["locator"] = {"kind": kind, "journal_id": jid, "component": component}
-        saved.append(row)
+        _save_row(saved, where, obj, record)
+        for item in record.get("faces") or ():  # faces unlike their body, after it
+            try:
+                face = select.resolve(tx, display.record_id(item), "face")
+            except NXError:
+                continue
+            _save_row(saved, where, face, {"blanked": bool(face.IsBlanked), **item})
     active = view.ActiveDynamicSection
     section = None
     if active is not None:

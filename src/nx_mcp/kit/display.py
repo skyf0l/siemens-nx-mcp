@@ -7,6 +7,8 @@ dynamic sections, and the display snapshots behind ``restore_id``.
                                                     #  scale, style}
     display.set_camera(tx, view, rotation, origin, scale)   # read back
     display.apply_appearance(tx, objects, color=186, transparency=40)
+    index, match = display.color_from(tx, part, ("rgb", [0.2, 0.4, 0.6]))  # nearest entry
+    info = display.fit(tx, view)                    # frame the shown bodies, centred
     rid = display.snapshots.save(part_key, records, camera)
 
 NX 2406 findings encoded here:
@@ -32,6 +34,19 @@ NX 2406 findings encoded here:
 - Opening a ``DynamicSectionBuilder`` on an existing section to read it changes nothing.
 - Display snapshots are restored newest first per part (a show restored before the
   hide it followed would hide the object again).
+- ``view.Origin`` is the negation of the viewport centre in view space (NXOpen reference:
+  absolute positions multiplied by ``view.Matrix``) and ``view.AbsoluteOrigin`` is that
+  centre in absolute coordinates, so ``origin_for(rotation, centre)`` pans a point to
+  the viewport centre. ``view.Fit()`` frames everything shown, datums and the datum
+  CSYS at the absolute origin included: a model far from the origin ends up off-centre.
+  ``fit`` frames the shown bodies (``View.FitToObjects``) and pans their box centre to
+  the viewport centre when NX left it off.
+- Colours: the part's colour table (``part.Colors.Find(index)``: ``Label`` and
+  ``GetRgb()``) has 216 entries; RGB requests map to the nearest entry (Euclidean in RGB)
+  and labels match in any case or spacing.
+- A body's appearance is one record (``body_appearance``): the body colour, the
+  transparency most of its faces have, and only the faces that differ (``faces``), so a
+  body of many faces costs one record; ``restore_faces`` puts those faces back.
 
 The snapshot store lives here, not in a domain: the host's services write it
 (``save_display_snapshot``) and ``nx_restore_display`` reads it.
@@ -39,11 +54,14 @@ The snapshot store lives here, not in a domain: the host's services write it
 
 from __future__ import annotations
 
+import difflib
 import math
+import re
 import uuid
+from collections import Counter
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import builders, drawing, geom, readback
+from nx_mcp.kit import bodies, builders, drawing, geom, measure, readback
 
 # Rendering styles by surface name (NXOpen.View.RenderingStyleType members).
 STYLES = {
@@ -96,7 +114,15 @@ COLOR_NAMES = {
     "black": "BLACK_NAME",
     "gray": "MEDIUM_GRAY_NAME",
 }
-MAX_RECORDS = 10000  # objects and faces one display change may touch
+MAX_RECORDS = 10000  # objects (a body counts once) one display change may touch
+PALETTE_SIZE = 216  # entries in a part's colour table
+FACE_ROWS = 20  # differing faces a body's appearance row lists
+FIT_TOL = 0.005  # fitted view centre off the bodies' box centre, x the box diagonal
+COLOR_FORMS = (
+    "color takes an index 1-216, a basic name (red, green, blue, yellow, cyan, magenta, "
+    "orange, white, black, gray), a colour-table name ('Light Steel Blue'), '#RRGGBB' or "
+    "[r, g, b] (0-255, or 0-1 when every component is at most 1): the nearest table colour"
+)
 
 
 # ---- parts and views ------------------------------------------------------------------------
@@ -251,6 +277,70 @@ def orient(tx, view, orientation: str, *, fit: bool) -> None:
         view.UpdateDisplay()
 
 
+def origin_for(rotation, centre) -> list[float]:
+    """The NX view origin that shows ``centre`` (absolute) at the viewport centre: the
+    negated view-space coordinates of the point (``rotation`` as ``camera()``)."""
+    return [-sum(float(rotation[i][j]) * float(centre[i]) for i in range(3)) for j in range(3)]
+
+
+def centre_offset(cam: dict, centre) -> float:
+    """Screen-plane distance between the viewport centre (``absolute_origin``) and
+    ``centre``: depth along the view direction does not count."""
+    d = [float(centre[i]) - float(cam["absolute_origin"][i]) for i in range(3)]
+    axes = view_axes(cam["rotation"])
+    return math.hypot(geom.dot(d, axes["right"]), geom.dot(d, axes["up"]))
+
+
+def shown_bodies(tx) -> list:
+    """Bodies of the work part and its loaded occurrences that are not hidden (neither
+    the body nor a component above it is blanked)."""
+    out = []
+    for body in bodies.scope(tx, "assembly"):
+        if bool(getattr(body, "IsBlanked", False)):
+            continue
+        occurrence = bool(getattr(body, "IsOccurrence", False))
+        component = getattr(body, "OwningComponent", None) if occurrence else None
+        hidden = False
+        while component is not None and not hidden:
+            hidden = bool(getattr(component, "IsBlanked", False))
+            component = getattr(component, "Parent", None)
+        if not hidden:
+            out.append(body)
+    return out
+
+
+def fit(tx, view) -> dict:
+    """Fit the model view to the shown bodies, their box centred: ``{bodies, centre,
+    offset}`` (``offset``: the screen-plane distance left between the viewport centre and
+    the box centre, part units). Datums, sketches and the datum CSYS do not count. With no
+    body shown NX's own fit frames whatever is shown (``{"bodies": 0}``)."""
+    shown = shown_bodies(tx)
+    with native(default="NX_ERROR"):
+        if shown:
+            try:
+                view.FitToObjects(shown)
+            except Exception:  # noqa: BLE001 - NX's whole fit, re-centred below
+                view.Fit()
+        else:
+            view.Fit()
+        view.UpdateDisplay()
+    if not shown:
+        return {"bodies": 0}
+    low, high = measure.bounds(tx, shown)
+    centre = [(a + b) / 2.0 for a, b in zip(low, high, strict=True)]
+    tol = FIT_TOL * max(geom.norm([b - a for a, b in zip(low, high, strict=True)]), 1e-9)
+    cam = camera(tx, view)
+    # The view origin goes on the box centre: NX may frame more than the bodies, and its
+    # FitToObjects leaves the origin anywhere on the line of sight through the centre.
+    rotation = cam["rotation"]
+    origin = origin_for(rotation, centre)
+    if max(abs(a - b) for a, b in zip(cam["origin"], origin, strict=True)) > tol:
+        cam = set_camera(tx, view, rotation, origin, cam["scale"])
+    offset = centre_offset(cam, centre)
+    readback.expect(offset <= tol, "camera.fit_centre", offset=offset, centre=centre)
+    return {"bodies": len(shown), "centre": centre, "offset": offset}
+
+
 # ---- appearance -----------------------------------------------------------------------------
 
 
@@ -259,6 +349,87 @@ def color_index(tx, name: str) -> int:
     disp = tx.uf.Disp
     with native(default="NX_ERROR"):
         return int(disp.AskClosestColorInDisplayedPart(getattr(disp.ColorName, COLOR_NAMES[name])))
+
+
+def palette(part) -> dict[int, tuple[str, list[float]]]:
+    """``{index: (label, [r, g, b] 0..1)}`` of the part's colour table."""
+    colors = getattr(part, "Colors", None)
+    out: dict[int, tuple[str, list[float]]] = {}
+    if colors is None:
+        return out
+    for index in range(1, PALETTE_SIZE + 1):
+        try:
+            entry = colors.Find(index)
+            if entry is None:
+                continue
+            rgb = entry.GetRgb()
+            out[index] = (str(entry.Label), [float(rgb.R), float(rgb.G), float(rgb.B)])
+        except Exception:  # noqa: BLE001, S112 - an index NX does not define is left out
+            continue
+    if any(v > 1.0 for _, rgb in out.values() for v in rgb):  # a 0..255 table
+        out = {i: (label, [v / 255.0 for v in rgb]) for i, (label, rgb) in out.items()}
+    return out
+
+
+def hex_of(rgb) -> str:
+    """``#RRGGBB`` of 0..1 components."""
+    return "#" + "".join(f"{round(max(0.0, min(1.0, float(v))) * 255):02X}" for v in rgb)
+
+
+def _key(text) -> str:
+    return re.sub(r"[\s_\-]+", "", str(text)).casefold().replace("grey", "gray")
+
+
+def color_from(tx, part, spec) -> tuple[int, dict]:
+    """``(index, match)`` for a parsed colour: ``("index", n)``, ``("name", canonical)``,
+    ``("rgb", [r, g, b] 0..1)`` (the nearest entry of the part's colour table) or
+    ``("label", text)`` (a colour-table label in any case or spacing). ``match`` is
+    ``{index, label?, hex?, requested?}``; an unknown label is ``invalid_argument``."""
+    kind, value = spec
+    if kind == "index":
+        return int(value), {"index": int(value)}
+    if kind == "name":
+        index = color_index(tx, value)
+        return index, {"index": index}
+    table = palette(part)
+    if not table:
+        fail(
+            "NX_ERROR",
+            "NX did not report the part's colour table",
+            field="/color",
+            hint="Use a colour index 1-216 or one of the basic names",
+        )
+    if kind == "rgb":
+        want = [float(v) for v in value]
+        index = min(
+            table, key=lambda i: sum((a - b) ** 2 for a, b in zip(table[i][1], want, strict=True))
+        )
+        label, rgb = table[index]
+        return index, {"index": index, "label": label, "hex": hex_of(rgb),
+                       "requested": hex_of(want)}  # fmt: skip
+    hits = [i for i, (label, _) in table.items() if _key(label) == _key(value)]
+    if not hits:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"Unknown color {value!r}{_guess(value, [label for label, _ in table.values()])}",
+            field="/color",
+            hint=COLOR_FORMS,
+        )
+    label, rgb = table[hits[0]]
+    return hits[0], {"index": hits[0], "label": label, "hex": hex_of(rgb)}
+
+
+def _guess(value, labels) -> str:
+    """'; did you mean ...?' from the basic names and colour-table labels that look like
+    ``value`` (a close spelling, or a label sharing one of its words)."""
+    names: dict[str, str] = {}
+    for name in [*COLOR_NAMES, *labels]:
+        names.setdefault(_key(name), name)
+    close = difflib.get_close_matches(_key(value), list(names), n=3, cutoff=0.7)
+    words = [_key(w) for w in re.split(r"[\s_\-]+", str(value)) if len(w) > 2]
+    close += [k for k in names if k not in close and any(w in k for w in words)]
+    found = [names[k] for k in close[:6]]
+    return f"; did you mean {', '.join(repr(n) for n in found)}?" if found else ""
 
 
 def apply_appearance(tx, objects, color=None, transparency=None) -> None:
@@ -287,6 +458,39 @@ def translucency(tx, obj):
         return int(tx.uf.Obj.AskTranslucency(obj.Tag))
     except Exception:
         return None
+
+
+def body_appearance(body, faces, shade, register) -> dict:
+    """One appearance record for a body: ``color_index`` (the body's), ``transparency``
+    (the value most faces have; None without faces) and ``faces``: ``[{object,
+    color_index, transparency}]`` for the faces that differ from those two only
+    (``register(face)`` names each). ``shade(face)`` is a face's translucency."""
+    color = int(body.Color)
+    shades = [(face, int(face.Color), shade(face)) for face in faces]
+    counts = Counter(t for _, _, t in shades)
+    base = counts.most_common(1)[0][0] if counts else None
+    record: dict = {"color_index": color, "transparency": base}
+    odd = [
+        {"object": register(face), "color_index": c, "transparency": t}
+        for face, c, t in shades
+        if c != color or t != base
+    ]
+    if odd:
+        record["faces"] = odd
+    return record
+
+
+def restore_faces(tx, record, resolve) -> None:
+    """Give the faces a body record lists (``body_appearance``) their own colour and
+    transparency again, one modification per distinct pair; ``resolve(row)`` returns the
+    face (None: gone, skipped). ``tx`` is anything with ``session`` (a tx or the host)."""
+    groups: dict = {}
+    for row in record.get("faces") or ():
+        face = resolve(row)
+        if face is not None:
+            groups.setdefault((row["color_index"], row.get("transparency")), []).append(face)
+    for (color, shade), faces in groups.items():
+        apply_appearance(tx, faces, color, shade)
 
 
 # ---- objects shown ---------------------------------------------------------------------------

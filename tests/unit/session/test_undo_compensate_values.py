@@ -1,7 +1,7 @@
 """The compensating undo v2 (domains/session/compensate.py): values set back for
 nx_set_attributes, nx_set_expression and nx_set_name from the before-values in their
 history entries, derived drawing-view changes tolerated on create-only operations, and
-the refusal hints that offer mode compensate or a fix-forward edit (benchmark bench3p).
+the refusal hints that offer mode compensate or a fix-forward edit.
 """
 
 from __future__ import annotations
@@ -153,7 +153,7 @@ def test_an_operation_behind_another_parts_close_is_offered_and_done_by_compensa
          "close": ["c.prt"]}
     )  # fmt: skip
     # The default undo compensates across another part's close, as it does across other
-    # parts' later work (bench3t: the close refused, the later work compensated).
+    # parts' later work (the close once refused it while the later work compensated).
     done = run(nx, "nx_undo_operation", part="a", operation="op_a_attr_1")
     assert done.ok and done.data["compensated"] and attributes(nx.a) == {}, done
     assert any("1 later part load or close" in w["message"] for w in done.warnings), done

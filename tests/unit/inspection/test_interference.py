@@ -234,3 +234,33 @@ def test_report_on_a_model_with_sheets_checks_the_solids(monkeypatch):
     with zipfile.ZipFile(root / "s.zip") as archive:
         report = json.loads(archive.read("report.json"))
     assert len(report["interference"]["skipped_sheet_bodies"]) == 1
+
+
+def test_an_interference_without_volume_is_contact(monkeypatch):
+    """Faces lying on each other: NX reports an interference whose bodies have no volume
+    (or none at all); that is contact, not penetration."""
+    from tests.unit.inspection import fakes
+
+    nx = inspection_nx()
+    a, b = assembly(nx, ("A", [0, 0, 0, 10, 10, 10]), ("B", [10, 0, 0, 20, 10, 10]))
+    refs = [nx.ref_of(x, "component") for x in (a, b)]
+
+    def coincident(self):  # a face-thin interference body of zero volume
+        body = fakes.Body("INTERFERENCE", [10, 0, 0, 10, 10, 10])
+        body.volume = 0.0
+        body.OwningPart, body.IsOccurrence = self.nx.part, False
+        self.nx.remember(body)
+        self.nx.part.Bodies.append(body)
+        self.results.append(body)
+        return 1
+
+    monkeypatch.setattr(fakes.Interference, "PerformCheck", coincident)
+    ok = run(nx, "nx_check_interference", objects=refs)
+    assert ok.ok and ok.data["counts"]["contact"] == 1, ok
+    assert ok.data["counts"]["penetration"] == 0
+    (pair,) = ok.data["pairs"]
+    assert pair["classification"] == "contact" and "overlap_volume" not in pair
+    monkeypatch.setattr(fakes.Interference, "PerformCheck", lambda self: 1)  # no bodies
+    none = run(nx, "nx_check_interference", objects=refs)
+    assert none.data["counts"] == {**ok.data["counts"]}
+    assert none.data["pairs"][0]["classification"] == "contact"

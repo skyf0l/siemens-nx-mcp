@@ -221,7 +221,7 @@ def test_one_call_sketch_rolls_back_the_sketch_when_a_curve_fails():
 @pytest.mark.parametrize(
     ("curves", "field"),
     [
-        ([{"type": "spline", "points": [[0, 0], [1, 1]]}], "/curves/0/type"),
+        ([{"type": "hyperbola", "points": [[0, 0], [1, 1]]}], "/curves/0/type"),
         ([{"start": [0, 0], "end": [1, 1]}], "/curves/0/type"),
         ([{"type": "circle", "center": [0, 0], "radius": 2, "sides": 3}], "/curves/0/sides"),
         ([{"type": "circle", "center": [0, 0]}], "/curves/0/radius"),

@@ -6,6 +6,7 @@
     shown = parts.present(tx, part, display=None)  # tab policy of create/open/activate
     engineer = parts.engineer_tab(tx)              # the engineer's displayed part, or None
     parts.explicit(tx, part)                       # loaded by a call of its own
+    parts.require_loaded(part, message)            # NX_NOT_LOADED: a component not fully loaded
     for component, names in parts.components(part): ...
     with parts.saving(tx, part) as updated:        # drawing preview data survives the save
         part.Save(...)                             # updated: views it brought up to date
@@ -517,6 +518,38 @@ def components(part) -> list:
 def prototype_file(component) -> str:
     """The prototype's file of an occurrence ('' when the prototype is not loaded)."""
     return file_of(getattr(component, "Prototype", None))
+
+
+def suppressed(component) -> bool:
+    """True when the component or one of its parents is suppressed."""
+    node = component
+    while node is not None:
+        if getattr(node, "IsSuppressed", False):
+            return True
+        node = getattr(node, "Parent", None)
+    return False
+
+
+LOAD_HINT = "Open the assembly with nx_open_part(load_components=true) and retry"
+
+
+def unloaded(part) -> list[str]:
+    """Paths (names from the root, joined by ``/``) of the unsuppressed components of
+    ``part`` whose part is not loaded or only partially loaded."""
+    return [
+        "/".join(names)
+        for component, names in components(part)
+        if not suppressed(component)
+        and not (prototype_file(component) and getattr(component.Prototype, "IsFullyLoaded", True))
+    ]
+
+
+def require_loaded(part, message: str, hint: str = LOAD_HINT) -> None:
+    """``NX_NOT_LOADED`` (``message``, the first 50 component paths) when a component of
+    ``part`` is not fully loaded: exports write only what is loaded."""
+    missing = unloaded(part)
+    if missing:
+        fail("NX_NOT_LOADED", message, hint=hint, details={"components": missing[:50]})
 
 
 def dependents(tx, target) -> list[str]:

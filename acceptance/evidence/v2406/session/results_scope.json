@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/results_scope.json",
-  "scenario_sha256": "53f072affece22f9ad8625f8780687bd5f6a03da936166489eca5e59635118a9",
+  "scenario_sha256": "3cee57c344eb201b4c490b8425b5496d3081456b5d3d85b04f190043fa444668",
   "domain": "session",
   "covers": {
     "nx_delete_results": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_delete_results": "25a46998d34f1527c7cfa39848e84ea3362d727a98c761bde574ff353b221015"
   },
-  "recorded": "2026-10-12T10:41:05Z",
+  "recorded": "2026-10-14T13:32:55Z",
   "passed": true,
   "checks": 21,
   "failed_checks": 0,

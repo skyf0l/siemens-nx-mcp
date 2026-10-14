@@ -527,3 +527,112 @@ def test_part_of_a_tangent_chain_is_noted_or_completed(tool):
     collector = b.SmartCollector if kind == "ChamferBuilder" else b.AddChainset.calls[0][0][0]
     ((_kind, chained),) = collector.rules
     assert {int(e.Tag) for e in chained} == {int(e.Tag) for e in lines + arcs}
+
+
+# ---------------------------------------------------------------------------
+# Unite read-back against the inputs; transform copies paired with their sources
+
+
+def test_unite_larger_than_target_plus_tools_fails_and_rolls_back():
+    nx = modeling_nx()
+    a = nx.block(10, 10, 10)
+    b = nx.block(10, 10, 10, origin=(5, 0, 0))
+
+    def filled(builder):
+        nx.part.Bodies.remove(b)
+        a.volume = 4000.0  # more than 1000 + 1000: a cavity filled or a body turned inside out
+        return feature(nx, "UNITE", [a])
+
+    nx.on_commit("BooleanBuilder", filled)
+    bad = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=[b.ref])
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
+    assert bad.error["details"]["check"] == "volume" and bad.error["retry"] == "after_fix"
+    assert "more than the target and tools together" in bad.error["message"]
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_unite_that_drops_a_tool_fails_and_names_it():
+    nx = modeling_nx()
+    a = nx.block(10, 10, 10)
+    kept = nx.block(10, 10, 10, origin=(5, 0, 0))
+    lost = nx.block(10, 10, 10, origin=(0, 5, 0))
+    # UF face samples: a point on the face with its outward normal (list form, as NX).
+    nx.uf.Modeling.AskFaceProps = lambda tag, uv: ([5, 5, 10], 0, 0, 0, 0, [0, 0, 1], 0, 0)
+    kept.contains = lambda p: 2  # UF finds no inner point of this tool: it is not probed
+    lost.contains = lambda p: 1  # the inward-stepped face sample lies inside the tool
+
+    def dropped(builder):
+        nx.part.Bodies.remove(kept)
+        nx.part.Bodies.remove(lost)
+        a.volume = 1500.0  # only the first tool's half was added
+        a.contains = lambda p: 2  # the lost tool's inner point is outside the result
+        return feature(nx, "UNITE", [a])
+
+    nx.on_commit("BooleanBuilder", dropped)
+    tools = [kept.ref, lost.ref]
+    bad = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=tools)
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
+    assert bad.error["details"]["check"] == "tools" and bad.error["details"]["dropped"] == [1]
+    assert bad.error["field"] == "/tools/1" and bad.error["retry"] == "after_fix"
+    assert bad.mutation_outcome == "rolled_back"
+    # The same volume with the tool's point inside the result is a legitimate overlap.
+    a.volume = 1000.0
+    nx.part.Bodies.extend([kept, lost])
+
+    def overlapped(builder):
+        nx.part.Bodies.remove(kept)
+        nx.part.Bodies.remove(lost)
+        a.volume = 1500.0
+        a.contains = lambda p: 1
+        return feature(nx, "UNITE", [a])
+
+    nx.on_commit("BooleanBuilder", overlapped)
+    ok = run(nx, "nx_create_boolean", operation="unite", target=a.ref, tools=tools)
+    assert ok.ok and ok.data["volume"] == 1500, ok
+
+
+def _copies(nx, sources, order, gain=1 + 5.8e-6):
+    """An Extract commit that copies ``sources`` and lists the copies in ``order``, and a
+    Move Object commit that moves each copy by the ToCsys pose."""
+    nx.nx.Features.MoveObject = Object
+    made = []
+
+    def extracted(b):
+        made[:] = [new_body(nx, list(s.box), volume=s.volume) for s in sources]
+        for copy, s in zip(made, sources, strict=True):
+            copy.centroid = [(s.box[i] + s.box[i + 3]) / 2 for i in range(3)]
+        return feature(nx, "EXTRACT_BODY", [made[k] for k in order])
+
+    def moved(b):
+        to, m = b.TransformMotion.ToCsys.args[:2]
+        for body in made:
+            body.centroid = geom.add(geom.matvec(geom.rows(m), body.centroid), [to.X, to.Y, to.Z])
+            body.volume *= gain  # B-spline mass properties differ after a rigid move
+        return feature(nx, "MOVE_OBJECT", made)
+
+    nx.on_commit("ExtractFaceBuilder", extracted)
+    nx.on_commit("MoveObjectBuilder", moved)
+    return made
+
+
+def test_transform_copy_pairs_copies_with_their_sources_in_any_order():
+    nx = modeling_nx()
+    sources = [nx.block(10, 10, 10, origin=(20.0 * k, 0, 0)) for k in range(3)]
+    made = _copies(nx, sources, order=[2, 0, 1])  # NX lists the copies in its own order
+    shift = {"translation": [0, 0, 30]}
+    ok = run(nx, "nx_create_transform", bodies=[s.ref for s in sources], transform=shift,
+             copy=True)  # fmt: skip
+    assert ok.ok, ok
+    assert [b["id"] for b in ok.data["bodies"]] == [nx.ref_of(c, "body") for c in made]
+
+
+def test_transform_copy_mismatch_after_pairing_invites_a_fix():
+    nx = modeling_nx()
+    sources = [nx.block(10, 10, 10, origin=(20.0 * k, 0, 0)) for k in range(2)]
+    _copies(nx, sources, order=[1, 0], gain=1.01)  # 1 % off: beyond the 1e-4 band
+    shift = {"translation": [0, 0, 30]}
+    bad = run(nx, "nx_create_transform", bodies=[s.ref for s in sources], transform=shift,
+              copy=True)  # fmt: skip
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
+    assert bad.error["details"]["check"] == "volume[0]" and bad.error["retry"] == "after_fix"
+    assert "one per call" in bad.error["hint"] and bad.mutation_outcome == "rolled_back"

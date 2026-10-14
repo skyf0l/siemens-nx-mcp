@@ -220,6 +220,23 @@ def test_loft_estimate_skips_sections_it_cannot_read():
 # ---- tube ------------------------------------------------------------------------------
 
 
+def test_a_tube_too_large_for_the_self_overlap_check_says_it_was_skipped(monkeypatch):
+    from nx_mcp.kit import bodies
+
+    nx = modeling_nx()
+    (line,) = evaluable(nx, [seg((0, 0, 0), (50, 0, 0))])
+    line.GetLength = lambda: 50.0
+    want = math.pi / 4 * 16 * 50
+    nx.on_commit(
+        "TubeBuilder", lambda b: feature(nx, "TUBE", [new_body(nx, [0, -2, -2, 50, 2, 2], want)])
+    )
+    monkeypatch.setattr(bodies, "CLASH_FACES", 0)  # every body is "large"
+    ok = run(nx, "nx_create_tube", path=line.ref, outer_diameter=4)
+    assert ok.ok, ok
+    notes = [w["message"] for w in ok.warnings if w["code"] == "NX_NOTE"]
+    assert notes and notes[0].startswith("Self-overlap check skipped"), ok.warnings
+
+
 def test_tube_takes_one_path_ref_and_refuses_corners():
     nx = modeling_nx()
     (line,) = evaluable(nx, [seg((0, 0, 0), (50, 0, 0))])

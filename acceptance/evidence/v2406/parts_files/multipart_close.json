@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/multipart_close.json",
-  "scenario_sha256": "abe584943b220a5ecfb6240d0171a14005f71dc82007b56132496df924afc2fd",
+  "scenario_sha256": "ffc271ff352caaf4bedff36eee1719f8b572e34d54572324e5e12382cef7effe",
   "domain": "parts_files",
   "covers": {
     "nx_close_part": [],
@@ -11,11 +11,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_close_part": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
-    "nx_activate_part": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
-    "nx_save_part": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041"
+    "nx_close_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
+    "nx_activate_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
+    "nx_save_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e"
   },
-  "recorded": "2026-10-13T07:17:48Z",
+  "recorded": "2026-10-14T13:46:03Z",
   "passed": true,
   "checks": 72,
   "failed_checks": 0,

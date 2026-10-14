@@ -1,7 +1,7 @@
 """The import staging folders (domains/parts_files/importing.py): a redo of an import
-reuses its finished folder (bench: nx_redo_operation of an import failed with
-FileExistsError WinError 183 on imports/<operation_id>), a folder still in use is never
-reused, and finished folders are removed by later imports (bench: 487 left over)."""
+reuses its finished folder (a redo must not fail with FileExistsError WinError 183 on
+imports/<operation_id>), a folder still in use is never reused, and finished folders
+are removed by later imports (they must not pile up)."""
 
 from __future__ import annotations
 

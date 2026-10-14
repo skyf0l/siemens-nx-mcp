@@ -385,3 +385,82 @@ def test_trim_that_would_delete_the_whole_curve_is_refused():
     )
     assert no_pick.error["field"] == "/edits/0/pick", no_pick
     assert no_pick.error["hint"].startswith("trim takes curve, boundaries, pick (required)")
+
+
+# ---------------------------------------------------------------------------
+# Splines
+
+AIRFOIL = [[0, 0], [10, 3], [25, 4], [40, 2], [50, 0]]
+
+
+def test_open_spline_passes_through_its_points_with_the_end_tangent():
+    nx = sketch_nx()
+    sk = nx.sketch(origin=(0, 0, 5), active=True)
+    ok = _curves(nx, sk, {"type": "spline", "points": AIRFOIL, "start_tangent": [10, 3]})
+    assert ok.ok, ok
+    b = nx.last("StudioSplineBuilderEx")
+    assert b.IsAssociative is False and b.Degree == 3 and b.IsPeriodic is False
+    assert b.Type == "ThroughPoints" and b.destroyed
+    data = [args[0] for args, _kw in b.ConstraintManager.Append.calls]
+    assert [d.Point.Coordinates.Z for d in data] == [5.0] * 5  # on the sketch plane
+    assert pytest.approx(10 / math.hypot(10, 3)) == data[0].TangentDirection.Vector.X
+    row = ok.data["curves"][0]
+    assert row["type"] == "spline" and row["start"] == pytest.approx([0, 0])
+    assert row["end"] == pytest.approx([50, 0]) and sk.geometry == [b.Curve]
+    assert ok.data["loops"] == [{"closed": False, "curves": 1, "open_ends": 2}]
+
+
+def test_closed_spline_is_periodic_and_makes_a_closed_loop():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    ring = [[0, 0], [20, 0], [20, 10], [0, 10], [0, 0]]  # the repeated first point is dropped
+    ok = _curves(nx, sk, {"type": "spline", "points": ring, "closed": True})
+    assert ok.ok, ok
+    b = nx.last("StudioSplineBuilderEx")
+    assert b.IsPeriodic is True and len(b.ConstraintManager.Append.calls) == 4
+    assert ok.data["loops"] == [{"closed": True, "curves": 1}]
+
+
+def test_one_call_sketch_takes_a_spline_profile():
+    nx = sketch_nx()
+    ok = run(nx, "nx_create_sketch", placement={"principal": "xy"}, finish=True,
+             curves=[{"type": "spline", "points": AIRFOIL[:4], "closed": True}])  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["loops"] == [{"closed": True, "curves": 1}] and ok.data["active"] is False
+
+
+def test_spline_tangent_nx_did_not_take_rolls_back():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    bad = _curves(nx, sk, {"type": "spline", "points": AIRFOIL, "end_tangent": [0, 1]})
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
+    assert bad.error["details"]["check"] == "curves/0/0/tangent"
+    assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0
+
+
+@pytest.mark.parametrize(
+    ("item", "field"),
+    [
+        ({"points": [[0, 0], [0, 0], [5, 5]]}, "/curves/0/points/1"),
+        ({"points": [[0, 0], [5, 5]], "closed": True}, "/curves/0"),
+        ({"points": AIRFOIL, "closed": True, "start_tangent": [1, 0]}, "/curves/0/start_tangent"),
+        ({"points": AIRFOIL, "end_tangent": [0, 0]}, "/curves/0/end_tangent"),
+        ({"points": AIRFOIL, "radius": 3}, "/curves/0/radius"),
+    ],
+)
+def test_spline_errors_are_refused_before_nx(item, field):
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    bad = _curves(nx, sk, {"type": "spline", **item})
+    assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
+    assert not any(b.kind == "StudioSplineBuilderEx" for b in nx.builders)
+
+
+def test_open_spline_repeating_its_first_point_is_a_closed_loop():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    lens = [[0, 0], [10, 4], [20, 0], [10, -4], [0, 0]]
+    ok = _curves(nx, sk, {"type": "spline", "points": lens})
+    assert ok.ok, ok
+    assert nx.last("StudioSplineBuilderEx").IsPeriodic is False
+    assert ok.data["loops"] == [{"closed": True, "curves": 1}]

@@ -146,23 +146,27 @@ def _void_body(nx):
     return outer
 
 
-def test_a_sealed_void_is_a_warning_with_its_volume_and_box():
+def test_a_sealed_void_is_info_with_its_volume_and_box():
+    """A sealed void is often intended (a hollow part): info, the model stays healthy."""
     nx = inspection_nx()
     body = _void_body(nx)
     curves = len(nx.part.Curves)
     ok = run(nx, "nx_check_model")
     assert ok.ok and ok.mutation_outcome == "not_applicable", ok
-    assert ok.data["healthy"] is False and ok.data["warnings"] == 1 and ok.data["errors"] == 0
+    assert ok.data["healthy"] is True and ok.data["warnings"] == 0 and ok.data["errors"] == 0
     issue = ok.data["issues"][0]
-    assert issue["kind"] == "internal_void" and issue["severity"] == "warning"
+    assert issue["kind"] == "internal_void" and issue["severity"] == "info"
+    assert issue["message"].startswith("1 sealed internal void(s): fine when")
     assert issue["object"]["id"] == body.ref and issue["shells"] == 2
     (void,) = issue["voids"]
     assert void["faces"] == 6 and void["volume"] == pytest.approx(1000.0)
     assert void["min"] == [10, 10, 10] and void["max"] == [20, 20, 20]
     params = nx.uf.Facet.models[0][1]
     assert params.SurfaceAngularTolerance == 0.05 and len(nx.part.Curves) == curves
-    summary = run(nx, "nx_get_model_summary").data
-    assert summary["health"] == {"healthy": False, "errors": 0, "warnings": 1}
+    calls = len(nx.uf.Facet.models)
+    summary = run(nx, "nx_get_model_summary").data  # no void search in the overview
+    assert summary["health"] == {"healthy": True, "errors": 0, "warnings": 0}
+    assert len(nx.uf.Facet.models) == calls
 
 
 def test_a_void_without_facets_keeps_its_box_and_no_volume():
@@ -171,6 +175,24 @@ def test_a_void_without_facets_keeps_its_box_and_no_volume():
     nx.facet_error = RuntimeError("no licence")
     issue = run(nx, "nx_check_model").data["issues"][0]
     assert issue["voids"][0]["volume"] is None and issue["voids"][0]["max"] == [20, 20, 20]
+
+
+def test_the_void_check_skips_solids_over_the_face_limit_unless_forced(monkeypatch):
+    """Reading every edge's faces is slow on very large solids: the same face limit as the
+    self-overlap check, an info issue instead, and clash=true forces it."""
+    from nx_mcp.kit import bodies
+
+    nx = inspection_nx()
+    body = _void_body(nx)  # 12 faces
+    monkeypatch.setattr(bodies, "CLASH_FACES", 11)
+    ok = run(nx, "nx_check_model", clash=False)
+    voids = [i for i in ok.data["issues"] if i["kind"] == "internal_void"]
+    assert ok.data["healthy"] is True and len(voids) == 1, ok
+    assert voids[0]["message"].startswith("void check skipped: 12 faces (over 11)")
+    assert voids[0]["object"]["id"] == body.ref and "shells" not in voids[0]
+    forced = run(nx, "nx_check_model", clash=True)
+    (void,) = [i for i in forced.data["issues"] if i["kind"] == "internal_void"]
+    assert void["shells"] == 2 and void["message"].startswith("1 sealed internal void(s)")
 
 
 def test_one_shell_bodies_have_no_void_issue():
@@ -220,7 +242,7 @@ def _examine(nx, failed: dict):
 
 
 def test_a_self_overlapping_solid_is_an_error_naming_its_faces():
-    """Bug-fix round: a tube OD 8 on a pitch-5 helix passed UF consistency as healthy."""
+    """A tube OD 8 on a pitch-5 helix passed UF consistency as healthy."""
     nx = inspection_nx()
     good, bad = nx.block(10, 10, 10), nx.block(5, 5, 5, origin=(20, 0, 0))
     seen = _examine(nx, {int(bad.Tag): bad.faces[:3] + bad.faces[:2]})  # NX lists pairs
@@ -230,8 +252,9 @@ def test_a_self_overlapping_solid_is_an_error_naming_its_faces():
     assert issue["kind"] == "self_intersection" and issue["object"]["id"] == bad.ref
     assert [f["id"] for f in issue["faces"]] == [f.ref for f in bad.faces[:3]]
     assert issue["message"].startswith("3 faces cut other faces") and seen == [good, bad]
-    summary = run(nx, "nx_get_model_summary").data
-    assert summary["health"] == {"healthy": False, "errors": 1, "warnings": 0}
+    summary = run(nx, "nx_get_model_summary").data  # the overview does not examine bodies
+    assert summary["health"] == {"healthy": True, "errors": 0, "warnings": 0}
+    assert seen == [good, bad]
 
 
 def test_self_overlap_is_examined_on_a_bounded_number_of_solids(monkeypatch):
@@ -246,4 +269,62 @@ def test_self_overlap_is_examined_on_a_bounded_number_of_solids(monkeypatch):
     assert ok.data["healthy"] is True and len(seen) == 2, ok
     (note,) = ok.data["issues"]
     assert note["severity"] == "info" and note["kind"] == "self_intersection"
-    assert "1 solid bodies past the first 2" in note["message"]
+    assert note["message"].startswith("1 solid bodies were not examined for self-overlap")
+    assert "stops at 2 solids" in note["message"] and "clash: true" in note["message"]
+    forced = run(nx, "nx_check_model", clash=True)
+    assert forced.data["issues"] == [] and len(seen) == 5
+
+
+def test_solids_over_the_face_limit_are_skipped_unless_forced(monkeypatch):
+    """Examine Geometry cannot be interrupted and its time grows faster than the face
+    count: solids over the limit get an info issue instead, and clash=true forces them."""
+    from nx_mcp.kit import bodies
+
+    monkeypatch.setattr(bodies, "CLASH_FACES", 6)
+    nx = inspection_nx()
+    small, big = nx.block(1, 1, 1), nx.block(2, 2, 2, origin=(5, 0, 0))
+    big.faces = big.faces + big.faces[:1]  # 7 faces
+    seen = _examine(nx, {int(big.Tag): big.faces[:2]})
+    ok = run(nx, "nx_check_model")
+    assert ok.ok and ok.data["healthy"] is True and seen == [small], ok
+    void, note = ok.data["issues"]  # both checks skip the large solid
+    assert note["severity"] == "info" and note["kind"] == "self_intersection"
+    assert note["object"]["id"] == big.ref
+    assert note["message"].startswith("self-intersection check skipped: 7 faces (over 6)")
+    assert "pass clash: true to force" in note["message"]
+    assert void["severity"] == "info" and void["kind"] == "internal_void"
+    assert void["message"].startswith("void check skipped: 7 faces (over 6)")
+    forced = run(nx, "nx_check_model", clash=True)
+    assert forced.data["healthy"] is False and forced.data["errors"] == 1
+    assert forced.data["issues"][0]["object"]["id"] == big.ref and seen[-1] is big
+
+
+def test_self_overlap_stops_at_the_face_and_time_budgets(monkeypatch):
+    from nx_mcp.domains.inspection import health
+
+    nx = inspection_nx()
+    for i in range(3):
+        nx.block(1, 1, 1, origin=(3 * i, 0, 0))
+    seen = _examine(nx, {})
+    monkeypatch.setattr(health, "CLASH_TOTAL_FACES", 12)  # two 6-face blocks
+    (note,) = run(nx, "nx_check_model").data["issues"]
+    assert len(seen) == 2 and note["message"].startswith("1 solid bodies were not examined")
+    monkeypatch.setattr(health, "CLASH_TOTAL_FACES", 10_000)
+    monkeypatch.setattr(health, "CLASH_SECONDS", -1.0)
+    (note,) = run(nx, "nx_check_model").data["issues"]
+    assert len(seen) == 2 and note["message"].startswith("3 solid bodies were not examined")
+
+
+def test_forced_self_overlap_stops_when_the_cost_budget_is_spent(monkeypatch):
+    from nx_mcp.core import tx as tx_module
+
+    nx = inspection_nx()
+    nx.block(1, 1, 1)
+    seen = _examine(nx, {})
+    monkeypatch.setitem(tx_module.COST_BUDGET_SECONDS, "heavy", -1.0)
+    ok = run(nx, "nx_check_model", clash=True)
+    assert ok.ok and seen == [], ok
+    (note,) = ok.data["issues"]
+    assert note["message"] == (
+        "1 solid bodies were not examined for self-overlap: the call's time budget was spent"
+    )

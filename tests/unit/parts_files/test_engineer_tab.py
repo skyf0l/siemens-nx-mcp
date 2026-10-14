@@ -1,4 +1,4 @@
-"""The engineer tab guard (kit.parts.present, benchmark bench3t): while the displayed part
+"""The engineer tab guard (kit.parts.present): while the displayed part
 is the engineer's (loaded by the engineer, not created, opened or granted to the agent),
 nx_create_part, nx_open_part and nx_activate_part never leave an agent part active and
 never change the work part, whatever ``display`` and ``work`` say; the reply says where
@@ -67,8 +67,8 @@ def test_a_ref_less_call_reaches_the_agents_only_part_not_the_engineers(nx, engi
 
 
 def test_open_without_display_works_beside_the_engineer(nx, root, engineer):
-    """bench3t: nx_open_part(display=false, work=true) was refused NX_WRONG_PART_CONTEXT,
-    so a read-only inspector had to take the engineer's tab."""
+    """nx_open_part(display=false, work=true) is not refused NX_WRONG_PART_CONTEXT: a
+    read-only inspector need not take the engineer's tab."""
     part = nx.new_part("g/c.prt")
     part.Save()
     part.Close()
@@ -81,7 +81,7 @@ def test_open_without_display_works_beside_the_engineer(nx, root, engineer):
 
 
 def test_activate_gives_a_tab_behind_the_engineers_and_says_so(nx, engineer):
-    """bench3t: nx_activate_part with its defaults replied work false, display false and
+    """nx_activate_part with its defaults does not reply work false, display false and
     nothing else (a wasted call)."""
     assert call(nx, tools.nx_create_part, path="g/a.prt").ok
     shown = call(nx, tools.nx_activate_part, part="a")

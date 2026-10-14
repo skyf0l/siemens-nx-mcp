@@ -830,8 +830,11 @@ class InteractiveHost:
         except Exception as exc:
             self.last_error = "Parts in use: " + str(exc)
         self._refresh_panel()
+        # Also the heartbeat file (host/heartbeat.py): written before and after every
+        # call and while idle; ``parts`` names the work part when a call runs.
+        parts = (getattr(self, "_snapshot", None) or {}).get("parts")
         temp = self.state_dir / "ui-state.tmp"
-        temp.write_text(json.dumps(state))
+        temp.write_text(json.dumps({**state, "parts": parts}, default=str))
         temp.replace(self.state_dir / "ui-state.json")
 
     def _refresh_snapshot(self):
@@ -1135,6 +1138,10 @@ class InteractiveHost:
             "running_operation_id": (
                 getattr(self, "current_operation_id", None) if self.running_method else None
             ),
+            # The heartbeat the sidecar reads while this thread is held (host/heartbeat.py).
+            "running_part": self.current_part if self.running_method else None,
+            "running_started_at": self.current_started_at if self.running_method else None,
+            "session_id": getattr(getattr(self, "services", None), "session_id", None),
             "blocked_by_dialog": self.blocked_by,
             "operation_elapsed_seconds": (
                 time.monotonic() - self.operation_started

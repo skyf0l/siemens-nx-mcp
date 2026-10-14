@@ -2,20 +2,20 @@
   "nx_activate_part": {
     "v2406": {
       "checks": 58,
-      "recorded": "2026-10-13T07:17:57Z",
+      "recorded": "2026-10-14T13:46:12Z",
       "scenario": "acceptance/parts_files/part_ownership.json",
-      "scenario_sha256": "e596f4f9ab72977f352f0b86f2b0e104ae7c7e77c7883599d9971403eed6ffe9",
-      "source_sha256": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
+      "scenario_sha256": "f125c6e93da7dbf33639ae755df07fb41d3bef0b9c4e91c9aa9542222b1ad2d1",
+      "source_sha256": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
       "variants": []
     }
   },
   "nx_close_part": {
     "v2406": {
       "checks": 58,
-      "recorded": "2026-10-13T07:17:57Z",
+      "recorded": "2026-10-14T13:46:12Z",
       "scenario": "acceptance/parts_files/part_ownership.json",
-      "scenario_sha256": "e596f4f9ab72977f352f0b86f2b0e104ae7c7e77c7883599d9971403eed6ffe9",
-      "source_sha256": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
+      "scenario_sha256": "f125c6e93da7dbf33639ae755df07fb41d3bef0b9c4e91c9aa9542222b1ad2d1",
+      "source_sha256": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
       "variants": []
     }
   },
@@ -32,10 +32,10 @@
   "nx_create_part": {
     "v2406": {
       "checks": 35,
-      "recorded": "2026-10-13T07:13:30Z",
+      "recorded": "2026-10-14T13:40:52Z",
       "scenario": "acceptance/parts_files/create_part.json",
       "scenario_sha256": "2e62b815a7ee956c271f82928580fc9be7029dfd4d9078c4e9916c9353f2bd19",
-      "source_sha256": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
+      "source_sha256": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
       "variants": []
     }
   },
@@ -79,11 +79,11 @@
   },
   "nx_export_model": {
     "v2406": {
-      "checks": 40,
-      "recorded": "2026-10-13T15:36:30Z",
-      "scenario": "acceptance/parts_files/export_model.json",
-      "scenario_sha256": "f92c3f22726687b691614347db186ef6e2b13f5d547ea363e320a0fd7df6b300",
-      "source_sha256": "57f0874cfa1b8511892852097c9889ae685d6651f2126616c51681247f4dd283",
+      "checks": 41,
+      "recorded": "2026-10-14T13:30:28Z",
+      "scenario": "acceptance/parts_files/export_model_assembly.json",
+      "scenario_sha256": "41e36045a20dbb12f13b8e8f780768485e619a3ab5343a2bc1f060e8731eb6df",
+      "source_sha256": "8d3156269f3675d58f5625b3f53c3177fb7b8b713d4632f6eb71b62aaf866966",
       "variants": [
         "dwg",
         "dxf",
@@ -164,30 +164,30 @@
   "nx_list_parts": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T07:17:39Z",
+      "recorded": "2026-10-14T13:45:53Z",
       "scenario": "acceptance/parts_files/list_parts.json",
       "scenario_sha256": "837df5e4e05b49f1c41c5c857929f553482b6a683e757209c65003399e75774f",
-      "source_sha256": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
+      "source_sha256": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
       "variants": []
     }
   },
   "nx_open_part": {
     "v2406": {
       "checks": 58,
-      "recorded": "2026-10-13T07:17:57Z",
+      "recorded": "2026-10-14T13:46:12Z",
       "scenario": "acceptance/parts_files/part_ownership.json",
-      "scenario_sha256": "e596f4f9ab72977f352f0b86f2b0e104ae7c7e77c7883599d9971403eed6ffe9",
-      "source_sha256": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
+      "scenario_sha256": "f125c6e93da7dbf33639ae755df07fb41d3bef0b9c4e91c9aa9542222b1ad2d1",
+      "source_sha256": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
       "variants": []
     }
   },
   "nx_save_part": {
     "v2406": {
       "checks": 18,
-      "recorded": "2026-10-13T07:12:49Z",
+      "recorded": "2026-10-14T13:32:49Z",
       "scenario": "acceptance/session/refs_survive_undo_save.json",
       "scenario_sha256": "09d8f8a554443ca6938e99c219386f94bd2e4097f89846614c2facc5663e27ac",
-      "source_sha256": "e997610ce1218911cf1f145d8e9b071ee61b5ec66429f4105c7d15978c1c5041",
+      "source_sha256": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
       "variants": []
     }
   },

@@ -4,7 +4,8 @@ The PNG is saved in the workspace; the MCP result carries the image inline only 
 ``inline=true`` or when no ``path`` is given (``image.inline``, which the sidecar proxy
 turns into image content), so a capture to a path costs the agent no image tokens.
 ``view_from`` (with ``up``) aims the camera for this capture only and fits by default;
-the camera is put back afterwards. ``hide_sketches`` (default) blanks the shown
+the camera is put back afterwards. A model-view fit frames the shown bodies, centred
+(``kit.display.fit``), not datums or the datum CSYS at the absolute origin. ``hide_sketches`` (default) blanks the shown
 finished sketches and datums for the capture under a scratch undo mark: NX 2406
 measured, blanking marks the part modified and undoing to the mark restores both the
 blank state and the modified flag. Nothing is hidden while a sketch is active. The undo
@@ -32,8 +33,8 @@ capture set the flag; a part modified before stays so) and a warning report.
 opened for the capture only and the part's previous sheet or model view comes back
 (``kit.drawing.on_sheet``), so no ``nx_activate_drawing_sheet`` is needed first. Without
 ``sheet`` the capture shows what the part displays; when that is the model view of a part
-with drawing sheets, an ``NX_NOTE`` names them (benchmark bench3p: a capture of a part
-with a sheet silently returned the model view).
+with drawing sheets, an ``NX_NOTE`` names them, so a capture of the model view is not
+taken for the sheet.
 
 Natural forms: ``background`` defaults to ``color`` when ``color`` is given (else white)
 and takes ``black``; ``color`` takes 0..1 or 0..255 components (any above 1: 0..255).
@@ -178,7 +179,7 @@ def _sheets_note(tx, part) -> None:
 def _contour_note(tx, part) -> None:
     """Say that a shown topology contour is captured as NX draws it: the legend only.
 
-    NX 2406 (live, bug-fix round): a contour plotted outside the Topology Optimization task
+    NX 2406 (live): a contour plotted outside the Topology Optimization task
     (nx_set_topology_contour) shows only its legend, with every band labelled 0; the
     result body and its colours are not drawn in the graphics window, so the viewport
     export, UF ``Disp.CreateImage`` and Studio all return the legend alone (Studio not even
@@ -359,8 +360,7 @@ def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop
             now = display.camera(tx, view)
             display.set_camera(tx, view, aim, now["origin"], now["scale"])
         if fit:
-            view.Fit()
-            view.UpdateDisplay()
+            display.fit(tx, view)
         out["camera"] = camera_row(display.camera(tx, view))
         tx.frame = "display_part_absolute"
     chosen = None if style == "current" else style

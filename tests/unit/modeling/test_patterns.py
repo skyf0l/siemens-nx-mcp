@@ -77,6 +77,43 @@ def test_mirror_of_a_feature_with_its_own_body_counts_the_new_body():
     assert ok.data["volume"] == 2000 and len(ok.data["bodies"]) == 2
 
 
+def test_unite_into_is_read_back_like_a_boolean_unite():
+    """The same checks as nx_create_boolean: more than target plus copies, or a copy left
+    out (its inner point outside the result), rolls back; a 1e-5 drift is accepted."""
+    nx = modeling_nx()
+    disk = nx.block(100, 100, 5, origin=(-50, -50, -5))
+    blade = nx.block(10, 10, 10)
+    _body_copies(nx, blade, 2)
+
+    def unite(gain, lost=()):
+        def united(b):
+            for body in b.Tools.Add.calls[0][0][0]:
+                nx.part.Bodies.remove(body)
+                disk.volume += 0.0 if body in lost else body.volume
+            disk.volume *= gain
+            return feature(nx, "UNITE", [disk])
+
+        nx.on_commit("BooleanBuilder", united)
+        return run(nx, "nx_create_pattern", bodies=[blade.ref], layout="linear",
+                   parameters={"direction": "x", "count": 3, "spacing": 20},
+                   unite_into=disk.ref)  # fmt: skip
+
+    grown = unite(1.5)
+    assert grown.error["code"] == "NX_VERIFICATION_FAILED", grown
+    assert grown.error["details"]["check"] == "volume" and grown.mutation_outcome == "rolled_back"
+    nx.uf.Modeling.AskFaceProps = lambda tag, uv: ([5, 5, 10], 0, 0, 0, 0, [0, 0, 1], 0, 0)
+    blade.contains = lambda p: 1  # the seed's inner point
+    disk.contains = lambda p: 2  # ... lies outside the result
+    dropped = unite(1.0, lost=(blade,))
+    assert dropped.error["code"] == "NX_VERIFICATION_FAILED", dropped
+    assert dropped.error["details"]["check"] == "tools" and dropped.error["details"]["dropped"] == [
+        0
+    ]
+    assert "patterned body 0" in dropped.error["message"] and dropped.error.get("field") is None
+    drift = unite(1 + 1e-5)  # B-spline mass properties: within the 1e-4 band
+    assert drift.ok, drift
+
+
 @pytest.mark.parametrize(
     ("extra", "field"),
     [
@@ -313,7 +350,7 @@ def test_pattern_layout_errors(layout, parameters, field):
 
 
 def test_general_pattern_listing_the_seed_says_to_list_only_the_copies():
-    # Live (bench rounds 1-2): agents listed the seed's own place among the positions.
+    # Live: agents listed the seed's own place among the positions.
     nx, block, seed = pattern_nx()
     bad = pattern(nx, seed, "general", origin=[5, 5, 10], positions=[[5, 5, 10], [15, 5, 10]])
     assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
@@ -489,3 +526,151 @@ def test_mirror_takes_a_bare_principal_plane():
     assert [plane.Normal.X, plane.Normal.Y, plane.Normal.Z] == [1.0, 0.0, 0.0]
     bad = run(nx, "nx_create_mirror", bodies=[nx.ref_of(block, "body")], plane="zy")
     assert bad.error["field"].startswith("/plane") and bad.mutation_outcome == "not_started"
+
+
+# ---------------------------------------------------------------------------
+# Pattern of whole bodies (Pattern Geometry) and unite_into
+
+
+def _body_copies(nx, source, n, volume=None):
+    """A Pattern Geometry commit that makes ``n`` copies of ``source`` along x."""
+    made = []
+
+    def commit(b):
+        made[:] = [
+            new_body(nx, [20 * i, 0, 0, 20 * i + 10, 10, 10], volume) for i in range(1, n + 1)
+        ]
+        return feature(nx, "PATTERN_GEOMETRY", list(made))
+
+    nx.on_commit("PatternGeometryBuilder", commit)
+    return made
+
+
+def _unite_hook(nx, target, leaves=0):
+    """A boolean commit that unites its tools into ``target`` (leaving ``leaves`` apart)."""
+    seen = []
+
+    def united(b):
+        assert b.Target is target
+        tools = list(b.Tools.Add.calls[0][0][0])
+        seen[:] = tools
+        for body in tools[leaves:]:
+            nx.part.Bodies.remove(body)
+            target.volume += body.volume
+        return feature(nx, "UNITE", [target])
+
+    nx.on_commit("BooleanBuilder", united)
+    return seen
+
+
+def test_pattern_of_bodies_uses_pattern_geometry_and_lists_every_copy():
+    nx = modeling_nx()
+    blade = nx.block(10, 10, 10)
+    made = _body_copies(nx, blade, 3)
+    ok = run(nx, "nx_create_pattern", bodies=[blade.ref], layout="linear",
+             parameters={"direction": "x", "count": 4, "spacing": 20})  # fmt: skip
+    assert ok.ok, ok
+    b = nx.last("PatternGeometryBuilder")
+    assert b.GeometryToPattern.Add.calls[0][0][0] == [blade] and b.destroyed
+    assert b.IsAssociative is True and b.HideOriginal is False
+    assert b.PatternService.RectangularDefinition.XSpacing.NCopies.RightHandSide == "4"
+    data = ok.data
+    assert data["count"] == 4 and data["new_bodies"] == 3 and data["volume"] == 4000
+    assert [r["id"] for r in data["bodies"]] == [blade.ref] + [nx.ref_of(m, "body") for m in made]
+    assert not any(x.kind == "PatternFeatureBuilder" for x in nx.builders)
+
+
+def test_pattern_of_bodies_checks_the_copy_count_and_volume():
+    nx = modeling_nx()
+    blade = nx.block(10, 10, 10)
+    _body_copies(nx, blade, 2)
+    short = run(nx, "nx_create_pattern", bodies=[blade.ref], layout="linear",
+                parameters={"direction": "x", "count": 4, "spacing": 20})  # fmt: skip
+    assert short.error["details"]["check"] == "count", short
+    assert short.mutation_outcome == "rolled_back"
+    _body_copies(nx, blade, 3, volume=900.0)
+    thin = run(nx, "nx_create_pattern", bodies=[blade.ref], layout="linear",
+               parameters={"direction": "x", "count": 4, "spacing": 20})  # fmt: skip
+    assert thin.error["details"]["check"] == "volume", thin
+    assert thin.mutation_outcome == "rolled_back"
+
+
+def test_pattern_of_bodies_unite_into_merges_sources_and_copies():
+    nx = modeling_nx()
+    disk = nx.block(100, 100, 5, origin=(-50, -50, -5))
+    blade = nx.block(10, 10, 10)
+    made = _body_copies(nx, blade, 5)
+    tools = _unite_hook(nx, disk)
+    ok = run(nx, "nx_create_pattern", bodies=[blade.ref], layout="circular",
+             parameters={"axis": "z", "count": 6, "angle": 60},
+             unite_into=disk.ref)  # fmt: skip
+    assert ok.ok, ok
+    assert tools == [blade, *made]
+    data = ok.data
+    assert data["united"] == 6 and data["new_bodies"] == 0 and data["count"] == 6
+    assert [r["id"] for r in data["bodies"]] == [disk.ref] and data["volume"] == 50000 + 6000
+    assert data["unite_feature"]["kind"] == "feature"
+    assert list(nx.part.Bodies) == [disk]
+
+
+def test_pattern_of_features_unite_into_merges_the_seed_body_and_copies():
+    nx = modeling_nx()
+    disk = nx.block(100, 100, 5, origin=(-50, -50, -5))
+    blade = nx.block(10, 10, 10)
+    seed = feature(nx, "LOFT", [blade])
+    copies, made = _separate_copies(nx, blade, 3)
+    nx.on_commit("PatternFeatureBuilder", copies("PATTERN_FEATURE"))
+    tools = _unite_hook(nx, disk)
+    ok = run(nx, "nx_create_pattern", features=[nx.ref_of(seed, "feature")], layout="linear",
+             parameters={"direction": "x", "count": 4, "spacing": 10},
+             unite_into=disk.ref)  # fmt: skip
+    assert ok.ok, ok
+    assert tools == [blade, *made] and ok.data["united"] == 4
+    assert [r["id"] for r in ok.data["bodies"]] == [disk.ref] and ok.data["new_bodies"] == 0
+
+
+def test_unite_into_copies_that_miss_the_body_rolls_back_with_a_hint():
+    nx = modeling_nx()
+    disk = nx.block(100, 100, 5, origin=(-50, -50, -5))
+    blade = nx.block(10, 10, 10)
+    _body_copies(nx, blade, 3)
+    _unite_hook(nx, disk, leaves=1)
+    bad = run(nx, "nx_create_pattern", bodies=[blade.ref], layout="linear",
+              parameters={"direction": "x", "count": 4, "spacing": 20},
+              unite_into=disk.ref)  # fmt: skip
+    assert bad.error["code"] == "NX_BUILD_FAILED", bad
+    assert "unite_into" in bad.error["hint"] and bad.mutation_outcome == "rolled_back"
+
+
+@pytest.mark.parametrize(
+    ("extra", "field"),
+    [
+        ({}, "/features"),
+        ({"features": ["F"], "bodies": ["B"]}, "/bodies"),
+        ({"bodies": ["B"], "unite": True, "unite_into": "D"}, "/unite_into"),
+        ({"bodies": ["B", "C"], "unite": True}, "/unite"),
+        ({"bodies": ["B", "B"]}, "/bodies/1"),
+    ],
+)
+def test_pattern_seed_and_unite_errors_are_not_started(extra, field):
+    nx = modeling_nx()
+    disk = nx.block(100, 100, 5, origin=(-50, -50, -5))
+    blade = nx.block(10, 10, 10)
+    other = nx.block(10, 10, 10, origin=(30, 0, 0))
+    refs = {"B": blade.ref, "C": other.ref, "D": disk.ref,
+            "F": nx.ref_of(feature(nx, "EXTRUDE", [blade]), "feature")}  # fmt: skip
+    given = {k: ([refs[r] for r in v] if isinstance(v, list) else refs.get(v, v))
+             for k, v in extra.items()}  # fmt: skip
+    bad = run(nx, "nx_create_pattern", layout="linear",
+              parameters={"direction": "x", "count": 2, "spacing": 20}, **given)  # fmt: skip
+    assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
+    assert not any(b.commits for b in nx.builders)
+
+
+def test_unsupported_seed_set_says_to_pattern_the_body():
+    nx, block, seed = pattern_nx()
+    nx.refuse("PatternFeatureBuilder", 674207, "unsupported situation")
+    bad = pattern(nx, seed, "linear", direction="x", count=3, spacing=60)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 674207, bad
+    assert "bodies" in bad.error["hint"] and "body-creating feature" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0

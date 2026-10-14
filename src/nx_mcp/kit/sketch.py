@@ -65,6 +65,11 @@ def to_part(f, p2):
     return [f["origin"][i] + p2[0] * f["x_axis"][i] + p2[1] * f["y_axis"][i] for i in range(3)]
 
 
+def to_part_direction(f, t2):
+    """Part direction of a sketch-local direction [x, y] (no origin shift)."""
+    return [t2[0] * f["x_axis"][i] + t2[1] * f["y_axis"][i] for i in range(3)]
+
+
 def to_local(f, p3):
     """Sketch-local [x, y] of a part point (list or anything with X, Y, Z)."""
     d = geom.sub(geom.xyz(p3) if hasattr(p3, "X") else list(p3), f["origin"])

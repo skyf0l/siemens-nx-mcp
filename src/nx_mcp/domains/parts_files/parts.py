@@ -428,8 +428,8 @@ def _note_shown(tx, part, shown) -> None:
 def _note_modified_on_load(tx, part, out: OpenData) -> None:
     """NX can mark a part modified while loading it (an update on load: assembly
     constraints solved again, component positions or drawing views brought up to date);
-    the open itself changed nothing. Said, never refused (benchmark bench3p: a kit read
-    modified:true right after its open)."""
+    the open itself changed nothing. Said, never refused (an agent read modified: true
+    right after its own open and took it for an edit)."""
     out["modified_on_load"] = True
     tx.warn(
         "NX_NOTE",

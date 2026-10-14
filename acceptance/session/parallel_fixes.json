@@ -78,7 +78,7 @@
   {"call": "nx_create_primitive", "args": {"part": "fx_bolt", "shape": "block", "length": 4, "width": 4, "height": 4, "origin": [40, 0, 0]},
    "expect": {"mutation_outcome": "committed"}},
   {"call": "nx_undo_operation", "direct": true, "args": {"part": "fx_cover", "mode": "delete_created"},
-   "intent": "Acceptance: a primitive whose drawing views NX refreshed is undone by deleting it (bench3p sphere)",
+   "intent": "Acceptance: a primitive whose drawing views NX refreshed is undone by deleting it (a sphere)",
    "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.undone": ["$sph.operation_id"],
               "changes.deleted": {"count_kind": {"feature": 1, "body": 1}}}},
 
@@ -89,7 +89,7 @@
    "intent": "Acceptance: another part's close cuts NX's undo history",
    "expect": {"mutation_outcome": "committed"}},
   {"call": "nx_undo_operation", "direct": true, "args": {"part": "fx_cover", "operation": "$rev.operation_id"},
-   "intent": "Acceptance: the default undo compensates across another part's close, as across other parts' later work (bench3t: the close refused it)",
+   "intent": "Acceptance: the default undo compensates across another part's close, as across other parts' later work (the close once refused it)",
    "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.restored.0": "REV of fx_cover.prt removed",
               "warnings": {"contains": {"code": "NX_UPDATE_WARNING"}}}},
 
@@ -103,7 +103,7 @@
    "intent": "Acceptance: another agent's call comes after the owner's save",
    "expect": {"mutation_outcome": "committed"}},
   {"call": "nx_close_part", "args": {"part": "fx_cover", "save": false},
-   "intent": "Acceptance: an agent's own close after its own save closes without force (bench3p)",
+   "intent": "Acceptance: an agent's own close after its own save closes without force",
    "expect": {"mutation_outcome": "committed", "data.closed_count": 1}},
 
   {"call": "nx_create_part", "setup": true, "args": {"path": "$run/fx/fx_box.prt", "units": "mm", "display": false}},

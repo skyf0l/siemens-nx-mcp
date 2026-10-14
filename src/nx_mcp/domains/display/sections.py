@@ -12,7 +12,7 @@ it off when no active section remains (``kit.display.delete_sections``). A faile
 create or edit puts the previous sections and sectioning state back itself.
 
 Sections are display state, not in the agent's undo history, yet NX's session-wide undo
-reverts them (live, 30 agents: a section vanished and an edit came back undone, with no
+reverts them (live, with many agents: a section vanished and an edit came back undone, with no
 error). Each create or edit remembers the state it left (``_remembered``); the next
 create, edit or listing in that part names a section that is gone or differs
 (``NX_NOTE``) instead of silently working on the reverted one.

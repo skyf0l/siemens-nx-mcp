@@ -71,8 +71,8 @@ def test_the_agents_only_part_keeps_its_tab_active_when_no_engineer_part_is_show
 
 
 def test_the_engineer_tab_guard_never_leaves_an_agent_part_active():
-    """bench3t: 12 of 12 creates passed display true and took the engineer's tab for
-    5 min 19 s; the first agent part took it even without display."""
+    """Creates that passed display true took the engineer's tab for minutes, and the
+    first agent part took it even without display."""
     nx, tx, engineer = setup()
     assert parts.engineer_tab(tx) is engineer
     a, b = new(nx, "a.prt"), new(nx, "b.prt")

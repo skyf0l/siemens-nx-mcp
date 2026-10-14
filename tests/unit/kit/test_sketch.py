@@ -17,6 +17,7 @@ def test_frame_and_conversions():
     assert sketch.to_local(f, p) == [2.0, 3.0]
     assert sketch.to_local(f, NS(X=0, Y=2, Z=8)) == [2.0, 3.0]
     assert sketch.height(f, [4, 0, 5]) == 4.0
+    assert sketch.to_part_direction(f, [2, 3]) == [0.0, 2.0, 3.0]  # no origin shift
 
 
 def test_editing_activates_and_restores():

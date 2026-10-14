@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `de8ef9d32eec8b567b1418cf41c6c684098a322a657f26ad1fc6324a31cd282e`.
+Canonical SHA-256 (catalogue evidence): `e1ad70a3badd4eb0260dcb58fa73d44d053865a155824543da2ceef4ec622f42`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -29,7 +29,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_check_drawing_changes | Native-tested | drawing | read | v2406: tested; 25 checks in acceptance/drawing/drawing_compare.json |
 | nx_check_face_continuity | Native-tested | inspection | read | v2406: tested; 40 checks in acceptance/inspection/surface_quality.json |
 | nx_check_interference | Native-tested | inspection | read | v2406: tested; 23 checks in acceptance/inspection/interference_sheets.json |
-| nx_check_model | Native-tested | inspection | read | v2406: tested; 19 checks in acceptance/inspection/self_overlap.json |
+| nx_check_model | Native-tested | inspection | read | v2406: tested; 19 checks in acceptance/inspection/self_overlap_face_limit.json |
 | nx_check_sketch | Native-tested | sketch | read | v2406: tested; 54 checks in acceptance/sketch/sketch_natural_args.json |
 | nx_close_part | Native-tested | parts_files | session | v2406: tested; 58 checks in acceptance/parts_files/part_ownership.json |
 | nx_create_anchor | Native-tested | inspection | read | v2406: tested; 91 checks in acceptance/inspection/holes_and_words.json |
@@ -39,7 +39,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_balloons | Native-tested | drawing | model | v2406: tested; 36 checks in acceptance/drawing/create_balloons.json |
 | nx_create_blend | Native-tested | modeling | model | v2406: tested; 8 checks in acceptance/modeling/tangent_chain.json |
 | nx_create_blend_corner | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/blend_corner.json |
-| nx_create_boolean | Native-tested | modeling | model | v2406: all variants; 26 checks in acceptance/modeling/compact_results.json |
+| nx_create_boolean | Native-tested | modeling | model | v2406: all variants; 8 checks in acceptance/modeling/unite_readback.json |
 | nx_create_bounded_plane | Native-tested | freeform | model | v2406: tested; 20 checks in acceptance/freeform/bounded.json |
 | nx_create_bridge_curve | Native-tested | freeform | model | v2406: tested; 58 checks in acceptance/freeform/curve_edit.json |
 | nx_create_bridge_surface | Native-tested | freeform | model | v2406: all variants; 21 checks in acceptance/freeform/bridge_surface.json |
@@ -112,7 +112,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_projected_curve | Native-tested | freeform | model | v2406: all variants; 22 checks in acceptance/freeform/curve_project.json |
 | nx_create_reference_set | Native-tested | assembly | model | v2406: tested; 145 checks in acceptance/assembly/components.json |
 | nx_create_refit_face | Native-tested | freeform | model | v2406: tested; 10 checks in acceptance/freeform/refit.json |
-| nx_create_revolve | Native-tested | modeling | model | v2406: tested; 37 checks in acceptance/modeling/revolve.json |
+| nx_create_revolve | Native-tested | modeling | model | v2406: tested; 21 checks in acceptance/modeling/revolve_profile.json |
 | nx_create_rib | Native-tested | modeling | model | v2406: all variants; 45 checks in acceptance/modeling/rib.json |
 | nx_create_ruled | Native-tested | freeform | model | v2406: all variants; 30 checks in acceptance/freeform/ruled.json |
 | nx_create_scale | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/scale_general.json |
@@ -130,7 +130,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_sketch_constraints | Native-tested | sketch | model | v2406: all variants; 52 checks in acceptance/sketch/sketch_natural_ops.json |
 | nx_create_sketch_copy | Native-tested | sketch | model | v2406: all variants; 52 checks in acceptance/sketch/sketch_natural_ops.json |
 | nx_create_sketch_corner | Native-tested | sketch | model | v2406: all variants; 52 checks in acceptance/sketch/sketch_natural_ops.json |
-| nx_create_sketch_curves | Native-tested | sketch | model | v2406: all variants; 37 checks in acceptance/sketch/sketch_polyline.json |
+| nx_create_sketch_curves | Native-tested | sketch | model | v2406: all variants; 18 checks in acceptance/sketch/sketch_spline.json |
 | nx_create_sketch_dimensions | Native-tested | sketch | model | v2406: all variants; 52 checks in acceptance/sketch/sketch_natural_ops.json |
 | nx_create_sketch_projection | Native-tested | sketch | model | v2406: all variants; 18 checks in acceptance/sketch/sketch_projection_default.json |
 | nx_create_spline | Native-tested | freeform | model | v2406: all variants; 36 checks in acceptance/freeform/spline.json |
@@ -144,7 +144,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_topology_condition | Native-tested | optimization | model | v2406: all variants; 36 checks in acceptance/optimization/strength.json |
 | nx_create_topology_environment | Native-tested | optimization | model | v2406: all variants; 36 checks in acceptance/optimization/strength.json |
 | nx_create_topology_study | Native-tested | optimization | model | v2406: tested; 48 checks in acceptance/optimization/bracket.json |
-| nx_create_transform | Native-tested | modeling | model | v2406: tested; 20 checks in acceptance/modeling/transform.json |
+| nx_create_transform | Native-tested | modeling | model | v2406: tested; 19 checks in acceptance/modeling/transform_copy_order.json |
 | nx_create_trim_body | Native-tested | modeling | model | v2406: all variants; 19 checks in acceptance/modeling/trim_body.json |
 | nx_create_trim_curve | Native-tested | freeform | model | v2406: all variants; 58 checks in acceptance/freeform/curve_edit.json |
 | nx_create_trim_sheet | Native-tested | freeform | model | v2406: tested; 22 checks in acceptance/freeform/trim_sheet.json |
@@ -186,7 +186,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_export_flat_pattern | Native-tested | sheet_metal | file | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_export_inspection_report | Native-tested | inspection | file | v2406: tested; 23 checks in acceptance/inspection/interference_sheets.json |
 | nx_export_mass_report | Native-tested | inspection | file | v2406: tested; 69 checks in acceptance/inspection/assembly_weight.json |
-| nx_export_model | Native-tested | parts_files | file | v2406: dwg, dxf, iges, jt, parasolid, step, stl (untested: step_ap242); 40 checks in acceptance/parts_files/export_model.json |
+| nx_export_model | Native-tested | parts_files | file | v2406: dwg, dxf, iges, jt, parasolid, step, stl (untested: step_ap242); 41 checks in acceptance/parts_files/export_model_assembly.json |
 | nx_export_profile | Native-tested | parts_files | file | v2406: tested; 38 checks in acceptance/parts_files/export_profile.json |
 | nx_find_geometry | Native-tested | inspection | read | v2406: tested; 91 checks in acceptance/inspection/holes_and_words.json |
 | nx_find_holes | Native-tested | inspection | read | v2406: tested; 91 checks in acceptance/inspection/holes_and_words.json |
@@ -203,7 +203,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_get_feature | Native-tested | modeling | read | v2406: tested; 14 checks in acceptance/modeling/get_feature.json |
 | nx_get_kf_rules | Native-tested | parts_files | read | v2406: tested; 39 checks in acceptance/parts_files/kf_rules.json |
 | nx_get_material | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
-| nx_get_model_summary | Native-tested | inspection | read | v2406: tested; 50 checks in acceptance/inspection/health.json |
+| nx_get_model_summary | Native-tested | inspection | read | v2406: tested; 19 checks in acceptance/inspection/self_overlap_face_limit.json |
 | nx_get_operation | Native-tested | session | read | v2406: tested; 50 checks in acceptance/session/status_operations.json |
 | nx_get_part_family | Native-tested | parts_files | read | v2406: tested; 29 checks in acceptance/parts_files/part_family.json |
 | nx_get_result | Native-tested | session | read | v2406: tested; 81 checks in acceptance/session/results.json |
@@ -248,7 +248,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_run_motion_sweep | Native-tested | motion | read | v2406: all variants; 38 checks in acceptance/motion/steering_linkage.json |
 | nx_run_topology_study | Native-tested | optimization | model | v2406: tested; 82 checks in acceptance/optimization/contour.json |
 | nx_save_part | Native-tested | parts_files | file | v2406: tested; 18 checks in acceptance/session/refs_survive_undo_save.json |
-| nx_save_presentation | Native-tested | display | file | v2406: tested; 30 checks in acceptance/display/presentation.json |
+| nx_save_presentation | Native-tested | display | file | v2406: tested; 32 checks in acceptance/display/presentation.json |
 | nx_set_appearance | Native-tested | display | view | v2406: tested; 69 checks in acceptance/display/natural_values.json |
 | nx_set_arrangement_component | Native-tested | assembly | model | v2406: tested; 50 checks in acceptance/assembly/arrangements.json |
 | nx_set_attributes | Native-tested | parts_files | model | v2406: tested; 181 checks in acceptance/parts_files/attributes.json |

@@ -1,0 +1,90 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/loft_curve_sections.json",
+  "scenario_sha256": "484de2ea9576863f6235a911d6be0af84cc210979f6076b05d428dacd7dd3c31",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_loft": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_loft": "57b1103557ab1eaf0c4569dbc87f19b25b23a60d69df8eda44d6c9ffabc835af"
+  },
+  "recorded": "2026-10-14T13:22:09Z",
+  "passed": true,
+  "checks": 10,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_create_loft",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 10,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/transform_copy_order.json",
+  "scenario_sha256": "220a710893f82eee147bf44be437f10feeccfb344c0ee4fc6119683c09bf8572",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_transform": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_transform": "792a29c4fca43ddab911c31b6e6ecbdc731d5f2f4a6577c70df3e491bb688797"
+  },
+  "recorded": "2026-10-14T13:22:38Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_transform",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_create_transform",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

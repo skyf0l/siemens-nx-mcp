@@ -34,9 +34,9 @@
     "nx_create_sketch_dimensions": "e806c1362ab59835f06ac91aa0ba688590a6e117282903fdc64ead3ecf5c3a15",
     "nx_create_sketch_copy": "7f2a4ed0cdff3783ab723c27719e85548143ece6d50252b3fbe1bb9a596fe0c6",
     "nx_create_sketch_corner": "7f2a4ed0cdff3783ab723c27719e85548143ece6d50252b3fbe1bb9a596fe0c6",
-    "nx_edit_sketch_curves": "853ee5d89449422fbbdb4a99d1de3c71d02d6adb63f4a4c6b1225a94ca43515d"
+    "nx_edit_sketch_curves": "76f90c95b881d86cffcbd6331ef5ed265a6a9b4916f6c8b7342238007e853e63"
   },
-  "recorded": "2026-10-13T07:19:24Z",
+  "recorded": "2026-10-14T13:34:48Z",
   "passed": true,
   "checks": 52,
   "failed_checks": 0,

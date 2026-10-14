@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from nx_mcp.kit import files
+from nx_mcp.kit import display, files
 from tests.kit import NXException, run
 from tests.kit.kernel import services
 from tests.kit.objects import Object, Sketch
@@ -348,7 +348,7 @@ def test_sheet_reopens_the_sheet_that_was_shown_before():
 
 
 def test_a_named_work_part_that_is_not_displayed_is_shown_for_the_capture():
-    """Live (bug-fix round): beside the engineer's displayed part, the agent's part was
+    """Live: beside the engineer's displayed part, the agent's part was
     NX's quiet work part; gate 4s switches no work part, so a capture with part=X wrote
     the engineer's view. X is now shown for the capture; the display and work part come
     back, and a fitted camera is put back in X before its tab is left."""
@@ -383,7 +383,7 @@ def test_a_named_work_part_that_is_not_displayed_is_shown_for_the_capture():
 
 
 def test_a_shown_topology_contour_is_reported_as_legend_only():
-    """Live (bug-fix round): outside the Topology Optimization task NX 2406 draws only a
+    """Live: outside the Topology Optimization task NX 2406 draws only a
     contour's legend (bands labelled 0, no body), and every export of the window shows
     just that; the capture says so instead of silently returning a blank model."""
     from types import SimpleNamespace as NS
@@ -420,3 +420,13 @@ def test_capture_lighting_leaves_hand_set_lights_alone():
     assert ok.ok
     lights = nx.lights[0]
     assert lights.committed == [] and lights.destroyed
+
+
+def test_a_fitted_capture_frames_the_bodies_centred():
+    nx = display_nx()
+    nx.block(790, 400, 400, origin=(2200, -200, -200))
+    nx.datum_plane()
+    ok = run(nx, "nx_capture_view", fit=True)
+    assert ok.ok, ok.error
+    assert display.centre_offset(ok.data["camera"], [2595, 0, 0]) == pytest.approx(0, abs=1e-5)
+    assert nx.camera["scale"] == 1.0  # the engineer's camera came back

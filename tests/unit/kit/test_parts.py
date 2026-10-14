@@ -83,6 +83,24 @@ def test_components_dependents_and_prototype_files(nx):
     assert parts.dependents(nx.tx, asm) == []
 
 
+def test_require_loaded_names_unsuppressed_components_not_fully_loaded(nx):
+    asm, blk, pin = nx.new_part("asm.prt"), nx.new_part("blk.prt"), nx.new_part("pin.prt")
+    block, peg = nx.attach(asm, blk), nx.attach(asm, pin)
+    parts.require_loaded(asm, "Load them")  # every prototype fully loaded
+    pin.IsFullyLoaded = False
+    assert parts.unloaded(asm) == ["PIN"]
+    with pytest.raises(NXError) as caught:
+        parts.require_loaded(asm, "Load them")
+    error = caught.value
+    assert error.code == "NX_NOT_LOADED" and error.message == "Load them"
+    assert error.details["components"] == ["PIN"] and "load_components=true" in error.hint
+    peg.IsSuppressed = True  # a suppressed component is not exported: no need to load it
+    parts.require_loaded(asm, "Load them")
+    peg.IsSuppressed, block.IsSuppressed = False, False
+    peg.Parent = NS(IsSuppressed=True, Parent=None)  # nor one under a suppressed parent
+    assert parts.suppressed(peg) and parts.unloaded(asm) == []
+
+
 def test_load_components_restores_partial_loading_and_reports_failures(nx):
     asm, blk = nx.new_part("asm.prt"), nx.new_part("blk.prt")
     nx.attach(asm, blk)
@@ -149,7 +167,7 @@ def test_work_without_display_only_inside_the_display_assembly(nx):
     shown = parts.present(nx.tx, blk, display=False)  # a component: NX takes it as work
     assert shown.work and not shown.active and nx.session.Parts.Work is blk
     nx.session.Parts.SetWork(asm)
-    shown = parts.present(nx.tx, other, display=False)  # elsewhere: never refused (bench3t)
+    shown = parts.present(nx.tx, other, display=False)  # elsewhere: never refused
     assert not shown.work and shown.kept is asm and nx.session.Parts.Work is asm
     nx.session.Parts.Display = None
     assert parts.can_be_work(nx.tx, other)  # nothing displayed: any part may become work part

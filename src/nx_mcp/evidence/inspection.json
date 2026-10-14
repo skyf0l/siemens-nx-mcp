@@ -52,20 +52,20 @@
   "nx_check_interference": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-13T13:52:20Z",
+      "recorded": "2026-10-14T13:47:20Z",
       "scenario": "acceptance/inspection/interference_sheets.json",
       "scenario_sha256": "a4a5fd09059dc4124e69d978eea3aad1362130a0a37ab4fae9cf17174ddeb6a7",
-      "source_sha256": "3a6c64f93df18c52f2bfed2ce31ef3a69b87574344f61313f058e91c16a67cf5",
+      "source_sha256": "645be667e75d0b11d382d1b119e3d32bc7a801c55d871d6965961d441c0ccb31",
       "variants": []
     }
   },
   "nx_check_model": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T14:36:44Z",
-      "scenario": "acceptance/inspection/self_overlap.json",
-      "scenario_sha256": "5d463c74326426cf729fa5e022195d3bdd79378b7c8756f7ac2b1ceebbd692e0",
-      "source_sha256": "f5141ec31bdd20ad1f10ff09356fe31e32aa4d03c153ca70a7cf85e12bd32225",
+      "recorded": "2026-10-14T13:22:02Z",
+      "scenario": "acceptance/inspection/self_overlap_face_limit.json",
+      "scenario_sha256": "9948c84f656c4bdf135fa247d9072edfcaadd566570e684ec935af2787552313",
+      "source_sha256": "9056f2e1f3fc42e40be23e19621ebcfd457fe642a1a832b4452409f4b1ce889b",
       "variants": []
     }
   },
@@ -99,10 +99,10 @@
   "nx_export_inspection_report": {
     "v2406": {
       "checks": 23,
-      "recorded": "2026-10-13T13:52:20Z",
+      "recorded": "2026-10-14T13:47:20Z",
       "scenario": "acceptance/inspection/interference_sheets.json",
       "scenario_sha256": "a4a5fd09059dc4124e69d978eea3aad1362130a0a37ab4fae9cf17174ddeb6a7",
-      "source_sha256": "3a6c64f93df18c52f2bfed2ce31ef3a69b87574344f61313f058e91c16a67cf5",
+      "source_sha256": "645be667e75d0b11d382d1b119e3d32bc7a801c55d871d6965961d441c0ccb31",
       "variants": []
     }
   },
@@ -138,11 +138,11 @@
   },
   "nx_get_model_summary": {
     "v2406": {
-      "checks": 50,
-      "recorded": "2026-10-13T14:45:45Z",
-      "scenario": "acceptance/inspection/health.json",
-      "scenario_sha256": "c27c92e712e8dc976a735b2b5979f5e51bd26cd5b3e33fdd4fc8dc3e1d6edabb",
-      "source_sha256": "f5141ec31bdd20ad1f10ff09356fe31e32aa4d03c153ca70a7cf85e12bd32225",
+      "checks": 19,
+      "recorded": "2026-10-14T13:22:02Z",
+      "scenario": "acceptance/inspection/self_overlap_face_limit.json",
+      "scenario_sha256": "9948c84f656c4bdf135fa247d9072edfcaadd566570e684ec935af2787552313",
+      "source_sha256": "9056f2e1f3fc42e40be23e19621ebcfd457fe642a1a832b4452409f4b1ce889b",
       "variants": []
     }
   },

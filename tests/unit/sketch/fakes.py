@@ -130,6 +130,37 @@ class Ellipse(Curve):
         return sum(math.dist(pts[k], pts[k + 1]) for k in range(n))
 
 
+class Spline(Curve):
+    """``NXOpen.Spline``."""
+
+
+class SplineCurve(Spline):
+    """A spline through points, simplified to the polyline through them (closed back to the
+    first point when periodic): enough for the read-back of ends, points and tangents."""
+
+    def __init__(self, points, periodic):
+        super().__init__("SPLINE")
+        self.points = [list(p) for p in points] + ([list(points[0])] if periodic else [])
+        self.Periodic = periodic
+
+    def _segments(self):
+        return [math.dist(a, b) for a, b in zip(self.points, self.points[1:], strict=False)]
+
+    def GetLength(self):
+        return sum(self._segments())
+
+    def at(self, t):
+        lengths = self._segments()
+        goal, walked = max(0.0, min(1.0, t)) * sum(lengths), 0.0
+        for k, step in enumerate(lengths):
+            if walked + step >= goal or k == len(lengths) - 1:
+                a, b = self.points[k], self.points[k + 1]
+                u = (goal - walked) / step if step else 0.0
+                return [a[i] + u * (b[i] - a[i]) for i in range(3)], [b[i] - a[i] for i in range(3)]
+            walked += step
+        raise AssertionError("unreachable")
+
+
 class Constraint(Object):
     def __init__(self, kind, geometry, sketch):
         super().__init__("CONSTRAINT")
@@ -409,7 +440,10 @@ class FakeSketchNX(FakeNX):
         ns.Sketch = Sketch
         Edge.EdgeType = ns.Edge.EdgeType  # NXOpen.Edge is the class and holds the enum
         ns.Line, ns.Arc, ns.Ellipse, ns.Curve, ns.Edge = Line, Arc, Ellipse, Curve, Edge
-        ns.Spline = type("Spline", (Curve,), {})
+        ns.Spline = Spline
+        ns.Features.StudioSplineBuilderEx = NS(
+            Types=NS(ThroughPoints="ThroughPoints", ByPoles="ByPoles")
+        )
         ns.Matrix3x3 = lambda: NS()
         ns.SketchDimensionalConstraint = NS(DimensionStateType=NS(Driving=0, Reference=1))
         ns.SketchDragGeometryBuilder = NS(
@@ -464,6 +498,7 @@ class FakeSketchNX(FakeNX):
         f.on_commit("SketchInPlaceBuilder2", self.commit_sketch)
         f.on_commit("SketchAlongPathBuilder", self.commit_sketch)
         f.on_commit("DragGeometryBuilder", self.commit_drag)
+        f.on_commit("StudioSplineBuilderEx", self.commit_spline)
         f.on_commit("ConvertToFromReferenceBuilder", self.commit_reference)
         for kind in (
             "SketchMakeParallelBuilder",
@@ -564,6 +599,13 @@ class FakeSketchNX(FakeNX):
 
     def create_ellipse(self, c, a, b, s, e, rot, orientation):
         return self._own_curve(Ellipse(c, a, b, s, e, rot, orientation))
+
+    def commit_spline(self, b):
+        """A non-associative Studio Spline: the builder's ``Curve``, no feature."""
+        points = [xyz(args[0].Point.Coordinates) for args, _kw in b.ConstraintManager.Append.calls]
+        spline = self._own_curve(SplineCurve(points, bool(b.IsPeriodic)))
+        b.Curve = spline
+        return None
 
     def commit_sketch(self, b):
         origin, x, y = self.next_sketch or ((0, 0, 0), (1, 0, 0), (0, 1, 0))

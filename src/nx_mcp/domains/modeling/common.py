@@ -7,7 +7,7 @@ from typing import Literal, TypedDict
 
 from nx_mcp.core.errors import fail
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, curve, geom, measure, readback, result, select, units
+from nx_mcp.kit import builders, curve, facts, geom, measure, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
 # Values within this relative band of each other count as "unchanged" volume.
@@ -140,7 +140,15 @@ def swept_sound(tx, made, known=(), overlapping=()) -> None:
     other, which UF consistency passes. ``overlapping``: ``kit.bodies.clashing`` of the
     combine targets before the build."""
     sound(tx, made, known)
-    kbodies.expect_no_clash(tx, made, known=overlapping)
+    no_clash(tx, made, overlapping)
+
+
+def no_clash(tx, made, overlapping=(), hint=kbodies.CLASH_HINT) -> None:
+    """``kit.bodies.expect_no_clash``; a body too large to examine gets an ``NX_NOTE``
+    warning that says the self-overlap check was skipped."""
+    note = kbodies.expect_no_clash(tx, made, known=overlapping, hint=hint)
+    if note:
+        tx.warn("NX_NOTE", note)
 
 
 def boolean_feature(tx, operation, target, tools):
@@ -153,12 +161,122 @@ def boolean_feature(tx, operation, target, tools):
         return b.commit()
 
 
+# Volume band of a unite, boolean or transform read-back: NX mass properties of B-spline
+# bodies differ by up to about 1e-5 relative between two evaluations of the same shape.
+VOLUME_BAND = 1e-4
+INSIDE, OUTSIDE = 1, 2  # UF_MODL_ask_point_containment against a body
+
+
+def inner_point(tx, body):
+    """A point strictly inside ``body``: a face sample stepped inward along the outward
+    normal and confirmed by UF point containment; None when no face gives one."""
+    modeling = tx.uf.Modeling
+    tol = units.part_tolerance(tx)
+    try:
+        for face in list(body.GetFaces())[:8]:
+            for point, normal in facts.interior_samples(tx, face, 1):
+                for depth in (10.0 * tol, 2.0 * tol):
+                    q = geom.sub(point, geom.scale(normal, depth))
+                    if int(modeling.AskPointContainment(q, body.Tag)) == INSIDE:
+                        return q
+    except Exception:  # a body UF cannot sample: the drop check skips it
+        return None
+    return None
+
+
+def probes(tx, tools) -> list[tuple[int, list[float]]]:
+    """``[(index, inner point)]`` of the ``tools`` bodies, taken before a unite (tools UF
+    cannot sample are left out)."""
+    found = [(i, inner_point(tx, t)) for i, t in enumerate(tools)]
+    return [(i, q) for i, q in found if q]
+
+
+def dropped_tools(tx, made, inner) -> list[int]:
+    """Indexes of tools whose inner point lies outside every result body: a unite holds
+    every point of every tool, so such a tool was left out."""
+    out = []
+    for i, q in inner:
+        try:
+            states = [int(tx.uf.Modeling.AskPointContainment(q, b.Tag)) for b in made]
+        except Exception:
+            continue
+        if states and all(s == OUTSIDE for s in states):
+            out.append(i)
+    return out
+
+
+GROWN_HINT = (
+    "Unite the tools in separate calls and check each volume; a tool that closes a hollow of "
+    "the target leaves a sealed cavity NX may fill: build that wall into the target's own "
+    "profile instead (nx_check_model lists sealed voids)"
+)
+DROPPED_HINT = (
+    "Unite the dropped tool in its own nx_create_boolean call and check that the volume "
+    "grows; nx_measure_section shows whether its material is there"
+)
+
+
+def unite_volume(
+    tx,
+    made,
+    before: float,
+    tools_volume: float,
+    inner,
+    *,
+    name=lambda i: f"tools[{i}]",
+    field: str | None = "/tools",
+) -> None:
+    """Refuse a unite whose result ``made`` holds less than the target (``before``), more
+    than the target plus the tools, or misses a tool's material (``inner``: :func:`probes`
+    taken before the unite). ``name``/``field`` say a dropped tool's index."""
+    after = measure.volume(tx, made)
+    total = before + tools_volume
+    band = VOLUME_BAND * max(1.0, total)
+    readback.expect(
+        after >= before - band,
+        "volume",
+        f"NX's unite holds {after:.6g}, less than the target alone ({before:.6g})",
+        before=before,
+        after=after,
+    )
+    if after > total + band:
+        fail(
+            "NX_VERIFICATION_FAILED",
+            f"NX's unite holds {after:.6g}, more than the target and tools together "
+            f"({total:.6g}): it filled an enclosed cavity or turned a body inside out",
+            hint=GROWN_HINT,
+            details={"check": "volume", "after": after, "target": before, "tools": tools_volume},
+            retry="after_fix",
+        )
+    if after >= total - band:
+        return  # no volume shared or lost: every tool is there
+    dropped = dropped_tools(tx, made, inner)
+    if dropped:
+        fail(
+            "NX_VERIFICATION_FAILED",
+            f"NX left {name(dropped[0])} out of the unite: a point inside it lies outside "
+            f"the result ({len(dropped)} tool(s) dropped)",
+            field=f"{field}/{dropped[0]}" if field else None,
+            hint=DROPPED_HINT,
+            details={
+                "check": "tools",
+                "dropped": dropped,
+                "after": after,
+                "target": before,
+                "tools": tools_volume,
+            },
+            retry="after_fix",
+        )
+
+
 def unite_into(tx, target, tools):
     """Unite the separate ``tools`` bodies into ``target`` (one boolean feature) and read it
-    back: every tool is consumed and the body holds at least the target's volume and at
-    most the sum. Returns ``(feature, united body)``."""
+    back like nx_create_boolean (:func:`unite_volume`): every tool is consumed, none was
+    dropped, and the body holds at least the target's volume and at most the sum. Returns
+    ``(feature, united body)``."""
     target_volume = measure.volume(tx, target)
-    total = measure.volume(tx, [target, *tools])
+    tools_volume = measure.volume(tx, list(tools))
+    inner = probes(tx, tools)
     feature = boolean_feature(tx, "unite", target, tools)
     alive = {int(b.Tag) for b in tx.part.Bodies}
     left = [t for t in tools if int(t.Tag) in alive]
@@ -174,9 +292,15 @@ def unite_into(tx, target, tools):
             "separate bodies",
             details={"bodies": max(len(made), len(left) + 1)},
         )
-    after = measure.volume(tx, made)
-    changed(target_volume, after, "at_least")
-    changed(total, after, "at_most")
+    unite_volume(
+        tx,
+        made,
+        target_volume,
+        tools_volume,
+        inner,
+        name=lambda i: f"patterned body {i}",
+        field=None,
+    )
     return feature, made[0]
 
 

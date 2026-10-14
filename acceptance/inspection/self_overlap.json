@@ -14,13 +14,17 @@
      "intent": "Acceptance: the engineer sweeps a tube OD 8 along the pitch-5 helix (nx_create_tube refuses it): NX commits a solid that overlaps itself",
      "expect": {"ok": true}},
     {"call": "nx_check_model", "args": {},
-     "intent": "Acceptance: the self-overlapping tube is an error naming its clashing faces (bug-fix round: reported healthy, UF consistency passes it)",
+     "intent": "Acceptance: the self-overlapping tube is an error naming its clashing faces (UF consistency passes it)",
      "expect": {"data.healthy": false, "data.errors": 1, "data.warnings": 0, "data.bodies_checked": 2, "page.total": 1,
                 "data.issues.0.severity": "error", "data.issues.0.kind": "self_intersection", "data.issues.0.object.kind": "body",
                 "data.issues.0.message": {"matches": "^26 faces cut other faces.*helix pitch"},
                 "data.issues.0.faces": {"count": 10}, "data.issues.0.faces.0.kind": "face"}},
+    {"call": "nx_check_model", "args": {"clash": true},
+     "intent": "Acceptance: clash true (every solid, no face limit) finds the same single error on these small bodies",
+     "expect": {"data.healthy": false, "data.errors": 1, "data.warnings": 0, "page.total": 1,
+                "data.issues.0.kind": "self_intersection", "data.issues.0.message": {"matches": "^26 faces cut other faces"}}},
     {"call": "nx_get_model_summary", "args": {},
-     "intent": "Acceptance: the summary's health agrees",
-     "expect": {"data.health": {"healthy": false, "errors": 1, "warnings": 0}, "data.counts.bodies": 2}}
+     "intent": "Acceptance: the summary's health leaves out the self-overlap check (nx_check_model runs it): healthy",
+     "expect": {"data.health": {"healthy": true, "errors": 0, "warnings": 0}, "data.counts.bodies": 2}}
   ]
 }

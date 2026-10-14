@@ -186,7 +186,8 @@ def test_wrong_file_units_and_unreadable_files_fail(nx, root, monkeypatch):
 def test_no_file_no_bodies_and_native_errors(nx, root, ugii):
     nx.new_part("e.prt")
     empty = export(nx, part="e", path="e.stl", format="stl")
-    assert empty.error["code"] == "NX_INVALID_ARGUMENT" and empty.error["field"] == "/bodies"
+    assert empty.error["code"] == "NX_NOT_FOUND" and empty.error["field"] is None
+    assert "no loaded, unsuppressed component" in empty.error["message"]
     assert empty.mutation_outcome == "not_started"
     modified_part(nx)
     nx.export_writes = False

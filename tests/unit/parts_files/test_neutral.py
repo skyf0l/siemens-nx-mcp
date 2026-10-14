@@ -52,6 +52,21 @@ def test_iges_transformation_matrix_and_errors():
         neutral.iges_facts(b"hello")
 
 
+def test_iges_with_subfigure_instances_claims_no_extent():
+    """A 408 instance places a definition's geometry elsewhere: no bounds are claimed."""
+    lines = make.iges([[0, 0, 0, 1, 1, 1]]).decode().splitlines()
+    d1 = f"{408:>8}{3:>8}{0:>8}{1:>8}{0:>8}{0:>8}{0:>8}{0:>8}{'00000000':>8}"
+    d2 = f"{408:>8}{0:>8}{0:>8}{1:>8}{0:>8}{'':>8}{'':>8}{'':>8}{0:>8}"
+    d_end = max(i for i, line in enumerate(lines) if line[72] == "D")
+    lines.insert(d_end + 1, f"{d1:<72}D{5:>7}")
+    lines.insert(d_end + 2, f"{d2:<72}D{6:>7}")
+    p_end = max(i for i, line in enumerate(lines) if line[72] == "P")
+    lines.insert(p_end + 1, f"{'408,1,100,0,0,1.0;':<64} {5:>7}P{99:>7}")
+    facts = neutral.iges_facts("\n".join(lines).encode())
+    assert facts["entities"][408] == 1 and facts["surfaces"] == 2
+    assert facts["min"] is None and facts["max"] is None
+
+
 @pytest.mark.parametrize("binary", [False, True])
 def test_parasolid_header(binary):
     facts = neutral.parasolid_facts(make.parasolid(BOXES, binary=binary))

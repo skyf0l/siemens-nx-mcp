@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/shell.json",
-  "scenario_sha256": "0c0dd3399cb8f6c098ebd89c524a36eb690af25d40ce7b525deab64a9862a294",
+  "scenario_sha256": "69537c22c79c01414b2041031fab24916b72469a263f33114d6971b1fb85b169",
   "domain": "modeling",
   "covers": {
     "nx_create_shell": []
@@ -11,9 +11,9 @@
   "sources": {
     "nx_create_shell": "1df3e9c6e289626477f0a402d66b60d6dd2d6ba30266b29d5924c180890fa22b"
   },
-  "recorded": "2026-10-13T07:22:39Z",
+  "recorded": "2026-10-14T13:38:41Z",
   "passed": true,
-  "checks": 13,
+  "checks": 14,
   "failed_checks": 0,
   "steps": [
     {
@@ -175,7 +175,7 @@
       "call": "nx_check_model",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 6
     }
   ]
 }

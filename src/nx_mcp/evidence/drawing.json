@@ -2,7 +2,7 @@
   "nx_activate_drawing_sheet": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T13:40:02Z",
+      "recorded": "2026-10-14T13:56:35Z",
       "scenario": "acceptance/drawing/out_of_date_views.json",
       "scenario_sha256": "6612c84e3914065a337630297740f56055601f6c0b8529ba9850bb60029c81a4",
       "source_sha256": "48d0842dc4ca3532d80a1768bcbd18a43a7b2944d700d5b3850390253e0310c8",
@@ -257,10 +257,10 @@
   "nx_export_drawing": {
     "v2406": {
       "checks": 19,
-      "recorded": "2026-10-13T13:40:02Z",
+      "recorded": "2026-10-14T13:56:35Z",
       "scenario": "acceptance/drawing/out_of_date_views.json",
       "scenario_sha256": "6612c84e3914065a337630297740f56055601f6c0b8529ba9850bb60029c81a4",
-      "source_sha256": "cd440855fe8fb335a23e56520115c6450e8613e87ca9ab15732732d9ea6d5fa2",
+      "source_sha256": "8dbb3c5a5f3af88963858e5ec673d7dcd19ffa873ce55a075746619fe1d879ed",
       "variants": []
     }
   },
@@ -317,9 +317,9 @@
   "nx_set_sheet_image": {
     "v2406": {
       "checks": 7,
-      "recorded": "2026-10-14T05:34:23Z",
+      "recorded": "2026-10-14T13:56:46Z",
       "scenario": "acceptance/drawing/sheet_image_tiff.json",
-      "scenario_sha256": "e54814bea0fac6731f2ef833691ae606127f169afdf8171e3f38e25892bfa27d",
+      "scenario_sha256": "e9566c829f751740267eef2e80ff72a077a8de195c5513965126109dd64168c5",
       "source_sha256": "f99905ed5eadf0b8a866267fe5bf7214a59c47c89eaad455a6ff18fa8403cb6b",
       "variants": []
     }

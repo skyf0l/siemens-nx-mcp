@@ -133,3 +133,23 @@ def test_expect_no_clash_fails_self_overlapping_bodies_and_skips_known_ones():
     assert len(destroyed) == 7  # every examine object is destroyed
     nx.part.AnalysisManager = NS(CreateExamineGeometryObject=Mock(side_effect=RuntimeError))
     bodies.expect_no_clash(nx.tx, [bad])  # NX cannot tell: no failure
+
+
+def test_bodies_over_the_face_limit_are_not_examined_for_self_overlap(monkeypatch):
+    """Examine Geometry cannot be interrupted and runs for an hour on a body of about
+    17,600 faces: such bodies are skipped, with a note after a build."""
+    nx = fake_nx()
+    small, big = nx.block(1, 1, 1), nx.block(2, 2, 2)
+    big.faces = big.faces * 3  # 18 faces
+    nx.nx.GeometricAnalysis = NS(ExamineGeometry=NS(Check=NS(BodyFaceIntersections="faces")))
+    destroyed: list = []
+    nx.part.AnalysisManager = _examine({int(small.Tag): 4, int(big.Tag): 4}, destroyed)
+    monkeypatch.setattr(bodies, "CLASH_FACES", 10)
+    assert bodies.face_count(big) == 18 and bodies.examinable(small)
+    assert not bodies.examinable(big)
+    assert bodies.clashing(nx.tx, [small, big]) == {int(small.Tag)} and len(destroyed) == 1
+    note = bodies.expect_no_clash(nx.tx, [big])  # not examined: no failure, a note
+    assert len(destroyed) == 1
+    assert note is not None and "clash: true" in note
+    assert note.startswith("Self-overlap check skipped: the body has 18 faces (over 10)")
+    assert bodies.expect_no_clash(nx.tx, [small], known={int(small.Tag)}) is None

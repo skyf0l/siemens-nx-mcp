@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/sheet_image.json",
-  "scenario_sha256": "dad7c929b49754dedc6fa15698477f0ba843120b88da310dff39b8ed9241bdaa",
+  "scenario_sha256": "5f41d91333b12ed7c256b69869a0982e036ae7e495054050eca07f6312741745",
   "domain": "drawing",
   "covers": {
     "nx_set_sheet_image": []
@@ -11,7 +11,7 @@
   "sources": {
     "nx_set_sheet_image": "f99905ed5eadf0b8a866267fe5bf7214a59c47c89eaad455a6ff18fa8403cb6b"
   },
-  "recorded": "2026-10-14T05:34:15Z",
+  "recorded": "2026-10-14T13:56:45Z",
   "passed": true,
   "checks": 52,
   "failed_checks": 0,

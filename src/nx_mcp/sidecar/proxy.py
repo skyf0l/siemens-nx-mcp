@@ -348,6 +348,15 @@ def client_id(meta) -> str | None:
 STALL_CODES = ("NX_BRIDGE_UNAVAILABLE", "NX_OUTCOME_UNKNOWN", "NX_BUSY", "NX_MODAL_DIALOG_OPEN")
 STATUS_TTL = 30.0  # seconds a listing trusts the session state read from nx_get_status
 STATUS_TIMEOUT = 5.0
+# nx_get_status waits this long for NX, then the sidecar answers from outside NX
+# (host/heartbeat.py). It does not wait at all once NX's window has stopped responding
+# during one call that has run this long: NX accepts no connection until that call ends.
+STATUS_WAIT = 6.0
+STATUS_HELD_SECONDS = 5.0
+# Another call is not sent (NX_BUSY, nothing ran) while NX's window has stopped
+# responding during one call that has run this long: it could not start before that
+# call ends, and a changing call expires after the bridge's queue time anyway.
+HELD_REFUSE_SECONDS = 120.0
 
 
 class CatalogueProxy:
@@ -397,6 +406,87 @@ class CatalogueProxy:
             return None
         return (descriptor.pid, descriptor.port, descriptor.token, descriptor.nx_version)
 
+    def nx_health(self, *, reader: str | None = None, sample: float | None = None):
+        """``(health, heartbeat)``: NX's state seen from outside NX (host/heartbeat.py),
+        in about a second and without a bridge call; never raises."""
+        from nx_mcp.host import heartbeat
+
+        root = getattr(self.workspace, "root", None)
+        descriptor = self._descriptor()
+        pid = getattr(descriptor, "pid", None)
+        try:
+            health = heartbeat.assess(
+                root,
+                pid,
+                registered=descriptor is not None,
+                reader=reader,
+                sample=heartbeat.SAMPLE_SECONDS if sample is None else sample,
+            )
+        except Exception as error:  # a diagnostic never fails the call
+            health = {"state": "unknown", "pid": pid, "process": {}, "running": None,
+                      "heartbeat_age_seconds": None, "dialogs": [],
+                      "message": f"NX's state could not be read: {error}",
+                      "hint": "Retry nx_get_status in a few seconds"}  # fmt: skip
+        beat = heartbeat.heartbeat_for(root, pid) if root is not None else None
+        return health, beat
+
+    def held(self, seconds: float) -> dict | None:
+        """The agent call that has held NX's main thread for at least ``seconds`` while
+        NX's window does not respond (NX accepts no connection then), else None. Reads
+        the heartbeat file first: no process check unless NX runs a call that long."""
+        from nx_mcp.host import dialogs, heartbeat
+
+        root = getattr(self.workspace, "root", None)
+        descriptor = self._descriptor()
+        pid = getattr(descriptor, "pid", None)
+        if root is None or descriptor is None:
+            return None
+        try:
+            call = heartbeat.running_call(root, pid)
+            if not call or (call.get("seconds") or 0) < seconds:
+                return None
+            if dialogs.process_alive(pid) is not True or heartbeat.responding(pid) is not False:
+                return None
+        except Exception:
+            return None
+        return call
+
+    def _held_status(self, args: dict) -> dict | None:
+        """nx_get_status answered at once while one call holds NX (``held``), else None."""
+        if self.held(STATUS_HELD_SECONDS) is None:
+            return None
+        from nx_mcp.domains.session import status
+
+        health, beat = self.nx_health(reader=args.get("operation_id"))
+        if health.get("state") not in ("busy", "unresponsive", "blocked_by_dialog"):
+            return None
+        return status.sidecar_envelope(
+            self.workspace.root, health, args, build=self.build(), beat=beat
+        )
+
+    def _refuse_held(self, spec, operation_id) -> dict | None:
+        """NX_BUSY (nothing sent) while one call has held NX's main thread for
+        HELD_REFUSE_SECONDS, else None."""
+        if self.held(HELD_REFUSE_SECONDS) is None:
+            return None
+        health, _ = self.nx_health(sample=0.5)
+        call = health.get("running")
+        if health.get("state") != "busy" or not call:
+            return None
+        error = NXError(
+            "NX_BUSY",
+            f"{health['message']}. This call was not sent: it could not start before that "
+            "step ends. Nothing ran.",
+            hint=f"Wait; retry when nx_get_status no longer shows {call['tool']} running "
+            "(it answers at once meanwhile). Do not resend heavy reads",
+            retryable=True,
+            details={
+                "running": {k: call.get(k) for k in ("tool", "part", "seconds")},
+                "nx": {k: health.get(k) for k in ("state", "pid", "process")},
+            },
+        )
+        return failure(spec.name, error, "not_started", operation_id=operation_id)
+
     async def refresh(self, *, force: bool = False) -> None:
         """Read the session state from nx_get_status when NX (re)connected, when the
         last read is older than STATUS_TTL, or when ``force``; never raises."""
@@ -410,6 +500,8 @@ class CatalogueProxy:
         if key != self._key:
             self.licenses = []  # a new NX session remembers nothing yet
         self._key, self._read_at = key, time.monotonic()
+        if await asyncio.to_thread(self.held, STATUS_HELD_SECONDS):
+            return  # NX accepts no connection now: keep what is known
         try:
             answer = await asyncio.wait_for(
                 self.bridge.call("nx_get_status", {"include": ["bridge"]}), STATUS_TIMEOUT
@@ -473,6 +565,9 @@ class CatalogueProxy:
                 + then,
                 details={**details, "dialogs": [d.row() for d in found], "seen_from": "sidecar"},
             )
+        busy = self._explain_busy(error, details) if error.code != "NX_MODAL_DIALOG_OPEN" else None
+        if busy is not None:
+            return busy
         if error.code == "NX_BRIDGE_UNAVAILABLE":
             return NXError(
                 error.code,
@@ -483,6 +578,37 @@ class CatalogueProxy:
                 details=details,
             )
         return error
+
+    def _explain_busy(self, error: NXError, details: dict) -> NXError | None:
+        """The stall told by NX's heartbeat: the call NX runs (busy) or the host's silence
+        (unresponsive); None when the heartbeat explains nothing (no heartbeat, the host
+        idle, or a modal dialog, which ``_explain_stall`` reports)."""
+        from nx_mcp.host import heartbeat
+
+        root = getattr(self.workspace, "root", None)
+        if root is None or heartbeat.read(root) is None:
+            return None  # no heartbeat (batch host): nothing to add
+        health, _ = self.nx_health(sample=0.5)
+        state = health.get("state")
+        if state not in ("busy", "unresponsive"):
+            return None
+        outcome = details.get("mutation_outcome") or "unknown"
+        then = (
+            "query nx_get_operation with the operation_id before retrying"
+            if outcome != "not_started"
+            else "retry when nx_get_status shows NX free"
+        )
+        return NXError(
+            error.code,
+            f"{error.message} {health['message']}.",
+            hint=f"{health['hint']}; then {then}",
+            retryable=error.retryable,
+            retry=error.retry,
+            details={
+                **details,
+                "nx": {k: health.get(k) for k in ("state", "pid", "process", "running")},
+            },
+        )
 
     def signature(self) -> tuple:
         """What listings depend on; a change sends tools/list_changed."""
@@ -631,6 +757,17 @@ class CatalogueProxy:
             if detail == "compact":
                 envelope = _project(envelope, self.store)
             return result(envelope, extra=self._attachments(envelope))
+        status_call = spec.name == "nx_get_status"
+        if status_call:
+            held = await asyncio.to_thread(self._held_status, args)
+            if held is not None:
+                if detail == "compact":
+                    held = _project(held, self.store)
+                return result(held)
+        else:
+            refused = await asyncio.to_thread(self._refuse_held, spec, operation_id)
+            if refused is not None:
+                return result(refused)
         params.update(keys)
         if spec.effect != "read" and "expires_at" not in params:
             # The ghost guard (A27): a changing call NX cannot start within the bridge's
@@ -641,17 +778,32 @@ class CatalogueProxy:
         if intent:
             params["intent"] = " ".join(intent.split())
         try:
-            answer = await self._send(spec.name, params)
+            if status_call:  # answers within seconds: NX's own answer or the sidecar's
+                try:
+                    answer = await asyncio.wait_for(self._send(spec.name, params), STATUS_WAIT)
+                except asyncio.TimeoutError as late:
+                    raise NXError(
+                        "NX_BRIDGE_UNAVAILABLE",
+                        f"NX did not answer within {STATUS_WAIT:.0f} s",
+                        details={"mutation_outcome": "not_started"},
+                    ) from late
+            else:
+                answer = await self._send(spec.name, params)
         except NXError as error:
-            error = await asyncio.to_thread(self.explain_stall, error)
-            envelope = from_bridge_error(spec.name, spec.effect, error, operation_id)
-            if spec.name == "nx_get_status" and envelope["error"].get("category") == "bridge":
-                # Status still answers with NX down: workspace rules, bridge unavailable.
+            if status_call and (error.category == "bridge" or error.code == "NX_OUTCOME_UNKNOWN"):
+                # Status answers while NX is busy, hung or down: seen from outside NX.
                 from nx_mcp.domains.session import status
 
-                envelope = status.offline_envelope(
-                    self.workspace.root, envelope["error"], args, build=self.build()
+                health, beat = await asyncio.to_thread(
+                    self.nx_health, reader=args.get("operation_id")
                 )
+                envelope = status.sidecar_envelope(
+                    self.workspace.root, health, args, build=self.build(), beat=beat,
+                    error=error.as_dict(),
+                )  # fmt: skip
+            else:
+                error = await asyncio.to_thread(self.explain_stall, error)
+                envelope = from_bridge_error(spec.name, spec.effect, error, operation_id)
         except Exception as error:  # A sidecar fault after the request left.
             fault = NXError(
                 "NX_ERROR",

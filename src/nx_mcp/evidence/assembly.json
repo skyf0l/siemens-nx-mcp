@@ -109,17 +109,17 @@
   "nx_create_explosion": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
-      "source_sha256": "86ce98ec0cf416f3a82d533fadb2ba675e32189ed93eb8e7c33ed3f32421f9e1",
+      "source_sha256": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
       "variants": []
     }
   },
   "nx_create_explosion_trace": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
       "source_sha256": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
@@ -244,17 +244,17 @@
   "nx_edit_explosion": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
-      "source_sha256": "86ce98ec0cf416f3a82d533fadb2ba675e32189ed93eb8e7c33ed3f32421f9e1",
+      "source_sha256": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
       "variants": []
     }
   },
   "nx_edit_explosion_trace": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
       "source_sha256": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
@@ -264,7 +264,7 @@
   "nx_export_explosion_animation": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
       "source_sha256": "102a46a10cb1e8a28cd9040658d5c60d410c480b40a885db3fe56e3a6a16f74e",
@@ -274,10 +274,10 @@
   "nx_get_explosion": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
-      "source_sha256": "86ce98ec0cf416f3a82d533fadb2ba675e32189ed93eb8e7c33ed3f32421f9e1",
+      "source_sha256": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
       "variants": []
     }
   },
@@ -377,10 +377,10 @@
   "nx_set_explosion_display": {
     "v2406": {
       "checks": 139,
-      "recorded": "2026-10-13T07:25:54Z",
+      "recorded": "2026-10-14T13:58:41Z",
       "scenario": "acceptance/assembly/explosions.json",
       "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
-      "source_sha256": "86ce98ec0cf416f3a82d533fadb2ba675e32189ed93eb8e7c33ed3f32421f9e1",
+      "source_sha256": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
       "variants": []
     }
   },

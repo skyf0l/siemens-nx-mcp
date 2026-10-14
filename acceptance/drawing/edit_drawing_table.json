@@ -201,7 +201,7 @@
      20
     ]
    },
-   "intent": "Acceptance: widths for another column count are refused before NX (bug-fix round: refused rolled_back after the edit started)",
+   "intent": "Acceptance: widths for another column count are refused before NX (previously: refused rolled_back after the edit started)",
    "expect": {
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",

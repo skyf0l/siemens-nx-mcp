@@ -186,8 +186,8 @@ def test_without_part_the_batch_takes_the_one_part_its_steps_name():
 
 
 def test_under_the_batch_part_a_step_with_refs_of_another_part_is_refused():
-    """The part-vs-refs gate runs on every child (bench: a batch with part session_3_b
-    renamed a body of session_3_a)."""
+    """The part-vs-refs gate runs on every child (a batch for part B must not rename a
+    body of part A)."""
     nx, a, b, c = three()
     fa, fb = _feature(nx, a, "A1"), _feature(nx, b, "B1")
     del c.Features[:]

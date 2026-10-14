@@ -6,33 +6,51 @@ constraint whose edge a prototype edit consumed reports CannotSolve, an error; N
 or OutOfDate is a warning), UF body consistency, self-overlapping solids (Examine
 Geometry's body face intersections, ``kit.bodies.clashing_faces``: an error naming the
 faces; a tube wider than its helix pitch passes UF consistency) and sealed internal voids
-(a solid body with more than one shell, ``voids``: a warning with each void's facet
-volume and box); it does not run a model update. Examine Geometry runs on the first
-``CLASH_BODIES`` solids of a call (an info issue counts the rest).
-Shared prototypes are checked once. ``nx_get_model_summary`` pages the feature tree,
-expressions, sketches and components, and gives counts, bounds and health for the
-overview.
+(a solid body with more than one shell, ``voids``: an info issue with each void's facet
+volume and box, since a hollow part is often intended); it does not run a model update.
+
+Examine Geometry runs on NX's main thread and one body's check cannot be interrupted; its
+time grows faster than the face count (about an hour on a 17,627-face solid, NX 2406).
+By default it examines solids of at most ``kit.bodies.CLASH_FACES`` faces, and per call
+at most ``CLASH_BODIES`` solids, ``CLASH_TOTAL_FACES`` faces and ``CLASH_SECONDS``
+seconds; every solid left out gets an info issue. The void check reads every edge's faces
+(slow on very large solids): it skips solids over ``CLASH_FACES`` faces with an info issue
+too. ``clash=True`` examines every solid for both until the call's cost budget is spent.
+Shared prototypes are checked once.
+``nx_get_model_summary`` pages the feature tree, expressions, sketches and components,
+and gives counts, bounds and health for the overview: feature diagnostics, constraints
+and body consistency, without the self-overlap and void checks.
 """
 
 from __future__ import annotations
 
 import contextlib
+import time
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import native
+from nx_mcp.core.errors import NXError, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit
 from nx_mcp.domains.inspection import voids
 from nx_mcp.kit import bodies, expr, measure, parts, positioning, result
 from nx_mcp.kit import features as kfeatures
 
-CLASH_BODIES = 50  # solids examined for self-overlap per call (Examine Geometry's cost)
+# Self-overlap (Examine Geometry) per call by default; clash=True lifts these limits.
+CLASH_BODIES = 50  # solids examined
+CLASH_TOTAL_FACES = 10_000  # faces of the examined solids, together
+CLASH_SECONDS = 60.0  # no further solid is examined after this
+CLASH_COST = "minutes to an hour per large solid, NX frozen meanwhile"
 LISTED_FACES = 10  # clashing faces named per body
 CLASH_ADVICE = (
     "the body overlaps itself (parts of a sweep path closer than its section, e.g. a tube "
     "wider than its helix pitch): use a smaller section or move the path apart"
 )
+CLASH_DOC = (
+    f"Also check solids over {bodies.CLASH_FACES:,} faces for self-overlap (up to 1 h each, NX "
+    "frozen) and voids"
+)
+VOID_NOTE = "fine when the part is meant to be hollow; no vent hole is needed"
 CONSTRAINT_ADVICE = (
     "its geometry may be gone after a part edit; re-create it on current geometry, or edit "
     "or suppress it with nx_edit_assembly_constraint"
@@ -105,9 +123,107 @@ def _clash(tx, owner, where, body) -> Issue | None:
     }
 
 
-def diagnose(tx, scope="part", *, clashes: bool = True) -> tuple[list[Issue], Counts]:
-    """``(issues, counts)`` of the work part or the whole loaded assembly; ``clashes``
-    examines the first ``CLASH_BODIES`` solids for self-overlap."""
+def _skipped(tx, owner, where, body, faces) -> Issue:
+    return {
+        "severity": "info",
+        "kind": "self_intersection",
+        "part": where,
+        "object": tx.ref(body, kind="body", part=owner),
+        "message": f"self-intersection check skipped: {faces:,} faces (over "
+        f"{bodies.CLASH_FACES:,}); pass clash: true to force ({CLASH_COST})",
+    }
+
+
+def _voids(tx, owner, where, body, *, force: bool) -> Issue | None:
+    """The sealed-void info issue of ``body`` (more than one shell), or None; a body over
+    ``kit.bodies.CLASH_FACES`` faces gets a skipped-check info issue unless ``force``."""
+    if not force:
+        faces = bodies.face_count(body)
+        if faces > bodies.CLASH_FACES:
+            return {
+                "severity": "info",
+                "kind": "internal_void",
+                "part": where,
+                "object": tx.ref(body, kind="body", part=owner),
+                "message": f"void check skipped: {faces:,} faces (over {bodies.CLASH_FACES:,}); "
+                "pass clash: true to force (slow on large solids)",
+            }
+    with native():
+        groups = voids.shells(body)
+    if len(groups) < 2:
+        return None
+    return {
+        "severity": "info",
+        "kind": "internal_void",
+        "part": where,
+        "object": tx.ref(body, kind="body", part=owner),
+        "message": f"{len(groups) - 1} sealed internal void(s): {VOID_NOTE}",
+        "shells": len(groups),
+        "voids": voids.voids(tx, body, groups),
+    }
+
+
+def _budget_spent(tx) -> bool:
+    """``tx.checkpoint()``; True instead of raising when the call's cost budget is spent
+    (a cancel request still raises)."""
+    try:
+        tx.checkpoint()
+    except NXError as error:
+        if (error.details or {}).get("reason") != "budget":
+            raise
+        return True
+    return False
+
+
+def clashes(tx, solids, *, force: bool = False) -> list[Issue]:
+    """Self-overlap issues of ``solids`` (``(owner, where, body)`` rows): errors, plus
+    info issues for the solids left out (over the face limit or the call's budgets).
+    ``force`` lifts the face limit and the budgets of this module; the call's cost budget
+    still stops it (between bodies: one body's check cannot be interrupted)."""
+    issues: list[Issue] = []
+    started, examined, total, left = time.monotonic(), 0, 0, 0
+    for owner, where, body in solids:
+        faces = bodies.face_count(body)
+        if not force and faces > bodies.CLASH_FACES:
+            issues.append(_skipped(tx, owner, where, body, faces))
+            continue
+        spent = not force and (
+            examined >= CLASH_BODIES
+            or total + faces > CLASH_TOTAL_FACES
+            or time.monotonic() - started > CLASH_SECONDS
+        )
+        if left or spent or _budget_spent(tx):
+            left += 1
+            continue
+        examined, total = examined + 1, total + faces
+        clash = _clash(tx, owner, where, body)
+        if clash is not None:
+            issues.append(clash)
+    if left:
+        if force:
+            why = "the call's time budget was spent"
+        else:
+            why = (
+                f"the check stops at {CLASH_BODIES} solids, {CLASH_TOTAL_FACES:,} faces or "
+                f"{CLASH_SECONDS:g} s per call; pass clash: true to examine them all ({CLASH_COST})"
+            )
+        issues.append(
+            {
+                "severity": "info",
+                "kind": "self_intersection",
+                "message": f"{left} solid bodies were not examined for self-overlap: {why}",
+            }
+        )
+    return issues
+
+
+def diagnose(
+    tx, scope="part", *, clash: Literal["auto", "all", "off"] = "auto", find_voids: bool = True
+) -> tuple[list[Issue], Counts]:
+    """``(issues, counts)`` of the work part or the whole loaded assembly. ``clash``:
+    self-overlap on solids within the face limit and budgets (auto), on every solid until
+    the cost budget is spent (all), or not at all (off); ``find_voids``: sealed voids, on
+    solids within the face limit unless ``clash`` is all."""
     part = tx.part
     checked = {int(part.Tag): part}
     issues: list[Issue] = []
@@ -124,7 +240,8 @@ def diagnose(tx, scope="part", *, clashes: bool = True) -> tuple[list[Issue], Co
                 issues.append({"severity": "warning", "kind": "unloaded_component", "path": path})
             else:
                 checked.setdefault(int(prototype.Tag), prototype)
-    features = solids = examined = skipped = 0
+    features = solids = 0
+    examine: list[tuple[Any, str, Any]] = []
     for owner in checked.values():
         where = tx.services.part_path(owner)
         for row in positioning.unsolved(tx, owner):
@@ -174,6 +291,8 @@ def diagnose(tx, scope="part", *, clashes: bool = True) -> tuple[list[Issue], Co
                 )
         for body in owner.Bodies:
             solids += 1
+            if solids % 20 == 0:
+                tx.checkpoint()
             with native():
                 count, codes, tags = tx.uf.Modeling.AskBodyConsistency(body.Tag)
             if int(count):
@@ -188,39 +307,14 @@ def diagnose(tx, scope="part", *, clashes: bool = True) -> tuple[list[Issue], Co
                         ],
                     }
                 )
-            if clashes and getattr(body, "IsSolidBody", False):
-                if examined < CLASH_BODIES:
-                    examined += 1
-                    tx.checkpoint()
-                    clash = _clash(tx, owner, where, body)
-                    if clash is not None:
-                        issues.append(clash)
-                else:
-                    skipped += 1
-            if getattr(body, "IsSolidBody", False):
-                with native():
-                    groups = voids.shells(body)
-                if len(groups) > 1:
-                    issues.append(
-                        {
-                            "severity": "warning",
-                            "kind": "internal_void",
-                            "part": where,
-                            "object": tx.ref(body, kind="body", part=owner),
-                            "message": f"{len(groups) - 1} sealed internal void(s)",
-                            "shells": len(groups),
-                            "voids": voids.voids(tx, body, groups),
-                        }
-                    )
-    if skipped:
-        issues.append(
-            {
-                "severity": "info",
-                "kind": "self_intersection",
-                "message": f"{skipped} solid bodies past the first {CLASH_BODIES} were not "
-                "examined for self-overlap",
-            }
-        )
+            if not getattr(body, "IsSolidBody", False):
+                continue
+            examine.append((owner, where, body))
+            void = _voids(tx, owner, where, body, force=clash == "all") if find_voids else None
+            if void is not None:
+                issues.append(void)
+    if clash != "off":
+        issues.extend(clashes(tx, examine, force=clash == "all"))
     counts: Counts = {
         "errors": sum(i["severity"] == "error" for i in issues),
         "warnings": sum(i["severity"] == "warning" for i in issues),
@@ -237,20 +331,21 @@ def diagnose(tx, scope="part", *, clashes: bool = True) -> tuple[list[Issue], Co
     summary="Check model ({scope})",
     keywords=("model health", "feature errors", "diagnostics", "body check", "examine geometry"),
     requires=("work_part",),
-    cost="light",
+    cost="heavy",
     example={"scope": "part"},
 )
 def nx_check_model(
     tx: Tx,
     *,
     scope: Annotated[Literal["part", "assembly"], Doc("assembly adds loaded components")] = "part",
+    clash: Annotated[bool, Doc(CLASH_DOC)] = False,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> HealthData:
     """Check feature errors/warnings, suppression, unloaded components, unsolved constraints
-    and bodies. Bodies: consistency, self-overlap, sealed voids. healthy: no errors or
-    warnings; no update."""
-    issues, counts = diagnose(tx, scope)
+    and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended).
+    healthy: no errors/warnings; no update."""
+    issues, counts = diagnose(tx, scope, clash="all" if clash else "auto")
     selected, page = result.page(issues, offset, limit)
     return {
         "healthy": counts["errors"] == 0 and counts["warnings"] == 0,
@@ -281,7 +376,7 @@ def overview(tx):
     if found:
         low, high = measure.bounds(tx, found)
         bounds = {"min": low, "max": high, "size": [b - a for a, b in zip(low, high, strict=True)]}
-    issues, counts = diagnose(tx, "part")
+    issues, counts = diagnose(tx, "part", clash="off", find_voids=False)
     return {
         "part": tx.ref(part, kind="part"),
         "modified": bool(part.IsModified),
@@ -353,7 +448,7 @@ def _section_rows(tx, section, selected):
     summary="Model summary: {section}",
     keywords=("model overview", "feature tree", "part summary", "counts", "part navigator"),
     requires=("work_part",),
-    cost="light",
+    cost="heavy",
     example={"section": "overview"},
 )
 def nx_get_model_summary(

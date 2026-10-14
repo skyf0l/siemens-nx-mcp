@@ -2,9 +2,15 @@
 
 ``display_nx()`` is a ``fake_nx`` whose work view orients, fits and takes explicit cameras,
 whose session applies display modifications (colour, translucency; bodies pass them to
-their faces), whose UF answers named colours, whose image builders write PNG headers
-(the viewport export at the window's own size, Studio at the requested size), and whose
-part keeps dynamic sections edited through section builders.
+their faces), whose UF answers named colours, whose part has a small colour table (``PALETTE``:
+``Colors.Find(index)`` with ``Label`` and ``GetRgb()``), whose image builders write PNG
+headers (the viewport export at the window's own size, Studio at the requested size), and
+whose part keeps dynamic sections edited through section builders.
+
+The work view keeps ``AbsoluteOrigin`` (the viewport centre) consistent with ``Origin``
+(its negated view-space coordinates) as NX does. ``Fit()`` frames the shown bodies and
+the absolute origin (NX's fit counts the datum CSYS there); ``FitToObjects`` frames the
+objects given (``fit_to_error`` makes it raise). Both set the scale to 2.5.
 """
 
 from __future__ import annotations
@@ -13,13 +19,32 @@ import struct
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-from nx_mcp.kit import display
+from nx_mcp.kit import display, geom
 from tests.kit import fake_nx
-from tests.kit.objects import Object, matrix, point
+from tests.kit.objects import NXException, Object, matrix, point
 
 WINDOW = (1012, 1794)  # the NX 2406 graphics window the viewport export ignores sizes for
 STYLES = NS(Shaded=2, ShadedWithEdges=0, StaticWireframe=9, Studio=6)
 COLORS = {"RED_NAME": 186, "BLUE_NAME": 211, "MEDIUM_GRAY_NAME": 130}
+PALETTE = {
+    1: ("White", (1.0, 1.0, 1.0)),
+    87: ("Light Gray", (0.6, 0.6, 0.6)),
+    130: ("Medium Gray", (0.4, 0.4, 0.4)),
+    123: ("Light Steel Blue", (0.6, 0.8, 1.0)),
+    186: ("Red", (1.0, 0.0, 0.0)),
+    211: ("Blue", (0.0, 0.0, 1.0)),
+    216: ("Black", (0.0, 0.0, 0.0)),
+}
+
+
+class Colors:
+    """``part.Colors``: ``Find(index)`` of ``PALETTE`` (an undefined index raises)."""
+
+    def Find(self, index):
+        if index not in PALETTE:
+            raise NXException(3520016, "Invalid color index")
+        label, (r, g, b) = PALETTE[index]
+        return NS(Label=label, Id=index, GetRgb=lambda: NS(R=r, G=g, B=b))
 
 
 def png(path, size):
@@ -36,17 +61,19 @@ def nx_matrix(rotation):
 class View:
     """A model work view: Orient, SetRotationTranslationScale, Fit, sections."""
 
-    def __init__(self, name="Trimetric"):
+    def __init__(self, name="Trimetric", part=None):
         self.Name = name
+        self.part = part
         self.Matrix = nx_matrix(display.ORIENTATION_ROTATIONS["trimetric"])
         self.Origin = point(-1.0, -2.0, -3.0)
-        self.AbsoluteOrigin = point(1.0, 2.0, 3.0)
         self.Scale = 1.5
         self.RenderingStyle = 0
         self.ActiveDynamicSection = None
         self.DisplaySectioningToggle = False
         self.fits = 0
         self.ignore_scale = False
+        self.fit_to = None
+        self.fit_to_error = None
 
     def Orient(self, canned, adjust):
         self.Matrix = nx_matrix(display.ORIENTATION_ROTATIONS[canned])
@@ -58,10 +85,34 @@ class View:
         if not self.ignore_scale:
             self.Scale = s
 
-    def Fit(self):
+    @property
+    def AbsoluteOrigin(self):
+        """The viewport centre: Origin is its negated view-space coordinates."""
+        r, o = geom.rows(self.Matrix), geom.xyz(self.Origin)
+        return point(*(-sum(r[i][j] * o[j] for j in range(3)) for i in range(3)))
+
+    def _frame(self, boxes):
         self.fits += 1
         self.Scale = 2.5
-        self.Origin = point(-5.0, -5.0, -5.0)
+        if not boxes:
+            self.Origin = point(-5.0, -5.0, -5.0)
+            return
+        low = [min(b[i] for b in boxes) for i in range(3)]
+        high = [max(b[i + 3] for b in boxes) for i in range(3)]
+        centre = [(a + b) / 2 for a, b in zip(low, high, strict=True)]
+        self.Origin = point(*display.origin_for(geom.rows(self.Matrix), centre))
+
+    def Fit(self):
+        """Everything shown, the datum CSYS at the absolute origin included."""
+        shown = [b for b in getattr(self.part, "Bodies", []) if not b.IsBlanked]
+        boxes = [list(b.box) for b in shown if hasattr(b, "box")]
+        self._frame(boxes + [[0.0] * 6] if boxes else [])
+
+    def FitToObjects(self, objects):
+        if self.fit_to_error is not None:
+            raise self.fit_to_error
+        self.fit_to = list(objects)
+        self._frame([list(b.box) for b in objects if hasattr(b, "box")])
 
     def UpdateDisplay(self):
         pass
@@ -185,8 +236,12 @@ class Lighting:
 
 def display_nx(units="mm"):
     nx = fake_nx(units)
-    view = View()
+    view = View(part=nx.part)
     nx.work_view = view
+    nx.part.Colors = Colors()
+    if not hasattr(nx.uf, "ModlGeneral"):  # bodies' boxes for the fit's read-back
+        boxes = lambda tag: list(next(b.box for b in nx.part.Bodies if b.Tag == tag))  # noqa: E731
+        nx.uf.ModlGeneral = NS(AskBoundingBox=boxes)
     nx.modifications, nx.captures, nx.lights = [], [], []
     nx.capture_error = nx.section_error = nx.section_normal = None
     nx.part.ModelingViews._views = NS(WorkView=view)

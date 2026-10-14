@@ -671,9 +671,9 @@ The kernel takes them out before gate 1 (`split_call_keys`) unless the tool has 
 parameter of that name, and validates them (`NX_INVALID_ARGUMENT`, field `/part` or
 `/expires_at`). Catalogue schemas do not list them. The seven ref-less core tools listed
 directly in the `agent` profile list `part` (`server.PART_KEY`: "Target part's file name;
-needed when 2+ parts are loaded"): in benchmark bench3p agents trusted the strict
-schemas over the instruction sentence, and with `part` left out none of four builders
-passed it to a core tool. The listing cap rose to 15,300 characters for it (15,244
+needed when 2+ parts are loaded"): agents trusted the strict schemas over the
+instruction sentence, and with `part` left out of the schemas they did not pass it to a
+core tool. The listing cap rose to 15,300 characters for it (15,244
 measured; the offset/limit descriptions and `idempotentHint: false` were dropped to keep
 the raise small; section 6 has today's cap). The server does not validate input against
 the listed schemas (`validate_input=False`) and the proxy forwards both keys untouched (`proxy.call`). The
@@ -774,7 +774,7 @@ target current itself, by `spec.switch_for(args, kinds)`:
     setting the value back with the tool that set it). An operation qualifies when its
     committed receipt created features with their bodies and expressions and nothing
     else (no sketch, nothing deleted; drawing views, sheets and annotations NX refreshed
-    count as derived, not as changed: benchmark bench3p refused a sphere for them), every
+    count as derived, not as changed: a sphere was once refused for them), every
     created object still found by its live ref, and no feature outside the set among
     their `GetChildren`; or when its tool has a `@restorer` hook (`nx_set_attributes`,
     `nx_set_expression`, `nx_set_name`) and the call kept its before-values in its
@@ -799,8 +799,8 @@ target current itself, by `spec.switch_for(args, kinds)`:
   history, so no `part` is needed; `NX_DEPENDENCY_ORDER` while later operations of the
   part follow it, unless compensated); `mode: "compensate"` (`"delete_created"`, its v1
   name, is the same) always compensates, never across the engineer barrier. The default
-  treats every block of NX's undo by other work alike (benchmark bench3t: another
-  agent's close refused it while other agents' later work compensated it): when a load,
+  treats every block of NX's undo by other work alike (another agent's close once refused
+  it while other agents' later work compensated it): when a load,
   a close or an evicted mark cut NX's history after the operations (`history.CROSSABLE`:
   `part_loaded`, `part_closed`, `mark_evicted`; not the part's own save, which stays
   `NX_NOT_FOUND` with the offer), it compensates when they qualify (`_compensable`; the
@@ -866,10 +866,10 @@ another tab, so the engineer's model is never swapped out of its window.
   `nx_get_sheet_metal` a `work` switch (NX answers in the work part's units), and gate 3t
   pins the part of a wrong-kind ref or an anchor it cannot resolve, never falling back to
   the engineer's work part.
-- **The engineer tab guard** (`kit.parts.engineer_tab`, `present`; benchmark bench3t:
-  all 12 `nx_create_part` calls of four agents passed `display: true` and the engineer's
-  tab was lost for 5 min 19 s; the first agent part would have taken it without
-  `display` too, as `crowded()` counts agent parts only). Agents never take over the
+- **The engineer tab guard** (`kit.parts.engineer_tab`, `present`: agents' `nx_create_part`
+  calls passed `display: true` and the engineer's tab was lost for minutes; the first
+  agent part would have taken it without `display` too, as `crowded()` counts agent parts
+  only). Agents never take over the
   engineer's active tab: while the displayed part is the engineer's (not created, opened
   or granted to the agent, `Services.owns`), `nx_create_part`, `nx_open_part`,
   `nx_activate_part`, an import into a new part and a clone with `activate` never leave
@@ -890,11 +890,11 @@ another tab, so the engineer's model is never swapped out of its window.
   tab that was active (and its work part); `display: true` leaves the part's tab active,
   `false` gives it no tab. `work: true` with `display: false` makes the part the work part
   only where NX allows it (the display part or a component under it); elsewhere it is
-  no longer refused (bench3t: a read-only `nx_open_part(display=false, work=true)` was
+  no longer refused (a read-only `nx_open_part(display=false, work=true)` was once
   `NX_WRONG_PART_CONTEXT`): the work part stays and the note says how calls reach the
   part. Whenever the part ends neither active nor work part, the same note says so
-  (bench3t: `nx_activate_part` with its defaults replied `work: false, display: false`
-  and nothing else).
+  (`nx_activate_part` with its defaults once replied `work: false, display: false` and
+  nothing else).
 - **Closing the active tab** re-activates the most recently active remaining tab
   (`_saving._tab_back`, through `kit.parts.activate`: a sheet-metal part comes back in
   Sheet Metal, no dialog); `data.displayed` names it. No other part takes a closed part's
@@ -927,8 +927,7 @@ another tab, so the engineer's model is never swapped out of its window.
   part only granted on the panel is still the engineer's): `nx_close_part` and
   `nx_activate_part` refuse them, `nx_save_part` refuses them unless granted
   (`NX_ENGINEER_PART`, category `blocked`, `details.action`; no `force`, development mode
-  included: tooltest2 lost the stand-in engineer part `eng_desk2` to a `save: false`
-  close). `nx_open_part` of a loaded engineer part changes nothing (no tab, no work
+  included: a `save: false` close by an agent once discarded an engineer part). `nx_open_part` of a loaded engineer part changes nothing (no tab, no work
   part) and says so. Reads still read them.
 - **Another agent's part** (its owner's id and the caller's id both known and
   different): `nx_close_part` and `nx_activate_part` refuse it without `force`
@@ -942,10 +941,10 @@ another tab, so the engineer's model is never swapped out of its window.
   the hint offers `force: true` or `save: true`. A solo connection (a sidecar per agent,
   the acceptance runner) never meets this rule, and a close that saves never does. In a
   shared connection an agent's own discarding close within 30 s of its own work is
-  refused too (one retry with `force`). tooltest2 (30 agents, one sidecar): the old rule
-  (keyed on the session-wide last call) refused 25 own closes and no foreign one; the
-  foreign close of `parts_files_2_a` (changed 17 s, worked in 0 s before) meets this
-  rule, own closes 2-56 s after own edits mostly do not.
+  refused too (one retry with `force`). With many agents in one sidecar, the old rule
+  (keyed on the session-wide last call) refused own closes and no foreign one; a foreign
+  close of a part changed 17 s and worked in 0 s before meets this rule, own closes 2-56 s
+  after own edits mostly do not.
 - **Kept marks.** `nx_close_part` closes with `CloseRetainUndoMarks` (`data.undo_marks:
   kept`), displayed or not; closing the active tab brings the most recently active
   remaining tab back (`data.displayed`). Only an NX without the call drops every mark
@@ -999,7 +998,7 @@ also when the status is answered from the running call's snapshot; `control.wait
 that count and `control.busy` agrees with it (true while a call runs or waits, the
 engineer is in an NX command or a card waits; `activity` `queued` between two ticks).
 The engineer-only and card-only counts are `engineer_busy` and `waiting_for_answer`
-(benchmark bench3t read `busy: false, waiting: 0` next to `queue.waiting: 4`).
+(never `busy: false, waiting: 0` next to `queue.waiting: 4`).
 
 **Limits.**
 
@@ -1214,15 +1213,15 @@ caps in the test, never the table:
 
 | Item (characters of compact JSON) | Cap | Measured |
 |---|---|---|
-| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,340 + 15 per domain = 15,520 (12 domains) | 15,412 (about 4.1K tokens) |
+| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,880 + 15 per domain = 16,060 (12 domains) | 15,579 (about 4.1K tokens) |
 | `agent` server instructions (once per session) | 1,600 | 1,485 |
-| Full listing (name + description + input schema, call keys included) | mean 1,140 per listed tool | mean 1,056.5 over 270 tools (285,255, about 75.1K tokens) |
+| Full listing (name + description + input schema, call keys included) | mean 1,140 per listed tool | mean 1,064 over 270 tools (287,269, about 75.6K tokens) |
 | Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,589 (179 plain tools), 2,746 (87 unions) |
-| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 974.5, union 1,711.5 |
+| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 981, union 1,711.5 |
 | `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 385, 90th percentile 1,489.5 (max 1,784) |
 | `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 333 (1,558 in all) |
 | `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 194, mean 78.6 |
-| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,503 (about 3.3K tokens) |
+| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,587 (about 3.3K tokens) |
 
 <!-- END budget table -->
 

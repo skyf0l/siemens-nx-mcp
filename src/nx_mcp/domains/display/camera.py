@@ -15,6 +15,11 @@ the angle in degrees between the two directions (NX keeps ``Trimetric`` as the v
 NX's isometric looks from (1,-1,1): the rear of a part whose front faces -X (an engine with
 its nose at x=0); ``view_from [-1,-1,1]`` shows that front from the same height.
 
+``fit`` frames the shown bodies (``kit.display.fit``: ``View.FitToObjects``), not datums,
+sketches or the datum CSYS at the absolute origin that NX's own fit counts, and pans the
+bodies' box centre to the viewport centre; the result's ``fit`` gives that ``centre`` and
+the screen-plane ``offset`` left (part units). With no body shown NX's fit is used.
+
 Natural forms: ``orientation`` takes ``iso`` for ``isometric``; ``zoom`` multiplies the
 current (or, with ``fit``, the fitted) scale about the view centre, so ``zoom=2`` shows
 the model twice as large without knowing NX's absolute ``scale``.
@@ -47,8 +52,15 @@ ViewFrom = Annotated[tuple[float, float, float], Doc("Direction to look from, e.
 ViewUp = Annotated[tuple[float, float, float], Doc("Screen up for view_from (default +Z)")]
 
 
+class FitInfo(TypedDict, total=False):
+    bodies: int
+    centre: list[float]
+    offset: float
+
+
 class CameraData(TypedDict, total=False):
     part: Row
+    fit: FitInfo
     view: str
     nearest_view: str
     view_angle: float
@@ -140,8 +152,8 @@ def nx_set_camera(
 ) -> CameraData:
     """Orient, pan, zoom or fit the displayed part's model view (it must be the work part);
     returns restore_id. Direction: one of orientation, view_from (+ up) or rotation. scale
-    is absolute, zoom a factor: not both; fit takes zoom, not origin or scale. NX iso looks
-    from (1,-1,1); view_from [-1,-1,1] shows a min-X front."""
+    is absolute, zoom a factor: not both; fit (shown bodies, centred; not datums) takes
+    zoom, not origin or scale. NX iso looks from (1,-1,1); [-1,-1,1] shows a min-X front."""
     given = [n for n, v in (("orientation", orientation), ("view_from", view_from),
                             ("rotation", rotation)) if v is not None]  # fmt: skip
     if not given and origin is None and scale is None and zoom is None and not fit:
@@ -186,7 +198,7 @@ def nx_set_camera(
     tx.frame = "display_part_absolute"
     tx.display.keep_camera()
     if orientation is not None:
-        display.orient(tx, view, orientation, fit=fit)
+        display.orient(tx, view, orientation, fit=False)  # the fit below frames the bodies
         wanted = display.ORIENTATION_ROTATIONS[orientation]
     if (wanted is not None and orientation is None) or origin is not None or scale is not None:
         now = display.camera(tx, view)
@@ -197,9 +209,7 @@ def nx_set_camera(
             list(origin) if origin is not None else now["origin"],
             scale if scale is not None else now["scale"],
         )
-    if fit and orientation is None:
-        view.Fit()
-        view.UpdateDisplay()
+    fitted = display.fit(tx, view) if fit else None
     if zoom is not None:  # about the view centre: rotation and origin stay
         now = display.camera(tx, view)
         scale = now["scale"] * zoom
@@ -207,4 +217,7 @@ def nx_set_camera(
     got = display.camera(tx, view)
     display.expect_camera(got, wanted, origin, scale)
     readback.expect(got["scale"] > 0, "camera.scale", scale=got["scale"])
-    return {"part": tx.ref(part, "part"), **camera_row(got)}
+    out: CameraData = {"part": tx.ref(part, "part"), **camera_row(got)}
+    if fitted is not None:
+        out["fit"] = fitted  # type: ignore[typeddict-item]
+    return out

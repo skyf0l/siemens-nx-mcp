@@ -537,7 +537,7 @@ def test_output_schema_allows_restore_ids_and_sheet_units():
     assert "restore_id" in out and "sheet_length" in out["units"]["properties"]
 
 
-# ---- discovery regressions (turbofan runs, 2026-10-10) ------------------------
+# ---- discovery regressions -----------------------------------------------------
 
 
 def _entries():
@@ -613,7 +613,7 @@ def _top3(query):
         ("assembly constraints status", ["nx_list_objects"]),
         ("edges in drawing view", ["nx_list_view_edges"]),  # nx_find_geometry refuses views
         ("redo", ["nx_redo_operation", "nx_undo_operation"]),
-        # pump-cover round 2 misses (2026-10-11)
+        # earlier misses
         ("pocket", ["nx_create_extrude"]),
         ("rectangular pocket", ["nx_create_extrude"]),
         ("create assembly", ["nx_create_part"]),
@@ -1019,7 +1019,7 @@ def test_a_ref_in_a_ref_or_path_union_is_not_resolved_as_a_path(tmp_path):
 
 async def test_listed_status_names_only_the_two_panel_modes(tmp_path, every_tool):
     """The panel has Auto and Ask me first; the removed 'agent (Agent drives)' mode must
-    not come back in any listed text (a stale sidecar process served it in round 2)."""
+    not come back in any listed text (a stale sidecar process once served it)."""
     for surface in ("agent", "full"):
         tools = {t.name: t for t in await server(tmp_path, surface=surface).list_tools()}
         status = tools["nx_get_status"].description or ""

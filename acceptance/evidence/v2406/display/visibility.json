@@ -10,10 +10,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_visibility": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
-    "nx_restore_display": "4cc8fb4213369df2d46cf0442868734571a92a4291f5dae2d7315361dffa252c"
+    "nx_set_visibility": "fb52cb20aaae0aad2b7050574c0a50758ca268f36350676bb4e2d16ae9039aaa",
+    "nx_restore_display": "2aad3dd7e76989d518170548a51f2aedff913b95aedd2e8a605d9785cf7e4b05"
   },
-  "recorded": "2026-10-13T07:34:33Z",
+  "recorded": "2026-10-14T13:52:43Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

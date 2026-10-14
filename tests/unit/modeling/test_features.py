@@ -300,15 +300,16 @@ def test_subtract_from_several_targets_reads_every_target():
     assert ok.data["volume"] == 1800 and len(ok.data["bodies"]) == 2
 
 
-def test_revolve_profile_across_the_axis_is_a_clear_argument_error():
+def test_revolve_refusal_without_a_found_cause_lists_the_causes_left():
+    """NX's 671623 is not mapped to "crosses the axis" when the samples show no crossing."""
     nx = modeling_nx()
     sk = nx.sketch()
     nx.refuse("RevolveBuilder", code=671623, message="Section crosses the axis")
     bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
-    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["nx_code"] == 671623
-    assert "crosses the revolve axis" in bad.error["message"]
-    assert bad.error["field"] == "/axis" and bad.mutation_outcome in ("rolled_back", "not_started")
-    assert nx.live_builders == 0
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 671623, bad
+    assert "between the sampled points" in bad.error["message"]
+    assert "misses" not in bad.error["message"] and bad.error["field"] == "/sketch"
+    assert bad.mutation_outcome in ("rolled_back", "not_started") and nx.live_builders == 0
 
 
 def test_revolve_combine_that_misses_its_targets_says_so():
@@ -422,3 +423,102 @@ def test_sweep_that_builds_a_self_intersecting_body_rolls_back():
     bad = run(nx, "nx_create_sweep", section=guide.ref, guide=section.ref)
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
     assert bad.error["details"]["check"] == "body_health"
+
+
+def _lines(nx, segments):
+    """Sketch lines ``[(a, b)]`` evaluable through ``uf.Eval``, closest points included."""
+    lines = {}
+
+    def at(tag, t):
+        a, b = lines[tag]
+        return [a[k] + t * (b[k] - a[k]) for k in range(3)]
+
+    def closest(tag, p):
+        a, b = lines[tag]
+        d = [b[k] - a[k] for k in range(3)]
+        t = sum((p[k] - a[k]) * d[k] for k in range(3)) / sum(v * v for v in d)
+        return (min(1.0, max(0.0, t)),)
+
+    nx.uf.Eval = NS(
+        Initialize=lambda tag: tag,
+        AskLimits=lambda tag: [0.0, 1.0],
+        EvaluateUnitVectors=lambda tag, t: (at(tag, t), [1.0, 0.0, 0.0]),
+        EvaluateClosestPoint=closest,
+        Free=lambda tag: None,
+    )
+    out = []
+    for i, (a, b) in enumerate(segments):
+        line = NS(Tag=9100 + i, IsReference=False)
+        lines[line.Tag] = (a, b)
+        out.append(line)
+    return out
+
+
+SQUARE = [((1, 0, 0), (5, 0, 0)), ((5, 0, 0), (5, 10, 0)), ((5, 10, 0), (1, 10, 0)),
+          ((1, 10, 0), (1, 0, 0))]  # fmt: skip
+
+
+def test_revolve_refuses_a_gap_between_curve_ends_before_nx():
+    nx = modeling_nx()
+    sk = nx.sketch()
+    near = [*SQUARE[:3], ((1, 10, 0), (1.0007, 0, 0))]  # ends 0.0007 mm apart
+    sk.geometry = _lines(nx, near)
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/sketch", bad
+    assert "gap" in bad.error["message"] and "0.0007" in bad.error["message"]
+    assert bad.error["details"]["gaps"][0]["gap"] == pytest.approx(0.0007)
+    assert bad.mutation_outcome == "not_started"
+    assert not any(b.kind == "RevolveBuilder" for b in nx.builders)
+
+
+def test_revolve_refuses_crossing_curves_before_nx():
+    nx = modeling_nx()
+    sk = nx.sketch()
+    stray = ((0.5, 5, 0), (8, 5, 0))  # an open line across the closed loop
+    sk.geometry = _lines(nx, [*SQUARE, stray])
+    bad = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/sketch", bad
+    assert "cross each other" in bad.error["message"] and "construction" in bad.error["hint"]
+    assert bad.error["details"]["crossings"][0] in ([1.0, 5.0, 0.0], [5.0, 5.0, 0.0])
+    assert not any(b.kind == "RevolveBuilder" for b in nx.builders)
+
+
+def test_revolve_warns_about_an_open_chain_next_to_a_closed_loop():
+    nx = modeling_nx()
+    sk = nx.sketch()
+    sk.geometry = _lines(nx, [*SQUARE, ((7, 0, 0), (7, 10, 0))])  # apart from the loop
+    nx.on_commit("RevolveBuilder", extruded(nx, [-7, 0, -7, 7, 10, 7]))
+    ok = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert ok.ok and ok.data["sheet"] is False, ok
+    assert any(
+        w["code"] == "NX_UPDATE_WARNING" and "1 open chain(s) next to 1 closed" in w["message"]
+        for w in ok.warnings
+    ), ok.warnings
+
+
+def test_revolve_of_an_open_profile_reports_solid_or_sheet():
+    nx = modeling_nx()
+    sk = nx.sketch()
+    sk.geometry = _lines(nx, [((3, 0, 0), (5, 10, 0))])  # one open line
+    nx.on_commit("RevolveBuilder", extruded(nx, [-5, 0, -5, 5, 10, 5]))
+    solid = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"})
+    assert solid.ok and solid.data["sheet"] is False, solid
+    assert any(w["code"] == "NX_NOTE" and "sheet: true" in w["message"] for w in solid.warnings)
+
+    def sheets(b):
+        body = new_body(nx, [-5, 0, -5, 5, 10, 5], volume=0.0)
+        body.IsSolidBody, body.IsSheetBody = False, True
+        body.GetFaces = lambda: [NS(Tag=1)]
+        return feature(nx, "REVOLVED", [body])
+
+    nx.on_commit("RevolveBuilder", sheets)
+    nx.part.MeasureManager.NewFaceProperties = lambda *a: NS(Area=250.0, Dispose=lambda: None)
+    sheet = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"}, sheet=True)
+    assert sheet.ok and sheet.data["sheet"] is True and sheet.data["area"] > 0, sheet
+    style = nx.nx.GeometricUtilities.FeatureOptions.BodyStyle
+    assert nx.last("RevolveBuilder").FeatureOptions.BodyType is style.Sheet
+    assert not any(w["code"] == "NX_NOTE" for w in sheet.warnings or [])
+    block = nx.block(10, 10, 10)
+    both = run(nx, "nx_create_revolve", sketch=sk.ref, axis={"principal": "y"}, sheet=True,
+               combine={"operation": "unite", "targets": [block.ref]})  # fmt: skip
+    assert both.error["field"] == "/combine" and both.mutation_outcome == "not_started"

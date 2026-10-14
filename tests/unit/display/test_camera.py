@@ -282,7 +282,7 @@ def test_view_from_conflicts_are_invalid(args, field):
 
 
 def test_a_named_work_part_that_is_not_displayed_is_shown_for_the_read():
-    """Live (bug fix round): the agent's part was NX's (quiet) work part beside the
+    """Live: the agent's part was NX's (quiet) work part beside the
     engineer's displayed part; gate 4s does not switch a target that is already the work
     part, so nx_get_camera part=X read the engineer's view and named their part. The read
     now shows X, then the engineer's display and the quiet work part come back."""
@@ -326,3 +326,82 @@ def test_set_camera_shows_a_named_work_part_that_is_not_displayed():
     assert ok.ok, ok
     assert ok.data["part"]["name"] == plate.Name and ok.data["view"] == "top"
     assert parts.Display is shown and parts.Work is plate
+
+
+def _screen_offset(cam, centre):
+    return display.centre_offset(cam, centre)
+
+
+def test_fit_frames_the_shown_bodies_centred_not_the_origin():
+    """A model far from the absolute origin: fit frames the bodies, their box centre at
+    the viewport centre, and leaves out datums and hidden bodies."""
+    nx = display_nx()
+    body = nx.block(790, 400, 400, origin=(2200, -200, -200))
+    hidden = nx.block(1, 1, 1)
+    hidden.IsBlanked = True
+    nx.datum_plane()
+    ok = run(nx, "nx_set_camera", fit=True)
+    assert ok.ok, ok.error
+    assert nx.work_view.fit_to == [body] and nx.work_view.fits == 1
+    assert ok.data["fit"]["bodies"] == 1
+    assert ok.data["fit"]["centre"] == pytest.approx([2595, 0, 0])
+    assert ok.data["fit"]["offset"] == pytest.approx(0, abs=1e-5)
+    assert _screen_offset(ok.data, [2595, 0, 0]) == pytest.approx(0, abs=1e-5)
+    assert ok.data["absolute_origin"] == pytest.approx([2595, 0, 0], abs=1e-3)
+
+
+def test_a_fit_that_frames_the_origin_too_is_panned_to_the_bodies_centre():
+    """NX's whole fit (FitToObjects refused) also frames the datum CSYS at the origin: the
+    view is panned so the bodies' box centre is at the viewport centre."""
+    nx = display_nx()
+    nx.block(790, 400, 400, origin=(2200, -200, -200))
+    nx.work_view.fit_to_error = RuntimeError("not fittable")
+    ok = run(nx, "nx_set_camera", orientation="isometric", fit=True)
+    assert ok.ok, ok.error
+    assert ok.data["view"] == "isometric" and ok.data["scale"] == 2.5
+    assert ok.data["fit"]["offset"] == pytest.approx(0, abs=1e-6)
+    assert _screen_offset(ok.data, [2595, 0, 0]) == pytest.approx(0, abs=1e-6)
+
+
+def test_fit_without_bodies_uses_nx_fit():
+    nx = display_nx()
+    nx.datum_plane()
+    ok = run(nx, "nx_set_camera", fit=True)
+    assert ok.ok and ok.data["fit"] == {"bodies": 0} and nx.work_view.fit_to is None
+
+
+def test_a_fit_nx_leaves_off_centre_rolls_back():
+    nx = display_nx()
+    nx.block(10, 10, 10, origin=(500, 0, 0))
+    view = nx.work_view
+    view.fit_to_error = RuntimeError("not fittable")
+    view.SetRotationTranslationScale = lambda m, p, s: None  # NX ignores the pan
+    bad = run(nx, "nx_set_camera", fit=True)
+    assert bad.error["category"] == "verification_failed"
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_origin_for_puts_a_point_at_the_viewport_centre():
+    """view.Origin is the negated view-space position of the centre: origin_for inverts
+    it for any rotation, and the depth along the view direction does not count."""
+    rotation = display.rotation_from([-1, -1, 1])
+    centre = [2595.0, 10.0, -4.0]
+    origin = display.origin_for(rotation, centre)
+    absolute = [-sum(rotation[i][j] * origin[j] for j in range(3)) for i in range(3)]
+    assert absolute == pytest.approx(centre)
+    deeper = [
+        c + 50 * v for c, v in zip(centre, display.view_axes(rotation)["view_from"], strict=True)
+    ]
+    cam = {"rotation": rotation, "absolute_origin": deeper}
+    assert display.centre_offset(cam, centre) == pytest.approx(0, abs=1e-9)
+    cam["absolute_origin"] = [centre[0], centre[1], centre[2] + 3]
+    assert display.centre_offset(cam, centre) > 0
+
+
+def test_a_colour_table_in_0_255_is_read_as_0_1():
+    entries = {1: (255, 0, 0), 2: (0, 0, 255)}
+    colors = NS(Find=lambda i: NS(Label=f"C{i}", GetRgb=lambda: NS(
+        R=entries[i][0], G=entries[i][1], B=entries[i][2])) if i in entries else None)  # fmt: skip
+    table = display.palette(NS(Colors=colors))
+    assert table == {1: ("C1", [1.0, 0.0, 0.0]), 2: ("C2", [0.0, 0.0, 1.0])}
+    assert display.hex_of(table[2][1]) == "#0000FF"

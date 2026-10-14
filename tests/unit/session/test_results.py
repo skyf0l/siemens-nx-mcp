@@ -134,8 +134,8 @@ def test_delete_previews_then_prunes_both_stores(tmp_path):
 
 
 def test_age_and_size_prune_only_the_callers_own_snapshots(tmp_path):
-    """30 agents share the workspace: by age or size only the caller's own snapshots go
-    (bench: max_age_seconds 1h deleted 689 of 743 snapshots of every agent)."""
+    """Many agents share the workspace: by age or size only the caller's own snapshots
+    go (a prune must never delete the snapshots of every agent)."""
     mine = stored(tmp_path, {"mine": 1})  # this sidecar stored it: its caller's
     folder = tmp_path / ".nx-mcp" / "agent-results"
     theirs = "result_" + "a" * 32  # another agent's sidecar stored this one

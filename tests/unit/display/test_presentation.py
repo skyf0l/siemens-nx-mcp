@@ -28,7 +28,7 @@ def saved():
 def test_save_writes_camera_section_and_appearance(saved):
     nx, body, path, ok = saved
     assert ok.ok and ok.data["path"] == "views/review.json" and ok.data["sections"] == 1
-    assert ok.data["objects"] == 7  # the body and its six faces
+    assert ok.data["objects"] == 2  # the body and the one face coloured unlike it
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["format"] == "nx-mcp-presentation" and data["version"] == 2
     assert data["camera"]["origin"] == [2, 3, 4] and data["camera"]["scale"] == 2
@@ -50,7 +50,7 @@ def test_restore_puts_camera_section_and_colours_back(saved):
     run(nx, "nx_edit_section_view", section=nx.ref_of(nx.part.DynamicSections[0], "section_view"),
         plane={"origin": [0, 0, 0.2], "normal": [1, 0, 0]}, enabled=False)  # fmt: skip
     ok = run(nx, "nx_restore_display", presentation=str(path))
-    assert ok.ok and ok.data["identical"] is True and ok.data["count"] == 7
+    assert ok.ok and ok.data["identical"] is True and ok.data["count"] == 2
     assert body.faces[0].Color == 33 and not body.IsBlanked
     assert ok.data["camera"]["origin"] == [2, 3, 4] and ok.data["camera"]["scale"] == 2
     section = nx.part.DynamicSections[0]

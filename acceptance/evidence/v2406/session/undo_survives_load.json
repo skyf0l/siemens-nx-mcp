@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/undo_survives_load.json",
-  "scenario_sha256": "da203448e3071739e0b042c23c061fcd19e9d09389fbdfea5065c1a7b9af655b",
+  "scenario_sha256": "d9ad7f07dd613c4d47f31ae0c8cf1100a6f491544296840ec1c74aaaed9d0b9f",
   "domain": "session",
   "covers": {
     "nx_undo_operation": [],
@@ -17,7 +17,7 @@
     "nx_list_checkpoints": "792dc58b7b8a4fd2a768a3eea37fca744dd1f55191690f350403e36adb4dd2e1",
     "nx_restore_checkpoint": "792dc58b7b8a4fd2a768a3eea37fca744dd1f55191690f350403e36adb4dd2e1"
   },
-  "recorded": "2026-10-13T07:13:06Z",
+  "recorded": "2026-10-14T13:33:17Z",
   "passed": true,
   "checks": 41,
   "failed_checks": 0,

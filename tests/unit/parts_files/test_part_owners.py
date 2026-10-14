@@ -140,7 +140,7 @@ def test_reopening_another_agents_part_never_shows_it(nx):
 
 
 def test_own_parts_close_whatever_the_other_agent_did_last(nx):
-    """The bench of the 30-agent run: every NX_PART_BUSY was an agent's own close."""
+    """With many agents, an agent's own close must not be refused NX_PART_BUSY."""
     create(nx, "mc/a.prt", A)
     create(nx, "mc/b.prt", B, display=False)
     block(nx, "a", A)

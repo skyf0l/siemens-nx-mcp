@@ -4,7 +4,7 @@ Exploded poses are absolute assembly poses; a placement gives one, or an offset 
 pose the component inherits (assembled, or carried by its exploded parent). Assembled
 poses never change (read back).
 Creating or editing an explosion shows it in the modeling work view unless
-``display=false`` (agents left it assembled after creating it, round 2): ``views`` reports
+``display=false`` (agents left it assembled after creating it): ``views`` reports
 where it is shown. While a drawing sheet is open nothing is shown (a note says so):
 ``nx_set_explosion_display`` targets drawing views.
 See ``exploded.py`` for the NX 2406 post-transform and trace-refresh rules.

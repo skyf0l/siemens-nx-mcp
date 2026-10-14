@@ -14,7 +14,8 @@ Every reader takes the file's bytes and raises ``ValueError`` when the content i
 that format (or is truncated). Coordinates are the file's own, in ``units`` (an STL
 states none). Bounds: STL and JT from the tessellation (within the chordal
 tolerance of the true geometry), IGES from the control points of its curves and
-surfaces with their transformation matrices applied (an upper bound). Parasolid
+surfaces with their transformation matrices applied (an upper bound; none when the file
+places subfigure instances, entity 408). Parasolid
 files are always in metres; only their header is read.
 """
 
@@ -40,6 +41,7 @@ IGES_UNITS = {
     1: "in", 2: "mm", 4: "ft", 5: "mi", 6: "m", 7: "km", 8: "mil", 9: "um", 10: "cm",
     11: "uin",
 }  # fmt: skip
+IGES_INSTANCE = 408  # singular subfigure instance (assembly placement)
 IGES_SURFACES = (108, 114, 118, 120, 122, 128, 140, 143, 144, 186, 190, 192, 194, 196, 198)
 JT_UNITS = {"millimeters": "mm", "inches": "in", "meters": "m", "centimeters": "cm", "feet": "ft"}
 # Partition Node Element object type 10dd103e-2ac8-11d1-9b6b-0080c7bb5997 (little endian).
@@ -205,7 +207,9 @@ def iges_facts(data: bytes) -> dict:
             continue
         for p in _iges_points(entry["type"], parameters.get(seq, [])):
             points.append(_iges_transform(p, entry["matrix"], entries, parameters))
-    low, high = _box(points)
+    # A subfigure instance (408) places its definition's geometry elsewhere: the
+    # definitions' own points do not bound the model, so no extent is claimed.
+    low, high = _box(points) if not counts.get(IGES_INSTANCE) else (None, None)
     surfaces = sum(n for t, n in counts.items() if t in IGES_SURFACES)
     return {
         "version": version,

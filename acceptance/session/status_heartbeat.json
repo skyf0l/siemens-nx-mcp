@@ -1,0 +1,37 @@
+{
+ "covers": {
+  "nx_get_status": []
+ },
+ "part": "new",
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {
+   "call": "engineer",
+   "args": {"code": "import os\nfrom nx_mcp.host import heartbeat\nroot = services.workspace.root\nbeat = heartbeat.read(root)\ncall = heartbeat.running_call(root, os.getpid())\nprint('tool=%s pid_ok=%s session_ok=%s seconds_ok=%s work=%s' % (call['tool'], beat['pid'] == os.getpid(), beat.get('session_id') == services.session_id, 0 <= call['seconds'] <= 10, heartbeat._part_name(beat)))\nresult = call['seconds']"},
+   "intent": "Acceptance: while a call runs, the host's heartbeat file names it, its start time, the NX process and the session",
+   "expect": {
+    "ok": true,
+    "data.stdout": {"matches": "tool=nx_dev_python pid_ok=True session_ok=True seconds_ok=True work=session_status_heartbeat_[0-9a-f]+[.]prt"}
+   }
+  },
+  {
+   "call": "nx_get_status",
+   "args": {"include": ["bridge", "control"]},
+   "expect": {
+    "mutation_outcome": "not_applicable",
+    "data.bridge.state": "connected",
+    "data.bridge.answered_from": "nx",
+    "data.bridge.interactive": true,
+    "data.control.waiting": 0,
+    "data": {"count": 2}
+   }
+  },
+  {
+   "call": "engineer",
+   "args": {"code": "import json, os, time\nfrom nx_mcp.host import heartbeat\nroot = services.workspace.root\nbefore = heartbeat.read(root) or {}\nage = time.time() - float(before.get('sampled_at') or 0)\nprint('pid_ok=%s age_ok=%s' % (before.get('pid') == os.getpid(), 0 <= age <= 10))"},
+   "intent": "Acceptance: the heartbeat file is fresh (written within seconds) and belongs to this NX process",
+   "expect": {"ok": true, "data.stdout": {"matches": "pid_ok=True age_ok=True"}}
+  }
+ ]
+}

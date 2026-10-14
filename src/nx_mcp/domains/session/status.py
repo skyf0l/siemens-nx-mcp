@@ -4,8 +4,12 @@
 bridge state, panel mode (``auto`` or ``ask``: only the engineer changes it on the
 NX MCP panel), work/display part, workspace rules and the running operation. It answers without waiting behind a running NX step: the interactive
 host answers it on the bridge worker from its UI-thread snapshot while a step
-runs (:func:`envelope_from_snapshot`), and the sidecar answers it itself when the
-bridge is down (:func:`offline_envelope`, bridge ``unavailable``).
+runs (:func:`envelope_from_snapshot`). When NX's main thread is held by one long step
+(it then accepts no connection), when the bridge does not answer within a few seconds
+or when it is down, the sidecar answers itself (:func:`sidecar_envelope`) from the
+host's heartbeat file and the NX process seen from outside (``host/heartbeat.py``):
+bridge ``state`` busy, blocked_by_dialog, unresponsive, not_answering, down or unknown,
+with ``bridge.health`` saying what NX runs, for how long, and what to do.
 
 ``nx_get_operation`` (replaces ``nx_operation_status``) and
 ``nx_cancel_operation`` run in the sidecar (``runs="sidecar"``): they read and
@@ -74,8 +78,8 @@ def control_data(status: dict) -> ControlData:
     """The control section from the interactive host's status (or its snapshot).
 
     One count of waiting calls (``waiting`` = ``queue.waiting``, sampled when the status
-    is read) and one ``busy`` that agrees with it: benchmark bench3t read ``busy: false,
-    waiting: 0`` next to ``queue.waiting: 4`` (``busy`` then meant the engineer only and
+    is read) and one ``busy`` that agrees with it, never ``busy: false, waiting: 0`` next
+    to ``queue.waiting: 4`` (``busy`` once meant the engineer only and
     ``waiting`` the Ask me first card only; both are kept under their own names)."""
     mode = str(status.get("mode") or "")
     queue = _queue(status.get("queue"))
@@ -107,8 +111,29 @@ def _queue(raw) -> QueueData:
     }
 
 
-class BridgeInfo(TypedDict):
-    state: str  # connected or unavailable
+class HealthRunning(TypedDict):
+    tool: str
+    part: str | None  # the target part's file
+    operation_id: str | None  # only when the status call passes that operation_id
+    seconds: int | None  # how long it has run
+    since: str | None  # UTC start time
+
+
+class HealthInfo(TypedDict):
+    state: str  # same as bridge.state
+    pid: int | None  # the NX process
+    process: dict  # {alive, responding, cpu_busy}: seen from outside NX (None: unknown)
+    running: HealthRunning | None  # the agent call NX runs, from the host's heartbeat
+    heartbeat_age_seconds: float | None  # since the host last wrote its heartbeat
+    dialogs: list[dict]  # modal NX dialogs waiting for the engineer
+    message: str
+    hint: str  # what to do now
+
+
+class _BridgeInfo(TypedDict):
+    # connected; else (answered by the sidecar): busy, blocked_by_dialog, unresponsive,
+    # not_answering, down or unknown
+    state: str
     nx_version: str | None  # build key, e.g. v2406
     nx_build: str | None  # NX's own version text
     interactive: bool  # NX with the NX MCP panel
@@ -117,6 +142,10 @@ class BridgeInfo(TypedDict):
     # Tested tools/variants NX refused for a missing license this session (until restart):
     # {tool, variant, nx_code, since, message}; hidden from discovery.
     license_unavailable: list[dict]
+
+
+class BridgeInfo(_BridgeInfo, total=False):
+    health: HealthInfo  # only when answered_from is sidecar: why NX did not answer
 
 
 class PartInfo(TypedDict):
@@ -308,18 +337,39 @@ def envelope_from_snapshot(snapshot: dict, params: dict, *, root, build, store=N
     return _envelope(data, params)
 
 
-def offline_envelope(root, error: dict, params: dict, *, build=None) -> dict:
-    """The status the sidecar gives when the bridge does not answer."""
+def sidecar_envelope(
+    root, health: dict, params: dict, *, build=None, beat: dict | None = None, error=None
+) -> dict:
+    """The status the sidecar gives when NX's bridge cannot answer now: ``health`` from
+    ``host.heartbeat.assess``; ``beat`` the host's heartbeat (its last status), which
+    gives the control section; ``error`` the bridge error, when there was one."""
+    bridge = _bridge(
+        build,
+        state=str(health.get("state") or "unknown"),
+        interactive=bool(beat and beat.get("interactive")),
+        session_id=(beat or {}).get("session_id"),
+        answered_from="sidecar",
+    )
+    bridge["health"] = health  # type: ignore[typeddict-item]
+    call = health.get("running")
+    operation: RunningInfo | None = None
+    if call:
+        operation = {
+            "tool": call["tool"],
+            "operation_id": call.get("operation_id"),
+            "elapsed_seconds": call.get("seconds"),
+            "progress": None,
+        }
     data = {
-        "bridge": _bridge(
-            build, state="unavailable", interactive=False, session_id=None, answered_from="sidecar"
-        ),  # fmt: skip
+        "bridge": bridge,
         "parts": None,
-        "control": None,
+        "control": control_data(beat) if beat and health.get("state") != "down" else None,
         "workspace": workspace_info(root),
-        "operation": None,
+        "operation": operation,
     }
-    message = f"NX bridge unavailable: {error.get('message') or error.get('code')}"
+    message = str(health.get("message") or "NX did not answer")
+    if error and health.get("state") in ("down", "unknown", "not_answering"):
+        message += f" ({error.get('message') or error.get('code')})"
     return _envelope(data, params, [{"code": "NX_UPDATE_WARNING", "message": message}])
 
 
@@ -359,10 +409,9 @@ def nx_get_status(
     include: Annotated[list[Section], Items(1, 5), Doc("Sections to return (default all)")]
     | None = None,
 ) -> StatusData:
-    """NX build, bridge state, panel mode, work and display part, workspace root and rules.
-    Also the running operation; answers while NX runs a step (from a snapshot) and
-    when the bridge is down. Panel mode: auto or ask (Ask me first); only the engineer
-    changes it."""
+    """NX build, bridge state, panel mode, work/display part, workspace root/rules, running
+    operation. Answers in seconds even when NX is busy, hung or down: bridge.health says
+    what runs, for how long, what to do. Mode auto or ask: only the engineer changes it."""
     services = tx.services
     status = services.control_status()
     session_parts = services.session.Parts

@@ -77,9 +77,8 @@ AGENT_INSTRUCTIONS = (
 )
 # The ref-less core tools (nx_list_components, nx_list_objects, nx_get_model_summary,
 # nx_find_geometry, nx_check_model, nx_capture_view, nx_undo_operation) list ``part`` in
-# their schemas: agents trust a strict schema over the instructions (benchmark bench3p:
-# with ``part`` left out, none of four builders passed it to a core tool, one gave up a
-# capture). The proxy pops it as a call key before gate 1; the kernel resolves it (gate 3t).
+# their schemas: agents trust a strict schema over the instructions (with ``part`` left
+# out of the schemas, agents did not pass it to a core tool and gave up a capture). The proxy pops it as a call key before gate 1; the kernel resolves it (gate 3t).
 PART_KEY = {
     "type": "string",
     "description": "Target part's file name; needed when 2+ parts are loaded",

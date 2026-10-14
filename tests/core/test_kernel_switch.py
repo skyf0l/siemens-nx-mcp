@@ -264,7 +264,7 @@ def test_a_display_call_switches_the_display_and_comes_back():
 
 
 def test_a_named_quiet_work_part_is_displayed_for_a_display_call():
-    """Bug-fix round: plate is NX's (quiet) work part beside the displayed work.prt; a
+    """plate is NX's (quiet) work part beside the displayed work.prt; a
     display call naming plate acted on the displayed part (no switch: plate was work)."""
     nx = _nx()
     nx.session.Parts.Work = nx.plate

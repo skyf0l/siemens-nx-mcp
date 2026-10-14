@@ -11,6 +11,11 @@ NX 2406 findings kept here:
   coincident constraints, so later dimensions keep the profile closed.
 - ``Curve.IsReference`` reads back the construction state set by
   ``ConvertToFromReferenceBuilder``.
+- A spline is a non-associative Studio Spline (``CreateStudioSplineBuilderEx``,
+  ``IsAssociative`` false: a plain curve, no feature) through the points, degree
+  min(3, points - 1), added to the sketch unless NX put it there already; end tangents
+  are ``GeometricConstraintData.TangentDirection``. Every point, the ends and the
+  tangents are read back from the curve.
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import CurveRef, Doc, Items, Point2, Range, RefTo, SketchRef, forbid_extra
 from nx_mcp.domains.sketch import common
 from nx_mcp.domains.sketch.common import XY, CurveRow, Degrees, Size
-from nx_mcp.kit import builders, geom, measure, readback, result
+from nx_mcp.kit import builders, geom, measure, readback, result, units
 from nx_mcp.kit import curve as kcurve
 from nx_mcp.kit import sketch as ksketch
 
@@ -110,6 +115,22 @@ class PolylineCurve(_Polyline, total=False):
     closed: Annotated[bool, Doc("Also join the last point back to the first")]
 
 
+class _Spline(TypedDict):
+    type: Literal["spline"]
+    points: Annotated[list[Point2], Items(2, 100), Doc("Points the curve passes through, in order")]
+
+
+Tangent = Annotated[Point2, Doc("Direction [dx, dy] at that end (open spline only)")]
+
+
+class SplineCurve(_Spline, total=False):
+    closed: Annotated[
+        bool, Doc("Smooth closed (periodic) curve; for a sharp closed one repeat the first point")
+    ]
+    start_tangent: Tangent
+    end_tangent: Tangent
+
+
 class RoundedRectangleCurve(TypedDict):
     type: Literal["rounded_rectangle"]
     center: Point2
@@ -121,6 +142,7 @@ class RoundedRectangleCurve(TypedDict):
 CURVE_TYPES = {
     "line": LineCurve,
     "polyline": PolylineCurve,
+    "spline": SplineCurve,
     "arc": ArcCurve,
     "circle": CircleCurve,
     "ellipse": EllipseCurve,
@@ -135,6 +157,7 @@ class _CurveType(TypedDict):
     type: Literal[
         "line",
         "polyline",
+        "spline",
         "arc",
         "circle",
         "ellipse",
@@ -164,6 +187,8 @@ class CurveSpec(_CurveType, total=False):
     inscribed: bool
     points: Annotated[list[XY], Items(2, 100)]
     closed: bool
+    start_tangent: XY
+    end_tangent: XY
 
 
 forbid_extra(*CURVE_TYPES.values(), CurveSpec)
@@ -210,6 +235,40 @@ def _polyline(item, field):
     return (lines, "loop") if closed else (lines[:-1], "chain")
 
 
+def _spline(item, field):
+    """One spline primitive ``("spline", points, closed, {index: unit tangent})``."""
+    points = [list(p) for p in item["points"]]
+    closed = bool(item.get("closed", False))
+    if closed and len(points) > 3 and geom.dist(points[0], points[-1]) <= geom.tol(*points):
+        points.pop()  # the first point repeated at the end: a periodic curve closes anyway
+    if closed and len(points) < 3:
+        fail("NX_INVALID_ARGUMENT", "A closed spline needs 3 or more points", field=field)
+    for k in range(1, len(points) + (1 if closed else 0)):
+        a, b = points[k - 1], points[k % len(points)]
+        if geom.dist(a, b) <= geom.tol(a, b):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"Consecutive points {k - 1} and {k % len(points)} coincide",
+                field=f"{field}/points/{k % len(points)}",
+            )
+    tangents = {}
+    for key, k in (("start_tangent", 0), ("end_tangent", len(points) - 1)):
+        t = item.get(key)
+        if t is None:
+            continue
+        if closed:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "A closed (periodic) spline has no ends to take a tangent",
+                field=f"{field}/{key}",
+                hint="Drop the tangent, or make an open spline that repeats the first point last",
+            )
+        if math.hypot(*t) <= 1e-12:
+            fail("NX_INVALID_ARGUMENT", f"{key} must not be zero", field=f"{field}/{key}")
+        tangents[k] = [v / math.hypot(*t) for v in t]
+    return [("spline", points, closed, tangents)], None
+
+
 def _radius(item, field):
     """The radius of an arc or circle given by ``radius`` or ``diameter`` (exactly one)."""
     radius, diameter = item.get("radius"), item.get("diameter")
@@ -235,6 +294,8 @@ def plan(item, field):
         return [("line", list(item["start"]), list(item["end"]))], None
     if kind == "polyline":
         return _polyline(item, field)
+    if kind == "spline":
+        return _spline(item, field)
     if kind in ("arc", "circle"):
         start, end = item.get("start_angle", 0.0), item.get("end_angle", 360.0)
         if not 0 < end - start <= 360:
@@ -316,11 +377,59 @@ def _arc_end(c, r, angle):
     return [c[0] + r * math.cos(t), c[1] + r * math.sin(t)]
 
 
+def _make_spline(tx, sk, prim):
+    """A spline through sketch-local points (a plain curve, no feature) in the sketch."""
+    _, points, closed, tangents = prim
+    types = tx.nx.Features.StudioSplineBuilderEx.Types
+    with builders.build(tx, tx.part.Features.CreateStudioSplineBuilderEx, None) as b:
+        b.IsAssociative = False
+        b.HasPlaneConstraint = False
+        b.Degree = min(3, len(points) - 1)
+        b.IsPeriodic = closed
+        b.Type = types.ThroughPoints
+        manager = b.ConstraintManager
+        manager.Clear()
+        for k, p in enumerate(points):
+            data = manager.CreateGeometricConstraintData()
+            data.Point = builders.point(tx, sk.to_part(p))
+            if k in tangents:
+                data.TangentDirection = builders.direction(
+                    tx, ksketch.to_part_direction(sk.frame, tangents[k]), sk.to_part(p)
+                )
+            manager.Append(data)
+        b.commit()
+        curve = b.Curve
+    readback.expect(curve is not None, "spline", "NX built no spline")
+    if int(curve.Tag) not in ksketch.tags(sk):
+        with native(default="NX_BUILD_FAILED"):
+            ksketch.add(tx, sk, curve)
+    return curve
+
+
+def _check_spline(tx, sk, curve, prim, check):
+    """The spline passes through every point and takes the requested end tangents."""
+    _, points, closed, tangents = prim
+    where = [sk.to_part(p) for p in points]
+    tol = max(units.part_tolerance(tx), geom.tol(*where))
+    with kcurve.evaluator(tx, curve) as e:
+        for i, q in enumerate(where):
+            gap = geom.dist(e.closest(q)[0], q)
+            readback.expect(gap <= tol, f"{check}/points/{i}", "The spline misses a point", gap=gap)
+        for k, t in tangents.items():
+            _p, d = e.at(0.0 if k == 0 else 1.0)
+            want = ksketch.to_part_direction(sk.frame, t)
+            cos = geom.dot(geom.unit(d), want)
+            readback.expect(cos >= 1 - 1e-6, f"{check}/tangent", "NX ignored an end tangent",
+                            index=k, cos=cos)  # fmt: skip
+
+
 def _make(tx, sk, prim):
     """Create one primitive curve in the active sketch."""
     part, nx = tx.part, tx.nx
     f = sk.frame
     kind = prim[0]
+    if kind == "spline":
+        return _make_spline(tx, sk, prim)
     with native(default="NX_BUILD_FAILED"):
         if kind == "line":
             curve = part.Curves.CreateLine(sk.point(prim[1]), sk.point(prim[2]))
@@ -351,6 +460,15 @@ def _make(tx, sk, prim):
 def _check(prim, row, check):
     """The read-back row of a primitive equals the request (else verification_failed)."""
     kind = prim[0]
+    if kind == "spline":
+        _, points, closed, _tangents = prim
+        tol = geom.tol(*points)
+        if closed:
+            readback.expect(bool(row.get("closed")), check + "/closed", **row)
+        else:
+            readback.expect_close(row["start"], points[0], check + "/start", tol)
+            readback.expect_close(row["end"], points[-1], check + "/end", tol)
+        return
     if kind == "line":
         tol = geom.tol(prim[1], prim[2])
         readback.expect_close(row["start"], prim[1], check + "/start", tol)
@@ -457,6 +575,8 @@ def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
             for k, (prim, curve) in enumerate(zip(prims, group, strict=True)):
                 row = common.curve_row(tx, sk.frame, curve, item=i)
                 _check(prim, row, f"curves/{i}/{k}")
+                if prim[0] == "spline":
+                    _check_spline(tx, sk, curve, prim, f"curves/{i}/{k}")
                 readback.expect(row["construction"] == construction, f"curves/{i}/construction")
                 if not construction:
                     del row["construction"]  # the default; shown only when true
@@ -506,11 +626,11 @@ def nx_create_sketch_curves(
     construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
 ) -> CurvesData:
     """Add 1-100 curves to a sketch, sketch-local in plain numbers (part units, degrees).
-    Fields: line start, end; polyline points, closed; arc center, radius, start_angle,
-    end_angle (CCW); circle center, radius; ellipse center, major/minor_radius; rectangle
-    corner1, corner2; polygon center, sides, radius; slot center, width, height;
-    rounded_rectangle center, width, height, radius; diameter can replace radius. The result's
-    loops give each chain's closure (one inside another: hollow)."""
+    Fields: line start, end; polyline points, closed; spline points, closed,
+    start/end_tangent; arc center, radius, start_angle, end_angle (CCW); circle center,
+    radius; ellipse center, major/minor_radius; rectangle corner1, corner2; polygon center,
+    sides, radius; slot center, width, height; rounded_rectangle center, width, height,
+    radius; diameter can replace radius. loops: each chain's closure (nested: hollow)."""
     plans = check_curves(curves)
     tx.frame = "sketch_local"
     return add_curves(tx, sketch, plans, construction)

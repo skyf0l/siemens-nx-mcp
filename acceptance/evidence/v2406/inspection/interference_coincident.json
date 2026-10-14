@@ -1,0 +1,90 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/interference_coincident.json",
+  "scenario_sha256": "b6183615094f71514b97b3fc4ccb8e699c5a241d3d93cb12b7ef3015ce832a61",
+  "domain": "inspection",
+  "covers": {
+    "nx_check_interference": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_check_interference": "645be667e75d0b11d382d1b119e3d32bc7a801c55d871d6965961d441c0ccb31"
+  },
+  "recorded": "2026-10-14T13:21:49Z",
+  "passed": true,
+  "checks": 13,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_revolve",
+      "setup": true,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_revolve",
+      "setup": true,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_revolve",
+      "setup": true,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 8,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

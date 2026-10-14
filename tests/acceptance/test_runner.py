@@ -36,6 +36,7 @@ RESULT = {
         ("data.name", {"contains": "PLANE"}),
         ("data.on", True),
         ("page.total", {"equals": 5}),
+        ("page.total", {"matches": r"^[1-9]\d*$"}),  # a number matches as its text
     ],
 )
 def test_operators_pass(path, rule):
@@ -52,6 +53,7 @@ def test_operators_pass(path, rule):
         ("changes.created", {"count_kind": {"feature": 2}}),
         ("data.name", {"matches": "^x"}),
         ("data.on", 1),  # true never equals 1
+        ("data.on", {"matches": "True"}),  # booleans are not text
         ("error.code", "NX_ERROR"),  # missing path
         ("data.origin.7", 0),
     ],

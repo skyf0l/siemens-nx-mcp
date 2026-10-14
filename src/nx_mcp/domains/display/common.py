@@ -38,12 +38,20 @@ class Camera(TypedDict, total=False):
     style: str
 
 
+class FaceRow(TypedDict):
+    object: Row
+    color: int
+    transparency: int | None
+
+
 class DisplayRow(TypedDict, total=False):
     object: Row
     blanked: bool
     color: int
     color_name: str
     transparency: int | None
+    faces_differ: int
+    faces: list[FaceRow]
 
 
 def kind_of(tx, obj) -> str:
@@ -102,9 +110,11 @@ def color_names(tx) -> dict[int, str]:
 
 
 def display_rows(tx, pairs) -> list[DisplayRow]:
-    """``[{object, blanked, color?, color_name?, transparency?}]`` for ``(obj, record)``
-    pairs. ``color_name`` is given where the index is a named colour; a body's
-    transparency is its faces' when they all agree (NX reports it per face)."""
+    """``[{object, blanked, color?, color_name?, transparency?, faces_differ?, faces?}]``
+    for ``(obj, record)`` pairs: one row per object, a body's faces only as
+    ``faces_differ`` (how many faces have another colour or transparency than the body)
+    and the first ``display.FACE_ROWS`` of them in ``faces``. ``color_name`` is given where
+    the index is a named colour; a body's transparency is None when its faces disagree."""
     records = {int(obj.Tag): record for obj, record in pairs}
     names = color_names(tx) if any("color_index" in r for r in records.values()) else {}
     out: list[DisplayRow] = []
@@ -118,11 +128,31 @@ def display_rows(tx, pairs) -> list[DisplayRow]:
             if row["color"] in names:
                 row["color_name"] = names[row["color"]]
             transparency = record.get("transparency")
-            if transparency is None:
+            if transparency is None and "faces" not in record:
                 transparency = _faces_transparency(obj, records)
+            odd = record.get("faces") or []
+            if any(f.get("transparency") != transparency for f in odd):
+                transparency = None  # the faces disagree
             row["transparency"] = None if transparency is None else int(transparency)
+            if odd:
+                row["faces_differ"] = len(odd)
+                row["faces"] = _face_rows(tx, odd[: display.FACE_ROWS])
         out.append(row)
     return out
+
+
+def _face_rows(tx, odd) -> list[FaceRow]:
+    """Rows of the faces a body record lists (faces the model lost are left out)."""
+    rows: list[FaceRow] = []
+    for item in odd:
+        try:
+            face = select.resolve(tx, display.record_id(item), "face")
+        except NXError:
+            continue
+        shade = item.get("transparency")
+        rows.append({"object": tx.ref(face, "face"), "color": int(item["color_index"]),
+                     "transparency": None if shade is None else int(shade)})  # fmt: skip
+    return rows
 
 
 def _faces_transparency(obj, records):

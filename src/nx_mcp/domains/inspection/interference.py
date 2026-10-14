@@ -39,6 +39,9 @@ from nx_mcp.kit import files, geom, measure, result
 DEFAULT_PAIRS = 100
 MAX_PAIRS = 10000
 CONTACT = 1e-7  # part units: at or below this minimum distance a pair touches
+# Part units cubed: NX reports coincident faces as an interference whose bodies have no
+# volume (or none at all); at or below this overlap volume the pair touches (contact).
+CONTACT_VOLUME = 1e-6
 MAX_CLOSEUPS = 8
 FLAGGED = ("penetration", "contact", "below_clearance")
 SKIPPED_REASON = (
@@ -103,7 +106,8 @@ def temporary(tx):
 
 def _overlap(tx, a, b):
     """``(classification, overlap volume, overlap box)`` of a touching pair (solid
-    interference); the box bounds the interference bodies of a penetration."""
+    interference); the box bounds the interference bodies. An interference without
+    volume (faces lying on each other) is contact, not penetration."""
     part = tx.part
     outcome = tx.nx.GeometricAnalysis.SimpleInterference.Result
     with temporary(tx):
@@ -123,9 +127,11 @@ def _overlap(tx, a, b):
                 with native():
                     solids = [r for r in check.GetInterferenceResults() if r.IsSolidBody]
                 if not solids:
-                    return "penetration", 0.0, None
+                    return "contact", 0.0, None
                 low, high = measure.bounds(tx, solids)
-                return "penetration", measure.volume(tx, solids), {"min": low, "max": high}
+                volume = measure.volume(tx, solids)
+                kind = "penetration" if volume > CONTACT_VOLUME else "contact"
+                return kind, volume, {"min": low, "max": high}
             if found == outcome.OnlyEdgesOrFacesInterfere:
                 return "contact", 0.0, None
             if found == outcome.NoInterference:
@@ -280,7 +286,8 @@ def nx_check_interference(
 ) -> InterferenceData:
     """Check interference and clearance between the solid bodies of objects. No objects: every
     solid of the work part and loaded components (sheets skipped). Pair points are closest
-    points, equal when bodies touch or overlap (see overlap_box)."""
+    points, equal when bodies touch or overlap (see overlap_box). contact: touching without
+    overlap volume (faces lying on each other); penetration: overlap volume over 0."""
     common.note_exploded(tx)
     clearance = float(clearance)  # the kernel converted the quantity to part units
     if clearance < 0:

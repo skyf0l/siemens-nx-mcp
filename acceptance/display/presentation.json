@@ -14,7 +14,17 @@
     "path": "$fixture"
    }
   },
-  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('display_presentation') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at the scenario's part (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
+  {
+   "call": "engineer",
+   "args": {
+    "code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('display_presentation') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"
+   },
+   "intent": "Acceptance: the engineer looks at the scenario's part (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)",
+   "expect": {
+    "ok": true,
+    "data.noticed": false
+   }
+  },
   {
    "call": "nx_list_objects",
    "setup": true,
@@ -99,7 +109,7 @@
    },
    "expect": {
     "mutation_outcome": "committed",
-    "data.objects": 10,
+    "data.objects": 2,
     "data.sections": 1,
     "data.path": {
      "matches": "review[.]json$"
@@ -107,7 +117,8 @@
     "data.sha256": {
      "matches": "^[0-9a-f]{64}$"
     }
-   }
+   },
+   "intent": "Acceptance: a body is saved as one row and only its face coloured unlike it as a second"
   },
   {
    "call": "nx_save_presentation",
@@ -174,7 +185,7 @@
    "expect": {
     "mutation_outcome": "committed",
     "data.identical": true,
-    "data.count": 10,
+    "data.count": 2,
     "data.sections": 1,
     "data.camera.rotation.0": {
      "close": [
@@ -209,15 +220,20 @@
     ]
    },
    "expect": {
-    "data.objects.0.color": 129,
     "data.objects": {
+     "count": 1
+    },
+    "data.objects.0.color": 129,
+    "data.objects.0.transparency": 0,
+    "data.objects.0.faces_differ": 1,
+    "data.objects.0.faces": {
      "contains": {
       "color": 211,
       "transparency": 0
      }
-    },
-    "data.objects.9.transparency": 0
-   }
+    }
+   },
+   "intent": "Acceptance: the body is back to its colour and transparency on every face but the blue one"
   },
   {
    "call": "nx_list_objects",

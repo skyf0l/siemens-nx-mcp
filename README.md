@@ -118,7 +118,8 @@ Codex), and for NX where noted.
 Architecture: [docs/design/architecture.md](docs/design/architecture.md); tool rules:
 [docs/design/tool-surface.md](docs/design/tool-surface.md); how to add a tool and the
 live NX test loop: [CLAUDE.md](CLAUDE.md); tested scope per NX build:
-[docs/capability-matrix.md](docs/capability-matrix.md).
+[docs/capability-matrix.md](docs/capability-matrix.md). Several agents building one
+product in one NX: [docs/guides/multi-agent-builds.md](docs/guides/multi-agent-builds.md).
 
 ```powershell
 .venv\Scripts\pip install -e ".[dev]"

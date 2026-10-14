@@ -26,7 +26,7 @@
   {"call": "nx_list_objects", "direct": true, "args": {"kind": "body", "part": "p5_cover"},
    "expect": {"ok": true, "part.file": "p5_cover.prt"}},
   {"call": "nx_find_geometry", "direct": true, "args": {"kind": "face", "normal": "+z", "part": "p5_cover"},
-   "intent": "Acceptance: every ref-less direct core tool takes part (bench3p: agents passed owner refs instead)",
+   "intent": "Acceptance: every ref-less direct core tool takes part (agents passed owner refs instead)",
    "expect": {"ok": true, "part.file": "p5_cover.prt", "data.items": {"count": 1}}},
   {"call": "nx_list_components", "direct": true, "args": {"part": "p5_housing"},
    "expect": {"ok": true, "part.file": "p5_housing.prt", "page.total": 0}},

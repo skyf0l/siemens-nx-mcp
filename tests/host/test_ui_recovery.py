@@ -676,6 +676,9 @@ def test_running_snapshot_is_readable_without_ui_queue_or_nx_calls(host, rig):
         assert not thread.is_alive()
         state = json.loads((host.state_dir / "ui-state.json").read_text())
         assert state["running_method"] == "nx_test_busy"
+        # The heartbeat the sidecar reads while the UI thread is held (host/heartbeat.py).
+        assert state["running_operation_id"] == "op_busy_0001" and "parts" in state
+        assert abs(state["running_started_at"] - time.time()) < 60
         text = host.panel.update.call_args.args[0]
         # The running step is the top line of the history; the title says the mode.
         top = text.splitlines()[0]

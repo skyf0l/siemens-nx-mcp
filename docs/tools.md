@@ -569,7 +569,7 @@ Move a section plane, switch its cap, or enable/disable it. A plane with only or
 
 **Get appearance** · effect `read` · NX 2406: tested; 69 checks in `acceptance/display/natural_values.json`
 
-Read blank state, colour and transparency of objects; bodies list their faces too. count_only returns just how many objects and faces a display change would touch.
+Read blank state, colour and transparency of objects, one row per object. A body row gives faces_differ (faces coloured unlike the body) and the first few; pass faces to read each. count_only: just the number of objects and their faces.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -629,7 +629,7 @@ Undo a display change by restore_id ('last' or none: the newest; newest first), 
 
 ### `nx_save_presentation`
 
-**Save view and appearance to JSON** · effect `file` · NX 2406: tested; 30 checks in `acceptance/display/presentation.json`
+**Save view and appearance to JSON** · effect `file` · NX 2406: tested; 32 checks in `acceptance/display/presentation.json`
 
 Save the camera, active section and every body and component's appearance to a new .json file. Never overwrites; nx_restore_display(presentation=...) applies it again.
 
@@ -641,19 +641,19 @@ Save the camera, active section and every body and component's appearance to a n
 
 **Set appearance** · effect `view` · NX 2406: tested; 69 checks in `acceptance/display/natural_values.json`
 
-Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) of objects. Components and features colour their bodies. Persists when the part is saved; undo with nx_restore_display(restore_id).
+Set the colour and/or transparency (0 opaque, 100 clear) of objects. color: index 1-216, a basic name, a colour-table name, '#RRGGBB' or [r,g,b] (nearest table colour, see color_match). A body is coloured whole (all its faces); components and features colour their bodies. Persists when saved; undo: nx_restore_display(restore_id).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `objects` | array[1-1000] of Ref | required |  |
-| `color` | integer or `red` \| `green` \| `blue` \| `yellow` \| `cyan` \| `magenta` \| `orange` \| `white` \| `black` \| `gray` or string | optional |  |
+| `color` | integer or `red` \| `green` \| `blue` \| `yellow` \| `cyan` \| `magenta` \| `orange` \| `white` \| `black` \| `gray` or array[3] of number or string | optional |  |
 | `transparency` | integer or string | optional |  |
 
 ### `nx_set_camera`
 
 **Set camera: orient, zoom, fit view** · effect `view` · NX 2406: tested; 54 checks in `acceptance/display/view_directions.json`
 
-Orient, pan, zoom or fit the displayed part's model view (it must be the work part); returns restore_id. Direction: one of orientation, view_from (+ up) or rotation. scale is absolute, zoom a factor: not both; fit takes zoom, not origin or scale. NX iso looks from (1,-1,1); view_from [-1,-1,1] shows a min-X front.
+Orient, pan, zoom or fit the displayed part's model view (it must be the work part); returns restore_id. Direction: one of orientation, view_from (+ up) or rotation. scale is absolute, zoom a factor: not both; fit (shown bodies, centred; not datums) takes zoom, not origin or scale. NX iso looks from (1,-1,1); [-1,-1,1] shows a min-X front.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1691,7 +1691,7 @@ Check G1/G2 continuity across every edge two of the faces share. E.g. a blend an
 
 **Check interference** · effect `read` · NX 2406: tested; 23 checks in `acceptance/inspection/interference_sheets.json`
 
-Check interference and clearance between the solid bodies of objects. No objects: every solid of the work part and loaded components (sheets skipped). Pair points are closest points, equal when bodies touch or overlap (see overlap_box).
+Check interference and clearance between the solid bodies of objects. No objects: every solid of the work part and loaded components (sheets skipped). Pair points are closest points, equal when bodies touch or overlap (see overlap_box). contact: touching without overlap volume (faces lying on each other); penetration: overlap volume over 0.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1703,13 +1703,14 @@ Check interference and clearance between the solid bodies of objects. No objects
 
 ### `nx_check_model`
 
-**Check model health** · effect `read` · NX 2406: tested; 19 checks in `acceptance/inspection/self_overlap.json`
+**Check model health** · effect `read` · NX 2406: tested; 19 checks in `acceptance/inspection/self_overlap_face_limit.json`
 
-Check feature errors/warnings, suppression, unloaded components, unsolved constraints and bodies. Bodies: consistency, self-overlap, sealed voids. healthy: no errors or warnings; no update.
+Check feature errors/warnings, suppression, unloaded components, unsolved constraints and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended). healthy: no errors/warnings; no update.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `scope` | `part` \| `assembly` | `"part"` | assembly adds loaded components |
+| `clash` | boolean | `false` | Also check solids over 2,000 faces for self-overlap (up to 1 h each, NX frozen) and voids |
 | `offset` | integer | `0` |  |
 | `limit` | integer | `20` |  |
 
@@ -1809,7 +1810,7 @@ Find holes (bores grouped by axis) with diameters, form, length, through and end
 
 ### `nx_get_model_summary`
 
-**Get model summary** · effect `read` · NX 2406: tested; 50 checks in `acceptance/inspection/health.json`
+**Get model summary** · effect `read` · NX 2406: tested; 19 checks in `acceptance/inspection/self_overlap_face_limit.json`
 
 Summarise the work part: counts, bounds and health, or one page of its features, expressions, sketches or components.
 
@@ -1986,9 +1987,9 @@ Blend the edges meeting at a corner and set the blends back for a smooth corner 
 
 ### `nx_create_boolean`
 
-**Combine bodies** · effect `model` · NX 2406: tested (all variants); 26 checks in `acceptance/modeling/compact_results.json`
+**Combine bodies** · effect `model` · NX 2406: tested (all variants); 8 checks in `acceptance/modeling/unite_readback.json`
 
-Unite, subtract or intersect tool bodies with a target body; the tools are consumed. bodies lists the result bodies, the target's first.
+Unite, subtract or intersect tool bodies with a target body; the tools are consumed. bodies lists the result bodies, the target's first. A unite that drops a tool or grows past target plus tools is rolled back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2241,11 +2242,11 @@ Create one NX Hole feature with 1-100 holes on a planar face, drilled into the m
 
 **Loft through sections** · effect `model` · NX 2406: tested; 19 checks in `acceptance/modeling/loft_options.json`
 
-Loft a body through 2-20 section sketches in order (NX Through Curves; Swept along guides). Closed sections start at matching corners: no twist.
+Loft a body through 2-20 sections in order (NX Through Curves; Swept along guides). A section is a sketch, a curve or edge, or a list of curves and edges forming one chain. Closed sections start at matching corners: no twist.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `sections` | array[2-20] of Ref | required |  |
+| `sections` | array[2-20] of Ref or array[1-50] of Ref | required | Each a sketch, a curve or edge (e.g. a closed spline), or a list of curves/edges |
 | `solid` | boolean | `true` |  |
 | `start_points` | array[2-20] of array[3] of number | optional |  |
 | `guides` | array[1-3] of Ref | optional |  |
@@ -2314,16 +2315,18 @@ Replace faces of a body with a sheet whose edges all lie on it (Patch). The targ
 
 ### `nx_create_pattern`
 
-**Pattern features** · effect `model` · NX 2406: tested (all variants); 23 checks in `acceptance/modeling/pattern_unite.json`
+**Pattern features or bodies** · effect `model` · NX 2406: tested (all variants); 23 checks in `acceptance/modeling/pattern_unite.json`
 
-Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a face, or at explicit points. Counts include the seed; general positions list only the copies. NX computes spiral and fill counts. A seed with its own body makes new bodies (new_bodies) unless unite; a circular angle is the step between instances.
+Pattern features or whole bodies: linear, circular, along a curve, polygon, spiral, face fill or explicit points. Counts include the seed; general positions list only the copies; a circular angle is the step. NX computes spiral and fill counts. Copies of bodies, or of a seed that made its own body, are new bodies (new_bodies) unless unite (into the seed's body) or unite_into (into another body they touch).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `features` | array[1-50] of Ref | required | Feature ids f:.., not bodies b:.. |
 | `layout` | `linear` \| `circular` \| `along_curve` \| `polygon` \| `spiral` \| `fill` \| `general` | required |  |
 | `parameters` | object | required | Layout parameters: nx_get_tool_schemas(nx_create_pattern#<layout>) |
+| `features` | array[1-50] of Ref | optional | Feature ids f:.., not bodies b:.. |
+| `bodies` | array[1-50] of Ref | optional | Instead of features: whole solid bodies as they are now (NX Pattern Geometry) |
 | `unite` | boolean | `false` | Unite copies made as separate bodies into the seed's body (they must touch it) |
+| `unite_into` | Ref | optional | Unite the seed bodies and every copy into this other body (all must touch it) |
 
 `parameters` fields by variant (`?` optional):
 
@@ -2359,9 +2362,9 @@ Create a block, cylinder, cone or sphere solid as a new body or combined with bo
 
 ### `nx_create_revolve`
 
-**Revolve sketch** · effect `model` · NX 2406: tested; 37 checks in `acceptance/modeling/revolve.json`
+**Revolve sketch** · effect `model` · NX 2406: tested; 21 checks in `acceptance/modeling/revolve_profile.json`
 
-Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combined with bodies. Angles follow the right-hand rule about the axis direction.
+Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combined with bodies. Angles follow the right-hand rule about the axis direction. NX closes an open profile into a solid unless sheet is true; the result's sheet says which was built.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2370,6 +2373,7 @@ Revolve a sketch about an absolute axis ('z' is world Z), as a new body or combi
 | `start_angle` | number or string | `0.0` | Degrees, or '90 deg' |
 | `end_angle` | number or string | `360.0` | Degrees, or '90 deg' |
 | `combine` | object {operation, targets} | optional |  |
+| `sheet` | boolean | `false` | Build sheet bodies (surfaces), not solids; no combine |
 
 ### `nx_create_rib`
 
@@ -2480,9 +2484,9 @@ Thread a cylindrical face, or several (faces: one thread each). spec: a table si
 
 ### `nx_create_transform`
 
-**Move or copy bodies** · effect `model` · NX 2406: tested; 20 checks in `acceptance/modeling/transform.json`
+**Move or copy bodies** · effect `model` · NX 2406: tested; 19 checks in `acceptance/modeling/transform_copy_order.json`
 
-Move or copy solid bodies: rotate (matrix about [0, 0, 0] or angle about an axis), then translate.
+Move or copy solid bodies: rotate (matrix about [0, 0, 0] or angle about an axis), then translate. bodies lists the moved bodies or copies in input order.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2991,15 +2995,15 @@ Copy the saved work part and its component files to a new .zip or clone folder. 
 
 ### `nx_export_model`
 
-**Export model** · effect `file` · NX 2406: tested: dwg, dxf, iges, jt, parasolid, step, stl (untested: step_ap242); 40 checks in `acceptance/parts_files/export_model.json`
+**Export model** · effect `file` · NX 2406: tested: dwg, dxf, iges, jt, parasolid, step, stl (untested: step_ap242); 41 checks in `acceptance/parts_files/export_model_assembly.json`
 
-Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved part only), DXF .dxf/DWG .dwg (3D model data; drawing sheets: nx_export_drawing); the suffix picks the format. Unsaved changes are exported; the part is never saved. A part named by part is displayed for the export, then the tab shown before comes back.
+Export the work part, or some of its bodies, to a new neutral CAD file. STEP .step/.stp (AP214), STL .stl, IGES .igs, Parasolid .x_t/.x_b, JT .jt (saved parts only), DXF .dxf/DWG .dwg (3D model data; drawing sheets: nx_export_drawing); the suffix picks the format. An assembly exports with its loaded components in assembly coordinates, in one file. Unsaved changes are exported; the part is never saved. A part named by part is displayed for the export, then the tab shown before comes back.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `path` | string | required | Workspace path |
 | `format` | `step` \| `step_ap242` \| `stl` \| `iges` \| `parasolid` \| `jt` \| `dxf` \| `dwg` | optional | Default: from the path suffix (.step/.stp: AP214); AP242 needs the STEP AP242 translator license |
-| `bodies` | array[1-200] of Ref | optional | Only these bodies |
+| `bodies` | array[1-200] of Ref | optional | Only these bodies: the work part's or its components' (occurrence bodies) |
 | `options` | object {binary, chordal_tolerance, angular_tolerance} | optional |  |
 
 ### `nx_export_profile`
@@ -3262,7 +3266,7 @@ Page or expand a stored result by result_id without repeating the call or reachi
 
 **Get NX status** · effect `read` · NX 2406: tested; 50 checks in `acceptance/session/status_operations.json`
 
-NX build, bridge state, panel mode, work and display part, workspace root and rules. Also the running operation; answers while NX runs a step (from a snapshot) and when the bridge is down. Panel mode: auto or ask (Ask me first); only the engineer changes it.
+NX build, bridge state, panel mode, work/display part, workspace root/rules, running operation. Answers in seconds even when NX is busy, hung or down: bridge.health says what runs, for how long, what to do. Mode auto or ask: only the engineer changes it.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -3557,14 +3561,14 @@ Fillet (radius) or chamfer (distance) the corner where two sketch curves meet; b
 
 ### `nx_create_sketch_curves`
 
-**Create sketch curves** · effect `model` · NX 2406: tested (all variants); 37 checks in `acceptance/sketch/sketch_polyline.json`
+**Create sketch curves** · effect `model` · NX 2406: tested (all variants); 18 checks in `acceptance/sketch/sketch_spline.json`
 
-Add 1-100 curves to a sketch, sketch-local in plain numbers (part units, degrees). Fields: line start, end; polyline points, closed; arc center, radius, start_angle, end_angle (CCW); circle center, radius; ellipse center, major/minor_radius; rectangle corner1, corner2; polygon center, sides, radius; slot center, width, height; rounded_rectangle center, width, height, radius; diameter can replace radius. The result's loops give each chain's closure (one inside another: hollow).
+Add 1-100 curves to a sketch, sketch-local in plain numbers (part units, degrees). Fields: line start, end; polyline points, closed; spline points, closed, start/end_tangent; arc center, radius, start_angle, end_angle (CCW); circle center, radius; ellipse center, major/minor_radius; rectangle corner1, corner2; polygon center, sides, radius; slot center, width, height; rounded_rectangle center, width, height, radius; diameter can replace radius. loops: each chain's closure (nested: hollow).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `sketch` | Ref | required | Ref: sketch |
-| `curves` | array[1-100] of object {type, start, end, center, corner1, corner2, radius, diameter, major_radius, minor_radius, width, height, start_angle, end_angle, rotation, sides, inscribed, points, closed} | required | Fields per type: see the description |
+| `curves` | array[1-100] of object {type, start, end, center, corner1, corner2, radius, diameter, major_radius, minor_radius, width, height, start_angle, end_angle, rotation, sides, inscribed, points, closed, start_tangent, end_tangent} | required | Fields per type: see the description |
 | `construction` | boolean | `false` | Create construction (reference) curves |
 
 ### `nx_create_sketch_dimensions`

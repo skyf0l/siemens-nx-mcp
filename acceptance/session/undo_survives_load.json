@@ -58,7 +58,7 @@
    "expect": {"mutation_outcome": "committed", "data.undone_operation_id": "$a2.operation_id",
               "data.undo_depth": 1}},
   {"call": "nx_undo_operation", "args": {"part": "$part"},
-   "intent": "Acceptance: NX's undo ends at the loads (undoing across them would unload B and C): the default undo compensates the block instead (bench3t)",
+   "intent": "Acceptance: NX's undo ends at the loads (undoing across them would unload B and C): the default undo compensates the block instead",
    "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.undone": ["$a1.operation_id"],
               "warnings": {"contains": {"code": "NX_UPDATE_WARNING"}},
               "changes.deleted": {"count_kind": {"feature": 1, "body": 1}}}},

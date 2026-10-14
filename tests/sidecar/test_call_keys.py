@@ -2,8 +2,8 @@
 
 The sidecar path is the source of truth for what an agent's ``part`` reaches NX with:
 inside ``nx_invoke``/``nx_invoke_read`` arguments, and on the direct core tools, whose
-listed schemas name ``part`` on the seven ref-less ones (benchmark bench3p: agents trust
-a strict schema over the instructions). The proxy pops it as a call key before gate 1.
+listed schemas name ``part`` on the seven ref-less ones (agents trust a strict schema
+over the instructions). The proxy pops it as a call key before gate 1.
 A changing call gets ``expires_at`` (the ghost guard) unless the agent gave one. Every NX
 call gets ``caller`` (core/busy.py): the sidecar's, never the agent's.
 """

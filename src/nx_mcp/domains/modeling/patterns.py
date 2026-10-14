@@ -9,6 +9,14 @@ fill is a linear layout with a ``PatternFill`` face boundary and a simplified la
 type), Circular, Polygon, Spiral, AlongPath and General. NX computes the instance
 count of spiral and fill layouts, so every layout reads the count back from the
 committed pattern's instances, not from the requested numbers.
+
+Whole bodies are patterned with Pattern Geometry (``CreatePatternGeometryBuilder``,
+``GeometryToPattern`` a ``SelectDisplayableObjectList``), whose ``PatternService`` is the
+same ``PatternDefinition`` as the feature pattern's, so every layout configures both. It
+patterns a body as it is now, whatever features made it: NX refuses to pattern some seed
+sets of several features (native 674207, "unsupported situation", seen for a
+body-creating feature together with the Boolean that modifies its body). Each copy is a
+separate body, counted from the bodies the call adds.
 """
 
 from __future__ import annotations
@@ -89,7 +97,10 @@ def _body_instead(tx, ref, error, field):
         f"Pass the feature that made the body ({made[0]}, see nx_list_objects kind feature)"
         if made
         else "Pass a feature id f:.. (nx_list_objects kind feature)"
-    ) + "; to copy whole bodies use nx_create_mirror target bodies or nx_create_transform copy"
+    ) + (
+        "; to copy whole bodies use nx_create_pattern bodies, nx_create_mirror target bodies "
+        "or nx_create_transform copy"
+    )
 
 
 def _hosts(seeds):
@@ -126,6 +137,45 @@ def _unite_new(tx, host, new):
         return None, {}
     feature, body = common.unite_into(tx, host, new)
     return [body], {"united": len(new), "unite_feature": tx.ref(feature, kind="feature")}
+
+
+INTO_HINT = (
+    "Every patterned body must overlap or touch the unite_into body; omit unite_into to keep "
+    "separate bodies, or unite the touching ones with nx_create_boolean"
+)
+
+
+def _into(tx, ref, unite):
+    """The ``unite_into`` body (a solid of the work part), checked before NX, else None."""
+    if ref is None:
+        return None
+    if unite:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give unite or unite_into, not both",
+            field="/unite_into",
+            hint="unite merges the copies into the seed's body; unite_into merges the seed "
+            "bodies and every copy into another body",
+        )
+    return common.solid(tx, ref, "/unite_into")
+
+
+def _unite_all(tx, into, bodies):
+    """``(bodies, extra data)`` after uniting every pattern body but ``into`` itself into
+    ``into`` (``unite_into``): the seed bodies and every copy."""
+    if into is None:
+        return None, {}
+    tools = [b for b in bodies if int(b.Tag) != int(into.Tag)]
+    if not tools:  # the seed features are on the unite_into body and made no new body
+        return [into], {"united": 0}
+    try:
+        feature, body = common.unite_into(tx, into, tools)
+    except NXError as error:
+        if error.code == "NX_BUILD_FAILED":
+            error.hint = INTO_HINT
+            error.field = error.field or "/unite_into"
+        raise
+    return [body], {"united": len(tools), "unite_feature": tx.ref(feature, kind="feature")}
 
 
 def _update(tx):
@@ -413,20 +463,25 @@ Parameters = Annotated[
 
 class PatternData(United):
     feature: result.Row
-    bodies: Annotated[list[result.Row], Doc("The seed's body first, then the new bodies")]
+    bodies: Annotated[
+        list[result.Row],
+        Doc("Seed bodies first, then the new bodies; after unite or unite_into the one body"),
+    ]
     volume: float
     layout: str
-    count: int
+    count: Annotated[int, Doc("Instances per seed, the seed included")]
     new_bodies: Annotated[
         int,
-        Doc("Instances NX built as separate bodies (a seed that made its own body; 0 after "
-            "unite)"),
+        Doc("Copies NX built as separate bodies (every copy of bodies, or of a seed that made "
+            "its own body; 0 after unite)"),
     ]  # fmt: skip
 
 
 def _pattern_summary(a, say):
     count = (a.get("parameters") or {}).get("count")
-    return f"Pattern {say('features')} {a.get('layout')}" + (f" x{count}" if count else "")
+    what = say("bodies") if a.get("bodies") else say("features")
+    into = f" into {a['unite_into']}" if a.get("unite_into") else ""
+    return f"Pattern {what} {a.get('layout')}" + (f" x{count}" if count else "") + into
 
 
 def _check(layout, p):
@@ -677,18 +732,130 @@ def instance_count(feature):
         return 1 + len(list(feature.GetImmediateContainedFeatures()))
 
 
+# NX refuses to pattern some sets of seed features together ("unsupported situation"),
+# e.g. a body-creating feature with the Boolean feature that modifies its body.
+PATTERN_UNSUPPORTED = 674207
+UNSUPPORTED_HINT = (
+    "NX cannot pattern these seed features together (e.g. a feature that makes a body with "
+    "the Boolean that changes it): pattern only the body-creating feature and combine "
+    "afterwards, or pattern the finished body with bodies [b:..] instead of features"
+)
+
+
+def _expect_count(count, total):
+    if total is not None:
+        readback.expect(count == total, "count", "NX built a different instance count", count=count)
+    else:
+        readback.expect(count >= 2, "count", "NX built no instance", count=count)
+        readback.expect(count <= MAX_INSTANCES, "count", f"More than {MAX_INSTANCES} instances",
+                        count=count)  # fmt: skip
+
+
+def _pattern_features(tx, refs, layout, p, total, unite, unite_into):
+    with tx.checks():
+        seeds = _seeds(tx, refs)
+        _resolve(tx, layout, p)
+        hosts = _hosts(seeds)
+        host = _unite_host(hosts, unite)
+        into = _into(tx, unite_into, unite)
+    before = measure.volume(tx, list(hosts.values())) if hosts else 0.0
+    existing = {int(b.Tag) for b in tx.part.Bodies}
+    G = tx.nx.GeometricUtilities
+    try:
+        with builders.build(tx, tx.part.Features.CreatePatternFeatureBuilder, None) as b:
+            b.FeatureList.Add(seeds)
+            b.PatternMethod = tx.nx.Features.PatternFeatureBuilder.PatternMethodOptions.Simple
+            CONFIGURE[layout](tx, b.PatternService, G, p)
+            feature = b.commit()
+    except NXError as error:
+        if error.nx_code == PATTERN_UNSUPPORTED and not error.hint:
+            error.hint = UNSUPPORTED_HINT
+            error.field = error.field or "/features"
+        raise
+    count = instance_count(feature)
+    _expect_count(count, total)
+    # NX 2406 patterns a seed that made its own body (an extrude without combine) as new
+    # bodies, one per instance, and leaves the seed body unchanged: count them in.
+    new = [b for b in tx.part.Bodies if int(b.Tag) not in existing]
+    bodies = [*hosts.values(), *new] or common.feature_bodies(feature)
+    out = common.result_of(tx, feature, bodies)
+    if hosts:
+        common.changed(before, out["volume"], "differs")
+    united, extra = _unite_new(tx, host, new)
+    if united is None:
+        united, extra = _unite_all(tx, into, bodies)
+    if united is not None:
+        out = {**common.result_of(tx, feature, united), **extra}
+        new = []
+    return {**out, "layout": layout, "count": count, "new_bodies": len(new)}
+
+
+# Copies of a body are rigid: their volume equals the source's (NX mass properties of
+# B-surface bodies differ by about 1e-5 after a rigid move, hence the wider band).
+COPY_REL = 1e-4
+
+
+def _pattern_bodies(tx, refs, layout, p, total, unite, unite_into):
+    args.distinct("/bodies", refs, "bodies")
+    with tx.checks():
+        sources = common.solids(tx, refs, "/bodies")
+        _resolve(tx, layout, p)
+        hosts = {int(b.Tag): b for b in sources}
+        host = _unite_host(hosts, unite)
+        into = _into(tx, unite_into, unite)
+    volume = measure.volume(tx, sources)
+    existing = {int(b.Tag) for b in tx.part.Bodies}
+    G = tx.nx.GeometricUtilities
+    with builders.build(tx, tx.part.Features.CreatePatternGeometryBuilder, None) as b:
+        b.GeometryToPattern.Add(sources)
+        b.IsAssociative = True  # a Pattern Geometry feature that follows its sources
+        b.HideOriginal = False
+        CONFIGURE[layout](tx, b.PatternService, G, p)
+        feature = b.commit()
+    new = [x for x in tx.part.Bodies if int(x.Tag) not in existing]
+    per, left = divmod(len(new), len(sources))
+    readback.expect(not left, "bodies", "NX built a copy count that is not a whole number "
+                    "per body", copies=len(new), sources=len(sources))  # fmt: skip
+    count = 1 + per
+    _expect_count(count, total)
+    out = common.result_of(tx, feature, [*sources, *new])
+    copies = out["volume"] - volume
+    want = volume * (count - 1)
+    readback.expect(
+        abs(copies - want) <= COPY_REL * max(1.0, abs(want)),
+        "volume",
+        "The copies do not hold the source volume",
+        copies=copies,
+        expected=want,
+    )
+    united, extra = _unite_new(tx, host, new)
+    if united is None:
+        united, extra = _unite_all(tx, into, [*sources, *new])
+    if united is not None:
+        out = {**common.result_of(tx, feature, united), **extra}
+        new = []
+    return {**out, "layout": layout, "count": count, "new_bodies": len(new)}
+
+
+BodySeeds = Annotated[
+    list[BodyRef],
+    Items(1, 50),
+    Doc("Instead of features: whole solid bodies as they are now (NX Pattern Geometry)"),
+]
+
+
 @tool(
     effect="model",
-    label="Pattern features",
+    label="Pattern features or bodies",
     summary=_pattern_summary,
     keywords=(
         "pattern",
         "array",
         "circular pattern",
-        "polygon pattern",
-        "spiral pattern",
         "fill pattern",
         "pattern along curve",
+        "pattern geometry",
+        "pattern body",
         "copies",
     ),
     requires=("work_part", "no_active_sketch"),
@@ -704,46 +871,32 @@ def instance_count(feature):
 def nx_create_pattern(
     tx: Tx,
     *,
-    features: FeatureList,
     layout: Layout,
     parameters: Parameters,
+    features: FeatureList | None = None,
+    bodies: BodySeeds | None = None,
     unite: Annotated[bool, Doc(UNITE_TEXT)] = False,
+    unite_into: Annotated[
+        BodyRef,
+        Doc("Unite the seed bodies and every copy into this other body (all must touch it)"),
+    ]
+    | None = None,
 ) -> PatternData:
-    """Pattern features linearly, circularly, along a curve, on a polygon or spiral, filling a
-    face, or at explicit points. Counts include the seed; general positions list only the
-    copies. NX computes spiral and fill counts. A seed with its own body makes new bodies
-    (new_bodies) unless unite; a circular angle is the step between instances."""
+    """Pattern features or whole bodies: linear, circular, along a curve, polygon, spiral, face
+    fill or explicit points. Counts include the seed; general positions list only the
+    copies; a circular angle is the step. NX computes spiral and fill counts.
+    Copies of bodies, or of a seed that made its own body, are new bodies (new_bodies) unless
+    unite (into the seed's body) or unite_into (into another body they touch)."""
+    if (features is None) == (bodies is None):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "Give features or bodies (exactly one)",
+            field="/bodies" if bodies is not None else "/features",
+            hint="features [f:..] patterns features within their bodies; bodies [b:..] copies "
+            "whole bodies as they are (use it when the seed is several features)",
+        )
     p = {k: common.principal(v) if k in SHORT_AXES else v for k, v in parameters.items()}
     total = _check(layout, p)
-    with tx.checks():
-        seeds = _seeds(tx, features)
-        _resolve(tx, layout, p)
-        hosts = _hosts(seeds)
-        host = _unite_host(hosts, unite)
-    before = measure.volume(tx, list(hosts.values())) if hosts else 0.0
-    existing = {int(b.Tag) for b in tx.part.Bodies}
-    G = tx.nx.GeometricUtilities
-    with builders.build(tx, tx.part.Features.CreatePatternFeatureBuilder, None) as b:
-        b.FeatureList.Add(seeds)
-        b.PatternMethod = tx.nx.Features.PatternFeatureBuilder.PatternMethodOptions.Simple
-        CONFIGURE[layout](tx, b.PatternService, G, p)
-        feature = b.commit()
-    count = instance_count(feature)
-    if total is not None:
-        readback.expect(count == total, "count", "NX built a different instance count", count=count)
-    else:
-        readback.expect(count >= 2, "count", "NX built no instance", count=count)
-        readback.expect(count <= MAX_INSTANCES, "count", f"More than {MAX_INSTANCES} instances",
-                        count=count)  # fmt: skip
-    # NX 2406 patterns a seed that made its own body (an extrude without combine) as new
-    # bodies, one per instance, and leaves the seed body unchanged: count them in.
-    new = [b for b in tx.part.Bodies if int(b.Tag) not in existing]
-    bodies = [*hosts.values(), *new] or common.feature_bodies(feature)
-    out = common.result_of(tx, feature, bodies)
-    if hosts:
-        common.changed(before, out["volume"], "differs")
-    united, extra = _unite_new(tx, host, new)
-    if united is not None:
-        out = {**common.result_of(tx, feature, united), **extra}
-        new = []
-    return {**out, "layout": layout, "count": count, "new_bodies": len(new)}
+    if features is not None:
+        return _pattern_features(tx, features, layout, p, total, unite, unite_into)
+    return _pattern_bodies(tx, bodies, layout, p, total, unite, unite_into)

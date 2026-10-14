@@ -166,7 +166,7 @@ def test_a_row_height_that_is_not_positive_is_refused_before_nx():
 
 
 def test_a_grid_edit_that_changes_the_column_count_is_refused_before_nx():
-    """Bug-fix round: widths or rows for another column count were refused rolled_back."""
+    """Widths or rows for another column count are refused before NX, not rolled back."""
     nx = grid_nx()
     ok = revision(nx, [["A", "First"]], [40, 60])
     assert ok.ok, ok

@@ -8,7 +8,7 @@ An ``expect`` maps a dotted path into the step result (``data.origin.2``,
 - ``{"count": n}``: length of a list, dict or string;
 - ``{"count_kind": {"feature": 1}}``: rows of a list counted by their ``kind``;
 - ``{"contains": v}``: list member, substring, or a dict subset;
-- ``{"matches": "regex"}``: ``re.search`` on the text.
+- ``{"matches": "regex"}``: ``re.search`` on the text (a number matches as its text).
 
 Every path is one check.
 """
@@ -113,6 +113,8 @@ def check(payload: Any, path: str, rule: Any) -> str | None:
         elif op == "contains":
             ok = _contains(actual, wanted)
         elif op == "matches":
+            if isinstance(actual, (int, float)) and not isinstance(actual, bool):
+                actual = str(actual)
             ok = isinstance(actual, str) and re.search(wanted, actual) is not None
         else:  # pragma: no cover - is_operator() admits only known operators
             ok = False

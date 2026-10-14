@@ -29,12 +29,17 @@ def test_kit_topology_change_keeps_faces_of_bodies_and_retires_the_rest():
     assert retired == {loose} and kept in nx.refs
 
 
-def test_kit_display_records_report_transparency_of_faces_only():
+def test_kit_display_records_keep_a_body_in_one_record():
+    """Like the host: a body's record carries its faces' common transparency and only
+    the faces that differ; faces get records of their own only when given."""
     nx = FakeNX()
     body = nx.block(10, 10, 10)
     for obj in (body, *body.faces):
         obj.IsBlanked, obj.Color, obj.transparency = False, 1, 0
-    shown = kit.services(nx).display_records([body], True)
-    records = {id(obj): record for obj, record in shown}
-    assert "transparency" not in records[id(body)]
-    assert records[id(body.faces[0])]["transparency"] == 0
+    body.faces[0].Color = 5
+    [(obj, record)] = kit.services(nx).display_records([body], True)
+    assert obj is body and record["transparency"] == 0 and record["color_index"] == 1
+    assert [f["color_index"] for f in record["faces"]] == [5]
+    face = body.faces[1]
+    [(_, alone)] = kit.services(nx).display_records([face], True)
+    assert alone == {"blanked": False, "color_index": 1, "transparency": 0}

@@ -94,7 +94,7 @@ def test_the_active_tab_closes_keeping_marks_and_the_previous_tab_comes_back(nx)
     history = services(nx).history
     assert history[-1]["close"] == ["a.prt"] and history[-1]["mark"] is None
     undo = call(nx, NS(spec=catalogue.load()["nx_undo_operation"]), part="b")
-    assert undo.ok and undo.data["compensated"] is True, undo  # across the close (bench3t)
+    assert undo.ok and undo.data["compensated"] is True, undo  # across the close
     assert any("no longer reaches it" in w["message"] for w in undo.warnings), undo.warnings
     assert "a" not in loaded(nx)  # never loaded again
     listed = call(nx, NS(spec=catalogue.load()["nx_list_checkpoints"]), part="b")

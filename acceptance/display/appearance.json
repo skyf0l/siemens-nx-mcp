@@ -42,18 +42,16 @@
    },
    "expect": {
     "mutation_outcome": "not_applicable",
-    "data.count": 10,
+    "data.count": 1,
     "data.objects": {
-     "count": 10
+     "count": 1
     },
     "data.objects.0.object.kind": "body",
     "data.objects.0.color": 129,
     "data.objects.0.blanked": false,
-    "data.objects.1.object.kind": "face",
-    "data.objects.1.color": 129,
-    "data.objects.1.transparency": 0,
-    "data.objects.9.transparency": 0
-   }
+    "data.objects.0.transparency": 0
+   },
+   "intent": "Acceptance: a body is one row (its colour and the transparency its faces share), not one row per face"
   },
   {
    "call": "nx_get_appearance",
@@ -64,7 +62,8 @@
     "count_only": true
    },
    "expect": {
-    "data.count": 10
+    "data.count": 1,
+    "data.faces": 9
    }
   },
   {
@@ -80,12 +79,12 @@
    "expect": {
     "mutation_outcome": "committed",
     "data.marks_part_modified": true,
-    "data.count": 10,
+    "data.count": 1,
+    "data.objects": {
+     "count": 1
+    },
     "data.objects.0.color": 186,
-    "data.objects.1.color": 186,
-    "data.objects.1.transparency": 40,
-    "data.objects.9.color": 186,
-    "data.objects.9.transparency": 40,
+    "data.objects.0.transparency": 40,
     "restore_id": {
      "matches": "^display_[0-9a-f]{32}$"
     }
@@ -114,14 +113,20 @@
     ]
    },
    "expect": {
-    "data.objects.0.color": 186,
     "data.objects": {
+     "count": 1
+    },
+    "data.objects.0.color": 186,
+    "data.objects.0.transparency": 40,
+    "data.objects.0.faces_differ": 1,
+    "data.objects.0.faces": {
      "contains": {
       "color": 211,
       "transparency": 40
      }
     }
-   }
+   },
+   "intent": "Acceptance: a face coloured unlike its body is counted in faces_differ and listed in faces"
   },
   {
    "call": "nx_restore_display",
@@ -153,11 +158,9 @@
    },
    "expect": {
     "data.identical": true,
-    "data.count": 10,
+    "data.count": 1,
     "data.objects.0.color": 129,
-    "data.objects.1.color": 129,
-    "data.objects.1.transparency": 0,
-    "data.objects.9.transparency": 0
+    "data.objects.0.transparency": 0
    }
   },
   {
@@ -168,15 +171,15 @@
     ]
    },
    "expect": {
-    "data.count": 10,
+    "data.count": 1,
     "data.objects.0.color": 129,
-    "data.objects.1.color": 129,
-    "data.objects.1.transparency": 0,
-    "data.objects.5.color": 129,
-    "data.objects.9.color": 129,
-    "data.objects.9.transparency": 0,
-    "data.objects.9.blanked": false
-   }
+    "data.objects.0.transparency": 0,
+    "data.objects.0.blanked": false,
+    "data.objects": {
+     "count": 1
+    }
+   },
+   "intent": "Acceptance: the restore put every face back (one transparency, no face differs)"
   },
   {
    "call": "nx_set_appearance",
@@ -215,6 +218,202 @@
    "expect": {
     "error.category": "stale_reference",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "save": "hex",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": "#FF0000"
+   },
+   "intent": "Acceptance: '#RRGGBB' takes the nearest colour-table entry (pure red is NX's red)",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.color_match.index": 186,
+    "data.color_match.hex": "#FF0000",
+    "data.color_match.requested": "#FF0000",
+    "data.objects.0.color": 186
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": [
+     0,
+     0,
+     255
+    ]
+   },
+   "intent": "Acceptance: [r, g, b] 0-255 takes the nearest colour-table entry",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.color_match.index": 211,
+    "data.objects.0.color": 211,
+    "data.color_match.requested": "#0000FF"
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": [
+     1,
+     0,
+     0
+    ]
+   },
+   "intent": "Acceptance: [r, g, b] with every component at most 1 is read as 0-1",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.color_match.index": 186,
+    "data.objects.0.color": 186
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": "$hex.data.color_match.label"
+   },
+   "intent": "Acceptance: a colour-table label names its entry",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.objects.0.color": 186
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": 44
+   },
+   "intent": "Acceptance: a palette index is taken as given",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.objects.0.color": 44
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": "#12345"
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/color",
+    "mutation_outcome": "not_started",
+    "error.hint": {
+     "matches": "#RRGGBB"
+    }
+   }
+  },
+  {
+   "call": "nx_set_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "color": "No Such Colour Name"
+   },
+   "intent": "Acceptance: an unknown name is refused before anything changes and the hint lists every accepted form",
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/color",
+    "mutation_outcome": "not_started",
+    "error.hint": {
+     "matches": "1-216.*#RRGGBB.*0-255"
+    }
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$hex.restore_id"
+   },
+   "expect": {
+    "error.code": "NX_DEPENDENCY_ORDER",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "last"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "last"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "last"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "last"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "last"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.identical": true
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$bodies.data.items.0.id"
+    ]
+   },
+   "intent": "Acceptance: walking the colour changes back restores the fixture's colour on every face",
+   "expect": {
+    "data.objects.0.color": 129,
+    "data.objects.0.transparency": 0,
+    "data.objects": {
+     "count": 1
+    }
    }
   }
  ]

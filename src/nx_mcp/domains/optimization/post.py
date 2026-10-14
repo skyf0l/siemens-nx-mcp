@@ -22,7 +22,7 @@ NX 2406 (probed live, 100x20x10 mm steel cantilever, quality 9):
   studies), and ``Study.CreateResultMeasureBuilder`` needs a separate license that a seat
   may report present yet refuse to check out, so no tool uses them.
 
-``capture`` (bug-fix round, live): outside the task NX draws only the plot's legend (the
+``capture`` (live): outside the task NX draws only the plot's legend (the
 result body and its colours are missing, every band labelled 0), so nx_capture_view
 cannot show a result. Inside the task, re-plotting with ``CreateViewContourBuilder``
 draws the coloured result body with a correct legend, and the viewport export captures

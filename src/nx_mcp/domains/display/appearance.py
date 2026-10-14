@@ -5,6 +5,13 @@ Each change keeps the objects' blank state, colour and transparency first
 (``nx_restore_display``, newest first). Colour and transparency are part attributes:
 they persist when the part is saved (decision 9). Highlights are the agent's own and
 are cleared when the engineer takes control back.
+
+A body is one display record however many faces it has (``kit.display.body_appearance``):
+its colour, the transparency most faces share and only the faces that differ, which the
+result lists as ``faces_differ`` (and the first few in ``faces``). Faces are read and
+changed one by one only when they are given. Colours: a palette index, a basic name, a
+colour-table label, ``#RRGGBB`` or ``[r, g, b]``; the last two take the nearest entry of
+the part's colour table and the result's ``color_match`` names it.
 """
 
 from __future__ import annotations
@@ -16,12 +23,11 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Range, RefTo, Text
+from nx_mcp.core.validate import match_option
 from nx_mcp.domains.display.common import (
     TARGET_KINDS,
     DisplayRow,
-    Loose,
     Targets,
-    choice,
     display_rows,
     faces_of,
     kind_of,
@@ -33,7 +39,11 @@ from nx_mcp.kit.result import Row
 ColorName = Literal[
     "red", "green", "blue", "yellow", "cyan", "magenta", "orange", "white", "black", "gray"
 ]
-ColorIndex = Annotated[int, Range(ge=1, le=216)]
+ColorIndex = Annotated[int, Range(ge=1, le=216), Doc("Colour-table index")]
+ColorRgb = Annotated[
+    tuple[float, float, float], Doc("[r,g,b] 0-255, or 0-1 if all <=1: nearest table colour")
+]
+ColorText = Annotated[str, Text(48), Doc("'#RRGGBB' or a colour-table name ('Light Gray')")]
 COLOR_ALIASES = {"grey": "gray", "silver": "gray", "purple": "magenta", "aqua": "cyan"}
 Percent = Annotated[int, Range(ge=0, le=100)] | Annotated[str, Text(8), Doc("'40%'")]
 # Kinds that can be blanked: faces and edges follow their body.
@@ -47,15 +57,24 @@ class VisibilityData(TypedDict):
     blanked: int
 
 
-class AppearanceData(TypedDict):
+class ColorMatch(TypedDict, total=False):
+    index: int
+    label: str
+    hex: str
+    requested: str
+
+
+class AppearanceData(TypedDict, total=False):
     objects: list[DisplayRow]
     count: int
     marks_part_modified: bool
+    color_match: ColorMatch
 
 
 class AppearanceInfo(TypedDict, total=False):
     objects: list[DisplayRow]
     count: int
+    faces: int
 
 
 class HighlightData(TypedDict):
@@ -174,37 +193,48 @@ def nx_set_appearance(
     tx: Tx,
     *,
     objects: Targets,
-    color: ColorIndex | ColorName | Loose | None = None,
+    color: ColorIndex | ColorName | ColorRgb | ColorText | None = None,
     transparency: Percent | None = None,
 ) -> AppearanceData:
-    """Set the colour (index 1-216 or name) and/or transparency (0 opaque, 100 clear) of
-    objects. Components and features colour their bodies. Persists when the part is saved;
-    undo with nx_restore_display(restore_id)."""
+    """Set the colour and/or transparency (0 opaque, 100 clear) of objects. color: index
+    1-216, a basic name, a colour-table name, '#RRGGBB' or [r,g,b] (nearest table colour,
+    see color_match). A body is coloured whole (all its faces); components and features
+    colour their bodies. Persists when saved; undo: nx_restore_display(restore_id)."""
     if color is None and transparency is None:
         fail("NX_INVALID_ARGUMENT", "Give color or transparency", field="/color")
-    color = _color(color)
+    spec = _color(color)
     transparency = _percent(transparency)
     with tx.checks():
-        display.shown_part(tx, work=True)
+        part = display.shown_part(tx, work=True)
         values = targets(tx, objects, expand=True)
         if transparency is not None and any(kind_of(tx, v) not in ("body", "face") for v in values):
             fail("NX_WRONG_KIND", "Transparency applies to bodies and faces", field="/objects")
-        index = display.color_index(tx, color) if isinstance(color, str) else color
-    tx.display.keep(values, appearance=True)
+        index, match = display.color_from(tx, part, spec) if spec else (None, None)
+        tx.display.keep(values, appearance=True)  # reads only: a refusal is not_started
     display.apply_appearance(tx, values, index, transparency)
     pairs = tx.services.display_records(values, True)
     for obj, record in pairs:
+        _expect(obj, record, index, transparency)
+    out: AppearanceData = {
+        "objects": display_rows(tx, pairs),
+        "count": len(pairs),
+        "marks_part_modified": True,
+    }
+    if match is not None and len(match) > 1:
+        out["color_match"] = match  # type: ignore[typeddict-item]
+    return out
+
+
+def _expect(obj, record, index, transparency) -> None:
+    """Read-back of one record, a body's differing faces included."""
+    rows = [record, *(record.get("faces") or [])]
+    for row in rows:
         if index is not None:
-            readback.expect(record.get("color_index") == index, "color", tag=int(obj.Tag),
-                            color=record.get("color_index"))  # fmt: skip
-        if transparency is not None and record.get("transparency") is not None:
-            readback.expect(
-                record["transparency"] == transparency,
-                "transparency",
-                tag=int(obj.Tag),
-                transparency=record["transparency"],
-            )
-    return {"objects": display_rows(tx, pairs), "count": len(pairs), "marks_part_modified": True}
+            readback.expect(row.get("color_index") == index, "color", tag=int(obj.Tag),
+                            color=row.get("color_index"))  # fmt: skip
+        if transparency is not None and row.get("transparency") is not None:
+            readback.expect(row["transparency"] == transparency, "transparency",
+                            tag=int(obj.Tag), transparency=row["transparency"])  # fmt: skip
 
 
 @tool(
@@ -222,27 +252,62 @@ def nx_get_appearance(
     objects: Targets,
     count_only: bool = False,
 ) -> AppearanceInfo:
-    """Read blank state, colour and transparency of objects; bodies list their faces too.
-    count_only returns just how many objects and faces a display change would touch."""
+    """Read blank state, colour and transparency of objects, one row per object. A body
+    row gives faces_differ (faces coloured unlike the body) and the first few; pass faces
+    to read each. count_only: just the number of objects and their faces."""
     values = targets(tx, objects, expand=True)
     if count_only:
-        count = len({int(f.Tag) for v in values for f in [v, *faces_of(v)]})
-        return {"count": count}
+        faces = len({int(f.Tag) for v in values for f in faces_of(v)})
+        return {"count": len(values), "faces": faces}
     pairs = tx.services.display_records(values, True)
     return {"objects": display_rows(tx, pairs), "count": len(pairs)}
 
 
+HEX = re.compile(r"#?([0-9a-fA-F]{6})")
+
+
 def _color(value):
-    """A colour index or canonical name from an index, a digit string or a name in any
-    case or spelling ('Red', 'grey')."""
+    """The parsed colour, checked before NX is asked: ``("index", n)``, ``("name",
+    canonical)``, ``("rgb", [r, g, b] 0..1)`` or ``("label", text)``; None stays None."""
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return ("rgb", _rgb(value))
     if not isinstance(value, str):
-        return value
+        return ("index", value)
     text = value.strip()
     if text.isdigit():
-        if not 1 <= int(text) <= 216:
-            fail("NX_INVALID_ARGUMENT", "A colour index is 1 to 216", field="/color")
-        return int(text)
-    return choice(text, tuple(display.COLOR_NAMES), "/color", COLOR_ALIASES)
+        if not 1 <= int(text) <= display.PALETTE_SIZE:
+            _bad(f"A colour index is 1 to {display.PALETTE_SIZE}, not {text}")
+        return ("index", int(text))
+    hexed = HEX.fullmatch(text)
+    if hexed and (text.startswith("#") or any(c.isdigit() for c in text)):
+        digits = hexed.group(1)
+        return ("rgb", [int(digits[i : i + 2], 16) / 255.0 for i in (0, 2, 4)])
+    if text.startswith("#"):
+        _bad(f"{text!r} is not a #RRGGBB colour")
+    name = match_option(text, tuple(display.COLOR_NAMES), tuple(COLOR_ALIASES.items()))
+    if name is not None:
+        return ("name", name)
+    if not text:
+        _bad("color is empty")
+    return ("label", text)
+
+
+def _rgb(value) -> list[float]:
+    """[r, g, b] as 0..1: 0-255 when any component is above 1."""
+    if len(value) != 3 or not all(isinstance(v, (int, float)) for v in value):
+        _bad("An RGB colour is [r, g, b], three numbers")
+    values = [float(v) for v in value]
+    if any(v > 1.0 for v in values):
+        values = [v / 255.0 for v in values]
+    if not all(0.0 <= v <= 1.0 for v in values):
+        _bad(f"RGB components are 0-255 (or 0-1), not {list(value)}")
+    return values
+
+
+def _bad(message: str):
+    fail("NX_INVALID_ARGUMENT", message, field="/color", hint=display.COLOR_FORMS)
 
 
 def _percent(value):

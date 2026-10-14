@@ -111,7 +111,8 @@ def nx_create_boolean(
     tools: BodyList,
 ) -> BooleanData:
     """Unite, subtract or intersect tool bodies with a target body; the tools are consumed.
-    bodies lists the result bodies, the target's first."""
+    bodies lists the result bodies, the target's first. A unite that drops a tool or grows
+    past target plus tools is rolled back."""
     tool_refs: list[str] = tools
     if target in tool_refs:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
@@ -122,6 +123,8 @@ def nx_create_boolean(
             fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
         _touching(tx, body, others)
     before = measure.volume(tx, body)
+    tools_volume = measure.volume(tx, others) if operation == "unite" else 0.0
+    probes = common.probes(tx, others) if operation == "unite" else []
     tags = common.body_tags(tx)
     try:
         feature = common.boolean_feature(tx, operation, body, others)
@@ -145,7 +148,10 @@ def nx_create_boolean(
             details={"bodies": kept},
         )
     out = common.result_of(tx, feature, bodies)
-    common.changed(before, out["volume"], "at_least" if operation == "unite" else "at_most")
+    if operation == "unite":
+        common.unite_volume(tx, bodies, before, tools_volume, probes)
+    else:
+        common.changed(before, out["volume"], "at_most")
     alive = {int(b.Tag) for b in tx.part.Bodies}
     return {**out, "deleted_bodies": sum(int(t.Tag) not in alive for t in others)}
 
@@ -530,7 +536,7 @@ def nx_create_transform(
     copy: Annotated[bool, Doc("Move a copy (combinable with its source)")] = False,
 ) -> common.FeatureData:
     """Move or copy solid bodies: rotate (matrix about [0, 0, 0] or angle about an axis),
-    then translate."""
+    then translate. bodies lists the moved bodies or copies in input order."""
     translation, rotation = _pose(tx, transform)
     if not copy and not _moves(translation, rotation):
         fail("NX_INVALID_ARGUMENT", "This transform would not move the bodies",
@@ -553,19 +559,72 @@ def nx_create_transform(
         moving = common.feature_bodies(copied)
         readback.expect(len(moving) == len(targets), "copy", "NX copied a different body count")
         if not _moves(translation, rotation):  # a copy in place: no Move Object feature
+            moving = _paired(tx, moving, before, [m["centroid"] for m in before], True)[0]
             return common.result_of(tx, copied, moving)
     feature = _move(tx, None, moving, translation, rotation, _spin(tx, transform))
-    for i, (body, m) in enumerate(zip(moving, before, strict=True)):
-        got = measure.mass(tx, [body])
-        readback.expect_close(
-            got["volume"], m["volume"], f"volume[{i}]", tol=1e-6 * max(1.0, m["volume"])
+    wanted = [
+        geom.add(geom.matvec(rotation, m["centroid"]), translation) if m["centroid"] else None
+        for m in before
+    ]
+    moving, got = _paired(tx, moving, before, wanted, copy)
+    for i, (g, m, w) in enumerate(zip(got, before, wanted, strict=True)):
+        _moved_close(
+            g["volume"], m["volume"], f"volume[{i}]", common.VOLUME_BAND * max(1.0, m["volume"])
         )
-        if m["centroid"] and got["centroid"]:
-            wanted = geom.add(geom.matvec(rotation, m["centroid"]), translation)
-            readback.expect_close(
-                got["centroid"], wanted, f"centroid[{i}]", tol=1e-5 * max(1.0, *map(abs, wanted))
-            )
+        if w is not None and g["centroid"]:
+            size = abs(m["volume"]) ** (1.0 / 3.0)
+            tol = max(1e-5 * max(1.0, *map(abs, w)), common.VOLUME_BAND * size)
+            _moved_close(g["centroid"], w, f"centroid[{i}]", tol)
     return common.result_of(tx, feature, moving)
+
+
+def _paired(tx, moving, before, wanted, copy):
+    """``(bodies, mass properties)`` with entry i belonging to source body i. A move keeps
+    the bodies themselves; NX's Extract feature lists the copies in its own order, so
+    each copy is paired with the source of nearest volume and expected centroid."""
+    got = [measure.mass(tx, [b]) for b in moving]
+    if not copy or len(moving) < 2:
+        return moving, got
+    costs = []
+    for i, (m, w) in enumerate(zip(before, wanted, strict=True)):
+        size = max(1.0, abs(m["volume"]) ** (1.0 / 3.0))
+        for j, g in enumerate(got):
+            cost = abs(g["volume"] - m["volume"]) / max(1.0, abs(m["volume"]))
+            if w is not None and g["centroid"]:
+                cost += geom.dist(g["centroid"], w) / size
+            costs.append((cost, i, j))
+    pair: dict[int, int] = {}
+    used: set[int] = set()
+    for _cost, i, j in sorted(costs):
+        if i not in pair and j not in used:
+            pair[i] = j
+            used.add(j)
+    order = [pair[i] for i in range(len(before))]
+    return [moving[j] for j in order], [got[j] for j in order]
+
+
+def _moved_close(actual, wanted, check, tol):
+    """``readback.expect_close`` for a moved or copied body: a mismatch says which body
+    and how far off, and invites a retry with one body per call."""
+    a = [float(v) for v in actual] if isinstance(actual, (list, tuple)) else [float(actual)]
+    w = [float(v) for v in wanted] if isinstance(wanted, (list, tuple)) else [float(wanted)]
+    error = max(abs(x - y) for x, y in zip(a, w, strict=True))
+    if not error <= tol:
+        fail(
+            "NX_VERIFICATION_FAILED",
+            f"{check}: NX gave {actual}, expected {wanted} (off by {error:.6g}, tolerance "
+            f"{tol:.6g}); the change was rolled back",
+            hint="Move or copy the bodies one per call; if one body alone still fails, "
+            "report the details to the engineer",
+            details={
+                "check": check,
+                "actual": actual,
+                "wanted": wanted,
+                "error": error,
+                "tolerance": tol,
+            },
+            retry="after_fix",
+        )
 
 
 @definition("MOVE_OBJECT")

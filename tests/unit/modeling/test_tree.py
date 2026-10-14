@@ -127,7 +127,7 @@ def test_edit_feature_update_failure_rolls_back():
 
 
 def test_edit_feature_update_undone_by_nx_says_what_to_check():
-    # Live (tooltest2 modeling_5): a tube's inner diameter set above its outer failed with
+    # Live: a tube's inner diameter set above its outer failed with
     # NX's bare "Update undo happened" (670024) and no reason.
     nx = modeling_nx()
     f = feature(nx, "TUBE")
