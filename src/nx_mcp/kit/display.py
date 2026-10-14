@@ -29,6 +29,11 @@ NX 2406 findings encoded here:
   camera, so ``nearest_view`` names the canned orientation closest to a rotation.
 - Blanking a sketch or datum marks the part modified; undoing to a mark set before
   restores both the blank state and the modified flag (``capture_clutter``).
+- Blanking an occurrence (``component.FindOccurrence(obj)``: a body, sketch, curve or
+  datum shown by one component) changes only the assembly: the component part stays
+  unmodified, the other occurrences stay shown, and the state is saved with the
+  assembly. Blanking the prototype object modifies the component part instead
+  (``component_kinds``, ``in_assembly``). A sketch blanked blanks its curves too.
 - ``DeleteSections`` leaves ``DisplaySectioningToggle`` on with no section left (the
   model looks cut by nothing): sectioning is switched off when no active section remains.
 - Opening a ``DynamicSectionBuilder`` on an existing section to read it changes nothing.
@@ -61,7 +66,7 @@ import uuid
 from collections import Counter
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import bodies, builders, drawing, geom, measure, readback
+from nx_mcp.kit import bodies, builders, drawing, geom, measure, parts, readback
 
 # Rendering styles by surface name (NXOpen.View.RenderingStyleType members).
 STYLES = {
@@ -502,6 +507,102 @@ def datums(part) -> list:
         getattr(part, "CoordinateSystems", []) or []
     )
     return list({int(x.Tag): x for x in values}.values())
+
+
+# Kinds hidden or shown by type (``of_kinds``) and the part collections they come from;
+# ``datum`` is :func:`datums`.
+KIND_COLLECTIONS = {"body": "Bodies", "sketch": "Sketches", "curve": "Curves", "point": "Points"}
+
+
+def of_kinds(part, kinds) -> dict[str, list]:
+    """``{kind: [objects]}`` that ``part`` owns for each of ``kinds`` (``body``,
+    ``sketch``, ``curve``: sketch curves included, ``point``, ``datum``)."""
+    out: dict[str, list] = {}
+    for kind in kinds:
+        if kind == "datum":
+            out[kind] = datums(part)
+        else:
+            try:
+                found = list(getattr(part, KIND_COLLECTIONS[kind], None) or [])
+            except TypeError:  # a part without that collection
+                found = []
+            out[kind] = list({int(x.Tag): x for x in found}.values())
+    return out
+
+
+def occurrence(component, obj):
+    """The occurrence of prototype object ``obj`` that ``component`` shows, or None."""
+    try:
+        return component.FindOccurrence(obj)
+    except Exception:  # noqa: BLE001 - an object NX has no occurrence for is not shown
+        return None
+
+
+def _tag_of(obj) -> int:
+    tag = getattr(obj, "Tag", None)
+    return int(tag) if tag is not None else id(obj)
+
+
+def component_kinds(tx, part, kinds) -> tuple[dict[str, list], list[str]]:
+    """``({kind: [occurrences]}, partial)`` over every unsuppressed component of ``part``
+    (all levels): the occurrence of each object of ``kinds`` its prototype owns.
+
+    Blanking an occurrence changes the assembly only; the component part stays
+    unmodified (NX 2406). A prototype not fully loaded lists no sketches, curves, points
+    or datums: only its bodies are visited and its path (names from the root) is in
+    ``partial``."""
+    out: dict[str, list] = {k: [] for k in kinds}
+    partial: list[str] = []
+    owned: dict[int, dict[str, list]] = {}
+    work = []
+    for component, names in parts.components(part):
+        if parts.suppressed(component):
+            continue
+        prototype = getattr(component, "Prototype", None)
+        full = prototype is not None and bool(getattr(prototype, "IsFullyLoaded", True))
+        wanted = list(kinds) if full else [k for k in kinds if k == "body"]
+        if len(wanted) < len(kinds):
+            partial.append("/".join(names))
+        if prototype is None or not wanted:
+            continue
+        key = _tag_of(prototype)
+        if key not in owned:
+            owned[key] = of_kinds(prototype, kinds)
+        work.append((component, owned[key], wanted))
+    tx.scale_budget(sum(len(found[k]) for _c, found, wanted in work for k in wanted))
+    for component, found, wanted in work:
+        tx.checkpoint()
+        for kind in wanted:
+            for obj in found[kind]:
+                shown = occurrence(component, obj)
+                if shown is not None:
+                    out[kind].append(shown)
+    return out, partial
+
+
+def in_assembly(part, objects) -> list:
+    """``objects`` with each prototype object of a component part of ``part`` replaced
+    by its occurrences in ``part`` (every unsuppressed component of that part), so a
+    display change stays in the assembly; others (occurrences, ``part``'s own objects,
+    objects of parts ``part`` does not use) as given."""
+    users: list | None = None
+    out: list = []
+    for obj in objects:
+        owner = getattr(obj, "OwningPart", None)
+        if getattr(obj, "IsOccurrence", False) or owner is None or _tag_of(owner) == _tag_of(part):
+            out.append(obj)
+            continue
+        if users is None:
+            users = [c for c, _n in parts.components(part) if not parts.suppressed(c)]
+        found = [
+            shown
+            for c in users
+            if getattr(c, "Prototype", None) is not None and _tag_of(c.Prototype) == _tag_of(owner)
+            for shown in [occurrence(c, obj)]
+            if shown is not None
+        ]
+        out.extend(found or [obj])
+    return out
 
 
 def capture_clutter(tx, part) -> list:

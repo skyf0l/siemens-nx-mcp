@@ -185,6 +185,7 @@ WARNING_CODES = frozenset(
         "NX_VIEW_OVERLAP",
         "NX_NO_EFFECT",
         "NX_NOTE",
+        "NX_TARGET_UNCHANGED",  # a combine target the call left as it was
     }
 )
 RETRY_VALUES = frozenset(

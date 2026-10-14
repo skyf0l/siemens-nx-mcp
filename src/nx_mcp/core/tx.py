@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 # tx.checkpoint() past the budget raises interrupted/NX_CANCELLED (reason "budget").
 COST_BUDGET_SECONDS = {"light": 30.0, "heavy": 300.0, "long": 1800.0}
 DEFAULT_BUDGET_SECONDS = 300.0
+# ``Tx.scale_budget``: seconds added per input object, and the scaled budget's ceiling.
+BUDGET_PER_ITEM_SECONDS = 0.2
+SCALED_BUDGET_CAP_SECONDS = 300.0
 
 NOT_GRANTED_HINT = (
     "The part is the engineer's: ask them in chat to tick 'Allow agent to change {name}' "
@@ -461,6 +464,7 @@ class Tx:
         # The argument names the caller sent (before defaults), for ``tx.given``.
         self._given = frozenset(arguments) if isinstance(arguments, dict) else frozenset()
         self.started = time.monotonic()
+        self.budget_extra = 0.0  # seconds added by scale_budget (root only)
         self.touched = False
         self.frame = "work_part_absolute"
         self.units = {"length": None, "angle": "deg"}  # + "sheet_length" (gate 9)
@@ -644,20 +648,38 @@ class Tx:
             raise NXError(
                 "NX_CANCELLED", "Cancelled by nx_cancel_operation", details={"reason": "cancel"}
             )
-        budget = COST_BUDGET_SECONDS.get(root.spec.cost, DEFAULT_BUDGET_SECONDS)
+        budget = root.budget()
         elapsed = time.monotonic() - root.started
         if elapsed > budget:
             raise NXError(
                 "NX_CANCELLED",
                 f"Stopped after {elapsed:.0f} s, over the {budget:g} s budget of a "
                 f"{root.spec.cost} operation",
-                hint="Split the work into smaller calls (fewer objects or steps per call)",
+                hint="Split the work into smaller calls (fewer objects or steps per call); the same "
+                "call stops again",
                 details={
                     "reason": "budget",
                     "budget_seconds": budget,
                     "elapsed_seconds": round(elapsed, 3),
                 },
             )
+
+    def budget(self) -> float:
+        """This call's cost budget in seconds: its cost class plus ``scale_budget``."""
+        base = COST_BUDGET_SECONDS.get(self.spec.cost, DEFAULT_BUDGET_SECONDS)
+        if not self.budget_extra:
+            return base
+        return max(base, min(SCALED_BUDGET_CAP_SECONDS, base + self.budget_extra))
+
+    def scale_budget(self, items: int, per_item: float = BUDGET_PER_ITEM_SECONDS) -> None:
+        """Grow the cost budget with the input size: ``per_item`` seconds per object, up to
+        ``SCALED_BUDGET_CAP_SECONDS`` (never below the cost class). A tool calls it once
+        it knows how many objects one call must visit (bodies of a whole part), so a
+        large but finite input finishes while a runaway call still stops."""
+        root = self
+        while root.parent is not None:
+            root = root.parent
+        root.budget_extra = max(root.budget_extra, max(0, int(items)) * float(per_item))
 
     def non_undoable(self, reason: str) -> None:
         """Declare a step that undo cannot revert; a later failure reports partial."""

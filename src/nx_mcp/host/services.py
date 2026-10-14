@@ -174,8 +174,11 @@ class NXServices(Services):
         # Registry entries a commit retired (consumed faces, deleted features): an undo
         # that brings the same NX object back (same tag) revives the handle and its refs.
         self._retired: dict = {}
+        # Registry handle -> (journal id, NX name) when registered (fast snapshots).
+        self._names: dict[str, tuple[str, str]] = {}
         state = Path(workspace.root) / ".nx-mcp" / "refs.json"
-        self.references = References(self, Counter(state))
+        live = Path(workspace.root) / ".nx-mcp" / "refs-live.json"  # across a host reload
+        self.references = References(self, Counter(state), live_path=live)
 
     # -- plain members ---------------------------------------------------------
     @property
@@ -297,17 +300,26 @@ class NXServices(Services):
         ``kind`` is a registry kind: a snapshot group, or a reference kind mapped by
         ``core.references.TO_REGISTRY``."""
         key = self.part_key(part)
-        ref: dict = self.objects.register(
-            obj, kind=cast(ObjectKind, kind), name=_name(obj, fallback), part_id=key
-        ).model_dump()
-        ref.update(
-            session_id=self.session_id,
-            generation_id=self._generations[int(part.Tag)],
-            owner_part_path=part.FullPath,
-            journal_id=str(getattr(obj, "JournalIdentifier", "")),
-            display_name=str(getattr(obj, "Name", "")),
+        raw_jid, raw_name = getattr(obj, "JournalIdentifier", ""), getattr(obj, "Name", "")
+        journal_id, display_name = str(raw_jid), str(raw_name)
+        reference = self.objects.register(
+            obj,
+            kind=cast(ObjectKind, kind),
+            name=str(raw_name or raw_jid or fallback),
+            part_id=key,
         )
-        return ref
+        names = self._names
+        names[reference.id] = (journal_id, display_name)
+        if len(names) > 2 * len(self.objects._objects) + 20_000:  # forgotten handles
+            kept = self.objects._objects.keys() | self._retired.keys()
+            self._names = {h: v for h, v in names.items() if h in kept}
+        return {
+            "id": reference.id, "kind": reference.kind, "name": reference.name,
+            "part_id": reference.part_id, "session_id": self.session_id,
+            "generation_id": self._generations[int(part.Tag)],
+            "owner_part_path": part.FullPath, "journal_id": journal_id,
+            "display_name": display_name,
+        }  # fmt: skip
 
     def register_handle(self, obj, kind: str, part) -> str:
         return self.register(obj, kind, part, kind.replace("_", " ").title())["id"]
@@ -324,6 +336,14 @@ class NXServices(Services):
 
     def handle_name(self, handle: str):
         return self.objects.display_name(handle)
+
+    def object_of_tag(self, tag: int):
+        """The NX object with ``tag``, or None (re-binding refs after a host reload)."""
+        try:
+            manager = getattr(self.nx, "TaggedObjectManager", None)
+            return manager.GetTaggedObject(int(tag)) if manager is not None else None
+        except Exception:
+            return None
 
     def resolve(self, ref: str, kinds=()):
         """The live object of a short ref or obj_ ID (development snippets)."""
@@ -403,6 +423,7 @@ class NXServices(Services):
                 elif before[key] != now and before[key] in (owned.get(key), granted.get(key)):
                     owned[key] = now  # the agent saved its (or a granted) part as a new file
         busy.persist(self)  # the agent's parts survive a host reload (core/busy.py)
+        self.references.persist()  # and so do its refs (core/references.py)
 
     def modified_flags(self) -> dict:
         out = {}
@@ -473,16 +494,45 @@ class NXServices(Services):
         with contextlib.suppress(Exception):
             uf = self.uf
         tables, inner = _table_tags(part, uf)
-        snap = {
-            (kind, int(v.Tag)): self.register(v, kind, part, kind.title())
-            for kind, values in groups
-            for v in values
-            if not (kind == "annotation" and int(v.Tag) in inner)
-        }
+        known = self._snapshot_rows(part)
+        snap = {}
+        for kind, values in groups:
+            for v in values:
+                tag = int(v.Tag)
+                if kind == "annotation" and tag in inner:
+                    continue
+                snap[(kind, tag)] = known(v, kind, tag)
         for (kind, tag), entry in snap.items():
             if kind == "annotation" and tag in tables:
                 entry["kind"] = "drawing_table"
         return snap
+
+    def _snapshot_rows(self, part):
+        """``row(obj, kind, tag)`` for :meth:`snapshot`: an object the registry already
+        has costs no NX call (its row is rebuilt from the registry and the names read
+        when it was registered); a new one is registered (:meth:`register`). A snapshot
+        before and after every model call thus reads only the tags of a large part."""
+        key = self.part_key(part)
+        generation = self._generations[int(part.Tag)]
+        path = part.FullPath
+        objects = self.objects
+
+        def row(obj, kind: str, tag: int) -> dict:
+            handle = objects._identities.get((key, kind, str(tag)))
+            entry = objects._objects.get(handle) if handle is not None else None
+            if entry is None:
+                return self.register(obj, kind, part, kind.title())
+            entry.value = obj  # the live wrapper (ObjectRegistry.register does the same)
+            journal_id, display_name = self._names.get(handle, ("", ""))
+            reference = entry.reference
+            return {
+                "id": reference.id, "kind": reference.kind, "name": reference.name,
+                "part_id": reference.part_id, "session_id": self.session_id,
+                "generation_id": generation, "owner_part_path": path,
+                "journal_id": journal_id, "display_name": display_name,
+            }  # fmt: skip
+
+        return row
 
     def describe(self, entry: dict, live: bool) -> Row:
         handle = entry.get("id")
@@ -705,6 +755,27 @@ class NXServices(Services):
                 live[key] = self._undo_tags(part, kind)
             return live[key]
 
+        def on_body(value, kind, part, tag) -> bool:
+            """A face or edge lives while its body is one of the part's and still lists
+            it: only the bodies that hold registered faces and edges are read, never every
+            face of a large part."""
+            get_body = getattr(value, "GetBody", None)
+            if get_body is None:
+                tags = known(part, kind)
+                return tags is None or tag in tags
+            body = get_body()  # raises for an object NX no longer has: dead
+            if body is None:
+                return False
+            body_tag = int(body.Tag)
+            bodies = known(part, "body")
+            if bodies is not None and body_tag not in bodies:
+                return False
+            key = (body_tag, kind)
+            if key not in live:
+                method = "GetFaces" if kind == "face" else "GetEdges"
+                live[key] = {int(x.Tag) for x in getattr(body, method)()}
+            return tag in live[key]
+
         dead: set[str] = set()
         for handle, entry in list((self.objects._objects if entries is None else entries).items()):
             ref = entry.reference
@@ -719,6 +790,9 @@ class NXServices(Services):
                     alive = False
                 elif getattr(value, "IsOccurrence", False):
                     alive = self._occurrence_alive(value, ref.kind, known)
+                elif ref.kind in ("face", "edge"):
+                    part = by_key.get(ref.part_id)
+                    alive = part is not None and on_body(value, ref.kind, part, tag)
                 else:
                     part = by_key.get(ref.part_id)
                     tags = known(part, ref.kind) if part is not None else None

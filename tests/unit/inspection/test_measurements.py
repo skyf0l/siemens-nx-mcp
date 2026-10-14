@@ -56,6 +56,7 @@ def test_mass_volume_inertia_in_part_units(units):
         6000
     )
     assert data["mass"] == pytest.approx(6000 * nx.density)
+    assert data["area"] == pytest.approx(2 * (200 + 600 + 300))
     assert data["center_of_gravity"] == pytest.approx([5, 10, 15])
     m = data["mass"]
     assert data["inertia"][0][0] == pytest.approx(m * (20**2 + 30**2) / 12)
@@ -225,3 +226,61 @@ def test_angle_to_a_cylinder_points_to_its_axis():
     bad = run(nx, "nx_measure_angle", first=bore.ref, second=top.ref)
     assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/first", bad
     assert "nx_find_geometry" in bad.error["hint"] and "nx_create_datum_axis" in bad.error["hint"]
+
+
+def _feature_of(nx, blocks):
+    from tests.kit.objects import Feature
+
+    feature = nx._own(Feature("EXTRUDE(1)", bodies=list(blocks)), "feature")
+    nx.part.Features.append(feature)
+    return feature
+
+
+def test_distance_between_body_sets_prunes_pairs_by_their_boxes():
+    """Pairs are measured nearest box first; a box gap past the best distance ends it."""
+    nx = inspection_nx()
+    left = _feature_of(nx, [nx.block(5, 5, 5, origin=(-10 * i, 0, 0)) for i in range(12)])
+    right = _feature_of(nx, [nx.block(5, 5, 5, origin=(20 + 10 * i, 0, 0)) for i in range(12)])
+    calls = []
+    exact = nx.session.Measurement.GetMinimumDistance
+
+    def counted(a, b):
+        calls.append((a, b))
+        return exact(a, b)
+
+    nx.session.Measurement.GetMinimumDistance = counted
+    ok = run(nx, "nx_measure_distance", first=left.ref, second=right.ref)
+    assert ok.ok and ok.data["distance"] == 15 and ok.data["pairs"] == 144, ok
+    assert ok.data["first"]["id"] == left.bodies[0].ref
+    assert ok.data["second"]["id"] == right.bodies[0].ref and len(calls) == 1
+
+
+def test_distance_ties_keep_the_first_pair():
+    nx = inspection_nx()
+    a = _feature_of(nx, [nx.block(5, 5, 5, origin=(0, 10 * i, 0)) for i in range(3)])
+    b = nx.block(5, 30, 5, origin=(8, 0, 0))
+    ok = run(nx, "nx_measure_distance", first=a.ref, second=b.ref)
+    assert ok.data["distance"] == 3 and ok.data["first"]["id"] == a.bodies[0].ref, ok
+
+
+def test_mass_of_many_bodies_reads_one_uf_call_per_body():
+    """Each body's volume and area come from one UF AskMassProps3d (no MeasureManager
+    object per body), plus one call for the mass and inertia of all of them."""
+    from types import SimpleNamespace as NS
+
+    nx = inspection_nx()
+    for i in range(40):
+        nx.block(5, 5, 5, origin=(10 * i, 0, 0))
+    calls = []
+    props = nx.uf.Modeling.AskMassProps3d
+
+    def counted(tags, *rest):
+        calls.append(len(tags))
+        return props(tags, *rest)
+
+    nx.uf.Modeling.AskMassProps3d = counted
+    nx.part.MeasureManager = NS()  # NewMassProperties is not used
+    ok = run(nx, "nx_measure_mass", scope="part")
+    assert ok.ok and len(ok.data["bodies"]) == 40, ok
+    assert ok.data["volume"] == pytest.approx(40 * 125) and ok.data["area"] == pytest.approx(6000)
+    assert sorted(calls) == [1] * 40 + [40]

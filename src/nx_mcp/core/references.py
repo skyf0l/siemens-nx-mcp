@@ -2,8 +2,9 @@
 
 A ref is ``<prefix>:<n>`` (``b:41`` body, ``fc:88`` face, ...). ``n`` comes from
 one workspace-wide counter that is never reused: its floor is persisted in
-``.nx-mcp/refs.json`` when the host starts, so a ref from an earlier session or
-reload fails as ``stale_reference`` and never aliases another object.
+``.nx-mcp/refs.json`` when the host starts, so a ref from an earlier NX session (or
+one a host reload could not re-bind, see below) fails as ``stale_reference`` and
+never aliases another object.
 
 Every short ref is backed by a handle in the host's object registry (through the
 services adapter, see ``core.tx.Services``). Registry invalidation (part close,
@@ -27,6 +28,12 @@ restores the same tags (measured for parts, bodies, features, sketches, faces an
 edges), so refs of restored objects stay live, and a ref whose object came back
 under a new tag is re-bound to its anchor's unique match
 (:meth:`References.rebind`); only the rest go stale.
+
+A development reload starts a new host in the same NX process: the old host's refs are
+persisted in ``.nx-mcp/refs-live.json`` (:meth:`References.persist`) and re-bound on
+first use when NX still has the same object (same tag, kind, part and journal
+identifier) or their anchor's unique match; any other old ref is ``NX_STALE_REFERENCE``
+saying so (list the objects again).
 """
 
 from __future__ import annotations
@@ -78,6 +85,7 @@ REGISTRY_KINDS = {"datum": KIND_GROUPS["datum"], "section": frozenset({"section_
 TO_REGISTRY = {**dict.fromkeys(KIND_GROUPS["datum"], "datum"), "section_view": "section"}
 _SHORT = re.compile(r"^([a-z]{1,3}):([1-9][0-9]{0,11})$")
 _ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
+_INDEX = re.compile(r"#\d+$")  # a body anchor's index among bodies of one identifier
 # NX's generic name of an unnamed object ("ENTITY 26 3 1"): not stable between reads.
 GENERIC_NAME = re.compile(r"^ENTITY \d+ \d+ \d+$")
 BLOCK = 1000
@@ -155,6 +163,9 @@ class Entry:
     part_id: str
     name: str
     anchor: str | None
+    tag: str = ""  # the NX tag the ref names (persisted for a host reload)
+    jid: str = ""  # its journal identifier when the ref was made
+    part_path: str = ""  # its part's workspace path when the ref was made
 
 
 def _tag(obj) -> str:
@@ -227,11 +238,19 @@ def _label(obj, kind: str, ref: str, name: str) -> str:
 class References:
     """The ref table. ``backend`` is the services adapter (see ``core.tx.Services``)."""
 
-    def __init__(self, backend, counter: Counter | None = None) -> None:
+    def __init__(self, backend, counter: Counter | None = None, live_path=None) -> None:
         self.backend = backend
         self.counter = counter or Counter()
         self._entries: dict[str, Entry] = {}
         self._identity: dict[tuple[str, str, str], str] = {}
+        # Per part: (revision, {body tag: (journal id, index among bodies of that id)}),
+        # so the anchors of many bodies cost one pass over the part's bodies.
+        self._body_order: dict[str, tuple] = {}
+        self.version = 0  # moves when a ref is made or re-bound (:meth:`persist`)
+        # Refs of an earlier host of this NX process (:meth:`persist`), until re-bound.
+        self.live_path = Path(live_path) if live_path else None
+        self._inherited: dict[str, dict] | None = None
+        self._written: int | None = None
 
     # -- rows ---------------------------------------------------------------
     def row(self, obj, kind: str, *, part=None, anchor: bool = False) -> Row:
@@ -250,8 +269,12 @@ class References:
             handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
             part_id = ref if kind == "part" else self.row(part, "part", part=part)["id"]
             entry = Entry(ref, kind, handle, part_key, part_id, "", None)
+            entry.tag, entry.jid = _tag(obj), self._jid(obj)
+            with contextlib.suppress(Exception):
+                entry.part_path = str(self.backend.part_path(part))
             self._entries[ref] = entry
             self._identity[key] = ref
+            self.version += 1
         else:
             # Same NX object (part, kind, tag): keep the registry on this live wrapper, so
             # a ref whose earlier wrapper NX invalidated works again after a fresh listing.
@@ -272,17 +295,50 @@ class References:
             return None
         anchor = f"@{self.backend.part_path(part)}:{jid}"
         if kind == "body":
-            same = [b for b in self._collection(part, "body") if self._jid(b) == jid]
-            index = next((i for i, b in enumerate(same) if _tag(b) == _tag(obj)), 0)
-            anchor += f"#{index}"
+            anchor += f"#{self._body_index(obj, jid, part)}"
         return anchor
+
+    def _body_index(self, obj, jid: str, part) -> int:
+        """``obj``'s position among the bodies of ``part`` with journal id ``jid``. One pass
+        over the part's bodies serves every body until the review revision moves (a commit,
+        an undo, an engineer's edit) or a body it does not know comes."""
+        try:
+            key = str(self.backend.part_key(part))
+            revision = getattr(type(self.backend), "revision", None)
+            # Services' default revision never moves: no cache then.
+            own = revision is not None and revision.__qualname__ != "Services.revision"
+            stamp = self.backend.revision() if own else None
+        except Exception:
+            key, stamp = "", None
+        tag = _tag(obj)
+        cached = self._body_order.get(key)
+        if (
+            stamp is None
+            or cached is None
+            or cached[0] != stamp
+            or cached[1].get(tag, ("",))[0] != jid
+        ):
+            counts: dict[str, int] = {}
+            order: dict[str, tuple[str, int]] = {}
+            for body in self._collection(part, "body"):
+                body_jid = self._jid(body)
+                order[_tag(body)] = (body_jid, counts.get(body_jid, 0))
+                counts[body_jid] = counts.get(body_jid, 0) + 1
+            cached = (stamp, order)
+            if stamp is not None:
+                self._body_order = {key: cached}  # only the latest part is kept
+        found = cached[1].get(tag)
+        return found[1] if found is not None and found[0] == jid else 0
 
     @staticmethod
     def _moved(anchor: str, obj) -> bool:
-        """Whether ``obj``'s journal identifier differs from the one in ``anchor``."""
-        match = _ANCHOR.match(anchor)
+        """Whether ``obj``'s journal identifier differs from the one in ``anchor``. A journal
+        identifier may hold ':' (a pattern instance body: ``Pattern Feature(3:5A:1A)``), so
+        the anchor is compared by its end, never split at a colon."""
         jid = str(getattr(obj, "JournalIdentifier", "") or "")
-        return bool(match and jid and match["jid"] != jid)
+        if not jid or not _ANCHOR.match(anchor):
+            return False
+        return not _INDEX.sub("", anchor).endswith(":" + jid)
 
     def reanchor(self, ref: str) -> None:
         """Recompute ``ref``'s name and anchor from its object (after a rename)."""
@@ -336,7 +392,7 @@ class References:
         match = _SHORT.match(ref)
         if not match:
             fail("NX_INVALID_ARGUMENT", f"Not a reference: {ref!r}")
-        entry = self._entries.get(ref)
+        entry = self._entries.get(ref) or self._restore(ref)
         if entry is None:
             self._unknown(ref, match.group(1), int(match.group(2)))
         if wanted is not None and entry.kind not in wanted:
@@ -384,6 +440,14 @@ class References:
             f"Get current refs from {finder} or from the result of the call that made the "
             "object; pass refs exactly as tool results return them"
         )
+        if number < self.counter.floor and ref in (self._inherited or {}):
+            fail(
+                "NX_STALE_REFERENCE",
+                f"{ref} is a reference from before the NX MCP host reload, and its object "
+                "changed or is gone since: list the objects again",
+                hint=hint,
+                details={"ref": ref, "reason": "host_reloaded"},
+            )
         if number >= self.counter.floor:
             other = next(
                 (
@@ -456,25 +520,42 @@ class References:
 
     def _anchor_match(self, anchor: str | None, kind: str):
         """``(object, part)`` of the unique current object matching ``anchor``, or None."""
-        match = _ANCHOR.match(anchor or "")
-        if not match:
-            return None
         try:
-            part = next(
-                (p for p in self.backend.parts() if self.backend.part_path(p) == match["part"]),
-                None,
-            )
-            if part is None:
+            split = self._split_anchor(anchor)
+            if split is None:
                 return None
-            found = [o for o in self._collection(part, kind) if self._jid(o) == match["jid"]]
-            if match["index"] is not None:
-                index = int(match["index"])
+            part, jid, index = split
+            # Only a body anchor has ``#<i>`` (bodies of one feature share its journal id):
+            # an anchor names a body, or a feature or sketch, never both.
+            if (index is not None) != (kind == "body"):
+                return None
+            found = [o for o in self._collection(part, kind) if self._jid(o) == jid]
+            if index is not None:
                 found = found[index : index + 1]
             if len(found) != 1 or deleted(found[0]):
                 return None
             return found[0], part
         except Exception:
             return None
+
+    def _split_anchor(self, anchor: str | None):
+        """``(part, journal id, index or None)`` of an anchor: the loaded part whose path
+        (``@<path>:``, any case) starts it, the longest when several do; the rest is the
+        journal identifier, which may itself hold ':'. None when no loaded part matches."""
+        if not anchor or not _ANCHOR.match(anchor):
+            return None
+        index_match = _INDEX.search(anchor)
+        text = _INDEX.sub("", anchor)
+        index = int(index_match.group(0)[1:]) if index_match else None
+        best = None
+        for part in self.backend.parts():
+            prefix = "@" + str(self.backend.part_path(part)) + ":"
+            longer = best is None or len(prefix) > len(best[1])
+            if longer and len(text) > len(prefix) and text.casefold().startswith(prefix.casefold()):
+                best = (part, prefix)
+        if best is None:
+            return None
+        return best[0], text[len(best[1]) :], index
 
     def rebind(self, retired, floor: int | None = None) -> dict:
         """Re-point short refs after an undo (architecture.md 1.3).
@@ -502,6 +583,8 @@ class References:
                     found = None
                 else:
                     self._identity[(entry.part_key, entry.kind, _tag(obj))] = entry.id
+                    entry.tag = _tag(obj)
+                    self.version += 1
                     rebound.append(entry.id)
                     continue
             number = int(entry.id.split(":", 1)[1])
@@ -545,6 +628,120 @@ class References:
             for e in self._entries.values()
             if e.handle in retired and (floor is None or int(e.id.split(":", 1)[1]) < floor)
         ]
+
+    # -- across a host reload ------------------------------------------------
+    PERSIST_MAX = 50_000  # refs the table keeps for the next host
+
+    def persist(self) -> None:
+        """Write the live refs (``{ref: {kind, tag, jid, part, part_ref, name, anchor}}``)
+        and those an earlier host of this NX process left that were not re-bound yet, so
+        the next host (a development reload) resolves them (:meth:`_restore`). Writes
+        only when the table changed; never raises."""
+        if self.live_path is None:
+            return
+        with contextlib.suppress(Exception):
+            inherited = self._load_inherited()
+            if self._written == self.version and self.live_path.exists():
+                return
+            loaded = {str(self.backend.part_path(p)).casefold() for p in self.backend.parts()}
+            rows = {r: v for r, v in inherited.items() if str(v.get("part")).casefold() in loaded}
+            for ref, entry in self._entries.items():
+                if not entry.tag or not self.backend.handle_live(entry.handle):
+                    continue
+                rows[ref] = {
+                    "kind": entry.kind, "tag": entry.tag, "jid": entry.jid,
+                    "part": entry.part_path, "part_ref": entry.part_id, "name": entry.name,
+                    "anchor": entry.anchor,
+                }  # fmt: skip
+            if len(rows) > self.PERSIST_MAX:
+                rows = dict(list(rows.items())[-self.PERSIST_MAX :])
+            self.live_path.parent.mkdir(parents=True, exist_ok=True)
+            temp = self.live_path.with_suffix(".tmp")
+            temp.write_text(json.dumps({"pid": os.getpid(), "refs": rows}), encoding="utf-8")
+            os.replace(temp, self.live_path)
+            self._written = self.version
+
+    def _load_inherited(self) -> dict[str, dict]:
+        """The rows an earlier host of this NX process (same pid) persisted, read once."""
+        if self._inherited is None:
+            self._inherited = {}
+            with contextlib.suppress(Exception):
+                if self.live_path is not None and self.live_path.exists():
+                    saved = json.loads(self.live_path.read_text(encoding="utf-8"))
+                    if saved.get("pid") == os.getpid() and isinstance(saved.get("refs"), dict):
+                        self._inherited = {
+                            r: row
+                            for r, row in saved["refs"].items()
+                            if isinstance(row, dict) and r not in self._entries
+                        }
+        return self._inherited
+
+    def _restore(self, ref: str) -> Entry | None:
+        """Re-bind ``ref`` of an earlier host of this NX process (a development reload):
+        the object with the persisted tag when it is still of the same kind, in the same
+        part and has the same journal identifier, else the unique current match of its
+        anchor. None when the ref was not persisted or its object is gone or changed."""
+        row = self._load_inherited().get(ref)
+        if row is None:
+            return None
+        try:
+            kind = str(row["kind"])
+            part = self._loaded_part(str(row.get("part") or ""))
+            obj = self._by_tag(row, kind, part) if part is not None else None
+            if obj is None and row.get("anchor") and kind in ANCHORED:
+                found = self._anchor_match(str(row["anchor"]), kind)
+                if found is not None:
+                    obj, part = found
+            if obj is None or part is None:
+                return None
+            part_key = self.backend.part_key(part)
+            if kind == "part":
+                part_id = ref
+            else:
+                part_ref = str(row.get("part_ref") or "")
+                known = self._entries.get(part_ref)
+                if known is None and part_ref and part_ref != ref:
+                    known = self._restore(part_ref)
+                part_id = known.id if known else self.row(part, "part", part=part)["id"]
+            handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
+        except Exception:
+            return None
+        entry = Entry(
+            ref, kind, handle, part_key, part_id, str(row.get("name") or ""),
+            row.get("anchor"), _tag(obj), self._jid(obj), str(row.get("part") or ""),
+        )  # fmt: skip
+        self._entries[ref] = entry
+        self._identity.setdefault((part_key, kind, entry.tag), ref)
+        self._load_inherited().pop(ref, None)
+        self.version += 1
+        return entry
+
+    def _loaded_part(self, path: str):
+        for part in self.backend.parts():
+            if str(self.backend.part_path(part)).casefold() == path.casefold():
+                return part
+        return None
+
+    def _by_tag(self, row: dict, kind: str, part):
+        """The live object with the persisted tag, when it is still what the ref named."""
+        tag = int(row["tag"])
+        if kind == "part":
+            return part if int(part.Tag) == tag else None
+        lookup = getattr(self.backend, "object_of_tag", None)
+        obj = lookup(tag) if lookup is not None else None
+        if obj is None or deleted(obj):
+            return None
+        if self.backend.part_key(self.backend.owning_part(obj)) != self.backend.part_key(part):
+            return None
+        jid = str(row.get("jid") or "")
+        if not jid or self._jid(obj) != jid:
+            return None  # a reused tag, or an object NX renamed: not the same object
+        inferred = None
+        with contextlib.suppress(Exception):
+            inferred = self.backend.infer_kind(obj, default=None)
+        if inferred in PREFIX and inferred != kind and TO_REGISTRY.get(kind) != inferred:
+            return None
+        return obj
 
     def issued(self) -> int:
         """The next ref number: refs at or above it are issued after this point."""

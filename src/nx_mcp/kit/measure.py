@@ -1,6 +1,7 @@
 """Mass properties and bounds of bodies, in work-part units (no NX import).
 
     m = measure.mass(tx, [body])          # {"volume", "area", "centroid"}
+    s = measure.solid_props(tx, body)     # {"volume", "area"}: one UF call, many bodies
     v = measure.volume(tx, body)          # part units^3
     low, high = measure.bounds(tx, bodies)  # absolute axis-aligned box
     n = measure.length(tx, curves)        # arc length, part units
@@ -192,6 +193,19 @@ def wcs(tx):
     shown = getattr(getattr(tx.session, "Parts", None), "Display", None)
     system = (shown if shown is not None else tx.part).WCS.CoordinateSystem
     return geom.xyz(system.Origin), geom.rows(system.Orientation.Element)
+
+
+def solid_props(tx, body, accuracy=ACCURACY):
+    """``{"volume", "area"}`` of one solid body in part units from one UF
+    ``AskMassProps3d`` (kg and metres, converted). It reads the same values as ``mass``
+    (``NewMassProperties``) in a fraction of the time (NX 2406: about 1.7 against 4.5 ms
+    for a block, far more for a complex body), so tools measuring every body of a part use it."""
+    with native(default="NX_ERROR"):
+        values = tx.uf.Modeling.AskMassProps3d(
+            [body.Tag], 1, UF_SOLID, UF_KG_M, 0.0, 1, [float(accuracy)] + [0.0] * 10
+        )[0]
+    to_part = 1.0 / M_PER[units.part_units(tx)]
+    return {"volume": float(values[1]) * to_part**3, "area": float(values[0]) * to_part**2}
 
 
 def wcs_is_absolute(tx, tol=1e-8):

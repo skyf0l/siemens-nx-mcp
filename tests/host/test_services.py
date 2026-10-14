@@ -379,3 +379,81 @@ def test_release_drafting_sketch_deactivates_only_a_drafting_sketch(tmp_path):
     s.session.ActiveSketch = NS(IsDraftingSketch=True, Deactivate=deactivate)
     assert s.release_drafting_sketch() is True
     assert s.session.ActiveSketch is None and calls == [(False, "m")]
+
+
+class _Counted:
+    """An NX object counting reads of its names (each is an NX call on the host)."""
+
+    reads = 0
+
+    def __init__(self, tag, name):
+        self.Tag, self._name = tag, name
+
+    @property
+    def Name(self):
+        type(self).reads += 1
+        return self._name
+
+    @property
+    def JournalIdentifier(self):
+        type(self).reads += 1
+        return self._name.upper()
+
+
+def _model_part(tmp_path, bodies, features):
+    part = NS(
+        Tag=1, FullPath=str(tmp_path / "ws" / "m.prt"), Name="m",
+        ComponentAssembly=NS(RootComponent=None), Bodies=bodies, Features=features,
+        Curves=[], Sketches=[],
+    )  # fmt: skip
+    return part
+
+
+def test_a_snapshot_reads_the_names_of_new_objects_only(tmp_path):
+    s = services(tmp_path)
+    bodies = [_Counted(t, f"body{t}") for t in (5, 6)]
+    features = [_Counted(t, f"feat{t}") for t in (7, 8, 9)]
+    part = _model_part(tmp_path, bodies, features)
+    s.session.Parts.append(part)
+    _Counted.reads = 0
+    first = s.snapshot(part)
+    assert _Counted.reads == 10 and set(first) == {("body", 5), ("body", 6), *(
+        ("feature", t) for t in (7, 8, 9))}  # fmt: skip
+    _Counted.reads = 0
+    features.append(_Counted(10, "feat10"))
+    bodies.pop(0)
+    second = s.snapshot(part)
+    assert _Counted.reads == 2  # only the new feature's names
+    assert second[("feature", 7)] == first[("feature", 7)]
+    assert second[("feature", 10)]["name"] == "feat10" and ("body", 5) not in second
+    row = second[("feature", 10)]
+    assert row["journal_id"] == "FEAT10" and row["owner_part_path"] == part.FullPath
+    assert s.resolve_handle(row["id"]) is features[-1]
+
+
+def test_faces_and_edges_live_while_their_body_lists_them(tmp_path):
+    s = services(tmp_path)
+    reads = []
+
+    class Body:
+        def __init__(self, tag, faces):
+            self.Tag, self.faces = tag, faces
+
+        def GetFaces(self):
+            reads.append(self.Tag)
+            return list(self.faces)
+
+        def GetEdges(self):
+            return []
+
+    face = _Tagged(31)
+    gone = _Tagged(32)
+    held, other = Body(5, [face]), Body(6, [_Tagged(t) for t in range(40, 60)])
+    face.GetBody = gone.GetBody = lambda: held
+    part = _model_part(tmp_path, [held, other], [])
+    s.session.Parts.append(part)
+    refs = s.references
+    keep, lost = (refs.row(f, "face", part=part)["id"] for f in (face, gone))
+    retired = s.invalidate({}, {}, True)
+    assert refs.stale(retired) == [lost] and refs.resolve(keep, ("face",)) is face
+    assert reads == [5]  # the other body's faces were never read

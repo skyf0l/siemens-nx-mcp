@@ -25,6 +25,11 @@ def _gap(a, b):
     return math.sqrt(sum(max(a[i] - b[i + 3], b[i] - a[i + 3], 0.0) ** 2 for i in range(3)))
 
 
+def _box_area(box):
+    x, y, z = (box[i + 3] - box[i] for i in range(3))
+    return 2 * (x * y + y * z + x * z)
+
+
 def _clamp(p, box):
     return [min(max(p[i], box[i]), box[i + 3]) for i in range(3)]
 
@@ -155,6 +160,7 @@ def inspection_nx(units="mm"):
             sum(b.volume * (b.box[i] + b.box[i + 3]) / 2 for b in bodies) / volume for i in range(3)
         ]
         values = [0.0] * 47
+        values[0] = sum(_box_area(b.box) for b in bodies) * m**2
         values[1] = volume * m**3
         values[2] = mass
         values[3:6] = [c * m for c in centre]
@@ -206,6 +212,7 @@ def inspection_nx(units="mm"):
     nx.uf = NS(
         Modeling=NS(
             AskFaceData=face_data,
+            AskFaceType=lambda tag: CODES[nx.face_data[tag][0]],
             AskFaceUvMinmax=lambda tag: getattr(objects[tag], "uv_box", (0.0, 1.0, 0.0, 1.0)),
             AskFaceProps=face_props,
             AskPointContainment=contains,

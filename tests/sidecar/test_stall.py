@@ -48,7 +48,7 @@ def test_nx_not_running_and_bridge_not_answering_are_told_apart(monkeypatch):
     p, _ = proxy(monkeypatch, alive=False)
     assert p.explain_stall(down).message.startswith("NX (pid 4242) is not running")
     p, _ = proxy(monkeypatch, alive=True)
-    assert "is running, so its NX MCP host is stopped" in p.explain_stall(down).message
+    assert "did not accept the connection (busy)" in p.explain_stall(down).message
 
 
 @pytest.mark.parametrize("code", ["NX_INVALID_ARGUMENT", "NX_BUILD_FAILED"])

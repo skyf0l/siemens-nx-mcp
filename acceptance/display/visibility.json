@@ -168,6 +168,66 @@
   },
   {
    "call": "nx_set_visibility",
+   "save": "both",
+   "args": {
+    "mode": "hide",
+    "objects": [
+     "$bodies.data.items.0.id"
+    ],
+    "datums": true
+   },
+   "intent": "Acceptance: objects and datums=true in one call change both, as two calls would",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 9,
+    "data.blanked": 9,
+    "data.by_type.datum": 8,
+    "data.modified_parts": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_set_visibility",
+   "save": "dtype",
+   "args": {
+    "mode": "show",
+    "types": [
+     "datum"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.by_type.datum": 8,
+    "data.count": 8,
+    "data.blanked": 0,
+    "data.objects.0.object.kind": "datum_plane"
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$dtype.restore_id"
+   },
+   "expect": {
+    "data.identical": true,
+    "data.count": 8,
+    "data.objects.0.blanked": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "$both.restore_id"
+   },
+   "expect": {
+    "data.identical": true,
+    "data.count": 9,
+    "data.objects.0.blanked": false
+   }
+  },
+  {
+   "call": "nx_set_visibility",
    "save": "iso",
    "args": {
     "mode": "isolate",

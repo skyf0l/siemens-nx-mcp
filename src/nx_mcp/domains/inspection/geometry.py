@@ -6,6 +6,14 @@
 (``highest``/``lowest``) and returns a ``selector``: the same rule, with a persistent
 owner anchor, that ``nx_resolve_reference`` re-evaluates after edits or a reopen.
 Without ``order``, ``nearest`` is used when ``near`` is given, else ``lowest``.
+``nearest`` measures exactly only what the page needs: candidates are taken in order of
+their bounding-box distance to ``near`` (a lower bound) until that bound exceeds the
+page's farthest exact distance, so a part of 20,000 faces ranks in two cheap UF reads per
+face plus a few exact distances, with the same rows and ``page.total`` as measuring
+every face. Face types come from UF ``AskFaceType`` (microseconds); ``AskFaceData``
+(about 1.5 ms a face on NX 2406) runs on every candidate only for a normal, radius or role
+filter, else on the page rows. No owner is required: the scan is bounded
+(``MAX_CANDIDATES``) and grows the call's budget per candidate.
 A feature owner limits the candidates to the feature's own faces or edges
 (``Feature.GetFaces``/``GetEdges``), not every face of its bodies; a face owner gives its
 edges (``kind: edge`` only, as ``nx_list_objects`` lists them), its selector a face handle
@@ -31,6 +39,7 @@ and closed by a floor plane facing back into the hole or a narrowing (drill tip)
 
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import re
@@ -65,6 +74,10 @@ EDGE_TYPES = {"Linear": "line", "Circular": "circle", "Elliptical": "ellipse"}
 FACE_ONLY, EDGE_ONLY = {"plane", "cylinder", "cone"}, {"circle", "line"}
 PLURAL = {"face": "faces", "edge": "edges", "body": "bodies"}
 MAX_CANDIDATES = 20000
+# Budget seconds added per candidate face or edge: a type and a box read (microseconds),
+# ``AskFaceData`` (about 1.5 ms on NX 2406) only where a normal, radius or role filters,
+# and the exact distance only on the nearest few, by box bound.
+PER_CANDIDATE_SECONDS = 0.002
 DEFAULT_TOLERANCE = 0.001
 AXES = "xyz"
 DRAWING_KINDS = ("drawing_view", "drawing_sheet")
@@ -339,6 +352,18 @@ def _describe(tx, obj, kind):
     return facts
 
 
+def _quick_type(tx, obj, kind) -> str:
+    """The type ``_describe`` reports, read cheaply: a face's from UF ``AskFaceType``
+    (microseconds; ``AskFaceData`` takes about a millisecond per face on NX 2406)."""
+    if kind == "face":
+        with native():
+            return FACE_TYPES.get(int(tx.uf.Modeling.AskFaceType(obj.Tag)), "other")
+    if kind == "edge":
+        name = result.enum_name(obj.SolidEdgeType, tx.nx.Edge.EdgeType)
+        return EDGE_TYPES.get(name, "other")
+    return "solid" if getattr(obj, "IsSolidBody", False) else "sheet"
+
+
 def _line_direction(tx, edge) -> list[float] | None:
     """The unit direction of a line edge from its vertices (UF Eval when NX gives none);
     None when degenerate."""
@@ -365,18 +390,64 @@ def _along(tx, obj, parallel, tolerance) -> bool:
     return abs(found[AXES.index(parallel)]) >= 1 - tolerance
 
 
+def _slack(distance: float) -> float:
+    """Margin a box bound must clear before a candidate is skipped (NX's own distance
+    tolerance stays inside it)."""
+    return 1e-6 * max(1.0, abs(distance))
+
+
+def _point_distance(tx, obj, target):
+    """``(distance, point)`` from ``target`` to a face, edge or body. UF answers a point
+    inside a solid with minus its depth and the nearest boundary point (NX 2406: -1.0
+    for a point 1 deep): the body holds the point, so its distance is 0 at the point."""
+    return curve.point_distance(tx, obj, target)
+
+
+def _measure_nearest(tx, ranked, target, need):
+    """Exact ``nearest`` ranks: candidates are measured in order of their box distance (a
+    lower bound) and the scan stops once that bound exceeds the ``need``-th best exact
+    distance; every skipped candidate is farther, so the first ``need`` rows are exactly
+    those of measuring them all. Unmeasured rows follow, by their bound."""
+    ranked.sort(key=lambda item: (item[0], int(item[1].Tag)))
+    best: list[float] = []  # the need smallest exact distances, as a max-heap
+    measured = len(ranked)
+    for index, item in enumerate(ranked):
+        tx.checkpoint()
+        if need is not None and len(best) >= need and item[0] > -best[0] + _slack(-best[0]):
+            measured = index
+            break
+        distance, on_object = _point_distance(tx, item[1], target)
+        item[2].update(distance=distance, point=on_object)
+        item[0] = distance
+        if need is not None:
+            heapq.heappush(best, -distance)
+            if len(best) > need:
+                heapq.heappop(best)
+    done = sorted(ranked[:measured], key=lambda item: (item[0], int(item[1].Tag)))
+    return done + ranked[measured:]
+
+
 def search(
     tx, *, owner_obj, kind, geometry_type, normal, radius, near, order, axis, tolerance, role=None,
-    parallel=None,
+    parallel=None, need=None,
 ):  # fmt: skip
-    """Ranked ``[(rank, obj, facts)]`` of every face or edge matching the rule."""
+    """Ranked ``[(rank, obj, facts)]`` of every face or edge matching the rule.
+
+    Only the first ``need`` rows (None: all) carry every fact: the type is read cheaply
+    (``_quick_type``), ``_describe`` runs on every candidate only when a normal, radius
+    or role filters them, and with ``near`` the exact ``distance`` and ``point`` come
+    from ``_measure_nearest``. The count of rows is always complete."""
     want_normal = direction(normal) if normal is not None else None
     target = args.vec3(near, "/near") if near is not None else None
-    ranked = []
-    for obj in _candidates(tx, kind, owner_obj):
-        facts = _describe(tx, obj, kind)
-        if geometry_type != "any" and facts["type"] != geometry_type:
+    described = normal is not None or radius is not None or role is not None
+    ranked: list[list[Any]] = []
+    found = _candidates(tx, kind, owner_obj)
+    tx.scale_budget(len(found), per_item=PER_CANDIDATE_SECONDS)
+    for obj in found:
+        tx.checkpoint()
+        if geometry_type != "any" and _quick_type(tx, obj, kind) != geometry_type:
             continue
+        facts = _describe(tx, obj, kind) if described else {}
         if want_normal is not None and geom.dot(want_normal, facts["normal"]) < 1 - tolerance:
             continue
         if parallel is not None and not _along(tx, obj, parallel, tolerance):
@@ -390,14 +461,24 @@ def search(
         facts["center"] = [(box[i] + box[i + 3]) / 2 for i in range(3)]
         if kind == "body":
             facts.update(min=box[:3], max=box[3:6])
-        if target is not None:
-            distance, on_object = curve.point_distance(tx, obj, target)
-            facts.update(distance=distance, point=on_object)
-        rank = facts["distance"] if order == "nearest" else facts["center"][AXES.index(axis)]
-        ranked.append((rank, obj, facts))
-    sign = -1.0 if order == "highest" else 1.0
-    ranked.sort(key=lambda item: (sign * item[0], int(item[1].Tag)))
-    return ranked
+        if order == "nearest":
+            rank = common.box_gap(box, [*target, *target])  # a lower bound until measured
+        else:
+            rank = facts["center"][AXES.index(axis)]
+        ranked.append([rank, obj, facts])
+    if order == "nearest":
+        out = _measure_nearest(tx, ranked, target, need)
+    else:
+        sign = -1.0 if order == "highest" else 1.0
+        out = sorted(ranked, key=lambda item: (sign * item[0], int(item[1].Tag)))
+        for item in out[:need] if target is not None else ():
+            tx.checkpoint()
+            distance, on_object = _point_distance(tx, item[1], target)
+            item[2].update(distance=distance, point=on_object)
+    for item in out[:need] if not described else ():
+        tx.checkpoint()
+        item[2] = {**_describe(tx, item[1], kind), **item[2]}
+    return [(rank, obj, facts) for rank, obj, facts in out]
 
 
 def _body_facts(tx, body, row):
@@ -493,6 +574,7 @@ def nx_find_geometry(
         tolerance=tolerance,
         role=role,
         parallel=parallel,
+        need=offset + limit,
     )
     selected, page = result.page(ranked, offset, limit)
     items = [
@@ -683,7 +765,12 @@ def nx_find_holes(
     owner_obj, _ = _owner(tx, owner)
     tol = DEFAULT_TOLERANCE
     bores = []
-    for obj in _candidates(tx, "face", owner_obj):
+    candidates = _candidates(tx, "face", owner_obj)
+    tx.scale_budget(len(candidates), per_item=PER_CANDIDATE_SECONDS)
+    for obj in candidates:
+        tx.checkpoint()
+        if _quick_type(tx, obj, "face") != "cylinder":
+            continue
         found = _describe(tx, obj, "face")
         if found["type"] == "cylinder" and found["role"] == "bore":
             with native():
@@ -939,7 +1026,9 @@ def nx_resolve_reference(
     args.exactly_one(selector=selector, anchor=anchor)
     if anchor is not None:
         anchor = anchor.strip()
-        if re.match(REF_PATTERN, anchor):
+        # A short ref is checked as is; an anchor (REF_PATTERN takes row anchors too) is
+        # re-resolved by its persistent identity.
+        if not anchor.startswith("@") and re.match(REF_PATTERN, anchor):
             obj = tx.resolve(anchor)
             return {"object": tx.ref(obj, kind=tx.kind_of(obj)), "via": "reference"}
         match = _HANDLE_ANCHOR.match(anchor)
@@ -964,6 +1053,7 @@ def nx_resolve_reference(
         role=role,
         **rule,
         parallel=parallel,
+        need=2,  # the best two decide a tie
     )
     if not ranked:
         fail("NX_NOT_FOUND", "No geometry satisfies the selector now", field="/selector")

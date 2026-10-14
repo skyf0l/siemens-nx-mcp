@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -586,6 +587,21 @@ def _refresh(spec, services: Services, tx: Tx, bound=None) -> list:  # gate 13
 # Top-level call
 
 
+class _Phases(dict):
+    """Seconds a call spent per kernel phase, kept in its receipt (``phases``) so a slow
+    call shows where the time went: gates, snapshot, handler, readback, invalidate,
+    refresh, changes."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._at = time.perf_counter()
+
+    def lap(self, name: str) -> None:
+        now = time.perf_counter()
+        self[name] = round(self.get(name, 0.0) + now - self._at, 3)
+        self._at = now
+
+
 def run(spec, args, ctx: Context) -> dict:
     services = ctx.services
     operation_id = ctx.operation_id or new_operation_id()
@@ -607,6 +623,7 @@ def run(spec, args, ctx: Context) -> dict:
     part_text = keys.get("part", ctx.part)
     caller = targets.check_caller(keys.get("caller", ctx.caller))
     raw_args = copy.deepcopy(args) if isinstance(args, dict) else args
+    phases = _Phases()
     busy.adopt(services)  # agent parts of this NX process after a host reload
     try:
         expires = targets.check_call_keys(part_text, keys.get("expires_at", ctx.expires_at))
@@ -656,9 +673,11 @@ def run(spec, args, ctx: Context) -> dict:
             watched = undo_marks.watch(services)
             census = targets.census(services)  # the agent's loaded parts (gate 14 note)
         if spec.effect == "model":  # 8
+            phases.lap("gates")
             before = services.snapshot(part) if part is not None else {}
             floor = _ref_floor(services)
             mark = services.set_mark("NX MCP: " + spec.label)
+            phases.lap("snapshot")
         tx = Tx(
             services,
             spec,
@@ -684,6 +703,7 @@ def run(spec, args, ctx: Context) -> dict:
         with services.observe() as observer:
             data = spec.handler(tx, **call_args)  # 10
         handler_done = True  # Later failures roll back whatever the handler did.
+        phases.lap("handler")
         if not isinstance(data, dict):
             fail("NX_ERROR", f"{spec.name} returned {type(data).__name__}, not an object")
         bound.check()  # 4s (after): the switched target is still the work part
@@ -691,11 +711,15 @@ def run(spec, args, ctx: Context) -> dict:
         changes = None
         if spec.effect == "model":
             seen, after = _readback_parts(spec, services, tx, part, before, mark)  # 11
+            phases.lap("readback")
             retired = services.invalidate(seen, after, spec.invalidates == "topology")  # 12
+            phases.lap("invalidate")
             refreshed = _refresh(spec, services, tx, bound)  # 13
+            phases.lap("refresh")
             changes = _changes(
                 services, seen, after, spec, refreshed, retired=retired, floor=floor, tx=tx
             )
+            phases.lap("changes")
             if tx.references == "part_invalidated":  # the handler invalidated the part
                 changes["references"] = tx.references
                 changes.pop("stale_kinds", None)
@@ -734,6 +758,9 @@ def run(spec, args, ctx: Context) -> dict:
         _leave(bound, envelope)  # 4s: the engineer's display and work parts come back
         services.after_commit(spec)
         _bump_parts(services, spec, tx, target, envelope["mutation_outcome"])
+        phases.lap("finish")
+        if record is not None:
+            record["phases"] = dict(phases)
         receipts.finish(record, envelope)
         return envelope
     except BaseException as exc:  # 15 (SystemExit/KeyboardInterrupt from a handler too)

@@ -11,7 +11,7 @@ import json
 import time
 from pathlib import Path
 from types import SimpleNamespace as NS
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 import pytest
 
@@ -19,6 +19,7 @@ from nx_mcp.core import catalogue, kernel, receipts, target
 from nx_mcp.core.catalogue import CatalogueError, make_spec
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.tx import Tx
+from nx_mcp.core.types import Items, Ref
 from tests.kit import fake_nx, run
 from tests.kit.fake import Factories
 from tests.kit.kernel import services
@@ -711,3 +712,43 @@ def test_resolve_reference_runs_in_the_part_its_anchor_or_selector_names():
     wrong = run(nx, "nx_resolve_reference", anchor=anchor, part="plate")
     assert wrong.error["code"] == "NX_WRONG_PART_CONTEXT", wrong
     assert run(nx, "nx_resolve_reference", anchor=anchor, part="work").ok
+
+
+class _Shown(TypedDict):
+    count: int
+
+
+def nx_set_shown_thing(tx, *, objects: Annotated[list[Ref], Items(1, 5)]) -> _Shown:
+    """Show objects."""
+    return {"count": len(objects)}
+
+
+def _assembly_spec(target_kind):
+    return make_spec(
+        nx_set_shown_thing, effect="view", label="Shown", keywords=("a", "b", "c"),
+        domain="display", requires=("work_part",), target=target_kind, example={"objects": ["b:1"]},
+    )  # fmt: skip
+
+
+def test_an_assembly_tool_takes_component_part_refs_through_the_assembly_that_uses_it():
+    nx = _block_nx()
+    pin = _second(nx, "kitA/pin.prt")
+    plate = _second(nx)
+    root = NS(GetChildren=lambda: [component])
+    component = NS(Prototype=pin, GetChildren=lambda: [])
+    nx.part.ComponentAssembly = NS(RootComponent=root)  # work.prt uses pin.prt
+    body = NS(Tag=9201, OwningPart=pin, Name="PIN BODY")
+    ref = nx.ref_of(body, "body")
+    s = services(nx)
+    assert target.uses_part(s, nx.part, pin) and not target.uses_part(s, plate, pin)
+    assembly = _assembly_spec("assembly")
+    checked = assembly.check({"objects": [ref]})
+    assert target.resolve(assembly, checked, s, part="work").part is nx.part
+    assert target.resolve(assembly, checked, s).part is pin  # no part: the refs' part
+    with pytest.raises(NXError) as unused:  # plate.prt does not use pin.prt
+        target.resolve(assembly, checked, s, part="plate")
+    assert unused.value.code == "NX_WRONG_PART_CONTEXT"
+    refs = _assembly_spec("refs")  # other target kinds keep the refusal
+    with pytest.raises(NXError) as other:
+        target.resolve(refs, refs.check({"objects": [ref]}), s, part="work")
+    assert other.value.code == "NX_WRONG_PART_CONTEXT"

@@ -107,7 +107,7 @@ def nx_create_sweep_along_guide(
             fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
     length = measure.length(tx, curves)
     targets = common.combine_targets(tx, combine)
-    before = measure.volume(tx, targets) if targets else 0.0
+    before = common.target_state(tx, targets)
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     overlapping = kbodies.clashing(tx, targets)
     with builders.build(tx, tx.part.Features.CreateSweepAlongGuideBuilder, None) as b:
@@ -178,7 +178,7 @@ def nx_create_variational_sweep(
     licenses.require(tx, (LICENSE,), "Variational sweep needs the basic freeform license",
                      strict=True)  # fmt: skip
     targets = common.combine_targets(tx, combine)
-    before = measure.volume(tx, targets) if targets else 0.0
+    before = common.target_state(tx, targets)
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     overlapping = kbodies.clashing(tx, targets)
     with builders.build(tx, tx.part.Features.CreateVarsweepBuilder, None) as b:

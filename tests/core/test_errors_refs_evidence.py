@@ -66,7 +66,12 @@ def test_fail_can_override_retry_for_one_error():
 
 
 def test_advisory_warning_codes_and_not_running():
-    assert {"NX_VIEW_OVERLAP", "NX_NO_EFFECT", "NX_NOTE"} <= errors.WARNING_CODES
+    assert {
+        "NX_VIEW_OVERLAP",
+        "NX_NO_EFFECT",
+        "NX_NOTE",
+        "NX_TARGET_UNCHANGED",
+    } <= errors.WARNING_CODES
     assert NXError("NX_NOT_RUNNING", "done").retry == "never"
 
 

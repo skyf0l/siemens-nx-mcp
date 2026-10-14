@@ -16,7 +16,11 @@ at most ``CLASH_BODIES`` solids, ``CLASH_TOTAL_FACES`` faces and ``CLASH_SECONDS
 seconds; every solid left out gets an info issue. The void check reads every edge's faces
 (slow on very large solids): it skips solids over ``CLASH_FACES`` faces with an info issue
 too. ``clash=True`` examines every solid for both until the call's cost budget is spent.
-Shared prototypes are checked once.
+Shared prototypes are checked once. ``healthy`` speaks for what was examined only:
+``complete`` is false when a check left solids out, and ``skipped`` counts them per check
+and reason (``face_limit``: one solid over the face limit; ``call_limit``: the per-call
+solids, faces or seconds; ``budget``: the call's cost budget), so a partial check is
+never read as a clean bill.
 ``nx_get_model_summary`` pages the feature tree, expressions, sketches and components,
 and gives counts, bounds and health for the overview: feature diagnostics, constraints
 and body consistency, without the self-overlap and void checks.
@@ -80,8 +84,17 @@ class Counts(TypedDict):
     bodies_checked: int
 
 
+class Skipped(TypedDict):
+    check: str
+    reason: str
+    bodies: int
+    faces: int
+
+
 class HealthData(TypedDict):
     healthy: bool
+    complete: bool
+    skipped: list[Skipped]
     errors: int
     warnings: int
     parts_checked: int
@@ -134,12 +147,24 @@ def _skipped(tx, owner, where, body, faces) -> Issue:
     }
 
 
-def _voids(tx, owner, where, body, *, force: bool) -> Issue | None:
+def _skip(skipped, check, reason, faces) -> None:
+    """Count one solid a check left out in ``skipped`` (``{(check, reason): Skipped}``)."""
+    if skipped is None:
+        return
+    row = skipped.setdefault(
+        (check, reason), {"check": check, "reason": reason, "bodies": 0, "faces": 0}
+    )
+    row["bodies"] += 1
+    row["faces"] += int(faces)
+
+
+def _voids(tx, owner, where, body, *, force: bool, skipped=None) -> Issue | None:
     """The sealed-void info issue of ``body`` (more than one shell), or None; a body over
     ``kit.bodies.CLASH_FACES`` faces gets a skipped-check info issue unless ``force``."""
     if not force:
         faces = bodies.face_count(body)
         if faces > bodies.CLASH_FACES:
+            _skip(skipped, "internal_void", "face_limit", faces)
             return {
                 "severity": "info",
                 "kind": "internal_void",
@@ -175,25 +200,32 @@ def _budget_spent(tx) -> bool:
     return False
 
 
-def clashes(tx, solids, *, force: bool = False) -> list[Issue]:
+def clashes(tx, solids, *, force: bool = False, skipped=None) -> list[Issue]:
     """Self-overlap issues of ``solids`` (``(owner, where, body)`` rows): errors, plus
-    info issues for the solids left out (over the face limit or the call's budgets).
+    info issues for the solids left out (over the face limit or the call's budgets),
+    counted in ``skipped`` (``_skip``) when given.
     ``force`` lifts the face limit and the budgets of this module; the call's cost budget
     still stops it (between bodies: one body's check cannot be interrupted)."""
     issues: list[Issue] = []
     started, examined, total, left = time.monotonic(), 0, 0, 0
+    reason = "call_limit"
     for owner, where, body in solids:
         faces = bodies.face_count(body)
         if not force and faces > bodies.CLASH_FACES:
             issues.append(_skipped(tx, owner, where, body, faces))
+            _skip(skipped, "self_intersection", "face_limit", faces)
             continue
         spent = not force and (
             examined >= CLASH_BODIES
             or total + faces > CLASH_TOTAL_FACES
             or time.monotonic() - started > CLASH_SECONDS
         )
-        if left or spent or _budget_spent(tx):
+        if not left and not spent and _budget_spent(tx):
+            reason = "budget"
+            spent = True
+        if left or spent:
             left += 1
+            _skip(skipped, "self_intersection", reason, faces)
             continue
         examined, total = examined + 1, total + faces
         clash = _clash(tx, owner, where, body)
@@ -218,9 +250,15 @@ def clashes(tx, solids, *, force: bool = False) -> list[Issue]:
 
 
 def diagnose(
-    tx, scope="part", *, clash: Literal["auto", "all", "off"] = "auto", find_voids: bool = True
+    tx,
+    scope="part",
+    *,
+    clash: Literal["auto", "all", "off"] = "auto",
+    find_voids: bool = True,
+    skipped: dict | None = None,
 ) -> tuple[list[Issue], Counts]:
-    """``(issues, counts)`` of the work part or the whole loaded assembly. ``clash``:
+    """``(issues, counts)`` of the work part or the whole loaded assembly (solids a check
+    left out are counted in ``skipped``, ``_skip``, when given). ``clash``:
     self-overlap on solids within the face limit and budgets (auto), on every solid until
     the cost budget is spent (all), or not at all (off); ``find_voids``: sealed voids, on
     solids within the face limit unless ``clash`` is all."""
@@ -310,11 +348,15 @@ def diagnose(
             if not getattr(body, "IsSolidBody", False):
                 continue
             examine.append((owner, where, body))
-            void = _voids(tx, owner, where, body, force=clash == "all") if find_voids else None
+            void = (
+                _voids(tx, owner, where, body, force=clash == "all", skipped=skipped)
+                if find_voids
+                else None
+            )
             if void is not None:
                 issues.append(void)
     if clash != "off":
-        issues.extend(clashes(tx, examine, force=clash == "all"))
+        issues.extend(clashes(tx, examine, force=clash == "all", skipped=skipped))
     counts: Counts = {
         "errors": sum(i["severity"] == "error" for i in issues),
         "warnings": sum(i["severity"] == "warning" for i in issues),
@@ -344,11 +386,15 @@ def nx_check_model(
 ) -> HealthData:
     """Check feature errors/warnings, suppression, unloaded components, unsolved constraints
     and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended).
-    healthy: no errors/warnings; no update."""
-    issues, counts = diagnose(tx, scope, clash="all" if clash else "auto")
+    healthy: no errors/warnings in what was examined; complete false: some solids were
+    not examined (skipped), not a clean bill. No update."""
+    left: dict = {}
+    issues, counts = diagnose(tx, scope, clash="all" if clash else "auto", skipped=left)
     selected, page = result.page(issues, offset, limit)
     return {
         "healthy": counts["errors"] == 0 and counts["warnings"] == 0,
+        "complete": not left,
+        "skipped": list(left.values()),
         **counts,
         "issues": selected,
         "page": page,

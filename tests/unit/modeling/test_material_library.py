@@ -346,3 +346,23 @@ def test_get_material_notes_default_density_and_empty_assembly():
     assert "no components" in empty.warnings[0]["message"]
     run(nx, "nx_set_material", material="Steel")
     assert not run(nx, "nx_get_material").warnings
+
+
+def test_many_bodies_take_one_assign_call_and_a_scaled_budget(monkeypatch):
+    from nx_mcp.core.tx import Tx
+
+    nx = library_nx()
+    blocks = [nx.block(1, 1, 1, origin=(5 * i, 0, 0)) for i in range(120)]
+    scaled, calls = [], []
+    real = Tx.scale_budget
+    monkeypatch.setattr(Tx, "scale_budget", lambda self, n, *a: (scaled.append(n),
+                        real(self, n, *a))[1])  # fmt: skip
+    ok = run(nx, "nx_set_material", material={"library": "Steel"})
+    assert ok.ok and len(ok.data["items"]) == 120, ok
+    assert scaled == [120]
+    steel = next(m for m in nx.materials if m.Name == "Steel")
+    assign = steel.AssignObjects
+    monkeypatch.setattr(steel, "AssignObjects", lambda bodies: (calls.append(len(bodies)),
+                        assign(bodies))[1], raising=False)  # fmt: skip
+    again = run(nx, "nx_set_material", bodies=[b.ref for b in blocks], material="Steel")
+    assert again.ok and calls == [120], again

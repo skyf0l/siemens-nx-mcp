@@ -3,6 +3,7 @@
 import dataclasses
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -893,6 +894,21 @@ def test_budget_defaults_follow_the_cost_classes():
         "long": 1800.0,
     }
     assert tx_module.DEFAULT_BUDGET_SECONDS == 300.0
+
+
+def test_scale_budget_grows_with_the_input_up_to_the_cap():
+    spec = SimpleNamespace(cost="light")
+    tx = tx_module.Tx(None, spec, operation_id=None)
+    assert tx.budget() == 30.0
+    tx.scale_budget(100)  # 0.2 s per object
+    assert tx.budget() == 50.0
+    tx.scale_budget(10)  # never shrinks
+    assert tx.budget() == 50.0
+    tx.scale_budget(100_000)
+    assert tx.budget() == tx_module.SCALED_BUDGET_CAP_SECONDS
+    heavy = tx_module.Tx(None, SimpleNamespace(cost="long"), operation_id=None)
+    heavy.scale_budget(100_000)  # never below the cost class
+    assert heavy.budget() == 1800.0
 
 
 # -- undo, re-run and redo ------------------------------------------------------------

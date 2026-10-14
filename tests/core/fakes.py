@@ -170,6 +170,15 @@ class FakeServices(Services):
         self.snapshots[token] = {"records": records, "camera": camera}
         return token
 
+    def object_of_tag(self, tag):
+        for part in self.parts():
+            if int(part.Tag) == int(tag):
+                return part
+            for obj in part.objects:
+                if int(obj.Tag) == int(tag):
+                    return obj
+        return None
+
     def infer_kind(self, obj, default="error"):
         return "part" if isinstance(obj, FakePart) else obj.kind
 
@@ -313,6 +322,9 @@ class FakeServices(Services):
 
     def after_commit(self, spec):
         self.epoch += 1
+
+    def revision(self):
+        return self.epoch
 
     def after_failure(self, spec, outcome=None):
         if outcome != "not_started":

@@ -68,6 +68,11 @@ class ObjectRef:
 
 
 BRIDGE_PROTOCOL_VERSION = 1
+LISTEN_BACKLOG = 64
+# A refused or reset connect (nothing was sent) is retried for this long while the host
+# is alive (its heartbeat is fresh, or a development reload is under way).
+CONNECT_RETRY_SECONDS = 5.0
+CONNECT_FAILURES = (ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError)
 _MAX_MESSAGE_BYTES = 1024 * 1024
 # NX answers a request it could not finish within DISPATCHER_TIMEOUT of starting
 # it itself (NX_BRIDGE_UNAVAILABLE with a known outcome). The interactive
@@ -219,6 +224,10 @@ def _error_payload(error: NXError) -> dict[str, Any]:
 
 class _BridgeTCPServer(socketserver.TCPServer):
     allow_reuse_address = True
+    # Connections the OS holds until the host accepts them: the interactive host accepts
+    # on NX's UI thread, which a long NX step holds, so a burst of parallel calls must
+    # wait in the backlog rather than be refused (socketserver's default is 5).
+    request_queue_size = LISTEN_BACKLOG
 
     executor: Any
     token: str
@@ -730,7 +739,7 @@ class BridgeClient:
             "params": params,
         }
         writer: asyncio.StreamWriter | None = None
-        sent = False
+        sent = connected = False
         timeout = self.timeout_for(method)
         try:
             reader, writer = await asyncio.wait_for(
@@ -742,6 +751,7 @@ class BridgeClient:
                 timeout=timeout,
             )
             assert writer is not None
+            connected = True
             writer.write(json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n")
             await writer.drain()
             sent = True
@@ -766,13 +776,16 @@ class BridgeClient:
                         "mutation_outcome": "unknown",
                     },
                 ) from error
+            details: dict[str, Any] = {"mutation_outcome": "not_started"}
+            if not connected and isinstance(error, CONNECT_FAILURES):
+                details["connect"] = "refused"  # no byte was written: a retry is safe
             raise NXError(
                 "NX_BRIDGE_UNAVAILABLE",
-                f"Cannot reach the NX bridge at {self.host}:{self.port} ({type(error).__name__}: "
-                f"{error}): NX or its NX MCP host is not running, or is restarting. Nothing ran.",
-                hint="Start NX with the NX MCP host (or wait for its restart), then retry",
+                f"Cannot connect to the NX bridge at {self.host}:{self.port} "
+                f"({type(error).__name__}: {error}). Nothing ran.",
+                hint="nx_get_status says whether NX and its NX MCP host run; retry when they do",
                 retryable=True,
-                details={"mutation_outcome": "not_started"},
+                details=details,
             ) from error
         finally:
             if writer is not None:

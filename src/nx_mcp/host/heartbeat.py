@@ -24,7 +24,8 @@ This module answers from outside NX instead, in about a second and with no NX ca
   while NX's window does not respond.
 - ``down``: no NX MCP host is registered or its NX process is gone.
 - ``not_answering``: NX runs, the host is idle and its heartbeat fresh, yet the bridge
-  did not answer (the host may be reloading).
+  did not accept the connection; the message says when a development reload of the host
+  is asked for or just done (:func:`reload_state`), never otherwise.
 - ``unknown``: no heartbeat and the process cannot be checked (off Windows).
 
 NX-free (standard library and ctypes only): the sidecar imports it. Off Windows the
@@ -51,6 +52,59 @@ CPU_BUSY_FRACTION = 0.2  # of one core over the sample: NX computes
 
 def state_file(root) -> Path:
     return Path(root) / ".nx-mcp" / STATE_FILE
+
+
+# A development reload (scripts/dev_reload.py): it asks with the RESTART_FILE marker, the
+# startup application removes it when it restarts the host and writes DEV_STATE_FILE
+# (``generation``, ``updated_at``, ``ok``) once the new host runs or failed to start.
+RESTART_FILE = "dev-restart"
+DEV_STATE_FILE = "dev-state.json"
+RELOAD_SECONDS = 10.0  # a host this recently (re)started may not listen yet
+
+
+def reload_state(root, *, now: float | None = None) -> dict | None:
+    """``{pending, generation, seconds}`` while a development host reload is asked for
+    (``pending``) or finished less than RELOAD_SECONDS ago, else None. Never raises."""
+    if root is None:
+        return None
+    folder = Path(root) / ".nx-mcp"
+    now = time.time() if now is None else now
+    try:
+        pending = (folder / RESTART_FILE).exists()
+    except OSError:
+        pending = False
+    state: dict = {}
+    try:
+        loaded = json.loads((folder / DEV_STATE_FILE).read_text(encoding="utf-8"))
+        state = loaded if isinstance(loaded, dict) else {}
+    except (OSError, ValueError, TypeError):
+        state = {}
+    updated = state.get("updated_at")
+    age = now - updated if isinstance(updated, (int, float)) else None
+    generation = state.get("generation")
+    # Generation 1 is NX's own start of the host, not a reload.
+    restarted = isinstance(generation, int) and generation > 1 and bool(state.get("running"))
+    recent = restarted and age is not None and 0 <= age <= RELOAD_SECONDS
+    if not pending and not recent:
+        return None
+    return {
+        "pending": pending,
+        "generation": generation,
+        "seconds": round(age, 1) if age is not None else None,
+    }
+
+
+def fresh(root, pid: int | None, *, now: float | None = None) -> bool:
+    """Whether NX's host is alive by its heartbeat: written within STALE_SECONDS, or it
+    says a call runs (the UI thread is held then, so the file stands still)."""
+    beat = heartbeat_for(root, pid) if root is not None else None
+    if not beat:
+        return False
+    if beat.get("running_method"):
+        return True
+    sampled = beat.get("sampled_at")
+    now = time.time() if now is None else now
+    return isinstance(sampled, (int, float)) and now - sampled <= STALE_SECONDS
 
 
 def read(root) -> dict | None:
@@ -233,7 +287,8 @@ def assess(
         "heartbeat_age_seconds": age,
         "dialogs": found,
     }
-    health.update(_verdict(registered, process, call, age, found))
+    reloading = reload_state(root, now=now) if registered else None
+    health.update(_verdict(registered, process, call, age, found, reloading))
     return health
 
 
@@ -243,7 +298,7 @@ def _doing(call: dict) -> str:
     return f"{call['tool']}{where}{took}"
 
 
-def _verdict(registered, process, call, age, found) -> dict:
+def _verdict(registered, process, call, age, found, reloading=None) -> dict:
     pid, alive = process.get("pid"), process.get("alive")
     if not registered:
         return {
@@ -308,9 +363,15 @@ def _verdict(registered, process, call, age, found) -> dict:
             "checked from here",
             "hint": "Retry in a few seconds, or ask the engineer whether NX runs",
         }
+    if reloading:
+        return {
+            "state": "not_answering",
+            "message": f"NX (pid {pid}) runs and its NX MCP host is reloading (development reload)",
+            "hint": "Retry in a few seconds; nx_get_status shows when the bridge answers again",
+        }
     return {
         "state": "not_answering",
         "message": f"NX (pid {pid}) runs and its NX MCP host is idle, but the bridge did not "
-        "answer (the host may be reloading)",
+        "accept the connection",
         "hint": "Retry in a few seconds; nx_get_status shows when the bridge answers again",
     }

@@ -445,3 +445,133 @@ def test_resolve_errors_say_where_a_ref_or_another_part_goes():
     assert "run nx_find_geometry" in by_hand.error["hint"]
     other = run(nx, "nx_resolve_reference", anchor="@smoke/a/other.prt:face=RM1 R1")
     assert other.error["code"] == "NX_WRONG_OWNER" and "part='other.prt'" in other.error["hint"]
+
+
+def _count_distances(nx):
+    """Count the exact point distances (UF AskMinimumDist) a call makes."""
+    calls = []
+    exact = nx.uf.Modeling.AskMinimumDist
+
+    def counted(*a):
+        calls.append(a[0])
+        return exact(*a)
+
+    nx.uf.Modeling.AskMinimumDist = counted
+    return calls
+
+
+def test_nearest_measures_only_the_closest_candidates_with_the_same_rows():
+    """Candidates are measured in order of their box distance and the scan stops once
+    that lower bound exceeds the page's farthest exact distance."""
+    nx = inspection_nx()
+    for i in range(30):
+        nx.block(5, 5, 5, origin=(10 * i, 0, 0))
+    calls = _count_distances(nx)
+    every = run(nx, "nx_find_geometry", kind="face", near=[-1, 2, 2], limit=200)
+    assert every.ok and len(calls) == 180 and every.page["total"] == 180, every
+    calls.clear()
+    few = run(nx, "nx_find_geometry", kind="face", near=[-1, 2, 2], limit=3)
+    assert few.ok and few.page["total"] == 180 and few.page["next_offset"] == 3, few
+    assert few.data["items"] == every.data["items"][:3]
+    assert few.data["items"][0]["distance"] == 1 and len(calls) < 20, len(calls)
+    calls.clear()
+    second = run(nx, "nx_find_geometry", kind="face", near=[-1, 2, 2], offset=3, limit=3)
+    assert second.data["items"] == every.data["items"][3:6] and len(calls) < 30
+
+
+def test_nearest_bodies_and_resolve_measure_few_and_keep_ties():
+    nx = inspection_nx()
+    blocks = [nx.block(5, 5, 5, origin=(10 * i, 0, 0)) for i in range(20)]
+    calls = _count_distances(nx)
+    ok = run(nx, "nx_find_geometry", kind="body", near=[52, 2, 2], limit=1)
+    assert ok.data["items"][0]["id"] == blocks[5].ref and len(calls) < 5, (ok, calls)
+    calls.clear()
+    # Two bodies at the same distance: both are measured and the tie is reported.
+    tied = run(nx, "nx_find_geometry", kind="body", near=[47.5, 2, 2], limit=2)
+    assert [i["distance"] for i in tied.data["items"]] == [2.5, 2.5]
+    selector = tied.data["selector"]
+    again = run(nx, "nx_resolve_reference", selector=selector)
+    assert again.error["code"] == "NX_AMBIGUOUS_REFERENCE", again
+    near = run(nx, "nx_resolve_reference", selector=ok.data["selector"])
+    assert near.data["object"]["id"] == blocks[5].ref
+
+
+def test_ordered_rows_with_near_measure_only_the_page():
+    nx = inspection_nx()
+    for i in range(10):
+        nx.block(5, 5, 5 + i, origin=(10 * i, 0, 0))
+    calls = _count_distances(nx)
+    ok = run(
+        nx, "nx_find_geometry", kind="face", normal="+z", near=[0, 0, 0], order="highest",
+        limit=2,
+    )  # fmt: skip
+    assert ok.ok and ok.page["total"] == 10 and len(calls) == 2, ok
+    assert ok.data["items"][0]["center"][2] == 14 and "distance" in ok.data["items"][1]
+
+
+def test_the_face_scan_stops_at_the_cost_budget(monkeypatch):
+    from nx_mcp.core import tx as tx_module
+
+    nx = inspection_nx()
+    nx.block(5, 5, 5)
+    monkeypatch.setitem(tx_module.COST_BUDGET_SECONDS, "light", -1.0)
+    stopped = run(nx, "nx_find_geometry", kind="face", near=[0, 0, 0])
+    assert stopped.error["code"] == "NX_CANCELLED", stopped
+
+
+def test_face_data_is_read_for_the_page_rows_or_the_filtered_faces_only():
+    """UF AskFaceData takes about a millisecond a face: types come from AskFaceType and
+    the full facts are read for the page rows, or for every face a normal filters."""
+    nx = inspection_nx()
+    for i in range(10):
+        nx.block(5, 5, 5, origin=(10 * i, 0, 0))
+    reads = []
+    face_data = nx.uf.Modeling.AskFaceData
+
+    def counted(tag):
+        reads.append(tag)
+        return face_data(tag)
+
+    nx.uf.Modeling.AskFaceData = counted
+    ok = run(nx, "nx_find_geometry", kind="face", near=[0, 0, 0], limit=2)
+    assert ok.ok and ok.page["total"] == 60 and len(reads) == 2, (ok, reads)
+    assert ok.data["items"][0]["type"] == "plane" and "normal" in ok.data["items"][0]
+    reads.clear()
+    none = run(nx, "nx_find_geometry", kind="face", geometry_type="cylinder")
+    assert none.page["total"] == 0 and reads == []
+    holes = run(nx, "nx_find_holes")
+    assert holes.ok and holes.data["groups"] == [] and reads == []
+    tops = run(nx, "nx_find_geometry", kind="face", normal="+z", limit=1)
+    assert tops.page["total"] == 10 and len(reads) == 60
+
+
+def test_a_point_inside_a_solid_is_at_distance_zero():
+    """UF AskMinimumDist answers a point inside a solid with minus its depth."""
+    nx = inspection_nx()
+    inner = nx.block(10, 10, 10)
+    nx.block(5, 5, 5, origin=(20, 0, 0))
+    exact = nx.uf.Modeling.AskMinimumDist
+
+    def signed(tag, *rest):
+        distance, foot, other = exact(tag, *rest)
+        point = rest[-1]
+        box = nx.objects[tag].box if hasattr(nx.objects[tag], "box") else None
+        if box and all(box[i] < point[i] < box[i + 3] for i in range(3)):
+            return -1.0, [point[0], point[1], box[2]], other
+        return distance, foot, other
+
+    nx.uf.Modeling.AskMinimumDist = signed
+    ok = run(nx, "nx_find_geometry", kind="body", near=[5, 5, 1], limit=2)
+    first, second = ok.data["items"]
+    assert first["id"] == inner.ref and first["distance"] == 0 and first["point"] == [5, 5, 1]
+    assert second["distance"] == pytest.approx(math.dist([20, 5, 1], [5, 5, 1]))
+
+
+def test_a_row_anchor_resolves_as_an_anchor():
+    nx = inspection_nx()
+    body = nx.block(10, 10, 10)
+    anchor = run(nx, "nx_list_objects", kind="body").data["items"][0]["anchor"]
+    ok = run(nx, "nx_resolve_reference", anchor=anchor)
+    assert ok.ok and ok.data["via"] == "anchor" and ok.data["object"]["id"] == body.ref, ok
+    plain = run(nx, "nx_resolve_reference", anchor=body.ref)
+    assert plain.data["via"] == "reference"

@@ -10,7 +10,9 @@ NX 2406: ``BlockFeatureBuilder`` ignores its ``BooleanOption`` (measured: subtra
 ``SetTargetBodies`` commits the block as a separate body, plate 96000 + block 9600). It
 combines only through ``SetBooleanOperationAndTarget(Feature.BooleanType, body)``, which
 takes one target body (a second target is left untouched), so a block combines with one
-target. Cylinder, cone and sphere honour ``BooleanOption`` with several targets.
+target. Cylinder, cone and sphere take ``BooleanOption`` but combine with its first target
+only (measured: ``GetTargetBodies`` lists both bodies, the commit cuts the first and leaves
+the second as it was), so several targets get one primitive feature each.
 """
 
 from __future__ import annotations
@@ -214,7 +216,8 @@ def nx_create_primitive(
     combine: Combine | None = None,
 ) -> common.FeatureData:
     """Create a block, cylinder, cone or sphere solid as a new body or combined with bodies.
-    Sizes take numbers or expression names; volume is the result bodies' total."""
+    Sizes take numbers or expression names; volume is the result bodies' total. Several
+    targets: one feature per target (feature is the first)."""
     sizes = {
         "length": length, "width": width, "height": height,
         "diameter": diameter, "top_diameter": top_diameter,
@@ -238,8 +241,17 @@ def nx_create_primitive(
         else:
             base = geom.sub(base, geom.scale(z, float(height or 0.0) / 2))
     targets = common.combine_targets(tx, combine)
-    before = measure.volume(tx, targets) if targets else 0.0
+    before = common.target_state(tx, targets)
     tags = common.body_tags(tx)
+    if combine is not None and len(targets) > 1:
+        made = []
+        for ref in combine["targets"]:  # NX combines a primitive with one target only
+            tx.checkpoint()
+            one = {"operation": combine["operation"], "targets": [ref]}
+            made.append(_build(tx, shape, sizes, base, x, y, z, one))
+        for extra in made[1:]:
+            common.report_alerts(tx, extra)
+        return common.combined(tx, made[0], combine, targets, before, tags)
     feature = _build(tx, shape, sizes, base, x, y, z, combine)
     if combine is not None:
         return common.combined(tx, feature, combine, targets, before, tags)

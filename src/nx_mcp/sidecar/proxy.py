@@ -31,12 +31,12 @@ from urllib.parse import quote
 from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
 from pydantic import AnyUrl, ValidationError
 
-from nx_mcp.bridge import start_deadline
-from nx_mcp.core import errors, evidence, target
+from nx_mcp.bridge import CONNECT_RETRY_SECONDS, start_deadline
+from nx_mcp.core import catalogue, errors, evidence, target
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
 from nx_mcp.core.types import REF_PATTERN, RefKind
-from nx_mcp.core.validate import combine, is_union, unwrap
+from nx_mcp.core.validate import child_problems, combine, is_union, unwrap
 from nx_mcp.kit.snapshots import claim
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation
@@ -569,11 +569,29 @@ class CatalogueProxy:
         if busy is not None:
             return busy
         if error.code == "NX_BRIDGE_UNAVAILABLE":
+            from nx_mcp.host import heartbeat
+
+            root = getattr(self.workspace, "root", None)
+            reload = heartbeat.reload_state(root)
+            if reload is not None:
+                why = "its NX MCP host is reloading (development reload"
+                why += f", generation {reload['generation']})" if reload.get("generation") else ")"
+                hint = "Retry in a few seconds; nx_get_status shows when the host answers"
+            elif (
+                root is not None
+                and heartbeat.read(root) is not None
+                and not heartbeat.fresh(root, pid)
+            ):
+                why = "its NX MCP host is stopped or silent (no fresh heartbeat)"
+                hint = "Ask the engineer whether the NX MCP host runs; never kill NX yourself"
+            else:
+                why = "its NX MCP host did not accept the connection (busy)"
+                hint = "Retry in a few seconds; nx_get_status shows what NX runs"
+            details["nx"] = {"pid": pid, "reloading": reload is not None}
             return NXError(
                 error.code,
-                f"{error.message} NX (pid {pid}) is running, so its NX MCP host is stopped, "
-                "reloading or not answering.",
-                hint=error.hint,
+                f"{error.message} NX (pid {pid}) is running, but {why}.",
+                hint=hint,
                 retryable=error.retryable,
                 details=details,
             )
@@ -688,6 +706,11 @@ class CatalogueProxy:
                     )
                 )
             return combine(found)
+        # The steps of a batch or preview: each against its own tool's schema, so a
+        # malformed step fails here at once instead of after its wait in NX's queue.
+        children = child_problems(spec.params, canonical, catalogue.get, target.split_call_keys)
+        if children is not None:
+            return children
         args.clear()
         args.update(canonical)
         return None
@@ -847,9 +870,45 @@ class CatalogueProxy:
         params["caller"] = {"id": ident, "shared": shared}
         self._running[ident] = running + 1
         try:
-            return await self.bridge.call(method, params)
+            return await self._call_retrying(method, params)
         finally:
             self._running[ident] -= 1
+
+    async def _call_retrying(self, method: str, params: dict) -> dict:
+        """``bridge.call``, retried for up to CONNECT_RETRY_SECONDS (short backoff) when
+        the connect itself was refused or reset (no byte written, so nothing can have
+        run) while NX's host is alive by its heartbeat or reloading: its listen backlog
+        was full or it was restarting. Any other failure, and one after the request
+        was written, is never retried here."""
+        deadline = time.monotonic() + CONNECT_RETRY_SECONDS
+        delay = 0.1
+        while True:
+            try:
+                return await self.bridge.call(method, params)
+            except NXError as error:
+                refused = (error.details or {}).get("connect") == "refused"
+                if (
+                    not refused
+                    or time.monotonic() + delay > deadline
+                    or not await asyncio.to_thread(self._host_alive)
+                ):
+                    raise
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 1.0)
+
+    def _host_alive(self) -> bool:
+        """Whether NX's host will accept connections soon: a fresh heartbeat (or one
+        saying a call runs) of the registered NX, or a development reload under way."""
+        from nx_mcp.host import heartbeat
+
+        root = getattr(self.workspace, "root", None)
+        if root is None:
+            return False
+        try:
+            pid = getattr(self._descriptor(), "pid", None)
+            return heartbeat.fresh(root, pid) or heartbeat.reload_state(root) is not None
+        except Exception:
+            return False
 
     def _local(self, spec, params: dict, operation_id) -> dict:
         from nx_mcp.sidecar import local

@@ -435,6 +435,51 @@ def nx_create_loft(
     swept = guides is not None
     factory = tx.part.Features.CreateSweptBuilder if swept else (
         tx.part.Features.CreateThroughCurvesBuilder)  # fmt: skip
+    try:
+        feature = _build(tx, factory, swept, solid, made_sections, loops, axis, targets, fills, ends,
+                         tangent)  # fmt: skip
+    except NXError as error:
+        _align_hint(error, start_points is not None)
+        raise
+    bodies = common.feature_bodies(feature)
+    readback.expect(bool(bodies), "bodies", "The loft built no body")
+    common.sound(tx, bodies)
+    readback.expect(
+        all(bool(getattr(x, "IsSolidBody", solid)) == solid for x in bodies),
+        "body_type",
+        "NX built a different body type than requested",
+    )
+    if combine is not None:
+        return common.combine_new(tx, feature, bodies, combine, targets_body[0], before)
+    out = common.result_of(tx, feature)
+    if solid:
+        common.changed(0.0, out["volume"], "positive")
+        _warn_twist(tx, made_sections, out["volume"])
+    return out
+
+
+# NX 2406 refuses a loft whose section start points do not line up.
+ALIGN_FAILED = 670024
+ALIGN_HINT = (
+    "The sections do not line up: pass start_points, one per section at matching corners "
+    "(the same corner of each profile), so NX aligns them without a twist"
+)
+
+
+def _align_hint(error: NXError, given: bool) -> None:
+    """Point NX's section alignment failure at ``start_points``."""
+    if error.nx_code == ALIGN_FAILED and not error.hint:
+        error.hint = (
+            "Move start_points to matching corners of the sections (the same corner of each "
+            "profile), in section order"
+            if given
+            else ALIGN_HINT
+        )
+        error.field = error.field or "/start_points"
+
+
+def _build(tx, factory, swept, solid, made_sections, loops, axis, targets, fills, ends, tangent):
+    """Configure and commit the Through Curves (or Swept, with guides) builder."""
     with builders.build(tx, factory, None) as b:
         if swept:
             b.G0Tolerance = units.part_tolerance(tx)
@@ -462,22 +507,7 @@ def nx_create_loft(
             builders.fill(tx, continuity.ConstraintFaces, faces, "Face")
         if tangent == "normal":
             b.NormalToEndSections = True
-        feature = b.commit()
-    bodies = common.feature_bodies(feature)
-    readback.expect(bool(bodies), "bodies", "The loft built no body")
-    common.sound(tx, bodies)
-    readback.expect(
-        all(bool(getattr(x, "IsSolidBody", solid)) == solid for x in bodies),
-        "body_type",
-        "NX built a different body type than requested",
-    )
-    if combine is not None:
-        return common.combine_new(tx, feature, bodies, combine, targets_body[0], before)
-    out = common.result_of(tx, feature)
-    if solid:
-        common.changed(0.0, out["volume"], "positive")
-        _warn_twist(tx, made_sections, out["volume"])
-    return out
+        return b.commit()
 
 
 def _warn_twist(tx, sections, volume) -> None:

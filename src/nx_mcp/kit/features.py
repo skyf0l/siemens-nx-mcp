@@ -49,3 +49,33 @@ def states(tx, part) -> dict:
             suppressed = bool(getattr(f, "Suppressed", False)) and active
         out[int(f.Tag)] = (f, suppressed, active)
     return out
+
+
+# Feature message readers, by kind (NXOpen ``Feature.GetFeature<kind>Messages``).
+MESSAGE_READERS = {
+    "error": "GetFeatureErrorMessages",
+    "warning": "GetFeatureWarningMessages",
+    "information": "GetFeatureInformationalMessages",
+}
+
+
+def alerts(feature, kinds=("warning",)) -> list[str]:
+    """NX's own alerts on a committed ``feature``, of ``kinds`` (``error``, ``warning``,
+    ``information``), in order without repeats; ``[]`` where NX cannot say.
+
+    NX 2406 commits some features with a warning only the Part Navigator shows: a Boolean
+    with several tools, one of which only touches the target, commits with "One or more
+    tools did not intersect the target." (the tool is consumed all the same). Reading
+    never raises: a tool reports these alerts as result warnings."""
+    out: list[str] = []
+    for kind in kinds:
+        read = getattr(feature, MESSAGE_READERS[kind], None)
+        try:
+            messages = list(read() or []) if callable(read) else []
+        except Exception:  # a feature NX cannot answer for has no alerts to report
+            messages = []
+        for message in messages:
+            text = str(message).strip()
+            if text and text not in out:
+                out.append(text)
+    return out

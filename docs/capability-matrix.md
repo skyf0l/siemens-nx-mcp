@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `e1ad70a3badd4eb0260dcb58fa73d44d053865a155824543da2ceef4ec622f42`.
+Canonical SHA-256 (catalogue evidence): `9882a1db7bac20d54e19767f155140f5a97724e4dcca9ecb3ae0e672465611ad`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -188,7 +188,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_export_mass_report | Native-tested | inspection | file | v2406: tested; 69 checks in acceptance/inspection/assembly_weight.json |
 | nx_export_model | Native-tested | parts_files | file | v2406: dwg, dxf, iges, jt, parasolid, step, stl (untested: step_ap242); 41 checks in acceptance/parts_files/export_model_assembly.json |
 | nx_export_profile | Native-tested | parts_files | file | v2406: tested; 38 checks in acceptance/parts_files/export_profile.json |
-| nx_find_geometry | Native-tested | inspection | read | v2406: tested; 91 checks in acceptance/inspection/holes_and_words.json |
+| nx_find_geometry | Native-tested | inspection | read | v2406: tested; 57 checks in acceptance/inspection/many_bodies.json |
 | nx_find_holes | Native-tested | inspection | read | v2406: tested; 91 checks in acceptance/inspection/holes_and_words.json |
 | nx_finish_preview | Native-tested | session | model | v2406: all variants; 23 checks in acceptance/session/preview_sketch_extrude.json |
 | nx_finish_sketch | Native-tested | sketch | model | v2406: tested; 54 checks in acceptance/sketch/sketch_natural_args.json |
@@ -224,7 +224,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 23 checks in acceptance/parts_files/list_files.json |
 | nx_list_lights | Native-tested | display | read | v2406: tested; 79 checks in acceptance/display/lights.json |
 | nx_list_materials | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
-| nx_list_objects | Native-tested | inspection | read | v2406: tested; 44 checks in acceptance/inspection/list_objects.json |
+| nx_list_objects | Native-tested | inspection | read | v2406: tested; 57 checks in acceptance/inspection/many_bodies.json |
 | nx_list_parts | Native-tested | parts_files | read | v2406: tested; 19 checks in acceptance/parts_files/list_parts.json |
 | nx_list_thread_sizes | Native-tested | modeling | read | v2406: tested; 48 checks in acceptance/modeling/thread_natural_args.json |
 | nx_list_view_edges | Native-tested | drawing | read | v2406: tested; 56 checks in acceptance/drawing/view_edges_bounds.json |
@@ -242,7 +242,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_redo_operation | Native-tested | session | session | v2406: tested; 71 checks in acceptance/session/redo_replay.json |
 | nx_resolve_reference | Native-tested | inspection | read | v2406: tested; 18 checks in acceptance/inspection/resolve_two_parts.json |
 | nx_restore_checkpoint | Native-tested | session | model | v2406: tested; 41 checks in acceptance/session/undo_survives_load.json |
-| nx_restore_display | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
+| nx_restore_display | Native-tested | display | view | v2406: tested; 58 checks in acceptance/display/visibility_assembly.json |
 | nx_run_batch | Native-tested | session | model | v2406: tested; 43 checks in acceptance/session/run_batch.json |
 | nx_run_clearance_set | Native-tested | assembly | model | v2406: tested; 52 checks in acceptance/assembly/clearance_sets.json |
 | nx_run_motion_sweep | Native-tested | motion | read | v2406: all variants; 38 checks in acceptance/motion/steering_linkage.json |
@@ -274,7 +274,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_true_shading | Native-tested | display | model | v2406: tested; 62 checks in acceptance/display/visual_materials.json |
 | nx_set_view_sectioning | Native-tested | drawing | model | v2406: tested; 21 checks in acceptance/drawing/bolt_circle_section_in_view.json |
 | nx_set_view_settings | Native-tested | drawing | model | v2406: tested; 34 checks in acceptance/drawing/view_settings.json |
-| nx_set_visibility | Native-tested | display | view | v2406: tested; 39 checks in acceptance/display/visibility.json |
+| nx_set_visibility | Native-tested | display | view | v2406: tested; 58 checks in acceptance/display/visibility_assembly.json |
 | nx_set_visual_material | Native-tested | display | model | v2406: tested; 62 checks in acceptance/display/visual_materials.json |
 | nx_undo_operation | Native-tested | session | model | v2406: tested; 41 checks in acceptance/session/undo_survives_load.json |
 | nx_update_annotations | Native-tested | drawing | model | v2406: tested; 8 checks in acceptance/drawing/update_annotations.json |

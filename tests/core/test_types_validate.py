@@ -195,7 +195,7 @@ def test_ref_and_path_shorthands_expand_in_place():
 
     _, markers = unwrap(T.BodyRef)
     assert markers == {
-        T.Text: T.Text(128, T.REF_PATTERN),
+        T.Text: T.Text(T.REF_MAX, T.REF_PATTERN),
         T.RefKind: T.RefKind("body"),
         T.Doc: T.Doc("Ref: body"),
     }

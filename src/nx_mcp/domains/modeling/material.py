@@ -527,6 +527,12 @@ def _form(material) -> tuple[str, str, str]:
     return "library", material["library"], "/material/library"
 
 
+def _tick(tx, i: int) -> None:
+    """``tx.checkpoint()`` every 50 bodies of a read-back loop (budget and cancellation)."""
+    if i % 50 == 0:
+        tx.checkpoint()
+
+
 def _stored_density(tx, material) -> float | None:
     """The kg/m^3 a part material stores (its property table), None when unreadable."""
     try:
@@ -543,8 +549,11 @@ def _stored_density(tx, material) -> float | None:
 def _users(tx, material, skip) -> list:
     """Solid bodies of the work part that use ``material``, except ``skip``."""
     tags = {int(b.Tag) for b in skip}
+    bodies = list(tx.part.Bodies)
+    tx.scale_budget(len(bodies))  # every body of the part is asked for its material
     out = []
-    for body in tx.part.Bodies:
+    for n, body in enumerate(bodies):
+        _tick(tx, n)
         if int(body.Tag) in tags or not getattr(body, "IsSolidBody", True):
             continue
         with contextlib.suppress(Exception):  # a body NX cannot answer for keeps its own
@@ -625,12 +634,14 @@ def _custom(tx, name, wanted, targets):
         with native():
             chosen.AssignObjects(targets)
     for i, body in enumerate(others):
+        _tick(tx, i)
         density = _density(tx, body)
         readback.expect_close(
             density, wanted, f"other_density[{i}]", tol=DENSITY_REL * wanted + 1e-9
         )
     items, memo = [], {}
     for i, body in enumerate(targets):
+        _tick(tx, i)
         density = _density(tx, body)
         readback.expect_close(density, wanted, f"density[{i}]", tol=DENSITY_REL * wanted + 1e-9)
         items.append(_row(tx, body, chosen, memo, density))
@@ -644,6 +655,7 @@ def _reuse(tx, chosen, targets):
         chosen.AssignObjects(targets)
     items, memo = [], {}
     for i, body in enumerate(targets):
+        _tick(tx, i)
         density = _density(tx, body)
         if stored is not None:
             readback.expect_close(density, stored, f"density[{i}]", tol=DENSITY_REL * stored + 1e-9)
@@ -708,6 +720,7 @@ def _library(tx, text, field, targets, bare):
     wanted_density = describe(loaded, memo)["density"]
     items = []
     for i, body in enumerate(targets):
+        _tick(tx, i)
         density = _density(tx, body)
         if wanted_density is not None:
             readback.expect_close(
@@ -758,6 +771,8 @@ def nx_set_material(
         targets = [b for b in tx.part.Bodies if getattr(b, "IsSolidBody", True)]
         if not targets:
             fail("NX_NOT_FOUND", "The work part has no solid bodies", field="/bodies")
+    # One AssignObjects call takes every body; the per-body read-back scales the budget.
+    tx.scale_budget(len(targets))
     if density is not None:
         items = _custom(tx, text, density, targets)
     else:

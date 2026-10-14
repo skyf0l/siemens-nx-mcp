@@ -204,3 +204,53 @@ def test_owner_takes_an_anchor_and_explains_names():
     services(nx).references.find_anchor = lambda text, kind: None
     stale = run(nx, "nx_list_objects", kind="face", owner="@work.prt:NOTHING(9)")
     assert stale.error["code"] == "NX_STALE_REFERENCE" and stale.error["field"] == "/owner"
+
+
+def test_compact_rows_give_id_name_and_box_only():
+    from tests.unit.inspection.fakes import inspection_nx
+
+    nx = inspection_nx()
+    blocks = [nx.block(5, 5, 5, origin=(10 * i, 0, 0)) for i in range(3)]
+    ok = run(nx, "nx_list_objects", kind="body", compact=True)
+    assert ok.ok and ok.page["total"] == 3, ok
+    assert ok.data["items"][1] == {
+        "id": blocks[1].ref, "name": ok.data["items"][1]["name"],
+        "min": [10, 0, 0], "max": [15, 5, 5],
+    }  # fmt: skip
+    faces = run(nx, "nx_list_objects", kind="face", owner=blocks[0].ref, compact=True)
+    assert set(faces.data["items"][0]) == {"id", "name", "min", "max"}
+    bad = run(nx, "nx_list_objects", kind="feature", compact=True)
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/compact"
+    mixed = run(nx, "nx_list_objects", kind="face", compact=True, include="adjacency")
+    assert mixed.error["field"] == "/include"
+
+
+def test_pattern_copies_carry_their_pattern_and_instance():
+    """NX: a copy's feature sits in an instance feature (or directly) contained in the
+    pattern feature, in instance order; the seed and plain bodies have no instance."""
+    from tests.kit.objects import Feature
+
+    nx = fake_nx()
+    seed = nx.block(5, 5, 5)
+    copies = [nx.block(5, 5, 5, origin=(10 * i, 0, 0)) for i in (1, 2, 3)]
+    pattern = nx._own(Feature("Pattern Feature(4)"), "feature")
+    pattern.FeatureType = "Pattern Feature"
+    instances = []
+    for i, body in enumerate(copies, start=1):
+        instance = Feature(f"Pattern Feature(4:{i}A)")
+        instance.ContainerFeature = pattern
+        output = Feature(f"Pattern Feature(4:{i}A:1A)")
+        output.ContainerFeature = instance
+        body.GetFeatures = lambda o=output: [o]
+        instances.append(instance)
+    pattern.GetImmediateContainedFeatures = lambda: list(instances)
+    plain = Feature("BLOCK(1)")
+    plain.ContainerFeature = None
+    seed.GetFeatures = lambda: [plain]
+    nx.part.Features.append(pattern)
+    ok = run(nx, "nx_list_objects", kind="body")
+    assert ok.ok, ok
+    rows = {r["id"]: r for r in ok.data["items"]}
+    assert "details" not in rows[seed.ref]
+    for i, body in enumerate(copies, start=1):
+        assert rows[body.ref]["details"] == {"pattern": pattern.ref, "instance": i}

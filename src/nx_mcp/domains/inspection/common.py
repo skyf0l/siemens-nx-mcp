@@ -1,6 +1,9 @@
 """Helpers shared by the inspection tools (this domain only).
 
-- ``targets``: bodies named by references (bodies, features, components) or a scope.
+- ``targets``: bodies named by references (bodies, features, components) or a scope;
+  it grows the call's budget with the body count (``tx.scale_budget``).
+- ``box_gap``: the gap between two bounding boxes, a lower bound of any distance
+  between what they hold (exact measurements prune with it).
 - ``face_samples``: a trimmed UV grid on faces (UF ``AskFaceProps``), shared by the
   face analysis and the wall thickness.
 - ``radii``: NX 2406 reports a straight principal direction as a huge radius
@@ -23,9 +26,22 @@ MAX_SAMPLES = 10000
 TARGET_KINDS = ("body", "feature", "component")
 
 
+def box_gap(a, b) -> float:
+    """Distance between the boxes ``[x0, y0, z0, x1, y1, z1]`` (0 when they touch or
+    overlap); a point is the box ``p + p``."""
+    return math.sqrt(sum(max(a[i] - b[i + 3], b[i] - a[i + 3], 0.0) ** 2 for i in range(3)))
+
+
 def target_bodies(tx, refs, scope="auto", field="/bodies"):
     """Bodies of ``refs`` (bodies, features, components with their children), or of
-    ``scope`` when ``refs`` is None; never empty."""
+    ``scope`` when ``refs`` is None; never empty. The call's budget grows with their
+    count (``tx.scale_budget``): a whole part of hundreds of bodies is one read."""
+    found = _target_bodies(tx, refs, scope, field)
+    tx.scale_budget(len(found))
+    return found
+
+
+def _target_bodies(tx, refs, scope, field):
     if refs is None:
         return bodies.require(bodies.scope(tx, scope), field=field)
     found, seen = [], set()

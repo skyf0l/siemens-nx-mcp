@@ -8,6 +8,7 @@ from typing import Literal, TypedDict
 from nx_mcp.core.errors import fail
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import builders, curve, facts, geom, measure, readback, result, select, units
+from nx_mcp.kit import features as kfeatures
 from nx_mcp.kit import sketch as ksketch
 
 # Values within this relative band of each other count as "unchanged" volume.
@@ -151,18 +152,34 @@ def no_clash(tx, made, overlapping=(), hint=kbodies.CLASH_HINT) -> None:
         tx.warn("NX_NOTE", note)
 
 
-def boolean_feature(tx, operation, target, tools):
+def boolean_feature(tx, operation, target, tools, note: str = ""):
     """Commit one boolean feature (``unite``/``subtract``/``intersect``) of ``tools``
-    with ``target``; returns the feature."""
+    with ``target``; returns the feature. NX's own alerts on it become warnings
+    (:func:`report_alerts`, ``note`` appended)."""
     with builders.build(tx, tx.part.Features.CreateBooleanBuilder, None) as b:
         b.Operation = getattr(tx.nx.Features.FeatureBooleanType, builders.BOOLEAN_TYPES[operation])
         b.Target = target
         b.Tools.Add(list(tools))
-        return b.commit()
+        feature = b.commit()
+    report_alerts(tx, feature, note)
+    return feature
 
 
-# Volume band of a unite, boolean or transform read-back: NX mass properties of B-spline
-# bodies differ by up to about 1e-5 relative between two evaluations of the same shape.
+def report_alerts(tx, feature, note: str = "") -> list[str]:
+    """Report NX's warning alerts on a committed ``feature`` as ``NX_UPDATE_WARNING``
+    result warnings (NX 2406 commits a Boolean whose tool only touches the target with
+    "One or more tools did not intersect the target."); returns the alerts."""
+    found = kfeatures.alerts(feature)
+    if found:
+        name = tx.ref(feature, kind="feature").get("name") or "The feature"
+        for message in found:
+            tx.warn("NX_UPDATE_WARNING", f"NX reports on {name}: {message}{note}")
+    return found
+
+
+# Volume band of a unite, boolean, scale, mirror, pattern or transform read-back (copies
+# included): NX mass properties of B-spline bodies differ by up to about 6e-5 relative
+# between two evaluations of the same shape, a copy or a rigid move of it.
 VOLUME_BAND = 1e-4
 INSIDE, OUTSIDE = 1, 2  # UF_MODL_ask_point_containment against a body
 
@@ -338,13 +355,87 @@ def body_tags(tx) -> set:
     return {int(b.Tag) for b in tx.part.Bodies}
 
 
-def combined(tx, feature, combine, targets, before: float, tags: set) -> FeatureData:
+# A combine target the feature left as it was (a warning, see ``unchanged_targets``).
+TARGET_UNCHANGED = "NX_TARGET_UNCHANGED"
+# NX 2406 refuses a combined feature whose new geometry misses one of the targets entirely
+# ("Tool body completely outside target body.").
+OUTSIDE_TARGET = 670030
+OUTSIDE_HINT = (
+    "The new geometry misses a target body entirely and NX combines with every target: drop "
+    "that body from combine.targets, or move or extend the profile so it reaches each one"
+)
+
+TargetState = list[tuple[float, int]]
+
+
+def _face_count(body) -> int:
+    try:
+        return len(list(body.GetFaces()))
+    except Exception:  # a body NX cannot list: the volume alone decides
+        return -1
+
+
+def target_state(tx, targets) -> TargetState:
+    """``[(volume, face count)]`` of each target before a combined feature, for
+    :func:`combined` (per-target read-back) and :func:`unchanged_targets`."""
+    out = []
+    for body in targets:
+        tx.checkpoint()
+        out.append((measure.volume(tx, body), _face_count(body)))
+    return out
+
+
+def unchanged_targets(tx, targets, state: TargetState) -> list[int]:
+    """Indexes of ``targets`` still present with the volume (within ``VOLUME_BAND``) and
+    face count they had (``state``): the feature did not reach them."""
+    alive = {int(b.Tag) for b in tx.part.Bodies}
+    out = []
+    for i, (body, (volume, faces)) in enumerate(zip(targets, state, strict=True)):
+        tx.checkpoint()
+        if int(body.Tag) not in alive or _face_count(body) != faces:
+            continue
+        after = measure.volume(tx, body)
+        if abs(after - volume) <= VOLUME_BAND * max(1.0, abs(volume)):
+            out.append(i)
+    return out
+
+
+def warn_unchanged(tx, operation, targets, state: TargetState, label="combine.targets") -> list:
+    """An ``NX_TARGET_UNCHANGED`` warning naming each target the ``operation`` left as it
+    was. A warning, not an error: NX applied the operation to the other targets, and a
+    target fully inside an intersect tool legitimately stays the same. Returns the indexes."""
+    found = unchanged_targets(tx, targets, state)
+    for i in found:
+        ref = tx.ref(targets[i], kind="body")["id"]
+        where = f"{label}[{i}]" if label.endswith("targets") else label
+        tx.warn(
+            TARGET_UNCHANGED,
+            f"{where} ({ref}) kept its volume and faces: the {operation} did not change it; "
+            "undo and drop it from the targets, or move the geometry so it reaches it",
+        )
+    return found
+
+
+def outside_hint(error, combine) -> None:
+    """Give NX's refusal of new geometry that misses a target entirely a hint."""
+    if combine is not None and error.nx_code == OUTSIDE_TARGET and not error.hint:
+        error.hint = OUTSIDE_HINT
+        error.field = error.field or "/combine/targets"
+
+
+def combined(tx, feature, combine, targets, before: float | TargetState, tags: set) -> FeatureData:
     """Read back a feature built with ``combine``: result bodies are the targets NX kept
-    plus any new bodies (a subtract may split a target).
+    plus any new bodies (a subtract may split a target). ``before``: the targets' total
+    volume, or :func:`target_state` to also warn about each target left unchanged.
 
     A unite whose new geometry does not touch the target leaves NX 2406 committing it as
     a separate body (measured: extrude and revolve report success, the target keeps its
     volume and the feature lists both bodies); that is refused, so the call rolls back."""
+    state: TargetState | None = None
+    if isinstance(before, list):
+        state, total = before, sum(v for v, _faces in before)
+    else:
+        total = float(before)
     after = list(tx.part.Bodies)
     kept = {int(b.Tag) for b in after}
     alive = [t for t in targets if int(t.Tag) in kept]
@@ -358,7 +449,7 @@ def combined(tx, feature, combine, targets, before: float, tags: set) -> Feature
             "combine to make a new body",
             details={"separate_bodies": len(new)},
         )
-    if new and alive and same_volume(before, measure.volume(tx, alive)):
+    if new and alive and same_volume(total, measure.volume(tx, alive)):
         # The targets are untouched and a body appeared: the boolean was not applied (a
         # split target changes volume, so it never lands here).
         fail(
@@ -367,10 +458,13 @@ def combined(tx, feature, combine, targets, before: float, tags: set) -> Feature
             "and the target kept its volume",
             hint="Make sure the new geometry overlaps the target body; or omit combine and "
             "combine the new body with nx_create_boolean",
-            details={"separate_bodies": len(new), "target_volume": before},
+            details={"separate_bodies": len(new), "target_volume": total},
         )
     out = result_of(tx, feature, [*alive, *new])
-    changed(before, out["volume"], COMBINE_CHANGE[combine["operation"]])
+    changed(total, out["volume"], COMBINE_CHANGE[combine["operation"]])
+    report_alerts(tx, feature)
+    if state is not None:
+        warn_unchanged(tx, combine["operation"], targets, state)
     return out
 
 

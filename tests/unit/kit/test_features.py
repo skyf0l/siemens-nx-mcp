@@ -28,3 +28,19 @@ def test_states_tell_user_suppression_from_rolled_back_features():
     plain = NS(uf=NS())
     got = {t: (s, a) for t, (_f, s, a) in features.states(plain, part).items()}
     assert got == {1: (False, True), 2: (True, True), 3: (False, False)}
+
+
+def test_alerts_read_warnings_in_order_without_repeats_and_never_raise():
+    missed = "One or more tools did not intersect the target."
+    f = NS(
+        GetFeatureWarningMessages=lambda: [missed, " ", missed, "Thin wall"],
+        GetFeatureErrorMessages=lambda: ["Tool body completely outside target body."],
+    )
+    assert features.alerts(f) == [missed, "Thin wall"]
+    assert features.alerts(f, ("error", "warning"))[0].startswith("Tool body")
+
+    def broken():
+        raise RuntimeError("NX cannot answer")
+
+    assert features.alerts(NS(GetFeatureWarningMessages=broken)) == []
+    assert features.alerts(NS()) == []  # a feature without the reader

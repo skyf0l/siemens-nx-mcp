@@ -59,7 +59,7 @@ def test_datums_are_shown_or_hidden_together_and_refused_for_isolate():
     bad = run(nx, "nx_set_visibility", mode="isolate", datums=True)
     assert bad.error["field"] == "/mode" and bad.mutation_outcome == "not_started"
     both = run(nx, "nx_set_visibility", mode="show", datums=True, objects=[planes[0].ref])
-    assert both.error["category"] == "invalid_argument"
+    assert both.ok and not any(p.IsBlanked for p in planes) and both.data["count"] == 2
 
 
 def test_faces_cannot_be_hidden_and_nothing_changes():

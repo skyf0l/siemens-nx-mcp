@@ -1,7 +1,8 @@
 """Which bodies a call covers: an owner's bodies, the work part, assembly occurrences.
 
-    bodies.of(tx, obj)                 # body -> [body]; feature -> its bodies;
-                                       # component -> occurrence bodies of it and its children
+    bodies.of(tx, obj)                 # body -> [body]; feature -> its bodies (a pattern:
+                                       # its copies); component -> occurrence bodies of it
+                                       # and its children
     bodies.scope(tx, "auto")           # work-part bodies (+ occurrences when an assembly)
     bodies.occurrences(component)      # [] when it or a parent is suppressed or unloaded
     bodies.solids(found, field)        # NX_WRONG_GEOMETRY for a sheet body
@@ -73,8 +74,23 @@ def _unique(found) -> list:
     return out
 
 
-def of(tx, obj) -> list:
-    """Bodies of a body, a feature or a component occurrence (with its children)."""
+def feature_bodies(feature) -> list:
+    """The bodies a feature made or changed (``GetBodies``); for a pattern (Pattern Feature,
+    Pattern Geometry), whose ``GetBodies`` is empty (NX 2406), the copies it made
+    (``GetAssociatedBodies``; the seed body belongs to the seed feature)."""
+    found = list(feature.GetBodies() or [])
+    if not found:
+        associated = getattr(feature, "GetAssociatedBodies", None)
+        if associated is not None:
+            with contextlib.suppress(Exception):
+                found = list(associated() or [])
+    return _unique(found)
+
+
+def of(tx, obj, field=None) -> list:
+    """Bodies of a body, a feature (:func:`feature_bodies`) or a component occurrence (with
+    its children). A feature that has no body (a datum, sketch or curve feature) is
+    ``NX_NOT_FOUND`` naming it."""
     if is_component(obj):
         found = []
         for node in _descendants(obj):
@@ -83,10 +99,20 @@ def of(tx, obj) -> list:
         return _unique(found)
     if is_body(obj):
         return [obj]
-    get = getattr(obj, "GetBodies", None)
-    if get is not None:
-        return _unique(get())
-    fail("NX_WRONG_KIND", "Select a body, a feature or a component")
+    if getattr(obj, "GetBodies", None) is not None:
+        found = feature_bodies(obj)
+        if not found:
+            name = str(getattr(obj, "JournalIdentifier", "") or getattr(obj, "Name", "") or "")
+            fail(
+                "NX_NOT_FOUND",
+                f"The feature {name or 'given'} has no bodies (a datum, sketch or curve "
+                "feature, or one that is suppressed)",
+                field=field,
+                hint="Pass the bodies themselves (b:..., nx_list_objects kind body) or the "
+                "feature that made them",
+            )
+        return found
+    fail("NX_WRONG_KIND", "Select a body, a feature or a component", field=field)
 
 
 def scope(tx, value="auto") -> list:

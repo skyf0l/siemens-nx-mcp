@@ -108,9 +108,13 @@ def point_distance(tx, obj, point):
     """``(distance, point on obj)`` from a work-part point to a curve, edge, face or body.
 
     UF minimum distance with a NULL second object measures to its guess point
-    (NX 2406).
+    (NX 2406). UF answers a point inside a solid with minus its depth and the nearest
+    boundary point: the body holds the point, so the distance is 0 at the point itself.
     """
     zero = [0.0, 0.0, 0.0]
+    target = [float(v) for v in point]
     with native(default="NX_ERROR"):
-        out = tx.uf.Modeling.AskMinimumDist(obj.Tag, 0, 0, zero, 1, [float(v) for v in point])
+        out = tx.uf.Modeling.AskMinimumDist(obj.Tag, 0, 0, zero, 1, target)
+    if float(out[0]) < 0:
+        return 0.0, target
     return float(out[0]), [float(v) for v in out[1]]

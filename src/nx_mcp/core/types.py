@@ -110,10 +110,13 @@ class PathArg:
 @dataclass(frozen=True)
 class Json:
     """A free-form JSON object: the arguments of another tool (``nx_run_batch``),
-    checked against that tool's own schema later. Bounded by key count and size."""
+    checked against that tool's own schema later. Bounded by key count and size.
+    ``of_tool``: the sibling field naming that tool (``Arguments``): the sidecar checks the
+    object against that tool's schema before sending (``core.validate.child_problems``)."""
 
     max_keys: int = 40
     max_chars: int = 16000
+    of_tool: str | None = None
 
 
 @dataclass(frozen=True, eq=False)
@@ -182,8 +185,13 @@ KINDS = frozenset(
 )
 KIND_GROUPS = {"datum": frozenset({"datum_plane", "datum_axis", "datum_csys", "datum_point"})}
 
-# Short refs ("b:41") and object registry handles ("obj_...", see core.references).
-REF_PATTERN = r"^([a-z]{1,3}:[1-9][0-9]{0,11}|obj_[A-Za-z0-9_]{8,120})$"
+# Short refs ("b:41"), object registry handles ("obj_...") and the anchors result rows of
+# features, bodies and sketches carry ("@smoke/a/blk.prt:EXTRUDE(4)#0"): an anchor
+# resolves wherever a ref does (core.references). A handle anchor of nx_create_anchor
+# ("@part:face=<handle>", with '=') is not a ref: nx_resolve_anchor takes it.
+ANCHOR_PATTERN = r"@[^@\r\n]{1,200}:[^:#@=\r\n]{1,100}(#[0-9]{1,6})?"
+REF_PATTERN = r"^([a-z]{1,3}:[1-9][0-9]{0,11}|obj_[A-Za-z0-9_]{8,120}|" + ANCHOR_PATTERN + r")$"
+REF_MAX = 320  # characters: an anchor names its part's workspace path
 # Batch children may refer to an earlier step's result: "$2.data.feature".
 PLACEHOLDER_PATTERN = r"^\$[0-9]{1,3}(\.[A-Za-z0-9_]{1,64}){1,8}$"
 
@@ -199,7 +207,7 @@ def expand_kinds(kinds) -> frozenset[str]:
 @dataclass(frozen=True, init=False)
 class RefTo:
     """``Annotated[str, RefTo(*kinds)]``: a reference to one of ``kinds`` (any kind when
-    empty). Shorthand for ``Text(128, REF_PATTERN)``, ``RefKind(*kinds)`` and a ``Doc``
+    empty). Shorthand for ``Text(REF_MAX, REF_PATTERN)``, ``RefKind(*kinds)`` and a ``Doc``
     (``doc``, else "Ref: <kinds>"); ``core.validate.unwrap`` expands it in place. Static
     checkers see the field as ``str``, so aliases such as ``BodyRef`` narrow and compare."""
 
@@ -212,7 +220,7 @@ class RefTo:
 
     def expand(self) -> tuple[Text, RefKind, Doc]:
         what = "/".join(self.kinds) if self.kinds else "any"
-        return Text(128, REF_PATTERN), RefKind(*self.kinds), Doc(self.doc or f"Ref: {what}")
+        return Text(REF_MAX, REF_PATTERN), RefKind(*self.kinds), Doc(self.doc or f"Ref: {what}")
 
 
 Ref = Annotated[str, RefTo()]
@@ -306,7 +314,7 @@ SHORTHANDS = (RefTo, PathTo)
 
 PathIn = Annotated[str, PathTo("read")]
 # Another tool's arguments (batch and preview children), checked by that tool's schema.
-Arguments = Annotated[dict, Json(), Doc("The tool's own arguments")]
+Arguments = Annotated[dict, Json(of_tool="tool"), Doc("The tool's own arguments")]
 
 
 class PrincipalPlane(TypedDict):

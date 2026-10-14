@@ -129,11 +129,15 @@ def test_signature_rules():
     def nx_create_e(tx, *, x: int) -> Out:
         """Doc. """ + "x" * 300
 
+    def nx_create_f(tx, *, detail: bool = False) -> Out:
+        """Doc."""
+
     for fn, message in [
         (nx_create_a, "keyword-only"),
         (nx_create_b, "Items"),
         (nx_create_c, "Text"),
         (nx_create_d, "TypedDict"),
+        (nx_create_f, "call key"),  # dropped before the handler: refused at registration
     ]:
         with pytest.raises(CatalogueError, match=message):
             spec(fn)

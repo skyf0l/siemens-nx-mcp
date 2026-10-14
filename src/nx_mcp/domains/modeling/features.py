@@ -181,7 +181,7 @@ def nx_create_extrude(
     sk = ksketch.resolve(tx, sketch)
     origin = geom.xyz(sk.Origin)
     targets = common.combine_targets(tx, combine)
-    before = measure.volume(tx, targets) if targets else 0.0
+    before = common.target_state(tx, targets)
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     try:
         with builders.build(tx, tx.part.Features.CreateExtrudeBuilder, None) as b:
@@ -194,6 +194,7 @@ def nx_create_extrude(
     except NXError as error:
         if error.nx_code == LIMIT_FACE_MISSED:
             _limit_missed(error, "through_all" in (start_limit["type"], end_limit["type"]))
+        common.outside_hint(error, combine)
         raise
     common.sound(tx, common.feature_bodies(feature), known)
     if combine is not None:
@@ -559,7 +560,7 @@ def nx_create_revolve(
         section = _section(tx, sk, profile)
         _check_section(section)
     targets = common.combine_targets(tx, combine)
-    before = measure.volume(tx, targets) if targets else 0.0
+    before = common.target_state(tx, targets)
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     try:
         with builders.build(tx, tx.part.Features.CreateRevolveBuilder, None) as b:
@@ -574,6 +575,7 @@ def nx_create_revolve(
             feature = b.commit()
     except NXError as error:
         if error.nx_code != REVOLVE_REFUSED:
+            common.outside_hint(error, combine)
             raise
         if tilt > 1e-9:  # here the axis leaves the plane, not the profile
             _tilted(False, error.nx_code, error.message)

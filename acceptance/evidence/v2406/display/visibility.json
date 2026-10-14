@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/display/visibility.json",
-  "scenario_sha256": "d110b952f93e49fd258abd933b592e22c37795f180a8e64ee4b0eb9d8f3064b1",
+  "scenario_sha256": "e6d984d992e4c5ee1d959fda3e2e9c53410e5831328e1d86b80e410c035e7d7e",
   "domain": "display",
   "covers": {
     "nx_set_visibility": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_visibility": "fb52cb20aaae0aad2b7050574c0a50758ca268f36350676bb4e2d16ae9039aaa",
+    "nx_set_visibility": "f96b3a9092bf5c6511ad9479e2635eff3d033e09176ef3a46ac29eea22a2ff17",
     "nx_restore_display": "2aad3dd7e76989d518170548a51f2aedff913b95aedd2e8a605d9785cf7e4b05"
   },
-  "recorded": "2026-10-14T13:52:43Z",
+  "recorded": "2026-10-14T15:18:56Z",
   "passed": true,
-  "checks": 39,
+  "checks": 55,
   "failed_checks": 0,
   "steps": [
     {
@@ -121,25 +121,25 @@
       "call": "nx_set_visibility",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 16,
-      "call": "nx_restore_display",
+      "call": "nx_set_visibility",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 5
     },
     {
       "index": 17,
-      "call": "nx_set_visibility",
+      "call": "nx_restore_display",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 18,
-      "call": "nx_set_visibility",
+      "call": "nx_restore_display",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -153,6 +153,34 @@
     },
     {
       "index": 20,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 24,
       "call": "nx_set_visibility",
       "setup": false,
       "passed": true,

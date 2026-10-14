@@ -251,15 +251,17 @@ def _mirror_bodies(tx, refs, plane, keep_original):
     readback.expect(len(made) == len(sources), "bodies", "NX mirrored a different body count")
     got = [measure.mass(tx, [m]) for m in made]
     for i, m in enumerate(masses):
+        tx.checkpoint()
         wanted = geom.reflect(m["centroid"], origin, normal) if m["centroid"] else None
+        band = common.VOLUME_BAND * max(1.0, abs(m["volume"]))
+        near = common.VOLUME_BAND * abs(m["volume"]) ** (1.0 / 3.0)  # as nx_create_transform
+        if wanted is not None:
+            near = max(near, 1e-5 * max(1.0, *map(abs, wanted)))
         match = [
             g
             for g in got
-            if geom.close(g["volume"], m["volume"], 1e-6)
-            and (
-                wanted is None
-                or geom.dist(g["centroid"], wanted) <= 1e-5 * max(1.0, *map(abs, wanted))
-            )
+            if abs(g["volume"] - m["volume"]) <= band
+            and (wanted is None or geom.dist(g["centroid"], wanted) <= near)
         ]
         readback.expect(bool(match), f"mirror[{i}]", "A mirrored body is not the reflection")
     if not keep_original:
@@ -484,6 +486,13 @@ def _pattern_summary(a, say):
     return f"Pattern {what} {a.get('layout')}" + (f" x{count}" if count else "") + into
 
 
+REVERSE_HINT = (
+    "Turn the other way by reversing the axis direction ('-z' for 'z', or the negated vector) "
+    "and give the positive angle; copies turn by the right-hand rule about the axis"
+)
+SPIRAL_HINT = "Give positive values; hand 'left' turns the spiral the other way"
+
+
 def _check(layout, p):
     """Argument checks before NX; returns the requested instance count or None (NX decides)."""
     where = "/parameters"
@@ -507,11 +516,19 @@ def _check(layout, p):
                 fail("NX_INVALID_ARGUMENT", f"{key} must not be zero", field=f"{where}/{key}")
         total = p["count"] * (p.get("count2") or 1)
     elif layout == "circular":
-        if p["angle"] <= 0 or (p["count"] - 1) * p["angle"] > 360.0 - 1e-9:
+        if p["angle"] < 0:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"angle must be positive, got {float(p['angle']):g}",
+                field=where + "/angle",
+                hint=REVERSE_HINT,
+            )
+        if p["angle"] == 0 or (p["count"] - 1) * p["angle"] > 360.0 - 1e-9:
             fail(
                 "NX_INVALID_ARGUMENT",
                 "Use a positive angle with (count - 1) * angle < 360",
                 field=where + "/angle",
+                hint="angle is the step between neighbours: 6 evenly on a circle use 60",
             )
         total = p["count"]
     elif layout == "along_curve":
@@ -523,7 +540,8 @@ def _check(layout, p):
     elif layout == "spiral":
         for key in ("angle", "pitch", "spacing"):
             if p[key] <= 0:
-                fail("NX_INVALID_ARGUMENT", f"{key} must be positive", field=f"{where}/{key}")
+                fail("NX_INVALID_ARGUMENT", f"{key} must be positive", field=f"{where}/{key}",
+                     hint=SPIRAL_HINT if p[key] < 0 else None)  # fmt: skip
         if p["angle"] > 360.0 * 100:
             fail("NX_INVALID_ARGUMENT", "At most 100 turns", field=where + "/angle")
         total = None
@@ -790,11 +808,6 @@ def _pattern_features(tx, refs, layout, p, total, unite, unite_into):
     return {**out, "layout": layout, "count": count, "new_bodies": len(new)}
 
 
-# Copies of a body are rigid: their volume equals the source's (NX mass properties of
-# B-surface bodies differ by about 1e-5 after a rigid move, hence the wider band).
-COPY_REL = 1e-4
-
-
 def _pattern_bodies(tx, refs, layout, p, total, unite, unite_into):
     args.distinct("/bodies", refs, "bodies")
     with tx.checks():
@@ -819,10 +832,12 @@ def _pattern_bodies(tx, refs, layout, p, total, unite, unite_into):
     count = 1 + per
     _expect_count(count, total)
     out = common.result_of(tx, feature, [*sources, *new])
+    # Copies are rigid: each holds the source's volume, within NX's mass-property noise
+    # (B-surface bodies differ by up to about 1e-4 relative after a rigid move).
     copies = out["volume"] - volume
     want = volume * (count - 1)
     readback.expect(
-        abs(copies - want) <= COPY_REL * max(1.0, abs(want)),
+        abs(copies - want) <= common.VOLUME_BAND * max(1.0, abs(want)),
         "volume",
         "The copies do not hold the source volume",
         copies=copies,
@@ -855,8 +870,8 @@ BodySeeds = Annotated[
         "fill pattern",
         "pattern along curve",
         "pattern geometry",
-        "pattern body",
-        "copies",
+        "pattern bodies",
+        "body copies",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="layout",

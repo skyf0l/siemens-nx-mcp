@@ -3,12 +3,17 @@
 
 NX 2406 findings kept here:
 
-- Volumes come from ``MeasureManager.NewMassProperties`` in mm^3, converted to part
-  units (``kit.measure``); mass and inertia from UF ``AskMassProps3d`` (kg, m, WCS axes),
-  rotated to absolute axes.
+- ``nx_measure_mass`` reads each body's volume and area with one UF ``AskMassProps3d``
+  (``kit.measure.solid_props``: the values of ``MeasureManager.NewMassProperties`` at a
+  fraction of its time per body, so a part of hundreds of bodies is one light call), and
+  mass and inertia with one ``AskMassProps3d`` of every body (kg, m, WCS axes), rotated
+  to absolute axes.
 - ``AskBoundingBoxExact`` is aligned to the WCS: exact absolute bounds need a WCS
   whose axes are the absolute axes, otherwise the call is refused.
 - Overlapping bodies are summed, not united.
+- Distances between sets of bodies (features, components) measure pairs in order of their
+  bounding-box gap and stop once that gap, a lower bound, exceeds the best distance
+  found: the same closest pair as measuring every pair, in few NX distance calls.
 - A feature reference measures the feature's whole bodies (``kit.bodies.of``), like the
   other measurements: the bounds of a boss are those of the body it was united into.
   ``nx_measure_section`` or ``nx_find_geometry`` with the feature as owner read the
@@ -75,6 +80,34 @@ def _measurables(tx, ref, field):
     return [(obj, kind)]
 
 
+BOXED = ("body", "face", "edge")  # kinds whose UF box bounds the distance
+
+
+def _box(tx, obj, kind):
+    """The conservative box of a body, face or edge; None for other kinds or when NX
+    gives none (that object's pairs are then always measured)."""
+    if kind not in BOXED:
+        return None
+    try:
+        with native():
+            return [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)]
+    except Exception:
+        return None
+
+
+def _pairs(tx, a, b):
+    """``[(lower bound, i, j)]`` of every pair, nearest bound first (0 without boxes)."""
+    if len(a) * len(b) == 1:
+        return [(0.0, 0, 0)]
+    boxes_a = [_box(tx, x, k) for x, k in a]
+    boxes_b = [_box(tx, y, k) for y, k in b]
+    return sorted(
+        (common.box_gap(p, q) if p is not None and q is not None else 0.0, i, j)
+        for i, p in enumerate(boxes_a)
+        for j, q in enumerate(boxes_b)
+    )
+
+
 @tool(
     target="assembly",
     effect="read",
@@ -96,17 +129,22 @@ def nx_measure_distance(
     common.note_exploded(tx)
     a = _measurables(tx, first, "/first")
     b = _measurables(tx, second, "/second")
-    best = None
-    for x, kx in a:
-        for y, ky in b:
-            tx.checkpoint()
-            with native():
-                distance, p1, p2, _accuracy = tx.session.Measurement.GetMinimumDistance(x, y)
-            distance = result.measured(distance)
-            if best is None or distance < best[0]:
-                best = (distance, geom.xyz(p1), geom.xyz(p2), (x, kx), (y, ky))
+    tx.scale_budget(len(a) + len(b))
+    best = None  # (distance, i, j, p1, p2): the first pair in a-then-b order wins a tie
+    for lower, i, j in _pairs(tx, a, b):
+        tx.checkpoint()
+        if best is not None and lower > best[0] + 1e-6 * max(1.0, best[0]):
+            break  # every remaining pair is farther than its box gap
+        with native():
+            distance, p1, p2, _accuracy = tx.session.Measurement.GetMinimumDistance(
+                a[i][0], b[j][0]
+            )
+        distance = result.measured(distance)
+        if best is None or (distance, i, j) < best[:3]:
+            best = (distance, i, j, geom.xyz(p1), geom.xyz(p2))
     assert best is not None  # _measurables never returns an empty list
-    distance, p1, p2, (x, kx), (y, ky) = best
+    distance, i, j, p1, p2 = best
+    (x, kx), (y, ky) = a[i], b[j]
     return {
         "distance": distance,
         "touching": distance <= TOUCHING,
@@ -240,12 +278,12 @@ def nx_measure_mass(
                 "pass a solved result's body to measure it)")  # fmt: skip
     kbodies.require(found, field="/bodies")
     rows: list[BodyVolume] = []
-    area: float | None = 0.0
+    area = 0.0
     for body in found:
         tx.checkpoint()
-        props = measure.mass(tx, [body])
+        props = measure.solid_props(tx, body)
         rows.append({"body": tx.ref(body, kind="body"), "volume": props["volume"]})
-        area = None if area is None or props["area"] is None else area + props["area"]
+        area += props["area"]
     physics = measure.inertia(tx, found)
     volume = sum(r["volume"] for r in rows)
     cubic_metres = volume * measure.M_PER[kunits.part_units(tx)] ** 3

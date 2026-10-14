@@ -257,6 +257,11 @@ def _holds(predicate: Callable, services, part, args: Mapping) -> bool:
 
 
 _REGISTRY: dict[str, ToolSpec] = {}
+# Call keys (sidecar proxy, host dispatch, core.target) never reach a tool's handler, so
+# a parameter with one of these names would be dropped silently. nx_get_result reads the
+# call's own detail as its argument (sidecar proxy).
+RESERVED_PARAMS = frozenset({"intent", "detail", "operation_id", "expires_at", "caller"})
+RESERVED_OWNERS = frozenset({("nx_get_result", "detail")})
 _HOOKS: dict[str, dict[str, Callable]] = {name: {} for name in HOOKS}
 _LOADED = False
 
@@ -487,6 +492,12 @@ def make_spec(
     for p in sig_params[1:]:
         if p.kind is not inspect.Parameter.KEYWORD_ONLY:
             problems.append(f"parameter {p.name} must be keyword-only")
+            continue
+        if p.name in RESERVED_PARAMS and (name, p.name) not in RESERVED_OWNERS:
+            problems.append(
+                f"parameter {p.name} is a call key the sidecar and dispatch remove before "
+                "the tool runs; choose another name"
+            )
             continue
         if p.name not in hints:
             problems.append(f"parameter {p.name} has no annotation")

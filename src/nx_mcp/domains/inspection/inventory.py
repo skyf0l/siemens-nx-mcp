@@ -15,6 +15,15 @@ so feature rows are the component part's own, with a note.
 ``include`` adds per-row detail to the page: ``adjacency`` (a face's edge ids, an edge's
 face ids) or ``views`` (a drawing sheet's views). Cylinder and cone face rows of the page
 get their ``details`` here (``common.axial_facts``: radius, or radii and half-angle).
+A body a pattern made (Pattern Geometry or a pattern of body-creating features) carries
+``details.pattern`` (the pattern feature) and ``details.instance`` (1 for the first copy,
+in NX's order; the seed is not an instance). NX 2406 gives them through
+``Feature.ContainerFeature`` (the body's feature, then its instance feature, up to the
+pattern) and the pattern's ``GetImmediateContainedFeatures`` order, which is also the
+``(2:5A)`` number in the copy's name. An instance has no angle or location of its own
+(``Location``: "Feature has no origin"); nx_get_feature reads the pattern's layout.
+``compact: true`` gives body, face and edge rows as id, name and the conservative box
+(``min``, ``max``: UF ``AskBoundingBox``) only, so hundreds of bodies page in few tokens.
 """
 
 from __future__ import annotations
@@ -82,6 +91,9 @@ OwnerRef = Annotated[
 COMPONENT_KINDS = ("body", "face", "edge", "feature")
 
 Include = Literal["adjacency", "views"]
+# ``detail`` is a call key (result compaction, the sidecar's): this option is ``compact``.
+Compact = Annotated[bool, Doc("Body/face/edge rows as id, name, min, max only")]
+COMPACT_KINDS = ("body", "face", "edge")
 # include value -> the kinds it applies to
 _INCLUDE_KINDS = {"adjacency": ("face", "edge"), "views": ("drawing_sheet",)}
 
@@ -89,6 +101,8 @@ _INCLUDE_KINDS = {"adjacency": ("face", "edge"), "views": ("drawing_sheet",)}
 class ObjectRow(result.Row, total=False):
     type: str
     details: dict[str, Any]
+    min: list[float]
+    max: list[float]
 
 
 class ListData(TypedDict):
@@ -197,17 +211,22 @@ def nx_list_objects(
     name_contains: Annotated[str, Text(64), Doc("Name substring, any case")] | None = None,
     type: Annotated[str, Text(32), Doc("e.g. cylinder, solid")] | None = None,
     include: Include | None = None,
+    compact: Compact = False,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> ListData:
     """List work-part objects of one kind by owner, name or type, paged.
-    Feature parameters: kind expression, owner the feature."""
+    Feature parameters: kind expression, owner the feature. Pattern copies (bodies) give
+    details.pattern and details.instance."""
     lister = hooks("lister").get(kind)
     if lister is None:
         fail("NX_UNSUPPORTED_OPTION", f"No lister for {kind}", field="/kind")
     if include is not None and kind not in _INCLUDE_KINDS[include]:
         fail("NX_UNSUPPORTED_OPTION", f"include={include} applies to "
              f"{'/'.join(_INCLUDE_KINDS[include])}, not {kind}", field="/include")  # fmt: skip
+    if compact and (kind not in COMPACT_KINDS or include is not None):
+        fail("NX_UNSUPPORTED_OPTION", "compact lists body, face or edge rows, without "
+             "include", field="/compact" if include is None else "/include")  # fmt: skip
     if type:
         type = _known_type(kind, _normal_type(kind, type))
         _check_type(kind, type)
@@ -227,14 +246,65 @@ def nx_list_objects(
         # (PmiNote), feature types have spaces ("simple hole").
         found = [f for f in found if _normal_type(kind, str(f[2].get("type") or "")) == type]
     selected, page = result.page(found, offset, limit)
+    if compact:
+        return {"kind": kind, "items": _compact(tx, selected), "page": page}
     items: list[ObjectRow] = []
+    patterns: dict[int, list[int]] = {}  # pattern feature tag -> its instance features' tags
     for obj, k, extra in selected:
         row = cast(ObjectRow, {**tx.ref(obj, kind=k), **extra})  # a row plus the lister's summary
         if k == "face" and extra.get("type") in ("cylinder", "cone"):
             with native():
                 axial = common.axial_facts(tx, obj, tx.uf.Modeling.AskFaceData(obj.Tag))
             row["details"] = {**(row.get("details") or {}), **axial}
+        if k == "body":
+            instance = _pattern_instance(tx, obj, patterns)
+            if instance is not None:
+                row["details"] = {**(row.get("details") or {}), **instance}
         if include is not None:
             row["details"] = {**(row.get("details") or {}), **_expand(tx, obj, k)}
         items.append(row)
     return {"kind": kind, "items": items, "page": page}
+
+
+def _compact(tx, selected) -> list[ObjectRow]:
+    """Compact rows: id, name and the conservative box of each object."""
+    items: list[ObjectRow] = []
+    for obj, k, _extra in selected:
+        tx.checkpoint()
+        row = tx.ref(obj, kind=k)
+        with native():
+            box = [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)]
+        items.append({"id": row["id"], "name": row["name"], "min": box[:3], "max": box[3:6]})
+    return items
+
+
+def _pattern_instance(tx, body, patterns) -> dict | None:
+    """``{"pattern": feature id, "instance": n}`` of a body a pattern made, else None.
+    ``patterns`` caches each pattern's instance features."""
+    if getattr(body, "IsOccurrence", False):
+        return None  # the features live in the component's part
+    try:
+        found = list(body.GetFeatures())
+    except Exception:
+        return None
+    for feature in found:
+        chain = [feature]
+        while len(chain) < 8:
+            container = getattr(chain[-1], "ContainerFeature", None)
+            if container is None:
+                break
+            chain.append(container)
+        top = chain[-1]
+        if len(chain) < 2 or "pattern" not in str(getattr(top, "FeatureType", "")).casefold():
+            continue
+        key = int(top.Tag)
+        if key not in patterns:
+            with native():
+                patterns[key] = [int(f.Tag) for f in top.GetImmediateContainedFeatures()]
+        tag = int(chain[-2].Tag)
+        if tag in patterns[key]:
+            return {
+                "pattern": tx.ref(top, kind="feature")["id"],
+                "instance": patterns[key].index(tag) + 1,
+            }
+    return None

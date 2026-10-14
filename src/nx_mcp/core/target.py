@@ -556,7 +556,12 @@ def _by_refs(spec, services, loaded, pinned, explicit, checked, parent) -> Targe
     count = len(loaded)
     if explicit is not None:
         key = services.part_key(explicit)
-        if pinned and not any(key == k or key in v[3] for k, v in pinned.items()):
+        held = any(key == k or key in v[3] for k, v in pinned.items())
+        if pinned and not held and policy == "assembly":
+            # An assembly tool may act on prototype objects of a component part through
+            # the assembly that uses that part (the handler turns them into occurrences).
+            held = all(uses_part(services, explicit, v[0]) for v in pinned.values())
+        if pinned and not held:
             other, fields, _kinds, _holders = next(iter(pinned.values()))
             fail(
                 "NX_WRONG_PART_CONTEXT",
@@ -599,6 +604,31 @@ def _by_refs(spec, services, loaded, pinned, explicit, checked, parent) -> Targe
         if work is not None and (counts(services, work) or not agent_parts(services, loaded)):
             return _target(services, work, "work", count)
     return _fallback(spec, services, loaded, parent)
+
+
+USES_PART_NODES = 20_000  # components :func:`uses_part` visits at most
+
+
+def uses_part(services, assembly, part) -> bool:
+    """Whether a component in ``assembly``'s tree (any depth) has ``part`` as its
+    prototype; False for the part itself, an assembly without components, or when NX
+    cannot tell."""
+    if same(services, assembly, part):
+        return False
+    try:
+        root = assembly.ComponentAssembly.RootComponent
+    except Exception:
+        return False
+    stack = list(root.GetChildren() or []) if root is not None else []
+    seen = 0
+    while stack and seen < USES_PART_NODES:
+        node = stack.pop()
+        seen += 1
+        with contextlib.suppress(Exception):
+            if same(services, getattr(node, "Prototype", None), part):
+                return True
+            stack.extend(node.GetChildren() or [])
+    return False
 
 
 def _named_refs(checked) -> bool:

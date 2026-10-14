@@ -67,6 +67,20 @@ def test_inertia_uses_centroidal_values_product_signs_and_part_units():
     assert not measure.wcs_is_absolute(nx.tx)
 
 
+@pytest.mark.parametrize(("units", "k"), [("mm", 1000.0), ("in", 1 / 0.0254)])
+def test_solid_props_reads_one_body_in_part_units(units, k):
+    """UF AskMassProps3d of one solid: area at 0 (m^2), volume at 1 (m^3)."""
+    nx = fake_nx(units=units)
+    values = [0.0] * 47
+    values[0], values[1] = 2.8e-3, 8e-6
+    nx.uf.Modeling.AskMassProps3d = Mock(return_value=(values, [0.0] * 11))
+    body = Body()
+    out = measure.solid_props(nx.tx, body)
+    assert out == pytest.approx({"volume": 8e-6 * k**3, "area": 2.8e-3 * k**2})
+    tags, count, kind, flag = nx.uf.Modeling.AskMassProps3d.call_args.args[:4]
+    assert tags == [body.Tag] and count == 1 and (kind, flag) == (1, 4)
+
+
 def test_the_wcs_is_the_displayed_parts():
     """NX refuses WCS of a part that is not displayed (a read bound to a background part,
     gate 4s); UF reports in the displayed part's WCS anyway."""

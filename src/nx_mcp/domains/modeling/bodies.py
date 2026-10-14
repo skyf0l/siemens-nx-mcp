@@ -65,7 +65,8 @@ CIRCULAR_HINT = (
 def _touching(tx, body, others):
     """Refuse, before NX, tools whose bounding box touches neither the target's nor that
     of a tool connected to it: they cannot unite, cut or intersect anything (NX 2406
-    otherwise commits a unite of apart bodies as a second body and reports success)."""
+    otherwise commits a unite of apart bodies as a second body and reports success).
+    Returns ``(boxes, gap)``: the target's box first, then each tool's."""
     boxes = [measure.bounds(tx, [b]) for b in [body, *others]]
     gap = geom.tol(*(c for box in boxes for c in box))
 
@@ -90,6 +91,25 @@ def _touching(tx, body, others):
             "nx_measure_distance shows the gap",
             details={"target_box": list(boxes[0]), "tool_box": [low, high]},
         )
+    return boxes, gap
+
+
+def _grazing(boxes, gap) -> list[int]:
+    """Indexes of tools whose bounding box only touches the target's (overlap no thicker
+    than ``gap`` along some axis): candidates for NX's "tools did not intersect" alert."""
+    (tlow, thigh), out = boxes[0], []
+    for i, (low, high) in enumerate(boxes[1:]):
+        if any(min(high[k], thigh[k]) - max(low[k], tlow[k]) <= gap for k in range(3)):
+            out.append(i)
+    return out
+
+
+def _grazing_note(boxes, gap) -> str:
+    touching = _grazing(boxes, gap)
+    if not touching:
+        return ""
+    names = ", ".join(f"tools[{i}]" for i in touching)
+    return f" ({names} only touch the target's bounding box)"
 
 
 @tool(
@@ -112,7 +132,8 @@ def nx_create_boolean(
 ) -> BooleanData:
     """Unite, subtract or intersect tool bodies with a target body; the tools are consumed.
     bodies lists the result bodies, the target's first. A unite that drops a tool or grows
-    past target plus tools is rolled back."""
+    past target plus tools is rolled back; a target left unchanged and NX's own alerts (a
+    tool that misses) come back as warnings."""
     tool_refs: list[str] = tools
     if target in tool_refs:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
@@ -121,13 +142,16 @@ def nx_create_boolean(
         others = common.solids(tx, tools, "/tools")
         if int(body.Tag) in {int(t.Tag) for t in others}:
             fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
-        _touching(tx, body, others)
-    before = measure.volume(tx, body)
+        boxes, gap = _touching(tx, body, others)
+    state = common.target_state(tx, [body])
+    before = state[0][0]
     tools_volume = measure.volume(tx, others) if operation == "unite" else 0.0
     probes = common.probes(tx, others) if operation == "unite" else []
     tags = common.body_tags(tx)
     try:
-        feature = common.boolean_feature(tx, operation, body, others)
+        feature = common.boolean_feature(
+            tx, operation, body, others, _grazing_note(boxes, gap) if len(others) > 1 else ""
+        )
     except NXError as error:
         if "circular" in str(error.message).lower():
             error.hint = CIRCULAR_HINT
@@ -152,6 +176,7 @@ def nx_create_boolean(
         common.unite_volume(tx, bodies, before, tools_volume, probes)
     else:
         common.changed(before, out["volume"], "at_most")
+        common.warn_unchanged(tx, operation, [body], state, label="target")
     alive = {int(b.Tag) for b in tx.part.Bodies}
     return {**out, "deleted_bodies": sum(int(t.Tag) not in alive for t in others)}
 
@@ -385,12 +410,13 @@ def nx_create_scale(
     for i, (t, m) in enumerate(zip(targets, before, strict=True)):
         got = measure.mass(tx, [t])
         want = m["volume"] * gain
-        readback.expect_close(got["volume"], want, f"volume[{i}]", tol=1e-6 * max(1.0, want))
+        band = common.VOLUME_BAND * max(1.0, want)
+        readback.expect_close(got["volume"], want, f"volume[{i}]", tol=band)
         if m["centroid"] and got["centroid"]:
             wanted = _scaled(m["centroid"], o, axes, f)
-            readback.expect_close(
-                got["centroid"], wanted, f"centroid[{i}]", tol=1e-5 * max(1.0, *map(abs, wanted))
-            )
+            size = abs(want) ** (1.0 / 3.0)
+            tol = max(1e-5 * max(1.0, *map(abs, wanted)), common.VOLUME_BAND * size)
+            readback.expect_close(got["centroid"], wanted, f"centroid[{i}]", tol=tol)
     return common.result_of(tx, feature, targets)
 
 

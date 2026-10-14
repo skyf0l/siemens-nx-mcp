@@ -302,7 +302,7 @@ def nx_create_tube(
     with tx.checks():
         fill, single = _path(tx, [path] if isinstance(path, str) else path)
     targets = common.combine_targets(tx, combine)
-    before = measure.volume(tx, targets) if targets else 0.0
+    before = common.target_state(tx, targets)
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     overlapping = kbodies.clashing(tx, targets)
     try:
@@ -316,6 +316,7 @@ def nx_create_tube(
             feature = b.commit()
     except NXError as error:
         common.smooth_hint(error)
+        common.outside_hint(error, combine)
         raise
     common.swept_sound(tx, common.feature_bodies(feature), known, overlapping)
     if combine is not None:

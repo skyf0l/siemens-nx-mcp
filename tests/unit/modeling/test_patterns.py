@@ -674,3 +674,27 @@ def test_unsupported_seed_set_says_to_pattern_the_body():
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["nx_code"] == 674207, bad
     assert "bodies" in bad.error["hint"] and "body-creating feature" in bad.error["hint"]
     assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "pattern geometry body copies",
+        "copy bodies in a circular pattern",
+        "pattern bodies",
+        "body copies",
+        "copy bodies along a line",
+    ],
+)
+def test_find_tools_ranks_the_pattern_tool_first_for_body_copies(query):
+    from nx_mcp.core import catalogue
+    from nx_mcp.sidecar import gateways
+
+    specs = catalogue.load()
+    entries = [
+        gateways.Entry(s.name, effect=s.effect, domain=s.domain, label=s.label,
+                       description=s.description, keywords=s.keywords)
+        for s in specs.values()
+    ]  # fmt: skip
+    hits, _ = gateways.ranked(entries, query, variants=lambda e: specs[e.name].variant_values())
+    assert hits[0].entry.name == "nx_create_pattern", [h.entry.name for h in hits[:5]]

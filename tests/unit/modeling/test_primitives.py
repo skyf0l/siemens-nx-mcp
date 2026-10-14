@@ -188,3 +188,23 @@ def test_box_and_cuboid_are_the_block(name):
     assert ok.ok, ok
     assert nx.last("BlockFeatureBuilder") is not None
     assert ok.data["volume"] == pytest.approx(8000)
+
+
+def test_a_cylinder_with_several_targets_builds_one_feature_per_target():
+    """NX 2406 combines a cylinder, cone or sphere with the first BooleanOption target only."""
+    nx = modeling_nx()
+    a, b = nx.block(10, 10, 10), nx.block(10, 10, 10, origin=(0, 0, 10))
+    cut = iter([a, b])
+
+    def hook(builder):
+        body = next(cut)
+        body.volume -= 100
+        return feature(nx, "CYLINDER", [body])
+
+    nx.on_commit("CylinderBuilder", hook)
+    ok = run(nx, "nx_create_primitive", shape="cylinder", diameter=4, height=30,
+             origin=[5, 5, -5], combine={"operation": "subtract", "targets": [a.ref, b.ref]})  # fmt: skip
+    assert ok.ok and not ok.warnings, ok
+    made = [x for x in nx.builders if x.kind == "CylinderBuilder"]
+    assert [m.BooleanOption.SetTargetBodies.calls[0][0][0] for m in made] == [[a], [b]]
+    assert ok.data["volume"] == 1800 and len(ok.data["bodies"]) == 2

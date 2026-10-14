@@ -16,12 +16,12 @@
   "sources": {
     "nx_create_section_view": "c6d111257266fadfb7a0f0b5f00e4491a752b665af9c4b173c2c0011fe4e92a7",
     "nx_edit_section_view": "c6d111257266fadfb7a0f0b5f00e4491a752b665af9c4b173c2c0011fe4e92a7",
-    "nx_set_appearance": "fb52cb20aaae0aad2b7050574c0a50758ca268f36350676bb4e2d16ae9039aaa",
-    "nx_get_appearance": "fb52cb20aaae0aad2b7050574c0a50758ca268f36350676bb4e2d16ae9039aaa",
-    "nx_set_visibility": "fb52cb20aaae0aad2b7050574c0a50758ca268f36350676bb4e2d16ae9039aaa",
+    "nx_set_appearance": "f96b3a9092bf5c6511ad9479e2635eff3d033e09176ef3a46ac29eea22a2ff17",
+    "nx_get_appearance": "f96b3a9092bf5c6511ad9479e2635eff3d033e09176ef3a46ac29eea22a2ff17",
+    "nx_set_visibility": "f96b3a9092bf5c6511ad9479e2635eff3d033e09176ef3a46ac29eea22a2ff17",
     "nx_restore_display": "2aad3dd7e76989d518170548a51f2aedff913b95aedd2e8a605d9785cf7e4b05"
   },
-  "recorded": "2026-10-14T13:52:24Z",
+  "recorded": "2026-10-14T16:01:20Z",
   "passed": true,
   "checks": 69,
   "failed_checks": 0,

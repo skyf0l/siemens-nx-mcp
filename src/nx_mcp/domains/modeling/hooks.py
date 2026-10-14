@@ -32,12 +32,17 @@ def bodies(tx, owner, owner_kind):
 
 @lister("face")
 def faces(tx, owner, owner_kind):
+    # The type comes from UF AskFaceType (microseconds); AskFaceData (about a millisecond
+    # a face on NX 2406) runs only for the point and normal of planar faces.
     found = []
     for body in _bodies(tx, owner, owner_kind):
+        tx.checkpoint()
         for face in body.GetFaces():
-            code, point, direction = select.face_data(tx, face)
+            with native():
+                code = int(tx.uf.Modeling.AskFaceType(face.Tag))
             extra = {"type": FACE_TYPES.get(code, "other")}
             if code == 22:
+                _, point, direction = select.face_data(tx, face)
                 extra["details"] = {"point": point, "normal": geom.unit(direction)}
             found.append((face, "face", extra))
     return found
@@ -50,7 +55,9 @@ def edges(tx, owner, owner_kind):
     else:
         values = [e for b in _bodies(tx, owner, owner_kind) for e in b.GetEdges()]
     out = []
-    for edge in values:
+    for i, edge in enumerate(values):
+        if i % 500 == 0:
+            tx.checkpoint()
         name = result.enum_name(edge.SolidEdgeType, tx.nx.Edge.EdgeType)
         out.append((edge, "edge", {"type": EDGE_TYPES.get(name, "other")}))
     return out

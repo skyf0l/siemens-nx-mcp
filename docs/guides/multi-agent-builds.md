@@ -30,6 +30,12 @@ Write a `SPEC.md` in the project folder before any agent starts. Every brief poi
 
 - **2-3 builders per NX.** With more, even light calls can wait minutes in the queue.
   Start the next builder when one finishes.
+- **At most 3 NX calls in flight across all agents.** A builder that fires 6-9 calls at
+  once makes each of them wait behind the others (minutes for a light call) and delays every
+  other agent. Send calls one after another, or a few at a time.
+- **No host reload or NX MCP update while builders run.** A reload refuses the calls that
+  arrive meanwhile and replaces the short refs (`b:123`); agents must list their objects
+  again afterwards.
 - **One heavy call at a time across all agents.** Announce heavy calls in the briefs (section
   3) and have the orchestrator grant them in turn, or give heavy checks to one agent at the end.
 - **Save before any verification.** A save queued behind a hung call never runs; work done
@@ -104,18 +110,26 @@ instead of waiting idle for reports. A builder that loses the bridge reports it 
 - **Check unite results.** After a unite of many bodies, the volume must be close to target
   plus tools minus their overlap; a section (`nx_measure_section`) shows a missing wall.
 - **Re-measure after rework.** A mass or clearance measured before a change is stale. Report
-  only values measured on the final geometry.
+  only values measured on the final geometry, and re-run interference checks after any
+  rebuild of a part that touches a neighbour.
+- **Check each target of a combine.** After a subtract or intersect with several targets,
+  measure every target (volume or a key distance): read the result's warnings, which name
+  a target the tools missed. After a pattern, measure one copy.
+- **Pass features, not guessed ids.** A pattern feature passed as `bodies` stands for every
+  body it made; never build body lists by counting ids (`b:%d`), which breaks as soon as NX
+  numbers objects differently.
 - A sealed-void warning on a part that is hollow by design is a fact to report, not geometry
   to change.
 
 ## 5. The engineer's live view
 
-- **Copy the engineer's display rules into every brief word for word** (for example "show the
-  part in work after each modelling step"). Do not shorten them to "at milestones"; a
-  paraphrased rule is a weaker rule.
-- After each modelling step, display the part that step changed (`nx_activate_part` with
-  display true) and `nx_set_camera` fit on the whole part. Once per step is enough: before and
-  after every call doubles the calls and makes the shared window jump between agents.
+- **Copy the engineer's display rules into every brief word for word**; a paraphrased rule
+  is a weaker rule.
+- **One agent owns the view.** Every display or camera call waits in the shared queue: with
+  four builders each refreshing the view after every step, view calls alone cost tens of
+  minutes. Unless the engineer asks otherwise, one agent (the orchestrator or a builder by
+  turns) displays the part in work and fits the camera at milestones or on a timer; the
+  other builders work on their parts with the `part` key and never move the view.
 - Hide datums before fitting a part that sits far from the origin, or the fit includes them.
 - During integration one agent owns the display: the assembly, fit on the whole product.
 
@@ -125,10 +139,17 @@ instead of waiting idle for reports. A builder that loses the bridge reports it 
   Say which tool measured it.
 - List what was not checked and why (a part skipped by a heavy check, a pair without a
   clearance test, an export that failed). "All tests passed" only when every listed test ran.
+- **Say "sampled" wherever a check was sampled** (3 blades of a row, nearest bodies instead
+  of whole parts), and report a partial `nx_check_model` (`complete: false`) as partial.
+- **Decide verdicts after measuring.** A test brief lists the checks and their limits, never
+  their expected outcome.
 - Report deviations from the spec (reduced counts, shortened chords, simplified airfoils,
   gaps below the required value) and over-budget masses.
 - Count incidents accurately (how many freezes, who restarted NX, what was rebuilt).
 - When asked "is it realistic?", separate what was modelled from what a real product has.
+- **Integration by a fresh agent.** Start the integration or test agent with a brief file
+  (spec, parts, interfaces, measured facts so far) rather than resuming a builder whose
+  context is already large.
 
 ## Brief template
 
@@ -169,13 +190,16 @@ Shared NX:
   once a minute; query nx_get_operation before retrying a mutation; tell the orchestrator.
   Never restart or kill NX.
 
-Live view: after each modelling step, nx_activate_part (display true) on the part that step
-changed, then nx_set_camera fit on the whole part. Captures to files under
-projects/<project>/captures/; inline images only when you must inspect something.
+Live view: <one owner, e.g. "the orchestrator moves the view; never call nx_activate_part
+display or nx_set_camera yourself">. Captures to files under projects/<project>/captures/;
+inline images only when you must inspect something.
+At most 3 NX calls in flight at once; send the next one when one returns.
 
 Verify (after saving): bounds and key radii, nx_measure_mass with the material assigned,
 clearances to neighbours with nx_measure_distance, nx_check_model where the part is light.
-Re-measure after any rework.
+After a combine with several targets, measure each target; after a pattern, one copy.
+Re-measure (mass, clearances, interference) after any rework. Say "sampled" for sampled
+checks and "partial" for a check_model with complete: false.
 
 Finish: save, capture <part>_done.png, close your parts. Report (<= 300 words): parts and
 paths, bodies, counts used, material, measured mass and bounds, deviations from the spec,

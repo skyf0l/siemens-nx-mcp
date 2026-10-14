@@ -294,7 +294,10 @@ class FakeNX:
 
         self.uf_calls = []
         return NS(
-            Modeling=NS(AskFaceData=ask_face_data),
+            Modeling=NS(
+                AskFaceData=ask_face_data,
+                AskFaceType=lambda tag: FACE_TYPES[self.face_data[tag][0]],
+            ),
             Draw=NS(OpenDrawing=open_drawing, SetDisplayState=set_display_state),
             Assem=NS(SetWorkPartQuietly=self.session.set_work_quietly),
         )

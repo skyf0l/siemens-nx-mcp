@@ -198,7 +198,8 @@ def test_the_void_check_skips_solids_over_the_face_limit_unless_forced(monkeypat
 def test_one_shell_bodies_have_no_void_issue():
     nx = inspection_nx()
     nx.block(10, 10, 10)
-    assert run(nx, "nx_check_model").data["issues"] == []
+    data = run(nx, "nx_check_model").data
+    assert data["issues"] == [] and data["complete"] is True and data["skipped"] == []
 
 
 def test_summary_features_follow_the_timeline_without_internal_features():
@@ -267,12 +268,17 @@ def test_self_overlap_is_examined_on_a_bounded_number_of_solids(monkeypatch):
     seen = _examine(nx, {})
     ok = run(nx, "nx_check_model")
     assert ok.data["healthy"] is True and len(seen) == 2, ok
+    assert ok.data["complete"] is False
+    assert ok.data["skipped"] == [
+        {"check": "self_intersection", "reason": "call_limit", "bodies": 1, "faces": 6}
+    ]
     (note,) = ok.data["issues"]
     assert note["severity"] == "info" and note["kind"] == "self_intersection"
     assert note["message"].startswith("1 solid bodies were not examined for self-overlap")
     assert "stops at 2 solids" in note["message"] and "clash: true" in note["message"]
     forced = run(nx, "nx_check_model", clash=True)
     assert forced.data["issues"] == [] and len(seen) == 5
+    assert forced.data["complete"] is True and forced.data["skipped"] == []
 
 
 def test_solids_over_the_face_limit_are_skipped_unless_forced(monkeypatch):
@@ -287,6 +293,10 @@ def test_solids_over_the_face_limit_are_skipped_unless_forced(monkeypatch):
     seen = _examine(nx, {int(big.Tag): big.faces[:2]})
     ok = run(nx, "nx_check_model")
     assert ok.ok and ok.data["healthy"] is True and seen == [small], ok
+    assert ok.data["complete"] is False and ok.data["skipped"] == [
+        {"check": "internal_void", "reason": "face_limit", "bodies": 1, "faces": 7},
+        {"check": "self_intersection", "reason": "face_limit", "bodies": 1, "faces": 7},
+    ]
     void, note = ok.data["issues"]  # both checks skip the large solid
     assert note["severity"] == "info" and note["kind"] == "self_intersection"
     assert note["object"]["id"] == big.ref
@@ -323,7 +333,11 @@ def test_forced_self_overlap_stops_when_the_cost_budget_is_spent(monkeypatch):
     seen = _examine(nx, {})
     monkeypatch.setitem(tx_module.COST_BUDGET_SECONDS, "heavy", -1.0)
     ok = run(nx, "nx_check_model", clash=True)
-    assert ok.ok and seen == [], ok
+    assert ok.ok and seen == [] and ok.data["healthy"] is True, ok
+    assert ok.data["complete"] is False
+    assert ok.data["skipped"] == [
+        {"check": "self_intersection", "reason": "budget", "bodies": 1, "faces": 6}
+    ]
     (note,) = ok.data["issues"]
     assert note["message"] == (
         "1 solid bodies were not examined for self-overlap: the call's time budget was spent"

@@ -202,3 +202,120 @@ def test_unknown_refs_say_whether_they_were_never_issued(svc, tmp_path):
     old = _refused(later, edge_ref)
     assert old.code == "NX_STALE_REFERENCE" and old.details["reason"] == "not_in_this_session"
     assert "no tool returned never did" in old.message and "earlier NX session" not in old.message
+
+
+def test_ref_fields_take_the_anchors_result_rows_carry(svc):
+    import re
+
+    from nx_mcp.core.types import REF_PATTERN
+
+    for anchor in (
+        "@smoke/a/blk.prt:EXTRUDE(4)",
+        "@C:/work/a.prt:BLOCK(1)#0",
+        "@a.prt:Pattern Feature(3:5A:1A)#0",
+    ):
+        assert re.match(REF_PATTERN, anchor), anchor
+    for not_ref in ("@a.prt:face=HANDLE R-1", "@nopart", "s:PLACEHOLDER", "@a.prt:"):
+        assert not re.match(REF_PATTERN, not_ref), not_ref
+    feature = svc.part.add("feature", "BOSS", jid="EXTRUDE(3)")
+    made = run(svc, "nx_delete_first", feature="@a.prt:EXTRUDE(3)")
+    assert made["ok"], made  # gate 1 takes the anchor; the handler resolves it
+    assert feature not in svc.part.objects
+
+
+def test_anchors_with_colons_in_the_journal_id_resolve_and_do_not_move(svc):
+    first = svc.part.add("body", "", jid="Pattern Feature(3:5A:1A)")
+    second = svc.part.add("body", "", jid="Pattern Feature(3:5A:1A)")
+    row = svc.references.row(second, "body")
+    assert row["anchor"] == "@a.prt:Pattern Feature(3:5A:1A)#1"
+    assert svc.references.resolve(row["anchor"], ("body",)) is second
+    assert svc.references.resolve("@A.PRT:Pattern Feature(3:5A:1A)#0", ("body",)) is first
+    assert not svc.references._moved(row["anchor"], second)
+    second.JournalIdentifier = "Pattern Feature(3:6A:1A)"
+    assert svc.references._moved(row["anchor"], second)
+
+
+def test_body_anchors_take_one_pass_over_the_bodies_per_revision(svc):
+    bodies = [svc.part.add("body", "", jid="EXTRUDE(2)") for _ in range(3)]
+    reads = []
+
+    class Counted(type(svc.part)):
+        @property
+        def Bodies(self):
+            reads.append(1)
+            return [o for o in self.objects if o.kind == "body"]
+
+    svc.part.__class__ = Counted
+    anchors = [svc.references.row(b, "body")["anchor"] for b in bodies]
+    assert anchors == [f"@a.prt:EXTRUDE(2)#{i}" for i in range(3)] and len(reads) == 1
+    svc.part.objects.remove(bodies[0])  # a commit moves the revision: the order is read again
+    svc.epoch += 1
+    late = svc.part.add("body", "", jid="EXTRUDE(2)")
+    assert svc.references.row(late, "body")["anchor"] == "@a.prt:EXTRUDE(2)#2"
+    assert len(reads) == 2
+
+
+def _reloaded(svc, tmp_path):
+    """A new host in the same NX process: the same parts, a fresh ref table."""
+    later = FakeServices(tmp_path)
+    later.part = svc.part
+    later.references.live_path = svc.references.live_path
+    return later
+
+
+def test_refs_survive_a_host_reload_when_nx_still_has_their_objects(svc, tmp_path):
+    svc.references.live_path = tmp_path / ".nx-mcp" / "refs-live.json"
+    body = svc.part.add("body", "SHELL", jid="EXTRUDE(2)")
+    face = svc.part.add("face", "", jid="FACE 1 {EXTRUDE(2)}")
+    feature = svc.part.add("feature", "BOSS", jid="EXTRUDE(2)")
+    body_ref = svc.references.row(body, "body")
+    face_ref = svc.references.row(face, "face")["id"]
+    feature_ref = svc.references.row(feature, "feature")["id"]
+    svc.references.persist()
+    later = _reloaded(svc, tmp_path)
+    assert later.references.resolve(body_ref["id"], ("body",)) is body
+    assert later.references.row(body, "body") == body_ref  # same ref, same part ref
+    assert later.references.resolve(face_ref, ("face",)) is face
+    # The feature's tag now names another object (NX reused it): its anchor still finds it.
+    moved = later.part.add("feature", "BOSS", jid="EXTRUDE(2)")
+    svc.part.objects.remove(feature)
+    feature.Tag, feature.JournalIdentifier = moved.Tag, "BLEND(9)"
+    assert later.references.resolve(feature_ref, ("feature",)) is moved
+    later.references.persist()  # the next host still knows the refs not used yet
+    gone_face = _reloaded(later, tmp_path)
+    svc.part.objects.remove(face)
+    error = _refused(gone_face, face_ref)
+    assert error.code == "NX_STALE_REFERENCE" and error.details["reason"] == "host_reloaded"
+    assert "before the NX MCP host reload" in error.message and "list the objects" in error.message
+    assert gone_face.references.resolve(body_ref["id"]) is body
+
+
+def test_refs_of_another_nx_process_are_never_rebound(svc, tmp_path):
+    live = tmp_path / ".nx-mcp" / "refs-live.json"
+    svc.references.live_path = live
+    body = svc.part.add("body", "", jid="BLOCK(1)")
+    ref = svc.references.row(body, "body")["id"]
+    svc.references.persist()
+    saved = json.loads(live.read_text(encoding="utf-8"))
+    live.write_text(json.dumps({**saved, "pid": saved["pid"] + 1}), encoding="utf-8")
+    error = _refused(_reloaded(svc, tmp_path), ref)
+    assert error.details["reason"] == "not_in_this_session"
+
+
+def test_a_committed_model_call_keeps_its_phase_times_in_the_receipt(svc):
+    made = run(svc, "nx_create_block", operation_id="op_phases_01", size=5)
+    assert made["ok"], made
+    phases = svc.store.get("op_phases_01")["phases"]
+    assert {"gates", "snapshot", "handler", "readback", "invalidate", "refresh", "changes"} <= set(
+        phases
+    )
+    assert all(isinstance(v, float) and v >= 0 for v in phases.values())
+
+
+def test_a_body_anchor_and_its_features_anchor_name_one_object_each(svc):
+    feature = svc.part.add("feature", "", jid="EXTRUDE(2)")
+    body = svc.part.add("body", "", jid="EXTRUDE(2)")  # NX: a body has its feature's id
+    body_anchor = svc.references.row(body, "body")["anchor"]
+    assert body_anchor == "@a.prt:EXTRUDE(2)#0"
+    assert svc.references.resolve(body_anchor, ("body", "feature", "component")) is body
+    assert svc.references.resolve("@a.prt:EXTRUDE(2)", ("body", "feature")) is feature

@@ -618,7 +618,7 @@ List NX's library of visual (render) materials by name and category, plus those 
 
 ### `nx_restore_display`
 
-**Undo display change or load presentation** · effect `view` · NX 2406: tested; 39 checks in `acceptance/display/visibility.json`
+**Undo display change or load presentation** · effect `view` · NX 2406: tested; 58 checks in `acceptance/display/visibility_assembly.json`
 
 Undo a display change by restore_id ('last' or none: the newest; newest first), or apply an nx_save_presentation file. nx_set_camera, nx_set_visibility, nx_set_appearance and a presentation return restore_ids; sections do not (nx_delete_objects).
 
@@ -721,15 +721,17 @@ Turn on true shading (a Studio look: one global material, floor shadow and refle
 
 ### `nx_set_visibility`
 
-**Set visibility** · effect `view` · NX 2406: tested; 39 checks in `acceptance/display/visibility.json`
+**Set visibility** · effect `view` · NX 2406: tested; 58 checks in `acceptance/display/visibility_assembly.json`
 
-Show, hide or isolate bodies, components, curves and datums (not faces). datums=true: all datums; mode=show alone shows every hidden body and component. Isolate hides all other bodies and components. Undo: nx_restore_display(restore_id).
+Show, hide or isolate bodies, components, sketches, curves, points and datums (not faces). objects, datums=true and types (every object of those kinds) combine. Component objects change in the assembly only (their part stays unmodified); scope=assembly adds every component's objects of those types. mode=show alone shows all hidden bodies and components. Isolate: objects only; hides all other bodies and components. Undo: nx_restore_display(restore_id).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `mode` | `show` \| `hide` \| `isolate` | required |  |
 | `objects` | array[1-1000] of Ref | optional |  |
 | `datums` | boolean | `false` |  |
+| `types` | array[1-5] of `body` \| `sketch` \| `curve` \| `point` \| `datum` | optional | Every object of these kinds |
+| `scope` | `part` \| `assembly` | `"part"` | types/datums: assembly adds every component's objects, changed in the assembly |
 
 ### `nx_set_visual_material`
 
@@ -1705,7 +1707,7 @@ Check interference and clearance between the solid bodies of objects. No objects
 
 **Check model health** · effect `read` · NX 2406: tested; 19 checks in `acceptance/inspection/self_overlap_face_limit.json`
 
-Check feature errors/warnings, suppression, unloaded components, unsolved constraints and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended). healthy: no errors/warnings; no update.
+Check feature errors/warnings, suppression, unloaded components, unsolved constraints and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended). healthy: no errors/warnings in what was examined; complete false: some solids were not examined (skipped), not a clean bill. No update.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1774,7 +1776,7 @@ Write the weight and CoG report to an Excel-friendly .csv. report_args: the argu
 
 ### `nx_find_geometry`
 
-**Find geometry** · effect `read` · NX 2406: tested; 91 checks in `acceptance/inspection/holes_and_words.json`
+**Find geometry** · effect `read` · NX 2406: tested; 57 checks in `acceptance/inspection/many_bodies.json`
 
 Find faces, edges or bodies by type, normal, radius or role. Ranked nearest to near, else outermost along normal, else lowest along axis. Drawing-view edges: nx_list_view_edges.
 
@@ -1822,9 +1824,9 @@ Summarise the work part: counts, bounds and health, or one page of its features,
 
 ### `nx_list_objects`
 
-**List objects** · effect `read` · NX 2406: tested; 44 checks in `acceptance/inspection/list_objects.json`
+**List objects** · effect `read` · NX 2406: tested; 57 checks in `acceptance/inspection/many_bodies.json`
 
-List work-part objects of one kind by owner, name or type, paged. Feature parameters: kind expression, owner the feature.
+List work-part objects of one kind by owner, name or type, paged. Feature parameters: kind expression, owner the feature. Pattern copies (bodies) give details.pattern and details.instance.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -1833,6 +1835,7 @@ List work-part objects of one kind by owner, name or type, paged. Feature parame
 | `name_contains` | string | optional | Name substring, any case |
 | `type` | string | optional | e.g. cylinder, solid |
 | `include` | `adjacency` \| `views` | optional |  |
+| `compact` | boolean | `false` | Body/face/edge rows as id, name, min, max only |
 | `offset` | integer | `0` |  |
 | `limit` | integer | `20` |  |
 
@@ -1989,7 +1992,7 @@ Blend the edges meeting at a corner and set the blends back for a smooth corner 
 
 **Combine bodies** · effect `model` · NX 2406: tested (all variants); 8 checks in `acceptance/modeling/unite_readback.json`
 
-Unite, subtract or intersect tool bodies with a target body; the tools are consumed. bodies lists the result bodies, the target's first. A unite that drops a tool or grows past target plus tools is rolled back.
+Unite, subtract or intersect tool bodies with a target body; the tools are consumed. bodies lists the result bodies, the target's first. A unite that drops a tool or grows past target plus tools is rolled back; a target left unchanged and NX's own alerts (a tool that misses) come back as warnings.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -2344,7 +2347,7 @@ Pattern features or whole bodies: linear, circular, along a curve, polygon, spir
 
 **Create primitive** · effect `model` · NX 2406: tested (all variants); 38 checks in `acceptance/modeling/primitives.json`
 
-Create a block, cylinder, cone or sphere solid as a new body or combined with bodies. Sizes take numbers or expression names; volume is the result bodies' total.
+Create a block, cylinder, cone or sphere solid as a new body or combined with bodies. Sizes take numbers or expression names; volume is the result bodies' total. Several targets: one feature per target (feature is the first).
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |

@@ -467,6 +467,78 @@ def at_child(error: NXError, index: int) -> NXError:
     return error
 
 
+def child_steps(params, args: Mapping) -> list[tuple[str, str, int, Any, Any]]:
+    """``(list field, arguments field, index, tool, arguments)`` of every step of a tool
+    that runs other tools (``nx_run_batch``, ``nx_preview_changes``): a list parameter of
+    objects whose ``Json(of_tool=...)`` field holds the arguments of the tool its sibling
+    field names."""
+    out: list[tuple[str, str, int, Any, Any]] = []
+    for name, param in params.items():
+        base, _ = unwrap(param.hint)
+        if is_union(base):
+            alternatives = [a for a in typing.get_args(base) if a is not _NONE]
+            if len(alternatives) != 1:
+                continue
+            base, _ = unwrap(alternatives[0])
+        if typing.get_origin(base) is not list:
+            continue
+        item, _ = unwrap(typing.get_args(base)[0])
+        if not is_typeddict(item):
+            continue
+        for key, sub in typeddict_fields(item).items():
+            marker = unwrap(sub)[1].get(Json)
+            if marker is None or not marker.of_tool:
+                continue
+            steps = args.get(name)
+            for index, step in enumerate(steps if isinstance(steps, list) else []):
+                if isinstance(step, Mapping):
+                    out.append((name, key, index, step.get(marker.of_tool), step.get(key)))
+    return out
+
+
+def child_problems(params, args: Mapping, lookup, split=None) -> NXError | None:
+    """Gate 1 of every step of a tool that runs other tools (:func:`child_steps`): each
+    step's arguments against its tool's schema (``lookup(name)`` -> spec or None; an
+    unknown tool is left to the tool itself), refs of earlier steps (``"$0.data.sketch"``)
+    allowed and pointing back only. ``split(spec, arguments)`` -> ``(arguments, call
+    keys)`` drops a step's call keys (``part``). Every invalid field at once, pointed at
+    ``/<list>/<i>/<arguments>/...``; None when all steps pass."""
+    found: list[NXError] = []
+    for name, key, index, tool_name, arguments in child_steps(params, args):
+        spec = lookup(tool_name) if isinstance(tool_name, str) else None
+        if spec is None or not isinstance(arguments, Mapping):
+            continue
+        where = f"/{name}/{index}/{key}"
+        try:
+            own = dict(arguments)
+            if split is not None:
+                own, _keys = split(spec, own)
+            checked = spec.check(own, placeholders=True)
+            for path, text in checked.placeholders:
+                step = re.match(r"^\$([0-9]+)", text)
+                if step is not None and int(step.group(1)) >= index:
+                    raise NXError(
+                        "NX_INVALID_ARGUMENT",
+                        f"{pointer(path)}: {text} does not name an earlier step",
+                        field=pointer(path),
+                        hint="Refer only to steps before this one ($0 is the first)",
+                    )
+        except NXError as error:
+            for row in [error, *((error.details or {}).get("errors") or [])]:
+                field_of = row.field if isinstance(row, NXError) else row.get("field")
+                moved = where + (field_of or "")
+                if isinstance(row, NXError):
+                    if field_of and row.message.startswith(field_of + ": "):
+                        row.message = moved + row.message[len(field_of) :]
+                    row.field = moved
+                elif isinstance(row, dict):
+                    row["field"] = moved
+            error.details.setdefault("child_index", index)
+            error.details.setdefault("child_tool", tool_name)
+            found.append(error)
+    return combine(found) if found else None
+
+
 def combine(errors: list) -> NXError:
     """One error for every invalid field: the first one's field, message, code, hint and
     details, plus ``details.errors`` listing all of them (at most MAX_ERRORS)."""
@@ -969,9 +1041,11 @@ def _format_message(value: str, markers) -> str:
             if "component" in kinds
             else "an earlier result, nx_list_objects or nx_find_geometry"
         )
+        anchored = not kinds or bool({"feature", "body", "sketch"} & set(kinds))
+        anchor = " or a result row's anchor ('@<part>:EXTRUDE(2)')" if anchored else ""
         return (
             f"expected a {'/'.join(kinds) or 'object'} ref like {ref_example(kinds)} (from "
-            f"{source}), got {value!r}; display names are not refs"
+            f"{source}){anchor}, got {value!r}; display names are not refs"
         )
     doc = markers.get(Doc)
     pattern = markers[Text].pattern
