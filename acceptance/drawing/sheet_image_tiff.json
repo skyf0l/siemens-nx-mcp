@@ -1,0 +1,73 @@
+{
+ "covers": {
+  "nx_set_sheet_image": []
+ },
+ "fixture": "fixtures/drawing_logo.tif",
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "args": {
+    "name": "SHT1",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "intent": "A 40x20 px TIFF logo 30 mm wide hanging from its top-center",
+   "args": {
+    "path": "$fixture",
+    "position": [
+     210,
+     287
+    ],
+    "anchor": "top_center",
+    "width": 30
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.format": "tif",
+    "data.pixels": {
+     "close": [
+      40,
+      20
+     ],
+     "tol": 1e-06
+    },
+    "data.width": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.height": {
+     "close": 15,
+     "tol": 1e-06
+    },
+    "data.position": {
+     "close": [
+      210,
+      287
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      195,
+      272,
+      225,
+      287
+     ],
+     "tol": 1e-06
+    }
+   }
+  }
+ ]
+}

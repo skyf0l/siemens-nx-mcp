@@ -208,6 +208,7 @@ def _annotations(part):
         "Centerlines",
         "DraftingSurfaceFinishSymbol",
         "Welds",
+        "DraftingImages",  # sheet images (nx_set_sheet_image)
     ):
         try:
             values.extend(getattr(collections, name, None) or [])

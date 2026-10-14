@@ -3,13 +3,13 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `97506ffe770619499ef56f253723d806436f0a054644819a2b666b629332b929`.
+Canonical SHA-256 (catalogue evidence): `de8ef9d32eec8b567b1418cf41c6c684098a322a657f26ad1fc6324a31cd282e`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 260 |
+| Native-tested | 265 |
 | Experimental | 1 |
 
 ## Catalogue tools
@@ -163,6 +163,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_edit_annotation | Native-tested | drawing | model | v2406: tested; 30 checks in acceptance/drawing/edit_annotation.json |
 | nx_edit_arrangement | Native-tested | assembly | model | v2406: all variants; 50 checks in acceptance/assembly/arrangements.json |
 | nx_edit_assembly_constraint | Native-tested | assembly | model | v2406: tested; 82 checks in acceptance/assembly/constraints.json |
+| nx_edit_blend_order | Native-tested | modeling | model | v2406: tested; 15 checks in acceptance/modeling/sync_blends.json |
 | nx_edit_component | Native-tested | assembly | model | v2406: tested; 38 checks in acceptance/assembly/new_component.json |
 | nx_edit_component_pattern | Native-tested | assembly | model | v2406: tested; 85 checks in acceptance/assembly/patterns.json |
 | nx_edit_dimension | Native-tested | drawing | model | v2406: tested; 68 checks in acceptance/drawing/edit_dimension.json |
@@ -221,6 +222,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_list_component_groups | Native-tested | assembly | read | v2406: tested; 60 checks in acceptance/assembly/weight_management.json |
 | nx_list_components | Native-tested | assembly | read | v2406: tested; 145 checks in acceptance/assembly/components.json |
 | nx_list_files | Native-tested | parts_files | read | v2406: tested; 23 checks in acceptance/parts_files/list_files.json |
+| nx_list_lights | Native-tested | display | read | v2406: tested; 79 checks in acceptance/display/lights.json |
 | nx_list_materials | Native-tested | modeling | read | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
 | nx_list_objects | Native-tested | inspection | read | v2406: tested; 44 checks in acceptance/inspection/list_objects.json |
 | nx_list_parts | Native-tested | parts_files | read | v2406: tested; 19 checks in acceptance/parts_files/list_parts.json |
@@ -261,9 +263,12 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_feature_suppression | Native-tested | modeling | model | v2406: tested; 16 checks in acceptance/modeling/feature_suppression.json |
 | nx_set_highlight | Native-tested | display | view | v2406: tested; 10 checks in acceptance/display/highlight.json |
 | nx_set_kf_rule | Native-tested | parts_files | model | v2406: all variants; 39 checks in acceptance/parts_files/kf_rules.json |
+| nx_set_light | Native-tested | display | model | v2406: tested; 79 checks in acceptance/display/lights.json |
+| nx_set_lighting_preset | Native-tested | display | model | v2406: tested; 79 checks in acceptance/display/lights.json |
 | nx_set_material | Native-tested | modeling | model | v2406: tested; 42 checks in acceptance/modeling/material_library.json |
 | nx_set_name | Native-tested | session | model | v2406: tested; 99 checks in acceptance/session/history.json |
 | nx_set_sheet_borders | Native-tested | drawing | model | v2406: tested; 26 checks in acceptance/drawing/borders.json |
+| nx_set_sheet_image | Native-tested | drawing | model | v2406: tested; 7 checks in acceptance/drawing/sheet_image_tiff.json |
 | nx_set_sheet_metal_defaults | Native-tested | sheet_metal | model | v2406: tested; 14 checks in acceptance/sheet_metal/inch.json |
 | nx_set_topology_contour | Native-tested | optimization | view | v2406: tested; 82 checks in acceptance/optimization/contour.json |
 | nx_set_true_shading | Native-tested | display | model | v2406: tested; 62 checks in acceptance/display/visual_materials.json |

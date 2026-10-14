@@ -79,6 +79,16 @@
       "variants": []
     }
   },
+  "nx_list_lights": {
+    "v2406": {
+      "checks": 79,
+      "recorded": "2026-10-14T05:42:18Z",
+      "scenario": "acceptance/display/lights.json",
+      "scenario_sha256": "9e503fb81f3b2bdde77fc11cd2b53a93c905017fa73b529f386d2e77df4c03b4",
+      "source_sha256": "5fe989ea99737830d7f219293fc4c3ded2ad9cbe1572f3ee76237249d15271b1",
+      "variants": []
+    }
+  },
   "nx_list_visual_materials": {
     "v2406": {
       "checks": 62,
@@ -136,6 +146,26 @@
       "scenario": "acceptance/display/highlight.json",
       "scenario_sha256": "3357803482e5442c32991fad8fba3d687446d4a790e2f1117915d8da332a3f90",
       "source_sha256": "4ca26dfcd26ba2e5bfe132b89672a172f6877a06cb2f59eb323965ec30506fd3",
+      "variants": []
+    }
+  },
+  "nx_set_light": {
+    "v2406": {
+      "checks": 79,
+      "recorded": "2026-10-14T05:42:18Z",
+      "scenario": "acceptance/display/lights.json",
+      "scenario_sha256": "9e503fb81f3b2bdde77fc11cd2b53a93c905017fa73b529f386d2e77df4c03b4",
+      "source_sha256": "5fe989ea99737830d7f219293fc4c3ded2ad9cbe1572f3ee76237249d15271b1",
+      "variants": []
+    }
+  },
+  "nx_set_lighting_preset": {
+    "v2406": {
+      "checks": 79,
+      "recorded": "2026-10-14T05:42:18Z",
+      "scenario": "acceptance/display/lights.json",
+      "scenario_sha256": "9e503fb81f3b2bdde77fc11cd2b53a93c905017fa73b529f386d2e77df4c03b4",
+      "source_sha256": "5fe989ea99737830d7f219293fc4c3ded2ad9cbe1572f3ee76237249d15271b1",
       "variants": []
     }
   },

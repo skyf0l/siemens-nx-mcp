@@ -482,6 +482,16 @@
       "variants": []
     }
   },
+  "nx_edit_blend_order": {
+    "v2406": {
+      "checks": 15,
+      "recorded": "2026-10-14T05:26:16Z",
+      "scenario": "acceptance/modeling/sync_blends.json",
+      "scenario_sha256": "73e7d8336731c537ac318cef7847343f3deaee25f2cc72e322cd0f40fc688eee",
+      "source_sha256": "f4f07f4354648a0aea0b88057060210969c4aec53d24bf66b2e3775de2690421",
+      "variants": []
+    }
+  },
   "nx_edit_edges": {
     "v2406": {
       "checks": 14,

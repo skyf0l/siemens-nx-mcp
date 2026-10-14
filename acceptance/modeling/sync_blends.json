@@ -1,0 +1,278 @@
+{
+ "covers": {
+  "nx_edit_blend_order": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 60,
+    "width": 40,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     20,
+     10
+    ],
+    "length": 60,
+    "width": 20,
+    "height": 10,
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$a.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     20,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$e1.data.items.0.id"
+    ],
+    "radius": 5
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e2",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     60,
+     20,
+     18
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$e2.data.items.0.id"
+    ],
+    "radius": 3,
+    "chain": true
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 36266.072111866524,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "fillet",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "order": "nearest",
+    "near": [
+     30,
+     17.5,
+     12.5
+    ],
+    "limit": 1,
+    "geometry_type": "cylinder"
+   }
+  },
+  {
+   "call": "nx_edit_blend_order",
+   "args": {
+    "face": "$fillet.data.items.0.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 36254.43238807457,
+     "tol": 0.001
+    },
+    "data.volume_change": {
+     "close": -11.639723791937286,
+     "tol": 0.001
+    },
+    "data.area_change": {
+     "close": -1.5051230554727226,
+     "tol": 0.001
+    },
+    "data.face_count": {
+     "equals": 12
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": {
+     "equals": true
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "corner",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "order": "nearest",
+    "near": [
+     58.57,
+     19.38,
+     10.62
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "edge_blend",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "order": "nearest",
+    "near": [
+     58.5,
+     11.5,
+     8.5
+    ],
+    "limit": 1,
+    "geometry_type": "cylinder"
+   }
+  },
+  {
+   "call": "nx_edit_blend_order",
+   "args": {
+    "face": "$corner.data.items.0.id",
+    "other": "$edge_blend.data.items.0.id"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 36266.072111866524,
+     "tol": 0.001
+    },
+    "data.volume_change": {
+     "close": 11.639723791937286,
+     "tol": 0.001
+    },
+    "data.area_change": {
+     "close": 1.5051230554727226,
+     "tol": 0.001
+    },
+    "data.face_count": {
+     "equals": 12
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": {
+     "equals": true
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "floor",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "order": "nearest",
+    "near": [
+     30,
+     7.5,
+     10
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   }
+  },
+  {
+   "call": "nx_edit_blend_order",
+   "args": {
+    "face": "$floor.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/face",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 36266.072111866524,
+     "tol": 0.001
+    }
+   }
+  }
+ ]
+}

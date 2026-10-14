@@ -55,6 +55,7 @@ _ANNOTATION_GROUPS = (
     "Datums",
     "Fcfs",
     "DraftingDatumTargets",
+    "DraftingImages",
     "IdSymbols",
     "PartsLists",
     "BendTables",

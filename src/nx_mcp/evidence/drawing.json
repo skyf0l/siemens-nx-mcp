@@ -307,10 +307,20 @@
   "nx_set_sheet_borders": {
     "v2406": {
       "checks": 26,
-      "recorded": "2026-10-13T12:14:44Z",
+      "recorded": "2026-10-14T05:53:47Z",
       "scenario": "acceptance/drawing/borders.json",
       "scenario_sha256": "67dfe833f03fd31728df6954929ade7cc9b72b7350e3dfa80b2c29bafacbb315",
-      "source_sha256": "a7656b73fef9265b7349b2421f010b7819e524f7f3f814066e4a61d74d95c226",
+      "source_sha256": "3f85012154e736811d44e4011be1da025e30bd6b9b86b842ce4da63993a59519",
+      "variants": []
+    }
+  },
+  "nx_set_sheet_image": {
+    "v2406": {
+      "checks": 7,
+      "recorded": "2026-10-14T05:34:23Z",
+      "scenario": "acceptance/drawing/sheet_image_tiff.json",
+      "scenario_sha256": "e54814bea0fac6731f2ef833691ae606127f169afdf8171e3f38e25892bfa27d",
+      "source_sha256": "f99905ed5eadf0b8a866267fe5bf7214a59c47c89eaad455a6ff18fa8403cb6b",
       "variants": []
     }
   },

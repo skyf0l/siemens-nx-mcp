@@ -94,7 +94,10 @@ def _shown(tx, sh):
         elif kind == "Note" and hasattr(obj, "GetText"):
             text = [str(t) for t in obj.GetText()]
             if len(text) == 1:
-                labels[int(obj.Tag)] = text[0].strip()
+                at = None
+                with contextlib.suppress(Exception):  # a note without a readable origin
+                    at = sh.to_sheet(obj.AnnotationOrigin)
+                labels[int(obj.Tag)] = (text[0].strip(), at)
     return lines, labels
 
 
@@ -112,11 +115,27 @@ def _has_frame(lines, box, tol):
     )
 
 
-def _labels(before, after):
-    """Zone labels among the notes NX added (``{tag: text}`` not in ``before``): digits
-    (columns) and letters (rows), each sorted and distinct. NX draws new label notes each
-    time the borders are set."""
-    new = [text for tag, text in after.items() if tag not in before]
+def _labels(before, after, outer=None, inner=None, tol=0.0):
+    """Zone labels: digits (columns) and letters (rows), each sorted and distinct. A label
+    is a one-line note in the band between the outer and inner border; notes without a
+    readable origin count when NX added them in this call. Replacing borders can make NX
+    reuse an earlier label's note, so newness alone misses labels (1 and A)."""
+
+    def in_band(at):
+        if at is None or outer is None or inner is None:
+            return False
+        x, y = at[0], at[1]
+        inside_outer = (
+            outer[0] - tol <= x <= outer[2] + tol and outer[1] - tol <= y <= outer[3] + tol
+        )
+        inside_inner = inner[0] + tol < x < inner[2] - tol and inner[1] + tol < y < inner[3] - tol
+        return inside_outer and not inside_inner
+
+    new = [
+        text
+        for tag, (text, at) in after.items()
+        if in_band(at) or (at is None and tag not in before)
+    ]
     columns = sorted({t for t in new if t.isdigit()}, key=int)
     rows = sorted({t for t in new if len(t) == 1 and t in string.ascii_uppercase})
     return columns, rows
@@ -237,7 +256,9 @@ def nx_set_sheet_borders(
             readback.expect(_has_frame(lines, outer, tol) and _has_frame(lines, inner, tol),
                             "frame", "NX drew no frame at the margins", outer=outer,
                             inner=inner)  # fmt: skip
-        columns, rows = _labels(labels_before, labels_after) if got["zones"] else ([], [])
+        columns, rows = (
+            _labels(labels_before, labels_after, outer, inner, tol) if got["zones"] else ([], [])
+        )
         if got["zones"]:
             readback.expect(bool(columns) and bool(rows), "zones", "NX drew no zone labels")
         out: BordersData = {

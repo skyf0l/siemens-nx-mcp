@@ -1,0 +1,359 @@
+{
+ "covers": {
+  "nx_set_sheet_image": []
+ },
+ "fixture": "fixtures/drawing_logo.png",
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "args": {
+    "sheet": "SHT1",
+    "path": "$run/sheet_bare.png"
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "save": "logo",
+   "intent": "A 120x60 px logo 40 mm wide, its bottom-right corner at the sheet's bottom-right (title block)",
+   "args": {
+    "path": "$fixture",
+    "sheet": "SHT1",
+    "position": [
+     410,
+     10
+    ],
+    "anchor": "bottom_right",
+    "width": 40
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.image.kind": "annotation",
+    "data.format": "png",
+    "data.pixels": {
+     "close": [
+      120,
+      60
+     ],
+     "tol": 1e-06
+    },
+    "data.width": {
+     "close": 40,
+     "tol": 1e-06
+    },
+    "data.height": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.position": {
+     "close": [
+      410,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.rotation": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.corners": {
+     "close": [
+      [
+       370,
+       10
+      ],
+      [
+       410,
+       10
+      ],
+      [
+       410,
+       30
+      ],
+      [
+       370,
+       30
+      ]
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      370,
+      10,
+      410,
+      30
+     ],
+     "tol": 1e-06
+    },
+    "data.lock_aspect": true,
+    "data.edited": false
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "save": "turned",
+   "intent": "Height only and a 90 deg turn about the center: 60 x 30 image standing 30 wide, 60 tall",
+   "args": {
+    "path": "$fixture",
+    "position": [
+     200,
+     150
+    ],
+    "anchor": "center",
+    "height": 30,
+    "rotation": 90
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.width": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "data.height": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.rotation": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "data.position": {
+     "close": [
+      200,
+      150
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      185,
+      120,
+      215,
+      180
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "save": "stretched",
+   "intent": "Both sizes: stretched to 50 x 20 from its top-left corner, aspect lock off",
+   "args": {
+    "path": "$fixture",
+    "position": [
+     20,
+     280
+    ],
+    "anchor": "top_left",
+    "width": 50,
+    "height": 20,
+    "lock_aspect": false
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.width": {
+     "close": 50,
+     "tol": 1e-06
+    },
+    "data.height": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.corners.0": {
+     "close": [
+      20,
+      260
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      20,
+      260,
+      70,
+      280
+     ],
+     "tol": 1e-06
+    },
+    "data.lock_aspect": false
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "intent": "Edit: the logo grows to 50 wide about its center, keeping its proportions and its place",
+   "args": {
+    "image": "$logo.data.image.id",
+    "anchor": "center",
+    "width": 50
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.edited": true,
+    "data.image.id": "$logo.data.image.id",
+    "data.width": {
+     "close": 50,
+     "tol": 1e-06
+    },
+    "data.height": {
+     "close": 25,
+     "tol": 1e-06
+    },
+    "data.position": {
+     "close": [
+      390,
+      20
+     ],
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      365,
+      7.5,
+      415,
+      32.5
+     ],
+     "tol": 1e-06
+    },
+    "data.file": {
+     "matches": "drawing_logo\\.png$"
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "intent": "Edit: the turned image moved and turned back, its size kept",
+   "args": {
+    "image": "$turned.data.image.id",
+    "position": [
+     100,
+     100
+    ],
+    "rotation": 0
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.width": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "data.height": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.rotation": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.bounds": {
+     "close": [
+      100,
+      100,
+      160,
+      130
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_image",
+   "intent": "Refused before NX: the image would run off the sheet",
+   "args": {
+    "path": "$fixture",
+    "position": [
+     400,
+     10
+    ],
+    "width": 40
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/position",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "args": {
+    "sheet": "SHT1",
+    "path": "$run/sheet_logo.png"
+   },
+   "expect": {
+    "ok": true,
+    "data.sheet.name": "SHT1"
+   }
+  },
+  {
+   "call": "engineer",
+   "args": {
+    "code": "services.host._remember_model()  # a read, no engineer edit\nimport hashlib\na = hashlib.sha256(open(r'$run' + '/sheet_bare.png', 'rb').read()).hexdigest()\nb = hashlib.sha256(open(r'$run' + '/sheet_logo.png', 'rb').read()).hexdigest()\nprint('captures differ' if a != b else 'captures equal')"
+   },
+   "intent": "Acceptance: the sheet capture with the images differs from the bare sheet's",
+   "expect": {
+    "ok": true,
+    "data.noticed": false,
+    "data.stdout": {
+     "matches": "captures differ"
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation"
+   },
+   "intent": "The three images are listed as annotations with their sheet bounds",
+   "expect": {
+    "page.total": 3,
+    "data.items.0.type": "DraftingImage"
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "args": {
+    "objects": [
+     "$stretched.data.image.id"
+    ]
+   },
+   "intent": "Delete a sheet image",
+   "expect": {
+    "ok": true,
+    "mutation_outcome": "committed",
+    "data.deleted": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation"
+   },
+   "expect": {
+    "page.total": 2
+   }
+  }
+ ]
+}

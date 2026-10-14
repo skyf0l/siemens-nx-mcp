@@ -1,0 +1,596 @@
+{
+ "covers": {
+  "nx_list_lights": [],
+  "nx_set_light": [],
+  "nx_set_lighting_preset": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 60,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "orientation": "isometric",
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "save": "start",
+   "expect": {
+    "ok": true,
+    "data.count": 18,
+    "data.preset": {
+     "matches": "^(lighting_[1-5]|user_defined)$"
+    },
+    "data.on": {
+     "contains": "Scene Ambient"
+    },
+    "data.lights": {
+     "contains": {
+      "name": "Distant 1",
+      "type": "distant",
+      "on": false
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "args": {
+    "on_only": true
+   },
+   "expect": {
+    "ok": true,
+    "data.lights": {
+     "contains": {
+      "name": "Scene Ambient",
+      "type": "scene",
+      "scene": "ambient",
+      "on": true
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "save": "base_studio",
+   "args": {
+    "path": "$run/base_studio.png",
+    "style": "studio",
+    "width": 320,
+    "height": 240
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "save": "base_shaded",
+   "args": {
+    "path": "$run/base_shaded.png",
+    "style": "shaded",
+    "width": 320,
+    "height": 240
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "save": "red",
+   "args": {
+    "name": "distant 1",
+    "on": true,
+    "direction": [
+     -1,
+     1,
+     -1
+    ],
+    "color": [
+     255,
+     0,
+     0
+    ],
+    "intensity": 1,
+    "shadows": true
+   },
+   "intent": "Acceptance: a strong red distant light shining from the camera side",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.name": "Distant 1",
+    "data.light.on": true,
+    "data.light.type": "distant",
+    "data.light.direction": {
+     "close": [
+      -0.5773502691896258,
+      0.5773502691896258,
+      -0.5773502691896258
+     ],
+     "tol": 1e-06
+    },
+    "data.light.fixed_to": "part",
+    "data.light.intensity": {
+     "close": 1,
+     "tol": 1e-06
+    },
+    "data.light.shadows": true,
+    "data.color": {
+     "close": [
+      1,
+      0,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "args": {
+    "on_only": true
+   },
+   "expect": {
+    "data.on": {
+     "contains": "Distant 1"
+    },
+    "data.lights": {
+     "contains": {
+      "name": "Distant 1",
+      "on": true,
+      "shadows": true
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "save": "red_studio",
+   "args": {
+    "path": "$run/red_studio.png",
+    "style": "studio",
+    "width": 320,
+    "height": 240
+   }
+  },
+  {
+   "call": "nx_capture_view",
+   "setup": true,
+   "save": "red_shaded",
+   "args": {
+    "path": "$run/red_shaded.png",
+    "style": "shaded",
+    "width": 320,
+    "height": 240
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Distant 1",
+    "color": [
+     255,
+     0,
+     0
+    ]
+   },
+   "intent": "Acceptance: a colour edit keeps the light's soft shadows",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.shadows": true,
+    "data.light.intensity": {
+     "close": 1,
+     "tol": 1e-06
+    },
+    "data.light.direction": {
+     "close": [
+      -0.5773502691896258,
+      0.5773502691896258,
+      -0.5773502691896258
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Standard Z Spot",
+    "on": true,
+    "position": [
+     200,
+     -100,
+     300
+    ],
+    "target": [
+     50,
+     30,
+     10
+    ],
+    "cone_angle": 30,
+    "intensity": 0.8
+   },
+   "intent": "Acceptance: place and aim a spot light",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.type": "spot",
+    "data.light.on": true,
+    "data.light.position": {
+     "close": [
+      200,
+      -100,
+      300
+     ],
+     "tol": 1e-06
+    },
+    "data.light.target": {
+     "close": [
+      50,
+      30,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.light.direction": {
+     "close": [
+      -0.42683279491835413,
+      0.36992175559590695,
+      -0.8252100701754846
+     ],
+     "tol": 1e-06
+    },
+    "data.light.cone_angle": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.light.intensity": {
+     "close": 0.8,
+     "tol": 1e-06
+    },
+    "data.light.fixed_to": "part"
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Standard Z Spot",
+    "position": [
+     0,
+     0,
+     400
+    ]
+   },
+   "intent": "Acceptance: moving a spot keeps its target",
+   "expect": {
+    "data.light.position": {
+     "close": [
+      0,
+      0,
+      400
+     ],
+     "tol": 1e-06
+    },
+    "data.light.target": {
+     "close": [
+      50,
+      30,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.light.cone_angle": {
+     "close": 30,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Point 1",
+    "on": true,
+    "position": [
+     50,
+     30,
+     80
+    ],
+    "intensity": 0.6,
+    "color": [
+     0,
+     1,
+     0
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.type": "point",
+    "data.light.position": {
+     "close": [
+      50,
+      30,
+      80
+     ],
+     "tol": 1e-06
+    },
+    "data.light.intensity": {
+     "close": 0.6,
+     "tol": 1e-06
+    },
+    "data.color": {
+     "close": [
+      0,
+      1,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Standard Eye",
+    "on": true,
+    "color": [
+     0,
+     0,
+     255
+    ],
+    "intensity": 0.5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.type": "eye",
+    "data.light.on": true,
+    "data.light.intensity": {
+     "close": 0.5,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "save": "top",
+   "args": {
+    "name": "Scene Top",
+    "on": true,
+    "intensity": 0.8
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.type": "scene",
+    "data.light.scene": "top",
+    "data.light.on": true,
+    "data.light.intensity": {
+     "close": 0.8,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "save": "dim",
+   "args": {
+    "name": "Scene Top",
+    "intensity": 0.2
+   },
+   "expect": {
+    "data.light.intensity": {
+     "close": 0.2,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$dim.operation_id"
+   },
+   "intent": "Acceptance: NX undo puts the scene light's intensity back",
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "args": {
+    "on_only": true
+   },
+   "expect": {
+    "data.lights": {
+     "contains": {
+      "name": "Scene Top",
+      "on": true,
+      "intensity": 0.8
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Scene Top",
+    "color": [
+     255,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/color",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Distant 2",
+    "direction": [
+     1,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/on",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Distant 9",
+    "on": true
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_NOT_FOUND",
+    "error.details.close": {
+     "contains": "Distant 1"
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Point 1",
+    "on": false
+   },
+   "intent": "Acceptance: switching a light off removes it from the view",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.on": false
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "args": {
+    "on_only": true
+   },
+   "expect": {
+    "data.on": {
+     "contains": "Standard Z Spot"
+    }
+   }
+  },
+  {
+   "call": "nx_set_lighting_preset",
+   "save": "l1",
+   "args": {
+    "preset": "lighting_1"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.on": [
+     "Scene Ambient",
+     "Scene Left Top",
+     "Scene Right Top"
+    ]
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "expect": {
+    "data.preset": "lighting_1",
+    "data.lights": {
+     "contains": {
+      "name": "Distant 1",
+      "on": false
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_lighting_preset",
+   "args": {
+    "preset": "lighting_3"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.on": {
+     "contains": "Scene Ambient"
+    }
+   }
+  },
+  {
+   "call": "nx_set_lighting_preset",
+   "args": {
+    "preset": "scene"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.on": {
+     "count": 8
+    }
+   }
+  },
+  {
+   "call": "nx_set_lighting_preset",
+   "save": "def",
+   "args": {
+    "preset": "default"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.on": {
+     "contains": "Scene Left Top"
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$def.operation_id"
+   },
+   "intent": "Acceptance: NX undo brings the eight scene lights back",
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "args": {
+    "on_only": true
+   },
+   "expect": {
+    "data.count": 8
+   }
+  },
+  {
+   "call": "engineer",
+   "args": {
+    "code": "import struct, zlib\ndef mean(path):\n    data = open(path, 'rb').read()\n    pos, idat = 8, b''\n    while pos < len(data):\n        n, typ = struct.unpack('>I4s', data[pos:pos + 8])\n        body = data[pos + 8:pos + 8 + n]\n        pos += 12 + n\n        if typ == b'IHDR':\n            w, h, depth, ctype = struct.unpack('>IIBB', body[:10])\n        elif typ == b'IDAT':\n            idat += body\n    bpp = {2: 3, 6: 4}[ctype]\n    raw, stride, prev, i = zlib.decompress(idat), w * bpp, bytearray(w * bpp), 0\n    total, count = [0, 0, 0], 0\n    for _ in range(h):\n        f, line = raw[i], bytearray(raw[i + 1:i + 1 + stride])\n        i += 1 + stride\n        for x in range(stride):\n            a = line[x - bpp] if x >= bpp else 0\n            b = prev[x]\n            c = prev[x - bpp] if x >= bpp else 0\n            if f == 1:\n                line[x] = (line[x] + a) & 255\n            elif f == 2:\n                line[x] = (line[x] + b) & 255\n            elif f == 3:\n                line[x] = (line[x] + (a + b) // 2) & 255\n            elif f == 4:\n                p = a + b - c\n                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)\n                line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255\n        for x in range(0, stride, bpp):\n            px = line[x:x + 3]\n            if min(px) < 245:\n                total = [t + v for t, v in zip(total, px)]\n                count += 1\n        prev = line\n    return [t / max(count, 1) for t in total]\nout = {}\nfor style in ('studio', 'shaded'):\n    base, red = mean(r'$run/base_' + style + '.png'), mean(r'$run/red_' + style + '.png')\n    shift = [round(r - b, 1) for r, b in zip(red, base)]\n    out[style] = {'base': [round(v, 1) for v in base], 'red': [round(v, 1) for v in red],\n                  'shift': shift, 'redder': shift[0] - (shift[1] + shift[2]) / 2 > 20}\n    print(style, 'base', out[style]['base'], 'red', out[style]['red'], 'shift', shift,\n          'redder', out[style]['redder'])\nresult = out"
+   },
+   "intent": "Acceptance: the red distant light shifts the model's mean colour in Studio and shaded captures",
+   "expect": {
+    "ok": true,
+    "data.stdout": {
+     "matches": "studio .*redder True\\s+shaded .*redder True"
+    }
+   }
+  }
+ ]
+}

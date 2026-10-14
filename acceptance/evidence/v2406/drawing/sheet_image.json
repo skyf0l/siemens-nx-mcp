@@ -1,0 +1,118 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/sheet_image.json",
+  "scenario_sha256": "dad7c929b49754dedc6fa15698477f0ba843120b88da310dff39b8ed9241bdaa",
+  "domain": "drawing",
+  "covers": {
+    "nx_set_sheet_image": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_sheet_image": "f99905ed5eadf0b8a866267fe5bf7214a59c47c89eaad455a6ff18fa8403cb6b"
+  },
+  "recorded": "2026-10-14T05:34:15Z",
+  "passed": true,
+  "checks": 52,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "index": 5,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 6,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 7,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 8,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_delete_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

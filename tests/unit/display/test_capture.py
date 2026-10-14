@@ -402,3 +402,21 @@ def test_a_shown_topology_contour_is_reported_as_legend_only():
     nx.part.PostManager = NS(GetContourLimits=none)
     ok = run(nx, "nx_capture_view")
     assert ok.ok and not ok.warnings
+
+
+def test_capture_lighting_leaves_hand_set_lights_alone():
+    # Re-committing a UserDefined preset crashes NX's lighting builder (lights set by hand
+    # with nx_set_light read UserDefined): the capture keeps the part's own lights.
+    nx = display_nx()
+    real = nx.part.Views.CreateLighting
+
+    def user_defined(view):
+        lights = real(view)
+        lights.LightingCollectionType.UserDefined = "user"
+        return lights
+
+    nx.part.Views.CreateLighting = user_defined
+    ok = run(nx, "nx_capture_view", quality="studio", style="studio", lighting=3)
+    assert ok.ok
+    lights = nx.lights[0]
+    assert lights.committed == [] and lights.destroyed

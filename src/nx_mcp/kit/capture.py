@@ -86,10 +86,17 @@ def _lighting(part, preset):
         with native(default="NX_CAPTURE_FAILED"):
             lights = part.Views.CreateLighting(None)
             previous = lights.LightsShadedViewsLightingCollection
-            lights.LightsShadedViewsLightingCollection = getattr(
-                lights.LightingCollectionType, f"Lighting{int(preset)}"
-            )
-            lights.Commit()
+            user = getattr(lights.LightingCollectionType, "UserDefined", None)
+            # Hand-set lights (nx_set_light): re-committing a UserDefined preset crashes
+            # NX's lighting builder, so the part's own lights stay as set.
+            keep = user is not None and previous == user
+            if keep:
+                previous = None
+            else:
+                lights.LightsShadedViewsLightingCollection = getattr(
+                    lights.LightingCollectionType, f"Lighting{int(preset)}"
+                )
+                lights.Commit()
         yield
     finally:
         if lights is not None:
