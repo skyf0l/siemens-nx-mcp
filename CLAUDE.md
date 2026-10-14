@@ -15,8 +15,8 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
   `errors.py`, `references.py`, `receipts.py`, `evidence.py`, `summary.py`; several
   parts: `target.py` (gate 3t), `switching.py` (gate 4s), `marks.py`, `busy.py`,
   `parking.py`.
-- `kit/`: shared NX know-how, one module per subject (architecture.md 1.4): args, bodies,
-  builders, capture, curve, display, drawing, explode, expr, facts, features, files, geom,
+- `kit/`: shared NX know-how, one module per subject (architecture.md 1.4): analysis_objects,
+  args, bodies, builders, capture, curve, display, drawing, explode, expr, facts, features, files, geom,
   kinematics, licenses, massprops, measure, model, parts, pose, positioning, readback,
   result, select, sketch, snapshots, surface, switching, units.
 - `domains/<domain>/`: every public tool, one `@tool` function each (session,

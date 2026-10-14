@@ -1,14 +1,15 @@
 # NX MCP Server
 
 Let an AI assistant (Claude Code, Codex or any MCP client) model, inspect and draw in
-Siemens NX on Windows: parts, sketches, curves, features, freeform surfaces, sheet
-metal, assemblies (arrangements, weight and centre of gravity), motion, topology
-optimization and strength checks, measurements and surface analysis, drawings, part
-families and exports (STEP, PDF, DXF/DWG and more). You keep working in NX while the
-agent works next to you.
+Siemens NX on Windows: parts, sketches, curves, features, synchronous edits and body
+repair, freeform surfaces, sheet metal, assemblies (arrangements, clearance sets,
+weight and centre of gravity), motion, topology optimization and strength checks,
+measurements and surface analysis, drawings, part families, Knowledge Fusion rules,
+render materials and decals, and exports (STEP, PDF, DXF/DWG and more). You keep
+working in NX while the agent works next to you.
 
 Tested on NX 2406. NX 2606 can host it, but until it is tested there it offers only
-the tools that read or change the view. The full list of tools (205) is in
+the tools that read or change the view. The full list of tools (261) is in
 [docs/tools.md](docs/tools.md).
 
 ## 1. Install

@@ -209,8 +209,11 @@ replaces the part in your tab.
   agent asks with `display: true`).
 
 Model steps work in their part without showing it (NX makes it the work part for the
-step, then your work part comes back). Drawing, capture, camera and Sheet Metal steps
-work in the part's own tab and bring your tab back when they end. A drawing sheet
+step, then your work part comes back). Drawing, capture, camera and Sheet Metal
+steps, and steps that edit an existing sketch, need their part on screen:
+they bring the part's own tab to the front for the step and give your tab and work
+part back when they end, so the agent's tab can show for a moment even while one of
+your parts is on screen. They never leave an agent part in front of yours. A drawing sheet
 stays open in its part's tab. Closing a part closes its tab; when it was the active
 tab, the tab you had before comes back. NX's undo list survives all of it.
 

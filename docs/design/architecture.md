@@ -36,9 +36,9 @@ NX know-how lives once in `kit/`, and evidence is machine-checked acceptance out
 core/          NX-free: types, validate, catalogue, summary, errors, kernel, tx, references,
                receipts, evidence, target, switching, marks, busy, parking
 kit/           shared NX helpers: geom, args, units, builders, select, sketch, drawing, explode,
-               expr, readback, result, bodies, capture, curve, display, facts, features, files,
-               kinematics, licenses, massprops, measure, model, parts, pose, positioning,
-               snapshots, surface, switching
+               expr, readback, result, analysis_objects, bodies, capture, curve, display,
+               facts, features, files, kinematics, licenses, massprops, measure, model, parts,
+               pose, positioning, snapshots, surface, switching
 domains/       session, parts_files, sketch, modeling, freeform, assembly, motion, inspection,
                drawing, sheet_metal, display, optimization: one package each, one @tool
                function per tool
@@ -210,7 +210,7 @@ start, and `dev_reload.py` prints the error. The checks:
 |---|---|
 | `errors.py` | Table of 22 categories and 72 codes (surface 1.8), each with `retry` and a default `hint`. `fail(code, message, *, field=None, hint=None, details=None, nx_code=None, retry=None)` raises `NXError` (a subclass of `NXToolError`). `native(codes=None, default="NX_ERROR")` context manager (below) |
 | `kernel.py` | `run(spec, args, ctx)` and `run_child(spec, args, parent_tx)`, the gate order of section 3. Nothing else applies gates |
-| `target.py` | Gate 3t (pure): the call keys (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), `part_from_text`, `agent_parts`, the two-parts note (`census`, `load_note`), `roots`, `resolve` and `refuse_other_part` (3.4) |
+| `target.py` | Gate 3t (pure): the call keys (`split_call_keys`, `check_call_keys`, the ghost guard `check_expiry`), `part_from_text`, `agent_parts`, the two-parts note (`census`, `load_note`), `roots`, `resolve` and `refuse_other_part`; for `target` resolvers of tools that carry refs inside other arguments, `part_named_by` (the part a ref or anchor string pins, as gate 3t pins a ref argument) and `part_at_path` (3.4) |
 | `switching.py` | Gate 4s: `enter(...)` returns the call's `Bound` (`check`, `defers`, `leave`), `repair`, `deferred`; drives `kit.switching.Switch` through `Services.switch` (3.4) |
 | `marks.py` | NX undo marks around a call: `watch` before a non-read call's mark, `settle` after it; load, close and engineer barriers (`barrier`, `close_barrier`, `engineer_change`), the reasons of dropped marks, `remove_entries`. Never raises (3.4) |
 | `busy.py` | Part ownership between callers: `record` after a committed changing call (the parts it worked in, the caller of the parts it loaded), `adopt` (agent parts after a host reload), `refuse_engineer` (`NX_ENGINEER_PART`), `refuse_close`/`refuse_activate` (`NX_PART_BUSY`), `loaded_at`, `component_reason`; table in `Services.part_activity()` (3.4) |
@@ -283,7 +283,7 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 |---|---|
 | `geom` | pure math: `add`, `sub`, `dot`, `cross`, `norm`, `unit(v, field)`, `tol(*pts)`, `parallel`, `same_direction`, `on_plane`, `plane_through(pts, field)`, `orthonormal_frame`, `matvec`, `matmul`, `transpose`, `xyz(nx_point)`, `rows(nx_matrix)` |
 | `args` | cross-field rules the schema cannot express: `need(**fields)`, `exactly_one(**fields)`, `distinct(field, values)`. Each raises `invalid_argument` with a JSON-pointer `field` |
-| `units` | `part_units(tx)` → `"mm"`/`"in"`, `sheet_units(tx, sheet)`, `factor(source, target)`, `say(value, units)` → `"10 mm"`. The spelling `"inch"` does not exist |
+| `units` | `part_units(tx)` → `"mm"`/`"in"`, `sheet_units(tx, sheet)`, `factor(source, target)`, `say(value, units)` → `"10 mm"`, `normalize` (`"inch"`/`"inches"` → `"in"`; `"deg"`, `"rad"` kept). The spelling `"inch"` never leaves it |
 | `builders` | `with builders.build(tx, factory, *a) as b:` then `b.commit()` (`CommitFeature` or `Commit`). `Destroy()` always runs, and rejections pass through `native(default="NX_BUILD_FAILED")`. Also `point(tx, p)`, `direction(tx, v, origin)`, `collector(tx, refs, "Edge"/"Face"/"Body")` |
 | `select` | `planar(tx, ref)` → `(obj, origin, normal)` for a planar face or datum plane of the work part. `plane`, `axis`, `direction(tx, value)` resolve the union types. `bodies`, `faces`, `edges(tx, refs)`, `owned_by_work_part(tx, obj)` |
 | `sketch` | `with sketch.editing(tx, ref) as sk:` activates the sketch and restores the previous state, with `sk.frame`, `sk.to_part(p2)` and `sk.to_local(p3)`. `sketch.solve(tx, sk)` returns status and DOF, or raises `solver_failed`. `sketch.owns(tx, sk, curve)` is the one ownership check. `release_drafting_sketch(session, nx)` deactivates an active drafting (sheet) sketch for gate 4 |
@@ -292,9 +292,10 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `expr` | `create(tx, name, formula, units)`, `set_formula`, `value`, `alias(feature, "distance")` (semantic parameter names), `bind` |
 | `readback` | `expect(ok, check, **actual)`, `expect_close(actual, wanted, check, tol=None)` (scalar or vector, scaled tolerance), `expect_same_direction`, `expect_on_plane`. Each raises `verification_failed` with `details.check` |
 | `result` | `rows(tx, objs, kind)`, `page(rows, page)`, `measured(value, "length")`, `rename(tx, obj, name)` (returns the name as NX normalised it) |
-| `bodies` | Which bodies a call covers: `of(tx, obj)` (body, feature, component occurrence bodies), `scope(tx, "auto")`, `occurrences(component)`, `solids(found, field)`, `measurable(found, scoped)` (faceless bodies and, in a scope, topology optimization results are skipped) |
+| `analysis_objects` | NX analysis display objects (reflection, slope, distance, radius, combs, continuity): `require_displayed` (made only in the displayed part: NX 2406 keeps one committed in a background part registered after that part closes, and the next analysis display then demand-loads the closed file behind a modal dialog), `remember` (per part), `of_part`, `delete_all(tx, part)` (before a part closes) |
+| `bodies` | Which bodies a call covers: `of(tx, obj)` (body, feature, component occurrence bodies), `scope(tx, "auto")`, `occurrences(component)`, `solids(found, field)`, `measurable(found, scoped)` (faceless bodies and, in a scope, topology optimization results are skipped). Body health after a build: `faulty`/`expect_sound` (UF consistency faults), `face_clashes`/`clashing_faces`/`clashing`/`expect_no_clash` (faces cutting other faces of the body, which UF consistency passes: a tube wider than its helix pitch), each `NX_BUILD_FAILED` with rollback; `scale_note` (bodies over 10 m) |
 | `capture` | `studio_png(tx, path, w, h, style=...)` (Studio Image Capture at the exact pixel size) and `viewport_png(tx, path, w, h)` (rasterises the graphics window at its own size; returns the actual size) |
-| `curve` | UF `Eval` on curves and edges: `ends`, `point_at`, `closest`, `min_distance`, `point_distance` |
+| `curve` | UF `Eval` on curves and edges: `evaluator(tx, curve)` (an `Evaluator`: `at`, `closest`, `fraction`), `ends`, `point_at`, `closest` (foot and unit tangent), `along` (pieces sorted from the source's start), `min_distance`, `point_distance` |
 | `display` | Display state of the displayed part: `shown_part`, `model_view`, `camera`/`set_camera`, styles, appearance, datums, dynamic sections, and the `Snapshots` behind `restore_id` |
 | `facts` | `edge(tx, edge)` (line/arc data), `face_point(tx, face)` (a point inside a trimmed face), `on_object` |
 | `features` | The feature timeline as the Part Navigator shows it (`timeline`, `internal`) and each feature's state (`states`) |
@@ -302,7 +303,7 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `kinematics` | Assembly motion shared by assembly and motion: `pose(component)`, `place`, `drive(tx, constraint, value)` (solve a driven constraint), `gap` (minimum distance and witness points), `carry`, `angle_about` |
 | `licenses` | `served(tx, features)`, `require(tx, features, message, strict=, by_argument=)`: `LicenseManager.CheckPresence` (a query: no checkout, no dialog) before work whose missing license would open NX's blocking "License Not Available" dialog; refuses with `NX_LICENSE_UNAVAILABLE` |
 | `massprops` | Weight and centre-of-gravity bookkeeping: `entry`, `combine`, reference `frame`s (LCG/TCG/VCG), NX weight-management assertions (`asserted`, `assert_weight`, `clear_weight`) and component `groups` |
-| `measure` | `mass`, `volume`, `bounds`, `area`, `length`, `inertia` in work-part units; `wcs` is the displayed part's WCS (UF reports in it; NX refuses `WCS` of a part that is not displayed) |
+| `measure` | `mass`, `volume`, `bounds`, `area`, `length`, `inertia` in work-part units; `wcs` is the displayed part's WCS (UF reports in it; NX refuses `WCS` of a part that is not displayed). On a quiet work part beside a displayed part of other units NX 2406 slips readings by the inch factor: `area` corrects it, and each `length` reading is cross-checked against the curve's sampled chord length |
 | `model` | `update(tx, mark=None)`: the NX model update inside the call's undo mark (errors → `NX_UPDATE_FAILED`) |
 | `switching` | `Switch(tx, part, mode, application=None).enter()` / `.restore()`: gate 4s's NX primitives. `work`: `Parts.SetWork` for the display part or a component prototype under it, else `uf.Assem.SetWorkPartQuietly` (any loaded part, no UI change, about 0 ms); `display`: `parts.activate` (undo marks kept, no Sheet Metal dialog) and the application the tool needs (`sheet_metal`). `restore` puts back the display part, the work part (through the previous work component when there was one) and the application (not Modeling for a shown part with sheet-metal features: NX's blocking warning); on failure it forces the home state (`SetWorkPartQuietly(display)` + `SetWork(display)`) and returns the warning text instead of raising. `clean`, `retry()`, `primitive`, `timings` |
 | `parts` | Loaded parts: `loaded(tx, path)`, `check_new_name` (NX names a part by its file basename), `show(nx, parts, part)` (the one display switch, keeping NX's undo marks), `activate` (through `show`; a sheet-metal part from no display part through a scratch part, without NX's dialog), `components`, `load_components`, `dependents`. `with parts.saving(tx, part) as updated:` keeps a part's drawing preview data through a save (opens a sheet, restores sheet, display and work parts) and first updates the views NX flags out of date (`drawing.update_out_of_date`), yielding them for `updated_views` (`nx_save_part`; `nx_export_drawing` passes `update_views=False` and updates its own sheets) |
@@ -705,6 +706,11 @@ target current itself, by `spec.switch_for(args, kinds)`:
   component under the displayed assembly stays), or when NX does not list it (the tool
   reports it). `NX_MCP_SWITCH=display` makes model tools switch the display instead (the
   visible fallback).
+- **A display-bound call that names a work part NX does not display** (`switching.named`:
+  its `part`, refs or its own object; a quiet work part beside the engineer's displayed
+  part, a work component's prototype) still shows it: the work-part shortcut above
+  would let it act on the engineer's displayed part (drawing, capture, camera). It shows the part's tab for the call and gives the engineer's back (tabs
+  below). An unnamed call acts on the work part as NX has it.
 - A switch NX refuses is `NX_WRONG_PART_CONTEXT`, not started. After the handler the
   work part must still be the target (`Bound.check`), else `NX_WRONG_PART_CONTEXT` and
   rollback before commit (unless the call unloaded its part, an undo across its load).
@@ -1003,16 +1009,24 @@ The engineer-only and card-only counts are `engineer_busy` and `waiting_for_answ
 - An engineer's display switch in the NX UI can drop every mark (`display_reset`); a
   tab click was not measured (NX MCP never clicks).
 - A display-bound call on a background part shows its tab briefly and re-activates the
-  engineer's (two tab switches, 63-92 ms each once the tab exists).
+  engineer's (two tab switches, 63-92 ms each once the tab exists), also when that part is
+  NX's quiet work part beside the engineer's displayed part.
+- Analysis display objects (`nx_create_surface_analysis`) are made only in the displayed
+  part (`kit.analysis_objects`); a target that is not displayed is refused
+  `NX_WRONG_PART_CONTEXT`, and `nx_close_part` deletes a part's analysis objects first.
 - Without an engineer part displayed, an import into a new part (`new_part_path`)
   still leaves the new part's tab active.
 - Two agents in one part share its history: undo and checkpoints see one part, not two
   callers. Agents behind one shared sidecar have one caller id (`caller.shared`): only
   the recent-change rule protects their parts from each other's closes.
-- `part-owners.json` is written after each committed changing call: an agent part
-  loaded by a host that never wrote it (older code), or loaded by `nx_dev_python` with no
-  changing call after it, is the engineer's after a host reload; tools then no longer
-  close, show or save it (the engineer, or a development snippet `services.own(part)`).
+- `part-owners.json` is rewritten whenever the agent's parts change: after each
+  committed changing call and after the host tracks the parts a call loaded
+  (`Services.track`: development snippets and failed calls included); the parts an
+  earlier host generation listed are adopted before it is rewritten, so owners survive
+  successive reloads. A part matches its row by tag and file: one the engineer closed and
+  reopened (a new tag), or one loaded by a host that never wrote the file (older code), is
+  the engineer's after a host reload; tools then no longer close, show or save it (the
+  engineer, or a development snippet `services.own(part)`).
 - `uf.Assem.SetWorkPartQuietly` is undocumented; `NX_MCP_SWITCH=display` is the
   fallback.
 - A preview measures its own (the parent's) part only: in a mixed-part preview the
@@ -1083,7 +1097,9 @@ other name lists are deleted. What holds today:
   listing-window output goes to a file and into the result; the engineer's settings return
   after the call. `host/dialogs.py` counts only modal dialogs (disabled owner); in development
   mode a new one answers the running call at once with `NX_MODAL_DIALOG_OPEN`. A failed
-  `nx_dev_python` snippet is undone and the display and work parts it started with return.
+  `nx_dev_python` snippet is undone and the display and work parts it started with return;
+  a snippet that changed nothing (objects, loaded parts, modified flags) deletes its mark,
+  leaves no undo-history entry and reports `not_applicable`.
 - **Files.** `Files.publish` never overwrites; staging under `.nx-mcp/staging/<operation_id>/`
   is removed when the call ends.
 - **Acceptance.** `python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>` replays

@@ -6,7 +6,7 @@ purpose and rationale. Scope: the public tool surface (names, arguments,
 results, errors, profiles) of the catalogue-based re-architecture. Names and
 arguments change freely: no aliases, no backwards compatibility.
 
-**Summary.** The catalogue has **205 catalogue tools** in 12 domains (3.13), reached in the
+**Summary.** The catalogue has **261 catalogue tools** in 12 domains (3.13), reached in the
 agent profile through 4 gateway tools (2.1). Errors use 22 categories and 72 codes (1.8).
 Code layout and the kernel are specified in [architecture.md](architecture.md). The
 recommended agent profile costs about 4K tokens (measured: architecture.md 6).
@@ -119,13 +119,13 @@ no vector is unbounded.
 | `Ref` | `"b:41"` | Opaque NX object reference returned by an earlier call. Never a display name. A ref no tool returned in this NX session fails `NX_NOT_FOUND` (`details.reason: never_issued`, with `issued_as` when the number belongs to a ref of another kind); one numbered below the session's floor (before the last NX start or host reload) fails `NX_STALE_REFERENCE` |
 | `Point2` | `[x, y]` | Sketch-local point (part units). The only 2D point shape: no `{x,y}`, no `cx/cy` |
 | `SheetPoint` | `[x, y]` | Drawing-sheet point in sheet units |
-| `Point3` | `[x, y, z]` | Work-part absolute point in part units |
+| `Point3` | `[x, y, z]` | Work-part absolute point in part units; numbers only (no unit strings) |
 | `Vec3` | `[x, y, z]` | Nonzero direction; the kernel normalises it and reports the normalised value |
 | `Mat3` | `[[r00,r01,r02],[r10,r11,r12],[r20,r21,r22]]` | Right-handed orthonormal rotation, row-major, `p_out = R·p + t` |
 | `Pose` | `{translation: Point3, rotation?: Mat3}` or `{axis: "z"/Vec3, angle: Angle, origin?, translation?}` | Absolute placement; rotation defaults to identity. The axis-angle form (right hand, about `axis` through `origin`, then `translation`) becomes the matrix form at gate 9 |
 | `Length` | number, `"10 mm"` or `"thickness"` | Plain number: part (work-part) length units; a string with `mm`/`in` is converted (decision 12); an NX expression name or formula is evaluated in the work part |
 | `SheetLength` | number or `"10 mm"` | Plain number: sheet units of the target sheet |
-| `Angle` | number or `"0.5 rad"` | Plain number: degrees; a string with `deg`/`rad` is converted; an expression name or formula as for `Length` |
+| `Angle` | number, `"90 deg"` or `"0.5 rad"` | Plain number: degrees; a string with `deg`/`rad` is converted; an expression name or formula as for `Length` |
 | `Units` | `"mm"` or `"in"` | Everywhere (parts, sheets, exports). `"inch"` disappears. Expressions add `"deg"`, `"rad"`, `"unitless"` |
 | `Plane` | `Ref` (datum plane or planar face) or `{principal: "xy"/"yz"/"xz"}` or `{origin: Point3, normal: Vec3}` | One plane shape for sketches, mirrors, datums, trims. A bare name (`"XY"`, `"XY plane"`, `"top"`) stands for the `{principal}` form |
 | `Axis` | `Ref` (datum axis, linear edge, cylindrical face) or `{principal: "x"/"y"/"z"/"-x"/"-y"/"-z"}` or `{origin: Point3, direction: Vec3}` | One axis shape for revolve, circular patterns, rotations. A bare name (`"-Z"`, `"+y"`, `"z axis"`) stands for the `{principal}` form; a ref-shaped string (`"e:3"`) stays a ref |
@@ -141,7 +141,9 @@ Gate 1 also accepts natural spellings and passes the canonical value on: an opti
 case and with spaces, `-` or `_` (`"Through All"`), a declared alias or plural, `"true"`/
 `"false"` for a boolean, a numeric string for a number and one string for a list of
 strings. Wherever a quantity is expected (lengths, angles, counts), an NX expression name or
-formula (`"thickness"`, `"thickness/2"`) is accepted; the feature stays driven by it. An
+formula (`"thickness"`, `"thickness/2"`) is accepted; the feature stays driven by it. A
+quantity given as a unit string or a formula is checked against the field's range once it
+is converted (gate 9), like a plain number at gate 1. An
 unknown option or field fails with a did-you-mean (`details.accepted` lists the fields).
 Every invalid, unknown or missing field of a call is reported in one error: `field` and
 `message` name the first, `details.errors` lists all as `{field, message}`. A variant may
@@ -289,7 +291,8 @@ of the same call can succeed, e.g. `nx_undo_operation` with an empty history.
 Tracebacks never reach the agent or `error.details`, not even with `NX_MCP_DEV=1`: they go
 to the operation receipt (`traceback`) and `.nx-mcp/logs/tracebacks.log`. A path that already
 exists where a new file goes fails `NX_ALREADY_EXISTS` with `details.suggested_path`; a path
-without a suffix gets the tool's suffix (`parts/plate` → `parts/plate.prt`).
+without a suffix gets the tool's suffix (`parts/plate` → `parts/plate.prt`). Path errors show
+paths workspace-relative (`details.path`, `suggested_path`), never the host's absolute path.
 
 ### 1.9 `mutation_outcome`
 
@@ -350,7 +353,8 @@ What an agent needs:
   close without `force`.
 - The kernel makes the part current for the call (a model call on a background part
   runs there while the display stays; drawing, capture, camera, explosion and Sheet
-  Metal calls work in the part's own tab) and restores the engineer's tab, work part and
+  Metal calls work in the part's own tab, also when the part they name is NX's work part
+  without being displayed, e.g. beside the engineer's displayed part) and restores the engineer's tab, work part and
   application afterwards. A restore NX refused is an `NX_UPDATE_WARNING`; drawing views
   of a part that is not displayed refresh later (`NX_NOTE`).
 - `envelope.part` (1.6) names the part when `part` was given or two or more parts are
@@ -397,14 +401,14 @@ parameter (`nx_activate_part`, `nx_save_part`, `nx_close_part`) stays its argume
 
 | Profile | Listed directly | Reached through gateway | Use |
 |---|---|---|---|
-| `agent` (default, recommended) | 4 gateway tools + 14 core tools | all 205 catalogue tools | Any MCP client; smallest context, read-only gateway can be auto-approved |
+| `agent` (default, recommended) | 4 gateway tools + 14 core tools | all 261 catalogue tools | Any MCP client; smallest context, read-only gateway can be auto-approved |
 | `full` | the 4 gateways and every catalogue tool tested on the connected build, with `readOnlyHint`/`destructiveHint` from `effect` | none needed | Clients with native deferred tool search (they index names and load schemas on demand) |
 
 Gateway tools (always listed):
 
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
-| `nx_find_tools` | A scored OR search after stemming, stop words and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`): every tool matching at least one query word is a hit. Per word: the best field (name > keyword/label > variant > description; a synonym or a prefix counts less than the word itself, plus a little when the word itself is in the name, a keyword or the label) times the word's rarity `1 + log2(N/n)` over the catalogue (a word few tools match, "save", outweighs a common one, "part"). The sum is scaled by the share of query words matched (a tool matching every word beats partial ones of similar weight), plus bonuses for the share of the tool's name words named, a keyword or label phrase in the query (a whole one-word keyword counts less: "pocket" finds `nx_create_extrude`), a word naming the tool's domain and, when the query has an action word (create, make, add, new, set, insert, build, place, define, generate), a tool whose verb is `create` or `set` over one that reads, lists, exports or activates ("create expression" finds `nx_set_expression` before `nx_export_expressions`); an exact name wins. `query` is 1-4 keywords for one task; `queries` (1-20, exclusive with `query`) returns `results: [{query, tools, total}]`, 5 rows per query by default. With two or more words each row lists the words it `matched`; `partial: true` means no tool matched every word; a `hint` says to split the tasks into `queries` when a query has more than five words (stop words not counted), or three or more, is partial and joins tasks (`,`, `;`, `+`, `&`, "and", "then", "also"); a `note` says what to do for a word naming something NX MCP does as another tool ("pocket": a sketch and a subtracting extrude). An unknown tool name (`nx_fillet_edges`, `NX_UNKNOWN_TOOL`) is answered with a typo match, the tools its words find and close spellings (`details.close_matches`). Never just empty: when no word matches, the close spellings of names, labels and keywords are searched instead (`did_you_mean`); if none, the domain overview comes with a hint. An empty query returns the domain overview (tool counts and key tools). Rows: name, summary, effect, domain, evidence for the connected build; `call_with` says to call them through `nx_invoke`/`nx_invoke_read` | `query` or `queries[1..20]`, `domain?`, `effect?`, `limit` (10, or 5 per query; max 20), `offset` | read |
+| `nx_find_tools` | A scored OR search after stemming, stop words and synonym expansion ("fillet" finds `nx_create_blend`, "mate" finds `nx_create_assembly_constraint`): every tool matching at least one query word is a hit. Per word: the best field (name > keyword/label > variant > description; a synonym or a prefix counts less than the word itself, plus a little when the word itself is in the name, a keyword or the label) times the word's rarity `1 + log2(N/n)` over the catalogue (a word few tools match, "save", outweighs a common one, "part"). The sum is scaled by the share of query words matched (a tool matching every word beats partial ones of similar weight), plus bonuses for the share of the tool's name words named, a keyword or label phrase in the query (a whole one-word keyword counts less: "pocket" finds `nx_create_extrude`; a query that is exactly one of the tool's keyword phrases or its label counts most: "create assembly" finds `nx_create_part`), a word naming the tool's domain and, when the query has an action word (create, make, add, new, set, insert, build, place, define, generate), a tool whose verb is `create` or `set` over one that reads, lists, exports or activates ("create expression" finds `nx_set_expression` before `nx_export_expressions`); an exact name wins. `query` is 1-4 keywords for one task; `queries` (1-20, exclusive with `query`) returns `results: [{query, tools, total}]`, 5 rows per query by default. With two or more words each row lists the words it `matched`; `partial: true` means no tool matched every word; a `hint` says to split the tasks into `queries` when a query has more than five words (stop words not counted), or three or more, is partial and joins tasks (`,`, `;`, `+`, `&`, "and", "then", "also"); a `note` says what to do for a word naming something NX MCP does as another tool ("pocket": a sketch and a subtracting extrude). An unknown tool name (`nx_fillet_edges`, `NX_UNKNOWN_TOOL`) is answered with a typo match, the tools its words find and close spellings (`details.close_matches`). Never just empty: when no word matches, the close spellings of names, labels and keywords are searched instead (`did_you_mean`); if none, the domain overview comes with a hint. An empty query returns the domain overview (tool counts and key tools). Rows: name, summary, effect, domain, evidence for the connected build; `call_with` says to call them through `nx_invoke`/`nx_invoke_read` | `query` or `queries[1..20]`, `domain?`, `effect?`, `limit` (10, or 5 per query; max 20), `offset` | read |
 | `nx_get_tool_schemas` | Exact input schema, example, prerequisites and evidence for 1-10 tools or variants in one call; output schema on request. A tool whose variants need fields gets a compact `required_by` map next to `input_schema`, one key per group of offered variants needing the same fields (`{"hole": ["view", "origin"], "title_block\|revision": ["sheet", "rows", "widths"]}`; variants needing nothing are left out); a `tool#variant` schema lists them in `required`. One `tool#variant` is a self-contained entry. Two or more variants of one tool in one call come as one entry at the first one's place: `{"name": tool, <keys they share: description, effect, requires, evidence>, "input_schema": <what their schemas share>, "variants": {"<v>": {"input_schema": <v's own properties, required, x-variant>, <v's own keys: example>}}}`; the schema of `tool#v` is `input_schema` with `variants.<v>.input_schema`'s properties added and its `required` appended (2026-10-13: three drawing-view variants in 2,760 characters instead of 7,529 in three calls) | `names[1..10]` (e.g. `nx_create_drawing_view#section`), `include_output=false` | read |
 | `nx_invoke` | Call any task tool; kernel gates apply; `intent` (at most 120 characters) is shown in the NX panel | `tool`, `arguments`, `intent?`, `detail=compact/full` | per tool (declared destructive) |
 | `nx_invoke_read` | Same, but refuses tools whose effect is not `read` before validation; hosts can auto-approve it | `tool`, `arguments`, `detail` | read |
@@ -464,7 +468,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_create_checkpoint` | In-session undo checkpoint (expires on save, part close, a later part load, an undo past it or an engineer edit) | `label?` | session |
 | `nx_list_checkpoints` | Checkpoints (with `part`: that part's) and the target part's undo depth (no `part`: the work part's); an expired one stays listed with `expired_reason`: `saved_or_closed`, `undone_past`, `part_loaded` (a part was loaded after it: restoring would unload it), `display_reset` (a display switch outside NX MCP dropped NX's marks), `mark_evicted` (NX keeps about 180 undo marks for the session), `engineer_change` or `part_closed` | — | read |
 | `nx_restore_checkpoint` | Roll the checkpoint's part back to it (id or label; the checkpoint names its part), undoing that part's agent operations since by the rules of `nx_undo_operation` (other parts' later work: undo by deletion or `NX_CROSS_PART`; nothing of the part since: nothing undone); it stays restorable, refs of objects that remain stay valid; `nx_redo_operation` repeats the reverted calls | `checkpoint_id` | model |
-| `nx_activate_application` | Switch the NX application for the displayed part; an unlicensed application is refused (`NX_LICENSE_UNAVAILABLE`) before NX would open its blocking license dialog | `application: modeling/sheet_metal` | session |
+| `nx_activate_application` | Switch the NX application for the displayed part; an unlicensed application is refused (`NX_LICENSE_UNAVAILABLE`) before NX would open its blocking license dialog. NX enters an application for the displayed part only: a target part that is not displayed (or no displayed part) is refused `NX_WRONG_PART_CONTEXT` before NX, with a hint to show it with `nx_activate_part` (sheet-metal tools called with `part` enter Sheet Metal themselves) | `application: modeling/sheet_metal` | session |
 | `nx_delete_objects` | Delete features, components, explosions, annotations (incl. dimensions, tables, balloons, traces), section views, sheets, views | `objects: Ref[1..100]` | model |
 | `nx_set_name` | Rename any object; returns the NX-normalised name | `object, name` | model |
 
@@ -481,7 +485,7 @@ Tools added after the design (3.13) are described only in the [tool reference](.
 | `nx_activate_part` | Show a loaded part to the engineer in its own tab. Not needed to work in it: calls target their part by refs or the `part` key, never by activation. While the engineer's part is displayed the tab stays behind it and an `NX_NOTE` says so (1.10). Never the engineer's part (`NX_ENGINEER_PART`); another agent's only with `force` (`NX_PART_BUSY`) | `part` (ref, workspace path or file name), `work, display, force=false` | session |
 | `nx_list_parts` | Loaded parts with modified state, paged | `path_prefix?, modified?, active_only=false, Page` | read |
 | `nx_save_part` | Save a part in place, or save as a new workspace path. Drawing views NX flags out of date are updated first (so the part never reopens with "(Out of Date)" sheets), listed in `updated_views` with an `NX_NOTE`. A save never warns about other agents (it loses no one's work and ends the part's busy state); the engineer's part only when they granted it (`NX_ENGINEER_PART`) | `part?` (ref, workspace path or file name), `path?` (path = save as, never overwrites) | file |
-| `nx_close_part` | Close one loaded part, never implicitly the work part (refused while a loaded assembly uses it). Never the engineer's part (`NX_ENGINEER_PART`, no override); another agent's part, or on a shared connection a discard of unsaved changes a call made and worked in within 30 s, is refused (`NX_PART_BUSY`, 1.10) unless `force`; the agent's own parts close without it. NX keeps its undo marks (`data.undo_marks: kept`; a displayed part is first replaced on the display by another agent part, `data.displayed`); undo stops at the close. Closing an assembly also closes the component parts it leaves unused that the agent created or opened; `kept_components` names the ones kept, with the reason (not the agent's, used by another loaded assembly, work or display part before the call, unsaved changes, in use: a call worked in it after the assembly was loaded) | `part` (ref, workspace path or file name), `save?` (required when the part has unsaved changes), `unload_components=true`, `force=false` | session |
+| `nx_close_part` | Close one loaded part, never implicitly the work part (refused while a loaded assembly uses it). Never the engineer's part (`NX_ENGINEER_PART`, no override); another agent's part, or on a shared connection a discard of unsaved changes a call made and worked in within 30 s, is refused (`NX_PART_BUSY`, 1.10) unless `force`; the agent's own parts close without it. NX keeps its undo marks (`data.undo_marks: kept`; a displayed part is first replaced on the display by another agent part, `data.displayed`); undo stops at the close. The part's analysis display objects are deleted first (NX would otherwise demand-load the closed file behind a modal dialog at the next analysis display). Closing an assembly also closes the component parts it leaves unused that the agent created or opened; `kept_components` names the ones kept, with the reason (not the agent's, used by another loaded assembly, work or display part before the call, unsaved changes, in use: a call worked in it after the assembly was loaded) | `part` (ref, workspace path or file name), `save?` (required when the part has unsaved changes), `unload_components=true`, `force=false` | session |
 | `nx_export_assembly` | Copy the saved assembly with all loaded prototypes as a ZIP package or as a renamed clone folder | `path, format: zip/clone, prefix? (clone), activate=false` | file |
 | `nx_export_model` | Export the work part or bodies to a neutral format; the file is read back (schema, units, solids). STEP always sets its schema explicitly (AP214 for `step`, AP242 for `step_ap242`, which needs its own license); DXF/DWG carry 3D model data (drawing sheets: `nx_export_drawing`) | `path, format?: step/step_ap242/stl/iges/parasolid/jt/dxf/dwg (default from the suffix, never step_ap242), bodies?, options?` (STL only) | file |
 | `nx_import_model` | Import a CAD file into the work part, a new part or a sketch | `path, format?: step/iges/parasolid/stl/dxf_dwg/catia_v5 (default from the suffix, never catia_v5), target: work_part/new_part/sketch, new_part_path?, sketch?, flatten=true, options?` | model |
@@ -494,7 +498,7 @@ Features are listed with `nx_list_objects(kind=feature)` (3.9).
 | Tool | Purpose | Key arguments | Effect |
 |---|---|---|---|
 | `nx_get_feature` | Type, timestamp, state, parents/children, parameters with expressions, units and editability; a blend or chamfer adds the edges it acts on (`edges`, `edge_count`) | `feature` | read |
-| `nx_edit_feature` | Set feature parameters by expression name or semantic alias (`distance`, `count`, `spacing`); a value may be a number, a formula or another expression name (binding); `definition` replaces non-expression definitions (transform, spline points, sheet-metal parameters) | `feature, parameters?: {name: number/formula}[1..25], definition?` | model |
+| `nx_edit_feature` | Set feature parameters by expression name or semantic alias (`distance`, `count`, `spacing`; a tube's `outer_diameter`, `inner_diameter`); a value may be a number, a formula or another expression name (binding); `definition` replaces non-expression definitions (transform, spline points, sheet-metal parameters) | `feature, parameters?: {name: number/formula}[1..25], definition?` | model |
 | `nx_set_feature_suppression` | Suppress or unsuppress features (dependents follow) | `features[1..100], suppressed` | model |
 | `nx_set_current_feature` | Roll the timeline to a feature, or to the end when omitted | `feature?` | model |
 | `nx_set_feature_order` | Move a feature before or after another | `feature, anchor, position: before/after` | model |
@@ -538,7 +542,7 @@ Note: dimensional constraints (distance, length, radius, diameter, angle) are
 |---|---|---|---|
 | `nx_create_extrude` | Extrude a sketch | `sketch, end: Limit, start?: Limit (distance 0), symmetric=false, direction?: Direction, combine?: Combine` | model |
 | `nx_create_revolve` | Revolve a sketch about an axis | `sketch, axis: Axis, start_angle=0, end_angle=360, combine?` | model |
-| `nx_create_sweep` | Sweep a section sketch along a guide sketch | `section, guide, combine?` | model |
+| `nx_create_sweep` | Sweep a closed section sketch along a tangent-continuous (G1) guide sketch; a body whose faces cut each other (self-intersecting) fails `NX_BUILD_FAILED` and is rolled back, as for `nx_create_tube`, `nx_create_sweep_along_guide` and `nx_create_variational_sweep` | `section, guide, combine?` | model |
 | `nx_create_loft` | Through-curves loft through ordered sketches, or swept along guides | `sections: sketch[2..20], solid=true, start_points?: Point3[2..20], guides?: Ref[1..3], tangent?: faces/normal, combine?` | model |
 | `nx_create_hole` | NX Hole feature: simple, counterbore, countersink, threaded; 1-100 positions on a planar face | `face, positions: Point3[1..100], form, diameter, depth: Limit, tip_angle=118, counterbore?{diameter,depth}, countersink?{diameter,angle}, thread?{standard,size,depth}, target?` | model |
 | `nx_create_thread` | Thread on a cylindrical face (or one per face of `faces`), from a catalogue row or explicit geometry. An internal thread on a bore at or above the major diameter (a clearance hole) is refused `NX_WRONG_GEOMETRY` with the tap drill and the hole feature to edit (`details.tap_drill`, `seed_feature`); an external one on a shaft at or below the minor diameter too | `face \| faces[1..50], start_face? (default the face's only planar end), length?: Length/"full" (default: the whole face, following it), spec: {standard, size, method?, engagement?}` or `{pitch, major_diameter, minor_diameter, angle=60, starts=1}`, `detailed=false, hand: right/left, reverse=false` | model |
@@ -604,11 +608,11 @@ Note: components are removed with `nx_delete_objects`.
 |---|---|---|---|
 | `nx_list_objects` | One inventory for work-part objects: filter, then page. Rows: reference, name, type, state and a kind-specific summary. A component owner (of the work assembly) lists the bodies, faces and edges of its occurrence bodies, or its part's features (with an `NX_NOTE`: they live in that part) | `kind: body/face/edge/datum/feature/expression/sketch/drawing_sheet/drawing_view/dimension/annotation/drawing_table/reference_set/explosion/component_pattern/assembly_constraint/section_view, owner?: Ref (body, face, feature, component), name_contains?, type?, include?: adjacency/views, Page` | read |
 | `nx_get_model_summary` | Counts, bounds, health and a short tree of features, expressions, sketches or components | `section: overview/components/features/expressions/sketches, Page` | read |
-| `nx_check_model` | Feature errors and warnings, suppression, unloaded prototypes, body consistency, unsolved assembly constraints. Issue `kind`s: `feature_diagnostic`, `suppressed_feature`, `unloaded_component`, `suppressed_component`, `assembly_constraint` (solver `status` and `components`; CannotSolve (e.g. after a prototype edit consumed its edge), OverConstrained, Inconsistent or Conflicting is an error, any other unsolved status a warning), `body_consistency`, `internal_void`. No model update is run | `scope: part/assembly, Page` | read |
+| `nx_check_model` | Feature errors and warnings, suppression, unloaded prototypes, body consistency, unsolved assembly constraints. Issue `kind`s: `feature_diagnostic`, `suppressed_feature`, `unloaded_component`, `suppressed_component`, `assembly_constraint` (solver `status` and `components`; CannotSolve (e.g. after a prototype edit consumed its edge), OverConstrained, Inconsistent or Conflicting is an error, any other unsolved status a warning), `body_consistency`, `internal_void`, `self_intersection` (an error naming up to 10 faces that cut other faces of the body; the first 50 solids are examined, an `info` row counts the rest). No model update is run | `scope: part/assembly, Page` | read |
 | `nx_find_geometry` | Faces, edges or bodies by type, normal, radius, role, nearest point or extreme; returns refs and a reusable selector. `kind=body` takes no type, normal, radius or role filter and returns each body's `min`/`max` box. A drawing-view owner is refused with a hint to `nx_list_view_edges`. `parallel` keeps line edges along an axis (either sense) or parallel to a principal plane (`"z"`: a block's vertical edges; `"xy"`: across z), within `tolerance`; `axis` only orders | `owner?: body/feature/component, kind: face/edge/body, geometry_type: any/plane/cylinder/cone/circle/line, normal?, radius?, role?: bore/boss, near?: Point3, order: nearest/highest/lowest, axis: x/y/z, parallel?: x/y/z/xy/yz/xz, tolerance?, Page` | read |
 | `nx_find_holes` | Inward cylindrical faces grouped coaxially, with radius and axis | `owner?, diameter?, through?, Page` | read |
 | `nx_create_anchor` | Persistent handle for a body, face or edge that survives edits and save/reopen | `object` | read |
-| `nx_resolve_reference` | Current reference from a selector or anchor; unique match or explicit error | `selector?` or `anchor?`, `tie_tolerance?` | read |
+| `nx_resolve_reference` | Current reference from a selector or anchor; unique match or explicit error. It acts in the part the anchor or selector names (its ref, anchor, `part` path or `owner`; an occurrence: its assembly), so two loaded parts need no `part` | `selector?` or `anchor?`, `tie_tolerance?` | read |
 | `nx_measure_distance` | Minimum distance and closest points between two objects | `first, second` | read |
 | `nx_measure_angle` | Angle between lines, straight edges or planar faces | `first, second, units: deg/rad` | read |
 | `nx_measure_mass` | Volume, area, mass, centre of gravity, inertia | `bodies?, scope: auto/part/assembly` | read |
@@ -646,7 +650,7 @@ While an explosion is shown in the work view, the `nx_measure_*` tools, `nx_find
 | `nx_edit_drawing_table` | Edit rows, widths, columns, title-block cells or update mode, or move the table; `kind` defaults to the table's | `table, kind?, rows?, widths?, row_height?, position?, columns?: [{action: edit/append/remove, index?, title?, width?, field?, key?, protected?}], bend_columns?, automatic?, cells?` | model |
 | `nx_get_drawing_table` | Evaluated rows and columns | `table` | read |
 | `nx_create_balloons` | Parts-list balloons in a view | `parts_list, view` | model |
-| `nx_export_drawing` | Export sheets to PDF (all or the given sheets) or DXF/DWG (one sheet); out-of-date views are updated first and listed in `updated_views`; the part is not saved | `path, format?: pdf/dxf/dwg (default from the suffix), sheets?` | file |
+| `nx_export_drawing` | Export sheets to PDF or CGM (all or the given sheets) or DXF/DWG (one sheet); out-of-date views are updated first and listed in `updated_views`; the part is not saved | `path, format?: pdf/cgm/dxf/dwg (default from the suffix), sheets?` | file |
 
 Notes: a dimension is rebound with `nx_edit_dimension`, drawing and bend tables are
 edited with `nx_edit_drawing_table`, and annotations are deleted with
@@ -693,65 +697,96 @@ Note: section views are edited with `nx_edit_section_view` and deleted with
 
 ### 3.13 Count
 
-The catalogue (`nx_mcp.core.catalogue`) has 205 tools; the 4 gateway tools of 2.1 are
+The catalogue (`nx_mcp.core.catalogue`) has 261 tools; the 4 gateway tools of 2.1 are
 served by the sidecar outside it.
 
 | Domain | Tools |
 |---|---|
-| assembly | 29 |
-| display | 11 |
-| drawing | 23 |
-| freeform | 18 |
-| inspection | 23 |
-| modeling | 43 |
+| assembly | 36 |
+| display | 17 |
+| drawing | 28 |
+| freeform | 33 |
+| inspection | 24 |
+| modeling | 59 |
 | motion | 1 |
-| optimization | 6 |
-| parts_files | 18 |
+| optimization | 7 |
+| parts_files | 21 |
 | session | 16 |
-| sheet_metal | 6 |
+| sheet_metal | 8 |
 | sketch | 11 |
-| **Total** | **205** |
+| **Total** | **261** |
 
-Effects of the 205: 123 model, 49 read, 16 file, 9 session, 8 view.
+Effects of the 261: 170 model, 56 read, 17 file, 9 session, 9 view.
 
 Added after the design and listed only in the [tool reference](../tools.md), by domain:
 
 - **parts_files:** `nx_get_attributes`, `nx_set_attributes`; part families
   `nx_create_part_family` (members written from the saved template) and
-  `nx_get_part_family`.
+  `nx_get_part_family`; Knowledge Fusion `nx_get_kf_rules`, `nx_set_kf_rule` (a child
+  instance of a KF class, or a typed formula rule) and `nx_update_kf_rules`.
 - **modeling:** `nx_create_emboss_body`, `nx_create_helix`, `nx_create_primitive` (block,
   cylinder, cone or sphere solid; a block combines with one target body), `nx_create_rib`,
-  `nx_create_tube`, `nx_create_face_blend` (rolling ball between two face sets),
+  `nx_create_tube` (a self-intersecting tube is refused and rolled back),
+  `nx_create_face_blend` (rolling ball between two face sets),
   `nx_create_wrap_geometry` (convex envelope), `nx_create_text` (text outline curves),
-  `nx_edit_face_relation` (make a face coplanar, coaxial, parallel, perpendicular, tangent
-  or symmetric to another), `nx_export_expressions`, `nx_import_expressions`,
-  `nx_list_materials`.
+  `nx_export_expressions`, `nx_import_expressions`, `nx_list_materials`; sweeps
+  `nx_create_sweep_along_guide` (mitred corners of a polyline guide) and
+  `nx_create_variational_sweep` (a section sketched on its path); `nx_create_emboss` (a
+  sketch section as a pad or pocket on solid faces), `nx_create_offset_emboss` (a bead on a
+  sheet), `nx_create_draft_body` (two-sided draft about a parting plane),
+  `nx_create_blend_corner` (setback corner blend), `nx_create_measurement` (an associative
+  measure feature whose expression drives others); body repair `nx_create_patch_body`,
+  `nx_create_delete_body`, `nx_create_unsew`, `nx_create_untrim`; synchronous
+  `nx_edit_face_relation` (make a face coplanar, coaxial, parallel, perpendicular,
+  tangent, symmetric or offset to another), `nx_edit_face_region` (offset region, pull
+  face), `nx_edit_edges` (move or offset edges), `nx_create_face_copy` (copy or cut a face
+  set), `nx_create_face_paste`, `nx_create_face_label` (chamfer or group labels).
 - **freeform:** surfaces `nx_create_offset_surface`, `nx_create_n_sided_surface`,
   `nx_create_ruled`, `nx_create_sheet_extension`, `nx_create_law_extension`,
-  `nx_create_variable_offset`, `nx_create_swept_volume`; curves
+  `nx_create_variable_offset`, `nx_create_swept_volume`, `nx_create_bounded_plane`,
+  `nx_create_fill_hole`, `nx_create_midsurface`, `nx_create_refit_face`; curves
   `nx_create_section_curves` (plane, parallel stations, radial),
   `nx_create_intersection_curve`, `nx_create_projected_curve`,
-  `nx_create_combined_projection`, `nx_create_offset_curve`.
+  `nx_create_combined_projection`, `nx_create_offset_curve`, `nx_create_fit_curve`
+  (least squares, with the measured deviation), `nx_create_bridge_curve`,
+  `nx_create_joined_curve`, `nx_create_mirror_curve`, `nx_create_trim_curve` (trim or
+  divide), `nx_create_isoparametric_curves`, `nx_create_isocline_curves`,
+  `nx_create_curve_on_surface`, `nx_create_law_curve`, `nx_create_general_conic`; points
+  `nx_import_points` (a workspace x y z file).
 - **assembly:** `nx_create_component_mirror`, `nx_create_extract`, `nx_create_wave_link`,
   `nx_create_interpart_link` (work-part expressions linked to another part's),
   `nx_create_assembly_cut`; arrangements `nx_create_arrangement`, `nx_edit_arrangement`,
   `nx_set_arrangement_component` (pose and suppression in one arrangement),
   `nx_list_arrangements`; weight and centre of gravity `nx_set_component_mass`,
-  `nx_create_component_group`, `nx_list_component_groups`.
+  `nx_create_component_group`, `nx_list_component_groups`; stored clearance sets
+  `nx_create_clearance_set`, `nx_run_clearance_set`, `nx_list_clearance_sets`,
+  `nx_delete_clearance_set`; `nx_create_simplified_assembly` (one simplified solid);
+  deformable parts `nx_create_deformable_definition` and `nx_set_component_deformation`.
 - **inspection:** `nx_measure_section`, `nx_measure_section_inertia` (area, centroid,
   second moments and section moduli of a plane cut), `nx_check_face_continuity` (G1/G2
-  across shared edges), `nx_create_surface_analysis` (an NX display analysis to capture),
-  `nx_measure_assembly_mass`, `nx_export_mass_report`.
+  across shared edges), `nx_create_surface_analysis` (an NX display analysis to capture,
+  made in the displayed part only; `slope` and `distance` maps also return values),
+  `nx_measure_assembly_mass`, `nx_export_mass_report`, `nx_analyze_body_changes` (two
+  versions of a solid compared face by face).
 - **drawing:** `nx_list_view_edges` (the model edges a drawing view draws, with sheet
   coordinates), `nx_create_sheet_sketch` (2D curves on a sheet), `nx_create_hatch` (fills
-  a closed sheet region), `nx_set_view_sectioning` (which bodies a section view cuts).
+  a closed sheet region), `nx_set_view_sectioning` (which bodies a section view cuts),
+  `nx_create_sheet_symbol` (ID, library, target point, intersection or edge condition
+  symbols), `nx_set_sheet_borders` (border, zones, margins), `nx_create_part_family_table`,
+  `nx_set_view_settings` (edge and thread display of views), `nx_check_drawing_changes`
+  (compare with an earlier revision on disk).
+- **sheet_metal:** `nx_get_bend_list` and `nx_export_bend_list` (CSV).
+- **display:** visual (render) materials `nx_list_visual_materials`,
+  `nx_get_visual_material`, `nx_set_visual_material`; `nx_set_true_shading`; decals
+  `nx_create_decal` and `nx_delete_decal`.
 - **motion** (domain added after the design): `nx_run_motion_sweep`, an assembly
   range-of-motion and clearance sweep without the Motion solver.
 - **optimization** (domain added after the design, topology optimization):
   `nx_create_topology_study`, `nx_create_topology_condition`,
   `nx_create_topology_environment` (g-load, scenery bodies, connections),
   `nx_run_topology_study`, `nx_analyze_topology_study` (strength without lightening),
-  `nx_get_topology_study`.
+  `nx_get_topology_study`, `nx_set_topology_contour` (plot a solved study's result on its
+  body, or capture it with its legend).
 
 Biggest merges: sketch curves and constraints (32 → 11), inventories into
 `nx_list_objects` (15 → 1), drawing views (5 → 1), drawing dimensions (4 → 1),
